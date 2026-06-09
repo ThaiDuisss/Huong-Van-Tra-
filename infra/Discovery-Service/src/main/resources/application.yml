@@ -1,0 +1,13 @@
+
+spring:
+  application:
+    name: Discovery-Service
+server:
+  port: 8761
+
+eureka:
+  server:
+    wait-time-in-ms-when-sync-empty: 300000
+    eviction-interval-timer-in-ms: 5000
+
+
