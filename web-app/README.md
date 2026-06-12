@@ -1,0 +1,6 @@
+- App cần phân tích: POS chưa cần động đến customer-web
+- Framework: React + TypeScript + Vite
+- Package manager: pnpm
+- Authentication: Keycloak
+- Phần đang lỗi hoặc chưa hoàn thiện: chưa thử nên chưa biết lỗi hay không
+- Mong muốn sau khi phân tích: Viết cho tôi 1 plan cần những gì để có thể cho codex đọc được file figma và tạo các màn hình figma vào dự án cho tôi 

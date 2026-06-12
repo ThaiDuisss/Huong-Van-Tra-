@@ -1,0 +1,91 @@
+import { ChevronDown, User, X } from "lucide-react";
+import { useRef, useState } from "react";
+
+import { CustomerSearchDialog } from "../dialogs/CustomerSearchDialog";
+import type { SaleCustomer } from "../../types/sale.types";
+
+interface CustomerSelectorProps {
+  customers: SaleCustomer[];
+  selectedCustomer: SaleCustomer | null;
+  onSelect(customerId: string): void;
+  onClear(): void;
+}
+
+export function CustomerSelector({
+  customers,
+  selectedCustomer,
+  onSelect,
+  onClear
+}: CustomerSelectorProps) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  function closeDialog() {
+    setOpen(false);
+    window.requestAnimationFrame(() => {
+      triggerRef.current?.focus();
+    });
+  }
+
+  return (
+    <section className="relative grid gap-3 border-b border-pos-border pb-4">
+      <h2 className="text-xl font-bold text-pos-ink">
+        Khách hàng
+      </h2>
+      <div
+        className={`flex min-h-14 items-center gap-2 rounded-xl border px-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-hvt-green-700 ${
+          open
+            ? "border-hvt-green-800"
+            : "border-pos-border hover:border-hvt-green-400"
+        }`}
+      >
+        <button
+          ref={triggerRef}
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-neutral-100 text-neutral-500">
+            <User size={22} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <strong className="block truncate text-pos-ink">
+              {selectedCustomer?.name ?? "Chọn khách hàng"}
+            </strong>
+            <span className="text-sm text-neutral-500">
+              {selectedCustomer?.phone ??
+                "Tìm theo tên, SĐT hoặc mã KH"}
+            </span>
+          </div>
+        </button>
+
+        {selectedCustomer ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="grid size-9 shrink-0 place-items-center rounded-full text-pos-ink hover:bg-neutral-100"
+            aria-label="Bỏ chọn khách hàng"
+          >
+            <X size={22} aria-hidden="true" />
+          </button>
+        ) : (
+          <ChevronDown
+            className="shrink-0 text-pos-ink"
+            size={22}
+            aria-hidden="true"
+          />
+        )}
+      </div>
+
+      <CustomerSearchDialog
+        open={open}
+        customers={customers}
+        selectedCustomerId={selectedCustomer?.id ?? ""}
+        onSelect={onSelect}
+        onClose={closeDialog}
+      />
+    </section>
+  );
+}
