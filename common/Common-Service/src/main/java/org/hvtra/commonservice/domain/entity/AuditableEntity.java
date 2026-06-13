@@ -15,11 +15,7 @@ import java.util.UUID;
 @Data
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
-public class BaseEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false)
-    UUID id;
+public class AuditableEntity {
 
     @Nullable
     @CreatedBy
@@ -40,6 +36,9 @@ public class BaseEntity {
     @UpdateTimestamp
     Instant updateDate;
 
-    @Column(name = "is_deleted", nullable = false)
-    private Boolean isDeleted = false;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
+
 }

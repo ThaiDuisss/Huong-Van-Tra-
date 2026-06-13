@@ -1,9 +1,8 @@
-package org.hvtra.identityservice.exception;
+package org.hvtra.promotionservice.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.exception.BaseGlobalExceptionHandler;
 import org.springframework.web.bind.annotation.ControllerAdvice;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 
 
 @ControllerAdvice

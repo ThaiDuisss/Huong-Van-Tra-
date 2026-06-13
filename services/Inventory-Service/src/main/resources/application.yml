@@ -1,13 +1,13 @@
 spring:
   application:
-    name: Catalog-Service
+    name: Inventory-Service
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
 
 server:
-  port: 8082
+  port: 8084
 
 eureka:
   client:

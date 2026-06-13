@@ -1,4 +1,7 @@
 package org.hvtra.commonservice.exception;
 
-public record ErrorResponse() {
+public record ErrorResponse(String code,
+                            String message,
+                            int status
+                            ) {
 }

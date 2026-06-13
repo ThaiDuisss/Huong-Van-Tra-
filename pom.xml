@@ -20,6 +20,9 @@
         <postgresql.version>42.7.7</postgresql.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <springdoc.version>2.8.9</springdoc.version>
+        <mysql.version>8.0.33</mysql.version>
+        <common.version>0.0.1-SNAPSHOT</common.version>
+
     </properties>
 
     <modules>
@@ -35,6 +38,7 @@
         <module>services/Promotion-Service</module>
         <module>services/Order-Service</module>
         <module>services/Payment-Service</module>
+        <module>services/Organization-Service</module>
         <module>common/Common-Service</module>
 
 
@@ -81,6 +85,17 @@
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
+                <version>${mysql.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.HVTra</groupId>
+                <artifactId>Common-Service</artifactId>
+                <version>${common.version}</version>
             </dependency>
 
         </dependencies>
