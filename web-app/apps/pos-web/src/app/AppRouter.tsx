@@ -1,8 +1,10 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { NotFoundPage } from "./NotFoundPage";
+import { SystemShell } from "../components/layout/System/SystemShell";
+import { BomListPage } from "../features/manufacturing/pages/BomListPage";
+import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
 import { routePaths } from "../routes/path";
-import { SystemPlaceholderPage } from "../features/manufacturing/pages/SystemPlaceholderPage";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 
 export function AppRouter() {
@@ -25,33 +27,26 @@ export function AppRouter() {
 
             <Route
                 path={routePaths.system}
-                element={
-                    <Navigate
-                        to={routePaths.bomList}
-                        replace
-                    />
-                }
-            />
-
-            <Route
-                path={routePaths.bomList}
-                element={
-                    <SystemPlaceholderPage
-                        title="Danh sách BOM"
-                        description="Màn BOM sẽ được triển khai ở task riêng."
-                    />
-                }
-            />
-
-            <Route
-                path={routePaths.productionOrders}
-                element={
-                    <SystemPlaceholderPage
-                        title="Lệnh sản xuất"
-                        description="Màn lệnh sản xuất sẽ được triển khai ở task riêng."
-                    />
-                }
-            />
+                element={<SystemShell />}
+            >
+                <Route
+                    index
+                    element={
+                        <Navigate
+                            to={routePaths.bomList}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="manufacturing/boms"
+                    element={<BomListPage />}
+                />
+                <Route
+                    path="manufacturing/production-orders"
+                    element={<ProductionOrderListPage />}
+                />
+            </Route>
 
             <Route
                 path="*"
