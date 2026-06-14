@@ -1,4 +1,4 @@
-package org.hvtra.orderservice.domain.DTO.request;
+package org.hvtra.orderservice.DTO.request;
 
 import lombok.Data;
 

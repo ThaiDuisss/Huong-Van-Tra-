@@ -1,14 +1,17 @@
-package org.hvtra.orderservice.domain.service.impl;
+package org.hvtra.orderservice.service.impl;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.exception.ResourceNotFoundException;
-import org.hvtra.orderservice.domain.DTO.request.*;
-import org.hvtra.orderservice.domain.DTO.response.*;
+import org.hvtra.orderservice.DTO.request.CreateOrderRequest;
+import org.hvtra.orderservice.DTO.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.DTO.response.OrderItemResponse;
+import org.hvtra.orderservice.DTO.response.OrderPaymentInfoResponse;
+import org.hvtra.orderservice.DTO.response.OrderResponse;
 import org.hvtra.orderservice.domain.entity.*;
-import org.hvtra.orderservice.domain.repository.*;
-import org.hvtra.orderservice.domain.service.OrderService;
+import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.exception.*;
+import org.hvtra.orderservice.repository.OrderRepository;
+import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
