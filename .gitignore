@@ -1,14 +1,14 @@
+### Maven ###
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+
+### Kotlin ###
 .kotlin
 
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+**/.idea/
 *.iws
 *.iml
 *.ipr
@@ -28,6 +28,8 @@ target/
 /dist/
 /nbdist/
 /.nb-gradle/
+
+### Gradle ###
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
@@ -35,6 +37,12 @@ build/
 ### VS Code ###
 .vscode/
 
+### Environment ###
+.env
+*.env
+
+### Logs ###
+*.log
+
 ### Mac OS ###
 .DS_Store
-*.env
