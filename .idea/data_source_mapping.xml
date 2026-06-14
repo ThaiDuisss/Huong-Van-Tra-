@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/services/Order-Service/src/main/resources/db/migration/V1__init_order_service.sql" value="21186682-01d6-443d-96b7-4995704fc684" />
+  </component>
+</project>
