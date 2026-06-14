@@ -1,4 +1,4 @@
-package org.hvtra.orderservice.domain.DTO.response;
+package org.hvtra.orderservice.DTO.response;
 
 import lombok.Builder;
 import lombok.Data;

@@ -1,4 +1,4 @@
-package org.hvtra.orderservice.domain.repository;
+package org.hvtra.orderservice.repository;
 
 import org.hvtra.orderservice.domain.entity.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
