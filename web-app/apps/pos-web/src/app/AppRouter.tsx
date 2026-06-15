@@ -4,6 +4,11 @@ import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
 import { BomListPage } from "../features/manufacturing/pages/BomListPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
+import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
+import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
+import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
+import { StockAdjustmentPage } from "../features/inventory/pages/StockAdjustmentPage";
+import { StockInPage } from "../features/inventory/pages/StockInPage";
 import { CategoryListPage } from "../features/product/pages/CategoryListPage";
 import { PriceListDetailPage } from "../features/product/pages/PriceListDetailPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
@@ -76,6 +81,26 @@ export function AppRouter() {
                 <Route
                     path="price-lists/:id"
                     element={<PriceListDetailPage />}
+                />
+                <Route
+                    path="inventory/locations"
+                    element={<InventoryLocationPage />}
+                />
+                <Route
+                    path="inventory/balances"
+                    element={<InventoryBalancePage />}
+                />
+                <Route
+                    path="inventory/stock-in"
+                    element={<StockInPage />}
+                />
+                <Route
+                    path="inventory/adjustment"
+                    element={<StockAdjustmentPage />}
+                />
+                <Route
+                    path="inventory/transactions"
+                    element={<InventoryTransactionPage />}
                 />
                 <Route
                     path="manufacturing/boms"
