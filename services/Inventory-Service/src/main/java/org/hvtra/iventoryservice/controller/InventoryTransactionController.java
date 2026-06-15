@@ -27,16 +27,17 @@ public class InventoryTransactionController {
 
     @GetMapping
     public PageResponse<InventoryTransactionResponse> findAll(
-            @RequestParam(required = false) String transactionCode,
-            @RequestParam(required = false) InventoryTransactionType type,
-            @RequestParam(required = false)
+            @RequestParam(name = "transactionCode", required = false) String transactionCode,
+            @RequestParam(name = "type", required = false) InventoryTransactionType type,
+            @RequestParam(name = "fromDate", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
-            @RequestParam(required = false)
+            @RequestParam(name = "toDate", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate,
-            @RequestParam(required = false) Long createdBy,
-            @RequestParam(required = false) Long branchId,
-            @RequestParam(required = false) InventoryReferenceType referenceType,
-            @RequestParam(required = false) Long referenceId,
+            @RequestParam(name = "createdBy", required = false) Long createdBy,
+            @RequestParam(name = "branchId", required = false) Long branchId,
+            @RequestParam(name = "referenceType", required = false)
+            InventoryReferenceType referenceType,
+            @RequestParam(name = "referenceId", required = false) Long referenceId,
             @PageableDefault(size = 20, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
             Pageable pageable) {
         return service.findAll(
@@ -52,7 +53,7 @@ public class InventoryTransactionController {
     }
 
     @GetMapping("/{id}")
-    public InventoryTransactionResponse findById(@PathVariable Long id) {
+    public InventoryTransactionResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 

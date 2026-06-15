@@ -4,7 +4,10 @@ import {
     Calculator,
     ClipboardList,
     FileText,
+    FolderTree,
+    Layers3,
     Package,
+    Tags,
     Settings,
     ShoppingCart,
     Truck,
@@ -35,7 +38,29 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     },
     {
         label: "Hàng hóa",
-        icon: Package
+        icon: Package,
+        children: [
+            {
+                label: "Categories",
+                to: routePaths.categories,
+                icon: FolderTree
+            },
+            {
+                label: "Products",
+                to: routePaths.products,
+                icon: Package
+            },
+            {
+                label: "Product Variants",
+                to: routePaths.productVariants,
+                icon: Layers3
+            },
+            {
+                label: "Price Lists",
+                to: routePaths.priceLists,
+                icon: Tags
+            }
+        ]
     },
     {
         label: "BOM & Sản xuất",
@@ -53,6 +78,23 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 icon: ClipboardList
             }
         ]
+    },
+    {
+        label: "Manufacturing",
+        icon: ClipboardList,
+        children: [
+            {
+                label: "BOM",
+                to: routePaths.bomList,
+                icon: Package
+            },
+            {
+                label: "Lệnh sản xuất",
+                to: routePaths.productionOrders,
+                icon: ClipboardList
+            }
+        ]
+,
     },
     {
         label: "Mua hàng",

@@ -23,14 +23,14 @@ public class IngredientController {
 
     @GetMapping
     public PageResponse<IngredientResponse> findAll(
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Status status,
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.findAll(search, status, pageable);
     }
 
     @GetMapping("/{id}")
-    public IngredientResponse findById(@PathVariable Long id) {
+    public IngredientResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 
@@ -42,13 +42,13 @@ public class IngredientController {
 
     @PutMapping("/{id}")
     public IngredientResponse update(
-            @PathVariable Long id, @Valid @RequestBody IngredientRequest request) {
+            @PathVariable("id") Long id, @Valid @RequestBody IngredientRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public IngredientResponse updateStatus(
-            @PathVariable Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

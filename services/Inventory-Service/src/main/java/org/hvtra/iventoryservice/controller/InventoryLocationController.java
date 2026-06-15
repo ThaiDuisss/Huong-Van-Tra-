@@ -24,15 +24,15 @@ public class InventoryLocationController {
 
     @GetMapping
     public PageResponse<InventoryLocationResponse> findAll(
-            @RequestParam(required = false) Long branchId,
-            @RequestParam(required = false) InventoryLocationType type,
-            @RequestParam(required = false) InventoryStatus status,
+            @RequestParam(name = "branchId", required = false) Long branchId,
+            @RequestParam(name = "type", required = false) InventoryLocationType type,
+            @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "code") Pageable pageable) {
         return service.findAll(branchId, type, status, pageable);
     }
 
     @GetMapping("/{id}")
-    public InventoryLocationResponse findById(@PathVariable Long id) {
+    public InventoryLocationResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 
@@ -45,13 +45,13 @@ public class InventoryLocationController {
 
     @PutMapping("/{id}")
     public InventoryLocationResponse update(
-            @PathVariable Long id, @Valid @RequestBody InventoryLocationRequest request) {
+            @PathVariable("id") Long id, @Valid @RequestBody InventoryLocationRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public InventoryLocationResponse updateStatus(
-            @PathVariable Long id, @Valid @RequestBody InventoryStatusRequest request) {
+            @PathVariable("id") Long id, @Valid @RequestBody InventoryStatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

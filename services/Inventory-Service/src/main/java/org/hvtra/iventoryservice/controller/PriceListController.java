@@ -26,16 +26,16 @@ public class PriceListController {
 
     @GetMapping
     public PageResponse<PriceListResponse> findAll(
-            @RequestParam(required = false) Long branchId,
-            @RequestParam(required = false) Status status,
-            @RequestParam(required = false)
+            @RequestParam(name = "branchId", required = false) Long branchId,
+            @RequestParam(name = "status", required = false) Status status,
+            @RequestParam(name = "effectiveAt", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime effectiveAt,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.findAll(branchId, status, effectiveAt, pageable);
     }
 
     @GetMapping("/{id}")
-    public PriceListResponse findById(@PathVariable Long id) {
+    public PriceListResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 
@@ -47,13 +47,13 @@ public class PriceListController {
 
     @PutMapping("/{id}")
     public PriceListResponse update(
-            @PathVariable Long id, @Valid @RequestBody PriceListRequest request) {
+            @PathVariable("id") Long id, @Valid @RequestBody PriceListRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public PriceListResponse updateStatus(
-            @PathVariable Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }
