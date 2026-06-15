@@ -68,23 +68,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         ]
     },
     {
-        label: "BOM & Sản xuất",
-        icon: ClipboardList,
-        badge: "3",
-        children: [
-            {
-                label: "Danh sách BOM",
-                to: routePaths.bomList,
-                icon: Package
-            },
-            {
-                label: "Lệnh sản xuất",
-                to: routePaths.productionOrders,
-                icon: ClipboardList
-            }
-        ]
-    },
-    {
         label: "Quản lý tồn kho",
         icon: Warehouse,
         children: [
@@ -112,6 +95,23 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 label: "Lịch sử biến động",
                 to: routePaths.inventoryTransactions,
                 icon: History
+            }
+        ]
+    },
+    {
+        label: "BOM & Sản xuất",
+        icon: ClipboardList,
+        badge: "3",
+        children: [
+            {
+                label: "Danh sách BOM",
+                to: routePaths.bomList,
+                icon: Package
+            },
+            {
+                label: "Lệnh sản xuất",
+                to: routePaths.productionOrders,
+                icon: ClipboardList
             }
         ]
     },
