@@ -13,7 +13,7 @@ export interface ProductQuery extends CatalogQuery {
 
 export const productApi = {
     list(query: ProductQuery = {}) {
-        return apiClient.get<PageResult<ProductSummary>>("/inventory/products", {
+        return apiClient.get<PageResult<ProductSummary>>("/catalog/products", {
             query: {
                 page: query.page,
                 size: query.size,
@@ -25,18 +25,18 @@ export const productApi = {
     },
     detail(id: string) {
         return apiClient.get<Product>(
-            `/inventory/products/${encodeURIComponent(id)}`
+            `/catalog/products/${encodeURIComponent(id)}`
         );
     },
     create(input: ProductInput) {
         return apiClient.post<Product, ProductInput>(
-            "/inventory/products",
+            "/catalog/products",
             input
         );
     },
     update(id: string, input: ProductInput) {
         return apiClient.put<Product, ProductInput>(
-            `/inventory/products/${encodeURIComponent(id)}`,
+            `/catalog/products/${encodeURIComponent(id)}`,
             input
         );
     },
@@ -45,7 +45,7 @@ export const productApi = {
             ProductSummary,
             { status: ProductSummary["status"] }
         >(
-            `/inventory/products/${encodeURIComponent(id)}/status`,
+            `/catalog/products/${encodeURIComponent(id)}/status`,
             { status }
         );
     }

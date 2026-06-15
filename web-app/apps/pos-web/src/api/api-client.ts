@@ -26,7 +26,7 @@ export const apiClient = createApiClient({
 
     timeoutMs: 15_000,
 
-    tokenProvider,
+    // tokenProvider,
 
     defaultHeaders: {
         "X-Client-Type": "POS_WEB"

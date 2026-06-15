@@ -12,6 +12,7 @@ import { useApiResource, usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { productApi } from "../services/product.api";
 import { productVariantApi } from "../services/productVariant.api";
+import { unitApi } from "../services/unit.api";
 import type {
     CatalogStatus,
     InventoryPolicy,
@@ -57,8 +58,11 @@ export function ProductVariantListPage() {
     );
     const resource = usePagedApiResource(loadVariants);
     const productResource = useApiResource(loadProducts);
+    const loadUnits = useCallback(() => unitApi.list(), []);
+    const unitResource = useApiResource(loadUnits);
     const variants = resource.data?.content ?? [];
     const products = productResource.data?.content ?? [];
+    const units = unitResource.data ?? [];
 
     async function submit(
         values: FormValues,
@@ -70,6 +74,7 @@ export function ProductVariantListPage() {
             variantName: getString(values, "variantName"),
             sellingPrice: getNumber(values, "sellingPrice"),
             costPrice: getNumber(values, "costPrice"),
+            baseUnitId: getNumber(values, "baseUnitId"),
             inventoryPolicy: getString(
                 values,
                 "inventoryPolicy"
@@ -117,6 +122,7 @@ export function ProductVariantListPage() {
                 variantName: item.variantName,
                 sellingPrice: String(item.sellingPrice),
                 costPrice: String(item.costPrice),
+                baseUnitId: String(item.baseUnitId),
                 inventoryPolicy: item.inventoryPolicy,
                 status: item.status
             })}
@@ -225,6 +231,18 @@ export function ProductVariantListPage() {
                     label: "Giá vốn",
                     type: "number",
                     required: true
+                },
+                {
+                    name: "baseUnitId",
+                    label: "Đơn vị cơ sở",
+                    type: "select",
+                    required: true,
+                    options: units
+                        .filter((unit) => unit.status === "ACTIVE")
+                        .map((unit) => ({
+                            label: `${unit.name} (${unit.symbol})`,
+                            value: String(unit.id)
+                        }))
                 },
                 {
                     name: "inventoryPolicy",

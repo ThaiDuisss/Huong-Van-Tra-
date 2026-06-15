@@ -62,6 +62,14 @@ export interface ProductInput {
 
 export type InventoryPolicy = "TRACK_STOCK" | "DO_NOT_TRACK";
 
+export interface Unit {
+    id: EntityId;
+    name: string;
+    symbol: string;
+    precisionScale: number;
+    status: CatalogStatus;
+}
+
 export interface ProductVariant {
     id: EntityId;
     productId: EntityId;
@@ -70,6 +78,7 @@ export interface ProductVariant {
     variantName: string;
     sellingPrice: number;
     costPrice: number;
+    baseUnitId: EntityId;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
     productStatus: CatalogStatus;
@@ -82,6 +91,7 @@ export interface ProductVariantInput {
     variantName: string;
     sellingPrice: number;
     costPrice: number;
+    baseUnitId: EntityId;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
 }
