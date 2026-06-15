@@ -14,16 +14,16 @@ export function PageHeader({
     search
 }: PageHeaderProps) {
     return (
-        <header className="flex flex-wrap items-start justify-between gap-4">
+        <header className="flex flex-col items-stretch justify-between gap-4 xl:flex-row xl:items-start">
             <div className="grid gap-1">
-                <h1 className="text-3xl font-bold text-pos-ink">
+                <h1 className="text-2xl font-bold text-black-600 sm:text-3xl">
                     {title}
                 </h1>
-                <p className="text-sm text-pos-muted">
+                <p className="text-sm text-gray-500">
                     {description}
                 </p>
             </div>
-            <div className="flex min-w-[520px] flex-1 justify-end gap-3">
+            <div className="flex min-w-0 flex-1 flex-wrap justify-start gap-3 xl:justify-end">
                 {search}
                 {actions}
             </div>

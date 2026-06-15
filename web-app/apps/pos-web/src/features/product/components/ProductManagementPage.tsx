@@ -192,42 +192,47 @@ export function ProductManagementPage<T extends RowBase>({
                 }
             />
 
-            <div className="grid min-h-[650px] grid-cols-[250px_minmax(0,1fr)_340px] gap-4">
-                <FilterPanel>
-                    <SelectField
-                        label="Trạng thái"
-                        value={status}
-                        options={[
-                            { label: "Tất cả", value: "ALL" },
-                            { label: "Đang hoạt động", value: "ACTIVE" },
-                            { label: "Ngừng hoạt động", value: "INACTIVE" }
-                        ]}
-                        onChange={(value) =>
-                            onStatusChange(
-                                value as "ALL" | CatalogStatus
-                            )
-                        }
-                    />
-                    {secondaryFilter ? (
+            <div className="grid min-h-[650px] grid-cols-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)] min-[1800px]:grid-cols-[250px_minmax(0,1fr)_340px]">
+                <div className="min-w-0">
+                    <FilterPanel>
                         <SelectField
-                            label={secondaryFilter.label}
-                            value={secondaryFilter.value}
+                            label="Trạng thái"
+                            value={status}
                             options={[
                                 { label: "Tất cả", value: "ALL" },
-                                ...secondaryFilter.options
+                                { label: "Đang hoạt động", value: "ACTIVE" },
+                                {
+                                    label: "Ngừng hoạt động",
+                                    value: "INACTIVE"
+                                }
                             ]}
-                            onChange={secondaryFilter.onChange}
+                            onChange={(value) =>
+                                onStatusChange(
+                                    value as "ALL" | CatalogStatus
+                                )
+                            }
                         />
-                    ) : null}
-                    <button
-                        type="button"
-                        onClick={onRefresh}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold text-pos-ink"
-                    >
-                        <RefreshCw size={15} aria-hidden="true" />
-                        Tải lại dữ liệu
-                    </button>
-                </FilterPanel>
+                        {secondaryFilter ? (
+                            <SelectField
+                                label={secondaryFilter.label}
+                                value={secondaryFilter.value}
+                                options={[
+                                    { label: "Tất cả", value: "ALL" },
+                                    ...secondaryFilter.options
+                                ]}
+                                onChange={secondaryFilter.onChange}
+                            />
+                        ) : null}
+                        <button
+                            type="button"
+                            onClick={onRefresh}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold text-gray-600"
+                        >
+                            <RefreshCw size={15} aria-hidden="true" />
+                            Tải lại dữ liệu
+                        </button>
+                    </FilterPanel>
+                </div>
 
                 <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
                     {loading ? <ApiLoadingState /> : null}
@@ -256,7 +261,7 @@ export function ProductManagementPage<T extends RowBase>({
                     {!loading && !error && items.length > 0 ? (
                         <div className="overflow-x-auto">
                             <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                                <thead className="bg-neutral-50 text-xs font-bold text-pos-muted">
+                                <thead className="bg-neutral-50 text-xs font-bold text-gray-600">
                                     <tr>
                                         {columns.map((column) => (
                                             <th
@@ -352,18 +357,20 @@ export function ProductManagementPage<T extends RowBase>({
                     ) : null}
                 </section>
 
-                {selectedItem ? (
-                    <DetailPanel
-                        title={`Chi tiết ${title.toLowerCase()}`}
-                        onClose={() => setSelectedItem(null)}
-                    >
-                        {renderDetail(selectedItem)}
-                    </DetailPanel>
-                ) : (
-                    <aside className="grid place-items-center rounded-2xl border border-dashed border-pos-border p-6 text-center text-sm text-pos-muted">
-                        Chọn một dòng để xem thông tin chi tiết.
-                    </aside>
-                )}
+                <div className="hidden min-h-0 min-[1800px]:block [&>aside]:h-full">
+                    {selectedItem ? (
+                        <DetailPanel
+                            title={`Chi tiết ${title.toLowerCase()}`}
+                            onClose={() => setSelectedItem(null)}
+                        >
+                            {renderDetail(selectedItem)}
+                        </DetailPanel>
+                    ) : (
+                        <aside className="grid h-full place-items-center rounded-2xl border border-dashed border-pos-border p-6 text-center text-sm text-pos-muted">
+                            Chọn một dòng để xem thông tin chi tiết.
+                        </aside>
+                    )}
+                </div>
             </div>
 
             {showForm ? (
@@ -431,10 +438,10 @@ export function DetailList({
                     key={item.label}
                     className="border-b border-pos-border pb-3 last:border-0"
                 >
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-pos-muted">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-600">
                         {item.label}
                     </dt>
-                    <dd className="mt-1 font-semibold text-pos-ink">
+                    <dd className="mt-1 font-semibold text-gray-600">
                         {item.value}
                     </dd>
                 </div>
@@ -455,7 +462,7 @@ function SelectField({
     onChange(value: string): void;
 }) {
     return (
-        <label className="grid gap-2 text-sm font-bold text-pos-ink">
+        <label className="grid gap-2 text-sm font-bold text-gray-600">
             {label}
             <select
                 value={value}
@@ -532,7 +539,7 @@ function FormDialog({
                 className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-pos-panel"
             >
                 <header className="mb-5 flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-pos-ink">
+                    <h2 className="text-2xl font-bold text-gray-600">
                         {title}
                     </h2>
                     <button

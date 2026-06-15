@@ -35,7 +35,7 @@ export function ProductDetailPage() {
             <Breadcrumbs
                 items={["Product Management", "Sản phẩm", product.name]}
             />
-            <header className="flex items-start justify-between gap-4">
+            <header className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                     <Link
                         to={routePaths.products}
@@ -44,11 +44,11 @@ export function ProductDetailPage() {
                         <ArrowLeft size={16} />
                         Quay lại danh sách
                     </Link>
-                    <h1 className="text-3xl font-bold text-pos-ink">
+                    <h1 className="text-2xl font-bold text-pos-ink sm:text-3xl">
                         {product.name}
                     </h1>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <ActionButton>
                         <Pencil size={16} />
                         Sửa sản phẩm
@@ -67,7 +67,7 @@ export function ProductDetailPage() {
                 </div>
             </header>
 
-            <article className="grid grid-cols-[220px_minmax(0,1fr)] gap-6 rounded-2xl bg-white p-6 shadow-pos-card">
+            <article className="grid grid-cols-1 gap-6 rounded-2xl bg-white p-4 shadow-pos-card sm:p-6 lg:grid-cols-[220px_minmax(0,1fr)]">
                 {product.imageUrl ? (
                     <img
                         src={product.imageUrl}
@@ -100,36 +100,38 @@ export function ProductDetailPage() {
                         Danh sách biến thể ({product.variants.length})
                     </h2>
                 </header>
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-neutral-50 text-xs text-pos-muted">
-                        <tr>
-                            <th className="px-5 py-3">SKU</th>
-                            <th className="px-5 py-3">Tên biến thể</th>
-                            <th className="px-5 py-3">Giá bán</th>
-                            <th className="px-5 py-3">Trạng thái</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {product.variants.map((variant) => (
-                            <tr key={variant.id}>
-                                <td className="border-t border-pos-border px-5 py-4 font-bold">
-                                    {variant.sku}
-                                </td>
-                                <td className="border-t border-pos-border px-5 py-4">
-                                    {variant.variantName}
-                                </td>
-                                <td className="border-t border-pos-border px-5 py-4">
-                                    {formatCurrency(variant.sellingPrice)}
-                                </td>
-                                <td className="border-t border-pos-border px-5 py-4">
-                                    <CatalogStatusBadge
-                                        status={variant.status}
-                                    />
-                                </td>
+                <div className="overflow-x-auto">
+                    <table className="min-w-[640px] w-full text-left text-sm">
+                        <thead className="bg-neutral-50 text-xs text-pos-muted">
+                            <tr>
+                                <th className="px-5 py-3">SKU</th>
+                                <th className="px-5 py-3">Tên biến thể</th>
+                                <th className="px-5 py-3">Giá bán</th>
+                                <th className="px-5 py-3">Trạng thái</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {product.variants.map((variant) => (
+                                <tr key={variant.id}>
+                                    <td className="border-t border-pos-border px-5 py-4 font-bold">
+                                        {variant.sku}
+                                    </td>
+                                    <td className="border-t border-pos-border px-5 py-4">
+                                        {variant.variantName}
+                                    </td>
+                                    <td className="border-t border-pos-border px-5 py-4">
+                                        {formatCurrency(variant.sellingPrice)}
+                                    </td>
+                                    <td className="border-t border-pos-border px-5 py-4">
+                                        <CatalogStatusBadge
+                                            status={variant.status}
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
                 {product.variants.length === 0 ? (
                     <p className="p-8 text-center text-sm text-pos-muted">
                         Sản phẩm chưa có biến thể.

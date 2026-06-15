@@ -45,7 +45,7 @@ export function PriceListDetailPage() {
                     priceList.name
                 ]}
             />
-            <header className="flex items-start justify-between">
+            <header className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                     <Link
                         to={routePaths.priceLists}
@@ -54,7 +54,9 @@ export function PriceListDetailPage() {
                         <ArrowLeft size={16} />
                         Quay lại danh sách
                     </Link>
-                    <h1 className="text-3xl font-bold">{priceList.name}</h1>
+                    <h1 className="text-2xl font-bold sm:text-3xl">
+                        {priceList.name}
+                    </h1>
                 </div>
                 <ActionButton>
                     <Pencil size={16} />
@@ -62,7 +64,7 @@ export function PriceListDetailPage() {
                 </ActionButton>
             </header>
 
-            <article className="grid grid-cols-4 gap-4 rounded-2xl bg-white p-6 shadow-pos-card">
+            <article className="grid grid-cols-1 gap-4 rounded-2xl bg-white p-4 shadow-pos-card sm:grid-cols-2 sm:p-6 xl:grid-cols-4">
                 <Info
                     label="Chi nhánh"
                     value={`#${priceList.branchId}`}
@@ -87,34 +89,36 @@ export function PriceListDetailPage() {
                         Danh sách giá ({priceList.items.length})
                     </h2>
                 </header>
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-neutral-50 text-xs text-pos-muted">
-                        <tr>
-                            <th className="px-5 py-3">SKU</th>
-                            <th className="px-5 py-3">Sản phẩm</th>
-                            <th className="px-5 py-3">Biến thể</th>
-                            <th className="px-5 py-3">Giá bán</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {priceList.items.map((item) => (
-                            <tr key={item.id}>
-                                <td className="border-t border-pos-border px-5 py-4 font-bold">
-                                    {item.productVariant.sku}
-                                </td>
-                                <td className="border-t border-pos-border px-5 py-4">
-                                    {item.productVariant.productName}
-                                </td>
-                                <td className="border-t border-pos-border px-5 py-4">
-                                    {item.productVariant.variantName}
-                                </td>
-                                <td className="border-t border-pos-border px-5 py-4">
-                                    {formatCurrency(item.sellingPrice)}
-                                </td>
+                <div className="overflow-x-auto">
+                    <table className="min-w-[640px] w-full text-left text-sm">
+                        <thead className="bg-neutral-50 text-xs text-pos-muted">
+                            <tr>
+                                <th className="px-5 py-3">SKU</th>
+                                <th className="px-5 py-3">Sản phẩm</th>
+                                <th className="px-5 py-3">Biến thể</th>
+                                <th className="px-5 py-3">Giá bán</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {priceList.items.map((item) => (
+                                <tr key={item.id}>
+                                    <td className="border-t border-pos-border px-5 py-4 font-bold">
+                                        {item.productVariant.sku}
+                                    </td>
+                                    <td className="border-t border-pos-border px-5 py-4">
+                                        {item.productVariant.productName}
+                                    </td>
+                                    <td className="border-t border-pos-border px-5 py-4">
+                                        {item.productVariant.variantName}
+                                    </td>
+                                    <td className="border-t border-pos-border px-5 py-4">
+                                        {formatCurrency(item.sellingPrice)}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
                 {priceList.items.length === 0 ? (
                     <p className="p-8 text-center text-sm text-pos-muted">
                         Bảng giá chưa có sản phẩm.
