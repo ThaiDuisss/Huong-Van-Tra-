@@ -4,5 +4,6 @@ public enum InventoryLocationType {
     SHELF,
     COUNTER,
     STORAGE,
-    DAMAGED
+    DAMAGED,
+    WAREHOUSE
 }

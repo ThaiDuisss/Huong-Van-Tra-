@@ -163,7 +163,7 @@ export function ProductManagementPage<T extends RowBase>({
 
     return (
         <section className="grid gap-5">
-            <Breadcrumbs items={["Product Management", title]} />
+            <Breadcrumbs items={["Quản lý sản phẩm", title]} />
 
             <PageHeader
                 title={title}

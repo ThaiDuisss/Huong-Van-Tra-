@@ -177,7 +177,18 @@ export function InventoryTransactionForm({
                 <div className="overflow-x-auto rounded-2xl border border-pos-border">
                     <table className="min-w-[780px] w-full text-left text-sm">
                         <thead className="bg-neutral-50 text-xs text-gray-600"><tr><th className="px-4 py-3">Mã hàng tồn kho</th><th className="px-4 py-3">Mã tham chiếu</th><th className="px-4 py-3">Loại hàng hóa</th>{adjustment ? <th className="px-4 py-3">Tồn hiện tại</th> : null}<th className="px-4 py-3">{adjustment ? "Số lượng kiểm kê thực tế" : "Số lượng"}</th>{adjustment ? <th className="px-4 py-3">Chênh lệch</th> : null}<th className="px-4 py-3 text-right">Thao tác</th></tr></thead>
-                        <tbody>{lines.map((line) => { const difference = Number(line.quantity) - line.currentQuantity; return <tr key={line.item.id}><Cell>#{line.item.id}</Cell><Cell>#{line.item.referenceId}</Cell><Cell>{inventoryItemTypeLabels[line.item.itemType]}</Cell>{adjustment ? <Cell>{line.currentQuantity}</Cell> : null}<Cell><input type="number" min={adjustment ? 0 : 0.001} step="0.001" value={line.quantity} onChange={(event) => setLines((current) => current.map((item) => item.item.id === line.item.id ? { ...item, quantity: event.currentTarget.value } : item))} className="h-9 w-32 rounded-lg border border-pos-border px-2" /></Cell>{adjustment ? <Cell><strong className={difference < 0 ? "text-red-600" : difference > 0 ? "text-emerald-700" : "text-gray-600"}>{difference > 0 ? "+" : ""}{difference}</strong></Cell> : null}<Cell><button type="button" onClick={() => setLines((current) => current.filter((item) => item.item.id !== line.item.id))} className="ml-auto grid size-8 place-items-center rounded-lg text-red-600 hover:bg-red-50" aria-label="Xóa dòng"><Trash2 size={16} /></button></Cell></tr>; })}</tbody>
+                        <tbody>{lines.map((line) => {
+                            const difference = Number(line.quantity) - line.currentQuantity; return <tr key={line.item.id}><Cell>#{line.item.id}</Cell><Cell>#{line.item.referenceId}</Cell><Cell>{inventoryItemTypeLabels[line.item.itemType]}</Cell>{adjustment ? <Cell>{line.currentQuantity}</Cell> : null}<Cell><input type="number" min={adjustment ? 0 : 0.001} step="0.001" value={line.quantity} onChange={(event) => {
+                                const value = event.currentTarget.value;
+                                setLines((current) =>
+                                    current.map((item) =>
+                                        item.item.id === line.item.id
+                                            ? { ...item, quantity: value }
+                                            : item
+                                    )
+                                );
+                            }} className="h-9 w-32 rounded-lg border border-pos-border px-2" /></Cell>{adjustment ? <Cell><strong className={difference < 0 ? "text-red-600" : difference > 0 ? "text-emerald-700" : "text-gray-600"}>{difference > 0 ? "+" : ""}{difference}</strong></Cell> : null}<Cell><button type="button" onClick={() => setLines((current) => current.filter((item) => item.item.id !== line.item.id))} className="ml-auto grid size-8 place-items-center rounded-lg text-red-600 hover:bg-red-50" aria-label="Xóa dòng"><Trash2 size={16} /></button></Cell></tr>;
+                        })}</tbody>
                     </table>
                     {lines.length === 0 ? <p className="p-8 text-center text-sm text-gray-500">Chưa có hàng hóa trong danh sách.</p> : null}
                 </div>

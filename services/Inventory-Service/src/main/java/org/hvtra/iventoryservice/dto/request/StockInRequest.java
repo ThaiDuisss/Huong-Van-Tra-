@@ -9,7 +9,6 @@ import java.util.List;
 
 public record StockInRequest(
         @NotNull @Positive Long branchId,
-        @NotNull @Positive Long createdBy,
         @NotNull InventoryReferenceType referenceType,
         Long referenceId,
         @NotEmpty List<@Valid LineRequest> lines

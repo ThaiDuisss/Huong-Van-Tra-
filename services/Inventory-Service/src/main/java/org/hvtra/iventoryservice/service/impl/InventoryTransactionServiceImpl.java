@@ -60,7 +60,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         InventoryTransaction transaction = createTransaction(
                 InventoryTransactionType.STOCK_IN,
                 request.branchId(),
-                request.createdBy(),
+                Long.valueOf(1),  // fix cung user
                 request.referenceType(),
                 request.referenceId());
 
@@ -89,7 +89,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         InventoryTransaction transaction = createTransaction(
                 InventoryTransactionType.ADJUSTMENT,
                 request.branchId(),
-                request.createdBy(),
+                Long.valueOf(1),  // fix cung user
                 request.referenceType(),
                 request.referenceId());
 
