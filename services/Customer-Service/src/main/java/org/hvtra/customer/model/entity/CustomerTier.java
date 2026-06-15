@@ -2,10 +2,12 @@ package org.hvtra.customer.model.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.customer.model.enums.CustomerTierStatus;
 
 import java.math.BigDecimal;
 
@@ -13,7 +15,7 @@ import java.math.BigDecimal;
 @Setter
 @Entity
 @Table(name = "customer_tiers")
-public class CustomerTier extends BaseEntity {
+public class CustomerTier extends CustomerBaseEntity {
 
     @Column(name = "code", nullable = false, unique = true, length = 50)
     private String code;
@@ -28,5 +30,6 @@ public class CustomerTier extends BaseEntity {
     private BigDecimal discountRate = BigDecimal.ZERO;
 
     @Column(name = "status", nullable = false, length = 30)
-    private String status = "ACTIVE";
+    @Enumerated(EnumType.STRING)
+    private CustomerTierStatus status = CustomerTierStatus.ACTIVE;
 }

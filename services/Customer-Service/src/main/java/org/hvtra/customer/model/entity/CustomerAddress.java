@@ -8,13 +8,12 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 @Getter
 @Setter
 @Entity
 @Table(name = "customer_addresses")
-public class CustomerAddress extends BaseEntity {
+public class CustomerAddress extends CustomerBaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)

@@ -8,13 +8,12 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 @Getter
 @Setter
 @Entity
 @Table(name = "loyalty_accounts")
-public class LoyaltyAccount extends BaseEntity {
+public class LoyaltyAccount extends CustomerBaseEntity {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false, unique = true)
