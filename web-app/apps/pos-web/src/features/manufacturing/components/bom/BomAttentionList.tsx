@@ -33,7 +33,7 @@ export function BomAttentionList({
                     <ArrowRight size={15} aria-hidden="true" />
                 </button>
             </div>
-            <div className="grid grid-cols-4 divide-x divide-pos-border rounded-xl bg-white/50">
+            <div className="grid grid-cols-1 divide-y divide-pos-border rounded-xl bg-white/50 sm:grid-cols-2 sm:divide-x sm:divide-y-0 2xl:grid-cols-4">
                 {items.map((item) => (
                     <article
                         key={item.id}
