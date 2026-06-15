@@ -23,15 +23,15 @@ public class BomController {
 
     @GetMapping
     public PageResponse<BomResponse> findAll(
-            @RequestParam(required = false) Long productVariantId,
-            @RequestParam(required = false) Integer version,
-            @RequestParam(required = false) Status status,
+            @RequestParam(name = "productVariantId", required = false) Long productVariantId,
+            @RequestParam(name = "version", required = false) Integer version,
+            @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return service.findAll(productVariantId, version, status, pageable);
     }
 
     @GetMapping("/{id}")
-    public BomResponse findById(@PathVariable Long id) {
+    public BomResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 
@@ -42,12 +42,13 @@ public class BomController {
     }
 
     @PutMapping("/{id}")
-    public BomResponse update(@PathVariable Long id, @Valid @RequestBody BomRequest request) {
+    public BomResponse update(@PathVariable("id") Long id, @Valid @RequestBody BomRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
-    public BomResponse updateStatus(@PathVariable Long id, @Valid @RequestBody StatusRequest request) {
+    public BomResponse updateStatus(
+            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

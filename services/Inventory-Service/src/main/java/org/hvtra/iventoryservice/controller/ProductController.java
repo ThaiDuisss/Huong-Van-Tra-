@@ -28,15 +28,15 @@ public class ProductController {
 
     @GetMapping
     public PageResponse<ProductSummaryResponse> findAll(
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) Status status,
+            @RequestParam(name = "name", required = false) String name,
+            @RequestParam(name = "categoryId", required = false) Long categoryId,
+            @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.findAll(name, categoryId, status, pageable);
     }
 
     @GetMapping("/{id}")
-    public ProductResponse findById(@PathVariable Long id) {
+    public ProductResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 
@@ -47,19 +47,22 @@ public class ProductController {
     }
 
     @PutMapping("/{id}")
-    public ProductResponse update(@PathVariable Long id, @Valid @RequestBody ProductRequest request) {
+    public ProductResponse update(
+            @PathVariable("id") Long id, @Valid @RequestBody ProductRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
-    public ProductResponse updateStatus(@PathVariable Long id, @Valid @RequestBody StatusRequest request) {
+    public ProductResponse updateStatus(
+            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
     @PostMapping("/{productId}/variants")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse.VariantResponse createVariant(
-            @PathVariable Long productId, @Valid @RequestBody ProductVariantRequest request) {
+            @PathVariable("productId") Long productId,
+            @Valid @RequestBody ProductVariantRequest request) {
         return variantService.create(productId, request);
     }
 }

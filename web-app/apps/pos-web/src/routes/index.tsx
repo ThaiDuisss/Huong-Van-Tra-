@@ -10,6 +10,18 @@ export const appRoutes = {
         path: routePaths.posSales,
         component: PosSalePage
     },
+    productCategories: {
+        path: routePaths.categories
+    },
+    products: {
+        path: routePaths.products
+    },
+    productVariants: {
+        path: routePaths.productVariants
+    },
+    priceLists: {
+        path: routePaths.priceLists
+    },
     manufacturingBoms: {
         path: routePaths.bomList
     },

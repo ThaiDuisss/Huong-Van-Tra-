@@ -18,15 +18,15 @@ public class InventoryBalanceController {
 
     @GetMapping
     public PageResponse<InventoryBalanceResponse> findAll(
-            @RequestParam(required = false) Long inventoryItemId,
-            @RequestParam(required = false) Long locationId,
-            @RequestParam(required = false) Long branchId,
+            @RequestParam(name = "inventoryItemId", required = false) Long inventoryItemId,
+            @RequestParam(name = "locationId", required = false) Long locationId,
+            @RequestParam(name = "branchId", required = false) Long branchId,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return service.findAll(inventoryItemId, locationId, branchId, pageable);
     }
 
     @GetMapping("/{id}")
-    public InventoryBalanceResponse findById(@PathVariable Long id) {
+    public InventoryBalanceResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 }
