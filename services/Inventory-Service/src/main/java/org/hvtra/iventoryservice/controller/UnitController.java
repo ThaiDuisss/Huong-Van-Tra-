@@ -31,12 +31,14 @@ public class UnitController {
     }
 
     @PutMapping("/{id}")
-    public UnitResponse update(@PathVariable Long id, @Valid @RequestBody UnitRequest request) {
+    public UnitResponse update(
+            @PathVariable("id") Long id, @Valid @RequestBody UnitRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
-    public UnitResponse updateStatus(@PathVariable Long id, @Valid @RequestBody StatusRequest request) {
+    public UnitResponse updateStatus(
+            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

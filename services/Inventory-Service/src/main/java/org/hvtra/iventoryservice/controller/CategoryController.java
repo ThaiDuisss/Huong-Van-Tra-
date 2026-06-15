@@ -23,14 +23,14 @@ public class CategoryController {
 
     @GetMapping
     public PageResponse<CategoryResponse> findAll(
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) Status status,
+            @RequestParam(name = "name", required = false) String name,
+            @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.findAll(name, status, pageable);
     }
 
     @GetMapping("/{id}")
-    public CategoryResponse findById(@PathVariable Long id) {
+    public CategoryResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 
@@ -41,12 +41,14 @@ public class CategoryController {
     }
 
     @PutMapping("/{id}")
-    public CategoryResponse update(@PathVariable Long id, @Valid @RequestBody CategoryRequest request) {
+    public CategoryResponse update(
+            @PathVariable("id") Long id, @Valid @RequestBody CategoryRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
-    public CategoryResponse updateStatus(@PathVariable Long id, @Valid @RequestBody StatusRequest request) {
+    public CategoryResponse updateStatus(
+            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

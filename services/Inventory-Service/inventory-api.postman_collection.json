@@ -1,0 +1,1805 @@
+{
+  "info": {
+    "_postman_id": "155847be-51a4-4bd8-9131-5c6d4323a961",
+    "name": "Inventory Service - Complete API Tests",
+    "description": "All Product Management and Inventory Management APIs in one Postman collection. Run in collection order.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "description": "API Gateway URL"
+    },
+    {
+      "key": "directServiceUrl",
+      "value": "http://localhost:8084",
+      "description": "Inventory Service direct URL"
+    },
+    {
+      "key": "branchId",
+      "value": "10"
+    },
+    {
+      "key": "createdBy",
+      "value": "99"
+    },
+    {
+      "key": "baseUnitId",
+      "value": "1"
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "description": "Set automatically by Product Management request 01, or enter an existing numeric category ID"
+    }
+  ],
+  "item": [
+    {
+      "name": "Product Management",
+      "item": [
+        {
+          "name": "01 - Create category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"parentId\": null,\n  \"name\": \"Tea {{$timestamp}}\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/categories"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create category returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.id).to.exist;",
+                  "pm.collectionVariables.set('categoryId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 - Create product without variants",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{categoryId}},\n  \"name\": \"Tra Oolong {{$timestamp}}\",\n  \"description\": \"Tra Oolong cao cap\",\n  \"imageUrl\": \"https://image.com/tea.jpg\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/products"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create product returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.id).to.exist;",
+                  "pm.expect(body.variants).to.be.an('array').that.is.empty;",
+                  "pm.collectionVariables.set('productId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 - Get product list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/products?categoryId={{categoryId}}&status=ACTIVE&page=0&size=10&sort=name,asc"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product list returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.content).to.be.an('array').that.is.not.empty;",
+                  "const product = body.content.find(item => String(item.id) === pm.collectionVariables.get('productId'));",
+                  "pm.expect(product).to.exist;",
+                  "pm.expect(product.totalVariants).to.eql(0);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 - Create first variant",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('variantSku', `TOL100-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create variant returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(String(body.productId)).to.eql(pm.collectionVariables.get('productId'));",
+                  "pm.expect(body.sellable).to.eql(true);",
+                  "pm.collectionVariables.set('variantId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{variantSku}}\",\n  \"variantName\": \"100g\",\n  \"sellingPrice\": 150000,\n  \"costPrice\": 90000,\n  \"inventoryPolicy\": \"TRACK_STOCK\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/products/{{productId}}/variants"
+          }
+        },
+        {
+          "name": "05 - Create second variant",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('secondVariantSku', `TOL200-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create second variant returns 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('secondVariantId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{secondVariantSku}}\",\n  \"variantName\": \"200g\",\n  \"sellingPrice\": 280000,\n  \"costPrice\": 170000,\n  \"inventoryPolicy\": \"TRACK_STOCK\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/products/{{productId}}/variants"
+          }
+        },
+        {
+          "name": "06 - Reject duplicate SKU",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{variantSku}}\",\n  \"variantName\": \"Duplicate SKU\",\n  \"sellingPrice\": 100000,\n  \"costPrice\": 50000,\n  \"inventoryPolicy\": \"TRACK_STOCK\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/products/{{productId}}/variants"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Duplicate SKU returns 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 - Get variants by product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/product-variants?productId={{productId}}&status=ACTIVE&page=0&size=10&sort=sku,asc"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Variant list returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.content.length).to.be.at.least(2);",
+                  "body.content.forEach(item => pm.expect(String(item.productId)).to.eql(pm.collectionVariables.get('productId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 - Update variant",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{variantSku}}\",\n  \"variantName\": \"100g Premium\",\n  \"sellingPrice\": 160000,\n  \"costPrice\": 95000,\n  \"inventoryPolicy\": \"TRACK_STOCK\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/product-variants/{{variantId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Update variant returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.variantName).to.eql('100g Premium');",
+                  "pm.expect(body.sellingPrice).to.eql(160000);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 - Create primary barcode",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('primaryBarcodeValue', `893${Date.now()}01`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create primary barcode returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.isPrimary).to.eql(true);",
+                  "pm.collectionVariables.set('primaryBarcodeId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcodeValue\": \"{{primaryBarcodeValue}}\",\n  \"barcodeType\": \"EAN13\",\n  \"isPrimary\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/product-variants/{{variantId}}/barcodes"
+          }
+        },
+        {
+          "name": "10 - Create secondary barcode",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('secondaryBarcodeValue', `893${Date.now()}02`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create secondary barcode returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.isPrimary).to.eql(false);",
+                  "pm.collectionVariables.set('secondaryBarcodeId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcodeValue\": \"{{secondaryBarcodeValue}}\",\n  \"barcodeType\": \"INTERNAL\",\n  \"isPrimary\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/product-variants/{{variantId}}/barcodes"
+          }
+        },
+        {
+          "name": "11 - Reject duplicate barcode",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcodeValue\": \"{{primaryBarcodeValue}}\",\n  \"barcodeType\": \"EAN13\",\n  \"isPrimary\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/product-variants/{{secondVariantId}}/barcodes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Duplicate barcode returns 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 - Scan primary barcode",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/barcodes/{{primaryBarcodeValue}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Barcode scan returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(String(body.id)).to.eql(pm.collectionVariables.get('variantId'));",
+                  "pm.expect(body.sellable).to.eql(true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 - Reject deleting primary barcode",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/barcodes/{{primaryBarcodeId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Deleting primary barcode returns 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 - Promote secondary barcode",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcodeType\": \"QR_CODE\",\n  \"isPrimary\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/barcodes/{{secondaryBarcodeId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Promote barcode returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.isPrimary).to.eql(true);",
+                  "pm.expect(body.barcodeType).to.eql('QR_CODE');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15 - Delete demoted barcode",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/barcodes/{{primaryBarcodeId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Deleting demoted barcode returns 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16 - Get product detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product detail returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.variants.length).to.eql(2);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17 - Set product inactive",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/products/{{productId}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product status update returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.status).to.eql('INACTIVE');",
+                  "pm.expect(body.variants[0].status).to.eql('ACTIVE');",
+                  "pm.expect(body.variants[0].sellable).to.eql(false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18 - Scan barcode under inactive product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/barcodes/{{secondaryBarcodeValue}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Barcode scan returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.productStatus).to.eql('INACTIVE');",
+                  "pm.expect(body.sellable).to.eql(false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "19 - Set variant inactive",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/product-variants/{{variantId}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Variant status update returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().status).to.eql('INACTIVE');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20 - Update product without replacing variants",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{categoryId}},\n  \"name\": \"Tra Oolong Updated\",\n  \"description\": \"Updated description\",\n  \"imageUrl\": \"https://image.com/tea-updated.jpg\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product update returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.name).to.eql('Tra Oolong Updated');",
+                  "pm.expect(body.variants.length).to.eql(2);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "21 - Get category list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/categories?name=Tea&status=ACTIVE&page=0&size=20&sort=name,asc"
+          }
+        },
+        {
+          "name": "22 - Get category detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/categories/{{categoryId}}"
+          }
+        },
+        {
+          "name": "23 - Update category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/inventory/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"parentId\": null,\n  \"name\": \"Tea Updated\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "24 - Change category status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/inventory/categories/{{categoryId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "25 - Get variant detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/product-variants/{{variantId}}"
+          }
+        },
+        {
+          "name": "26 - Get barcode list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/barcodes?value={{secondaryBarcodeValue}}&page=0&size=20&sort=barcodeValue,asc"
+          }
+        },
+        {
+          "name": "Units",
+          "item": [
+            {
+              "name": "27 - Create unit",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/units",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Gram\",\n  \"symbol\": \"g-{{$timestamp}}\",\n  \"precisionScale\": 2,\n  \"status\": \"ACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Create unit returns 201\",()=>pm.response.to.have.status(201));",
+                      "pm.collectionVariables.set(\"unitId\",pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "28 - Get unit list",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/inventory/units"
+              }
+            },
+            {
+              "name": "29 - Update unit",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/units/{{unitId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Gram Updated\",\n  \"symbol\": \"g-updated\",\n  \"precisionScale\": 3,\n  \"status\": \"ACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "30 - Change unit status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/units/{{unitId}}/status",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ingredients",
+          "item": [
+            {
+              "name": "31 - Create ingredient",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/ingredients",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ingredientCode\": \"TEA-{{$timestamp}}\",\n  \"name\": \"Oolong Tea Leaf\",\n  \"baseUnitId\": \"{{unitId}}\",\n  \"status\": \"ACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Create ingredient returns 201\",()=>pm.response.to.have.status(201));",
+                      "const body=pm.response.json(); pm.collectionVariables.set(\"ingredientId\",body.id); pm.collectionVariables.set(\"ingredientCode\",body.ingredientCode);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "32 - Get ingredient list",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/inventory/ingredients?search={{ingredientCode}}&status=ACTIVE&page=0&size=20&sort=name,asc"
+              }
+            },
+            {
+              "name": "33 - Get ingredient detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/inventory/ingredients/{{ingredientId}}"
+              }
+            },
+            {
+              "name": "34 - Update ingredient",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/ingredients/{{ingredientId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ingredientCode\": \"{{ingredientCode}}\",\n  \"name\": \"Oolong Tea Leaf Updated\",\n  \"baseUnitId\": \"{{unitId}}\",\n  \"status\": \"ACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "35 - Change ingredient status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/ingredients/{{ingredientId}}/status",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "BOMs",
+          "item": [
+            {
+              "name": "36 - Create BOM",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/boms",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"productVariantId\": \"{{secondVariantId}}\",\n  \"version\": 1,\n  \"status\": \"ACTIVE\",\n  \"effectiveFrom\": \"2026-01-01T00:00:00\",\n  \"effectiveTo\": null,\n  \"items\": [\n    {\n      \"ingredientId\": \"{{ingredientId}}\",\n      \"quantity\": 10,\n      \"unitId\": \"{{unitId}}\",\n      \"wasteRate\": 2.5\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Create BOM returns 201\",()=>pm.response.to.have.status(201));",
+                      "pm.collectionVariables.set(\"bomId\",pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "37 - Get BOM list",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/inventory/boms?productVariantId={{secondVariantId}}&version=1&status=ACTIVE&page=0&size=20"
+              }
+            },
+            {
+              "name": "38 - Get BOM detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/inventory/boms/{{bomId}}"
+              }
+            },
+            {
+              "name": "39 - Update BOM",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/boms/{{bomId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"productVariantId\": \"{{secondVariantId}}\",\n  \"version\": 1,\n  \"status\": \"ACTIVE\",\n  \"effectiveFrom\": \"2026-01-01T00:00:00\",\n  \"effectiveTo\": null,\n  \"items\": [\n    {\n      \"ingredientId\": \"{{ingredientId}}\",\n      \"quantity\": 12,\n      \"unitId\": \"{{unitId}}\",\n      \"wasteRate\": 3\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "40 - Change BOM status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/boms/{{bomId}}/status",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Price Lists",
+          "item": [
+            {
+              "name": "41 - Create price list",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/price-lists",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"branchId\": 10,\n  \"name\": \"Retail Price {{$timestamp}}\",\n  \"effectiveFrom\": \"2026-01-01T00:00:00\",\n  \"effectiveTo\": \"2030-12-31T23:59:59\",\n  \"status\": \"ACTIVE\",\n  \"items\": [\n    {\n      \"productVariantId\": \"{{secondVariantId}}\",\n      \"sellingPrice\": 290000\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Create price list returns 201\",()=>pm.response.to.have.status(201));",
+                      "pm.collectionVariables.set(\"priceListId\",pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "42 - Get price list list",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/inventory/price-lists?branchId=10&status=ACTIVE&effectiveAt=2026-06-14T12:00:00&page=0&size=20&sort=name,asc"
+              }
+            },
+            {
+              "name": "43 - Get price list detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/inventory/price-lists/{{priceListId}}"
+              }
+            },
+            {
+              "name": "44 - Update price list",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/price-lists/{{priceListId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"branchId\": 10,\n  \"name\": \"Retail Price Updated\",\n  \"effectiveFrom\": \"2026-01-01T00:00:00\",\n  \"effectiveTo\": \"2030-12-31T23:59:59\",\n  \"status\": \"ACTIVE\",\n  \"items\": [\n    {\n      \"productVariantId\": \"{{secondVariantId}}\",\n      \"sellingPrice\": 300000\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "45 - Change price list status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/inventory/price-lists/{{priceListId}}/status",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Inventory Items",
+      "item": [
+        {
+          "name": "01 - Create inventory item",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('referenceId', Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create item returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.itemType).to.eql('PRODUCT_VARIANT');",
+                  "pm.collectionVariables.set('inventoryItemId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referenceId\": {{referenceId}},\n  \"itemType\": \"PRODUCT_VARIANT\",\n  \"baseUnitId\": {{baseUnitId}},\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-items"
+          }
+        },
+        {
+          "name": "02 - Get inventory item list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Item list returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.content).to.be.an('array').that.is.not.empty;",
+                  "pm.expect(body.content.some(item => String(item.id) === pm.collectionVariables.get('inventoryItemId'))).to.eql(true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-items?referenceId={{referenceId}}&itemType=PRODUCT_VARIANT&status=ACTIVE&page=0&size=20&sort=id,asc"
+          }
+        },
+        {
+          "name": "03 - Get inventory item detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Item detail returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(String(pm.response.json().id)).to.eql(pm.collectionVariables.get('inventoryItemId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-items/{{inventoryItemId}}"
+          }
+        },
+        {
+          "name": "04 - Update inventory item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Update item returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().baseUnitId).to.eql(Number(pm.collectionVariables.get('baseUnitId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referenceId\": {{referenceId}},\n  \"itemType\": \"PRODUCT_VARIANT\",\n  \"baseUnitId\": {{baseUnitId}},\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-items/{{inventoryItemId}}"
+          }
+        },
+        {
+          "name": "05 - Set inventory item inactive",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status update returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().status).to.eql('INACTIVE');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-items/{{inventoryItemId}}/status"
+          }
+        },
+        {
+          "name": "06 - Set inventory item active",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reactivate item returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().status).to.eql('ACTIVE');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-items/{{inventoryItemId}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory Locations",
+      "item": [
+        {
+          "name": "07 - Create parent storage location",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('parentLocationCode', `STORAGE-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create parent location returns 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('parentLocationId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": {{branchId}},\n  \"parentLocationId\": null,\n  \"code\": \"{{parentLocationCode}}\",\n  \"name\": \"Main Storage\",\n  \"type\": \"STORAGE\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-locations"
+          }
+        },
+        {
+          "name": "08 - Create child shelf location",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('locationCode', `SHELF-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create child location returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(String(body.parentLocationId)).to.eql(pm.collectionVariables.get('parentLocationId'));",
+                  "pm.collectionVariables.set('locationId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": {{branchId}},\n  \"parentLocationId\": {{parentLocationId}},\n  \"code\": \"{{locationCode}}\",\n  \"name\": \"Shelf A Updated\",\n  \"type\": \"SHELF\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-locations"
+          }
+        },
+        {
+          "name": "09 - Get inventory location list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Location list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().content).to.be.an('array').that.is.not.empty;"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-locations?branchId={{branchId}}&type=SHELF&status=ACTIVE&page=0&size=20&sort=code,asc"
+          }
+        },
+        {
+          "name": "10 - Get inventory location detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Location detail returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(String(pm.response.json().id)).to.eql(pm.collectionVariables.get('locationId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/{{locationId}}"
+          }
+        },
+        {
+          "name": "11 - Update inventory location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Update location returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().name).to.eql('Shelf A Updated');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": {{branchId}},\n  \"parentLocationId\": {{parentLocationId}},\n  \"code\": \"{{locationCode}}\",\n  \"name\": \"Shelf A Updated\",\n  \"type\": \"SHELF\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/{{locationId}}"
+          }
+        },
+        {
+          "name": "12 - Set location inactive",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Deactivate location returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().status).to.eql('INACTIVE');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/{{locationId}}/status"
+          }
+        },
+        {
+          "name": "13 - Set location active",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reactivate location returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().status).to.eql('ACTIVE');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/{{locationId}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory Transactions",
+      "item": [
+        {
+          "name": "14 - Stock in",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Stock in returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.type).to.eql('STOCK_IN');",
+                  "pm.expect(body.lines[0].beforeQuantity).to.eql(0);",
+                  "pm.expect(body.lines[0].afterQuantity).to.eql(25);",
+                  "pm.collectionVariables.set('stockInTransactionId', body.id);",
+                  "pm.collectionVariables.set('stockInTransactionCode', body.transactionCode);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": {{branchId}},\n  \"createdBy\": {{createdBy}},\n  \"referenceType\": \"MANUAL\",\n  \"referenceId\": null,\n  \"lines\": [\n    {\n      \"inventoryItemId\": {{inventoryItemId}},\n      \"locationId\": {{locationId}},\n      \"quantity\": 25.00\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-transactions/stock-in"
+          }
+        },
+        {
+          "name": "15 - Stock adjustment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Adjustment returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.type).to.eql('ADJUSTMENT');",
+                  "pm.expect(body.lines[0].quantity).to.eql(-5);",
+                  "pm.expect(body.lines[0].beforeQuantity).to.eql(25);",
+                  "pm.expect(body.lines[0].afterQuantity).to.eql(20);",
+                  "pm.collectionVariables.set('adjustmentTransactionId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": {{branchId}},\n  \"createdBy\": {{createdBy}},\n  \"referenceType\": \"STOCK_COUNT\",\n  \"referenceId\": 501,\n  \"lines\": [\n    {\n      \"inventoryItemId\": {{inventoryItemId}},\n      \"locationId\": {{locationId}},\n      \"actualQuantity\": 20.00\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-transactions/adjustment"
+          }
+        },
+        {
+          "name": "16 - Get transaction history",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Transaction history returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.totalElements).to.be.at.least(2);",
+                  "pm.expect(body.content[0].lines).to.be.an('array');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-transactions?createdBy={{createdBy}}&branchId={{branchId}}&page=0&size=20&sort=createdAt,desc"
+          }
+        },
+        {
+          "name": "17 - Get transaction history with all filters",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Filtered history returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.content).to.be.an('array').that.is.not.empty;",
+                  "pm.expect(body.content[0].type).to.eql('STOCK_IN');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-transactions?transactionCode={{stockInTransactionCode}}&type=STOCK_IN&fromDate=2020-01-01T00:00:00&toDate=2030-12-31T23:59:59&createdBy={{createdBy}}&branchId={{branchId}}&referenceType=MANUAL&page=0&size=20"
+          }
+        },
+        {
+          "name": "18 - Get transaction detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Transaction detail returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(String(body.id)).to.eql(pm.collectionVariables.get('stockInTransactionId'));",
+                  "pm.expect(body.lines).to.have.lengthOf(1);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-transactions/{{stockInTransactionId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory Balances",
+      "item": [
+        {
+          "name": "19 - Get inventory balance list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Balance list returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.content).to.have.lengthOf(1);",
+                  "pm.expect(body.content[0].quantityOnHand).to.eql(20);",
+                  "pm.expect(body.content[0].availableQuantity).to.eql(20);",
+                  "pm.collectionVariables.set('inventoryBalanceId', body.content[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-balances?inventoryItemId={{inventoryItemId}}&locationId={{locationId}}&branchId={{branchId}}&page=0&size=20"
+          }
+        },
+        {
+          "name": "20 - Get inventory balance detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Balance detail returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.quantityOnHand).to.eql(20);",
+                  "pm.expect(body.quantityReserved).to.eql(0);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-balances/{{inventoryBalanceId}}"
+          }
+        },
+        {
+          "name": "21 - Get balances by inventory item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Item balances return 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.content).to.have.lengthOf(1);",
+                  "pm.expect(String(body.content[0].inventoryItemId)).to.eql(pm.collectionVariables.get('inventoryItemId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-items/{{inventoryItemId}}/balances?page=0&size=20"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -33,7 +33,10 @@ export function SystemSidebar() {
                         const Icon = item.icon;
                         const childActive = item.children?.some(
                             (child) =>
-                                location.pathname === child.to
+                                location.pathname === child.to ||
+                                location.pathname.startsWith(
+                                    `${child.to}/`
+                                )
                         );
 
                         return (

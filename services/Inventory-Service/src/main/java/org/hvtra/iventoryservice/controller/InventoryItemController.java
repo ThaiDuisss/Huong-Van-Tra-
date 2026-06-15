@@ -29,21 +29,21 @@ public class InventoryItemController {
 
     @GetMapping
     public PageResponse<InventoryItemResponse> findAll(
-            @RequestParam(required = false) Long referenceId,
-            @RequestParam(required = false) InventoryItemType itemType,
-            @RequestParam(required = false) InventoryStatus status,
+            @RequestParam(name = "referenceId", required = false) Long referenceId,
+            @RequestParam(name = "itemType", required = false) InventoryItemType itemType,
+            @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return service.findAll(referenceId, itemType, status, pageable);
     }
 
     @GetMapping("/{id}")
-    public InventoryItemResponse findById(@PathVariable Long id) {
+    public InventoryItemResponse findById(@PathVariable("id") Long id) {
         return service.findById(id);
     }
 
     @GetMapping("/{id}/balances")
     public PageResponse<InventoryBalanceResponse> findBalances(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return balanceService.findByInventoryItem(id, pageable);
     }
@@ -56,13 +56,13 @@ public class InventoryItemController {
 
     @PutMapping("/{id}")
     public InventoryItemResponse update(
-            @PathVariable Long id, @Valid @RequestBody InventoryItemRequest request) {
+            @PathVariable("id") Long id, @Valid @RequestBody InventoryItemRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public InventoryItemResponse updateStatus(
-            @PathVariable Long id, @Valid @RequestBody InventoryStatusRequest request) {
+            @PathVariable("id") Long id, @Valid @RequestBody InventoryStatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }
