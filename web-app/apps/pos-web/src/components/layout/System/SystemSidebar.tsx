@@ -1,11 +1,12 @@
-import { ChevronDown, Leaf, MapPin } from "lucide-react";
+import { ChevronDown, ChevronUp, Leaf, MapPin } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
-
 import { WorkspaceSwitcher } from "../../shared/WorkspaceSwitcher";
 import { systemNavigationItems } from "./system-navigation";
+import { useState } from "react";
 
 export function SystemSidebar() {
     const location = useLocation();
+    const [isOpen, setIsOpen] = useState(false);
 
     return (
         <aside className="flex h-dvh min-h-0 w-[210px] shrink-0 flex-col bg-[radial-gradient(circle_at_42%_12%,rgba(53,141,98,0.36),transparent_35%),linear-gradient(180deg,#0a402d_0%,#06351f_100%)] px-3 py-5 text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.08)] lg:w-[230px] lg:px-4 xl:w-[260px] xl:py-6">
@@ -42,11 +43,10 @@ export function SystemSidebar() {
                         return (
                             <li key={item.label}>
                                 <div
-                                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${
-                                        childActive
-                                            ? "bg-white/12 text-white"
-                                            : "text-white/86"
-                                    }`}
+                                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${childActive
+                                        ? "bg-white/12 text-white"
+                                        : "text-white/86"
+                                        }`}
                                 >
                                     <Icon
                                         size={21}
@@ -62,14 +62,28 @@ export function SystemSidebar() {
                                         </span>
                                     ) : null}
                                     {item.children ? (
-                                        <ChevronDown
-                                            size={16}
-                                            aria-hidden="true"
-                                        />
+                                        <div>
+                                            <button
+                                                onClick={() => setIsOpen(!isOpen)}
+                                                className="flex items-center gap-2"
+                                            >
+                                                {isOpen ? (
+                                                    <ChevronUp
+                                                        size={16}
+                                                        aria-hidden="true"
+                                                    />
+                                                ) : (
+                                                    <ChevronDown
+                                                        size={16}
+                                                        aria-hidden="true"
+                                                    />
+                                                )}
+                                            </button>
+                                        </div>
                                     ) : null}
                                 </div>
 
-                                {item.children ? (
+                                {item.children && isOpen ? (
                                     <ul className="mt-1 grid gap-1 rounded-xl border border-white/14 bg-black/12 p-1">
                                         {item.children.map(
                                             (child) => {
@@ -89,10 +103,9 @@ export function SystemSidebar() {
                                                             className={({
                                                                 isActive
                                                             }) =>
-                                                                `flex min-h-10 items-center gap-3 rounded-lg px-3 text-xs font-bold transition ${
-                                                                    isActive
-                                                                        ? "bg-white/16 text-white shadow-[inset_3px_0_0_#d6a443]"
-                                                                        : "text-white/78 hover:bg-white/10 hover:text-white"
+                                                                `flex min-h-10 items-center gap-3 rounded-lg px-3 text-xs font-bold transition ${isActive
+                                                                    ? "bg-white/16 text-white shadow-[inset_3px_0_0_#d6a443]"
+                                                                    : "text-white/78 hover:bg-white/10 hover:text-white"
                                                                 }`
                                                             }
                                                         >
@@ -143,3 +156,5 @@ export function SystemSidebar() {
         </aside>
     );
 }
+
+
