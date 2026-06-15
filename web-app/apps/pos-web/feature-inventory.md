@@ -20,6 +20,269 @@ Do not implement purchase orders.
 Do not implement supplier management.
 Do not implement BOM or production in this prompt.
 
+All user-facing text must be displayed in Vietnamese.
+
+Keep technical code names in English:
+
+API endpoints
+TypeScript types
+Component names
+Service files
+Enum values
+Internal variable names
+
+Only translate texts that users can see on the UI.
+
+Examples:
+
+Sidebar menu:
+
+Inventory Management
+→ Quản lý tồn kho
+
+Shelf Locations
+→ Quản lý kệ hàng
+
+Inventory Balances
+→ Tồn kho hiện tại
+
+Stock In
+→ Nhập hàng lên kệ
+
+Stock Adjustment
+→ Điều chỉnh tồn kho
+
+Stock Movement History
+→ Lịch sử biến động tồn kho
+
+====================================================
+
+Page titles:
+
+/system/inventory/locations:
+"Quản lý kệ hàng"
+
+/system/inventory/balances:
+"Tồn kho hiện tại"
+
+/system/inventory/stock-in:
+"Nhập hàng lên kệ"
+
+/system/inventory/adjustment:
+"Điều chỉnh tồn kho"
+
+/system/inventory/transactions:
+"Lịch sử biến động tồn kho"
+
+====================================================
+
+Table column labels:
+
+Code
+→ Mã kệ
+
+Location Name
+→ Tên vị trí
+
+Type
+→ Loại vị trí
+
+Branch
+→ Chi nhánh
+
+Parent Location
+→ Vị trí cha
+
+Status
+→ Trạng thái
+
+Updated At
+→ Ngày cập nhật
+
+Actions
+→ Thao tác
+
+Inventory Item ID
+→ Mã hàng tồn kho
+
+Reference ID
+→ Mã tham chiếu
+
+Item Type
+→ Loại hàng hóa
+
+On Hand
+→ Tồn thực tế
+
+Reserved
+→ Tồn giữ chỗ
+
+Available
+→ Có thể bán
+
+Transaction Code
+→ Mã giao dịch
+
+Reference Type
+→ Loại tham chiếu
+
+Created By
+→ Người tạo
+
+Created At
+→ Thời gian tạo
+
+Quantity
+→ Số lượng thay đổi
+
+Before Quantity
+→ Tồn trước
+
+After Quantity
+→ Tồn sau
+
+====================================================
+
+Form labels:
+
+Create Location
+→ Tạo vị trí
+
+Edit Location
+→ Chỉnh sửa vị trí
+
+Search
+→ Tìm kiếm
+
+Filter
+→ Bộ lọc
+
+Select Branch
+→ Chọn chi nhánh
+
+Select Location
+→ Chọn vị trí
+
+Select Inventory Item
+→ Chọn hàng hóa
+
+Quantity
+→ Số lượng
+
+Actual Quantity
+→ Số lượng kiểm kê thực tế
+
+Difference
+→ Chênh lệch
+
+Reason
+→ Lý do
+
+Note
+→ Ghi chú
+
+Confirm Stock In
+→ Xác nhận nhập hàng
+
+Confirm Adjustment
+→ Xác nhận điều chỉnh
+
+====================================================
+
+Enum display labels:
+
+InventoryLocationType:
+
+SHELF
+→ Kệ hàng
+
+COUNTER
+→ Quầy thu ngân
+
+STORAGE
+→ Kho chứa
+
+DAMAGED
+→ Khu hàng lỗi
+
+InventoryStatus:
+
+ACTIVE
+→ Đang hoạt động
+
+INACTIVE
+→ Ngừng hoạt động
+
+InventoryTransactionType:
+
+STOCK_IN
+→ Nhập hàng
+
+SALE_OUT
+→ Bán hàng
+
+RETURN_IN
+→ Hoàn hàng nhập lại
+
+ADJUSTMENT
+→ Điều chỉnh tồn kho
+
+TRANSFER
+→ Chuyển vị trí
+
+====================================================
+
+Messages and notifications:
+
+Success:
+
+"Tạo thành công"
+"Cập nhật thành công"
+"Thay đổi trạng thái thành công"
+"Nhập hàng thành công"
+"Điều chỉnh tồn kho thành công"
+
+Confirmation dialogs:
+
+"Bạn có chắc chắn muốn thay đổi trạng thái?"
+"Bạn có chắc chắn muốn nhập hàng?"
+"Bạn có chắc chắn muốn điều chỉnh tồn kho?"
+
+Empty state:
+
+"Không có dữ liệu"
+"Không tìm thấy kết quả phù hợp"
+
+Loading state:
+
+"Đang tải dữ liệu..."
+
+Error state:
+
+"Đã xảy ra lỗi. Vui lòng thử lại sau."
+
+====================================================
+
+IMPORTANT RULE
+
+Do not display raw enum values or English texts on the UI.
+
+Example:
+
+Wrong:
+Status: ACTIVE
+
+Correct:
+Trạng thái: Đang hoạt động
+
+Wrong:
+Type: SHELF
+
+Correct:
+Loại vị trí: Kệ hàng
+
+All labels, buttons, titles, dialogs and messages visible to end users must use Vietnamese.
+
 ====================================================
 ADD NEW MENU TO EXISTING SYSTEM SIDEBAR
 ====================================================
@@ -272,7 +535,6 @@ Request example:
 {
 "locationId": 1,
 "branchId": 1,
-"createdBy": 1,
 "items": [
 {
 "inventoryItemId": 1,
@@ -340,7 +602,6 @@ Request example:
 {
 "locationId": 1,
 "branchId": 1,
-"createdBy": 1,
 "reason": "Kiểm kê thiếu hàng",
 "items": [
 {
@@ -628,4 +889,3 @@ Do not generate:
 * Supplier pages.
 * Full warehouse transfer pages.
 * Backend code.
-
