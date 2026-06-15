@@ -63,7 +63,7 @@ spring:
 
           globalcors:
             cors-configurations:
-              [ /** ]:
+              [/**]:
                 allowed-origins:
                   - "http://localhost:3000"
                   - "http://localhost:5173"
