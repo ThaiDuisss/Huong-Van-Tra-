@@ -45,7 +45,7 @@ export function ProductVariantDetailPage() {
                     variant.sku
                 ]}
             />
-            <header className="flex items-start justify-between">
+            <header className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                     <Link
                         to={routePaths.productVariants}
@@ -54,7 +54,7 @@ export function ProductVariantDetailPage() {
                         <ArrowLeft size={16} />
                         Quay lại danh sách
                     </Link>
-                    <h1 className="text-3xl font-bold">
+                    <h1 className="text-2xl font-bold sm:text-3xl">
                         {variant.variantName}
                     </h1>
                     <p className="mt-1 text-pos-muted">{variant.sku}</p>
@@ -64,7 +64,7 @@ export function ProductVariantDetailPage() {
                     Chỉnh sửa biến thể
                 </ActionButton>
             </header>
-            <article className="max-w-3xl rounded-2xl bg-white p-6 shadow-pos-card">
+            <article className="w-full max-w-3xl rounded-2xl bg-white p-4 shadow-pos-card sm:p-6">
                 <DetailList
                     items={[
                         { label: "Sản phẩm", value: variant.productName },

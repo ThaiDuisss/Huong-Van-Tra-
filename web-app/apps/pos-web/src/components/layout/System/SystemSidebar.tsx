@@ -8,8 +8,8 @@ export function SystemSidebar() {
     const location = useLocation();
 
     return (
-        <aside className="flex h-dvh min-h-0 w-[260px] shrink-0 flex-col bg-[radial-gradient(circle_at_42%_12%,rgba(53,141,98,0.36),transparent_35%),linear-gradient(180deg,#0a402d_0%,#06351f_100%)] px-4 py-6 text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.08)]">
-            <div className="mb-8 grid place-items-center px-2 text-center">
+        <aside className="flex h-dvh min-h-0 w-[210px] shrink-0 flex-col bg-[radial-gradient(circle_at_42%_12%,rgba(53,141,98,0.36),transparent_35%),linear-gradient(180deg,#0a402d_0%,#06351f_100%)] px-3 py-5 text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.08)] lg:w-[230px] lg:px-4 xl:w-[260px] xl:py-6">
+            <div className="mb-5 grid place-items-center px-2 text-center xl:mb-8">
                 <div
                     className="mb-3 grid size-16 place-items-center rounded-[26px] border border-pos-gold/90 text-pos-gold shadow-[0_0_28px_rgba(191,138,45,0.22)]"
                     aria-hidden="true"
