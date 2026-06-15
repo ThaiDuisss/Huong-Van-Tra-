@@ -15,7 +15,7 @@ export interface ProductVariantQuery extends CatalogQuery {
 export const productVariantApi = {
     list(query: ProductVariantQuery = {}) {
         return apiClient.get<PageResult<ProductVariant>>(
-            "/inventory/product-variants",
+            "/catalog/product-variants",
             {
                 query: {
                     page: query.page,
@@ -30,7 +30,7 @@ export const productVariantApi = {
     },
     listByProduct(productId: string, query: CatalogQuery = {}) {
         return apiClient.get<PageResult<ProductVariant>>(
-            "/inventory/product-variants",
+            "/catalog/product-variants",
             {
                 query: {
                     page: query.page,
@@ -43,7 +43,7 @@ export const productVariantApi = {
     },
     detail(id: string) {
         return apiClient.get<ProductVariant>(
-            `/inventory/product-variants/${encodeURIComponent(id)}`
+            `/catalog/product-variants/${encodeURIComponent(id)}`
         );
     },
     create(input: ProductVariantInput) {
@@ -53,7 +53,7 @@ export const productVariantApi = {
             ProductVariant,
             Omit<ProductVariantInput, "productId">
         >(
-            `/products/${encodeURIComponent(productId)}/variants`,
+            `/catalog/products/${encodeURIComponent(productId)}/variants`,
             body
         );
     },
@@ -63,6 +63,7 @@ export const productVariantApi = {
             variantName: input.variantName,
             sellingPrice: input.sellingPrice,
             costPrice: input.costPrice,
+            baseUnitId: input.baseUnitId,
             inventoryPolicy: input.inventoryPolicy,
             status: input.status
         };
@@ -71,7 +72,7 @@ export const productVariantApi = {
             ProductVariant,
             Omit<ProductVariantInput, "productId">
         >(
-            `/inventory/product-variants/${encodeURIComponent(id)}`,
+            `/catalog/product-variants/${encodeURIComponent(id)}`,
             body
         );
     },
@@ -80,7 +81,7 @@ export const productVariantApi = {
             ProductVariant,
             { status: ProductVariant["status"] }
         >(
-            `/inventory/product-variants/${encodeURIComponent(id)}/status`,
+            `/catalog/product-variants/${encodeURIComponent(id)}/status`,
             { status }
         );
     }

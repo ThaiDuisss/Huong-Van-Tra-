@@ -8,7 +8,7 @@ import type {
 
 export const categoryApi = {
     list(query: CatalogQuery = {}) {
-        return apiClient.get<PageResult<Category>>("/inventory/categories", {
+        return apiClient.get<PageResult<Category>>("/catalog/categories", {
             query: {
                 page: query.page,
                 size: query.size,
@@ -19,24 +19,24 @@ export const categoryApi = {
     },
     detail(id: string) {
         return apiClient.get<Category>(
-            `/inventory/categories/${encodeURIComponent(id)}`
+            `/catalog/categories/${encodeURIComponent(id)}`
         );
     },
     create(input: CategoryInput) {
         return apiClient.post<Category, CategoryInput>(
-            "/inventory/categories",
+            "/catalog/categories",
             input
         );
     },
     update(id: string, input: CategoryInput) {
         return apiClient.put<Category, CategoryInput>(
-            `/inventory/categories/${encodeURIComponent(id)}`,
+            `/catalog/categories/${encodeURIComponent(id)}`,
             input
         );
     },
     updateStatus(id: string, status: Category["status"]) {
         return apiClient.patch<Category, { status: Category["status"] }>(
-            `/inventory/categories/${encodeURIComponent(id)}/status`,
+            `/catalog/categories/${encodeURIComponent(id)}/status`,
             { status }
         );
     }
