@@ -22,6 +22,21 @@ export const appRoutes = {
     priceLists: {
         path: routePaths.priceLists
     },
+    inventoryLocations: {
+        path: routePaths.inventoryLocations
+    },
+    inventoryBalances: {
+        path: routePaths.inventoryBalances
+    },
+    inventoryStockIn: {
+        path: routePaths.inventoryStockIn
+    },
+    inventoryAdjustment: {
+        path: routePaths.inventoryAdjustment
+    },
+    inventoryTransactions: {
+        path: routePaths.inventoryTransactions
+    },
     manufacturingBoms: {
         path: routePaths.bomList
     },

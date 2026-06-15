@@ -5,14 +5,19 @@ import {
     ClipboardList,
     FileText,
     FolderTree,
+    History,
     Layers3,
+    MapPinned,
     Package,
+    PackagePlus,
+    SlidersHorizontal,
     Tags,
     Settings,
     ShoppingCart,
     Truck,
     User,
-    Users
+    Users,
+    Warehouse
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -76,6 +81,37 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 label: "Lệnh sản xuất",
                 to: routePaths.productionOrders,
                 icon: ClipboardList
+            }
+        ]
+    },
+    {
+        label: "Quản lý tồn kho",
+        icon: Warehouse,
+        children: [
+            {
+                label: "Quản lý kệ hàng",
+                to: routePaths.inventoryLocations,
+                icon: MapPinned
+            },
+            {
+                label: "Tồn kho hiện tại",
+                to: routePaths.inventoryBalances,
+                icon: Warehouse
+            },
+            {
+                label: "Nhập hàng lên kệ",
+                to: routePaths.inventoryStockIn,
+                icon: PackagePlus
+            },
+            {
+                label: "Điều chỉnh tồn kho",
+                to: routePaths.inventoryAdjustment,
+                icon: SlidersHorizontal
+            },
+            {
+                label: "Lịch sử biến động",
+                to: routePaths.inventoryTransactions,
+                icon: History
             }
         ]
     },

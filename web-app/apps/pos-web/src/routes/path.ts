@@ -11,6 +11,11 @@ export const routePaths = {
     productVariantDetail: "/system/product-variants/:id",
     priceLists: "/system/price-lists",
     priceListDetail: "/system/price-lists/:id",
+    inventoryLocations: "/system/inventory/locations",
+    inventoryBalances: "/system/inventory/balances",
+    inventoryStockIn: "/system/inventory/stock-in",
+    inventoryAdjustment: "/system/inventory/adjustment",
+    inventoryTransactions: "/system/inventory/transactions",
     bomList: "/system/manufacturing/boms",
     productionOrders:
         "/system/manufacturing/production-orders"

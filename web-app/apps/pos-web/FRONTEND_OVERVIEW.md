@@ -92,7 +92,7 @@ src/main.tsx
 | `/` | Chuyển hướng tới `/pos/sales` |
 | `/pos/sales` | Màn hình bán hàng POS |
 | `/system` | Chuyển hướng tới danh mục sản phẩm |
-| `/system/products/categories` | Danh sách danh mục |
+| `/system/categories` | Danh sách danh mục |
 | `/system/products` | Danh sách sản phẩm |
 | `/system/products/:id` | Chi tiết sản phẩm |
 | `/system/products/:productId/variants` | Biến thể theo sản phẩm |
@@ -189,7 +189,7 @@ giao diện, chưa nối đầy đủ với nghiệp vụ backend.
 ## 10. Feature Product Management
 
 Feature nằm tại `src/features/product` với cấu trúc `pages`, `components`,
-`services`, `types`, `hooks` và `utils`.
+`services`, `types`, `hooks`, `utils` và dữ liệu `mock`.
 
 Các phân hệ:
 
@@ -204,8 +204,8 @@ Các phân hệ:
 
 Các service API tương ứng là `category.api.ts`, `product.api.ts`,
 `productVariant.api.ts` và `priceList.api.ts`; tất cả dùng `apiClient` hiện có.
-Các page Product Management tải dữ liệu, phân trang, lọc, tạo, sửa và đổi trạng
-thái trực tiếp qua Inventory Service.
+UI hiện dùng dữ liệu mẫu để hoạt động độc lập trong giai đoạn backend chưa
+được nối vào page.
 
 ## 11. Layout và giao diện
 
@@ -257,8 +257,8 @@ sang `package/ui` khi component thực sự tổng quát và được nhiều ap
 
 - Hạ tầng Keycloak và authenticated API client đã được cấu hình.
 - Có lời gọi mẫu tới endpoint `GET /manufacturing/boms`.
-- Các page bán hàng, BOM và lệnh sản xuất hiện vẫn đọc dữ liệu từ thư mục
-  `mock`; Product Management đã dùng API thật.
+- Các page bán hàng, Product Management, BOM và lệnh sản xuất hiện vẫn đọc dữ
+  liệu từ thư mục `mock`.
 - Chưa thấy luồng tạo đơn, hoàn tất thanh toán, trả tiền, ghi nợ, tạo BOM hoặc
   tạo lệnh sản xuất gọi backend.
 - Chưa có loading state, error state và cơ chế cache/query cho dữ liệu page.
