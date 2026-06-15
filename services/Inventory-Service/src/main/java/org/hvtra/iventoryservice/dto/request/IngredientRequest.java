@@ -1,0 +1,14 @@
+package org.hvtra.iventoryservice.dto.request;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import org.hvtra.iventoryservice.enums.Status;
+
+public record IngredientRequest(
+        @NotBlank @Size(max = 100) String ingredientCode,
+        @NotBlank @Size(max = 255) String name,
+        @NotNull Long baseUnitId,
+        @NotNull Status status
+) {
+}
