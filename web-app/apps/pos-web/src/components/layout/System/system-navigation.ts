@@ -80,23 +80,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         ]
     },
     {
-        label: "Manufacturing",
-        icon: ClipboardList,
-        children: [
-            {
-                label: "BOM",
-                to: routePaths.bomList,
-                icon: Package
-            },
-            {
-                label: "Lệnh sản xuất",
-                to: routePaths.productionOrders,
-                icon: ClipboardList
-            }
-        ]
-,
-    },
-    {
         label: "Mua hàng",
         icon: ShoppingCart
     },
