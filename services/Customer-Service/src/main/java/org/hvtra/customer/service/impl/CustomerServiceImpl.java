@@ -37,6 +37,17 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<CustomerResponse> search(String keyword) {
+        if (!hasText(keyword)) {
+            return getAll();
+        }
+        return customerRepository.searchByKeyword(keyword.trim()).stream()
+                .map(customerMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public CustomerResponse getById(UUID id) {
         return customerMapper.toResponse(findCustomer(id));
     }

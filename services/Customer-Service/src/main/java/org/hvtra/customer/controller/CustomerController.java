@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,13 +34,15 @@ public class CustomerController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách khách hàng")
-    public List<CustomerResponse> getAll() {
-        return customerService.getAll();
+    public List<CustomerResponse> getAll(
+            @Parameter(description = "Tìm theo tên, số điện thoại hoặc mã khách hàng")
+            @RequestParam(name = ApiParam.KEYWORD, required = false) String keyword) {
+        return customerService.search(keyword);
     }
 
     @GetMapping(ApiPath.ID)
     @Operation(summary = "Lấy chi tiết khách hàng")
-    public CustomerResponse getById(@Parameter(description = "ID khách hàng") @PathVariable(ApiParam.ID) UUID id) {
+    public CustomerResponse getById(@PathVariable @Parameter(description = "ID khách hàng") UUID id) {
         return customerService.getById(id);
     }
 
@@ -52,7 +55,7 @@ public class CustomerController {
 
     @PutMapping(ApiPath.ID)
     @Operation(summary = "Cập nhật khách hàng")
-    public CustomerResponse update(@Parameter(description = "ID khách hàng") @PathVariable(ApiParam.ID) UUID id,
+    public CustomerResponse update(@PathVariable @Parameter(description = "ID khách hàng") UUID id,
                                    @Valid @RequestBody CustomerRequest request) {
         return customerService.update(id, request);
     }
@@ -60,7 +63,7 @@ public class CustomerController {
     @DeleteMapping(ApiPath.ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Xóa mềm khách hàng")
-    public void delete(@Parameter(description = "ID khách hàng") @PathVariable(ApiParam.ID) UUID id) {
+    public void delete(@PathVariable @Parameter(description = "ID khách hàng") UUID id) {
         customerService.delete(id);
     }
 }

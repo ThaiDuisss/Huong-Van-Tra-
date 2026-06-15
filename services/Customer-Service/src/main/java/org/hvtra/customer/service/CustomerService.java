@@ -9,6 +9,8 @@ import java.util.UUID;
 public interface CustomerService {
     List<CustomerResponse> getAll();
 
+    List<CustomerResponse> search(String keyword);
+
     CustomerResponse getById(UUID id);
 
     CustomerResponse create(CustomerRequest request);
