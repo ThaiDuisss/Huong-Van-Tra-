@@ -93,7 +93,7 @@ export function BomListPage() {
                     />
                 }
                 actions={
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <ActionButton variant="primary">
                             <Plus size={17} aria-hidden="true" />
                             Tạo BOM
@@ -123,13 +123,15 @@ export function BomListPage() {
             <BomSummary metrics={bomSummaryMetrics} />
             <BomAttentionList items={bomAttentionItems} />
 
-            <div className="grid min-h-[680px] grid-cols-[250px_minmax(0,1fr)_360px] gap-4">
-                <BomFilters
-                    value={draftFilters}
-                    onChange={setDraftFilters}
-                    onApply={applyFilters}
-                    onReset={resetFilters}
-                />
+            <div className="grid min-h-[680px] grid-cols-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)] min-[1800px]:grid-cols-[250px_minmax(0,1fr)_360px]">
+                <div className="min-w-0">
+                    <BomFilters
+                        value={draftFilters}
+                        onChange={setDraftFilters}
+                        onApply={applyFilters}
+                        onReset={resetFilters}
+                    />
+                </div>
 
                 <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
                     <TableToolbar
@@ -155,10 +157,12 @@ export function BomListPage() {
                     />
                 </section>
 
-                <BomDetailPanel
-                    bom={selectedBom}
-                    onClose={() => setSelectedBom(null)}
-                />
+                <div className="hidden min-h-0 min-[1800px]:block [&>aside]:h-full">
+                    <BomDetailPanel
+                        bom={selectedBom}
+                        onClose={() => setSelectedBom(null)}
+                    />
+                </div>
             </div>
         </section>
     );
