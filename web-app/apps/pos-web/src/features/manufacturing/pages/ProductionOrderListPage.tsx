@@ -103,7 +103,7 @@ export function ProductionOrderListPage() {
                     />
                 }
                 actions={
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <ActionButton variant="primary">
                             <Plus size={17} aria-hidden="true" />
                             Tạo lệnh sản xuất
@@ -130,13 +130,15 @@ export function ProductionOrderListPage() {
             <BomSummary metrics={productionOrderMetrics} />
             <BomAttentionList items={productionOrderAttentionItems} />
 
-            <div className="grid min-h-[680px] grid-cols-[250px_minmax(0,1fr)_360px] gap-4">
-                <ProductionOrderFilters
-                    value={draftFilters}
-                    onChange={setDraftFilters}
-                    onApply={applyFilters}
-                    onReset={resetFilters}
-                />
+            <div className="grid min-h-[680px] grid-cols-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)] min-[1800px]:grid-cols-[250px_minmax(0,1fr)_360px]">
+                <div className="min-w-0">
+                    <ProductionOrderFilters
+                        value={draftFilters}
+                        onChange={setDraftFilters}
+                        onApply={applyFilters}
+                        onReset={resetFilters}
+                    />
+                </div>
 
                 <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
                     <TableToolbar selectedCount={checkedIds.length} />
@@ -160,10 +162,12 @@ export function ProductionOrderListPage() {
                     />
                 </section>
 
-                <ProductionOrderDetailPanel
-                    order={selectedOrder}
-                    onClose={() => setSelectedOrder(null)}
-                />
+                <div className="hidden min-h-0 min-[1800px]:block [&>aside]:h-full">
+                    <ProductionOrderDetailPanel
+                        order={selectedOrder}
+                        onClose={() => setSelectedOrder(null)}
+                    />
+                </div>
             </div>
         </section>
     );

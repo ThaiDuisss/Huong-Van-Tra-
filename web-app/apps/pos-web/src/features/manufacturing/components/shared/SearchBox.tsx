@@ -12,7 +12,7 @@ export function SearchBox({
     onChange
 }: SearchBoxProps) {
     return (
-        <label className="flex h-11 min-w-[360px] items-center gap-3 rounded-xl border border-pos-border bg-white px-4 text-sm shadow-sm focus-within:border-hvt-green-700">
+        <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl border border-pos-border bg-white px-4 text-sm shadow-sm focus-within:border-hvt-green-700 sm:min-w-[280px] xl:max-w-[420px]">
             <Search
                 size={18}
                 className="text-pos-muted"

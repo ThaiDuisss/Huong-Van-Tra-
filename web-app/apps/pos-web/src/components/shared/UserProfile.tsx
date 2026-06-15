@@ -2,29 +2,43 @@ import { ChevronDown } from "lucide-react";
 
 interface UserProfileProps {
     expanded: boolean;
+    compact?: boolean;
     onToggle(): void;
 }
 
 export function UserProfile({
     expanded,
+    compact = false,
     onToggle
 }: UserProfileProps) {
     return (
         <section
-            className="flex items-center gap-3 pb-6 text-sm"
+            className={`flex items-center text-sm ${
+                compact ? "gap-2 pb-0" : "gap-3 pb-6"
+            }`}
             aria-label="Người dùng hiện tại"
         >
             <div
-                className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-white text-hvt-green-900 ring-2 ring-white/20"
+                className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-white text-hvt-green-900 ring-2 ring-white/20 ${
+                    compact ? "size-8" : "size-10"
+                }`}
                 aria-hidden="true"
             >
                 <span className="font-bold">Đ</span>
             </div>
             <div className="min-w-0">
-                <strong className="block truncate">
+                <strong
+                    className={`block truncate ${
+                        compact ? "text-sm" : ""
+                    }`}
+                >
                     Đỗ Xuân Thái
                 </strong>
-                <p className="mt-0.5 text-white/70">Ca sáng</p>
+                {compact ? null : (
+                    <p className="mt-0.5 text-white/70">
+                        Ca sáng
+                    </p>
+                )}
             </div>
             <button
                 type="button"
