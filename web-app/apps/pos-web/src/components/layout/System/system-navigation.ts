@@ -41,22 +41,22 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Package,
         children: [
             {
-                label: "Categories",
+                label: "Danh mục sản phẩm",
                 to: routePaths.categories,
                 icon: FolderTree
             },
             {
-                label: "Products",
+                label: "Sản phẩm",
                 to: routePaths.products,
                 icon: Package
             },
             {
-                label: "Product Variants",
+                label: "Biến thể sản phẩm",
                 to: routePaths.productVariants,
                 icon: Layers3
             },
             {
-                label: "Price Lists",
+                label: "Bảng giá",
                 to: routePaths.priceLists,
                 icon: Tags
             }
