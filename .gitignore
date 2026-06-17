@@ -48,4 +48,6 @@ build/
 .DS_Store
 
 .idea/
+*.iml.idea/
+*.iml
 *.iml
