@@ -4,12 +4,20 @@ import {
     Calculator,
     ClipboardList,
     FileText,
+    FolderTree,
+    History,
+    Layers3,
+    MapPinned,
     Package,
+    PackagePlus,
+    SlidersHorizontal,
+    Tags,
     Settings,
     ShoppingCart,
     Truck,
     User,
-    Users
+    Users,
+    Warehouse
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -35,7 +43,60 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     },
     {
         label: "Hàng hóa",
-        icon: Package
+        icon: Package,
+        children: [
+            {
+                label: "Danh mục sản phẩm",
+                to: routePaths.categories,
+                icon: FolderTree
+            },
+            {
+                label: "Sản phẩm",
+                to: routePaths.products,
+                icon: Package
+            },
+            {
+                label: "Biến thể sản phẩm",
+                to: routePaths.productVariants,
+                icon: Layers3
+            },
+            {
+                label: "Bảng giá",
+                to: routePaths.priceLists,
+                icon: Tags
+            }
+        ]
+    },
+    {
+        label: "Quản lý tồn kho",
+        icon: Warehouse,
+        children: [
+            {
+                label: "Quản lý kệ hàng",
+                to: routePaths.inventoryLocations,
+                icon: MapPinned
+            },
+            {
+                label: "Tồn kho hiện tại",
+                to: routePaths.inventoryBalances,
+                icon: Warehouse
+            },
+            {
+                label: "Nhập hàng lên kệ",
+                to: routePaths.inventoryStockIn,
+                icon: PackagePlus
+            },
+            {
+                label: "Điều chỉnh tồn kho",
+                to: routePaths.inventoryAdjustment,
+                icon: SlidersHorizontal
+            },
+            {
+                label: "Lịch sử biến động",
+                to: routePaths.inventoryTransactions,
+                icon: History
+            }
+        ]
     },
     {
         label: "BOM & Sản xuất",

@@ -20,14 +20,14 @@ export function Pagination({
     const safePageCount = Math.max(1, pageCount);
 
     return (
-        <div className="flex items-center justify-between border-t border-pos-border px-4 py-3 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-pos-border px-4 py-3 text-sm">
             <p className="text-pos-muted">
                 Tổng số BOM{" "}
                 <strong className="text-pos-ink">
                     {totalItems}
                 </strong>
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
                 <label className="flex items-center gap-2 text-pos-muted">
                     Hiển thị
                     <select
@@ -46,7 +46,7 @@ export function Pagination({
                         ))}
                     </select>
                 </label>
-                <div className="flex items-center gap-1">
+                <div className="flex max-w-full items-center gap-1 overflow-x-auto pb-1">
                     {Array.from(
                         { length: safePageCount },
                         (_, index) => index + 1

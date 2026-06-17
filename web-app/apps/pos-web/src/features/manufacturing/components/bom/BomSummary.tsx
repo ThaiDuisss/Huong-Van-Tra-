@@ -7,7 +7,7 @@ interface BomSummaryProps {
 
 export function BomSummary({ metrics }: BomSummaryProps) {
     return (
-        <section className="grid grid-cols-4 gap-4">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
             {metrics.map((metric) => (
                 <MetricCard
                     key={metric.id}

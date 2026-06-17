@@ -23,7 +23,11 @@ function getWorkspaceFromPathname(
     return "pos";
 }
 
-export function WorkspaceSwitcher() {
+export function WorkspaceSwitcher({
+    compact = false
+}: {
+    compact?: boolean;
+}) {
     const [openPathname, setOpenPathname] =
         useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -103,6 +107,7 @@ export function WorkspaceSwitcher() {
 
             <UserProfile
                 expanded={open}
+                compact={compact}
                 onToggle={() =>
                     setOpenPathname((current) =>
                         current === location.pathname
