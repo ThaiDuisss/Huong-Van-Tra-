@@ -4,7 +4,6 @@ import {
     ChevronLeft,
     ChevronRight,
     Download,
-    Filter,
     Mail,
     MoreHorizontal,
     Phone,
@@ -14,6 +13,7 @@ import {
     WalletCards
 } from "lucide-react";
 
+import { TimeHierarchyFilter } from "../../../components/shared/TimeHierarchyFilter";
 import { formatCurrency } from "../../sales/services/money";
 import styles from "./CustomerListPage.module.css";
 
@@ -198,65 +198,7 @@ function getTierClassName(tier: CustomerRow["tier"]) {
 export function CustomerListPage() {
     return (
         <section className={styles.page}>
-            <aside className={styles.timeline} aria-label="Bộ lọc thời gian">
-                <div className={styles.timelineHeader}>
-                    <span>Thời gian</span>
-                    <Filter size={16} aria-hidden="true" />
-                </div>
-                <div className={styles.timelineList}>
-                    <button className={styles.timeItem} type="button">
-                        <ChevronRight size={13} aria-hidden="true" />
-                        2026
-                    </button>
-                    <button className={styles.timeItem} type="button">
-                        <ChevronRight size={13} aria-hidden="true" />
-                        Quý 1
-                    </button>
-                    <button className={styles.timeItem} type="button">
-                        <ChevronRight size={13} aria-hidden="true" />
-                        Quý 2
-                    </button>
-                    <button className={styles.dateItem} type="button">
-                        Tháng 4
-                    </button>
-                    <button className={styles.dateItem} type="button">
-                        Tháng 5
-                    </button>
-                    <button className={styles.timeItem} type="button">
-                        <ChevronRight size={13} aria-hidden="true" />
-                        Tháng 6
-                    </button>
-                    {["17/06/2026", "16/06/2026", "15/06/2026"].map(
-                        (date, index) => (
-                            <button
-                                className={`${styles.dateItem} ${
-                                    index === 0 ? styles.activeDate : ""
-                                }`}
-                                key={date}
-                                type="button"
-                            >
-                                {date}
-                            </button>
-                        )
-                    )}
-                    <button className={styles.timeItem} type="button">
-                        <ChevronRight size={13} aria-hidden="true" />
-                        Quý 3
-                    </button>
-                    <button className={styles.timeItem} type="button">
-                        <ChevronRight size={13} aria-hidden="true" />
-                        Quý 4
-                    </button>
-                    <button className={styles.timeItem} type="button">
-                        <ChevronRight size={13} aria-hidden="true" />
-                        2025
-                    </button>
-                    <button className={styles.timeItem} type="button">
-                        <ChevronRight size={13} aria-hidden="true" />
-                        2024
-                    </button>
-                </div>
-            </aside>
+            <TimeHierarchyFilter />
 
             <div className={styles.tablePanel}>
                 <div className={styles.tableToolbar}>
