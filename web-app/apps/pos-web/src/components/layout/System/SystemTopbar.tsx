@@ -6,8 +6,25 @@ import {
     Search,
     ShieldCheck
 } from "lucide-react";
+import { useLocation } from "react-router-dom";
+
+import { routePaths } from "../../../routes/path";
 
 export function SystemTopbar() {
+    const location = useLocation();
+    const isOrders = location.pathname.startsWith(routePaths.orders);
+    const isInvoices = location.pathname.startsWith(routePaths.invoices);
+    const isInvoiceDetail =
+        isInvoices && location.pathname !== routePaths.invoices;
+    const section = isOrders ? "Đơn hàng" : "Khách hàng";
+    const page = isInvoiceDetail
+        ? "Chi tiết hóa đơn"
+        : isInvoices
+        ? "Hóa đơn"
+        : isOrders
+          ? "Tất cả đơn hàng"
+          : "Danh sách khách hàng";
+
     return (
         <header className="flex h-[58px] shrink-0 items-center gap-4 border-b border-[#e8eef0] bg-white px-4 text-[#172317] sm:px-5">
             <button
@@ -19,14 +36,14 @@ export function SystemTopbar() {
             </button>
 
             <nav className="flex min-w-0 items-center gap-2 text-[12px] font-semibold">
-                <span className="text-[#5f6b7a]">Khách hàng</span>
+                <span className="text-[#5f6b7a]">{section}</span>
                 <span className="text-[#9aa7b5]">›</span>
                 <span className="truncate text-[#159734]">
-                    Danh sách khách hàng
+                    {page}
                 </span>
             </nav>
 
-            <label className="ml-auto flex h-10 w-[360px] max-w-[38vw] items-center gap-3 rounded-lg border border-[#e8eef0] bg-white px-3 shadow-[0_6px_16px_rgba(31,53,43,0.04)] focus-within:border-[#8fd6a5]">
+            <label className={`${isOrders ? "hidden" : "ml-auto flex"} h-10 w-[360px] max-w-[38vw] items-center gap-3 rounded-lg border border-[#e8eef0] bg-white px-3 shadow-[0_6px_16px_rgba(31,53,43,0.04)] focus-within:border-[#8fd6a5]`}>
                 <Search
                     className="shrink-0 text-[#53678f]"
                     size={17}
@@ -34,8 +51,12 @@ export function SystemTopbar() {
                 />
                 <input
                     className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#8b95a4]"
-                    aria-label="Tìm kiếm khách hàng"
-                    placeholder="Tìm kiếm mã khách hàng, tên, SĐT, email..."
+                    aria-label={isOrders ? "Tìm kiếm đơn hàng" : "Tìm kiếm khách hàng"}
+                    placeholder={
+                        isOrders
+                            ? "Tìm theo mã đơn hàng, tên người nhận, SĐT..."
+                            : "Tìm kiếm mã khách hàng, tên, SĐT, email..."
+                    }
                 />
                 <span className="text-[11px] font-bold text-[#53678f]">
                     ⌘ K

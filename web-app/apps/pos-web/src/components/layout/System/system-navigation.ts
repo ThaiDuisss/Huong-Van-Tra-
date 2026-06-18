@@ -16,6 +16,7 @@ import {
     ShoppingCart,
     User,
     Users,
+    WalletCards,
     Warehouse
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -45,9 +46,24 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: ShoppingCart,
         children: [
             {
-                label: "Danh sách đơn hàng",
-                to: routePaths.bomList,
+                label: "Tất cả đơn hàng",
+                to: routePaths.orders,
                 icon: FileText
+            },
+            {
+                label: "Hóa đơn",
+                to: routePaths.invoices,
+                icon: FileText
+            },
+            {
+                label: "Hoàn hàng",
+                to: routePaths.returns,
+                icon: History
+            },
+            {
+                label: "Hoàn tiền",
+                to: routePaths.refunds,
+                icon: WalletCards
             }
         ]
     },

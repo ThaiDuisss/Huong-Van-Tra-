@@ -1,0 +1,400 @@
+.page {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+}
+
+.content {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto;
+  gap: 18px;
+  align-items: end;
+}
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.title h1 {
+  margin: 0;
+  color: #07883a;
+  font-size: 32px;
+  font-weight: 950;
+}
+
+.title p {
+  max-width: 520px;
+  margin: 8px 0 0;
+  color: #536078;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 360px;
+  height: 44px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0 14px;
+}
+
+.searchBox input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: #172317;
+  font-size: 13px;
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.primaryButton {
+  border: 0;
+  background: #07883a;
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgb(7 136 58 / 0.22);
+}
+
+.secondaryButton {
+  border: 1px solid #d8eadc;
+  background: #ffffff;
+  color: #172317;
+}
+
+.heroArt {
+  width: 164px;
+  height: 72px;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tablePanel,
+.detailPanel {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgb(31 53 43 / 0.05);
+}
+
+.tablePanel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 18px;
+  border-bottom: 1px solid #edf0f4;
+  padding: 18px;
+}
+
+.filterLabel {
+  display: grid;
+  gap: 8px;
+  color: #172317;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.select {
+  display: flex;
+  height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #172317;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tableWrap {
+  min-height: 0;
+  overflow: auto;
+}
+
+.invoiceTable {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  color: #172317;
+  font-size: 13px;
+}
+
+.invoiceTable th,
+.invoiceTable td {
+  height: 52px;
+  border-bottom: 1px solid #edf0f4;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.invoiceTable th {
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.invoiceTable th:first-child,
+.invoiceTable td:first-child {
+  padding-left: 18px;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #b2bdca;
+  border-radius: 4px;
+}
+
+.invoiceLink {
+  color: #172317;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.invoiceLink:hover {
+  color: #07883a;
+  text-decoration: underline;
+}
+
+.status {
+  display: inline-flex;
+  min-width: 82px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.paid {
+  background: #e8f4ff;
+  color: #1687e8;
+}
+
+.unpaid {
+  background: #fff2e8;
+  color: #ff7a00;
+}
+
+.pagination {
+  display: flex;
+  height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  color: #536078;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pageTools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pageButton {
+  display: grid;
+  min-width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172317;
+  font-weight: 900;
+}
+
+.activePage {
+  border-color: #07883a;
+  background: #07883a;
+  color: #ffffff;
+}
+
+.detailPanel {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #edf0f4;
+  padding-bottom: 12px;
+}
+
+.detailHeader h2 {
+  margin: 0;
+  color: #172317;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.detailSection {
+  border-bottom: 1px solid #edf0f4;
+  padding: 14px 0;
+}
+
+.detailSection h3 {
+  margin: 0 0 12px;
+  color: #172317;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.infoList {
+  display: grid;
+  gap: 9px;
+}
+
+.infoRow {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  color: #172317;
+  font-size: 12px;
+}
+
+.infoRow span {
+  color: #536078;
+  font-weight: 700;
+}
+
+.infoRow strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.greenText {
+  color: #159734;
+}
+
+.bluePill,
+.greenPill,
+.purplePill {
+  display: inline-flex;
+  width: fit-content;
+  height: 22px;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.bluePill {
+  background: #e8f4ff;
+  color: #1687e8;
+}
+
+.greenPill {
+  background: #e9f8ed;
+  color: #159734;
+}
+
+.purplePill {
+  background: #f2eaff;
+  color: #7b3de2;
+}
+
+.timeline {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.timelineItem {
+  display: grid;
+  grid-template-columns: 12px 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 11px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: #159734;
+}
+
+.purpleDot {
+  background: #7b3de2;
+}
+
+@media (max-width: 1279px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page > aside {
+    display: none;
+  }
+
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detailPanel {
+    display: none;
+  }
+}
