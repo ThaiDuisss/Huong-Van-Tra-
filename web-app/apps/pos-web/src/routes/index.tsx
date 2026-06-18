@@ -37,6 +37,12 @@ export const appRoutes = {
     inventoryTransactions: {
         path: routePaths.inventoryTransactions
     },
+    customers: {
+        path: routePaths.customers
+    },
+    customerGroups: {
+        path: routePaths.customerGroups
+    },
     manufacturingBoms: {
         path: routePaths.bomList
     },

@@ -16,6 +16,8 @@ export const routePaths = {
     inventoryStockIn: "/system/inventory/stock-in",
     inventoryAdjustment: "/system/inventory/adjustment",
     inventoryTransactions: "/system/inventory/transactions",
+    customers: "/system/customers",
+    customerGroups: "/system/customers/groups",
     bomList: "/system/manufacturing/boms",
     productionOrders:
         "/system/manufacturing/production-orders"
