@@ -1,22 +1,22 @@
 import {
     BarChart3,
-    Building2,
-    Calculator,
-    ClipboardList,
+    Boxes,
     FileText,
     FolderTree,
     History,
+    Home,
     Layers3,
     MapPinned,
     Package,
     PackagePlus,
+    Plane,
     SlidersHorizontal,
     Tags,
     Settings,
     ShoppingCart,
-    Truck,
     User,
     Users,
+    WalletCards,
     Warehouse
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -39,10 +39,36 @@ export interface SystemNavigationItem {
 export const systemNavigationItems: SystemNavigationItem[] = [
     {
         label: "Tổng quan",
-        icon: BarChart3
+        icon: Home
     },
     {
-        label: "Hàng hóa",
+        label: "Đơn hàng",
+        icon: ShoppingCart,
+        children: [
+            {
+                label: "Tất cả đơn hàng",
+                to: routePaths.orders,
+                icon: FileText
+            },
+            {
+                label: "Hóa đơn",
+                to: routePaths.invoices,
+                icon: FileText
+            },
+            {
+                label: "Hoàn hàng",
+                to: routePaths.returns,
+                icon: History
+            },
+            {
+                label: "Hoàn tiền",
+                to: routePaths.refunds,
+                icon: WalletCards
+            }
+        ]
+    },
+    {
+        label: "Sản phẩm",
         icon: Package,
         children: [
             {
@@ -68,8 +94,8 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         ]
     },
     {
-        label: "Quản lý tồn kho",
-        icon: Warehouse,
+        label: "Kho",
+        icon: Boxes,
         children: [
             {
                 label: "Quản lý kệ hàng",
@@ -99,59 +125,28 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         ]
     },
     {
-        label: "BOM & Sản xuất",
-        icon: ClipboardList,
-        badge: "3",
+        label: "Khách hàng",
+        icon: User,
         children: [
             {
-                label: "Danh sách BOM",
-                to: routePaths.bomList,
-                icon: Package
+                label: "Danh sách khách hàng",
+                to: routePaths.customers,
+                icon: User
             },
             {
-                label: "Lệnh sản xuất",
-                to: routePaths.productionOrders,
-                icon: ClipboardList
+                label: "Nhóm khách hàng",
+                to: routePaths.customerGroups,
+                icon: Users
             }
         ]
     },
     {
-        label: "Mua hàng",
-        icon: ShoppingCart
-    },
-    {
-        label: "Đơn hàng",
-        icon: FileText
-    },
-    {
-        label: "Giao hàng",
-        icon: Truck,
-        badge: "5"
-    },
-    {
-        label: "Khách hàng",
-        icon: User
-    },
-    {
-        label: "Nhân viên",
-        icon: Users
-    },
-    {
-        label: "Sổ quỹ",
-        icon: Calculator
+        label: "Marketing",
+        icon: Plane
     },
     {
         label: "Báo cáo",
         icon: BarChart3
-    },
-    {
-        label: "Bán online",
-        icon: Building2,
-        badge: "12"
-    },
-    {
-        label: "Thuế & Kế toán",
-        icon: FileText
     },
     {
         label: "Cài đặt",

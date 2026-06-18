@@ -29,15 +29,15 @@ export function QuickCashButtons({
   onSelect
 }: QuickCashButtonsProps) {
   return (
-    <div className="rounded-xl border border-pos-border p-3">
-      <p className="mb-3 text-sm font-semibold">Tiền nhận nhanh</p>
+    <div className="rounded-lg border border-pos-border p-3">
+      <p className="mb-2 text-xs font-semibold">Tiền nhận nhanh</p>
       <div className="grid grid-cols-5 gap-2">
         {getQuickAmounts(total).map((amount) => (
           <button
             key={amount}
             type="button"
             onClick={() => onSelect(amount)}
-            className="h-9 rounded-full border border-pos-border text-sm font-medium hover:border-hvt-green-700 hover:bg-hvt-green-50"
+            className="h-8 rounded-full border border-pos-border text-xs font-medium hover:border-hvt-green-700 hover:bg-hvt-green-50"
           >
             {amount >= 1000000
               ? `${amount / 1000000} triệu`
