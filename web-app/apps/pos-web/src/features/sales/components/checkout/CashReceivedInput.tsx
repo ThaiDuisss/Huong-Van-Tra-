@@ -13,10 +13,10 @@ export function CashReceivedInput({
 }: CashReceivedInputProps) {
   return (
     <div className="grid grid-cols-2 gap-3">
-      <label className="grid min-h-20 gap-2 rounded-xl border border-pos-border p-3">
-        <span className="text-sm font-semibold">Tiền khách đưa</span>
+      <label className="grid min-h-[72px] gap-1 rounded-lg border border-pos-border p-3">
+        <span className="text-xs font-semibold">Tiền khách đưa</span>
         <input
-          className="min-w-0 bg-transparent text-lg font-semibold outline-none placeholder:text-neutral-400"
+          className="min-w-0 bg-transparent text-sm font-semibold outline-none placeholder:text-neutral-400"
           inputMode="numeric"
           value={value > 0 ? formatCurrency(value) : ""}
           placeholder="Nhập số tiền"
@@ -26,9 +26,9 @@ export function CashReceivedInput({
         />
       </label>
 
-      <div className="grid min-h-20 gap-2 rounded-xl border border-pos-border p-3">
-        <span className="text-sm font-semibold">Tiền thừa</span>
-        <strong className="self-end text-right text-lg text-hvt-green-900">
+      <div className="grid min-h-[72px] gap-1 rounded-lg border border-pos-border p-3">
+        <span className="text-xs font-semibold">Tiền thừa</span>
+        <strong className="self-end text-right text-base text-[#159734]">
           {formatCurrency(changeAmount)}
         </strong>
       </div>
