@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { ChevronRight, Funnel } from "lucide-react";
 
 import styles from "./TimeHierarchyFilter.module.css";
@@ -6,14 +7,139 @@ interface TimeHierarchyFilterProps {
     activeDate?: string;
 }
 
-const years = ["2026", "2025", "2024"] as const;
-const quarters = ["Quý 1", "Quý 2", "Quý 3", "Quý 4"] as const;
-const months = ["Tháng 4", "Tháng 5", "Tháng 6"] as const;
-const dates = ["17/06/2026", "16/06/2026", "15/06/2026"] as const;
+interface MonthNode {
+    month: number;
+    dates: string[];
+}
 
-export function TimeHierarchyFilter({
-    activeDate = "17/06/2026"
-}: TimeHierarchyFilterProps) {
+interface QuarterNode {
+    quarter: number;
+    months: MonthNode[];
+}
+
+interface YearNode {
+    year: number;
+    quarters: QuarterNode[];
+}
+
+const visibleYearCount = 5;
+const monthsPerQuarter = 3;
+
+function padDatePart(value: number) {
+    return String(value).padStart(2, "0");
+}
+
+function formatDate(day: number, month: number, year: number) {
+    return `${padDatePart(day)}/${padDatePart(month)}/${year}`;
+}
+
+function getDaysInMonth(year: number, month: number) {
+    return new Date(year, month, 0).getDate();
+}
+
+function buildTimeTree(today: Date): YearNode[] {
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    return Array.from({ length: visibleYearCount }, (_, yearIndex) => {
+        const year = currentYear - yearIndex;
+        const maxMonth = year === currentYear ? currentMonth : 12;
+        const quarterCount = Math.ceil(maxMonth / monthsPerQuarter);
+
+        return {
+            year,
+            quarters: Array.from({ length: quarterCount }, (_, quarterIndex) => {
+                const quarter = quarterIndex + 1;
+                const quarterStartMonth = quarterIndex * monthsPerQuarter + 1;
+                const quarterEndMonth = Math.min(
+                    quarterStartMonth + monthsPerQuarter - 1,
+                    maxMonth
+                );
+
+                return {
+                    quarter,
+                    months: Array.from(
+                        { length: quarterEndMonth - quarterStartMonth + 1 },
+                        (_, monthIndex) => {
+                            const month = quarterStartMonth + monthIndex;
+                            const daysInMonth =
+                                year === currentYear && month === currentMonth
+                                    ? currentDay
+                                    : getDaysInMonth(year, month);
+
+                            return {
+                                month,
+                                dates: Array.from(
+                                    { length: daysInMonth },
+                                    (_, dayIndex) =>
+                                        formatDate(
+                                            daysInMonth - dayIndex,
+                                            month,
+                                            year
+                                        )
+                                )
+                            };
+                        }
+                    ).reverse()
+                };
+            }).reverse()
+        };
+    });
+}
+
+export function TimeHierarchyFilter({ activeDate }: TimeHierarchyFilterProps) {
+    const [openYears, setOpenYears] = useState<Set<number>>(new Set());
+    const [openQuarters, setOpenQuarters] = useState<Set<string>>(new Set());
+    const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
+    const today = useMemo(() => new Date(), []);
+    const timeTree = useMemo(() => buildTimeTree(today), [today]);
+    const selectedDate =
+        activeDate ??
+        formatDate(today.getDate(), today.getMonth() + 1, today.getFullYear());
+
+    const toggleYear = (year: number) => {
+        setOpenYears((current) => {
+            const next = new Set(current);
+
+            if (next.has(year)) {
+                next.delete(year);
+            } else {
+                next.add(year);
+            }
+
+            return next;
+        });
+    };
+
+    const toggleQuarter = (id: string) => {
+        setOpenQuarters((current) => {
+            const next = new Set(current);
+
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+
+            return next;
+        });
+    };
+
+    const toggleMonth = (id: string) => {
+        setOpenMonths((current) => {
+            const next = new Set(current);
+
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+
+            return next;
+        });
+    };
+
     return (
         <aside className={styles.timeline} aria-label="Bộ lọc thời gian">
             <div className={styles.header}>
@@ -22,86 +148,102 @@ export function TimeHierarchyFilter({
             </div>
 
             <div className={styles.list}>
-                {years.map((year) => {
-                    const activeYear = year === "2026";
+                {timeTree.map((yearNode) => {
+                    const yearOpen = openYears.has(yearNode.year);
 
                     return (
-                        <div key={year}>
+                        <div key={yearNode.year}>
                             <button
                                 className={`${styles.item} ${
-                                    activeYear ? styles.open : ""
+                                    yearOpen ? styles.open : ""
                                 }`}
+                                aria-expanded={yearOpen}
+                                onClick={() => toggleYear(yearNode.year)}
                                 type="button"
                             >
                                 <ChevronRight size={16} aria-hidden="true" />
-                                {year}
+                                {yearNode.year}
                             </button>
 
-                            {activeYear
-                                ? quarters.map((quarter) => {
-                                      const activeQuarter =
-                                          quarter === "Quý 2";
+                            {yearOpen
+                                ? yearNode.quarters.map((quarterNode) => {
+                                      const quarterId = `${yearNode.year}-${quarterNode.quarter}`;
+                                      const quarterOpen =
+                                          openQuarters.has(quarterId);
 
                                       return (
-                                          <div key={quarter}>
+                                          <div key={quarterId}>
                                               <button
                                                   className={`${styles.item} ${styles.quarter} ${
-                                                      activeQuarter
+                                                      quarterOpen
                                                           ? styles.open
                                                           : ""
                                                   }`}
+                                                  aria-expanded={quarterOpen}
+                                                  onClick={() =>
+                                                      toggleQuarter(quarterId)
+                                                  }
                                                   type="button"
                                               >
                                                   <ChevronRight
                                                       size={15}
                                                       aria-hidden="true"
                                                   />
-                                                  {quarter}
+                                                  Quý {quarterNode.quarter}
                                               </button>
 
-                                              {activeQuarter
-                                                  ? months.map(
-                                                        (month) => {
-                                                            const activeMonth =
-                                                                month ===
-                                                                "Tháng 6";
+                                              {quarterOpen
+                                                  ? quarterNode.months.map(
+                                                        (monthNode) => {
+                                                            const monthId = `${quarterId}-${monthNode.month}`;
+                                                            const monthOpen =
+                                                                openMonths.has(
+                                                                    monthId
+                                                                );
 
                                                             return (
                                                                 <div
                                                                     key={
-                                                                        month
+                                                                        monthId
                                                                     }
                                                                 >
                                                                     <button
                                                                         className={`${styles.item} ${styles.month} ${
-                                                                            activeMonth
+                                                                            monthOpen
                                                                                 ? styles.open
                                                                                 : ""
                                                                         }`}
+                                                                        aria-expanded={
+                                                                            monthOpen
+                                                                        }
+                                                                        onClick={() =>
+                                                                            toggleMonth(
+                                                                                monthId
+                                                                            )
+                                                                        }
                                                                         type="button"
                                                                     >
-                                                                        {activeMonth ? (
-                                                                            <ChevronRight
-                                                                                size={
-                                                                                    14
-                                                                                }
-                                                                                aria-hidden="true"
-                                                                            />
-                                                                        ) : null}
+                                                                        <ChevronRight
+                                                                            size={
+                                                                                14
+                                                                            }
+                                                                            aria-hidden="true"
+                                                                        />
+                                                                        Tháng{" "}
                                                                         {
-                                                                            month
+                                                                            monthNode.month
                                                                         }
                                                                     </button>
 
-                                                                    {activeMonth
-                                                                        ? dates.map(
+                                                                    {monthOpen
+                                                                        ? monthNode.dates.map(
                                                                               (
                                                                                   date
                                                                               ) => (
                                                                                   <button
                                                                                       className={`${styles.item} ${styles.date} ${styles.dateRail} ${
                                                                                           date ===
-                                                                                          activeDate
+                                                                                          selectedDate
                                                                                               ? styles.activeDate
                                                                                               : ""
                                                                                       }`}
