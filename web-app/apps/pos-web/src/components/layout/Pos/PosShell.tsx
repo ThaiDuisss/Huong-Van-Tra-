@@ -12,15 +12,15 @@ export function PosShell({
   checkout
 }: PosShellProps) {
   return (
-    <div className="grid h-dvh min-h-0 grid-cols-[176px_minmax(0,1fr)_clamp(380px,31vw,448px)] overflow-hidden bg-pos-background xl:grid-cols-[184px_minmax(0,1fr)_448px] 2xl:grid-cols-[220px_minmax(0,1fr)_480px]">
+    <div className="grid h-dvh min-h-0 grid-cols-[176px_minmax(0,1fr)_clamp(340px,29vw,380px)] overflow-hidden bg-[#f7f8fb] xl:grid-cols-[184px_minmax(0,1fr)_380px] 2xl:grid-cols-[192px_minmax(0,1fr)_396px]">
       <PosSidebar />
 
-      <main className="min-h-0 min-w-0 overflow-hidden px-5 py-6 md:px-6 xl:px-8">
+      <main className="min-h-0 min-w-0 overflow-hidden px-4 py-5 md:px-5">
         {children}
       </main>
 
       <aside
-        className="min-h-0 min-w-0 overflow-hidden bg-pos-background py-5 pr-5 md:py-6 md:pr-6 xl:pr-8"
+        className="min-h-0 min-w-0 overflow-hidden bg-[#f7f8fb] py-5 pr-4 md:pr-5"
         aria-label="Khu vực thanh toán"
       >
         {checkout}

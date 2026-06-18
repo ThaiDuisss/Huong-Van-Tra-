@@ -1,0 +1,207 @@
+.saleWorkspace {
+  display: grid;
+  grid-template-rows: 58px minmax(0, 1fr) 48px 52px;
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: minmax(360px, 520px) auto;
+  gap: 18px;
+  justify-content: start;
+  min-width: 0;
+}
+
+.invoiceTabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.invoiceTab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 184px;
+  height: 52px;
+  border: 1px solid #89d0a0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0 14px;
+  color: #1f2b21;
+  font-weight: 600;
+  box-shadow: 0 8px 22px rgb(28 54 39 / 0.07);
+}
+
+.squareAction {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid #eef0ed;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #13912f;
+  box-shadow: 0 8px 22px rgb(28 54 39 / 0.07);
+}
+
+.cartTableShell {
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgb(28 54 39 / 0.1);
+}
+
+.cartTableHeader,
+.cartRow {
+  display: grid;
+  grid-template-columns: 42px minmax(98px, 120px) minmax(190px, 1fr) 120px 130px 84px;
+  align-items: center;
+  column-gap: 16px;
+}
+
+.cartTableHeader {
+  height: 52px;
+  padding: 0 18px;
+  border-bottom: 1px solid #e9edf3;
+  color: #53678f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cartRows {
+  height: calc(100% - 52px);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cartRow {
+  min-height: 62px;
+  padding: 0 18px;
+  border-bottom: 1px solid #edf0f4;
+  color: #111827;
+  font-size: 14px;
+}
+
+.cartRow:last-child {
+  border-bottom: 0;
+}
+
+.rowIndex {
+  font-weight: 700;
+}
+
+.sku {
+  min-width: 0;
+  overflow: hidden;
+  color: #4f6594;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.productName {
+  min-width: 0;
+  overflow: hidden;
+  color: #141b16;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quantityControl {
+  display: grid;
+  grid-template-columns: 30px 36px 30px;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: 1px solid #e9edf3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.quantityControl button {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: #111827;
+}
+
+.quantityControl strong {
+  text-align: center;
+  font-size: 14px;
+}
+
+.price {
+  justify-self: end;
+  font-weight: 700;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.iconAction {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #53678f;
+}
+
+.iconAction:hover {
+  background: #f3f7f4;
+  color: #159734;
+}
+
+.cartEmpty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  min-height: 0;
+  border: 1px dashed #b9dfc8;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #6b7280;
+  text-align: center;
+  box-shadow: 0 18px 45px rgb(28 54 39 / 0.08);
+}
+
+.cartEmpty strong {
+  color: #12231a;
+  font-size: 18px;
+}
+
+@media (max-width: 1279px) {
+  .saleWorkspace {
+    grid-template-rows: auto minmax(380px, 1fr) 48px auto;
+  }
+
+  .topbar {
+    grid-template-columns: minmax(320px, 1fr);
+  }
+
+  .invoiceTabs {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .cartTableHeader,
+  .cartRow {
+    grid-template-columns: 36px minmax(86px, 102px) minmax(160px, 1fr) 108px 112px 74px;
+    column-gap: 10px;
+  }
+}

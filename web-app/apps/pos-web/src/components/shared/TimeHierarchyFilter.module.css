@@ -1,0 +1,89 @@
+.timeline {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e8eef0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgb(31 53 43 / 0.06);
+}
+
+.header {
+  display: flex;
+  height: 52px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #edf0f4;
+  padding: 0 16px;
+  color: #172317;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 12px;
+  color: #172317;
+  font-size: 15px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
+.item svg {
+  transition: transform 160ms ease;
+}
+
+.open svg {
+  transform: rotate(90deg);
+}
+
+.quarter {
+  padding-left: 22px;
+}
+
+.month {
+  padding-left: 48px;
+  color: #3e4d42;
+  font-weight: 500;
+}
+
+.date {
+  margin-left: 52px;
+  padding-left: 18px;
+  color: #172317;
+  font-weight: 500;
+}
+
+.dateRail {
+  border-left: 1px solid #d8eadc;
+}
+
+.activeDate {
+  background: #eaf8ed;
+  color: #159734;
+  font-weight: 800;
+}
+
+.activeDate::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+}

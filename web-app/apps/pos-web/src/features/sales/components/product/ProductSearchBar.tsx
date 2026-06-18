@@ -23,16 +23,16 @@ export function ProductSearchBar({
 
   return (
     <div className="relative">
-      <div className="flex min-w-0 items-center gap-4 rounded-2xl border border-pos-border bg-pos-surface px-5 shadow-pos-panel focus-within:border-hvt-green-400">
+      <div className="flex min-w-0 items-center gap-4 rounded-xl border border-pos-border bg-pos-surface px-4 shadow-pos-panel focus-within:border-hvt-green-400">
         <Search
           aria-hidden="true"
-          className="size-8 shrink-0 text-hvt-green-900"
+          className="size-7 shrink-0 text-hvt-green-700"
           strokeWidth={1.9}
         />
         <input
-          className="h-[76px] min-w-0 flex-1 bg-transparent text-lg outline-none placeholder:text-neutral-400"
+          className="h-[58px] min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-[#8b95b1]"
           aria-label="Tìm sản phẩm"
-          placeholder="Tìm tên trà, SKU hoặc quét mã vạch"
+          placeholder="Tìm hàng hóa (F3)"
           type="search"
           value={value}
           onChange={(event) => onChange(event.currentTarget.value)}
@@ -41,16 +41,16 @@ export function ProductSearchBar({
           <button
             type="button"
             onClick={onClear}
-            className="grid size-10 place-items-center rounded-xl text-neutral-500 hover:bg-neutral-100 hover:text-pos-ink"
+            className="grid size-9 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-pos-ink"
             aria-label="Xóa từ khóa tìm kiếm"
           >
             <X size={22} aria-hidden="true" />
           </button>
         ) : null}
-        <div className="h-9 w-px bg-pos-border" />
+        <div className="h-8 w-px bg-pos-border" />
         <button
           type="button"
-          className="grid size-11 place-items-center rounded-xl text-hvt-green-900 hover:bg-hvt-green-50"
+          className="grid size-10 place-items-center rounded-lg text-hvt-green-700 hover:bg-hvt-green-50"
           aria-label="Quét mã vạch"
         >
           <ScanLine size={28} aria-hidden="true" />

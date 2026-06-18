@@ -1,6 +1,4 @@
 import { Leaf } from "lucide-react";
-import { formatCurrency } from "../../services/money";
-
 interface CompletePaymentButtonProps {
   total: number;
   disabled?: boolean;
@@ -8,7 +6,6 @@ interface CompletePaymentButtonProps {
 }
 
 export function CompletePaymentButton({
-  total,
   disabled = false,
   onClick
 }: CompletePaymentButtonProps) {
@@ -17,12 +14,12 @@ export function CompletePaymentButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="mt-auto flex h-16 items-center justify-center gap-4 rounded-xl bg-hvt-green-900 px-4 text-lg font-bold uppercase tracking-wide text-white shadow-pos-panel disabled:cursor-not-allowed disabled:bg-neutral-300"
+      className="mt-auto flex h-[50px] items-center justify-center gap-3 rounded-lg bg-[#159734] px-4 text-[13px] font-bold uppercase text-white shadow-pos-panel disabled:cursor-not-allowed disabled:bg-neutral-300"
     >
-      <Leaf size={26} aria-hidden="true" />
+      <Leaf size={22} aria-hidden="true" />
       <span>Hoàn tất thanh toán</span>
-      <span className="rounded-lg bg-white/14 px-2 py-1 text-sm normal-case">
-        {formatCurrency(total)}
+      <span className="rounded-md bg-white/18 px-2 py-1 text-[11px] normal-case">
+        F12
       </span>
     </button>
   );

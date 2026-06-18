@@ -81,7 +81,7 @@ export function WorkspaceSwitcher({
     function selectWorkspace(workspace: WorkspaceKey) {
         navigate(
             workspace === "system"
-                ? routePaths.bomList
+                ? routePaths.customers
                 : routePaths.posSales
         );
         setOpenPathname(null);
