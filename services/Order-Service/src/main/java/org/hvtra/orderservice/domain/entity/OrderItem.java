@@ -2,6 +2,8 @@ package org.hvtra.orderservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 import java.math.BigDecimal;
@@ -20,6 +22,7 @@ public class OrderItem extends BaseEntity {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "product_variant_id", nullable = false, columnDefinition = "CHAR(36)")
     private UUID productVariantId;
 
@@ -47,6 +50,7 @@ public class OrderItem extends BaseEntity {
     @Column(name = "line_total", nullable = false, precision = 14, scale = 2)
     private BigDecimal lineTotal;
 
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "bom_version_id", columnDefinition = "CHAR(36)")
     private UUID bomVersionId;
 }

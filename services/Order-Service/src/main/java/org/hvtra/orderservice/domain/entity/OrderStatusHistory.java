@@ -2,6 +2,8 @@ package org.hvtra.orderservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 import java.time.Instant;
@@ -29,6 +31,7 @@ public class OrderStatusHistory extends BaseEntity {
     @Column(name = "reason")
     private String reason;
 
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "changed_by", columnDefinition = "CHAR(36)")
     private UUID changedBy;
 
