@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import { ChevronDown, Plus } from "lucide-react";
 
 import { PosShell } from "../../../components/layout/Pos/PosShell";
+import { CartList } from "../components/cart/CartList";
 import { CartNote } from "../components/cart/CartNote";
 import { OrderTypeSelector } from "../components/cart/OrderTypeSelector";
 import { AddDebtAction } from "../components/checkout/AddDebtAction";
@@ -13,8 +15,8 @@ import { PaymentMethodGrid } from "../components/checkout/PaymentMethodGrid";
 import { QuickCashButtons } from "../components/checkout/QuickCashButtons";
 import { ReturnMoneyAction } from "../components/checkout/ReturnMoneyAction";
 import { BankTransferDialog } from "../components/dialogs/BankTransferDialog";
+import { CombinedPaymentDialog } from "../components/dialogs/CombinedPaymentDialog";
 import type { PaymentStatusValue } from "../components/dialogs/PaymentStatus";
-import { ProductGrid } from "../components/product/ProductGrid";
 import { ProductSearchBar } from "../components/product/ProductSearchBar";
 import { mockDiscounts } from "../mock/discounts.mock";
 import { mockCustomers } from "../mock/customers.mock";
@@ -32,6 +34,7 @@ import type {
     SaleProductPreview,
     SaleTotals
 } from "../types/sale.types";
+import styles from "./PosSalePage.module.css";
 
 const noDiscount: SaleDiscountOption = {
     id: "none",
@@ -48,11 +51,70 @@ const noDiscount: SaleDiscountOption = {
 
 const bankTransferReferenceCode = "HVT-HD000015";
 
+const initialCartItems: Record<string, SaleCartItem> = {
+    "tea-oi-tu-tay": {
+        productId: "tea-oi-tu-tay",
+        name: "Trà Ôi Tứ Tây",
+        sku: "SKU-HH-111",
+        variant: "100g",
+        quantity: 1,
+        unitPrice: 120000
+    },
+    "tea-olong-tu-quy": {
+        productId: "tea-olong-tu-quy",
+        name: "Trà Ô Long Tứ Quý",
+        sku: "SKU-HH-112",
+        variant: "100g",
+        quantity: 1,
+        unitPrice: 120000
+    },
+    "tea-tu-quy-jasmine": {
+        productId: "tea-tu-quy-jasmine",
+        name: "Trà Tứ Quý Jasmine",
+        sku: "SKU-HH-113",
+        variant: "100g",
+        quantity: 1,
+        unitPrice: 150000
+    },
+    "tea-shan-tuyet": {
+        productId: "tea-shan-tuyet",
+        name: "Trà Shan Tuyết Cổ Thụ",
+        sku: "SKU-HH-114",
+        variant: "100g",
+        quantity: 1,
+        unitPrice: 140000
+    },
+    "tea-tu-quy-premium": {
+        productId: "tea-tu-quy-premium",
+        name: "Trà Tứ Quý Thượng Hạng",
+        sku: "SKU-HH-115",
+        variant: "100g",
+        quantity: 1,
+        unitPrice: 180000
+    },
+    "tea-nhai": {
+        productId: "tea-nhai",
+        name: "Trà Nhài",
+        sku: "SKU-HH-120",
+        variant: "100g",
+        quantity: 2,
+        unitPrice: 110000
+    },
+    "tea-pho-nhi": {
+        productId: "tea-pho-nhi",
+        name: "Trà Phổ Nhĩ",
+        sku: "SKU-HH-121",
+        variant: "357g",
+        quantity: 1,
+        unitPrice: 280000
+    }
+};
+
 export function PosSalePage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [cartItemsById, setCartItemsById] = useState<
         Record<string, SaleCartItem>
-    >({});
+    >(initialCartItems);
     const [note, setNote] = useState("");
     const [orderType, setOrderType] =
         useState<SaleOrderType>("QUICK_SALE");
@@ -68,7 +130,7 @@ export function PosSalePage() {
     const [bankTransferStatus, setBankTransferStatus] =
         useState<PaymentStatusValue>("WAITING");
     const [selectedCustomerId, setSelectedCustomerId] =
-        useState<string | null>(null);
+        useState<string | null>("customer-do-xuan-thai");
 
     const searchResults = useMemo(() => {
         const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -89,29 +151,6 @@ export function PosSalePage() {
         () => Object.values(cartItemsById),
         [cartItemsById]
     );
-
-    const productQuantities = useMemo(() => {
-        return cartItems.reduce<Record<string, number>>((result, item) => {
-            result[item.productId] = Math.max(0, item.quantity);
-
-            return result;
-        }, {});
-    }, [cartItems]);
-
-    const productIdsInCart = useMemo(
-        () => new Set(cartItems.map((item) => item.productId)),
-        [cartItems]
-    );
-
-    const selectedProducts = useMemo(() => {
-        return cartItems
-            .map((item) =>
-                mockProducts.find((product) => product.id === item.productId)
-            )
-            .filter((product): product is SaleProductPreview =>
-                Boolean(product)
-            );
-    }, [cartItems]);
 
     const selectedDiscount =
         mockDiscounts.find(
@@ -151,7 +190,9 @@ export function PosSalePage() {
                 [product.id]: {
                     productId: product.id,
                     name: product.name,
-                    sku: product.sku,
+                    sku: product.sku.startsWith("SKU-")
+                        ? product.sku
+                        : `SKU-${product.sku}`,
                     variant: product.variant,
                     quantity: Math.min(
                         product.availableQuantity,
@@ -203,11 +244,18 @@ export function PosSalePage() {
                 return currentItems;
             }
 
+            if (currentItem.quantity <= 1) {
+                const nextItems = { ...currentItems };
+                delete nextItems[productId];
+
+                return nextItems;
+            }
+
             return {
                 ...currentItems,
                 [productId]: {
                     ...currentItem,
-                    quantity: Math.max(0, currentItem.quantity - 1)
+                    quantity: currentItem.quantity - 1
                 }
             };
         });
@@ -269,22 +317,48 @@ export function PosSalePage() {
                 />
             }
         >
-            <section className="grid h-full min-h-0 grid-rows-[76px_minmax(0,1fr)_84px_76px] gap-4 xl:grid-rows-[76px_minmax(0,1fr)_84px_78px] xl:gap-5">
-                <ProductSearchBar
-                    value={searchQuery}
-                    results={searchResults}
-                    formatCurrency={formatCurrency}
-                    onChange={setSearchQuery}
-                    onClear={() => setSearchQuery("")}
-                    onAdd={addProductFromSearch}
-                />
+            <section className={styles.saleWorkspace}>
+                <div className={styles.topbar}>
+                    <ProductSearchBar
+                        value={searchQuery}
+                        results={searchResults}
+                        formatCurrency={formatCurrency}
+                        onChange={setSearchQuery}
+                        onClear={() => setSearchQuery("")}
+                        onAdd={addProductFromSearch}
+                    />
 
-                <ProductGrid
-                    products={selectedProducts}
-                    quantities={productQuantities}
-                    productIdsInCart={productIdsInCart}
+                    <div className={styles.invoiceTabs} aria-label="Hóa đơn">
+                        <button
+                            className={styles.invoiceTab}
+                            type="button"
+                            aria-current="page"
+                        >
+                            <span>Hóa đơn 1</span>
+                            <span aria-hidden="true">×</span>
+                        </button>
+                        <button
+                            className={styles.squareAction}
+                            type="button"
+                            aria-label="Tạo hóa đơn mới"
+                            title="Tạo hóa đơn mới"
+                        >
+                            <Plus size={22} aria-hidden="true" />
+                        </button>
+                        <button
+                            className={styles.squareAction}
+                            type="button"
+                            aria-label="Danh sách hóa đơn"
+                            title="Danh sách hóa đơn"
+                        >
+                            <ChevronDown size={22} aria-hidden="true" />
+                        </button>
+                    </div>
+                </div>
+
+                <CartList
+                    items={cartItems}
                     formatCurrency={formatCurrency}
-                    onAdd={addProduct}
                     onIncrement={incrementProduct}
                     onDecrement={decrementProduct}
                     onRemove={removeProduct}
@@ -346,14 +420,17 @@ function CheckoutPanel({
     onBankTransferConfirm,
     onBankTransferRefresh
 }: CheckoutPanelProps) {
+    const [bankTransferOpen, setBankTransferOpen] = useState(false);
+    const [combinedPaymentOpen, setCombinedPaymentOpen] = useState(false);
     const isBankTransfer = paymentMethod === "BANK_TRANSFER";
+    const isCombinedPayment = paymentMethod === "COMBINED";
     const canCompletePayment =
         totals.total > 0 &&
         (paymentMethod !== "CASH" || cashReceived >= totals.total) &&
         (!isBankTransfer || bankTransferStatus === "RECEIVED");
 
     return (
-        <section className="flex h-full min-h-0 flex-col gap-4 rounded-3xl bg-pos-surface p-5 shadow-pos-panel xl:p-6">
+        <section className="flex h-full min-h-0 flex-col gap-3 rounded-[20px] bg-pos-surface p-4 shadow-pos-panel">
             <CustomerSelector
                 customers={customers}
                 selectedCustomer={selectedCustomer}
@@ -394,26 +471,55 @@ function CheckoutPanel({
 
             <PaymentMethodGrid
                 value={paymentMethod}
-                onChange={onPaymentMethodChange}
+                onChange={(value) => {
+                    onPaymentMethodChange(value);
+
+                    if (value === "BANK_TRANSFER") {
+                        setBankTransferOpen(true);
+                    }
+
+                    if (value === "COMBINED") {
+                        setCombinedPaymentOpen(true);
+                    }
+                }}
             />
 
-            {isBankTransfer ? (
-                <div className="min-h-0 overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-3">
+                <ReturnMoneyAction onClick={() => undefined} />
+                <AddDebtAction onClick={() => undefined} />
+            </div>
+
+            {isBankTransfer && bankTransferOpen ? (
+                <div
+                    className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4"
+                    role="presentation"
+                >
                     <BankTransferDialog
                         amount={totals.total}
                         status={bankTransferStatus}
                         referenceCode={bankTransferReferenceCode}
+                        onClose={() => setBankTransferOpen(false)}
                         onCancel={onBankTransferCancel}
                         onConfirmReceived={onBankTransferConfirm}
                         onRefreshStatus={onBankTransferRefresh}
                     />
                 </div>
-            ) : (
-                <div className="grid grid-cols-2 gap-3">
-                    <ReturnMoneyAction onClick={() => undefined} />
-                    <AddDebtAction onClick={() => undefined} />
+            ) : null}
+
+            {isCombinedPayment && combinedPaymentOpen ? (
+                <div
+                    className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4"
+                    role="presentation"
+                >
+                    <CombinedPaymentDialog
+                        subtotal={totals.subtotal}
+                        discountAmount={totals.discountAmount}
+                        total={totals.total}
+                        onClose={() => setCombinedPaymentOpen(false)}
+                        onConfirm={() => setCombinedPaymentOpen(false)}
+                    />
                 </div>
-            )}
+            ) : null}
 
             <div className="mt-auto">
                 <CompletePaymentButton

@@ -1,12 +1,14 @@
-import { ChevronDown, ChevronUp, Leaf, MapPin } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { ChevronDown, MapPin } from "lucide-react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 
-import { WorkspaceSwitcher } from "../../shared/WorkspaceSwitcher";
+import { HvtLogo } from "../../shared/HvtLogo";
 import { systemNavigationItems } from "./system-navigation";
+import { routePaths } from "../../../routes/path";
 
 export function SystemSidebar() {
     const location = useLocation();
+    const navigate = useNavigate();
     const activeGroup =
         systemNavigationItems.find((item) =>
             item.children?.some(
@@ -16,33 +18,20 @@ export function SystemSidebar() {
             )
         )?.label ?? null;
     const [openGroup, setOpenGroup] = useState<string | null>(
-        activeGroup
+        activeGroup ?? "Khách hàng"
     );
 
     return (
-        <aside className="flex h-dvh min-h-0 w-[210px] shrink-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_42%_12%,rgba(53,141,98,0.36),transparent_35%),linear-gradient(180deg,#0a402d_0%,#06351f_100%)] px-3 py-3 text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.08)] lg:w-[230px] lg:px-4 xl:w-[260px]">
-            <div className="mb-2 flex shrink-0 items-center gap-3 px-2">
-                <div
-                    className="grid size-12 shrink-0 place-items-center rounded-2xl border border-pos-gold/90 text-pos-gold shadow-[0_0_20px_rgba(191,138,45,0.18)]"
-                    aria-hidden="true"
-                >
-                    <Leaf size={29} strokeWidth={1.8} />
-                </div>
-                <div className="min-w-0 text-left">
-                    <strong className="block truncate text-base leading-tight tracking-[0.06em] text-pos-gold drop-shadow-sm">
-                        HƯƠNG VÂN TRÀ
-                    </strong>
-                    <span className="block truncate text-[11px] uppercase tracking-[0.12em] text-pos-gold-light">
-                        Premium tea house
-                    </span>
-                </div>
+        <aside className="flex h-dvh min-h-0 w-[178px] shrink-0 flex-col overflow-hidden border-r border-[#e8eef0] bg-white px-3 py-4 text-[#159734] shadow-[8px_0_30px_rgba(25,70,45,0.05)] xl:w-[188px]">
+            <div className="mb-5 shrink-0 px-1">
+                <HvtLogo compact={false} />
             </div>
 
             <nav
                 className="min-h-0 flex-1 overflow-hidden"
                 aria-label="Điều hướng quản lý hệ thống"
             >
-                <ul className="grid gap-0.5">
+                <ul className="grid gap-2">
                     {systemNavigationItems.map((item) => {
                         const Icon = item.icon;
                         const childActive = item.children?.some(
@@ -55,28 +44,33 @@ export function SystemSidebar() {
                         const isOpen =
                             openGroup === item.label ||
                             (openGroup === null && childActive);
+                        const firstChildTo = item.children?.[0]?.to;
 
                         return (
                             <li key={item.label}>
                                 <button
                                     type="button"
-                                    onClick={() =>
-                                        item.children
-                                            ? setOpenGroup((current) =>
-                                                  current === item.label
-                                                      ? null
-                                                      : item.label
-                                              )
-                                            : undefined
-                                    }
-                                    className={`flex h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-semibold ${
-                                        childActive
-                                            ? "bg-white/12 text-white"
-                                            : "text-white/86 hover:bg-white/8"
+                                    onClick={() => {
+                                        if (item.children) {
+                                            setOpenGroup((current) =>
+                                                current === item.label
+                                                    ? null
+                                                    : item.label
+                                            );
+
+                                            if (firstChildTo) {
+                                                navigate(firstChildTo);
+                                            }
+                                        }
+                                    }}
+                                    className={`flex h-9 w-full items-center gap-2.5 rounded-lg px-2 text-left text-[13px] font-semibold ${
+                                        childActive || item.label === activeGroup
+                                            ? "bg-[#edf8ef] text-[#159734]"
+                                            : "text-[#159734] hover:bg-[#f4faf5]"
                                     }`}
                                 >
                                     <Icon
-                                        size={20}
+                                        size={17}
                                         strokeWidth={1.9}
                                         aria-hidden="true"
                                     />
@@ -90,13 +84,14 @@ export function SystemSidebar() {
                                     ) : null}
                                     {item.children ? (
                                         isOpen ? (
-                                            <ChevronUp
-                                                size={16}
+                                            <ChevronDown
+                                                className="rotate-180"
+                                                size={14}
                                                 aria-hidden="true"
                                             />
                                         ) : (
                                             <ChevronDown
-                                                size={16}
+                                                size={14}
                                                 aria-hidden="true"
                                             />
                                         )
@@ -104,12 +99,9 @@ export function SystemSidebar() {
                                 </button>
 
                                 {item.children && isOpen ? (
-                                    <ul className="my-0.5 grid gap-0.5 rounded-lg border border-white/14 bg-black/12 p-0.5">
+                                    <ul className="ml-4 mt-1 grid gap-1 border-l border-[#d8eadc] pl-3">
                                         {item.children.map(
                                             (child) => {
-                                                const ChildIcon =
-                                                    child.icon;
-
                                                 return (
                                                     <li
                                                         key={
@@ -123,14 +115,14 @@ export function SystemSidebar() {
                                                             className={({
                                                                 isActive
                                                             }) =>
-                                                                `flex h-7 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-bold transition ${isActive
-                                                                    ? "bg-white/16 text-white shadow-[inset_2px_0_0_#d6a443]"
-                                                                    : "text-white/78 hover:bg-white/10 hover:text-white"
+                                                                `flex h-8 items-center gap-2 rounded-md px-2 text-[12px] font-semibold transition ${isActive
+                                                                    ? "bg-[#f1fbf3] text-[#159734]"
+                                                                    : "text-[#315f3c] hover:bg-[#f4faf5] hover:text-[#159734]"
                                                                 }`
                                                             }
                                                         >
-                                                            <ChildIcon
-                                                                size={17}
+                                                            <span
+                                                                className="size-1.5 rounded-full bg-current"
                                                                 aria-hidden="true"
                                                             />
                                                             {
@@ -149,28 +141,30 @@ export function SystemSidebar() {
                 </ul>
             </nav>
 
-            <div className="mt-2 grid shrink-0 gap-1.5 border-t border-white/10 pt-2">
+            <div className="mt-3 shrink-0 border-t border-[#edf0f4] pt-3">
                 <button
                     type="button"
-                    className="flex h-9 items-center gap-2.5 rounded-lg border border-white/12 bg-white/5 px-2.5 text-left text-[13px] font-semibold text-white/88 hover:bg-white/10"
+                    onClick={() => navigate(routePaths.posSales)}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-2 text-left hover:bg-[#f4faf5]"
+                    aria-label="Chuyển về POS bán hàng"
                 >
-                    <MapPin size={17} aria-hidden="true" />
-                    <span className="min-w-0 flex-1 truncate">
-                        Chi nhánh trung tâm
+                    <span className="block size-8 shrink-0 overflow-hidden rounded-full bg-[linear-gradient(135deg,#f8c9b5,#182438)]" />
+                    <span className="min-w-0 flex-1">
+                        <strong className="block truncate text-[12px] text-[#315f3c]">
+                            Phạm Thu Hương
+                        </strong>
+                        <span className="block truncate text-[11px] text-[#5f7a66]">
+                            Quản trị viên
+                        </span>
                     </span>
-                    <ChevronDown size={14} aria-hidden="true" />
+                    <ChevronDown size={13} aria-hidden="true" />
                 </button>
 
-                <div className="[&_button]:rounded-lg [&_button]:text-[13px]">
-                    <WorkspaceSwitcher compact />
-                </div>
-
-                <div className="flex items-center gap-2 px-2 text-[13px] font-semibold text-white/88">
-                    <span
-                        className="size-2 rounded-full bg-emerald-400"
-                        aria-hidden="true"
-                    />
-                    Trực tuyến
+                <div className="mt-2 flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold text-[#315f3c]">
+                    <MapPin size={14} aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">
+                        Cửa hàng trung tâm
+                    </span>
                 </div>
             </div>
         </aside>

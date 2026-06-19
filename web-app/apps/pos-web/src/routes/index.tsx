@@ -10,6 +10,21 @@ export const appRoutes = {
         path: routePaths.posSales,
         component: PosSalePage
     },
+    orders: {
+        path: routePaths.orders
+    },
+    invoices: {
+        path: routePaths.invoices
+    },
+    invoiceDetail: {
+        path: routePaths.invoiceDetail
+    },
+    returns: {
+        path: routePaths.returns
+    },
+    refunds: {
+        path: routePaths.refunds
+    },
     productCategories: {
         path: routePaths.categories
     },
@@ -36,6 +51,12 @@ export const appRoutes = {
     },
     inventoryTransactions: {
         path: routePaths.inventoryTransactions
+    },
+    customers: {
+        path: routePaths.customers
+    },
+    customerGroups: {
+        path: routePaths.customerGroups
     },
     manufacturingBoms: {
         path: routePaths.bomList

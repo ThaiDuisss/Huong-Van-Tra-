@@ -1,47 +1,33 @@
 import {
-  BarChart3,
   Bell,
+  BriefcaseBusiness,
+  ChevronDown,
+  Clock3,
+  FileClock,
   FileText,
-  Leaf,
   LogOut,
   Settings,
-  ShoppingBag,
-  ShoppingCart,
-  Tag,
-  User
+  ShoppingBag
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-import { WorkspaceSwitcher } from "../../shared/WorkspaceSwitcher";
+import { HvtLogo } from "../../shared/HvtLogo";
+import { routePaths } from "../../../routes/path";
 
 const navItems = [
   {
-    label: "Bán hàng",
-    icon: ShoppingBag,
+    label: "POS",
+    icon: BriefcaseBusiness,
     active: true
   },
   {
-    label: "Đơn online",
-    icon: ShoppingCart,
+    label: "Đơn hàng",
+    icon: ShoppingBag,
     active: false
   },
   {
-    label: "Khách hàng",
-    icon: User,
-    active: false
-  },
-  {
-    label: "Khuyến mãi",
-    icon: Tag,
-    active: false
-  },
-  {
-    label: "Lịch sử hóa đơn",
-    icon: FileText,
-    active: false
-  },
-  {
-    label: "Báo cáo nhanh",
-    icon: BarChart3,
+    label: "Ca làm việc",
+    icon: Clock3,
     active: false
   }
 ] as const;
@@ -62,24 +48,15 @@ const utilityItems = [
 ] as const;
 
 export function PosSidebar() {
+  const navigate = useNavigate();
+
   return (
     <nav
-      className="flex h-dvh min-h-0 flex-col bg-[radial-gradient(circle_at_42%_12%,rgba(53,141,98,0.34),transparent_35%),linear-gradient(180deg,#0a402d_0%,#06351f_100%)] px-3 py-6 text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.08)]"
+      className="flex h-dvh min-h-0 flex-col border-r border-[#edf0f4] bg-white px-4 py-5 text-[#159734] shadow-[10px_0_30px_rgba(35,60,45,0.04)]"
       aria-label="Điều hướng POS"
     >
-      <div className="mb-8 grid place-items-center px-1 text-center">
-        <div
-          className="mb-3 grid size-16 place-items-center rounded-[28px] border border-pos-gold/90 text-pos-gold shadow-[0_0_28px_rgba(191,138,45,0.22)]"
-          aria-hidden="true"
-        >
-          <Leaf size={36} strokeWidth={1.8} />
-        </div>
-        <strong className="text-[13px] leading-tight tracking-[0.12em] text-pos-gold drop-shadow-sm">
-          HƯƠNG VÂN TRÀ
-        </strong>
-        <span className="mt-1 text-[8px] uppercase tracking-[0.16em] text-pos-gold-light">
-          Premium tea house
-        </span>
+      <div className="mb-7 grid place-items-center px-1 text-center">
+        <HvtLogo />
       </div>
 
       <ul className="grid gap-3">
@@ -89,37 +66,72 @@ export function PosSidebar() {
           return (
             <li key={item.label}>
               <button
-                className={`flex min-h-14 w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pos-gold ${
+                className={`flex min-h-[52px] w-full items-center gap-3 rounded-lg px-2 text-left text-[14px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hvt-green-600 ${
                   item.active
-                    ? "bg-white/16 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),0_10px_26px_rgba(0,0,0,0.12)]"
-                    : "text-white/82 hover:bg-white/10 hover:text-white"
+                    ? "bg-[#f4f5f3] text-[#159734]"
+                    : "text-[#159734] hover:bg-[#f4f5f3]"
                 }`}
                 type="button"
                 aria-current={item.active ? "page" : undefined}
                 aria-label={item.label}
               >
                 <span
-                  className={`grid size-9 shrink-0 place-items-center rounded-xl ${
-                    item.active
-                      ? "bg-white/10 text-white"
-                      : "text-white/88"
-                  }`}
+                  className="grid size-8 shrink-0 place-items-center text-[#159734]"
                   aria-hidden="true"
                 >
-                  <Icon size={24} strokeWidth={1.9} />
+                  <Icon size={22} strokeWidth={1.8} />
                 </span>
                 <span className="truncate">{item.label}</span>
+                {item.label === "Đơn hàng" ? (
+                  <ChevronDown
+                    className="ml-auto"
+                    size={16}
+                    aria-hidden="true"
+                  />
+                ) : null}
               </button>
+              {item.label === "Đơn hàng" ? (
+                <div className="mt-1 grid gap-1 rounded-lg border border-[#a8e3b7] bg-white p-2">
+                  <button
+                    type="button"
+                    className="flex h-9 items-center gap-2 rounded-md px-2 text-left text-[13px] font-semibold text-[#159734] hover:bg-[#f4f5f3]"
+                  >
+                    <FileClock size={18} aria-hidden="true" />
+                    Đơn đang giữ
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-9 items-center gap-2 rounded-md px-2 text-left text-[13px] font-semibold text-[#159734] hover:bg-[#f4f5f3]"
+                  >
+                    <FileText size={18} aria-hidden="true" />
+                    Đơn trong ca
+                  </button>
+                </div>
+              ) : null}
             </li>
           );
         })}
       </ul>
 
       <div className="mt-auto">
-        <WorkspaceSwitcher />
+        <button
+          type="button"
+          onClick={() => navigate(routePaths.customers)}
+          className="mb-5 flex w-full items-center gap-3 text-left"
+          aria-label="Chuyển sang quản lý hệ thống"
+        >
+          <span className="block size-9 overflow-hidden rounded-full bg-[linear-gradient(135deg,#f4c4b1,#1f2937)]" />
+          <span className="min-w-0 flex-1">
+            <strong className="block truncate text-[13px] text-[#159734]">
+              Đỗ Xuân Thái
+            </strong>
+            <span className="text-[12px] text-[#159734]">Ca sáng</span>
+          </span>
+          <ChevronDown size={14} aria-hidden="true" />
+        </button>
 
         <ul
-          className="grid grid-cols-3 gap-2 border-t border-white/15 pt-5"
+          className="grid grid-cols-3 gap-2 border-t border-[#edf0f4] pt-5"
           aria-label="Tiện ích"
         >
           {utilityItems.map((item) => {
@@ -129,11 +141,11 @@ export function PosSidebar() {
               <li key={item.label}>
                 <button
                   type="button"
-                  className="grid size-10 place-items-center rounded-xl text-white/82 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pos-gold"
+                  className="grid size-9 place-items-center rounded-lg text-[#159734] transition hover:bg-[#f4f5f3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hvt-green-600"
                   aria-label={item.label}
                   title={item.label}
                 >
-                  <Icon size={22} strokeWidth={1.9} aria-hidden="true" />
+                  <Icon size={21} strokeWidth={1.9} aria-hidden="true" />
                 </button>
               </li>
             );

@@ -129,7 +129,7 @@ export function OrderTotals({
             </div>
             <div className="flex items-center justify-between border-t border-pos-border pt-3">
                 <span className="font-semibold">Thành tiền</span>
-                <strong className="text-3xl font-bold text-hvt-green-900">
+                <strong className="text-2xl font-bold text-[#159734]">
                     {formatCurrency(totals.total)}
                 </strong>
             </div>

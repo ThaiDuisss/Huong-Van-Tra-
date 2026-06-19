@@ -4,6 +4,10 @@ import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
 import { BomListPage } from "../features/manufacturing/pages/BomListPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
+import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
+import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
+import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
+import { OrderListPage } from "../features/order/pages/OrderListPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
@@ -45,10 +49,30 @@ export function AppRouter() {
                     index
                     element={
                         <Navigate
-                            to={routePaths.categories}
+                            to={routePaths.customers}
                             replace
                         />
                     }
+                />
+                <Route
+                    path="orders"
+                    element={<OrderListPage />}
+                />
+                <Route
+                    path="orders/invoices"
+                    element={<InvoiceListPage />}
+                />
+                <Route
+                    path="orders/invoices/:invoiceId"
+                    element={<InvoiceDetailPage />}
+                />
+                <Route
+                    path="orders/returns"
+                    element={<OrderListPage />}
+                />
+                <Route
+                    path="orders/refunds"
+                    element={<OrderListPage />}
                 />
                 <Route
                     path="categories"
@@ -101,6 +125,14 @@ export function AppRouter() {
                 <Route
                     path="inventory/transactions"
                     element={<InventoryTransactionPage />}
+                />
+                <Route
+                    path="customers"
+                    element={<CustomerListPage />}
+                />
+                <Route
+                    path="customers/groups"
+                    element={<CustomerListPage />}
                 />
                 <Route
                     path="manufacturing/boms"

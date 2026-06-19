@@ -2,6 +2,11 @@ export const routePaths = {
     home: "/",
     posSales: "/pos/sales",
     system: "/system",
+    orders: "/system/orders",
+    invoices: "/system/orders/invoices",
+    invoiceDetail: "/system/orders/invoices/:invoiceId",
+    returns: "/system/orders/returns",
+    refunds: "/system/orders/refunds",
     categories: "/system/categories",
     products: "/system/products",
     productDetail: "/system/products/:id",
@@ -16,6 +21,8 @@ export const routePaths = {
     inventoryStockIn: "/system/inventory/stock-in",
     inventoryAdjustment: "/system/inventory/adjustment",
     inventoryTransactions: "/system/inventory/transactions",
+    customers: "/system/customers",
+    customerGroups: "/system/customers/groups",
     bomList: "/system/manufacturing/boms",
     productionOrders:
         "/system/manufacturing/production-orders"

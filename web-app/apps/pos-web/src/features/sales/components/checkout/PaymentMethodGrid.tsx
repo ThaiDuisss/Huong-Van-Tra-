@@ -1,6 +1,5 @@
 import {
-  Building2,
-  CreditCard,
+  PanelsTopLeft,
   Landmark,
   WalletCards
 } from "lucide-react";
@@ -23,19 +22,9 @@ const paymentMethods = [
     icon: Landmark
   },
   {
-    value: "E_WALLET",
-    label: "Ví điện tử",
-    icon: Building2
-  },
-  {
-    value: "CARD",
-    label: "Thẻ",
-    icon: CreditCard
-  },
-  {
     value: "COMBINED",
-    label: "Kết hợp",
-    icon: WalletCards
+    label: "Thanh toán tổng hợp",
+    icon: PanelsTopLeft
   }
 ] as const;
 
@@ -45,10 +34,7 @@ export function PaymentMethodGrid({
 }: PaymentMethodGridProps) {
   return (
     <div className="grid gap-3">
-      <p className="text-sm font-semibold">
-        Phương thức thanh toán
-      </p>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         {paymentMethods.map((method) => {
           const Icon = method.icon;
           const active = method.value === value;
@@ -58,13 +44,19 @@ export function PaymentMethodGrid({
               key={method.value}
               type="button"
               onClick={() => onChange(method.value)}
-              className={`grid h-16 place-items-center rounded-xl border px-1 text-xs font-semibold ${
+              className={`grid h-[58px] place-items-center rounded-lg border px-1 text-[12px] font-semibold ${
+                method.value === "COMBINED" ? "col-span-2" : ""
+              } ${
                 active
-                  ? "border-hvt-green-800 bg-hvt-green-50 text-hvt-green-900"
-                  : "border-pos-border"
+                  ? "border-[#8fd6a5] bg-[#f7fff9] text-[#12231a]"
+                  : "border-pos-border bg-white text-[#12231a]"
               }`}
             >
-              <Icon size={22} aria-hidden="true" />
+              <Icon
+                className={active ? "text-[#159734]" : "text-[#12231a]"}
+                size={24}
+                aria-hidden="true"
+              />
               {method.label}
             </button>
           );

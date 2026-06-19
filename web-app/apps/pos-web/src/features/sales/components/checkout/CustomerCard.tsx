@@ -28,8 +28,8 @@ export function CustomerSelector({
   }
 
   return (
-    <section className="relative grid gap-3 border-b border-pos-border pb-4">
-      <h2 className="text-xl font-bold text-pos-ink">
+    <section className="relative grid gap-3 border-b border-pos-border pb-3">
+      <h2 className="text-base font-bold text-pos-ink">
         Khách hàng
       </h2>
       <div
@@ -47,14 +47,14 @@ export function CustomerSelector({
           aria-expanded={open}
           onClick={() => setOpen(true)}
         >
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-neutral-100 text-neutral-500">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-neutral-100 text-neutral-500">
             <User size={22} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <strong className="block truncate text-pos-ink">
+            <strong className="block truncate text-sm text-pos-ink">
               {selectedCustomer?.name ?? "Chọn khách hàng"}
             </strong>
-            <span className="text-sm text-neutral-500">
+            <span className="text-xs text-[#53678f]">
               {selectedCustomer?.phone ??
                 "Tìm theo tên, SĐT hoặc mã KH"}
             </span>
