@@ -2,10 +2,10 @@ package org.hvtra.orderservice.controller;
 
 import jakarta.validation.Valid;
 import lombok.*;
-import org.hvtra.orderservice.DTO.request.CreateOrderRequest;
-import org.hvtra.orderservice.DTO.request.MarkOrderPaidRequest;
-import org.hvtra.orderservice.DTO.response.OrderPaymentInfoResponse;
-import org.hvtra.orderservice.DTO.response.OrderResponse;
+import org.hvtra.orderservice.dto.request.CreateOrderRequest;
+import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
+import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;

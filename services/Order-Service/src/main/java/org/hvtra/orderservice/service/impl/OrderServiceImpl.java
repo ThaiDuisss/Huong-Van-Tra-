@@ -2,11 +2,11 @@ package org.hvtra.orderservice.service.impl;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.orderservice.DTO.request.CreateOrderRequest;
-import org.hvtra.orderservice.DTO.request.MarkOrderPaidRequest;
-import org.hvtra.orderservice.DTO.response.OrderItemResponse;
-import org.hvtra.orderservice.DTO.response.OrderPaymentInfoResponse;
-import org.hvtra.orderservice.DTO.response.OrderResponse;
+import org.hvtra.orderservice.dto.request.CreateOrderRequest;
+import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.response.OrderItemResponse;
+import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
+import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.domain.entity.*;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.exception.*;

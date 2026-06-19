@@ -1,4 +1,4 @@
-package org.hvtra.orderservice.DTO.request;
+package org.hvtra.orderservice.dto.request;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
