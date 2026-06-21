@@ -33,6 +33,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public CashPaymentResponse payByCash(CashPaymentRequest request) {
+        //fegin call to order service to get order payment info
         OrderPaymentInfoResponse orderInfo = orderClient.getPaymentInfo(request.getOrderId());
 
         if (orderInfo == null) {
