@@ -18,7 +18,7 @@ public class BomMapper {
         return new BomResponse(
                 bom.getId(),
                 bom.getProductVariantId(),
-                bom.getVersion(),
+                bom.getBomVersion(),
                 bom.getStatus(),
                 bom.getEffectiveFrom(),
                 bom.getEffectiveTo(),

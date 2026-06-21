@@ -15,6 +15,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/catalog/products")
 public class ProductController {
@@ -29,14 +31,14 @@ public class ProductController {
     @GetMapping
     public PageResponse<ProductSummaryResponse> findAll(
             @RequestParam(name = "name", required = false) String name,
-            @RequestParam(name = "categoryId", required = false) Long categoryId,
+            @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.findAll(name, categoryId, status, pageable);
     }
 
     @GetMapping("/{id}")
-    public ProductResponse findById(@PathVariable("id") Long id) {
+    public ProductResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 
@@ -48,20 +50,20 @@ public class ProductController {
 
     @PutMapping("/{id}")
     public ProductResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody ProductRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody ProductRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public ProductResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
     @PostMapping("/{productId}/variants")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse.VariantResponse createVariant(
-            @PathVariable("productId") Long productId,
+            @PathVariable("productId") UUID productId,
             @Valid @RequestBody ProductVariantRequest request) {
         return variantService.create(productId, request);
     }

@@ -7,9 +7,10 @@ import java.util.UUID;
 
 public record InventoryItemResponse(
         UUID id,
-        Long referenceId,
+        UUID referenceId,
         InventoryItemType itemType,
-        Long baseUnitId,
+        UUID baseUnitId,
         InventoryStatus status
 ) {
 }
+

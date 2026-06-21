@@ -12,6 +12,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/catalog/ingredients")
 public class IngredientController {
@@ -30,7 +32,7 @@ public class IngredientController {
     }
 
     @GetMapping("/{id}")
-    public IngredientResponse findById(@PathVariable("id") Long id) {
+    public IngredientResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 
@@ -42,13 +44,13 @@ public class IngredientController {
 
     @PutMapping("/{id}")
     public IngredientResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody IngredientRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody IngredientRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public IngredientResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

@@ -33,7 +33,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     @Override
     public PageResponse<InventoryItemResponse> findAll(
-            Long referenceId,
+            UUID referenceId,
             InventoryItemType itemType,
             InventoryStatus status,
             Pageable pageable) {
@@ -95,3 +95,4 @@ public class InventoryItemServiceImpl implements InventoryItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory item", id));
     }
 }
+

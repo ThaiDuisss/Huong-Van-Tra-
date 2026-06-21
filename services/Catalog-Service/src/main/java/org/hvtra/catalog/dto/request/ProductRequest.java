@@ -5,11 +5,14 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.hvtra.catalog.enums.Status;
 
+import java.util.UUID;
+
 public record ProductRequest(
-        @NotNull Long categoryId,
+        @NotNull UUID categoryId,
         @NotBlank @Size(max = 255) String name,
         String description,
         @Size(max = 500) String imageUrl,
         @NotNull Status status
 ) {
 }
+

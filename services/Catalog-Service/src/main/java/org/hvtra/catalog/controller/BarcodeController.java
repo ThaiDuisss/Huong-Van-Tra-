@@ -10,6 +10,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/catalog/barcodes")
 public class BarcodeController {
@@ -33,13 +35,14 @@ public class BarcodeController {
 
     @PutMapping("/{id}")
     public ProductResponse.BarcodeResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody BarcodeUpdateRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody BarcodeUpdateRequest request) {
         return service.update(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable("id") Long id) {
+    public void delete(@PathVariable("id") UUID id) {
         service.delete(id);
     }
 }
+

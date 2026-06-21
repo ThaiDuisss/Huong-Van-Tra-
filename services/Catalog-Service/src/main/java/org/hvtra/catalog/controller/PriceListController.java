@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/catalog/price-lists")
@@ -26,7 +27,7 @@ public class PriceListController {
 
     @GetMapping
     public PageResponse<PriceListResponse> findAll(
-            @RequestParam(name = "branchId", required = false) Long branchId,
+            @RequestParam(name = "branchId", required = false) UUID branchId,
             @RequestParam(name = "status", required = false) Status status,
             @RequestParam(name = "effectiveAt", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime effectiveAt,
@@ -35,7 +36,7 @@ public class PriceListController {
     }
 
     @GetMapping("/{id}")
-    public PriceListResponse findById(@PathVariable("id") Long id) {
+    public PriceListResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 
@@ -47,13 +48,13 @@ public class PriceListController {
 
     @PutMapping("/{id}")
     public PriceListResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody PriceListRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody PriceListRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public PriceListResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

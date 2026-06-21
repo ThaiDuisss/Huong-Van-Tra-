@@ -6,6 +6,8 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.util.UUID;
+
 @FeignClient(name = "user-service")
 public interface InventoryClient {
     @PostMapping("/inventory-items")
@@ -15,10 +17,11 @@ public interface InventoryClient {
 
     @Builder
     record CreateInventoryItemRequest(
-            Long referenceId,
+            UUID referenceId,
             String itemType,
-            Long baseUnitId,
+            UUID baseUnitId,
             String status
     ) {
     }
 }
+

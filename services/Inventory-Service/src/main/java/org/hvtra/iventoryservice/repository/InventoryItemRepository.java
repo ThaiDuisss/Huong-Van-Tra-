@@ -14,9 +14,9 @@ import java.util.UUID;
 
 public interface InventoryItemRepository
         extends JpaRepository<InventoryItem, UUID>, JpaSpecificationExecutor<InventoryItem> {
-    boolean existsByReferenceIdAndItemType(Long referenceId, InventoryItemType itemType);
+    boolean existsByReferenceIdAndItemType(UUID referenceId, InventoryItemType itemType);
     boolean existsByReferenceIdAndItemTypeAndIdNot(
-            Long referenceId, InventoryItemType itemType, UUID id);
+            UUID referenceId, InventoryItemType itemType, UUID id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from InventoryItem i where i.id = :id")

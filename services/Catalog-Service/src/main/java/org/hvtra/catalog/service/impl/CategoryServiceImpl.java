@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -43,7 +44,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public CategoryResponse findById(Long id) {
+    public CategoryResponse findById(UUID id) {
         return mapper.toResponse(get(id));
     }
 
@@ -57,7 +58,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public CategoryResponse update(Long id, CategoryRequest request) {
+    public CategoryResponse update(UUID id, CategoryRequest request) {
         Category category = get(id);
         if (id.equals(request.parentId())) throw new BadRequestException("Category cannot be its own parent");
         mapper.update(category, request, parent(request.parentId(), id));
@@ -66,17 +67,17 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public CategoryResponse updateStatus(Long id, Status status) {
+    public CategoryResponse updateStatus(UUID id, Status status) {
         Category category = get(id);
         category.setStatus(status);
         return mapper.toResponse(repository.save(category));
     }
 
-    private Category get(Long id) {
+    private Category get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Category", id));
     }
 
-    private Category parent(Long parentId, Long categoryId) {
+    private Category parent(UUID parentId, UUID categoryId) {
         if (parentId == null) return null;
         Category parent = get(parentId);
         for (Category current = parent; current != null; current = current.getParentCategory()) {
@@ -87,3 +88,4 @@ public class CategoryServiceImpl implements CategoryService {
         return parent;
     }
 }
+

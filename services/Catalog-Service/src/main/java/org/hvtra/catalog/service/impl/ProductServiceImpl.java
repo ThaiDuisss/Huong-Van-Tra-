@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -38,7 +39,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public PageResponse<ProductSummaryResponse> findAll(
-            String name, Long categoryId, Status status, Pageable pageable) {
+            String name, UUID categoryId, Status status, Pageable pageable) {
         Specification<Product> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (name != null && !name.isBlank()) {
@@ -52,7 +53,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ProductResponse findById(Long id) {
+    public ProductResponse findById(UUID id) {
         return mapper.toResponse(getProduct(id));
     }
 
@@ -66,7 +67,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public ProductResponse update(Long id, ProductRequest request) {
+    public ProductResponse update(UUID id, ProductRequest request) {
         Product product = getProduct(id);
         updateProductFields(product, request);
         return mapper.toResponse(productRepository.save(product));
@@ -74,7 +75,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public ProductResponse updateStatus(Long id, Status status) {
+    public ProductResponse updateStatus(UUID id, Status status) {
         Product product = getProduct(id);
         product.setStatus(status);
         return mapper.toResponse(productRepository.save(product));
@@ -90,8 +91,9 @@ public class ProductServiceImpl implements ProductService {
         product.setStatus(request.status());
     }
 
-    private Product getProduct(Long id) {
+    private Product getProduct(UUID id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", id));
     }
 }
+

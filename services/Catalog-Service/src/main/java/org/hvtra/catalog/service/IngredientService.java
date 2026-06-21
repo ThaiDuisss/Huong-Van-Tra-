@@ -6,10 +6,13 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
 
+import java.util.UUID;
+
 public interface IngredientService {
     PageResponse<IngredientResponse> findAll(String search, Status status, Pageable pageable);
-    IngredientResponse findById(Long id);
+    IngredientResponse findById(UUID id);
     IngredientResponse create(IngredientRequest request);
-    IngredientResponse update(Long id, IngredientRequest request);
-    IngredientResponse updateStatus(Long id, Status status);
+    IngredientResponse update(UUID id, IngredientRequest request);
+    IngredientResponse updateStatus(UUID id, Status status);
 }
+

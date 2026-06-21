@@ -8,6 +8,7 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.ProductVariant;
+import org.hvtra.catalog.enums.InventoryItemType;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -50,7 +52,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             String sku,
             String variantName,
             String barcode,
-            Long productId,
+            UUID productId,
             Status status,
             Pageable pageable) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
@@ -76,13 +78,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public ProductResponse.VariantResponse findById(Long id) {
+    public ProductResponse.VariantResponse findById(UUID id) {
         return mapper.toVariantResponse(get(id));
     }
 
     @Override
     @Transactional
-    public ProductResponse.VariantResponse create(Long productId, ProductVariantRequest request) {
+    public ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request) {
         validateSku(request.sku(), null);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
@@ -91,15 +93,18 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         apply(variant, request);
         ProductVariant savedVariant = repository.saveAndFlush(variant);
         inventoryClient.createProductVariantItem(
-                savedVariant.getId(),
-                savedVariant.getBaseUnitId(),
-                savedVariant.getStatus());
+                InventoryClient.CreateInventoryItemRequest.builder()
+                        .status(savedVariant.getStatus().toString())
+                        .baseUnitId(savedVariant.getBaseUnitId())
+                        .referenceId(savedVariant.getId())
+                        .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                        .build());
         return mapper.toVariantResponse(savedVariant);
     }
 
     @Override
     @Transactional
-    public ProductResponse.VariantResponse update(Long id, ProductVariantRequest request) {
+    public ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request) {
         ProductVariant variant = get(id);
         validateSku(request.sku(), id);
         apply(variant, request);
@@ -108,13 +113,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     @Override
     @Transactional
-    public ProductResponse.VariantResponse updateStatus(Long id, Status status) {
+    public ProductResponse.VariantResponse updateStatus(UUID id, Status status) {
         ProductVariant variant = get(id);
         variant.setStatus(status);
         return mapper.toVariantResponse(repository.save(variant));
     }
 
-    private ProductVariant get(Long id) {
+    private ProductVariant get(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product variant", id));
     }
@@ -132,7 +137,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setStatus(request.status());
     }
 
-    private void validateSku(String sku, Long id) {
+    private void validateSku(String sku, UUID id) {
         String normalized = sku.trim();
         boolean exists = id == null
                 ? repository.existsBySku(normalized)
@@ -140,3 +145,4 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         if (exists) throw new BadRequestException("SKU already exists: " + normalized);
     }
 }
+

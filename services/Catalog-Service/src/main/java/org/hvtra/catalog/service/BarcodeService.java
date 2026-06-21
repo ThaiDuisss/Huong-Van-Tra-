@@ -6,10 +6,13 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.springframework.data.domain.Pageable;
 
+import java.util.UUID;
+
 public interface BarcodeService {
     PageResponse<ProductResponse.BarcodeResponse> findAll(String value, Pageable pageable);
     ProductResponse.VariantResponse scan(String value);
-    ProductResponse.BarcodeResponse create(Long variantId, BarcodeCreateRequest request);
-    ProductResponse.BarcodeResponse update(Long id, BarcodeUpdateRequest request);
-    void delete(Long id);
+    ProductResponse.BarcodeResponse create(UUID variantId, BarcodeCreateRequest request);
+    ProductResponse.BarcodeResponse update(UUID id, BarcodeUpdateRequest request);
+    void delete(UUID id);
 }
+

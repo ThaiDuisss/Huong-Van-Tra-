@@ -5,10 +5,12 @@ import org.hvtra.catalog.dto.response.UnitResponse;
 import org.hvtra.catalog.enums.Status;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface UnitService {
     List<UnitResponse> findAll();
     UnitResponse create(UnitRequest request);
-    UnitResponse update(Long id, UnitRequest request);
-    UnitResponse updateStatus(Long id, Status status);
+    UnitResponse update(UUID id, UnitRequest request);
+    UnitResponse updateStatus(UUID id, Status status);
 }
+

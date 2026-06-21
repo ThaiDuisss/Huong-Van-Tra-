@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.enums;
+package org.hvtra.catalog.enums;
 
 public enum InventoryItemType {
     PRODUCT_VARIANT,

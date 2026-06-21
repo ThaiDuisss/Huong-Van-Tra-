@@ -2,8 +2,10 @@ package org.hvtra.catalog.dto.response;
 
 import org.hvtra.catalog.enums.Status;
 
+import java.util.UUID;
+
 public record ProductSummaryResponse(
-        Long id,
+        UUID id,
         String name,
         CategoryResponse category,
         String imageUrl,
@@ -11,3 +13,4 @@ public record ProductSummaryResponse(
         int totalVariants
 ) {
 }
+

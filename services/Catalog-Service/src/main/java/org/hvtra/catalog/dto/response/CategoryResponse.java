@@ -2,5 +2,8 @@ package org.hvtra.catalog.dto.response;
 
 import org.hvtra.catalog.enums.Status;
 
-public record CategoryResponse(Long id, Long parentId, String name, Status status) {
+import java.util.UUID;
+
+public record CategoryResponse(UUID id, UUID parentId, String name, Status status) {
 }
+

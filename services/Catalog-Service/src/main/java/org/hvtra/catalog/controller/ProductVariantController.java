@@ -14,6 +14,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/catalog/product-variants")
 public class ProductVariantController {
@@ -30,33 +32,33 @@ public class ProductVariantController {
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "variantName", required = false) String variantName,
             @RequestParam(name = "barcode", required = false) String barcode,
-            @RequestParam(name = "productId", required = false) Long productId,
+            @RequestParam(name = "productId", required = false) UUID productId,
             @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "sku") Pageable pageable) {
         return service.findAll(sku, variantName, barcode, productId, status, pageable);
     }
 
     @GetMapping("/{id}")
-    public ProductResponse.VariantResponse findById(@PathVariable("id") Long id) {
+    public ProductResponse.VariantResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 
     @PutMapping("/{id}")
     public ProductResponse.VariantResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody ProductVariantRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody ProductVariantRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public ProductResponse.VariantResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
     @PostMapping("/{variantId}/barcodes")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse.BarcodeResponse createBarcode(
-            @PathVariable("variantId") Long variantId,
+            @PathVariable("variantId") UUID variantId,
             @Valid @RequestBody BarcodeCreateRequest request) {
         return barcodeService.create(variantId, request);
     }

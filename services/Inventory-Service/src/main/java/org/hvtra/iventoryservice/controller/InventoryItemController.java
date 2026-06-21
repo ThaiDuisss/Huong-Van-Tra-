@@ -31,7 +31,7 @@ public class InventoryItemController {
 
     @GetMapping
     public PageResponse<InventoryItemResponse> findAll(
-            @RequestParam(name = "referenceId", required = false) Long referenceId,
+            @RequestParam(name = "referenceId", required = false) UUID referenceId,
             @RequestParam(name = "itemType", required = false) InventoryItemType itemType,
             @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {

@@ -5,10 +5,12 @@ import org.hvtra.catalog.dto.response.CategoryResponse;
 import org.hvtra.catalog.entity.Category;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class CategoryMapper {
     public CategoryResponse toResponse(Category category) {
-        Long parentId = category.getParentCategory() == null ? null : category.getParentCategory().getId();
+        UUID parentId = category.getParentCategory() == null ? null : category.getParentCategory().getId();
         return new CategoryResponse(category.getId(), parentId, category.getName(), category.getStatus());
     }
 
@@ -18,3 +20,4 @@ public class CategoryMapper {
         category.setStatus(request.status());
     }
 }
+

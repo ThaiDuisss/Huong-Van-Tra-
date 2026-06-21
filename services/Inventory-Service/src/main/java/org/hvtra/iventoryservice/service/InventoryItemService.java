@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public interface InventoryItemService {
     PageResponse<InventoryItemResponse> findAll(
-            Long referenceId, InventoryItemType itemType, InventoryStatus status, Pageable pageable);
+            UUID referenceId, InventoryItemType itemType, InventoryStatus status, Pageable pageable);
     InventoryItemResponse findById(UUID id);
     InventoryItemResponse create(InventoryItemRequest request);
     InventoryItemResponse update(UUID id, InventoryItemRequest request);

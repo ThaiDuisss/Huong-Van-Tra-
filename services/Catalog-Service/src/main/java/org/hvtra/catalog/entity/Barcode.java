@@ -3,16 +3,14 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.catalog.enums.BarcodeType;
 
 @Entity
 @Table(name = "barcodes", uniqueConstraints = @UniqueConstraint(columnNames = "barcode_value"))
 @Getter
 @Setter
-public class Barcode {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class Barcode extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_variant_id", nullable = false)
