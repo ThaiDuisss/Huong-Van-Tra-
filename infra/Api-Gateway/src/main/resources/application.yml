@@ -1,5 +1,7 @@
 
 spring:
+  main:
+    web-application-type: reactive
   application:
     name: Api-Gateway
   security:
@@ -17,6 +19,11 @@ spring:
             uri: lb://customer-service
             predicates:
               - Path=/api/customer/**
+            filters:
+              - name: RequestRateLimiter
+                args:
+                  rate-limiter: "#{@customerRateLimiter}"
+                  key-resolver: "#{@keycloakUserOrGuestKeyResolver}"
           - id: order-service
             uri: lb://order-service
             predicates:
@@ -44,26 +51,40 @@ spring:
           - id: identity-service
             uri: lb://identity-service
             predicates:
-              - Path=/api/auth/**
+              - Path=/api/identity/**
+            filters:
+              - name: RequestRateLimiter
+                args:
+                  rate-limiter: "#{@customerRateLimiter}"
+                  key-resolver: "#{@keycloakUserOrGuestKeyResolver}"
+
           - id: reporting-service
             uri: lb://reporting-service
             predicates:
               - Path=/api/reports/**
+
+          - id: employee-service
+            uri: lb://employee-service
+            predicates:
+              - Path=/api/employee/**
+
+          - id: file-service
+            uri: lb://file-service
+            predicates:
+              - Path=/api/file/**
+
           - id: organization-service
             uri: lb://organization-service
             predicates:
               - Path=/api/organizations/**
-
-#          default-filters:
-#            - name: RequestRateLimiter
-#              args:
-#                redis-rate-limiter.replenishRate: 10
-#                redis-rate-limiter.burstCapacity: 20
-#                redis-rate-limiter.requestedTokens: 1
-
+            filters:
+              - name: RequestRateLimiter
+                args:
+                  rate-limiter: "#{@customerRateLimiter}"
+                  key-resolver: "#{@keycloakUserOrGuestKeyResolver}"
           globalcors:
             cors-configurations:
-              [/**]:
+              '[/**]':
                 allowed-origins:
                   - "http://localhost:3000"
                   - "http://localhost:5173"
@@ -78,16 +99,53 @@ spring:
                 allowed-headers: "*"
                 allow-credentials: true
                 max-age: 3600
-#  data:
-#    redis:
-#      host: localhost
-#      port: 6379
+            add-to-simple-url-handler-mapping: true
+  data:
+    redis:
+      host: 100.122.52.101
+      port: 6379
+      password: Hvt@2026
 
 eureka:
   instance:
     hostname: localhost
   client:
-      serviceUrl:
+    serviceUrl:
           defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+
 server:
   port: 8080
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    URLs:
+      - name: identity-service
+        url: /api/identity/v3/api-docs
+      - name: notification-service
+        url: /api/notifications/v3/api-docs
+      - name: order-service
+        url: /api/orders/v3/api-docs
+      - name: payment-service
+        url: /api/payments/v3/api-docs
+      - name: catalog-service
+        url: /api/catalog/v3/api-docs
+      - name: customer-service
+        url: /api/customer/v3/api-docs
+      - name: promotion-service
+        url: /api/promotions/v3/api-docs
+      - name: file-service
+        url: /api/file/v3/api-docs
+      - name: reporting-service
+        url: /api/reports/v3/api-docs
+      - name: organization-service
+        url: /api/organizations/v3/api-docs
+      - name: inventory-service
+        url: /api/inventory/v3/api-docs
+      - name: employee-service
+        url: /api/employee/v3/api-docs
+    enabled: true
+    path: /swagger-ui.html

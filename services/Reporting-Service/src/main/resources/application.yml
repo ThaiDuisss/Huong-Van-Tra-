@@ -9,6 +9,16 @@ spring:
 server:
   port: 8089
 
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api/reports/v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /api/reports/swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 eureka:
   client:
     healthcheck:
