@@ -17,7 +17,7 @@ import java.time.Instant;
 public class PaymentTransaction extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payment_id", nullable = false)
+    @JoinColumn(name = "payment_id", nullable = false, columnDefinition = "BINARY(16)")
     private Payments payment;
 
     @Column(name = "method", nullable = false, length = 50)

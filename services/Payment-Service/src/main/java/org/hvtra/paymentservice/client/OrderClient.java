@@ -14,6 +14,7 @@ public class OrderClient {
 
     private final RestTemplate restTemplate;
 
+//    private static final String ORDER_SERVICE_URL = "http://order-service/api/orders";
     private static final String ORDER_SERVICE_URL = "http://localhost:8086/api/orders";
 
     public OrderPaymentInfoResponse getPaymentInfo(UUID orderId) {

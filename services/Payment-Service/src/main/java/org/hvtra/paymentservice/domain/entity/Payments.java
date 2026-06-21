@@ -2,8 +2,6 @@ package org.hvtra.paymentservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 import java.math.BigDecimal;
@@ -24,8 +22,7 @@ public class Payments extends BaseEntity {
     @Column(name = "payment_code", nullable = false, unique = true, length = 50)
     private String paymentCode;
 
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "order_id", nullable = false, columnDefinition = "CHAR(36)")
+    @Column(name = "order_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID orderId;
 
     @Column(name = "amount_required", nullable = false, precision = 14, scale = 2)
