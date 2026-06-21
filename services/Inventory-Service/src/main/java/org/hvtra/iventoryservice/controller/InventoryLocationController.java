@@ -14,7 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/inventory-locations")
+@RequestMapping("/api/inventory/inventory-locations")
 public class InventoryLocationController {
     private final InventoryLocationService service;
 

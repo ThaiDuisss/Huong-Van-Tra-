@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 
 @RestController
-@RequestMapping("/inventory-transactions")
+@RequestMapping("/api/inventory/inventory-transactions")
 public class InventoryTransactionController {
     private final InventoryTransactionService service;
 

@@ -16,7 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/products")
+@RequestMapping("/api/catalog/products")
 public class ProductController {
     private final ProductService service;
     private final ProductVariantService variantService;

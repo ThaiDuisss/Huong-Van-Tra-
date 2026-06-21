@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
 
 @RestController
-@RequestMapping("/barcodes")
+@RequestMapping("/api/catalog/barcodes")
 public class BarcodeController {
     private final BarcodeService service;
 

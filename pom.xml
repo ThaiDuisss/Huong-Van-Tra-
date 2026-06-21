@@ -39,6 +39,9 @@
         <module>services/Order-Service</module>
         <module>services/Payment-Service</module>
         <module>services/Organization-Service</module>
+        <module>services/Employee-Service</module>
+        <module>services/File-Service</module>
+
         <module>common/Common-Service</module>
 
 
@@ -96,6 +99,13 @@
                 <groupId>org.HVTra</groupId>
                 <artifactId>Common-Service</artifactId>
                 <version>${common.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-bom</artifactId>
+                <version>2.8.17</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
         </dependencies>
