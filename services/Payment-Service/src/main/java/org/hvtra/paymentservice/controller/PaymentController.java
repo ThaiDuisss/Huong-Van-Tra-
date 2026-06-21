@@ -1,5 +1,6 @@
 package org.hvtra.paymentservice.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.paymentservice.dto.request.CashPaymentRequest;
 import org.hvtra.paymentservice.dto.response.CashPaymentResponse;
@@ -17,6 +18,7 @@ public class PaymentController {
 
     @PostMapping("/cash")
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Thanh toán bằng tiền mặt")
     public CashPaymentResponse payByCash(@Valid @RequestBody CashPaymentRequest request) {
         return paymentService.payByCash(request);
     }

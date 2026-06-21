@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.*;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
@@ -19,27 +20,26 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    // Tạo đơn hàng mới từ màn POS
+    @Operation(summary = "tao don hang")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse createOrder(@Valid @RequestBody CreateOrderRequest request) {
         return orderService.createOrder(request);
     }
 
-    // Lấy chi tiết đơn hàng theo orderId
+    @Operation(summary = "lay chi tiet don hang")
     @GetMapping("/{orderId}")
     public OrderResponse getOrderById(@PathVariable UUID orderId) {
         return orderService.getOrderById(orderId);
     }
 
-    // API cho Payment-Service gọi để lấy thông tin cần thanh toán của đơn hàng
+    @Operation(summary = "api cho Payment-Service gọi để lấy thông tin cần thanh toán của đơn hàng")
     @GetMapping("/{orderId}/payment-info")
     public OrderPaymentInfoResponse getPaymentInfo(@PathVariable UUID orderId) {
         return orderService.getPaymentInfo(orderId);
     }
 
-    // API cho Payment-Service gọi sau khi thanh toán thành công
-    // Order-Service chỉ cập nhật trạng thái đơn, không lưu dữ liệu payment
+    @Operation(summary = "Api cho Payment-Service gọi sau khi thanh toán thành công để cập nhật trạng thái đơn hàng")
     @PutMapping("/{orderId}/mark-paid")
     public OrderResponse markOrderPaid(
             @PathVariable UUID orderId,
