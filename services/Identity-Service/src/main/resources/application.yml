@@ -40,3 +40,9 @@ eureka:
         defaultZone: http://localhost:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
+
+idp:
+  url: ${KEYCLOAK_URL}
+  client-id: ${KEYCLOAK_CLIENT_ID}
+  clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+  realm: hvt
