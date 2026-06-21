@@ -3,10 +3,9 @@ package org.hvtra.iventoryservice.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -15,10 +14,7 @@ import java.time.LocalDateTime;
 )
 @Getter
 @Setter
-public class InventoryBalance {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class InventoryBalance extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "inventory_item_id", nullable = false)
@@ -33,12 +29,4 @@ public class InventoryBalance {
 
     @Column(name = "quantity_reserved", nullable = false, precision = 18, scale = 2)
     private BigDecimal quantityReserved = BigDecimal.ZERO;
-
-    @Version
-    @Column(nullable = false)
-    private Long version;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 }

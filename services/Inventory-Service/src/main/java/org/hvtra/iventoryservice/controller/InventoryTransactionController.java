@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/inventory/inventory-transactions")
@@ -33,11 +34,11 @@ public class InventoryTransactionController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
             @RequestParam(name = "toDate", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate,
-            @RequestParam(name = "createdBy", required = false) Long createdBy,
-            @RequestParam(name = "branchId", required = false) Long branchId,
+            @RequestParam(name = "createdBy", required = false) String createdBy,
+            @RequestParam(name = "branchId", required = false) UUID branchId,
             @RequestParam(name = "referenceType", required = false)
             InventoryReferenceType referenceType,
-            @RequestParam(name = "referenceId", required = false) Long referenceId,
+            @RequestParam(name = "referenceId", required = false) String referenceId,
             @PageableDefault(size = 20, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
             Pageable pageable) {
         return service.findAll(
@@ -53,7 +54,7 @@ public class InventoryTransactionController {
     }
 
     @GetMapping("/{id}")
-    public InventoryTransactionResponse findById(@PathVariable("id") Long id) {
+    public InventoryTransactionResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 

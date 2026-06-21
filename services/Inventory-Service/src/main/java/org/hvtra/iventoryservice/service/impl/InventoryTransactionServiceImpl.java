@@ -119,10 +119,10 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             InventoryTransactionType type,
             LocalDateTime fromDate,
             LocalDateTime toDate,
-            Long createdBy,
-            Long branchId,
+            String createdBy,
+            UUID branchId,
             InventoryReferenceType referenceType,
-            Long referenceId,
+            String referenceId,
             Pageable pageable) {
         if (fromDate != null && toDate != null && toDate.isBefore(fromDate)) {
             throw new BadRequestException("toDate must be greater than or equal to fromDate");
@@ -152,7 +152,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     }
 
     @Override
-    public InventoryTransactionResponse findById(Long id) {
+    public InventoryTransactionResponse findById(UUID id) {
         InventoryTransaction transaction = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory transaction", id));
         return mapper.toResponse(transaction);
@@ -160,10 +160,10 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
 
     private InventoryTransaction createTransaction(
             InventoryTransactionType type,
-            Long branchId,
-            Long createdBy,
+            UUID branchId,
+            String createdBy,
             InventoryReferenceType referenceType,
-            Long referenceId) {
+            String referenceId) {
         InventoryTransaction transaction = new InventoryTransaction();
         transaction.setTransactionCode(generateCode(type));
         transaction.setType(type);
@@ -198,7 +198,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         return balance;
     }
 
-    private InventoryItem activeItemForUpdate(Long id) {
+    private InventoryItem activeItemForUpdate(UUID id) {
         InventoryItem item = itemRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory item", id));
         if (item.getStatus() != InventoryStatus.ACTIVE) {
@@ -207,7 +207,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         return item;
     }
 
-    private InventoryLocation activeLocation(Long id, Long branchId) {
+    private InventoryLocation activeLocation(UUID id, UUID branchId) {
         InventoryLocation location = locationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory location", id));
         if (location.getStatus() != InventoryStatus.ACTIVE) {
@@ -235,7 +235,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         }
     }
 
-    private void validateMovementKey(Set<String> keys, Long itemId, Long locationId) {
+    private void validateMovementKey(Set<String> keys, UUID itemId, UUID locationId) {
         String key = itemId + ":" + locationId;
         if (!keys.add(key)) {
             throw new BadRequestException(

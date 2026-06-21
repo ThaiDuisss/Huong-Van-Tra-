@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 import java.math.BigDecimal;
 
@@ -10,10 +11,7 @@ import java.math.BigDecimal;
 @Table(name = "inventory_transaction_lines")
 @Getter
 @Setter
-public class InventoryTransactionLine {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class InventoryTransactionLine extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "transaction_id", nullable = false)

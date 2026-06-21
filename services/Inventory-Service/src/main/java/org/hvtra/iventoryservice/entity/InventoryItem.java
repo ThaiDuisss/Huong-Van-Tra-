@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.enums.InventoryItemType;
 import org.hvtra.iventoryservice.enums.InventoryStatus;
 
@@ -13,10 +14,7 @@ import org.hvtra.iventoryservice.enums.InventoryStatus;
 )
 @Getter
 @Setter
-public class InventoryItem {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class InventoryItem extends BaseEntity {
 
     @Column(name = "reference_id", nullable = false)
     private Long referenceId;

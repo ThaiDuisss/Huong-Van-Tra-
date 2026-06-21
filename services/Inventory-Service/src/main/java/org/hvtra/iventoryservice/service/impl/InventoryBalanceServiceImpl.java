@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -34,12 +35,12 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
     @Override
     public PageResponse<InventoryBalanceResponse> findAll(
-            Long inventoryItemId, Long locationId, Long branchId, Pageable pageable) {
+            UUID inventoryItemId, UUID locationId, UUID branchId, Pageable pageable) {
         return find(inventoryItemId, locationId, branchId, pageable);
     }
 
     @Override
-    public InventoryBalanceResponse findById(Long id) {
+    public InventoryBalanceResponse findById(UUID id) {
         InventoryBalance balance = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory balance", id));
         return mapper.toResponse(balance);
@@ -47,7 +48,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
     @Override
     public PageResponse<InventoryBalanceResponse> findByInventoryItem(
-            Long itemId, Pageable pageable) {
+            UUID itemId, Pageable pageable) {
         if (!itemRepository.existsById(itemId)) {
             throw new ResourceNotFoundException("Inventory item", itemId);
         }
@@ -55,7 +56,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
     }
 
     private PageResponse<InventoryBalanceResponse> find(
-            Long inventoryItemId, Long locationId, Long branchId, Pageable pageable) {
+            UUID inventoryItemId, UUID locationId, UUID branchId, Pageable pageable) {
         Specification<InventoryBalance> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (inventoryItemId != null) {

@@ -13,6 +13,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/inventory/inventory-locations")
 public class InventoryLocationController {
@@ -24,7 +26,7 @@ public class InventoryLocationController {
 
     @GetMapping
     public PageResponse<InventoryLocationResponse> findAll(
-            @RequestParam(name = "branchId", required = false) Long branchId,
+            @RequestParam(name = "branchId", required = false) UUID branchId,
             @RequestParam(name = "type", required = false) InventoryLocationType type,
             @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "code") Pageable pageable) {
@@ -32,7 +34,7 @@ public class InventoryLocationController {
     }
 
     @GetMapping("/{id}")
-    public InventoryLocationResponse findById(@PathVariable("id") Long id) {
+    public InventoryLocationResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 
@@ -45,13 +47,13 @@ public class InventoryLocationController {
 
     @PutMapping("/{id}")
     public InventoryLocationResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody InventoryLocationRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody InventoryLocationRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public InventoryLocationResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody InventoryStatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody InventoryStatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

@@ -9,14 +9,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface InventoryBalanceRepository
-        extends JpaRepository<InventoryBalance, Long>, JpaSpecificationExecutor<InventoryBalance> {
+        extends JpaRepository<InventoryBalance, UUID>, JpaSpecificationExecutor<InventoryBalance> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select b from InventoryBalance b
             where b.inventoryItem.id = :itemId and b.location.id = :locationId
             """)
     Optional<InventoryBalance> findForUpdate(
-            @Param("itemId") Long itemId, @Param("locationId") Long locationId);
+            @Param("itemId") UUID itemId, @Param("locationId") UUID locationId);
 }
