@@ -4,9 +4,9 @@ import {
     CatalogStatusBadge,
     DetailList,
     type FormValues,
-    ProductManagementPage,
+    CatalogResourceManagement,
     TableCell
-} from "../components/ProductManagementPage";
+} from "../components/CatalogResourceManagement";
 import { usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { priceListApi } from "../services/priceList.api";
@@ -87,7 +87,7 @@ export function PriceListPage() {
     }
 
     return (
-        <ProductManagementPage
+        <CatalogResourceManagement
             title="Bảng giá"
             description="Quản lý chính sách giá bán theo chi nhánh và thời gian hiệu lực."
             createLabel="Tạo bảng giá"

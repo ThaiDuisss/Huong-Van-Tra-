@@ -107,10 +107,6 @@ export function BomListPage() {
                             Xuất Excel
                         </ActionButton>
                         <ActionButton>
-                            <Calendar size={16} aria-hidden="true" />
-                            Tùy chỉnh cột
-                        </ActionButton>
-                        <ActionButton>
                             <RefreshCw
                                 size={16}
                                 aria-hidden="true"

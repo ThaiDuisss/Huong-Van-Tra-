@@ -5,9 +5,9 @@ import {
     CatalogStatusBadge,
     DetailList,
     type FormValues,
-    ProductManagementPage,
+    CatalogResourceManagement,
     TableCell
-} from "../components/ProductManagementPage";
+} from "../components/CatalogResourceManagement";
 import { useApiResource, usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { categoryApi } from "../services/category.api";
@@ -83,7 +83,7 @@ export function ProductListPage() {
     }
 
     return (
-        <ProductManagementPage
+        <CatalogResourceManagement
             title="Sản phẩm"
             description="Quản lý thông tin nhóm sản phẩm và các biến thể trực thuộc."
             createLabel="Tạo sản phẩm"

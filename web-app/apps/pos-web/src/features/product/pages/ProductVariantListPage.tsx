@@ -5,9 +5,9 @@ import {
     CatalogStatusBadge,
     DetailList,
     type FormValues,
-    ProductManagementPage,
+    CatalogResourceManagement,
     TableCell
-} from "../components/ProductManagementPage";
+} from "../components/CatalogResourceManagement";
 import { useApiResource, usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { productApi } from "../services/product.api";
@@ -90,7 +90,7 @@ export function ProductVariantListPage() {
     }
 
     return (
-        <ProductManagementPage
+        <CatalogResourceManagement
             title="Biến thể sản phẩm"
             description="Quản lý các mặt hàng bán được, SKU và chính sách tồn kho."
             createLabel="Tạo biến thể"

@@ -6,7 +6,7 @@ import { ActionButton } from "../../manufacturing/components/shared/ActionButton
 import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { ApiErrorState, ApiLoadingState } from "../components/ApiState";
 import { CatalogStatusBadge } from "../components/CatalogStatusBadge";
-import { DetailList } from "../components/ProductManagementPage";
+import { DetailList } from "../components/CatalogResourceManagement";
 import { useApiResource } from "../hooks/useApiResource";
 import { productVariantApi } from "../services/productVariant.api";
 import { routePaths } from "../../../routes/path";
