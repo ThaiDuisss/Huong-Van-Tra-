@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/units")
+@RequestMapping("/api/catalog/units")
 public class UnitController {
     private final UnitService service;
 

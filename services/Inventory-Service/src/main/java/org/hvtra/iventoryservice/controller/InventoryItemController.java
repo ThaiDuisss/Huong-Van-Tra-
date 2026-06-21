@@ -16,7 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/inventory-items")
+@RequestMapping("/api/inventory/inventory-items")
 public class InventoryItemController {
     private final InventoryItemService service;
     private final InventoryBalanceService balanceService;

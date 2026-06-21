@@ -14,8 +14,16 @@ spring:
           format_sql: true
 server:
   port: 8084
-  servlet:
-    context-path: /api/inventory
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api/inventory/v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /api/inventory/swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
 
 eureka:
   client:

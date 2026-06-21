@@ -17,10 +17,10 @@ server:
 springdoc:
   api-docs:
     enabled: true
-    path: /v3/api-docs
+    path: /api/customer/v3/api-docs
   swagger-ui:
     enabled: true
-    path: /swagger-ui.html
+    path: /api/customer/swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
 
