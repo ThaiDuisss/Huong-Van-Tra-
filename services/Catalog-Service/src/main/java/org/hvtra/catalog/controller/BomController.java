@@ -13,7 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/boms")
+@RequestMapping("/api/catalog/boms")
 public class BomController {
     private final BomService service;
 
