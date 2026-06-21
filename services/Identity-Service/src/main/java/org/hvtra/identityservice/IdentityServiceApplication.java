@@ -1,5 +1,6 @@
 package org.hvtra.identityservice;
 
+import org.hvtra.commonservice.config.FeignConfig;
 import org.hvtra.commonservice.config.SwaggerConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -9,7 +10,7 @@ import org.springframework.context.annotation.Import;
 
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableFeignClients
+@EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
 
 public class IdentityServiceApplication {
