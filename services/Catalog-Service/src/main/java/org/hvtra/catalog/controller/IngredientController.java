@@ -13,7 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/ingredients")
+@RequestMapping("/api/catalog/ingredients")
 public class IngredientController {
     private final IngredientService service;
 

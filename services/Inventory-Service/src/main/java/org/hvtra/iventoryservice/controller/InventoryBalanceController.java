@@ -8,7 +8,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/inventory-balances")
+@RequestMapping("/api/inventory/inventory-balances")
 public class InventoryBalanceController {
     private final InventoryBalanceService service;
 

@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 
 @RestController
-@RequestMapping("/price-lists")
+@RequestMapping("/api/catalog/price-lists")
 public class PriceListController {
     private final PriceListService service;
 
