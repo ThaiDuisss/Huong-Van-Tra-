@@ -2,9 +2,9 @@ spring:
   application:
     name: Identity-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/identity_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:identity_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2026}
   security:
     oauth2:
       resourceserver:
@@ -16,11 +16,21 @@ spring:
       ddl-auto: validate
 
   flyway:
-    enabled: true
+    enabled: false
     locations: classpath:db/migration
 
 server:
   port: 8083
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api/identity/v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /api/identity/swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
 
 eureka:
   client:

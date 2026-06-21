@@ -16,8 +16,11 @@ public class IdentitySecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/api/auth/public/**").permitAll()
-                        .anyRequest().authenticated()
+                        .requestMatchers( "/api/identity/v3/api-docs/**",
+                                "/api/identity/swagger-ui/**",
+                                "/api/identity/**").permitAll()
+                        .requestMatchers("/api/identity/public/**").permitAll()
+                        .anyRequest().permitAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .build();
