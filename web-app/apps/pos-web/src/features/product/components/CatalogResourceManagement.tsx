@@ -12,8 +12,6 @@ import { Link } from "react-router-dom";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
-import { FilterPanel } from "../../manufacturing/components/shared/FilterPanel";
-import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
 import { ApiErrorState, ApiLoadingState } from "./ApiState";
@@ -83,6 +81,8 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     };
     breadcrumbs?: string[];
     statusOptions?: Array<{ label: string; value: "ALL" | S }>;
+    extraHeaderActions?: ReactNode;
+    totalItemsLabel?: string;
 }
 
 export function CatalogResourceManagement<T extends RowBase, S extends string = string>({
@@ -114,7 +114,9 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     detailPath,
     secondaryFilter,
     breadcrumbs,
-    statusOptions
+    statusOptions,
+    extraHeaderActions,
+    totalItemsLabel
 }: CatalogResourceManagementProps<T, S>) {
     const [selectedItem, setSelectedItem] = useState<T | null>(null);
     const [editingItem, setEditingItem] = useState<T | null>(null);
@@ -173,19 +175,28 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
         <section className="grid gap-5">
             <Breadcrumbs items={breadcrumbs ?? ["Product Management", title]} />
 
-            <PageHeader
-                title={title}
-                description={description}
-                search={
-                    searchPlaceholder ? (
+            <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="grid gap-1 min-w-[240px]">
+                    <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
+                        {title}
+                    </h1>
+                    <p className="text-sm text-gray-500">
+                        {description}
+                    </p>
+                </div>
+
+                {searchPlaceholder ? (
+                    <div className="w-full max-w-md md:mx-4 flex-1">
                         <SearchBox
                             value={query}
                             placeholder={searchPlaceholder}
                             onChange={onQueryChange}
                         />
-                    ) : undefined
-                }
-                actions={
+                    </div>
+                ) : null}
+
+                <div className="flex items-center gap-3 min-w-[120px] justify-end">
+                    {extraHeaderActions}
                     <ActionButton
                         variant="primary"
                         onClick={() => {
@@ -197,168 +208,172 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                         <Plus size={17} aria-hidden="true" />
                         {createLabel}
                     </ActionButton>
-                }
-            />
-
-            <div className="grid min-h-[650px] grid-cols-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)] min-[1800px]:grid-cols-[250px_minmax(0,1fr)_340px]">
-                <div className="min-w-0">
-                    <FilterPanel>
-                        {onStatusChange && status !== undefined ? (
-                            <SelectField
-                                label="Trạng thái"
-                                value={status}
-                                options={
-                                    statusOptions ?? [
-                                        { label: "Tất cả", value: "ALL" },
-                                        { label: "Đang hoạt động", value: "ACTIVE" as any },
-                                        {
-                                            label: "Ngừng hoạt động",
-                                            value: "INACTIVE" as any
-                                        }
-                                    ]
-                                }
-                                onChange={(value) =>
-                                    onStatusChange(
-                                        value as "ALL" | S
-                                    )
-                                }
-                            />
-                        ) : null}
-                        {secondaryFilter ? (
-                            <SelectField
-                                label={secondaryFilter.label}
-                                value={secondaryFilter.value}
-                                options={[
-                                    { label: "Tất cả", value: "ALL" },
-                                    ...secondaryFilter.options
-                                ]}
-                                onChange={secondaryFilter.onChange}
-                            />
-                        ) : null}
-                        <button
-                            type="button"
-                            onClick={onRefresh}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold text-gray-600"
-                        >
-                            <RefreshCw size={15} aria-hidden="true" />
-                            Tải lại dữ liệu
-                        </button>
-                    </FilterPanel>
                 </div>
+            </header>
 
-                <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
-                    {loading ? <ApiLoadingState /> : null}
-                    {!loading && error ? (
-                        <ApiErrorState
-                            message={error}
-                            onRetry={onRefresh}
+            <div className="flex flex-wrap items-end gap-4 rounded-2xl bg-white p-4 shadow-pos-card">
+                {onStatusChange && status !== undefined ? (
+                    <div className="w-48">
+                        <SelectField
+                            label="Trạng thái"
+                            value={status}
+                            options={
+                                statusOptions ?? [
+                                    { label: "Tất cả", value: "ALL" },
+                                    { label: "Đang hoạt động", value: "ACTIVE" as any },
+                                    {
+                                        label: "Ngừng hoạt động",
+                                        value: "INACTIVE" as any
+                                    }
+                                ]
+                            }
+                            onChange={(value) =>
+                                onStatusChange(
+                                    value as "ALL" | S
+                                )
+                            }
                         />
-                    ) : null}
-                    {!loading && !error && items.length === 0 ? (
-                        <div className="grid min-h-[560px] place-items-center p-8 text-center">
-                            <div>
-                                <AlertTriangle
-                                    className="mx-auto mb-3 text-pos-gold"
-                                    size={34}
-                                />
-                                <h2 className="font-bold text-pos-ink">
-                                    Chưa có dữ liệu
-                                </h2>
-                                <p className="mt-1 text-sm text-pos-muted">
-                                    Thử thay đổi bộ lọc hoặc tạo dữ liệu mới.
-                                </p>
+                    </div>
+                ) : null}
+                {secondaryFilter ? (
+                    <div className="w-48">
+                        <SelectField
+                            label={secondaryFilter.label}
+                            value={secondaryFilter.value}
+                            options={[
+                                { label: "Tất cả", value: "ALL" },
+                                ...secondaryFilter.options
+                            ]}
+                            onChange={secondaryFilter.onChange}
+                        />
+                    </div>
+                ) : null}
+                <button
+                    type="button"
+                    onClick={onRefresh}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border px-4 text-sm font-bold text-gray-600 hover:bg-neutral-50"
+                >
+                    <RefreshCw size={15} aria-hidden="true" />
+                    Tải lại dữ liệu
+                </button>
+            </div>
+
+            <div className={`grid gap-4 ${selectedItem ? "grid-cols-1 lg:grid-cols-[1fr_380px]" : "grid-cols-1"}`}>
+                <section className="flex flex-col min-h-[580px] min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
+                    <div className="flex-1">
+                        {loading ? <ApiLoadingState /> : null}
+                        {!loading && error ? (
+                            <ApiErrorState
+                                message={error}
+                                onRetry={onRefresh}
+                            />
+                        ) : null}
+                        {!loading && !error && items.length === 0 ? (
+                            <div className="grid min-h-[500px] place-items-center p-8 text-center">
+                                <div>
+                                    <AlertTriangle
+                                        className="mx-auto mb-3 text-pos-gold"
+                                        size={34}
+                                    />
+                                    <h2 className="font-bold text-pos-ink">
+                                        Chưa có dữ liệu
+                                    </h2>
+                                    <p className="mt-1 text-sm text-pos-muted">
+                                        Thử thay đổi bộ lọc hoặc tạo dữ liệu mới.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    ) : null}
-                    {!loading && !error && items.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                                <thead className="bg-neutral-50 text-xs font-bold text-gray-600">
-                                    <tr>
-                                        {columns.map((column) => (
-                                            <th
-                                                key={column.key}
-                                                className="px-4 py-3"
-                                            >
-                                                {column.label}
+                        ) : null}
+                        {!loading && !error && items.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+                                    <thead className="bg-neutral-50 text-xs font-bold text-gray-600">
+                                        <tr>
+                                            {columns.map((column) => (
+                                                <th
+                                                    key={column.key}
+                                                    className="px-4 py-3"
+                                                >
+                                                    {column.label}
+                                                </th>
+                                            ))}
+                                            <th className="px-4 py-3 text-right">
+                                                Thao tác
                                             </th>
-                                        ))}
-                                        <th className="px-4 py-3 text-right">
-                                            Thao tác
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {items.map((item) => (
-                                        <tr
-                                            key={item.id}
-                                            onClick={() =>
-                                                setSelectedItem(item)
-                                            }
-                                            className={`cursor-pointer hover:bg-neutral-50 ${
-                                                selectedItem?.id === item.id
-                                                    ? "bg-hvt-green-50/70"
-                                                    : ""
-                                            }`}
-                                        >
-                                            {renderCells(item)}
-                                            <td className="border-b border-pos-border px-4 py-4">
-                                                <div className="flex justify-end gap-1">
-                                                    {detailPath ? (
-                                                        <Link
-                                                            to={detailPath(
-                                                                item
-                                                            )}
-                                                            className="grid size-8 place-items-center rounded-lg hover:bg-white"
-                                                            aria-label="Xem chi tiết"
-                                                        >
-                                                            <Eye size={16} />
-                                                        </Link>
-                                                    ) : (
-                                                        <IconAction
-                                                            label="Xem chi tiết"
-                                                            onClick={() =>
-                                                                setSelectedItem(
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {items.map((item) => (
+                                            <tr
+                                                key={item.id}
+                                                onClick={() =>
+                                                    setSelectedItem(item)
+                                                }
+                                                className={`cursor-pointer hover:bg-neutral-50 ${
+                                                    selectedItem?.id === item.id
+                                                        ? "bg-hvt-green-50/70"
+                                                        : ""
+                                                }`}
+                                            >
+                                                {renderCells(item)}
+                                                <td className="border-b border-pos-border px-4 py-4">
+                                                    <div className="flex justify-end gap-1">
+                                                        {detailPath ? (
+                                                            <Link
+                                                                to={detailPath(
                                                                     item
-                                                                )
-                                                            }
-                                                        >
-                                                            <Eye size={16} />
-                                                        </IconAction>
-                                                    )}
-                                                    <IconAction
-                                                        label="Chỉnh sửa"
-                                                        onClick={() => {
-                                                            setEditingItem(item);
-                                                            setActionError("");
-                                                            setShowForm(true);
-                                                        }}
-                                                    >
-                                                        <Pencil size={16} />
-                                                    </IconAction>
-                                                    {onChangeStatus ? (
+                                                                )}
+                                                                className="grid size-8 place-items-center rounded-lg hover:bg-white"
+                                                                aria-label="Xem chi tiết"
+                                                            >
+                                                                <Eye size={16} />
+                                                            </Link>
+                                                        ) : (
+                                                            <IconAction
+                                                                label="Xem chi tiết"
+                                                                onClick={() =>
+                                                                    setSelectedItem(
+                                                                        item
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Eye size={16} />
+                                                            </IconAction>
+                                                        )}
                                                         <IconAction
-                                                            label="Đổi trạng thái"
+                                                            label="Chỉnh sửa"
                                                             onClick={() => {
+                                                                setEditingItem(item);
                                                                 setActionError("");
-                                                                setStatusTarget(
-                                                                    item
-                                                                );
+                                                                setShowForm(true);
                                                             }}
                                                         >
-                                                            <ToggleLeft
-                                                                size={17}
-                                                            />
+                                                            <Pencil size={16} />
                                                         </IconAction>
-                                                    ) : null}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : null}
+                                                        {onChangeStatus ? (
+                                                            <IconAction
+                                                                label="Đổi trạng thái"
+                                                                onClick={() => {
+                                                                    setActionError("");
+                                                                    setStatusTarget(
+                                                                        item
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <ToggleLeft
+                                                                    size={17}
+                                                                />
+                                                            </IconAction>
+                                                        ) : null}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : null}
+                    </div>
                     {!loading && !error ? (
                         <Pagination
                             page={page}
@@ -367,24 +382,21 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                             pageSize={pageSize}
                             onPageChange={onPageChange}
                             onPageSizeChange={onPageSizeChange}
+                            totalItemsLabel={totalItemsLabel}
                         />
                     ) : null}
                 </section>
 
-                <div className="hidden min-h-0 min-[1800px]:block [&>aside]:h-full">
-                    {selectedItem ? (
+                {selectedItem ? (
+                    <div className="min-w-0">
                         <DetailPanel
                             title={`Chi tiết ${title.toLowerCase()}`}
                             onClose={() => setSelectedItem(null)}
                         >
                             {renderDetail(selectedItem)}
                         </DetailPanel>
-                    ) : (
-                        <aside className="grid h-full place-items-center rounded-2xl border border-dashed border-pos-border p-6 text-center text-sm text-pos-muted">
-                            Chọn một dòng để xem thông tin chi tiết.
-                        </aside>
-                    )}
-                </div>
+                    </div>
+                ) : null}
             </div>
 
             {showForm ? (

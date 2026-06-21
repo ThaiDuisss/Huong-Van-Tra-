@@ -3,7 +3,6 @@ import {
     CircleHelp,
     MapPin,
     Menu,
-    Search,
     ShieldCheck
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
@@ -42,7 +41,7 @@ export function SystemTopbar() {
                     {page}
                 </span>
             </nav>
-
+{/* 
             <label className={`${isOrders ? "hidden" : "ml-auto flex"} h-10 w-[360px] max-w-[38vw] items-center gap-3 rounded-lg border border-[#e8eef0] bg-white px-3 shadow-[0_6px_16px_rgba(31,53,43,0.04)] focus-within:border-[#8fd6a5]`}>
                 <Search
                     className="shrink-0 text-[#53678f]"
@@ -61,7 +60,7 @@ export function SystemTopbar() {
                 <span className="text-[11px] font-bold text-[#53678f]">
                     ⌘ K
                 </span>
-            </label>
+            </label> */}
 
             <div className="flex items-center gap-2">
                 <button

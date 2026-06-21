@@ -14,11 +14,8 @@ import { InventoryTransactionPage } from "../features/inventory/pages/InventoryT
 import { StockAdjustmentPage } from "../features/inventory/pages/StockAdjustmentPage";
 import { StockInPage } from "../features/inventory/pages/StockInPage";
 import { CategoryListPage } from "../features/product/pages/CategoryListPage";
-import { PriceListDetailPage } from "../features/product/pages/PriceListDetailPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
-import { ProductDetailPage } from "../features/product/pages/ProductDetailPage";
 import { ProductListPage } from "../features/product/pages/ProductListPage";
-import { ProductVariantDetailPage } from "../features/product/pages/ProductVariantDetailPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
@@ -82,10 +79,7 @@ export function AppRouter() {
                     path="products"
                     element={<ProductListPage />}
                 />
-                <Route
-                    path="products/:id"
-                    element={<ProductDetailPage />}
-                />
+
                 <Route
                     path="products/:productId/variants"
                     element={<ProductVariantListPage />}
@@ -94,18 +88,12 @@ export function AppRouter() {
                     path="product-variants"
                     element={<ProductVariantListPage />}
                 />
-                <Route
-                    path="product-variants/:id"
-                    element={<ProductVariantDetailPage />}
-                />
+
                 <Route
                     path="price-lists"
                     element={<PriceListPage />}
                 />
-                <Route
-                    path="price-lists/:id"
-                    element={<PriceListDetailPage />}
-                />
+
                 <Route
                     path="inventory/locations"
                     element={<InventoryLocationPage />}

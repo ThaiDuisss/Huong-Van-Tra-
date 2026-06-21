@@ -75,6 +75,7 @@ export function CategoryListPage() {
             description="Quản lý cây danh mục và trạng thái phân loại sản phẩm."
             createLabel="Tạo danh mục"
             searchPlaceholder="Tìm tên danh mục..."
+            totalItemsLabel="Tổng số danh mục"
             items={categories}
             loading={resource.loading}
             error={resource.error}

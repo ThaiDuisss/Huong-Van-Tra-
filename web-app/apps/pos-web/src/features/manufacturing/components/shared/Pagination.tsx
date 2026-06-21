@@ -5,6 +5,7 @@ interface PaginationProps {
     pageSize: number;
     onPageChange(page: number): void;
     onPageSizeChange(pageSize: number): void;
+    totalItemsLabel?: string;
 }
 
 const pageSizeOptions = [5, 10, 20] as const;
@@ -15,14 +16,15 @@ export function Pagination({
     totalItems,
     pageSize,
     onPageChange,
-    onPageSizeChange
+    onPageSizeChange,
+    totalItemsLabel = "Tổng số BOM"
 }: PaginationProps) {
     const safePageCount = Math.max(1, pageCount);
 
     return (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-pos-border px-4 py-3 text-sm">
             <p className="text-pos-muted">
-                Tổng số BOM{" "}
+                {totalItemsLabel}{" "}
                 <strong className="text-pos-ink">
                     {totalItems}
                 </strong>

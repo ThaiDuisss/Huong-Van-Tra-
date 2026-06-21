@@ -9,7 +9,7 @@ export function SystemShell() {
             <SystemSidebar />
             <div className="flex min-w-0 flex-1 flex-col">
                 <SystemTopbar />
-                <main className="min-h-0 flex-1 overflow-hidden px-3 py-3 sm:px-4 lg:px-4 lg:py-4">
+                <main className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4 lg:px-4 lg:py-4">
                     <Outlet />
                 </main>
             </div>

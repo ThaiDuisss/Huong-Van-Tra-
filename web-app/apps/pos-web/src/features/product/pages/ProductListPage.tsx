@@ -1,5 +1,7 @@
-import { Package } from "lucide-react";
+import { Download, Package, Upload } from "lucide-react";
 import { useCallback } from "react";
+
+import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 
 import {
     CatalogStatusBadge,
@@ -20,7 +22,7 @@ import {
     getNumber,
     getString
 } from "../utils/form-values";
-import { routePaths } from "../../../routes/path";
+import { formatCurrency } from "../utils/product-formatters";
 
 export function ProductListPage() {
     const state = useCatalogPageState();
@@ -88,6 +90,19 @@ export function ProductListPage() {
             description="Quản lý thông tin nhóm sản phẩm và các biến thể trực thuộc."
             createLabel="Tạo sản phẩm"
             searchPlaceholder="Tìm tên sản phẩm..."
+            totalItemsLabel="Tổng số sản phẩm"
+            extraHeaderActions={
+                <>
+                    <ActionButton variant="secondary" onClick={() => alert("Nhập Excel")}>
+                        <Upload size={17} aria-hidden="true" />
+                        Nhập Excel
+                    </ActionButton>
+                    <ActionButton variant="secondary" onClick={() => alert("Xuất Excel")}>
+                        <Download size={17} aria-hidden="true" />
+                        Xuất Excel
+                    </ActionButton>
+                </>
+            }
             items={products}
             loading={resource.loading}
             error={resource.error}
@@ -116,9 +131,6 @@ export function ProductListPage() {
                 imageUrl: item.imageUrl ?? "",
                 status: item.status
             })}
-            detailPath={(item) =>
-                routePaths.productDetail.replace(":id", String(item.id))
-            }
             secondaryFilter={{
                 label: "Danh mục",
                 value: state.secondaryValue,
@@ -160,26 +172,7 @@ export function ProductListPage() {
                     </TableCell>
                 </>
             )}
-            renderDetail={(item) => (
-                <DetailList
-                    items={[
-                        { label: "Tên sản phẩm", value: item.name },
-                        { label: "Danh mục", value: item.category.name },
-                        {
-                            label: "Tổng biến thể",
-                            value: item.totalVariants
-                        },
-                        {
-                            label: "Trạng thái",
-                            value: (
-                                <CatalogStatusBadge
-                                    status={item.status}
-                                />
-                            )
-                        }
-                    ]}
-                />
-            )}
+            renderDetail={(item) => <ProductDetailContent productId={item.id} />}
             formFields={[
                 {
                     name: "categoryId",
@@ -217,5 +210,63 @@ export function ProductListPage() {
                 }
             ]}
         />
+    );
+}
+
+function ProductDetailContent({ productId }: { productId: number }) {
+    const loadDetail = useCallback(() => productApi.detail(String(productId)), [productId]);
+    const { data: product, loading, error } = useApiResource(loadDetail);
+
+    if (loading) return <div className="text-sm text-pos-muted p-4">Đang tải chi tiết...</div>;
+    if (error || !product) return <div className="text-sm text-red-500 p-4">Lỗi tải chi tiết: {error}</div>;
+
+    return (
+        <div className="grid gap-6">
+            {product.imageUrl ? (
+                <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="h-40 w-full rounded-2xl object-cover"
+                />
+            ) : (
+                <div className="grid h-40 place-items-center rounded-2xl bg-neutral-100 text-pos-muted">
+                    <Package size={34} />
+                </div>
+            )}
+            
+            <DetailList
+                items={[
+                    { label: "Tên sản phẩm", value: product.name },
+                    { label: "Danh mục", value: product.category.name },
+                    { label: "Mô tả", value: product.description || "Chưa có mô tả." },
+                    {
+                        label: "Trạng thái",
+                        value: <CatalogStatusBadge status={product.status} />
+                    }
+                ]}
+            />
+
+            {product.variants && product.variants.length > 0 ? (
+                <div className="border-t border-pos-border pt-4">
+                    <h3 className="text-sm font-bold text-gray-700 mb-2">
+                        Danh sách biến thể ({product.variants.length})
+                    </h3>
+                    <div className="grid gap-2 text-xs">
+                        {product.variants.map((variant) => (
+                            <div key={variant.id} className="flex justify-between border-b border-pos-border pb-1.5 last:border-0">
+                                <div>
+                                    <span className="font-semibold">{variant.variantName}</span>
+                                    <span className="text-pos-muted block text-[10px]">{variant.sku}</span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="font-bold text-hvt-green-900 block">{formatCurrency(variant.sellingPrice)}</span>
+                                    <span className="text-[10px]">{variant.status === "ACTIVE" ? "Đang bán" : "Ngừng bán"}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+        </div>
     );
 }

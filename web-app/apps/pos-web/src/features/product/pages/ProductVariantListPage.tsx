@@ -1,5 +1,8 @@
+import { Download, Upload } from "lucide-react";
 import { useCallback } from "react";
 import { useParams } from "react-router-dom";
+
+import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 
 import {
     CatalogStatusBadge,
@@ -22,7 +25,6 @@ import {
     getNumber,
     getString
 } from "../utils/form-values";
-import { routePaths } from "../../../routes/path";
 import { formatCurrency } from "../utils/product-formatters";
 
 export function ProductVariantListPage() {
@@ -95,6 +97,19 @@ export function ProductVariantListPage() {
             description="Quản lý các mặt hàng bán được, SKU và chính sách tồn kho."
             createLabel="Tạo biến thể"
             searchPlaceholder="Tìm theo SKU..."
+            totalItemsLabel="Tổng số biến thể"
+            extraHeaderActions={
+                <>
+                    <ActionButton variant="secondary" onClick={() => alert("Nhập Excel")}>
+                        <Upload size={17} aria-hidden="true" />
+                        Nhập Excel
+                    </ActionButton>
+                    <ActionButton variant="secondary" onClick={() => alert("Xuất Excel")}>
+                        <Download size={17} aria-hidden="true" />
+                        Xuất Excel
+                    </ActionButton>
+                </>
+            }
             items={variants}
             loading={resource.loading}
             error={resource.error}
@@ -126,12 +141,6 @@ export function ProductVariantListPage() {
                 inventoryPolicy: item.inventoryPolicy,
                 status: item.status
             })}
-            detailPath={(item) =>
-                routePaths.productVariantDetail.replace(
-                    ":id",
-                    String(item.id)
-                )
-            }
             secondaryFilter={
                 productId
                     ? undefined
