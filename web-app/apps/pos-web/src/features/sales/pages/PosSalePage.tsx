@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ApiError } from "@hvt/api-client";
 import { ChevronDown, Plus } from "lucide-react";
 
 import { PosShell } from "../../../components/layout/Pos/PosShell";
@@ -20,8 +21,10 @@ import type { PaymentStatusValue } from "../components/dialogs/PaymentStatus";
 import { ProductSearchBar } from "../components/product/ProductSearchBar";
 import { mockDiscounts } from "../mock/discounts.mock";
 import { mockCustomers } from "../mock/customers.mock";
-import { mockProducts } from "../mock/products.mock";
 import { formatCurrency } from "../services/money";
+import { posOrderApi } from "../services/posOrder.api";
+import { posPaymentApi } from "../services/posPayment.api";
+import { posProductApi } from "../services/posProduct.api";
 import {
     calculateDiscountAmount,
     calculateSaleTotals
@@ -51,67 +54,39 @@ const noDiscount: SaleDiscountOption = {
 
 const bankTransferReferenceCode = "HVT-HD000015";
 
-const initialCartItems: Record<string, SaleCartItem> = {
-    "tea-oi-tu-tay": {
-        productId: "tea-oi-tu-tay",
-        name: "Trà Ôi Tứ Tây",
-        sku: "SKU-HH-111",
-        variant: "100g",
-        quantity: 1,
-        unitPrice: 120000
-    },
-    "tea-olong-tu-quy": {
-        productId: "tea-olong-tu-quy",
-        name: "Trà Ô Long Tứ Quý",
-        sku: "SKU-HH-112",
-        variant: "100g",
-        quantity: 1,
-        unitPrice: 120000
-    },
-    "tea-tu-quy-jasmine": {
-        productId: "tea-tu-quy-jasmine",
-        name: "Trà Tứ Quý Jasmine",
-        sku: "SKU-HH-113",
-        variant: "100g",
-        quantity: 1,
-        unitPrice: 150000
-    },
-    "tea-shan-tuyet": {
-        productId: "tea-shan-tuyet",
-        name: "Trà Shan Tuyết Cổ Thụ",
-        sku: "SKU-HH-114",
-        variant: "100g",
-        quantity: 1,
-        unitPrice: 140000
-    },
-    "tea-tu-quy-premium": {
-        productId: "tea-tu-quy-premium",
-        name: "Trà Tứ Quý Thượng Hạng",
-        sku: "SKU-HH-115",
-        variant: "100g",
-        quantity: 1,
-        unitPrice: 180000
-    },
-    "tea-nhai": {
-        productId: "tea-nhai",
-        name: "Trà Nhài",
-        sku: "SKU-HH-120",
-        variant: "100g",
-        quantity: 2,
-        unitPrice: 110000
-    },
-    "tea-pho-nhi": {
-        productId: "tea-pho-nhi",
-        name: "Trà Phổ Nhĩ",
-        sku: "SKU-HH-121",
-        variant: "357g",
-        quantity: 1,
-        unitPrice: 280000
+const initialCartItems: Record<string, SaleCartItem> = {};
+
+function getErrorMessage(error: unknown) {
+    if (error instanceof ApiError) {
+        return error.message;
     }
-};
+
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    return "Có lỗi xảy ra. Vui lòng thử lại.";
+}
+
+function logApiError(error: unknown) {
+    console.error("POS API error", error);
+}
+
+function isUuid(value: string | null) {
+    return Boolean(
+        value?.match(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        )
+    );
+}
 
 export function PosSalePage() {
     const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<
+        SaleProductPreview[]
+    >([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchError, setSearchError] = useState("");
     const [cartItemsById, setCartItemsById] = useState<
         Record<string, SaleCartItem>
     >(initialCartItems);
@@ -130,21 +105,49 @@ export function PosSalePage() {
     const [bankTransferStatus, setBankTransferStatus] =
         useState<PaymentStatusValue>("WAITING");
     const [selectedCustomerId, setSelectedCustomerId] =
-        useState<string | null>("customer-do-xuan-thai");
+        useState<string | null>(null);
+    const [checkoutLoading, setCheckoutLoading] = useState(false);
+    const [checkoutError, setCheckoutError] = useState("");
+    const [checkoutSuccess, setCheckoutSuccess] = useState("");
 
-    const searchResults = useMemo(() => {
-        const normalizedQuery = searchQuery.trim().toLowerCase();
+    useEffect(() => {
+        const normalizedQuery = searchQuery.trim();
 
         if (!normalizedQuery) {
-            return [];
+            return;
         }
 
-        return mockProducts.filter(
-            (product) =>
-                product.name.toLowerCase().includes(normalizedQuery) ||
-                product.sku.toLowerCase().includes(normalizedQuery) ||
-                product.barcode.toLowerCase().includes(normalizedQuery)
-        );
+        let active = true;
+        const timeoutId = window.setTimeout(() => {
+            setSearchLoading(true);
+            setSearchError("");
+
+            void posProductApi
+                .search(normalizedQuery)
+                .then((products) => {
+                    if (active) {
+                        setSearchResults(products);
+                    }
+                })
+                .catch((error: unknown) => {
+                    logApiError(error);
+
+                    if (active) {
+                        setSearchResults([]);
+                        setSearchError(getErrorMessage(error));
+                    }
+                })
+                .finally(() => {
+                    if (active) {
+                        setSearchLoading(false);
+                    }
+                });
+        }, 250);
+
+        return () => {
+            active = false;
+            window.clearTimeout(timeoutId);
+        };
     }, [searchQuery]);
 
     const cartItems = useMemo(
@@ -181,7 +184,76 @@ export function PosSalePage() {
             };
     const changeAmount = Math.max(0, cashReceived - totals.total);
 
+    async function completePayment() {
+        if (cartItems.length === 0) {
+            setCheckoutError("Giỏ hàng đang rỗng.");
+            return;
+        }
+
+        if (paymentMethod === "COMBINED") {
+            setCheckoutError(
+                "Payment-Service hiện chưa có API thanh toán tổng hợp."
+            );
+            return;
+        }
+
+        if (paymentMethod === "BANK_TRANSFER") {
+            setCheckoutError(
+                "Payment-Service hiện chưa có API thanh toán chuyển khoản."
+            );
+            return;
+        }
+
+        if (paymentMethod === "CASH" && cashReceived < totals.total) {
+            setCheckoutError("Tiền khách đưa chưa đủ để thanh toán.");
+            return;
+        }
+
+        setCheckoutLoading(true);
+        setCheckoutError("");
+        setCheckoutSuccess("");
+
+        try {
+            const order = await posOrderApi.create({
+                customerId: isUuid(selectedCustomerId)
+                    ? selectedCustomerId
+                    : null,
+                orderType,
+                discountAmount: totals.discountAmount,
+                items: cartItems
+            });
+            const amountToPay = Number(order.finalAmount ?? totals.total);
+            const receivedAmount =
+                paymentMethod === "CASH"
+                    ? Math.max(cashReceived, amountToPay)
+                    : amountToPay;
+
+            await posPaymentApi.payByCash({
+                orderId: order.id,
+                receivedAmount
+            });
+
+            setCartItemsById({});
+            setNote("");
+            setSelectedDiscountId("none");
+            setSubtotalOverride(null);
+            setSubtotalOverrideNote("");
+            setCashReceived(0);
+            setBankTransferStatus("WAITING");
+            setCheckoutSuccess(
+                `Thanh toán thành công đơn ${order.orderCode}.`
+            );
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(getErrorMessage(error));
+        } finally {
+            setCheckoutLoading(false);
+        }
+    }
+
     function addProduct(product: SaleProductPreview) {
+        setCheckoutError("");
+        setCheckoutSuccess("");
         setCartItemsById((currentItems) => {
             const currentItem = currentItems[product.id];
 
@@ -189,6 +261,7 @@ export function PosSalePage() {
                 ...currentItems,
                 [product.id]: {
                     productId: product.id,
+                    productVariantId: product.productVariantId,
                     name: product.name,
                     sku: product.sku.startsWith("SKU-")
                         ? product.sku
@@ -206,16 +279,27 @@ export function PosSalePage() {
 
     function addProductFromSearch(product: SaleProductPreview) {
         addProduct(product);
+        clearSearch();
+    }
+
+    function changeSearchQuery(value: string) {
+        setSearchQuery(value);
+
+        if (!value.trim()) {
+            setSearchResults([]);
+            setSearchError("");
+            setSearchLoading(false);
+        }
+    }
+
+    function clearSearch() {
         setSearchQuery("");
+        setSearchResults([]);
+        setSearchError("");
+        setSearchLoading(false);
     }
 
     function incrementProduct(productId: string) {
-        const product = mockProducts.find((item) => item.id === productId);
-
-        if (!product) {
-            return;
-        }
-
         setCartItemsById((currentItems) => {
             const currentItem = currentItems[productId];
 
@@ -227,10 +311,7 @@ export function PosSalePage() {
                 ...currentItems,
                 [productId]: {
                     ...currentItem,
-                    quantity: Math.min(
-                        product.availableQuantity,
-                        currentItem.quantity + 1
-                    )
+                    quantity: currentItem.quantity + 1
                 }
             };
         });
@@ -290,6 +371,9 @@ export function PosSalePage() {
                     changeAmount={changeAmount}
                     paymentMethod={paymentMethod}
                     bankTransferStatus={bankTransferStatus}
+                    checkoutLoading={checkoutLoading}
+                    checkoutError={checkoutError}
+                    checkoutSuccess={checkoutSuccess}
                     customers={mockCustomers}
                     selectedCustomer={selectedCustomer}
                     onCashReceivedChange={setCashReceived}
@@ -314,6 +398,7 @@ export function PosSalePage() {
                     onBankTransferRefresh={() =>
                         setBankTransferStatus("WAITING")
                     }
+                    onCompletePayment={completePayment}
                 />
             }
         >
@@ -322,9 +407,11 @@ export function PosSalePage() {
                     <ProductSearchBar
                         value={searchQuery}
                         results={searchResults}
+                        loading={searchLoading}
+                        error={searchError}
                         formatCurrency={formatCurrency}
-                        onChange={setSearchQuery}
-                        onClear={() => setSearchQuery("")}
+                        onChange={changeSearchQuery}
+                        onClear={clearSearch}
                         onAdd={addProductFromSearch}
                     />
 
@@ -384,6 +471,9 @@ interface CheckoutPanelProps {
     changeAmount: number;
     paymentMethod: SalePaymentMethod;
     bankTransferStatus: PaymentStatusValue;
+    checkoutLoading: boolean;
+    checkoutError: string;
+    checkoutSuccess: string;
     customers: typeof mockCustomers;
     selectedCustomer: (typeof mockCustomers)[number] | null;
     onDiscountChange(discountId: string): void;
@@ -396,6 +486,7 @@ interface CheckoutPanelProps {
     onBankTransferCancel(): void;
     onBankTransferConfirm(): void;
     onBankTransferRefresh(): void;
+    onCompletePayment(): void;
 }
 
 function CheckoutPanel({
@@ -407,6 +498,9 @@ function CheckoutPanel({
     changeAmount,
     paymentMethod,
     bankTransferStatus,
+    checkoutLoading,
+    checkoutError,
+    checkoutSuccess,
     customers,
     selectedCustomer,
     onDiscountChange,
@@ -418,7 +512,8 @@ function CheckoutPanel({
     onCustomerClear,
     onBankTransferCancel,
     onBankTransferConfirm,
-    onBankTransferRefresh
+    onBankTransferRefresh,
+    onCompletePayment
 }: CheckoutPanelProps) {
     const [bankTransferOpen, setBankTransferOpen] = useState(false);
     const [combinedPaymentOpen, setCombinedPaymentOpen] = useState(false);
@@ -427,7 +522,8 @@ function CheckoutPanel({
     const canCompletePayment =
         totals.total > 0 &&
         (paymentMethod !== "CASH" || cashReceived >= totals.total) &&
-        (!isBankTransfer || bankTransferStatus === "RECEIVED");
+        (!isBankTransfer || bankTransferStatus === "RECEIVED") &&
+        !checkoutLoading;
 
     return (
         <section className="flex h-full min-h-0 flex-col gap-3 rounded-[20px] bg-pos-surface p-4 shadow-pos-panel">
@@ -489,6 +585,18 @@ function CheckoutPanel({
                 <AddDebtAction onClick={() => undefined} />
             </div>
 
+            {checkoutError ? (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                    {checkoutError}
+                </p>
+            ) : null}
+
+            {checkoutSuccess ? (
+                <p className="rounded-lg border border-hvt-green-200 bg-hvt-green-50 px-3 py-2 text-sm font-semibold text-hvt-green-900">
+                    {checkoutSuccess}
+                </p>
+            ) : null}
+
             {isBankTransfer && bankTransferOpen ? (
                 <div
                     className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4"
@@ -525,7 +633,8 @@ function CheckoutPanel({
                 <CompletePaymentButton
                     total={totals.total}
                     disabled={!canCompletePayment}
-                    onClick={() => undefined}
+                    loading={checkoutLoading}
+                    onClick={onCompletePayment}
                 />
             </div>
         </section>

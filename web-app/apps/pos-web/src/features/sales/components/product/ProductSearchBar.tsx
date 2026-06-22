@@ -5,6 +5,8 @@ import type { SaleProductPreview } from "../../types/sale.types";
 interface ProductSearchBarProps {
   value: string;
   results: SaleProductPreview[];
+  loading?: boolean;
+  error?: string;
   formatCurrency(value: number): string;
   onChange(value: string): void;
   onClear(): void;
@@ -14,6 +16,8 @@ interface ProductSearchBarProps {
 export function ProductSearchBar({
   value,
   results,
+  loading = false,
+  error = "",
   formatCurrency,
   onChange,
   onClear,
@@ -70,12 +74,16 @@ export function ProductSearchBar({
               <span>{results.length} sản phẩm phù hợp</span>
             </div>
             <span className="text-xs text-neutral-500">
-              Nhấn + để thêm sản phẩm vào đơn
+              {loading ? "Đang tìm..." : "Nhấn + để thêm sản phẩm vào đơn"}
             </span>
           </div>
 
           <div className="max-h-[420px] overflow-y-auto">
-            {visibleResults.length > 0 ? (
+            {error ? (
+              <div className="rounded-xl border border-dashed border-red-200 bg-red-50 px-4 py-3 text-center text-red-700">
+                {error}
+              </div>
+            ) : visibleResults.length > 0 ? (
               visibleResults.map((product, index) => (
                 <article
                   className={`grid grid-cols-[64px_minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-pos-border px-2 py-3 last:border-b-0 ${
