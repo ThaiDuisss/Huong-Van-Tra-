@@ -1,5 +1,8 @@
-package org.hvtra.orderservice.DTO.request;
+package org.hvtra.orderservice.dto.request;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -17,8 +20,12 @@ public class CreateOrderRequest {
 
     private String orderType = "POS";
 
+    @DecimalMin(value = "0.00", message = "discountAmount phải lớn hơn hoặc bằng 0")
     private BigDecimal discountAmount = BigDecimal.ZERO;
+
     private BigDecimal shippingFee = BigDecimal.ZERO;
 
+    @Valid
+    @NotEmpty(message = "items không được rỗng")
     private List<CreateOrderItemRequest> items;
 }
