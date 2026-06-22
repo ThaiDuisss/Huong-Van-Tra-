@@ -1,7 +1,7 @@
 import type { QueryParams } from "@hvt/api-client";
 
 export type CatalogStatus = "ACTIVE" | "INACTIVE";
-export type EntityId = number;
+export type EntityId = number | string;
 
 export interface PageResult<T> {
     content: T[];

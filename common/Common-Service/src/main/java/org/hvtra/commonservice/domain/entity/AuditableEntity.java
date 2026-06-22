@@ -1,6 +1,5 @@
 package org.hvtra.commonservice.domain.entity;
 
-import io.micrometer.common.lang.Nullable;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -10,35 +9,29 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Data
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
 public class AuditableEntity {
 
-    @Nullable
     @CreatedBy
-    @JoinColumn(name = "created_by_id")
-    String createdBy;
+    @Column(name = "created_by")
+    private String createdBy;
 
-    @Nullable
     @LastModifiedBy
-    @JoinColumn(name = "update_by_id")
-    String updatedBy;
+    @Column(name = "updated_by")
+    private String updatedBy;
 
-
-    @Column(name = "createdAt")
     @CreationTimestamp
-    Instant creatDate;
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
 
-    @Column(name = "updateAt")
     @UpdateTimestamp
-    Instant updateDate;
-
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 
     @Version
     @Column(name = "version")
     private Long version;
-
 }
