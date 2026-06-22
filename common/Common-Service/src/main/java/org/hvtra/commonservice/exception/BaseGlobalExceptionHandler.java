@@ -1,5 +1,7 @@
 package org.hvtra.commonservice.exception;
 
+import feign.FeignException;
+import feign.RetryableException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +13,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 @Slf4j
@@ -121,5 +125,73 @@ public abstract class BaseGlobalExceptionHandler {
         log.error("Validation error at {}: {}", Instant.now(), message, exception);
 
         return ResponseEntity.badRequest().body(response);
+    }
+    public ResponseEntity<ErrorResponse> handleFeignClientException(
+            FeignClientException ex,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatus());
+
+        if (status == null) {
+            status = HttpStatus.BAD_GATEWAY;
+        }
+
+        /*
+         * Nếu service khác lỗi 5xx, không nên trả nguyên 500 của nó.
+         * Service hiện tại nên báo 502 Bad Gateway,
+         * nghĩa là lỗi đến từ service phụ thuộc.
+         */
+        if (status.is5xxServerError()) {
+            status = HttpStatus.BAD_GATEWAY;
+        }
+
+
+        String code = "REMOTE_SERVICE_ERROR";
+        String message = ex.getMessage() != null ? ex.getMessage() : "Upstream service error";
+
+        ErrorResponse response = new ErrorResponse(
+                code,
+                message,
+                status.value()
+        );
+
+        log.error("Feign client error at {}: status={} path={} message={}", Instant.now(), status.value(), request.getRequestURI(), message, ex);
+
+        return ResponseEntity.status(status).body(response);
+    }
+
+    @ExceptionHandler(RetryableException.class)
+    public ResponseEntity<?> handleRetryableException(
+            RetryableException ex,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                Map.<String, Object>of(
+                        "timestamp", LocalDateTime.now(),
+                        "status", HttpStatus.SERVICE_UNAVAILABLE.value(),
+                        "error", "Service Unavailable",
+                        "message", "Remote service is unavailable or timeout",
+                        "path", request.getRequestURI()
+                )
+        );
+    }
+
+    /**
+     * Phòng trường hợp FeignException bị lọt ra ngoài.
+     */
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<?> handleFeignException(
+            FeignException ex,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
+                Map.<String, Object>of(
+                        "timestamp", LocalDateTime.now(),
+                        "status", HttpStatus.BAD_GATEWAY.value(),
+                        "error", "Bad Gateway",
+                        "message", ex.getMessage(),
+                        "path", request.getRequestURI()
+                )
+        );
     }
 }
