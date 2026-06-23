@@ -1,0 +1,25 @@
+package org.hvtra.promotionservice.service;
+
+import org.hvtra.promotionservice.dto.request.Event.EventCreateRequest;
+import org.hvtra.promotionservice.dto.request.Event.EventStatusUpdateRequest;
+import org.hvtra.promotionservice.dto.request.Event.EventUpdateRequest;
+import org.hvtra.promotionservice.dto.response.EventResponse;
+import org.hvtra.promotionservice.dto.response.PageResponse;
+
+import java.util.UUID;
+
+public interface EventService {
+
+    EventResponse createEvent(EventCreateRequest request);
+
+    EventResponse getEventById(UUID eventId);
+
+    PageResponse<EventResponse> getAllEvents(int page, int size);
+
+    EventResponse updateEvent(UUID eventId, EventUpdateRequest request);
+
+    EventResponse updateEventStatus(UUID eventId, EventStatusUpdateRequest request);
+
+    void deleteEvent(UUID eventId);
+
+}
