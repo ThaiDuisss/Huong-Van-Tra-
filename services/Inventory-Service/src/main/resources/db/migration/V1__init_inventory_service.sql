@@ -1,8 +1,12 @@
+-- Flyway init migration for Inventory-Service
+-- Target Database: MySQL 8
+-- Storing all UUID keys and references natively as BINARY(16)
+
 CREATE TABLE inventory_items (
-    id CHAR(36) PRIMARY KEY,
-    reference_id BIGINT NOT NULL,
+    id BINARY(16) PRIMARY KEY,
+    reference_id BINARY(16) NOT NULL,
     item_type VARCHAR(50) NOT NULL,
-    base_unit_id BIGINT NOT NULL,
+    base_unit_id BINARY(16) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     
     created_by CHAR(36) NULL,
@@ -18,9 +22,9 @@ CREATE TABLE inventory_items (
 );
 
 CREATE TABLE inventory_locations (
-    id CHAR(36) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY,
     branch_id CHAR(36) NOT NULL,
-    parent_location_id CHAR(36) NULL,
+    parent_location_id BINARY(16) NULL,
     code VARCHAR(100) NOT NULL,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(50) NOT NULL,
@@ -40,9 +44,9 @@ CREATE TABLE inventory_locations (
 );
 
 CREATE TABLE inventory_balances (
-    id CHAR(36) PRIMARY KEY,
-    inventory_item_id CHAR(36) NOT NULL,
-    location_id CHAR(36) NOT NULL,
+    id BINARY(16) PRIMARY KEY,
+    inventory_item_id BINARY(16) NOT NULL,
+    location_id BINARY(16) NOT NULL,
     quantity_on_hand DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
     quantity_reserved DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
 
@@ -61,7 +65,7 @@ CREATE TABLE inventory_balances (
 );
 
 CREATE TABLE inventory_transactions (
-    id CHAR(36) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY,
     transaction_code VARCHAR(100) NOT NULL,
     type VARCHAR(50) NOT NULL,
     reference_type VARCHAR(50) NOT NULL,
@@ -83,10 +87,10 @@ CREATE TABLE inventory_transactions (
 );
 
 CREATE TABLE inventory_transaction_lines (
-    id CHAR(36) PRIMARY KEY,
-    transaction_id CHAR(36) NOT NULL,
-    inventory_item_id CHAR(36) NOT NULL,
-    location_id CHAR(36) NOT NULL,
+    id BINARY(16) PRIMARY KEY,
+    transaction_id BINARY(16) NOT NULL,
+    inventory_item_id BINARY(16) NOT NULL,
+    location_id BINARY(16) NOT NULL,
     quantity DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
     before_quantity DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
     after_quantity DECIMAL(18, 2) NOT NULL DEFAULT 0.00,

@@ -12,7 +12,8 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
+  flyway:
+    baseline-on-migrate: true
 clients:
   inventory:
     base-url: http://inventory-service/api/inventory
