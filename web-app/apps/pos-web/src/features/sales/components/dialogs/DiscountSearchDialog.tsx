@@ -180,7 +180,7 @@ export function DiscountSearchDialog({
           <div className="min-w-0">
             <h3
               id={titleId}
-              className="text-sm font-bold text-pos-ink"
+              className="text-sm font-bold text-gray-500"
             >
               Khuyến mãi
             </h3>
@@ -195,7 +195,7 @@ export function DiscountSearchDialog({
 
         <button
           type="button"
-          className="grid size-8 place-items-center rounded-lg text-pos-ink hover:bg-neutral-100"
+          className="grid size-8 place-items-center rounded-lg text-gray-500 hover:bg-neutral-100"
           aria-label="Đóng tìm khuyến mãi"
           onClick={closeDialog}
         >
@@ -295,7 +295,7 @@ function DiscountGroup({
   return (
     <section className="mb-3">
       <div className="mb-2 flex items-center justify-between">
-        <h4 className="flex items-center gap-1 text-xs font-bold text-pos-ink">
+        <h4 className="flex items-center gap-1 text-xs font-bold text-gray-500">
           {icon}
           {title}
         </h4>
@@ -330,7 +330,7 @@ function DiscountGroup({
               }`}
             >
               <span className="min-w-0">
-                <strong className="block truncate text-pos-ink">
+                <strong className="block truncate text-gray-500">
                   {discount.label}
                 </strong>
                 <span className="block text-xs text-neutral-500">

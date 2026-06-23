@@ -63,7 +63,7 @@ export function ProductionOrderFilters({
                 }
             />
             <fieldset className="grid gap-2">
-                <legend className="mb-1 text-sm font-bold text-pos-ink">
+                <legend className="mb-1 text-sm font-bold text-gray-500">
                     Thời gian
                 </legend>
                 {[
@@ -103,7 +103,7 @@ export function ProductionOrderFilters({
                 <button
                     type="button"
                     onClick={onReset}
-                    className="h-11 rounded-xl border border-pos-border bg-white text-sm font-bold text-pos-ink"
+                    className="h-11 rounded-xl border border-pos-border bg-white text-sm font-bold text-gray-500"
                 >
                     Đặt lại
                 </button>
@@ -136,7 +136,7 @@ function CheckboxGroup<T extends string>({
 }: CheckboxGroupProps<T>) {
     return (
         <fieldset className="grid gap-2">
-            <legend className="mb-1 text-sm font-bold text-pos-ink">
+            <legend className="mb-1 text-sm font-bold text-gray-500">
                 {title}
             </legend>
             {options.map((option) => (

@@ -17,7 +17,7 @@ export function BomAttentionList({
     return (
         <section className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4">
             <div className="mb-3 flex items-center justify-between">
-                <h2 className="inline-flex items-center gap-2 text-lg font-bold text-pos-ink">
+                <h2 className="inline-flex items-center gap-2 text-lg font-bold text-gray-500">
                     <Box
                         size={18}
                         className="text-hvt-green-900"
@@ -27,7 +27,7 @@ export function BomAttentionList({
                 </h2>
                 <button
                     type="button"
-                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-white px-3 text-sm font-bold text-pos-ink shadow-sm"
+                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-white px-3 text-sm font-bold text-gray-500 shadow-sm"
                 >
                     Xem tất cả
                     <ArrowRight size={15} aria-hidden="true" />
@@ -45,7 +45,7 @@ export function BomAttentionList({
                             className="size-12 rounded-lg object-cover"
                         />
                         <div className="min-w-0">
-                            <h3 className="truncate text-sm font-bold text-pos-ink">
+                            <h3 className="truncate text-sm font-bold text-gray-500">
                                 {item.title}
                             </h3>
                             <p className="mt-1 text-xs font-semibold text-hvt-green-800">

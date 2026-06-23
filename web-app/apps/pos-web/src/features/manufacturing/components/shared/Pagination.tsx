@@ -23,17 +23,17 @@ export function Pagination({
 
     return (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-pos-border px-4 py-3 text-sm">
-            <p className="text-pos-muted">
+            <p className="text-gray-500">
                 {totalItemsLabel}{" "}
-                <strong className="text-pos-ink">
+                <strong className="text-gray-500">
                     {totalItems}
                 </strong>
             </p>
             <div className="flex min-w-0 flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-pos-muted">
+                <label className="flex items-center gap-2 text-gray-400">
                     Hiển thị
                     <select
-                        className="h-9 rounded-lg border border-pos-border bg-white px-2 text-pos-ink"
+                        className="h-9 rounded-lg border border-pos-border bg-white px-2 text-gray-500"
                         value={pageSize}
                         onChange={(event) =>
                             onPageSizeChange(
@@ -62,7 +62,7 @@ export function Pagination({
                             className={`grid size-8 place-items-center rounded-lg text-sm font-bold ${
                                 pageNumber === page
                                     ? "bg-hvt-green-900 text-white"
-                                    : "text-pos-muted hover:bg-neutral-100"
+                                    : "text-gray-500 hover:bg-neutral-100"
                             }`}
                         >
                             {pageNumber}

@@ -15,13 +15,13 @@ export function DetailPanel({
     return (
         <aside className="flex min-h-0 flex-col rounded-2xl bg-white shadow-pos-card">
             <header className="flex items-center justify-between border-b border-pos-border p-4">
-                <h2 className="text-xl font-bold text-pos-ink">
+                <h2 className="text-xl font-bold text-gray-500">
                     {title}
                 </h2>
                 <button
                     type="button"
                     onClick={onClose}
-                    className="grid size-8 place-items-center rounded-lg text-pos-muted hover:bg-neutral-100 hover:text-pos-ink"
+                    className="grid size-8 place-items-center rounded-lg text-gray-500 hover:bg-neutral-100 hover:text-gray-500"
                     aria-label="Đóng chi tiết BOM"
                 >
                     <X size={20} aria-hidden="true" />

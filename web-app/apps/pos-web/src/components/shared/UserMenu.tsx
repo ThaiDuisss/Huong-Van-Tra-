@@ -34,7 +34,7 @@ export function UserMenu({
 }: UserMenuProps) {
     return (
         <div
-            className="absolute bottom-[calc(100%+12px)] left-0 right-0 z-30 rounded-2xl border border-white/15 bg-white p-2 text-pos-ink shadow-[0_18px_48px_rgba(0,0,0,0.24)]"
+            className="absolute bottom-[calc(100%+12px)] left-0 right-0 z-30 rounded-2xl border border-white/15 bg-white p-2 text-gray-500 shadow-[0_18px_48px_rgba(0,0,0,0.24)]"
             role="menu"
             aria-label="Chuyển workspace"
         >

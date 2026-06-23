@@ -26,7 +26,7 @@ export function ProductGrid({
     return (
       <div className="grid min-h-0 place-items-center rounded-2xl border border-dashed border-hvt-green-200 bg-pos-surface p-10 text-center shadow-pos-card">
         <div>
-          <strong className="text-lg text-pos-ink">
+          <strong className="text-lg text-gray-500">
             Chưa có sản phẩm trong đơn
           </strong>
           <p className="mt-2 text-neutral-500">
