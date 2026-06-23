@@ -8,6 +8,7 @@ export type SalePaymentMethod =
 
 export interface SaleProductPreview {
   id: string;
+  productVariantId?: string;
   name: string;
   sku: string;
   barcode: string;
@@ -20,6 +21,7 @@ export interface SaleProductPreview {
 
 export interface SaleCartItem {
   productId: string;
+  productVariantId?: string;
   name: string;
   sku: string;
   variant: string;

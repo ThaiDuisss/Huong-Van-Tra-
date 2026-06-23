@@ -21,19 +21,19 @@ public class Order extends BaseEntity {
     @Column(name = "order_code", nullable = false, unique = true, length = 50)
     private String orderCode;
 
-    @Column(name = "tenant_id", columnDefinition = "CHAR(36)")
+    @Column(name = "tenant_id", columnDefinition = "BINARY(16)")
     private UUID tenantId;
 
-    @Column(name = "branch_id", columnDefinition = "CHAR(36)")
+    @Column(name = "branch_id", columnDefinition = "BINARY(16)")
     private UUID branchId;
 
-    @Column(name = "terminal_id", columnDefinition = "CHAR(36)")
+    @Column(name = "terminal_id", columnDefinition = "BINARY(16)")
     private UUID terminalId;
 
-    @Column(name = "shift_id", columnDefinition = "CHAR(36)")
+    @Column(name = "shift_id", columnDefinition = "BINARY(16)")
     private UUID shiftId;
 
-    @Column(name = "customer_id", columnDefinition = "CHAR(36)")
+    @Column(name = "customer_id", columnDefinition = "BINARY(16)")
     private UUID customerId;
 
     @Column(name = "order_type", nullable = false, length = 50)
@@ -66,6 +66,15 @@ public class Order extends BaseEntity {
     @Column(name = "debt_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal debtAmount;
 
+    @Builder.Default
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
+
+    public void addItem(OrderItem item) {
+        if (items == null) {
+            items = new ArrayList<>();
+        }
+        items.add(item);
+        item.setOrder(this);
+    }
 }

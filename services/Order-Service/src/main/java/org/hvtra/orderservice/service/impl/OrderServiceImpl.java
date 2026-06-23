@@ -2,11 +2,11 @@ package org.hvtra.orderservice.service.impl;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.orderservice.DTO.request.CreateOrderRequest;
-import org.hvtra.orderservice.DTO.request.MarkOrderPaidRequest;
-import org.hvtra.orderservice.DTO.response.OrderItemResponse;
-import org.hvtra.orderservice.DTO.response.OrderPaymentInfoResponse;
-import org.hvtra.orderservice.DTO.response.OrderResponse;
+import org.hvtra.orderservice.dto.request.CreateOrderRequest;
+import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.response.OrderItemResponse;
+import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
+import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.domain.entity.*;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.exception.*;
@@ -52,7 +52,7 @@ public class OrderServiceImpl implements OrderService {
                 .fulfillmentStatus(FULFILLMENT_STATUS_PENDING)
                 .originalAmount(BigDecimal.ZERO)
                 .discountAmount(defaultZero(request.getDiscountAmount()))
-                .shippingFee(defaultZero(request.getShippingFee()))
+                .shippingFee(BigDecimal.ZERO)
                 .finalAmount(BigDecimal.ZERO)
                 .paidAmount(BigDecimal.ZERO)
                 .debtAmount(BigDecimal.ZERO)
@@ -67,7 +67,6 @@ public class OrderServiceImpl implements OrderService {
             BigDecimal lineTotal = actualUnitPrice.multiply(quantity).subtract(itemDiscount);
 
             OrderItem item = OrderItem.builder()
-                    .order(order)
                     .productVariantId(itemRequest.getProductVariantId())
                     .skuSnapshot(itemRequest.getSkuSnapshot())
                     .productNameSnapshot(itemRequest.getProductNameSnapshot())
@@ -80,15 +79,15 @@ public class OrderServiceImpl implements OrderService {
                     .bomVersionId(itemRequest.getBomVersionId())
                     .build();
 
-            order.getItems().add(item);
+            order.addItem(item);
             // Cộng lineTotal vào tổng tiền gốc của đơn hàng
             originalAmount = originalAmount.add(lineTotal);
         }
 
         BigDecimal discountAmount = defaultZero(request.getDiscountAmount());
-        BigDecimal shippingFee = defaultZero(request.getShippingFee());
+        BigDecimal shippingFee = BigDecimal.ZERO;
         // Tính số tiền cuối cùng khách cần thanh toán
-        BigDecimal finalAmount = originalAmount.subtract(discountAmount).add(shippingFee);
+        BigDecimal finalAmount = originalAmount.subtract(discountAmount);
         // Nếu giảm giá vượt quá tổng tiền thì finalAmount không được âm
         if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
             finalAmount = BigDecimal.ZERO;
@@ -143,13 +142,13 @@ public class OrderServiceImpl implements OrderService {
         Order order = getExistingOrder(orderId);
 
         if (PAYMENT_STATUS_PAID.equalsIgnoreCase(order.getPaymentStatus())) {
-            throw new IllegalStateException("Đơn hàng đã được thanh toán");
+            throw new OrderAlreadyPaidException("Đơn hàng đã được thanh toán");
         }
 
         BigDecimal paidAmount = defaultZero(request.getPaidAmount());
         // Kiểm tra số tiền Payment-Service gửi sang có đủ thanh toán đơn không
         if (paidAmount.compareTo(order.getFinalAmount()) < 0) {
-            throw new OrderAlreadyPaidException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
+            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
         }
         // Lưu trạng thái cũ để ghi vào order_status_history
         String oldStatus = order.getStatus();
