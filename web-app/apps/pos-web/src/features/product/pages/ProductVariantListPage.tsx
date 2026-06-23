@@ -91,6 +91,78 @@ export function ProductVariantListPage() {
         }
     }
 
+    const handleExport = async () => {
+        try {
+            const blob = await productVariantApi.export(selectedProductId);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
+            
+            link.setAttribute("download", `Danh sách biến thể sản phẩm_${timestamp}.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error("Lỗi xuất file:", error);
+            alert("Có lỗi xảy ra khi xuất file!");
+        }
+    };
+
+    const handleImportClick = () => {
+        let currentProductId = selectedProductId;
+        if (!currentProductId || currentProductId === "ALL") {
+            currentProductId = String(products[0]?.id);
+        }
+        
+        if (!currentProductId) {
+            alert("Không tìm thấy sản phẩm hợp lệ để import biến thể!");
+            return;
+        }
+
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = ".csv";
+        fileInput.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            try {
+                await productVariantApi.import(file, currentProductId);
+                alert("Import biến thể thành công!");
+                resource.refresh();
+            } catch (error) {
+                console.error(error);
+                alert("Có lỗi xảy ra khi import file. Vui lòng kiểm tra lại định dạng file CSV!");
+            }
+        };
+        fileInput.click();
+    };
+
+    const handleDownloadTemplate = async () => {
+        try {
+            const blob = await productVariantApi.downloadTemplate();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "mau_nhap_bien_the.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error("Lỗi tải file mẫu:", error);
+            alert("Có lỗi xảy ra khi tải file mẫu!");
+        }
+    };
+
     return (
         <CatalogResourceManagement
             title="Biến thể sản phẩm"
@@ -100,11 +172,15 @@ export function ProductVariantListPage() {
             totalItemsLabel="Tổng số biến thể"
             extraHeaderActions={
                 <>
-                    <ActionButton variant="secondary" onClick={() => alert("Nhập Excel")}>
+                    <ActionButton variant="secondary" onClick={handleDownloadTemplate}>
+                        <Download size={17} aria-hidden="true" />
+                        Tải file mẫu
+                    </ActionButton>
+                    <ActionButton variant="secondary" onClick={handleImportClick}>
                         <Upload size={17} aria-hidden="true" />
                         Nhập Excel
                     </ActionButton>
-                    <ActionButton variant="secondary" onClick={() => alert("Xuất Excel")}>
+                    <ActionButton variant="secondary" onClick={handleExport}>
                         <Download size={17} aria-hidden="true" />
                         Xuất Excel
                     </ActionButton>
@@ -159,7 +235,7 @@ export function ProductVariantListPage() {
                 { key: "product", label: "Sản phẩm" },
                 { key: "variant", label: "Tên biến thể" },
                 { key: "selling", label: "Giá bán" },
-                { key: "cost", label: "Giá vốn" },
+                // { key: "cost", label: "Giá vốn" },
                 { key: "inventory", label: "Tồn kho" },
                 { key: "status", label: "Trạng thái" }
             ]}
@@ -171,7 +247,7 @@ export function ProductVariantListPage() {
                     <TableCell>{item.productName}</TableCell>
                     <TableCell>{item.variantName}</TableCell>
                     <TableCell>{formatCurrency(item.sellingPrice)}</TableCell>
-                    <TableCell>{formatCurrency(item.costPrice)}</TableCell>
+                    {/* <TableCell>{formatCurrency(item.costPrice)}</TableCell> */}
                     <TableCell>
                         {item.inventoryPolicy === "TRACK_STOCK"
                             ? "Theo dõi tồn"

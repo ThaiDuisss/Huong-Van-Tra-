@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.UUID;
 
-@FeignClient(name = "user-service")
+@FeignClient(name = "inventory-service")
 public interface InventoryClient {
-    @PostMapping("/inventory-items")
+    @PostMapping("/api/inventory/inventory-items")
     void createProductVariantItem(
             @RequestBody CreateInventoryItemRequest request
     );

@@ -1,4 +1,4 @@
-import { Eye, RefreshCw } from "lucide-react";
+import { Eye } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
@@ -100,7 +100,7 @@ export function InventoryTransactionPage() {
                     <InventoryInput label="Người tạo" value={createdBy} type="number" onChange={(value) => resetPage(setCreatedBy, value)} />
                     <InventoryInput label="Từ ngày" value={fromDate} type="date" onChange={(value) => resetPage(setFromDate, value)} />
                     <InventoryInput label="Đến ngày" value={toDate} type="date" onChange={(value) => resetPage(setToDate, value)} />
-                    <button type="button" onClick={resource.refresh} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold"><RefreshCw size={15} />Tải lại dữ liệu</button>
+                    {/* <button type="button" onClick={resource.refresh} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold"><RefreshCw size={15} />Tải lại dữ liệu</button> */}
                 </InventoryFilters>
                 <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
                     {resource.loading ? <InventoryLoading /> : null}

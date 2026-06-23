@@ -67,4 +67,42 @@ public class ProductController {
             @Valid @RequestBody ProductVariantRequest request) {
         return variantService.create(productId, request);
     }
+
+    @GetMapping("/export")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> exportProducts() {
+        byte[] excelBytes = service.exportToExcel();
+        org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
+        
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+        String timestamp = java.time.LocalDateTime.now().format(formatter);
+        String rawFilename = "Danh sách sản phẩm_" + timestamp + ".xlsx";
+        String encodedFilename = "";
+        try {
+            encodedFilename = java.net.URLEncoder.encode(rawFilename, "UTF-8").replace("+", "%20");
+        } catch (Exception ignored) {}
+        
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(resource);
+    }
+
+    @PostMapping("/import")
+    @ResponseStatus(HttpStatus.OK)
+    public void importProducts(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        service.importFromCsv(file);
+    }
+
+    @GetMapping("/import/template")
+    public org.springframework.http.ResponseEntity<byte[]> downloadTemplate() {
+        String template = "\uFEFFsep=,\n" +
+                "ID,Tên sản phẩm,Danh mục,Trạng thái,Mô tả\n" +
+                ",Trà Thiết Quan Âm,Trà,Đang hoạt động,Trà thiết quan âm thượng hạng thơm ngon\n" +
+                ",Trà Sen Tây Hồ,Trà,Đang hoạt động,Trà sen Tây Hồ ướp hương sen tự nhiên\n";
+        byte[] bytes = template.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_san_pham.csv\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(bytes);
+    }
 }

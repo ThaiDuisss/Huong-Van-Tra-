@@ -17,7 +17,7 @@ export function ConfirmDialog({
                 <h2 className="text-xl font-bold text-pos-ink">
                     Xác nhận thay đổi trạng thái
                 </h2>
-                <p className="mt-2 text-sm text-pos-muted">
+                <p className="mt-2 text-sm text-gray-500">
                     Thao tác này sẽ thay đổi khả năng sử dụng dữ liệu trong hệ
                     thống.
                 </p>

@@ -3,7 +3,6 @@ import {
     Eye,
     Pencil,
     Plus,
-    RefreshCw,
     ToggleLeft
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -248,14 +247,14 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                         />
                     </div>
                 ) : null}
-                <button
+                {/* <button
                     type="button"
                     onClick={onRefresh}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border px-4 text-sm font-bold text-gray-600 hover:bg-neutral-50"
                 >
                     <RefreshCw size={15} aria-hidden="true" />
                     Tải lại dữ liệu
-                </button>
+                </button> */}
             </div>
 
             <div className={`grid gap-4 ${selectedItem ? "grid-cols-1 lg:grid-cols-[1fr_380px]" : "grid-cols-1"}`}>

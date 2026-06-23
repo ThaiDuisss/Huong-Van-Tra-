@@ -63,11 +63,21 @@ export function ProductListPage() {
         editingItem: ProductSummary | null
     ) {
         const description = getString(values, "description");
+        
+        let imageUrl = editingItem?.imageUrl ?? null;
+        const imageFile = values.imageFile;
+
+        if (imageFile instanceof File && imageFile.size > 0) {
+            imageUrl = URL.createObjectURL(imageFile);
+        } else if (imageFile === "") {
+            imageUrl = null;
+        }
+
         const input = {
             categoryId: getNumber(values, "categoryId"),
             name: getString(values, "name"),
             description,
-            imageUrl: getString(values, "imageUrl") || null,
+            imageUrl: imageUrl,
             status: getString(values, "status") as CatalogStatus
         };
 
@@ -84,6 +94,68 @@ export function ProductListPage() {
         }
     }
 
+    const handleExport = async () => {
+        try {
+            const blob = await productApi.export();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
+            
+            link.setAttribute("download", `Danh sách sản phẩm_${timestamp}.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error("Lỗi xuất file:", error);
+            alert("Có lỗi xảy ra khi xuất file!");
+        }
+    };
+
+    const handleImportClick = () => {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = ".csv";
+        fileInput.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            try {
+                await productApi.import(file);
+                alert("Import sản phẩm thành công!");
+                resource.refresh();
+            } catch (error) {
+                console.error(error);
+                alert("Có lỗi xảy ra khi import file. Vui lòng kiểm tra lại định dạng file CSV!");
+            }
+        };
+        fileInput.click();
+    };
+
+    const handleDownloadTemplate = async () => {
+        try {
+            const blob = await productApi.downloadTemplate();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "mau_nhap_san_pham.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error("Lỗi tải file mẫu:", error);
+            alert("Có lỗi xảy ra khi tải file mẫu!");
+        }
+    };
+
     return (
         <CatalogResourceManagement
             title="Sản phẩm"
@@ -93,11 +165,15 @@ export function ProductListPage() {
             totalItemsLabel="Tổng số sản phẩm"
             extraHeaderActions={
                 <>
-                    <ActionButton variant="secondary" onClick={() => alert("Nhập Excel")}>
+                    <ActionButton variant="secondary" onClick={handleDownloadTemplate}>
+                        <Download size={17} aria-hidden="true" />
+                        Tải file mẫu
+                    </ActionButton>
+                    <ActionButton variant="secondary" onClick={handleImportClick}>
                         <Upload size={17} aria-hidden="true" />
                         Nhập Excel
                     </ActionButton>
-                    <ActionButton variant="secondary" onClick={() => alert("Xuất Excel")}>
+                    <ActionButton variant="secondary" onClick={handleExport}>
                         <Download size={17} aria-hidden="true" />
                         Xuất Excel
                     </ActionButton>
@@ -128,7 +204,7 @@ export function ProductListPage() {
                 categoryId: String(item.category.id),
                 name: item.name,
                 description: "",
-                imageUrl: item.imageUrl ?? "",
+                imageFile: item.imageUrl ?? "",
                 status: item.status
             })}
             secondaryFilter={{
@@ -195,8 +271,9 @@ export function ProductListPage() {
                     type: "textarea"
                 },
                 {
-                    name: "imageUrl",
-                    label: "URL hình ảnh"
+                    name: "imageFile",
+                    label: "Hình ảnh sản phẩm",
+                    type: "file"
                 },
                 {
                     name: "status",
