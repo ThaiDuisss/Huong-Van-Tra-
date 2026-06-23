@@ -1,6 +1,5 @@
 package org.hvtra.commonservice.domain.entity;
 
-import io.micrometer.common.lang.Nullable;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -17,28 +16,23 @@ import java.util.UUID;
 @EntityListeners(AuditingEntityListener.class)
 public class AuditableEntity {
 
-    @Nullable
     @CreatedBy
-    @JoinColumn(name = "created_by_id")
-    String createdBy;
+    @Column(name = "created_by", columnDefinition = "BINARY(16)")
+    private UUID createdBy;
 
-    @Nullable
     @LastModifiedBy
-    @JoinColumn(name = "update_by_id")
-    String updatedBy;
+    @Column(name = "updated_by", columnDefinition = "BINARY(16)")
+    private UUID updatedBy;
 
-
-    @Column(name = "createdAt")
     @CreationTimestamp
-    Instant creatDate;
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
 
-    @Column(name = "updateAt")
     @UpdateTimestamp
-    Instant updateDate;
-
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 
     @Version
     @Column(name = "version")
     private Long version;
-
 }

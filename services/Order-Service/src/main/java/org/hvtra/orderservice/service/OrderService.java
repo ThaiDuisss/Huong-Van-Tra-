@@ -1,10 +1,10 @@
 package org.hvtra.orderservice.service;
 
 
-import org.hvtra.orderservice.DTO.request.CreateOrderRequest;
-import org.hvtra.orderservice.DTO.request.MarkOrderPaidRequest;
-import org.hvtra.orderservice.DTO.response.OrderPaymentInfoResponse;
-import org.hvtra.orderservice.DTO.response.OrderResponse;
+import org.hvtra.orderservice.dto.request.CreateOrderRequest;
+import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
+import org.hvtra.orderservice.dto.response.OrderResponse;
 
 import java.util.UUID;
 
