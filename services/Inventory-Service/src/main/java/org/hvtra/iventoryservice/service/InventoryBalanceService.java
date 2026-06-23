@@ -11,4 +11,19 @@ public interface InventoryBalanceService {
             UUID inventoryItemId, UUID locationId, UUID branchId, Pageable pageable);
     InventoryBalanceResponse findById(UUID id);
     PageResponse<InventoryBalanceResponse> findByInventoryItem(UUID itemId, Pageable pageable);
+    PageResponse<org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse> findAllView(
+            UUID branchId,
+            UUID locationId,
+            String sku,
+            String productCode,
+            String productName,
+            String categoryCode,
+            UUID categoryId,
+            UUID unitId,
+            Pageable pageable
+    );
+    java.util.List<org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse> findWarehouseBalances(
+            String sku,
+            String productName
+    );
 }

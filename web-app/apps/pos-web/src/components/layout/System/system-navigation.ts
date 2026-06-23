@@ -11,13 +11,11 @@ import {
     PackagePlus,
     Plane,
     SlidersHorizontal,
-    Tags,
     Settings,
     ShoppingCart,
     User,
     Users,
-    WalletCards,
-    Warehouse
+    WalletCards
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -86,11 +84,11 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 to: routePaths.productVariants,
                 icon: Layers3
             },
-            {
-                label: "Bảng giá",
-                to: routePaths.priceLists,
-                icon: Tags
-            }
+            // {
+            //     label: "Bảng giá",
+            //     to: routePaths.priceLists,
+            //     icon: Tags
+            // }
         ]
     },
     {
@@ -101,11 +99,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 label: "Quản lý kệ hàng",
                 to: routePaths.inventoryLocations,
                 icon: MapPinned
-            },
-            {
-                label: "Tồn kho hiện tại",
-                to: routePaths.inventoryBalances,
-                icon: Warehouse
             },
             {
                 label: "Nhập hàng lên kệ",

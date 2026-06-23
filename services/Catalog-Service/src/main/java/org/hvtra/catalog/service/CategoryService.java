@@ -14,5 +14,6 @@ public interface CategoryService {
     CategoryResponse create(CategoryRequest request);
     CategoryResponse update(UUID id, CategoryRequest request);
     CategoryResponse updateStatus(UUID id, Status status);
+    java.util.List<CategoryResponse> findAllByIds(java.util.List<UUID> ids);
 }
 

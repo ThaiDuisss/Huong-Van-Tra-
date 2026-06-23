@@ -23,7 +23,7 @@ public class InventoryLocationMapper {
             InventoryLocation location,
             InventoryLocationRequest request,
             InventoryLocation parentLocation) {
-        location.setBranchId(request.branchId());
+//        location.setBranchId(request.branchId());
         location.setParentLocation(parentLocation);
         location.setCode(request.code().trim());
         location.setName(request.name().trim());

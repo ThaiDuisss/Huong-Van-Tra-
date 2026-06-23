@@ -60,7 +60,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         InventoryTransaction transaction = createTransaction(
                 InventoryTransactionType.STOCK_IN,
                 request.branchId(),
-                request.createdBy(),
+                "",
                 request.referenceType(),
                 request.referenceId());
 

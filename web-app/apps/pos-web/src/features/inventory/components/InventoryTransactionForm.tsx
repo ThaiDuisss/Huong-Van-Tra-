@@ -9,6 +9,7 @@ import { useInventoryPage, messageOf } from "../hooks/useInventoryResource";
 import { inventoryBalanceApi } from "../services/inventoryBalance.api";
 import { inventoryLocationApi } from "../services/inventoryLocation.api";
 import type {
+    EntityId,
     InventoryItemResponse,
     InventoryReferenceType,
     InventoryTransactionResponse
@@ -29,10 +30,10 @@ interface TransactionLine {
 interface InventoryTransactionFormProps {
     mode: "stock-in" | "adjustment";
     onSubmit(input: {
-        branchId: number;
+        branchId: EntityId;
         referenceType: InventoryReferenceType;
-        referenceId: number | null;
-        locationId: number;
+        referenceId: EntityId | null;
+        locationId: EntityId;
         lines: TransactionLine[];
     }): Promise<InventoryTransactionResponse>;
 }
@@ -42,7 +43,7 @@ export function InventoryTransactionForm({
     onSubmit
 }: InventoryTransactionFormProps) {
     const adjustment = mode === "adjustment";
-    const [branchId, setBranchId] = useState("");
+    const [branchId, _setBranchId] = useState("");
     const [locationId, setLocationId] = useState("");
     const [referenceType, setReferenceType] =
         useState<InventoryReferenceType>(
@@ -60,7 +61,7 @@ export function InventoryTransactionForm({
             inventoryLocationApi.list({
                 page: 0,
                 size: 200,
-                branchId: branchId ? Number(branchId) : undefined,
+                branchId: branchId ? branchId : undefined,
                 status: "ACTIVE"
             }),
         [branchId]
@@ -85,8 +86,8 @@ export function InventoryTransactionForm({
                 page: 0,
                 size: 1,
                 inventoryItemId: selectedItem.id,
-                locationId: Number(locationId),
-                branchId: branchId ? Number(branchId) : undefined
+                locationId: locationId,
+                branchId: branchId ? branchId : undefined
             });
             currentQuantity = balances.content[0]?.quantityOnHand ?? 0;
         }
@@ -133,10 +134,10 @@ export function InventoryTransactionForm({
         setError("");
         try {
             const response = await onSubmit({
-                branchId: Number(branchId),
+                branchId: branchId,
                 referenceType,
                 referenceId: null,
-                locationId: Number(locationId),
+                locationId: locationId,
                 lines
             });
             setResult(response);
@@ -165,7 +166,7 @@ export function InventoryTransactionForm({
             />
             <section className="grid gap-5 rounded-2xl bg-white p-5 shadow-pos-card">
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    <Field label="Mã chi nhánh" value={branchId} type="number" onChange={setBranchId} />
+                    {/* <Field label="Mã chi nhánh" value={branchId} type="text" onChange={setBranchId} /> */}
                     <label className="grid gap-2 text-sm font-bold">Chọn vị trí<select value={locationId} onChange={(event) => setLocationId(event.currentTarget.value)} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal"><option value="">Chọn vị trí</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.name}</option>)}</select></label>
                     <label className="grid gap-2 text-sm font-bold">Loại tham chiếu<select value={referenceType} onChange={(event) => setReferenceType(event.currentTarget.value as InventoryReferenceType)} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal">{Object.entries(referenceTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 </div>
@@ -189,9 +190,6 @@ export function InventoryTransactionForm({
     );
 }
 
-function Field({ label, value, type, onChange }: { label: string; value: string; type: string; onChange(value: string): void }) {
-    return <label className="grid gap-2 text-sm font-bold">{label}<input type={type} value={value} onChange={(event) => onChange(event.currentTarget.value)} className="h-11 rounded-xl border border-pos-border px-3 font-normal" /></label>;
-}
 
 function Cell({ children }: { children: React.ReactNode }) {
     return <td className="border-t border-pos-border px-4 py-4">{children}</td>;
