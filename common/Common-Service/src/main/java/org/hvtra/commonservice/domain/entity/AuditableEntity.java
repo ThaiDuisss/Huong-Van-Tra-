@@ -9,6 +9,7 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Data
 @MappedSuperclass
@@ -16,12 +17,12 @@ import java.time.Instant;
 public class AuditableEntity {
 
     @CreatedBy
-    @Column(name = "created_by")
-    private String createdBy;
+    @Column(name = "created_by", columnDefinition = "BINARY(16)")
+    private UUID createdBy;
 
     @LastModifiedBy
-    @Column(name = "updated_by")
-    private String updatedBy;
+    @Column(name = "updated_by", columnDefinition = "BINARY(16)")
+    private UUID updatedBy;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

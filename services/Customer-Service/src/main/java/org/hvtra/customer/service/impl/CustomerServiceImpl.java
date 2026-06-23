@@ -64,7 +64,6 @@ public class CustomerServiceImpl implements CustomerService {
         customerMapper.update(customer, normalizedRequest, findTier(normalizedRequest.tierId()));
         CustomerResponse response = customerMapper.toResponse(customerRepository.save(customer));
 
-
         LoyaltyAccountRequest loyaltyAccountRequest = new LoyaltyAccountRequest(response.id(), 0);
         loyaltyAccountService.create(loyaltyAccountRequest);
 
