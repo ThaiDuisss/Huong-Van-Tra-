@@ -1,0 +1,7 @@
+spring:
+  config:
+    activate:
+      on-profile: clean
+
+  flyway:
+    clean-disabled: false
