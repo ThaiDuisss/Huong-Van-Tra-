@@ -39,6 +39,6 @@ public class LoyaltyTransaction extends CustomerBaseEntity {
     private LoyaltyReferenceType referenceType;
 
     @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "reference_id", columnDefinition = "CHAR(36)")
+    @Column(name = "reference_id", columnDefinition = "BINARY(16)")
     private UUID referenceId;
 }
