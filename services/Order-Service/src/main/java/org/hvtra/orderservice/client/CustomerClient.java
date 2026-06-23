@@ -3,6 +3,7 @@ package org.hvtra.orderservice.client;
 import org.hvtra.orderservice.dto.response.CustomerResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -13,5 +14,5 @@ import java.util.List;
 public interface CustomerClient {
 
     @GetMapping("/api/customer")
-    List<CustomerResponse> getCustomers();
+    List<CustomerResponse> getCustomers(@RequestParam(required = false) String q);
 }
