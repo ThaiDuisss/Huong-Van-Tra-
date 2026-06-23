@@ -5,6 +5,7 @@ import feign.RetryableException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.hvtra.commonservice.domain.response.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -20,6 +21,17 @@ import java.util.stream.Collectors;
 @Slf4j
 
 public abstract class BaseGlobalExceptionHandler {
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNotFoundException(AppException exception) {
+        returnError(exception);
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .code(exception.getCode())
+                .message(exception.getMessage())
+                .data(null)
+                .build();
+        return ResponseEntity.badRequest().body(response);
+    }
     @ExceptionHandler(BaseException.class)
     public ResponseEntity<ErrorResponse> handleBaseException(
             BaseException exception,
@@ -193,5 +205,8 @@ public abstract class BaseGlobalExceptionHandler {
                         "path", request.getRequestURI()
                 )
         );
+    }
+    public void returnError(Exception e) {
+        log.error("AppException: {}", e.getMessage());
     }
 }
