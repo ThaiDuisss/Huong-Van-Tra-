@@ -10,6 +10,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.customer.model.enums.CustomerStatus;
 
 import java.math.BigDecimal;
@@ -19,7 +20,7 @@ import java.time.LocalDate;
 @Setter
 @Entity
 @Table(name = "customers")
-public class Customer extends CustomerBaseEntity {
+public class Customer extends BaseEntity {
 
     @Column(name = "customer_code", nullable = false, unique = true, length = 50)
     private String customerCode;

@@ -1,434 +1,381 @@
 import {
-    Bell,
-    CalendarDays,
-    ChevronLeft,
-    ChevronRight,
+    ChevronDown,
     Download,
-    Mail,
+    Filter,
     MoreHorizontal,
-    Phone,
     Plus,
-    Upload,
-    User,
-    WalletCards
+    ScanLine,
+    Search,
+    X
 } from "lucide-react";
+import type { ReactNode } from "react";
 
-import { TimeHierarchyFilter } from "../../../components/shared/TimeHierarchyFilter";
-import { formatCurrency } from "../../sales/services/money";
-import styles from "./CustomerListPage.module.css";
+type CustomerTier = "Vàng" | "Bạc" | "Đồng";
 
 interface CustomerRow {
     id: string;
     code: string;
     name: string;
-    tier: "VIP Gold" | "VIP Silver" | "VIP Diamond" | "Thành viên";
-    points: number;
-    totalSpent: number;
-    orderCount: number;
     phone: string;
-    email: string;
-    birthday: string;
-    gender: string;
-    address: string;
-    source: string;
-    note: string;
-    avatarUrl: string;
+    tier: CustomerTier;
+    totalSpent: string;
+    lastPurchase: string;
+    status: "Hoạt động";
 }
+
+const quickFilters = [
+    { label: "Tất cả", count: "12.458", active: true },
+    { label: "Mới tạo", count: "126" },
+    { label: "Mua gần đây", count: "1.204" },
+    { label: "Khách thân thiết", count: "328" },
+    { label: "Sinh nhật tháng này", count: "46" }
+];
 
 const customers: CustomerRow[] = [
     {
         id: "1",
-        code: "KH-000125",
-        name: "Đỗ Xuân Thái",
-        tier: "VIP Gold",
-        points: 1250,
-        totalSpent: 25600000,
-        orderCount: 86,
-        phone: "0987654321",
-        email: "thai@gmail.com",
-        birthday: "15/08/1998",
-        gender: "Nam",
-        address: "Tây Hồ, Hà Nội",
-        source: "Facebook",
-        note: "Khách hàng thân thiết, thường mua trà biếu tặng.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80"
+        code: "KH00124",
+        name: "Nguyễn Văn An",
+        phone: "0987 123 456",
+        tier: "Vàng",
+        totalSpent: "4.250.000đ",
+        lastPurchase: "Hôm nay",
+        status: "Hoạt động"
     },
     {
         id: "2",
-        code: "KH-000126",
-        name: "Nguyễn Minh Anh",
-        tier: "VIP Silver",
-        points: 550,
-        totalSpent: 8500000,
-        orderCount: 24,
-        phone: "0912345678",
-        email: "minhanh@gmail.com",
-        birthday: "02/04/1995",
-        gender: "Nữ",
-        address: "Cầu Giấy, Hà Nội",
-        source: "Cửa hàng",
-        note: "Ưu tiên trà ô long và các set quà nhỏ.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80"
+        code: "KH00125",
+        name: "Trần Thị Mai",
+        phone: "0912 456 789",
+        tier: "Bạc",
+        totalSpent: "1.850.000đ",
+        lastPurchase: "2 ngày trước",
+        status: "Hoạt động"
     },
     {
         id: "3",
-        code: "KH-000127",
-        name: "Trần Thu Hà",
-        tier: "Thành viên",
-        points: 180,
-        totalSpent: 2400000,
-        orderCount: 8,
-        phone: "0902111222",
-        email: "thuha@gmail.com",
-        birthday: "11/12/1992",
-        gender: "Nữ",
-        address: "Đống Đa, Hà Nội",
-        source: "Zalo",
-        note: "Hay mua trà sen theo mùa.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
+        code: "KH00126",
+        name: "Lê Minh Hoàng",
+        phone: "0904 111 222",
+        tier: "Đồng",
+        totalSpent: "520.000đ",
+        lastPurchase: "12 ngày trước",
+        status: "Hoạt động"
     },
     {
         id: "4",
-        code: "KH-000128",
-        name: "Lê Hoàng Nam",
-        tier: "VIP Diamond",
-        points: 2260,
-        totalSpent: 32800000,
-        orderCount: 112,
-        phone: "0988111222",
-        email: "nam@gmail.com",
-        birthday: "20/03/1988",
-        gender: "Nam",
-        address: "Ba Đình, Hà Nội",
-        source: "Giới thiệu",
-        note: "Mua sỉ trà biếu doanh nghiệp.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=120&q=80"
+        code: "KH00127",
+        name: "Phạm Thu Hà",
+        phone: "0988 765 432",
+        tier: "Vàng",
+        totalSpent: "7.400.000đ",
+        lastPurchase: "18 ngày trước",
+        status: "Hoạt động"
     },
     {
         id: "5",
-        code: "KH-000129",
-        name: "Phạm Thu Phương",
-        tier: "VIP Gold",
-        points: 1680,
-        totalSpent: 18750000,
-        orderCount: 64,
-        phone: "0966555444",
-        email: "phuong@gmail.com",
-        birthday: "09/09/1990",
-        gender: "Nữ",
-        address: "Hoàn Kiếm, Hà Nội",
-        source: "Website",
-        note: "Thích trà nhài và trà túi lọc.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80"
+        code: "KH00128",
+        name: "Đỗ Thanh Bình",
+        phone: "0936 228 190",
+        tier: "Bạc",
+        totalSpent: "2.310.000đ",
+        lastPurchase: "22 ngày trước",
+        status: "Hoạt động"
     },
     {
         id: "6",
-        code: "KH-000130",
-        name: "Võ Đức Tuấn",
-        tier: "Thành viên",
-        points: 120,
-        totalSpent: 1950000,
-        orderCount: 6,
-        phone: "0909876123",
-        email: "tuan@gmail.com",
-        birthday: "01/01/1991",
-        gender: "Nam",
-        address: "Thanh Xuân, Hà Nội",
-        source: "Cửa hàng",
-        note: "Mua thử sản phẩm mới.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80"
+        code: "KH00129",
+        name: "Vũ Ngọc Linh",
+        phone: "0971 540 228",
+        tier: "Vàng",
+        totalSpent: "5.920.000đ",
+        lastPurchase: "25 ngày trước",
+        status: "Hoạt động"
     },
     {
         id: "7",
-        code: "KH-000131",
-        name: "Ngô Thị Hằng",
-        tier: "VIP Silver",
-        points: 120,
-        totalSpent: 2200000,
-        orderCount: 28,
-        phone: "0933444555",
-        email: "hang@gmail.com",
-        birthday: "23/07/1996",
-        gender: "Nữ",
-        address: "Hà Đông, Hà Nội",
-        source: "Facebook",
-        note: "Thường mua combo nhỏ.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=120&q=80"
+        code: "KH00130",
+        name: "Hoàng Đức Nam",
+        phone: "0908 777 318",
+        tier: "Đồng",
+        totalSpent: "780.000đ",
+        lastPurchase: "31 ngày trước",
+        status: "Hoạt động"
     },
     {
         id: "8",
-        code: "KH-000132",
-        name: "Đặng Minh Quân",
-        tier: "VIP Gold",
-        points: 1350,
-        totalSpent: 21300000,
-        orderCount: 70,
-        phone: "0911222333",
-        email: "quan@gmail.com",
-        birthday: "19/05/1989",
-        gender: "Nam",
-        address: "Tây Hồ, Hà Nội",
-        source: "Giới thiệu",
-        note: "Mua trà làm quà đối tác.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1507591064344-4c6ce005b128?auto=format&fit=crop&w=120&q=80"
+        code: "KH00131",
+        name: "Bùi Hồng Nhung",
+        phone: "0922 450 889",
+        tier: "Bạc",
+        totalSpent: "3.180.000đ",
+        lastPurchase: "36 ngày trước",
+        status: "Hoạt động"
     }
 ];
 
-const selectedCustomer = customers[0];
+const tierClassNames: Record<CustomerTier, string> = {
+    Vàng: "bg-[#fff2d8] text-[#a45b05]",
+    Bạc: "bg-[#eef2f6] text-[#566171]",
+    Đồng: "bg-[#f6eadf] text-[#8a4f22]"
+};
 
-function getTierClassName(tier: CustomerRow["tier"]) {
-    const tierClass = {
-        "VIP Gold": styles.gold,
-        "VIP Silver": styles.silver,
-        "VIP Diamond": styles.diamond,
-        "Thành viên": styles.member
-    }[tier];
-
-    return `${styles.tier} ${tierClass}`;
-}
+const buttonBase =
+    "inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-[13px] font-extrabold";
+const outlineButton =
+    "border border-[#bfd5c6] bg-white text-[#159734] hover:bg-[#f7fff9]";
+const compactButton =
+    "border border-[#d9e3df] bg-white text-[#273a2b] hover:bg-[#f7fbf8]";
 
 export function CustomerListPage() {
     return (
-        <section className={styles.page}>
-            <TimeHierarchyFilter />
+        <section className="h-full min-h-0 bg-[#f6f8fb]">
+            <main
+                className="grid h-full min-h-0 grid-rows-[auto_auto_auto_auto_auto_minmax(0,1fr)] gap-3 p-[18px] text-[#172317] max-xl:p-3.5"
+                aria-labelledby="customer-title"
+            >
+                <header>
+                    <h1
+                        className="m-0 text-[28px] font-black leading-[1.15] text-[#132317]"
+                        id="customer-title"
+                    >
+                        Khách hàng
+                    </h1>
+                    <p className="mt-[7px] text-[13px] font-semibold text-[#657282]">
+                        Quản lý hồ sơ, lịch sử mua hàng và hạng thành viên
+                    </p>
+                </header>
 
-            <div className={styles.tablePanel}>
-                <div className={styles.tableToolbar}>
-                    <div className={styles.dateCrumbs}>
-                        <span>2026</span>
-                        <span>/</span>
-                        <span>Quý 2</span>
-                        <span>/</span>
-                        <span>Tháng 6</span>
-                        <span>/</span>
-                        <span>17-06-2026</span>
-                    </div>
-                    <div className={styles.actions}>
-                        <button className={styles.primaryButton} type="button">
-                            <Plus size={15} aria-hidden="true" />
-                            Thêm khách hàng
-                        </button>
-                        <button className={styles.ghostButton} type="button">
-                            <Download size={15} aria-hidden="true" />
-                            Import Excel
-                        </button>
-                        <button className={styles.ghostButton} type="button">
-                            <Upload size={15} aria-hidden="true" />
-                            Xuất Excel
-                        </button>
-                    </div>
+                <div className="grid grid-cols-[minmax(360px,1fr)_auto_auto_auto_auto] items-center gap-2.5 max-xl:grid-cols-[minmax(0,1fr)_auto_auto]">
+                    <label className="flex h-11 min-w-0 items-center gap-2.5 rounded-lg border border-[#dce5e1] bg-white px-[13px] text-[#7a8794] focus-within:border-[#159734] focus-within:shadow-[0_0_0_3px_rgba(21,151,52,0.12)]">
+                        <Search size={18} aria-hidden="true" />
+                        <input
+                            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#172317] outline-none placeholder:text-[#8a96a3]"
+                            placeholder="Tìm tên, số điện thoại hoặc mã khách hàng..."
+                            type="search"
+                        />
+                    </label>
+                    <button
+                        className={`${buttonBase} border border-[#159734] bg-[#159734] text-white shadow-[0_8px_18px_rgba(21,151,52,0.2)] hover:bg-[#12862d] max-xl:col-span-full max-xl:justify-self-start`}
+                        type="button"
+                    >
+                        <Plus size={17} aria-hidden="true" />
+                        Thêm khách hàng
+                    </button>
+                    <button
+                        className={`${buttonBase} ${compactButton}`}
+                        type="button"
+                    >
+                        <ScanLine size={16} aria-hidden="true" />
+                        Quét mã
+                    </button>
+                    <button
+                        className={`${buttonBase} ${compactButton}`}
+                        type="button"
+                    >
+                        <Filter size={16} aria-hidden="true" />
+                        Bộ lọc
+                    </button>
+                    <button
+                        className={`${buttonBase} ${outlineButton} max-xl:col-span-full max-xl:justify-self-start`}
+                        type="button"
+                    >
+                        <Download size={16} aria-hidden="true" />
+                        Xuất Excel
+                    </button>
                 </div>
 
-                <div className={styles.tableWrap}>
-                    <table className={styles.customerTable}>
-                        <thead>
-                            <tr>
-                                <th>Avatar</th>
-                                <th>Mã khách hàng</th>
-                                <th>Tên khách hàng</th>
-                                <th>Hạng thành viên</th>
-                                <th>Điểm tích lũy</th>
-                                <th>Tổng chi tiêu</th>
-                                <th>Số đơn hàng</th>
-                                <th>Trạng thái</th>
-                                <th>Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {customers.map((customer) => (
-                                <tr key={customer.id}>
-                                    <td>
-                                        <div className={styles.avatar}>
-                                            <img
-                                                src={customer.avatarUrl}
-                                                alt={customer.name}
-                                            />
-                                        </div>
-                                    </td>
-                                    <td>{customer.code}</td>
-                                    <td>
-                                        <strong>{customer.name}</strong>
-                                    </td>
-                                    <td>
-                                        <span
-                                            className={getTierClassName(
-                                                customer.tier
-                                            )}
-                                        >
-                                            {customer.tier}
-                                        </span>
-                                    </td>
-                                    <td>{customer.points.toLocaleString("vi-VN")}</td>
-                                    <td>{customer.totalSpent.toLocaleString("vi-VN")}</td>
-                                    <td>{customer.orderCount}</td>
-                                    <td>
-                                        <span className={styles.status}>
-                                            Đang hoạt động
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className={styles.moreButton}
-                                            type="button"
-                                            aria-label={`Mở thao tác cho ${customer.name}`}
-                                        >
-                                            <MoreHorizontal
-                                                size={16}
-                                                aria-hidden="true"
-                                            />
-                                        </button>
-                                    </td>
+                <div className="flex flex-wrap gap-2" aria-label="Lọc nhanh">
+                    {quickFilters.map((filter) => (
+                        <button
+                            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-[11px] text-xs font-extrabold ${
+                                filter.active
+                                    ? "border-[#159734] bg-[#eaf8ed] text-[#0f7d29]"
+                                    : "border-[#dde6e2] bg-white text-[#5f6b7a] hover:bg-[#f7fbf8]"
+                            }`}
+                            key={filter.label}
+                            type="button"
+                        >
+                            <span>{filter.label}</span>
+                            <strong
+                                className={
+                                    filter.active
+                                        ? "font-black text-[#0f7d29]"
+                                        : "font-black text-[#263545]"
+                                }
+                            >
+                                {filter.count}
+                            </strong>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex min-h-[30px] items-center gap-2 overflow-hidden">
+                    <span className="text-xs font-extrabold text-[#697684]">
+                        Bộ lọc đang áp dụng
+                    </span>
+                    <button
+                        className="inline-flex h-7 items-center gap-1 rounded-[7px] border border-[#dce8df] bg-white px-[9px] text-xs font-extrabold text-[#334336]"
+                        type="button"
+                    >
+                        Hạng: Vàng
+                        <X size={13} aria-hidden="true" />
+                    </button>
+                    <button
+                        className="inline-flex h-7 items-center gap-1 rounded-[7px] border border-[#dce8df] bg-white px-[9px] text-xs font-extrabold text-[#334336]"
+                        type="button"
+                    >
+                        Mua trong 30 ngày
+                        <X size={13} aria-hidden="true" />
+                    </button>
+                    <button
+                        className="ml-auto bg-transparent text-xs font-black text-[#159734] max-xl:ml-0"
+                        type="button"
+                    >
+                        Xóa tất cả
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-3.5 text-[13px] text-[#253225] max-xl:flex-col max-xl:items-start">
+                    <strong className="font-black">
+                        248 khách hàng phù hợp
+                    </strong>
+                    <button
+                        className="inline-flex h-[34px] items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#dce5e1] bg-white px-3.5 text-xs font-extrabold text-[#4c5a67] hover:bg-[#f7fbf8]"
+                        type="button"
+                    >
+                        Sắp xếp: Lần mua gần nhất
+                        <ChevronDown size={15} aria-hidden="true" />
+                    </button>
+                </div>
+
+                <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-[10px] border border-[#e1e8e5] bg-white shadow-[0_14px_34px_rgba(31,53,43,0.06)]">
+                    <div className="min-h-0 overflow-auto">
+                        <table className="w-full min-w-[1120px] border-separate border-spacing-0 text-[13px] text-[#233025]">
+                            <thead>
+                                <tr>
+                                    <th className="sticky top-0 z-[1] h-[42px] w-12 border-b border-[#e8eeeb] bg-[#f8faf9] px-3.5 pr-1 text-center text-[11px] font-black uppercase text-[#556477]">
+                                        <input
+                                            aria-label="Chọn tất cả khách hàng"
+                                            className="size-4 accent-[#159734]"
+                                            type="checkbox"
+                                        />
+                                    </th>
+                                    <TableHead>Mã KH</TableHead>
+                                    <TableHead>Khách hàng</TableHead>
+                                    <TableHead>Số điện thoại</TableHead>
+                                    <TableHead>Hạng thành viên</TableHead>
+                                    <TableHead>Tổng chi tiêu</TableHead>
+                                    <TableHead>Lần mua gần nhất</TableHead>
+                                    <TableHead>Trạng thái</TableHead>
+                                    <TableHead>
+                                        <span className="sr-only">Thao tác</span>
+                                    </TableHead>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {customers.map((customer) => (
+                                    <tr
+                                        className="cursor-pointer group"
+                                        key={customer.id}
+                                    >
+                                        <td className="h-[58px] w-12 whitespace-nowrap border-b border-[#eef2f0] bg-white px-3.5 pr-1 text-center align-middle group-hover:bg-[#f7fbf8]">
+                                            <input
+                                                aria-label={`Chọn ${customer.name}`}
+                                                className="size-4 accent-[#159734]"
+                                                type="checkbox"
+                                            />
+                                        </td>
+                                        <TableCell className="font-black text-[#526071]">
+                                            {customer.code}
+                                        </TableCell>
+                                        <TableCell>
+                                            <button
+                                                className="bg-transparent p-0 text-left font-black text-[#172317] hover:text-[#159734]"
+                                                type="button"
+                                            >
+                                                {customer.name}
+                                            </button>
+                                        </TableCell>
+                                        <TableCell>{customer.phone}</TableCell>
+                                        <TableCell>
+                                            <span
+                                                className={`inline-flex h-[25px] items-center justify-center rounded-[7px] px-[9px] text-[11px] font-black ${
+                                                    tierClassNames[
+                                                        customer.tier
+                                                    ]
+                                                }`}
+                                            >
+                                                {customer.tier}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="font-black text-[#152319]">
+                                            {customer.totalSpent}
+                                        </TableCell>
+                                        <TableCell>
+                                            {customer.lastPurchase}
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="inline-flex h-[25px] items-center justify-center rounded-[7px] bg-[#e9f8ed] px-[9px] text-[11px] font-black text-[#159734]">
+                                                {customer.status}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <button
+                                                className="grid size-8 place-items-center rounded-lg border border-transparent bg-transparent text-[#596879] hover:border-[#dce5e1] hover:bg-white hover:text-[#172317]"
+                                                type="button"
+                                                aria-label={`Mở thao tác cho ${customer.name}`}
+                                            >
+                                                <MoreHorizontal
+                                                    size={18}
+                                                    aria-hidden="true"
+                                                />
+                                            </button>
+                                        </TableCell>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
 
-                <div className={styles.pagination}>
-                    <span>Hiển thị 20 / 12.568 khách hàng</span>
-                    <div className={styles.pages}>
-                        <button className={styles.pageButton} type="button">
-                            <ChevronLeft size={14} aria-hidden="true" />
-                        </button>
-                        {[1, 2, 3, 4, 5].map((page) => (
+                    <footer className="flex min-h-[54px] items-center justify-between gap-4 border-t border-[#e8eeeb] px-3.5 py-[9px] text-xs font-extrabold text-[#657282] max-xl:flex-col max-xl:items-start">
+                        <span>Đã hiển thị 100 / 248 khách hàng</span>
+                        <div className="flex items-center gap-3">
+                            <span>Cuộn để tải thêm</span>
                             <button
-                                className={`${styles.pageButton} ${
-                                    page === 1 ? styles.activePage : ""
-                                }`}
-                                key={page}
+                                className={`${buttonBase} ${outlineButton}`}
                                 type="button"
                             >
-                                {page}
+                                Tải thêm 100 khách hàng
                             </button>
-                        ))}
-                        <span>...</span>
-                        <button className={styles.pageButton} type="button">
-                            629
-                        </button>
-                        <button className={styles.pageButton} type="button">
-                            <ChevronRight size={14} aria-hidden="true" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <CustomerDetailPanel customer={selectedCustomer} />
+                        </div>
+                    </footer>
+                </section>
+            </main>
         </section>
     );
 }
 
-function CustomerDetailPanel({ customer }: { customer: CustomerRow }) {
+function TableHead({ children }: { children: ReactNode }) {
     return (
-        <aside className={styles.detailPanel} aria-label="Chi tiết khách hàng">
-            <div className="flex justify-end">
-                <button
-                    className={styles.moreButton}
-                    type="button"
-                    aria-label="Đóng chi tiết khách hàng"
-                >
-                    ×
-                </button>
-            </div>
-
-            <div className={styles.detailHeader}>
-                <div className={styles.detailAvatar}>
-                    <img src={customer.avatarUrl} alt={customer.name} />
-                </div>
-                <div className="min-w-0">
-                    <div className={styles.detailName}>
-                        <h2>{customer.name}</h2>
-                        <span className={getTierClassName(customer.tier)}>
-                            {customer.tier}
-                        </span>
-                    </div>
-                    <p className="mt-2 text-[12px] font-semibold text-[#5f6b7a]">
-                        Mã khách hàng&nbsp;&nbsp;
-                        <strong className="text-[#172317]">
-                            {customer.code}
-                        </strong>
-                    </p>
-                    <p className="mt-1 text-[12px] font-semibold text-[#5f6b7a]">
-                        Ngày tham gia&nbsp;&nbsp;
-                        <strong className="text-[#172317]">
-                            15/03/2025
-                        </strong>
-                    </p>
-                </div>
-            </div>
-
-            <div className={styles.stats}>
-                <div className={styles.statCard}>
-                    <span>Điểm tích lũy</span>
-                    <strong>{customer.points.toLocaleString("vi-VN")}</strong>
-                </div>
-                <div className={styles.statCard}>
-                    <span>Tổng chi tiêu</span>
-                    <strong>{formatCurrency(customer.totalSpent)}</strong>
-                </div>
-                <div className={styles.statCard}>
-                    <span>Công nợ</span>
-                    <strong>0đ</strong>
-                </div>
-            </div>
-
-            <div className={styles.tabs}>
-                <button
-                    className={`${styles.tab} ${styles.activeTab}`}
-                    type="button"
-                >
-                    Thông tin
-                </button>
-                <button className={styles.tab} type="button">
-                    Lịch sử mua
-                </button>
-                <button className={styles.tab} type="button">
-                    Công nợ
-                </button>
-                <button className={styles.tab} type="button">
-                    Loyalty
-                </button>
-            </div>
-
-            <div className={styles.infoList}>
-                <InfoRow icon={Phone} label="Số điện thoại" value={customer.phone} />
-                <InfoRow icon={Mail} label="Email" value={customer.email} />
-                <InfoRow icon={CalendarDays} label="Ngày sinh" value={customer.birthday} />
-                <InfoRow icon={User} label="Giới tính" value={customer.gender} />
-                <InfoRow icon={WalletCards} label="Địa chỉ" value={customer.address} />
-                <InfoRow icon={Bell} label="Nguồn khách hàng" value={customer.source} />
-                <InfoRow icon={MoreHorizontal} label="Ghi chú" value={customer.note} />
-            </div>
-
-            <div className="mt-auto flex items-center justify-between border-t border-[#edf0f4] pt-4 text-[12px] font-semibold">
-                <span className="text-[#5f6b7a]">Trạng thái</span>
-                <span className={styles.status}>Đang hoạt động</span>
-            </div>
-        </aside>
+        <th className="sticky top-0 z-[1] h-[42px] whitespace-nowrap border-b border-[#e8eeeb] bg-[#f8faf9] px-3.5 text-left text-[11px] font-black uppercase text-[#556477]">
+            {children}
+        </th>
     );
 }
 
-function InfoRow({
-    icon: Icon,
-    label,
-    value
+function TableCell({
+    children,
+    className = ""
 }: {
-    icon: typeof Phone;
-    label: string;
-    value: string;
+    children: ReactNode;
+    className?: string;
 }) {
     return (
-        <div className={styles.infoRow}>
-            <Icon size={14} aria-hidden="true" />
-            <span>{label}</span>
-            <strong>{value}</strong>
-        </div>
+        <td
+            className={`h-[58px] whitespace-nowrap border-b border-[#eef2f0] bg-white px-3.5 align-middle group-hover:bg-[#f7fbf8] ${className}`}
+        >
+            {children}
+        </td>
     );
 }
