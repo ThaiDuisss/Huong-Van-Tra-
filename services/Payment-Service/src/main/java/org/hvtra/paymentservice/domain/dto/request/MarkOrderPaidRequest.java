@@ -1,4 +1,4 @@
-package org.hvtra.paymentservice.dto.request;
+package org.hvtra.paymentservice.domain.dto.request;
 
 import lombok.Builder;
 import lombok.Data;
