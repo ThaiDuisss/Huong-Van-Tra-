@@ -129,7 +129,7 @@ export function PriceListPage() {
             ]}
             renderCells={(item) => (
                 <>
-                    <TableCell className="font-bold text-pos-ink">
+                    <TableCell className="font-bold text-gray-500">
                         {item.name}
                     </TableCell>
                     <TableCell>#{item.branchId}</TableCell>
@@ -171,7 +171,7 @@ export function PriceListPage() {
                                     <div key={priceItem.id} className="flex justify-between border-b border-pos-border pb-1.5 last:border-0">
                                         <div>
                                             <span className="font-semibold">{priceItem.productVariant?.variantName || "Biến thể"}</span>
-                                            <span className="text-pos-muted block text-[10px]">{priceItem.productVariant?.sku}</span>
+                                            <span className="text-gray-500 block text-[10px]">{priceItem.productVariant?.sku}</span>
                                         </div>
                                         <span className="font-bold text-hvt-green-900">{formatCurrency(priceItem.sellingPrice)}</span>
                                     </div>

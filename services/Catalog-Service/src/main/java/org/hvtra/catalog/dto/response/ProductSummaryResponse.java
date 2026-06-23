@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record ProductSummaryResponse(
         UUID id,
+        String productCode,
         String name,
         CategoryResponse category,
         String imageUrl,

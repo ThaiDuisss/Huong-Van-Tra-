@@ -7,4 +7,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import java.util.UUID;
 
 public interface CategoryRepository extends JpaRepository<Category, UUID>, JpaSpecificationExecutor<Category> {
+    java.util.Optional<Category> findByCategoryCode(String categoryCode);
+    boolean existsByCategoryCode(String categoryCode);
 }
+

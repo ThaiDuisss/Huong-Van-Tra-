@@ -14,7 +14,7 @@ export function ConfirmDialog({
     return (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/35 p-6">
             <section className="w-full max-w-md rounded-3xl bg-white p-6 shadow-pos-panel">
-                <h2 className="text-xl font-bold text-pos-ink">
+                <h2 className="text-xl font-bold text-gray-500">
                     Xác nhận thay đổi trạng thái
                 </h2>
                 <p className="mt-2 text-sm text-gray-500">

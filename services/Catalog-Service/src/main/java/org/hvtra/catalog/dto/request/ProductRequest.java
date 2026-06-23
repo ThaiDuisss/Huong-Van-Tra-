@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public record ProductRequest(
         @NotNull UUID categoryId,
+        String productCode,
         @NotBlank @Size(max = 255) String name,
         String description,
         @Size(max = 500) String imageUrl,

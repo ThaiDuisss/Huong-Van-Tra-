@@ -8,4 +8,7 @@ import java.util.UUID;
 
 public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product> {
     boolean existsByCategoryId(UUID categoryId);
+    java.util.Optional<Product> findByProductCode(String productCode);
+    boolean existsByProductCode(String productCode);
 }
+

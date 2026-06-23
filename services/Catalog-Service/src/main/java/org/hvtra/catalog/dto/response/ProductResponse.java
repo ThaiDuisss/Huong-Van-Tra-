@@ -11,6 +11,7 @@ import java.util.UUID;
 public record ProductResponse(
         UUID id,
         CategoryResponse category,
+        String productCode,
         String name,
         String description,
         String imageUrl,
@@ -21,6 +22,7 @@ public record ProductResponse(
             UUID id,
             UUID productId,
             String productName,
+            String productCode,
             String sku,
             String variantName,
             BigDecimal sellingPrice,
@@ -37,6 +39,7 @@ public record ProductResponse(
             UUID id,
             UUID productId,
             String productName,
+            String productCode,
             String sku,
             String variantName,
             BigDecimal sellingPrice,

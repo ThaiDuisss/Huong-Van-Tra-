@@ -90,19 +90,16 @@ public class ProductController {
     @PostMapping("/import")
     @ResponseStatus(HttpStatus.OK)
     public void importProducts(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
-        service.importFromCsv(file);
+        service.importFromExcel(file);
     }
 
     @GetMapping("/import/template")
-    public org.springframework.http.ResponseEntity<byte[]> downloadTemplate() {
-        String template = "\uFEFFsep=,\n" +
-                "ID,Tên sản phẩm,Danh mục,Trạng thái,Mô tả\n" +
-                ",Trà Thiết Quan Âm,Trà,Đang hoạt động,Trà thiết quan âm thượng hạng thơm ngon\n" +
-                ",Trà Sen Tây Hồ,Trà,Đang hoạt động,Trà sen Tây Hồ ướp hương sen tự nhiên\n";
-        byte[] bytes = template.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> downloadTemplate() {
+        byte[] excelBytes = service.getImportTemplate();
+        org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
         return org.springframework.http.ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_san_pham.csv\"")
-                .contentType(org.springframework.http.MediaType.parseMediaType("text/csv;charset=UTF-8"))
-                .body(bytes);
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_san_pham.xlsx\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(resource);
     }
 }

@@ -9,6 +9,7 @@ import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.CategoryMapper;
+import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.CategoryRepository;
 import org.hvtra.catalog.service.CategoryService;
 import org.springframework.data.domain.Pageable;
@@ -24,10 +25,12 @@ import java.util.UUID;
 public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository repository;
     private final CategoryMapper mapper;
+    private final BusinessSequenceRepository businessSequenceRepository;
 
-    public CategoryServiceImpl(CategoryRepository repository, CategoryMapper mapper) {
+    public CategoryServiceImpl(CategoryRepository repository, CategoryMapper mapper, BusinessSequenceRepository businessSequenceRepository) {
         this.repository = repository;
         this.mapper = mapper;
+        this.businessSequenceRepository = businessSequenceRepository;
     }
 
     @Override
@@ -48,10 +51,35 @@ public class CategoryServiceImpl implements CategoryService {
         return mapper.toResponse(get(id));
     }
 
+    @Transactional
+    public String generateCategoryCode() {
+        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("CATEGORY")
+                .orElseThrow(() -> new RuntimeException("Category sequence not initialized"));
+        long nextVal = seq.getCurrentValue() + 1;
+        seq.setCurrentValue(nextVal);
+        businessSequenceRepository.saveAndFlush(seq);
+        return String.format("CAT%05d", nextVal);
+    }
+
     @Override
     @Transactional
     public CategoryResponse create(CategoryRequest request) {
         Category category = new Category();
+        
+        String code = request.categoryCode();
+        if (code == null || code.isBlank()) {
+            code = generateCategoryCode();
+        } else {
+            code = code.trim();
+            if (code.length() > 50) {
+                throw new BadRequestException("Mã danh mục tối đa 50 ký tự");
+            }
+            if (repository.existsByCategoryCode(code)) {
+                throw new BadRequestException("Mã danh mục đã tồn tại: " + code);
+            }
+        }
+        category.setCategoryCode(code);
+        
         mapper.update(category, request, parent(request.parentId(), null));
         return mapper.toResponse(repository.save(category));
     }
@@ -61,9 +89,25 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse update(UUID id, CategoryRequest request) {
         Category category = get(id);
         if (id.equals(request.parentId())) throw new BadRequestException("Category cannot be its own parent");
+        
+        String code = request.categoryCode();
+        if (code != null && !code.isBlank()) {
+            code = code.trim();
+            if (code.length() > 50) {
+                throw new BadRequestException("Mã danh mục tối đa 50 ký tự");
+            }
+            if (!code.equalsIgnoreCase(category.getCategoryCode())) {
+                if (repository.existsByCategoryCode(code)) {
+                    throw new BadRequestException("Mã danh mục đã tồn tại: " + code);
+                }
+                category.setCategoryCode(code);
+            }
+        }
+        
         mapper.update(category, request, parent(request.parentId(), id));
         return mapper.toResponse(repository.save(category));
     }
+
 
     @Override
     @Transactional

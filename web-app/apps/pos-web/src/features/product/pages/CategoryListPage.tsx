@@ -58,6 +58,7 @@ export function CategoryListPage() {
     async function submit(values: FormValues, editingItem: Category | null) {
         const input = {
             parentId: getNullableNumber(values, "parentId"),
+            categoryCode: editingItem ? editingItem.categoryCode : undefined,
             name: getString(values, "name"),
             status: getString(values, "status") as CatalogStatus
         };
@@ -109,8 +110,9 @@ export function CategoryListPage() {
             ]}
             renderCells={(item) => (
                 <>
-                    <TableCell className="font-bold text-pos-ink">
-                        {item.name}
+                    <TableCell className="font-bold text-gray-500">
+                        <span>{item.name}</span>
+                        <span className="text-gray-500 block text-[10px] font-normal">{item.categoryCode}</span>
                     </TableCell>
                     <TableCell>{getParentName(item)}</TableCell>
                     <TableCell>
@@ -122,6 +124,7 @@ export function CategoryListPage() {
                 <DetailList
                     items={[
                         { label: "Tên danh mục", value: item.name },
+                        { label: "Mã danh mục", value: item.categoryCode },
                         {
                             label: "Danh mục cha",
                             value: getParentName(item)

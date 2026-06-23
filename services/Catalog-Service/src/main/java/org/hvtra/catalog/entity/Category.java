@@ -22,6 +22,9 @@ public class Category extends BaseEntity {
     @OneToMany(mappedBy = "parentCategory", fetch = FetchType.LAZY)
     private List<Category> childCategories = new ArrayList<>();
 
+    @Column(name = "category_code", nullable = false, unique = true, length = 50)
+    private String categoryCode;
+
     @Column(nullable = false)
     private String name;
 

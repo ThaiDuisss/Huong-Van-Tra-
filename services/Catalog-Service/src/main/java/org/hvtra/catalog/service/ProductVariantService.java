@@ -16,6 +16,7 @@ public interface ProductVariantService {
     ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request);
     ProductResponse.VariantResponse updateStatus(UUID id, Status status);
     byte[] exportToExcel(UUID productId);
-    void importFromCsv(org.springframework.web.multipart.MultipartFile file, UUID productId);
+    void importFromExcel(org.springframework.web.multipart.MultipartFile file, UUID productId);
+    byte[] getImportTemplate();
 }
 

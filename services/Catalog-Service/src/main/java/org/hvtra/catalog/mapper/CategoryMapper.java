@@ -10,9 +10,11 @@ import java.util.UUID;
 @Component
 public class CategoryMapper {
     public CategoryResponse toResponse(Category category) {
+        if (category == null) return null;
         UUID parentId = category.getParentCategory() == null ? null : category.getParentCategory().getId();
-        return new CategoryResponse(category.getId(), parentId, category.getName(), category.getStatus());
+        return new CategoryResponse(category.getId(), parentId, category.getName(), category.getStatus(), category.getCategoryCode());
     }
+
 
     public void update(Category category, CategoryRequest request, Category parent) {
         category.setParentCategory(parent);

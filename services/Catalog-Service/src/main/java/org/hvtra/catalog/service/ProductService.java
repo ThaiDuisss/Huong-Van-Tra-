@@ -17,6 +17,7 @@ public interface ProductService {
     ProductResponse update(UUID id, ProductRequest request);
     ProductResponse updateStatus(UUID id, Status status);
     byte[] exportToExcel();
-    void importFromCsv(org.springframework.web.multipart.MultipartFile file);
+    void importFromExcel(org.springframework.web.multipart.MultipartFile file);
+    byte[] getImportTemplate();
 }
 

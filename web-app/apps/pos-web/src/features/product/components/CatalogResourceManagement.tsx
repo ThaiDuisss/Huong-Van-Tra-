@@ -43,6 +43,7 @@ export interface FormField {
     type?: "text" | "textarea" | "number" | "date" | "select" | "file";
     required?: boolean;
     options?: Array<{ label: string; value: string }>;
+    placeholder?: string;
 }
 
 export interface CatalogResourceManagementProps<T extends RowBase, S extends string = string> {
@@ -274,10 +275,10 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                         className="mx-auto mb-3 text-pos-gold"
                                         size={34}
                                     />
-                                    <h2 className="font-bold text-pos-ink">
+                                    <h2 className="font-bold text-gray-500">
                                         Chưa có dữ liệu
                                     </h2>
-                                    <p className="mt-1 text-sm text-pos-muted">
+                                    <p className="mt-1 text-sm text-gray-500">
                                         Thử thay đổi bộ lọc hoặc tạo dữ liệu mới.
                                     </p>
                                 </div>

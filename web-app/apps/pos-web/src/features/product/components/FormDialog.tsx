@@ -67,7 +67,7 @@ export function FormDialog({
                     {fields.map((field) => (
                         <label
                             key={field.name}
-                            className="grid gap-2 text-sm font-bold text-pos-ink"
+                            className="grid gap-2 text-sm font-bold text-gray-500"
                         >
                             {field.label}
                             {field.type === "textarea" ? (
@@ -75,6 +75,7 @@ export function FormDialog({
                                     name={field.name}
                                     rows={4}
                                     required={field.required}
+                                    placeholder={field.placeholder}
                                     defaultValue={
                                         initialValues[field.name] ?? ""
                                     }
@@ -112,7 +113,7 @@ export function FormDialog({
                                                 />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs font-semibold text-pos-ink truncate">
+                                                <p className="text-xs font-semibold text-gray-500 truncate">
                                                     {filePreviews[field.name] ? "Ảnh mới chọn" : "Ảnh hiện tại"}
                                                 </p>
                                             </div>
@@ -176,6 +177,7 @@ export function FormDialog({
                                     name={field.name}
                                     type={field.type ?? "text"}
                                     required={field.required}
+                                    placeholder={field.placeholder}
                                     defaultValue={initialValues[field.name] ?? ""}
                                     className="h-11 rounded-xl border border-pos-border px-3 font-normal outline-none focus:border-hvt-green-700"
                                 />

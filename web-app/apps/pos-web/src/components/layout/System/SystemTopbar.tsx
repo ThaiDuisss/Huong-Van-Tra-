@@ -42,7 +42,7 @@ export function SystemTopbar() {
                 </span>
             </nav>
 
-            <div className="ml-auto flex items-center gap-2">pó                <button
+            <div className="ml-auto flex items-center gap-2">                <button
                 type="button"
                 className="relative grid size-9 place-items-center rounded-lg border border-[#e8eef0] bg-white text-[#53678f]"
                 aria-label="Thông báo"

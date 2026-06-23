@@ -4,6 +4,6 @@ import org.hvtra.catalog.enums.Status;
 
 import java.util.UUID;
 
-public record CategoryResponse(UUID id, UUID parentId, String name, Status status) {
+public record CategoryResponse(UUID id, UUID parentId, String name, Status status, String categoryCode) {
 }
 
