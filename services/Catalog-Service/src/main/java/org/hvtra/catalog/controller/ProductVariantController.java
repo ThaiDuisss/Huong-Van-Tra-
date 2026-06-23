@@ -1,5 +1,6 @@
 package org.hvtra.catalog.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
@@ -59,6 +60,17 @@ public class ProductVariantController {
         return service.searchVariantIds(sku, productCode, productName, categoryCode, categoryId, unitId);
     }
 
+    @Tag(
+            name = "API cho POS CatalogService",
+            description = "Output: productId, variantId, sku, productName, variantName, categoryName, sellingPrice, imageUrl"
+    )
+    @GetMapping("/search-view-pos")
+    public java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(
+            @RequestParam(name = "sku", required = false) String sku,
+            @RequestParam(name = "productName", required = false) String productName) {
+        return service.searchVariants(sku, productName);
+    }
+
     @PutMapping("/{id}")
     public ProductResponse.VariantResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody ProductVariantRequest request) {
@@ -84,15 +96,16 @@ public class ProductVariantController {
             @RequestParam(name = "productId", required = false) UUID productId) {
         byte[] excelBytes = service.exportToExcel(productId);
         org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
-        
+
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
         String timestamp = java.time.LocalDateTime.now().format(formatter);
         String rawFilename = "Danh sách biến thể sản phẩm_" + timestamp + ".xlsx";
         String encodedFilename = "";
         try {
             encodedFilename = java.net.URLEncoder.encode(rawFilename, "UTF-8").replace("+", "%20");
-        } catch (Exception ignored) {}
-        
+        } catch (Exception ignored) {
+        }
+
         return org.springframework.http.ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
                 .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))

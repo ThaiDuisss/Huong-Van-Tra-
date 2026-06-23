@@ -22,4 +22,8 @@ public interface InventoryBalanceService {
             UUID unitId,
             Pageable pageable
     );
+    java.util.List<org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse> findWarehouseBalances(
+            String sku,
+            String productName
+    );
 }

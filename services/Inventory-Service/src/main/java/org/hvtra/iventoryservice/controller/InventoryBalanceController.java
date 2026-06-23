@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
@@ -44,5 +45,16 @@ public class InventoryBalanceController {
             @RequestParam(name = "unitId", required = false) UUID unitId,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return service.findAllView(branchId, locationId, sku, productCode, productName, categoryCode, categoryId, unitId, pageable);
+    }
+
+    @Tag(
+            name = "API cho POS Inventory service",
+            description = "Output: Id, locationId, inventoryItemId, variantId, itemType, quantityOnHand, quantityReserved, availableQuantity, status"
+    )
+    @GetMapping("/search-view-pos")
+    public java.util.List<org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse> findWarehouseBalances(
+            @RequestParam(name = "sku", required = false) String sku,
+            @RequestParam(name = "productName", required = false) String productName) {
+        return service.findWarehouseBalances(sku, productName);
     }
 }

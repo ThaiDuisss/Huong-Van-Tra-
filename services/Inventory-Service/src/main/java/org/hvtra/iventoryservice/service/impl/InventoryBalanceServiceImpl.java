@@ -10,6 +10,7 @@ import org.hvtra.iventoryservice.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.mapper.InventoryBalanceMapper;
 import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.repository.InventoryItemRepository;
+import org.hvtra.iventoryservice.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -25,16 +26,19 @@ import java.util.UUID;
 public class InventoryBalanceServiceImpl implements InventoryBalanceService {
     private final InventoryBalanceRepository repository;
     private final InventoryItemRepository itemRepository;
+    private final InventoryLocationRepository locationRepository;
     private final InventoryBalanceMapper mapper;
     private final CatalogClient catalogClient;
 
     public InventoryBalanceServiceImpl(
             InventoryBalanceRepository repository,
             InventoryItemRepository itemRepository,
+            InventoryLocationRepository locationRepository,
             InventoryBalanceMapper mapper,
             CatalogClient catalogClient) {
         this.repository = repository;
         this.itemRepository = itemRepository;
+        this.locationRepository = locationRepository;
         this.mapper = mapper;
         this.catalogClient = catalogClient;
     }
@@ -209,5 +213,62 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 balancePage.isFirst(),
                 balancePage.isLast()
         );
+    }
+
+    @Override
+    public java.util.List<org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse> findWarehouseBalances(
+            String sku,
+            String productName
+    ) {
+        // 1. Get first location whose type is WAREHOUSE
+        java.util.Optional<org.hvtra.iventoryservice.entity.InventoryLocation> warehouseLocOpt =
+                locationRepository.findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE);
+        if (warehouseLocOpt.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        org.hvtra.iventoryservice.entity.InventoryLocation warehouseLoc = warehouseLocOpt.get();
+
+        // 2. Query matching variant IDs from Catalog Service if sku or productName is provided
+        List<UUID> matchingVariantIds = null;
+        if ((sku != null && !sku.isBlank()) || (productName != null && !productName.isBlank())) {
+            matchingVariantIds = catalogClient.searchVariantIds(
+                    sku != null ? sku.trim() : null,
+                    null,
+                    productName != null ? productName.trim() : null,
+                    null,
+                    null,
+                    null
+            );
+            if (matchingVariantIds == null || matchingVariantIds.isEmpty()) {
+                return java.util.Collections.emptyList();
+            }
+        }
+
+        // 3. Find balances for that location, and filter by matching variant reference IDs if applicable
+        final List<UUID> finalMatchingVariantIds = matchingVariantIds;
+        Specification<InventoryBalance> spec = (root, query, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("location").get("id"), warehouseLoc.getId()));
+            if (finalMatchingVariantIds != null) {
+                predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+
+        List<InventoryBalance> balances = repository.findAll(spec);
+
+        return balances.stream()
+                .map(b -> new org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse(
+                        b.getId(),
+                        b.getLocation().getId(),
+                        b.getInventoryItem().getId(),
+                        b.getInventoryItem().getReferenceId(),
+                        b.getInventoryItem().getItemType(),
+                        b.getQuantityOnHand(),
+                        b.getQuantityReserved(),
+                        b.getQuantityOnHand().subtract(b.getQuantityReserved()),
+                        b.getInventoryItem().getStatus()
+                ))
+                .toList();
     }
 }
