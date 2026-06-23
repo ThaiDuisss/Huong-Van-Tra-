@@ -86,11 +86,11 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 to: routePaths.productVariants,
                 icon: Layers3
             },
-            {
-                label: "Bảng giá",
-                to: routePaths.priceLists,
-                icon: Tags
-            }
+            // {
+            //     label: "Bảng giá",
+            //     to: routePaths.priceLists,
+            //     icon: Tags
+            // }
         ]
     },
     {
