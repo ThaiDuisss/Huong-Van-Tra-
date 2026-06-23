@@ -20,6 +20,7 @@ public class ProductMapper {
         return new ProductResponse(
                 product.getId(),
                 categoryMapper.toResponse(product.getCategory()),
+                product.getProductCode(),
                 product.getName(),
                 product.getDescription(),
                 product.getImageUrl(),
@@ -31,6 +32,7 @@ public class ProductMapper {
     public ProductSummaryResponse toSummaryResponse(Product product) {
         return new ProductSummaryResponse(
                 product.getId(),
+                product.getProductCode(),
                 product.getName(),
                 categoryMapper.toResponse(product.getCategory()),
                 product.getImageUrl(),
@@ -45,6 +47,7 @@ public class ProductMapper {
                 variant.getId(),
                 product.getId(),
                 product.getName(),
+                product.getProductCode(),
                 variant.getSku(),
                 variant.getVariantName(),
                 variant.getSellingPrice(),
@@ -70,7 +73,7 @@ public class ProductMapper {
     public ProductResponse.VariantSummaryResponse toVariantSummary(ProductVariant variant) {
         Product product = variant.getProduct();
         return new ProductResponse.VariantSummaryResponse(
-                variant.getId(), product.getId(), product.getName(), variant.getSku(),
+                variant.getId(), product.getId(), product.getName(), product.getProductCode(), variant.getSku(),
                 variant.getVariantName(), variant.getSellingPrice(), variant.getCostPrice(),
                 variant.getBaseUnitId(),
                 variant.getInventoryPolicy(), variant.getStatus(), product.getStatus(), isSellable(variant)

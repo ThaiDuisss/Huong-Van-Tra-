@@ -4,9 +4,9 @@ import {
     CatalogStatusBadge,
     DetailList,
     type FormValues,
-    ProductManagementPage,
+    CatalogResourceManagement,
     TableCell
-} from "../components/ProductManagementPage";
+} from "../components/CatalogResourceManagement";
 import { usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { priceListApi } from "../services/priceList.api";
@@ -20,8 +20,7 @@ import {
     toApiDateTime,
     toDateInput
 } from "../utils/form-values";
-import { routePaths } from "../../../routes/path";
-import { formatDate } from "../utils/product-formatters";
+import { formatDate, formatCurrency } from "../utils/product-formatters";
 
 export function PriceListPage() {
     const state = useCatalogPageState();
@@ -87,10 +86,11 @@ export function PriceListPage() {
     }
 
     return (
-        <ProductManagementPage
+        <CatalogResourceManagement
             title="Bảng giá"
             description="Quản lý chính sách giá bán theo chi nhánh và thời gian hiệu lực."
             createLabel="Tạo bảng giá"
+            totalItemsLabel="Tổng số bảng giá"
             items={priceLists}
             loading={resource.loading}
             error={resource.error}
@@ -119,12 +119,6 @@ export function PriceListPage() {
                 effectiveTo: toDateInput(item.effectiveTo),
                 status: item.status
             })}
-            detailPath={(item) =>
-                routePaths.priceListDetail.replace(
-                    ":id",
-                    String(item.id)
-                )
-            }
             columns={[
                 { key: "name", label: "Tên bảng giá" },
                 { key: "branch", label: "Chi nhánh" },
@@ -135,7 +129,7 @@ export function PriceListPage() {
             ]}
             renderCells={(item) => (
                 <>
-                    <TableCell className="font-bold text-pos-ink">
+                    <TableCell className="font-bold text-gray-500">
                         {item.name}
                     </TableCell>
                     <TableCell>#{item.branchId}</TableCell>
@@ -148,23 +142,44 @@ export function PriceListPage() {
                 </>
             )}
             renderDetail={(item) => (
-                <DetailList
-                    items={[
-                        { label: "Tên bảng giá", value: item.name },
-                        { label: "Chi nhánh", value: `#${item.branchId}` },
-                        {
-                            label: "Hiệu lực",
-                            value: `${formatDate(item.effectiveFrom)} - ${formatDate(item.effectiveTo)}`
-                        },
-                        { label: "Số mức giá", value: item.items.length },
-                        {
-                            label: "Trạng thái",
-                            value: (
-                                <CatalogStatusBadge status={item.status} />
-                            )
-                        }
-                    ]}
-                />
+                <div className="grid gap-6">
+                    <DetailList
+                        items={[
+                            { label: "Tên bảng giá", value: item.name },
+                            { label: "Chi nhánh", value: `#${item.branchId}` },
+                            {
+                                label: "Hiệu lực",
+                                value: `${formatDate(item.effectiveFrom)} - ${formatDate(item.effectiveTo)}`
+                            },
+                            { label: "Số mức giá", value: item.items.length },
+                            {
+                                label: "Trạng thái",
+                                value: (
+                                    <CatalogStatusBadge status={item.status} />
+                                )
+                            }
+                        ]}
+                    />
+
+                    {item.items && item.items.length > 0 ? (
+                        <div className="border-t border-pos-border pt-4">
+                            <h3 className="text-sm font-bold text-gray-700 mb-2">
+                                Danh sách mức giá ({item.items.length})
+                            </h3>
+                            <div className="grid gap-2 text-xs">
+                                {item.items.map((priceItem) => (
+                                    <div key={priceItem.id} className="flex justify-between border-b border-pos-border pb-1.5 last:border-0">
+                                        <div>
+                                            <span className="font-semibold">{priceItem.productVariant?.variantName || "Biến thể"}</span>
+                                            <span className="text-gray-500 block text-[10px]">{priceItem.productVariant?.sku}</span>
+                                        </div>
+                                        <span className="font-bold text-hvt-green-900">{formatCurrency(priceItem.sellingPrice)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
             )}
             formFields={(editingItem) => [
                 {

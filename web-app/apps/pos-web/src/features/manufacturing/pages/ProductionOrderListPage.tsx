@@ -1,4 +1,4 @@
-import { Calendar, Download, Plus, RefreshCw, Upload } from "lucide-react";
+import { Download, Plus, RefreshCw, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
@@ -115,10 +115,6 @@ export function ProductionOrderListPage() {
                         <ActionButton>
                             <Download size={16} aria-hidden="true" />
                             Xuất Excel
-                        </ActionButton>
-                        <ActionButton>
-                            <Calendar size={16} aria-hidden="true" />
-                            Tùy chỉnh cột
                         </ActionButton>
                         <ActionButton>
                             <RefreshCw size={16} aria-hidden="true" />

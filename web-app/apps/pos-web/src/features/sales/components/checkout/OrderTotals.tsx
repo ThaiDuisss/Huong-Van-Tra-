@@ -81,7 +81,7 @@ export function OrderTotals({
 
             {editingSubtotal ? (
                 <div className="grid gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                    <label className="grid gap-1 text-xs font-semibold text-pos-ink">
+                    <label className="grid gap-1 text-xs font-semibold text-gray-500">
                         Tổng tiền hàng mới
                         <input
                             className="h-10 rounded-lg border border-pos-border bg-white px-3 text-sm outline-none focus:border-hvt-green-700"
@@ -92,7 +92,7 @@ export function OrderTotals({
                             }
                         />
                     </label>
-                    <label className="grid gap-1 text-xs font-semibold text-pos-ink">
+                    <label className="grid gap-1 text-xs font-semibold text-gray-500">
                         Ghi chú bắt buộc
                         <textarea
                             className="min-h-16 resize-none rounded-lg border border-pos-border bg-white px-3 py-2 text-sm outline-none focus:border-hvt-green-700"

@@ -45,7 +45,7 @@ export function ProductSearchBar({
           <button
             type="button"
             onClick={onClear}
-            className="grid size-9 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-pos-ink"
+            className="grid size-9 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-gray-500"
             aria-label="Xóa từ khóa tìm kiếm"
           >
             <X size={22} aria-hidden="true" />
@@ -70,7 +70,7 @@ export function ProductSearchBar({
                 className="text-hvt-green-900"
                 aria-hidden="true"
               />
-              <strong className="text-pos-ink">Kết quả tìm kiếm</strong>
+              <strong className="text-gray-500">Kết quả tìm kiếm</strong>
               <span>{results.length} sản phẩm phù hợp</span>
             </div>
             <span className="text-xs text-neutral-500">
@@ -100,7 +100,7 @@ export function ProductSearchBar({
                   />
 
                   <div className="min-w-0">
-                    <h3 className="truncate text-base font-bold text-pos-ink">
+                    <h3 className="truncate text-base font-bold text-gray-500">
                       {product.name}
                     </h3>
                     <p className="mt-1 text-sm text-neutral-600">
@@ -122,7 +122,7 @@ export function ProductSearchBar({
                     <button
                       type="button"
                       onClick={() => onAdd(product)}
-                      className="grid size-9 place-items-center rounded-full border border-pos-border bg-white text-pos-ink shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:border-hvt-green-700 hover:bg-hvt-green-50"
+                      className="grid size-9 place-items-center rounded-full border border-pos-border bg-white text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:border-hvt-green-700 hover:bg-hvt-green-50"
                       aria-label={`Thêm ${product.name} vào giỏ`}
                     >
                       <Plus size={20} aria-hidden="true" />

@@ -19,7 +19,7 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
                     <span
                         className={
                             index === items.length - 1
-                                ? "font-bold text-pos-ink"
+                                ? "font-bold text-gray-500"
                                 : ""
                         }
                     >

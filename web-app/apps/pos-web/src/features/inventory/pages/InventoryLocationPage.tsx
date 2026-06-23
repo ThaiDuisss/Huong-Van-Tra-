@@ -1,4 +1,4 @@
-import { Eye, Pencil, Plus, RefreshCw, ToggleLeft, X } from "lucide-react";
+import { Eye, Pencil, Plus, ToggleLeft, X } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
@@ -159,14 +159,14 @@ export function InventoryLocationPage() {
                             setPage(1);
                         }}
                     />
-                    <button
+                    {/* <button
                         type="button"
                         onClick={resource.refresh}
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold"
                     >
                         <RefreshCw size={15} />
                         Tải lại dữ liệu
-                    </button>
+                    </button> */}
                 </InventoryFilters>
 
                 <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">

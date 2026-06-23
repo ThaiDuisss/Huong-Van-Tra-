@@ -35,7 +35,7 @@ export function ProductCard({
 
       <div className="flex min-w-0 flex-col py-1">
         <div className="min-w-0">
-          <h2 className="line-clamp-2 text-lg font-bold leading-snug text-pos-ink xl:text-xl">
+          <h2 className="line-clamp-2 text-lg font-bold leading-snug text-gray-500 xl:text-xl">
             {product.name}
           </h2>
           <p className="mt-2 text-sm leading-snug text-neutral-600 xl:text-base">
@@ -77,7 +77,7 @@ export function ProductCard({
             <button
               type="button"
               onClick={() => onAdd(product)}
-              className="grid size-10 place-items-center rounded-full border border-pos-border text-2xl text-pos-ink shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-hvt-green-700 hover:bg-hvt-green-50 hover:text-hvt-green-900"
+              className="grid size-10 place-items-center rounded-full border border-pos-border text-2xl text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-hvt-green-700 hover:bg-hvt-green-50 hover:text-hvt-green-900"
               aria-label={`Thêm ${product.name} vào giỏ`}
             >
               +

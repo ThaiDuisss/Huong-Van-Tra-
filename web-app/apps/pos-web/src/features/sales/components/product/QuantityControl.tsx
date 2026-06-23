@@ -23,7 +23,7 @@ export function QuantityControl({
         aria-label="Giảm số lượng"
         disabled={disabledDecrement}
         onClick={onDecrement}
-        className="grid size-6 place-items-center rounded-full text-pos-ink disabled:cursor-not-allowed disabled:text-neutral-300"
+        className="grid size-6 place-items-center rounded-full text-gray-500 disabled:cursor-not-allowed disabled:text-neutral-300"
       >
         -
       </button>
@@ -33,7 +33,7 @@ export function QuantityControl({
         aria-label="Tăng số lượng"
         disabled={disabledIncrement}
         onClick={onIncrement}
-        className="grid size-6 place-items-center rounded-full text-pos-ink disabled:cursor-not-allowed disabled:text-neutral-300"
+        className="grid size-6 place-items-center rounded-full text-gray-500 disabled:cursor-not-allowed disabled:text-neutral-300"
       >
         +
       </button>

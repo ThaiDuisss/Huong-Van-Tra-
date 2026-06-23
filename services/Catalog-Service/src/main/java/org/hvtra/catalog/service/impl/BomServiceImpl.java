@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -42,13 +43,13 @@ public class BomServiceImpl implements BomService {
 
     @Override
     public PageResponse<BomResponse> findAll(
-            Long productVariantId, Integer version, Status status, Pageable pageable) {
+            UUID productVariantId, Integer version, Status status, Pageable pageable) {
         Specification<Bom> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (productVariantId != null) {
                 predicates.add(cb.equal(root.get("productVariantId"), productVariantId));
             }
-            if (version != null) predicates.add(cb.equal(root.get("version"), version));
+            if (version != null) predicates.add(cb.equal(root.get("bomVersion"), version));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
@@ -56,7 +57,7 @@ public class BomServiceImpl implements BomService {
     }
 
     @Override
-    public BomResponse findById(Long id) {
+    public BomResponse findById(UUID id) {
         return mapper.toResponse(get(id));
     }
 
@@ -71,7 +72,7 @@ public class BomServiceImpl implements BomService {
 
     @Override
     @Transactional
-    public BomResponse update(Long id, BomRequest request) {
+    public BomResponse update(UUID id, BomRequest request) {
         Bom bom = get(id);
         validate(request, id);
         apply(bom, request);
@@ -80,7 +81,7 @@ public class BomServiceImpl implements BomService {
 
     @Override
     @Transactional
-    public BomResponse updateStatus(Long id, Status status) {
+    public BomResponse updateStatus(UUID id, Status status) {
         Bom bom = get(id);
         if (status == Status.ACTIVE
                 && repository.existsByProductVariantIdAndStatusAndIdNot(
@@ -96,7 +97,7 @@ public class BomServiceImpl implements BomService {
             throw new ResourceNotFoundException("Product variant", request.productVariantId());
         }
         bom.setProductVariantId(request.productVariantId());
-        bom.setVersion(request.version());
+        bom.setBomVersion(request.version());
         bom.setStatus(request.status());
         bom.setEffectiveFrom(request.effectiveFrom());
         bom.setEffectiveTo(request.effectiveTo());
@@ -115,24 +116,25 @@ public class BomServiceImpl implements BomService {
         }
     }
 
-    private void validate(BomRequest request, Long id) {
+    private void validate(BomRequest request, UUID id) {
         if (request.effectiveFrom() != null && request.effectiveTo() != null
                 && request.effectiveTo().isBefore(request.effectiveFrom())) {
             throw new BadRequestException("effectiveTo must be after effectiveFrom");
         }
         boolean versionExists = id == null
-                ? repository.existsByProductVariantIdAndVersion(request.productVariantId(), request.version())
-                : repository.existsByProductVariantIdAndVersionAndIdNot(
+                ? repository.existsByProductVariantIdAndBomVersion(request.productVariantId(), request.version())
+                : repository.existsByProductVariantIdAndBomVersionAndIdNot(
                         request.productVariantId(), request.version(), id);
         if (versionExists) throw new BadRequestException("BOM version already exists for this product variant");
         if (request.status() == Status.ACTIVE
                 && repository.existsByProductVariantIdAndStatusAndIdNot(
-                        request.productVariantId(), Status.ACTIVE, id == null ? -1L : id)) {
+                        request.productVariantId(), Status.ACTIVE, id == null ? UUID.randomUUID() : id)) {
             throw new BadRequestException("Another active BOM exists for this product variant");
         }
     }
 
-    private Bom get(Long id) {
+    private Bom get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("BOM", id));
     }
 }
+

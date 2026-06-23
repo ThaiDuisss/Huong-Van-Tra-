@@ -119,7 +119,7 @@ export function BomFilters({
                 <button
                     type="button"
                     onClick={onReset}
-                    className="h-11 rounded-xl border border-pos-border bg-white text-sm font-bold text-pos-ink"
+                    className="h-11 rounded-xl border border-pos-border bg-white text-sm font-bold text-gray-500"
                 >
                     Đặt lại
                 </button>
@@ -152,13 +152,13 @@ function CheckboxGroup<T extends string>({
 }: CheckboxGroupProps<T>) {
     return (
         <fieldset className="grid gap-2">
-            <legend className="mb-1 text-sm font-bold text-pos-ink">
+            <legend className="mb-1 text-sm font-bold text-gray-500">
                 {title}
             </legend>
             {options.map((option) => (
                 <label
                     key={option.value}
-                    className="flex items-center gap-2 text-sm text-pos-muted"
+                    className="flex items-center gap-2 text-sm text-gray-500"
                 >
                     <input
                         type="checkbox"
@@ -190,13 +190,13 @@ function RadioGroup<T extends string>({
 }: RadioGroupProps<T>) {
     return (
         <fieldset className="grid gap-2">
-            <legend className="mb-1 text-sm font-bold text-pos-ink">
+            <legend className="mb-1 text-sm font-bold text-gray-500">
                 {title}
             </legend>
             {options.map((option) => (
                 <label
                     key={option.value}
-                    className="flex items-center gap-2 text-sm text-pos-muted"
+                    className="flex items-center gap-2 text-sm text-gray-500"
                 >
                     <input
                         type="radio"

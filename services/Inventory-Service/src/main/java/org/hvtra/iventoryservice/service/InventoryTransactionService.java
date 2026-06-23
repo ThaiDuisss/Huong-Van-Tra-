@@ -9,6 +9,7 @@ import org.hvtra.iventoryservice.enums.InventoryTransactionType;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public interface InventoryTransactionService {
     InventoryTransactionResponse stockIn(StockInRequest request);
@@ -18,10 +19,10 @@ public interface InventoryTransactionService {
             InventoryTransactionType type,
             LocalDateTime fromDate,
             LocalDateTime toDate,
-            Long createdBy,
-            Long branchId,
+            String createdBy,
+            UUID branchId,
             InventoryReferenceType referenceType,
-            Long referenceId,
+            String referenceId,
             Pageable pageable);
-    InventoryTransactionResponse findById(Long id);
+    InventoryTransactionResponse findById(UUID id);
 }

@@ -17,6 +17,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @Transactional(readOnly = true)
 public class BarcodeServiceImpl implements BarcodeService {
@@ -48,7 +50,7 @@ public class BarcodeServiceImpl implements BarcodeService {
 
     @Override
     @Transactional
-    public ProductResponse.BarcodeResponse create(Long variantId, BarcodeCreateRequest request) {
+    public ProductResponse.BarcodeResponse create(UUID variantId, BarcodeCreateRequest request) {
         String value = request.barcodeValue().trim();
         if (repository.existsByBarcodeValue(value)) {
             throw new BadRequestException("Barcode already exists: " + value);
@@ -67,7 +69,7 @@ public class BarcodeServiceImpl implements BarcodeService {
 
     @Override
     @Transactional
-    public ProductResponse.BarcodeResponse update(Long id, BarcodeUpdateRequest request) {
+    public ProductResponse.BarcodeResponse update(UUID id, BarcodeUpdateRequest request) {
         Barcode barcode = get(id);
         if (request.primary()) clearCurrentPrimary(barcode.getProductVariant().getId(), id);
         barcode.setBarcodeType(request.barcodeType());
@@ -77,7 +79,7 @@ public class BarcodeServiceImpl implements BarcodeService {
 
     @Override
     @Transactional
-    public void delete(Long id) {
+    public void delete(UUID id) {
         Barcode barcode = get(id);
         if (barcode.isPrimary()) {
             throw new BadRequestException("Primary barcode cannot be deleted; set another barcode as primary first");
@@ -85,7 +87,7 @@ public class BarcodeServiceImpl implements BarcodeService {
         repository.delete(barcode);
     }
 
-    private void clearCurrentPrimary(Long variantId, Long excludedId) {
+    private void clearCurrentPrimary(UUID variantId, UUID excludedId) {
         repository.findByProductVariantIdAndPrimaryTrue(variantId)
                 .filter(current -> excludedId == null || !current.getId().equals(excludedId))
                 .ifPresent(current -> {
@@ -94,7 +96,8 @@ public class BarcodeServiceImpl implements BarcodeService {
                 });
     }
 
-    private Barcode get(Long id) {
+    private Barcode get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Barcode", id));
     }
 }
+

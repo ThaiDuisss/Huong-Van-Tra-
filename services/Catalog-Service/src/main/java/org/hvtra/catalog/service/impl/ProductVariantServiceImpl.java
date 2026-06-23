@@ -8,6 +8,7 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.ProductVariant;
+import org.hvtra.catalog.enums.InventoryItemType;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -50,7 +52,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             String sku,
             String variantName,
             String barcode,
-            Long productId,
+            UUID productId,
             Status status,
             Pageable pageable) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
@@ -76,13 +78,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public ProductResponse.VariantResponse findById(Long id) {
+    public ProductResponse.VariantResponse findById(UUID id) {
         return mapper.toVariantResponse(get(id));
     }
 
     @Override
     @Transactional
-    public ProductResponse.VariantResponse create(Long productId, ProductVariantRequest request) {
+    public ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request) {
         validateSku(request.sku(), null);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
@@ -91,15 +93,18 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         apply(variant, request);
         ProductVariant savedVariant = repository.saveAndFlush(variant);
         inventoryClient.createProductVariantItem(
-                savedVariant.getId(),
-                savedVariant.getBaseUnitId(),
-                savedVariant.getStatus());
+                InventoryClient.CreateInventoryItemRequest.builder()
+                        .status(savedVariant.getStatus().toString())
+                        .baseUnitId(savedVariant.getBaseUnitId())
+                        .referenceId(savedVariant.getId())
+                        .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                        .build());
         return mapper.toVariantResponse(savedVariant);
     }
 
     @Override
     @Transactional
-    public ProductResponse.VariantResponse update(Long id, ProductVariantRequest request) {
+    public ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request) {
         ProductVariant variant = get(id);
         validateSku(request.sku(), id);
         apply(variant, request);
@@ -108,13 +113,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     @Override
     @Transactional
-    public ProductResponse.VariantResponse updateStatus(Long id, Status status) {
+    public ProductResponse.VariantResponse updateStatus(UUID id, Status status) {
         ProductVariant variant = get(id);
         variant.setStatus(status);
         return mapper.toVariantResponse(repository.save(variant));
     }
 
-    private ProductVariant get(Long id) {
+    private ProductVariant get(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product variant", id));
     }
@@ -132,11 +137,323 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setStatus(request.status());
     }
 
-    private void validateSku(String sku, Long id) {
+    private void validateSku(String sku, UUID id) {
         String normalized = sku.trim();
         boolean exists = id == null
                 ? repository.existsBySku(normalized)
                 : repository.existsBySkuAndIdNot(normalized, id);
         if (exists) throw new BadRequestException("SKU already exists: " + normalized);
     }
+
+    @Override
+    public byte[] exportToExcel(UUID productId) {
+        java.util.List<ProductVariant> variants;
+        if (productId != null) {
+            variants = repository.findByProductId(productId);
+        } else {
+            variants = repository.findAll();
+        }
+        var units = unitRepository.findAll();
+        try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+             
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Danh sách biến thể");
+            
+            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            org.apache.poi.ss.usermodel.CellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFont(headerFont);
+            
+            org.apache.poi.ss.usermodel.CellStyle priceStyle = workbook.createCellStyle();
+            org.apache.poi.ss.usermodel.DataFormat format = workbook.createDataFormat();
+            priceStyle.setDataFormat(format.getFormat("#,##0"));
+            
+            String[] headers = {"Mã sản phẩm", "Tên biến thể", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Chính sách tồn kho", "Trạng thái"};
+            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            
+            int rowIdx = 1;
+            for (var v : variants) {
+                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+                
+                row.createCell(0).setCellValue(v.getProduct() != null ? v.getProduct().getProductCode() : "");
+                row.createCell(1).setCellValue(v.getVariantName());
+                row.createCell(2).setCellValue(v.getSku());
+                
+                org.apache.poi.ss.usermodel.Cell cellSelling = row.createCell(3);
+                if (v.getSellingPrice() != null) {
+                    cellSelling.setCellValue(v.getSellingPrice().doubleValue());
+                } else {
+                    cellSelling.setCellValue(0.0);
+                }
+                cellSelling.setCellStyle(priceStyle);
+                
+                org.apache.poi.ss.usermodel.Cell cellCost = row.createCell(4);
+                if (v.getCostPrice() != null) {
+                    cellCost.setCellValue(v.getCostPrice().doubleValue());
+                } else {
+                    cellCost.setCellValue(0.0);
+                }
+                cellCost.setCellStyle(priceStyle);
+                
+                String unitStr = "";
+                if (v.getBaseUnitId() != null) {
+                    var matched = units.stream().filter(u -> u.getId().equals(v.getBaseUnitId())).findFirst();
+                    if (matched.isPresent()) {
+                        unitStr = matched.get().getName();
+                    } else {
+                        unitStr = v.getBaseUnitId().toString();
+                    }
+                }
+                row.createCell(5).setCellValue(unitStr);
+                
+                String policyStr = "Không theo dõi";
+                if (v.getInventoryPolicy() == org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK) {
+                    policyStr = "Theo dõi tồn kho";
+                }
+                row.createCell(6).setCellValue(policyStr);
+                
+                row.createCell(7).setCellValue(v.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
+            }
+            
+            sheet.createFreezePane(0, 1);
+            
+            if (rowIdx > 1) {
+                sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
+            }
+            
+            for (int i = 0; i < headers.length; i++) {
+                try {
+                    sheet.autoSizeColumn(i);
+                } catch (Exception ignored) {}
+            }
+            
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi xuất file Excel biến thể: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void importFromExcel(org.springframework.web.multipart.MultipartFile file, UUID productId) {
+        var units = unitRepository.findAll();
+        
+        try (org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(file.getInputStream())) {
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(0);
+            int rowCount = sheet.getPhysicalNumberOfRows();
+            
+            for (int r = 1; r < rowCount; r++) {
+                org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
+                if (row == null) continue;
+                
+                String productCode = getCellValueAsString(row.getCell(0));
+                String variantName = getCellValueAsString(row.getCell(1));
+                String sku = getCellValueAsString(row.getCell(2));
+                String sellingPriceStr = getCellValueAsString(row.getCell(3));
+                String costPriceStr = getCellValueAsString(row.getCell(4));
+                String unitName = getCellValueAsString(row.getCell(5));
+                String policyStr = getCellValueAsString(row.getCell(6));
+                String statusStr = getCellValueAsString(row.getCell(7));
+                
+                if (variantName.isBlank() && sku.isBlank() && productCode.isBlank()) {
+                    continue;
+                }
+                
+                final int rowNum = r + 1;
+                if (productCode.isBlank()) {
+                    throw new BadRequestException("Row " + rowNum + ": Product Code is blank.");
+                }
+                if (variantName.isBlank()) {
+                    throw new BadRequestException("Row " + rowNum + ": Variant Name is blank.");
+                }
+                if (sku.isBlank()) {
+                    throw new BadRequestException("Row " + rowNum + ": SKU is blank.");
+                }
+                
+                Product product = productRepository.findByProductCode(productCode)
+                        .orElseThrow(() -> new BadRequestException("Row " + rowNum + ": Product Code '" + productCode + "' does not exist."));
+                
+                // Skip if SKU already exists in database
+                if (repository.existsBySku(sku.trim())) {
+                    continue;
+                }
+                
+                java.math.BigDecimal sellingPrice = java.math.BigDecimal.ZERO;
+                if (!sellingPriceStr.isBlank()) {
+                    try {
+                        sellingPrice = new java.math.BigDecimal(sellingPriceStr);
+                    } catch (Exception ignored) {}
+                }
+                
+                java.math.BigDecimal costPrice = java.math.BigDecimal.ZERO;
+                if (!costPriceStr.isBlank()) {
+                    try {
+                        costPrice = new java.math.BigDecimal(costPriceStr);
+                    } catch (Exception ignored) {}
+                }
+                
+                UUID baseUnitId = null;
+                for (var u : units) {
+                    if (u.getName().equalsIgnoreCase(unitName) || u.getSymbol().equalsIgnoreCase(unitName)) {
+                        baseUnitId = u.getId();
+                        break;
+                    }
+                }
+                if (baseUnitId == null && !units.isEmpty()) {
+                    baseUnitId = units.get(0).getId();
+                }
+                if (baseUnitId == null) {
+                    continue;
+                }
+                
+                org.hvtra.catalog.enums.InventoryPolicy policy = org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK;
+                if ("Theo dõi tồn kho".equalsIgnoreCase(policyStr) || "TRACK_STOCK".equalsIgnoreCase(policyStr)) {
+                    policy = org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK;
+                } else if ("Không theo dõi".equalsIgnoreCase(policyStr) || "DO_NOT_TRACK".equalsIgnoreCase(policyStr)) {
+                    policy = org.hvtra.catalog.enums.InventoryPolicy.DO_NOT_TRACK;
+                }
+                
+                Status status = "Ngừng hoạt động".equals(statusStr) || "INACTIVE".equalsIgnoreCase(statusStr) 
+                        ? Status.INACTIVE : Status.ACTIVE;
+                        
+                ProductVariant variant = new ProductVariant();
+                variant.setProduct(product);
+                variant.setSku(sku.trim());
+                variant.setVariantName(variantName.trim());
+                variant.setSellingPrice(sellingPrice);
+                variant.setCostPrice(costPrice);
+                variant.setBaseUnitId(baseUnitId);
+                variant.setInventoryPolicy(policy);
+                variant.setStatus(status);
+                
+                ProductVariant savedVariant = repository.saveAndFlush(variant);
+                
+                inventoryClient.createProductVariantItem(
+                        InventoryClient.CreateInventoryItemRequest.builder()
+                                .status(savedVariant.getStatus().toString())
+                                .baseUnitId(savedVariant.getBaseUnitId())
+                                .referenceId(savedVariant.getId())
+                                .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                                .build());
+            }
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi nhập dữ liệu từ Excel: " + e.getMessage(), e);
+        }
+    }
+
+    private String getCellValueAsString(org.apache.poi.ss.usermodel.Cell cell) {
+        if (cell == null) return "";
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue().trim();
+            case NUMERIC:
+                if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell)) {
+                    return cell.getDateCellValue().toString();
+                }
+                double val = cell.getNumericCellValue();
+                if (val == (long) val) {
+                    return String.format("%d", (long) val);
+                } else {
+                    return String.format("%s", val);
+                }
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                try {
+                    return cell.getStringCellValue().trim();
+                } catch (Exception e) {
+                    try {
+                        return String.valueOf(cell.getNumericCellValue());
+                    } catch (Exception ex) {
+                        return "";
+                    }
+                }
+            default:
+                return "";
+        }
+    }
+
+    @Override
+    public byte[] getImportTemplate() {
+        try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+             
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Mẫu nhập biến thể");
+            
+            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            org.apache.poi.ss.usermodel.CellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFont(headerFont);
+            
+            org.apache.poi.ss.usermodel.CellStyle priceStyle = workbook.createCellStyle();
+            org.apache.poi.ss.usermodel.DataFormat format = workbook.createDataFormat();
+            priceStyle.setDataFormat(format.getFormat("#,##0"));
+            
+            String[] headers = {"Mã sản phẩm", "Tên biến thể", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Chính sách tồn kho", "Trạng thái"};
+            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            
+            // Add template rows
+            org.apache.poi.ss.usermodel.Row row1 = sheet.createRow(1);
+            row1.createCell(0).setCellValue("PRD00001");
+            row1.createCell(1).setCellValue("Thiết Quan Âm 100g");
+            row1.createCell(2).setCellValue("TQA-100G");
+            
+            org.apache.poi.ss.usermodel.Cell cellSelling1 = row1.createCell(3);
+            cellSelling1.setCellValue(150000.0);
+            cellSelling1.setCellStyle(priceStyle);
+            
+            org.apache.poi.ss.usermodel.Cell cellCost1 = row1.createCell(4);
+            cellCost1.setCellValue(100000.0);
+            cellCost1.setCellStyle(priceStyle);
+            
+            row1.createCell(5).setCellValue("Gói");
+            row1.createCell(6).setCellValue("Theo dõi tồn kho");
+            row1.createCell(7).setCellValue("Đang hoạt động");
+            
+            org.apache.poi.ss.usermodel.Row row2 = sheet.createRow(2);
+            row2.createCell(0).setCellValue("PRD00001");
+            row2.createCell(1).setCellValue("Thiết Quan Âm 250g");
+            row2.createCell(2).setCellValue("TQA-250G");
+            
+            org.apache.poi.ss.usermodel.Cell cellSelling2 = row2.createCell(3);
+            cellSelling2.setCellValue(350000.0);
+            cellSelling2.setCellStyle(priceStyle);
+            
+            org.apache.poi.ss.usermodel.Cell cellCost2 = row2.createCell(4);
+            cellCost2.setCellValue(230000.0);
+            cellCost2.setCellStyle(priceStyle);
+            
+            row2.createCell(5).setCellValue("Gói");
+            row2.createCell(6).setCellValue("Theo dõi tồn kho");
+            row2.createCell(7).setCellValue("Đang hoạt động");
+            
+            sheet.createFreezePane(0, 1);
+            sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, 2, 0, headers.length - 1));
+            
+            for (int i = 0; i < headers.length; i++) {
+                try {
+                    sheet.autoSizeColumn(i);
+                } catch (Exception ignored) {}
+            }
+            
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi tạo file mẫu Excel biến thể: " + e.getMessage(), e);
+        }
+    }
 }
+

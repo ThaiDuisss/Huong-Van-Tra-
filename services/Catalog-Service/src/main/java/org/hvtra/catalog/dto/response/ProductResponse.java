@@ -6,10 +6,12 @@ import org.hvtra.catalog.enums.Status;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 public record ProductResponse(
-        Long id,
+        UUID id,
         CategoryResponse category,
+        String productCode,
         String name,
         String description,
         String imageUrl,
@@ -17,14 +19,15 @@ public record ProductResponse(
         List<VariantResponse> variants
 ) {
     public record VariantSummaryResponse(
-            Long id,
-            Long productId,
+            UUID id,
+            UUID productId,
             String productName,
+            String productCode,
             String sku,
             String variantName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
-            Long baseUnitId,
+            UUID baseUnitId,
             InventoryPolicy inventoryPolicy,
             Status status,
             Status productStatus,
@@ -33,14 +36,15 @@ public record ProductResponse(
     }
 
     public record VariantResponse(
-            Long id,
-            Long productId,
+            UUID id,
+            UUID productId,
             String productName,
+            String productCode,
             String sku,
             String variantName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
-            Long baseUnitId,
+            UUID baseUnitId,
             InventoryPolicy inventoryPolicy,
             Status status,
             Status productStatus,
@@ -50,10 +54,11 @@ public record ProductResponse(
     }
 
     public record BarcodeResponse(
-            Long id,
+            UUID id,
             String barcodeValue,
             BarcodeType barcodeType,
             @com.fasterxml.jackson.annotation.JsonProperty("isPrimary") boolean primary
     ) {
     }
 }
+

@@ -50,7 +50,7 @@ export function DiscountSelector({
             className={
               selectedDiscount?.id === "none"
                 ? "truncate text-neutral-400"
-                : "truncate text-pos-ink"
+                : "truncate text-gray-500"
             }
           >
             {selectedDiscount?.id === "none"
@@ -58,7 +58,7 @@ export function DiscountSelector({
               : `${selectedDiscount?.code} - ${selectedDiscount?.label}`}
           </span>
           <ChevronDown
-            className="ml-auto size-4 shrink-0 text-pos-ink"
+            className="ml-auto size-4 shrink-0 text-gray-500"
             aria-hidden="true"
           />
         </button>

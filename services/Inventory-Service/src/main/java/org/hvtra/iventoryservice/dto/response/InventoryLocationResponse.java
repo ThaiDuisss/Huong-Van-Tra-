@@ -3,10 +3,12 @@ package org.hvtra.iventoryservice.dto.response;
 import org.hvtra.iventoryservice.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.enums.InventoryStatus;
 
+import java.util.UUID;
+
 public record InventoryLocationResponse(
-        Long id,
-        Long branchId,
-        Long parentLocationId,
+        UUID id,
+        UUID branchId,
+        UUID parentLocationId,
         String code,
         String name,
         InventoryLocationType type,

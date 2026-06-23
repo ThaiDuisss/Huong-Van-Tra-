@@ -5,7 +5,7 @@ export function PosHeader() {
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-hvt-green-700">
           POS
         </p>
-        <h1 className="text-2xl font-bold text-pos-ink">
+        <h1 className="text-2xl font-bold text-gray-500">
           Bán hàng tại quầy
         </h1>
       </div>

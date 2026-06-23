@@ -32,10 +32,10 @@ export function MetricCard({
                 <Icon size={24} />
             </span>
             <div>
-                <p className="text-sm font-semibold text-pos-ink">
+                <p className="text-sm font-semibold text-gray-500">
                     {label}
                 </p>
-                <strong className="mt-1 block text-3xl text-pos-ink">
+                <strong className="mt-1 block text-3xl text-gray-500">
                     {value}
                 </strong>
                 <p
@@ -46,7 +46,7 @@ export function MetricCard({
                     }`}
                 >
                     {change}{" "}
-                    <span className="font-medium text-pos-muted">
+                    <span className="font-medium text-gray-500">
                         so với tháng trước
                     </span>
                 </p>

@@ -4,7 +4,9 @@ import org.hvtra.catalog.entity.Ingredient;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface IngredientRepository extends JpaRepository<Ingredient, Long>, JpaSpecificationExecutor<Ingredient> {
+import java.util.UUID;
+
+public interface IngredientRepository extends JpaRepository<Ingredient, UUID>, JpaSpecificationExecutor<Ingredient> {
     boolean existsByIngredientCode(String ingredientCode);
-    boolean existsByIngredientCodeAndIdNot(String ingredientCode, Long id);
+    boolean existsByIngredientCodeAndIdNot(String ingredientCode, UUID id);
 }

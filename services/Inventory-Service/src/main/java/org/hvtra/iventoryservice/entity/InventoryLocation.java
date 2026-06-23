@@ -3,11 +3,13 @@ package org.hvtra.iventoryservice.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.enums.InventoryStatus;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(
@@ -16,13 +18,10 @@ import java.util.List;
 )
 @Getter
 @Setter
-public class InventoryLocation {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class InventoryLocation extends BaseEntity {
 
-    @Column(name = "branch_id", nullable = false)
-    private Long branchId;
+    @Column(name = "branch_id", nullable = false, columnDefinition = "CHAR(36)")
+    private UUID branchId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_location_id")

@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 @SpringBootApplication
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
+@EnableFeignClients
 public class CatalogApplication {
 
     public static void main(String[] args) {

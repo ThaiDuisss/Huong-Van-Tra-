@@ -12,6 +12,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/catalog/boms")
 public class BomController {
@@ -23,7 +25,7 @@ public class BomController {
 
     @GetMapping
     public PageResponse<BomResponse> findAll(
-            @RequestParam(name = "productVariantId", required = false) Long productVariantId,
+            @RequestParam(name = "productVariantId", required = false) UUID productVariantId,
             @RequestParam(name = "version", required = false) Integer version,
             @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
@@ -31,7 +33,7 @@ public class BomController {
     }
 
     @GetMapping("/{id}")
-    public BomResponse findById(@PathVariable("id") Long id) {
+    public BomResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 
@@ -42,13 +44,13 @@ public class BomController {
     }
 
     @PutMapping("/{id}")
-    public BomResponse update(@PathVariable("id") Long id, @Valid @RequestBody BomRequest request) {
+    public BomResponse update(@PathVariable("id") UUID id, @Valid @RequestBody BomRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public BomResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

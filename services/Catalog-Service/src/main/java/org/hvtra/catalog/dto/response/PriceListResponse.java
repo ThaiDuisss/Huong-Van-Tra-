@@ -5,10 +5,11 @@ import org.hvtra.catalog.enums.Status;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 public record PriceListResponse(
-        Long id,
-        Long branchId,
+        UUID id,
+        UUID branchId,
         String name,
         LocalDateTime effectiveFrom,
         LocalDateTime effectiveTo,
@@ -16,9 +17,10 @@ public record PriceListResponse(
         List<ItemResponse> items
 ) {
     public record ItemResponse(
-            Long id,
+            UUID id,
             ProductResponse.VariantSummaryResponse productVariant,
             BigDecimal sellingPrice
     ) {
     }
 }
+

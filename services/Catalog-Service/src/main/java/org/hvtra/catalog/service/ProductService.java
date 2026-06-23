@@ -7,11 +7,17 @@ import org.hvtra.catalog.dto.response.ProductSummaryResponse;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
 
+import java.util.UUID;
+
 public interface ProductService {
     PageResponse<ProductSummaryResponse> findAll(
-            String name, Long categoryId, Status status, Pageable pageable);
-    ProductResponse findById(Long id);
+            String name, UUID categoryId, Status status, Pageable pageable);
+    ProductResponse findById(UUID id);
     ProductResponse create(ProductRequest request);
-    ProductResponse update(Long id, ProductRequest request);
-    ProductResponse updateStatus(Long id, Status status);
+    ProductResponse update(UUID id, ProductRequest request);
+    ProductResponse updateStatus(UUID id, Status status);
+    byte[] exportToExcel();
+    void importFromExcel(org.springframework.web.multipart.MultipartFile file);
+    byte[] getImportTemplate();
 }
+

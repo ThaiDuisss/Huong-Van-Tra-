@@ -15,6 +15,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/inventory/inventory-items")
 public class InventoryItemController {
@@ -29,7 +31,7 @@ public class InventoryItemController {
 
     @GetMapping
     public PageResponse<InventoryItemResponse> findAll(
-            @RequestParam(name = "referenceId", required = false) Long referenceId,
+            @RequestParam(name = "referenceId", required = false) UUID referenceId,
             @RequestParam(name = "itemType", required = false) InventoryItemType itemType,
             @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
@@ -37,13 +39,13 @@ public class InventoryItemController {
     }
 
     @GetMapping("/{id}")
-    public InventoryItemResponse findById(@PathVariable("id") Long id) {
+    public InventoryItemResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 
     @GetMapping("/{id}/balances")
     public PageResponse<InventoryBalanceResponse> findBalances(
-            @PathVariable("id") Long id,
+            @PathVariable("id") UUID id,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
         return balanceService.findByInventoryItem(id, pageable);
     }
@@ -56,13 +58,13 @@ public class InventoryItemController {
 
     @PutMapping("/{id}")
     public InventoryItemResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody InventoryItemRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody InventoryItemRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public InventoryItemResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody InventoryStatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody InventoryStatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

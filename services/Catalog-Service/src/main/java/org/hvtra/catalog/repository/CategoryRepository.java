@@ -4,5 +4,10 @@ import org.hvtra.catalog.entity.Category;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface CategoryRepository extends JpaRepository<Category, Long>, JpaSpecificationExecutor<Category> {
+import java.util.UUID;
+
+public interface CategoryRepository extends JpaRepository<Category, UUID>, JpaSpecificationExecutor<Category> {
+    java.util.Optional<Category> findByCategoryCode(String categoryCode);
+    boolean existsByCategoryCode(String categoryCode);
 }
+

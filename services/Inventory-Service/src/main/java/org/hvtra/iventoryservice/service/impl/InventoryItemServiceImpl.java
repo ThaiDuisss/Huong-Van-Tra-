@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -32,7 +33,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     @Override
     public PageResponse<InventoryItemResponse> findAll(
-            Long referenceId,
+            UUID referenceId,
             InventoryItemType itemType,
             InventoryStatus status,
             Pageable pageable) {
@@ -47,7 +48,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     }
 
     @Override
-    public InventoryItemResponse findById(Long id) {
+    public InventoryItemResponse findById(UUID id) {
         return mapper.toResponse(get(id));
     }
 
@@ -62,7 +63,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     @Override
     @Transactional
-    public InventoryItemResponse update(Long id, InventoryItemRequest request) {
+    public InventoryItemResponse update(UUID id, InventoryItemRequest request) {
         validateUnique(request, id);
         InventoryItem item = get(id);
         mapper.update(item, request);
@@ -71,13 +72,13 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     @Override
     @Transactional
-    public InventoryItemResponse updateStatus(Long id, InventoryStatus status) {
+    public InventoryItemResponse updateStatus(UUID id, InventoryStatus status) {
         InventoryItem item = get(id);
         item.setStatus(status);
         return mapper.toResponse(repository.save(item));
     }
 
-    private void validateUnique(InventoryItemRequest request, Long id) {
+    private void validateUnique(InventoryItemRequest request, UUID id) {
         boolean exists = id == null
                 ? repository.existsByReferenceIdAndItemType(request.referenceId(), request.itemType())
                 : repository.existsByReferenceIdAndItemTypeAndIdNot(
@@ -89,8 +90,9 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         }
     }
 
-    private InventoryItem get(Long id) {
+    private InventoryItem get(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory item", id));
     }
 }
+

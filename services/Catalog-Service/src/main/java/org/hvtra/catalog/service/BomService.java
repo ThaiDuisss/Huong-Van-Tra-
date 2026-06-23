@@ -6,11 +6,14 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
 
+import java.util.UUID;
+
 public interface BomService {
     PageResponse<BomResponse> findAll(
-            Long productVariantId, Integer version, Status status, Pageable pageable);
-    BomResponse findById(Long id);
+            UUID productVariantId, Integer version, Status status, Pageable pageable);
+    BomResponse findById(UUID id);
     BomResponse create(BomRequest request);
-    BomResponse update(Long id, BomRequest request);
-    BomResponse updateStatus(Long id, Status status);
+    BomResponse update(UUID id, BomRequest request);
+    BomResponse updateStatus(UUID id, Status status);
 }
+

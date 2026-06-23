@@ -4,7 +4,7 @@ import { routePaths } from "../routes/path";
 
 export function NotFoundPage() {
     return (
-        <main className="grid min-h-screen place-items-center bg-pos-background px-6 text-center text-pos-ink">
+        <main className="grid min-h-screen place-items-center bg-pos-background px-6 text-center text-gray-500">
             <section className="grid max-w-md gap-4 rounded-3xl bg-pos-surface p-8 shadow-pos-panel">
                 <p className="text-sm font-semibold uppercase tracking-[0.14em] text-hvt-green-800">
                     404
@@ -12,7 +12,7 @@ export function NotFoundPage() {
                 <h1 className="text-3xl font-bold">
                     Không tìm thấy trang
                 </h1>
-                <p className="text-pos-muted">
+                <p className="text-gray-500">
                     Đường dẫn này không tồn tại trong hệ thống POS.
                 </p>
                 <Link

@@ -6,17 +6,18 @@ import org.hvtra.iventoryservice.enums.InventoryReferenceType;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 public record StockAdjustmentRequest(
-        @NotNull @Positive Long branchId,
-        @NotNull @Positive Long createdBy,
+        @NotNull UUID branchId,
+        @NotBlank String createdBy,
         @NotNull InventoryReferenceType referenceType,
-        Long referenceId,
+        String referenceId,
         @NotEmpty List<@Valid LineRequest> lines
 ) {
     public record LineRequest(
-            @NotNull @Positive Long inventoryItemId,
-            @NotNull @Positive Long locationId,
+            @NotNull UUID inventoryItemId,
+            @NotNull UUID locationId,
             @NotNull @DecimalMin("0.00") BigDecimal actualQuantity
     ) {
     }

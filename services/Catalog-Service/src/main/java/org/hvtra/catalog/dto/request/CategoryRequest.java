@@ -5,9 +5,13 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.hvtra.catalog.enums.Status;
 
+import java.util.UUID;
+
 public record CategoryRequest(
-        Long parentId,
+        UUID parentId,
+        String categoryCode,
         @NotBlank @Size(max = 255) String name,
         @NotNull Status status
 ) {
 }
+
