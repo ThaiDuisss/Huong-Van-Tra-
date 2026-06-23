@@ -10,7 +10,6 @@ import java.util.UUID;
 
 public record StockInRequest(
         @NotNull UUID branchId,
-        @NotBlank String createdBy,
         @NotNull InventoryReferenceType referenceType,
         String referenceId,
         @NotEmpty List<@Valid LineRequest> lines

@@ -20,7 +20,7 @@ import java.util.UUID;
 @Setter
 public class InventoryLocation extends BaseEntity {
 
-    @Column(name = "branch_id", nullable = false, columnDefinition = "CHAR(36)")
+    @Column(name = "branch_id", nullable = false)
     private UUID branchId;
 
     @ManyToOne(fetch = FetchType.LAZY)

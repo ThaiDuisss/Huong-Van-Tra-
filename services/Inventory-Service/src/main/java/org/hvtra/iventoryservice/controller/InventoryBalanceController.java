@@ -31,4 +31,18 @@ public class InventoryBalanceController {
     public InventoryBalanceResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
+
+    @GetMapping("/view")
+    public PageResponse<org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse> findAllView(
+            @RequestParam(name = "branchId", required = false) UUID branchId,
+            @RequestParam(name = "locationId", required = false) UUID locationId,
+            @RequestParam(name = "sku", required = false) String sku,
+            @RequestParam(name = "productCode", required = false) String productCode,
+            @RequestParam(name = "productName", required = false) String productName,
+            @RequestParam(name = "categoryCode", required = false) String categoryCode,
+            @RequestParam(name = "categoryId", required = false) UUID categoryId,
+            @RequestParam(name = "unitId", required = false) UUID unitId,
+            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+        return service.findAllView(branchId, locationId, sku, productCode, productName, categoryCode, categoryId, unitId, pageable);
+    }
 }

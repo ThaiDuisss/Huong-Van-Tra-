@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
+import { PosShell } from "../components/layout/Pos/PosShell";
 import { BomListPage } from "../features/manufacturing/pages/BomListPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
@@ -36,6 +37,15 @@ export function AppRouter() {
             <Route
                 path={routePaths.posSales}
                 element={<PosSalePage />}
+            />
+
+            <Route
+                path={routePaths.inventoryBalances}
+                element={
+                    <PosShell>
+                        <InventoryBalancePage />
+                    </PosShell>
+                }
             />
 
             <Route
@@ -97,10 +107,6 @@ export function AppRouter() {
                 <Route
                     path="inventory/locations"
                     element={<InventoryLocationPage />}
-                />
-                <Route
-                    path="inventory/balances"
-                    element={<InventoryBalancePage />}
                 />
                 <Route
                     path="inventory/stock-in"

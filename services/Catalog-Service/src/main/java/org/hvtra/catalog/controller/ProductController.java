@@ -42,6 +42,11 @@ public class ProductController {
         return service.findById(id);
     }
 
+    @PostMapping("/batch")
+    public java.util.List<ProductResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+        return service.findAllByIds(ids);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse create(@Valid @RequestBody ProductRequest request) {

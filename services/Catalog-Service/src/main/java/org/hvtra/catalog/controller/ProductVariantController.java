@@ -43,6 +43,22 @@ public class ProductVariantController {
         return service.findById(id);
     }
 
+    @PostMapping("/batch")
+    public java.util.List<ProductResponse.VariantResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+        return service.findAllByIds(ids);
+    }
+
+    @GetMapping("/search-ids")
+    public java.util.List<UUID> searchIds(
+            @RequestParam(name = "sku", required = false) String sku,
+            @RequestParam(name = "productCode", required = false) String productCode,
+            @RequestParam(name = "productName", required = false) String productName,
+            @RequestParam(name = "categoryCode", required = false) String categoryCode,
+            @RequestParam(name = "categoryId", required = false) UUID categoryId,
+            @RequestParam(name = "unitId", required = false) UUID unitId) {
+        return service.searchVariantIds(sku, productCode, productName, categoryCode, categoryId, unitId);
+    }
+
     @PutMapping("/{id}")
     public ProductResponse.VariantResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody ProductVariantRequest request) {

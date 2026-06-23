@@ -85,9 +85,9 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
             throw new BadRequestException("Inventory location cannot be its own parent");
         }
         InventoryLocation parent = get(request.parentLocationId());
-        if (!parent.getBranchId().equals(request.branchId())) {
-            throw new BadRequestException("Parent location must belong to the same branch");
-        }
+//        if (!parent.getBranchId().equals(request.branchId())) {
+//            throw new BadRequestException("Parent location must belong to the same branch");
+//        }
         for (InventoryLocation current = parent;
              current != null;
              current = current.getParentLocation()) {
@@ -100,10 +100,10 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
 
     private void validateCode(InventoryLocationRequest request, UUID id) {
         String code = request.code().trim();
-        boolean exists = id == null
-                ? repository.existsByBranchIdAndCode(request.branchId(), code)
-                : repository.existsByBranchIdAndCodeAndIdNot(request.branchId(), code, id);
-        if (exists) throw new BadRequestException("Location code already exists in branch: " + code);
+//        boolean exists = id == null
+//                ? repository.existsByBranchIdAndCode(request.branchId(), code)
+//                : repository.existsByBranchIdAndCodeAndIdNot(request.branchId(), code, id);
+//        if (exists) throw new BadRequestException("Location code already exists in branch: " + code);
     }
 
     private InventoryLocation get(UUID id) {

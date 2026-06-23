@@ -18,5 +18,7 @@ public interface ProductVariantService {
     byte[] exportToExcel(UUID productId);
     void importFromExcel(org.springframework.web.multipart.MultipartFile file, UUID productId);
     byte[] getImportTemplate();
+    java.util.List<ProductResponse.VariantResponse> findAllByIds(java.util.List<UUID> ids);
+    java.util.List<UUID> searchVariantIds(String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId);
 }
 

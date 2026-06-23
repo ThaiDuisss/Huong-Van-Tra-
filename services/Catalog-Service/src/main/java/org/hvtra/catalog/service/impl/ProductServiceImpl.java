@@ -322,5 +322,15 @@ public class ProductServiceImpl implements ProductService {
             throw new RuntimeException("Lỗi tạo file mẫu Excel sản phẩm: " + e.getMessage(), e);
         }
     }
+
+    @Override
+    public java.util.List<ProductResponse> findAllByIds(java.util.List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return productRepository.findAllById(ids).stream()
+                .map(mapper::toResponse)
+                .toList();
+    }
 }
 
