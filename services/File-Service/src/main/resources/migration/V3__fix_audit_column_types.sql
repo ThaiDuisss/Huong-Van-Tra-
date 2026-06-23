@@ -1,0 +1,8 @@
+ALTER TABLE files
+    MODIFY COLUMN created_by BINARY(16) NULL,
+    MODIFY COLUMN updated_by BINARY(16) NULL;
+
+ALTER TABLE file_references
+    MODIFY COLUMN ref_id BINARY(16) NOT NULL,
+    MODIFY COLUMN created_by BINARY(16) NULL,
+    MODIFY COLUMN updated_by BINARY(16) NULL;

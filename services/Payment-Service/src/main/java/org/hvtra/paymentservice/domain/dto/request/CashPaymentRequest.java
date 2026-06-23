@@ -1,4 +1,4 @@
-package org.hvtra.paymentservice.dto.request;
+package org.hvtra.paymentservice.domain.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;

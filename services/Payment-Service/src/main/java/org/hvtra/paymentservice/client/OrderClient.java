@@ -1,8 +1,8 @@
 package org.hvtra.paymentservice.client;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.paymentservice.dto.request.MarkOrderPaidRequest;
-import org.hvtra.paymentservice.dto.response.OrderPaymentInfoResponse;
+import org.hvtra.paymentservice.domain.dto.request.MarkOrderPaidRequest;
+import org.hvtra.paymentservice.domain.dto.response.OrderPaymentInfoResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
