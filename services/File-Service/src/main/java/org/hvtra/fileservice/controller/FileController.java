@@ -5,7 +5,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.domain.entity.UserHeaderInformation;
 import org.hvtra.commonservice.domain.response.ApiResponse;
-import org.hvtra.fileservice.config.MinioProperties;
 import org.hvtra.fileservice.model.request.InitUploadRequest;
 import org.hvtra.fileservice.model.response.DownloadUrlResponse;
 import org.hvtra.fileservice.model.response.InitUploadResponse;
@@ -20,7 +19,6 @@ import java.util.UUID;
 public class FileController {
 
     private final FileService fileService;
-    private final MinioProperties minioProperties;
 
     /**
      * Bước 1: Khởi tạo upload file.
@@ -112,11 +110,9 @@ public class FileController {
         UUID userId = extractUserId(userHeader);
 
         // Tạo presigned download URL từ MinIO
-        String url = fileService.createDownloadUrl(fileId, userId);
+        DownloadUrlResponse response = fileService.createDownloadUrl(fileId, userId);
 
-        // 300 là số giây URL còn hiệu lực.
-        // Nên lấy giá trị này từ config thay vì hard-code nếu muốn chuẩn hơn.
-        return ApiResponse.<DownloadUrlResponse>builder().data(new DownloadUrlResponse(url, minioProperties.getPresignedDownloadExpirySeconds())).status("success").code(200).build();
+        return ApiResponse.<DownloadUrlResponse>builder().data(response).status("success").code(200).build();
     }
 
     /**
