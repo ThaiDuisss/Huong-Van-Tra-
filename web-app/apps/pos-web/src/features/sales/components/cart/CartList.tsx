@@ -35,7 +35,7 @@ export function CartList({
         <span>Mã / SKU</span>
         <span>Tên sản phẩm</span>
         <span>SL</span>
-        <span>Đơn giá</span>
+        <span>Đơn giá / Tổng</span>
         <span aria-label="Thao tác" />
       </div>
 
@@ -44,7 +44,14 @@ export function CartList({
           <article className={styles.cartRow} key={item.productId}>
             <span className={styles.rowIndex}>{index + 1}</span>
             <span className={styles.sku}>{item.sku}</span>
-            <span className={styles.productName}>{item.name}</span>
+            <span className={styles.productName}>
+              {item.name}
+              {item.variant ? (
+                <small className="mt-1 block font-medium text-neutral-500">
+                  {item.variant}
+                </small>
+              ) : null}
+            </span>
             <div className={styles.quantityControl}>
               <button
                 type="button"
@@ -64,6 +71,9 @@ export function CartList({
             </div>
             <strong className={styles.price}>
               {formatCurrency(item.unitPrice)}
+              <small className="mt-1 block text-xs font-semibold text-neutral-500">
+                {formatCurrency(item.unitPrice * item.quantity)}
+              </small>
             </strong>
             <div className={styles.rowActions}>
               <button

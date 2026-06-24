@@ -1,33 +1,24 @@
 package org.hvtra.paymentservice.client;
 
-import lombok.RequiredArgsConstructor;
-import org.hvtra.paymentservice.domain.dto.request.MarkOrderPaidRequest;
-import org.hvtra.paymentservice.domain.dto.response.OrderPaymentInfoResponse;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
+import org.hvtra.paymentservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.paymentservice.dto.response.OrderPaymentInfoResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-@Component
-@RequiredArgsConstructor
-public class OrderClient {
+@FeignClient(
+        name = "order-service",
+        path = "/api/orders"
+)
+public interface OrderClient {
 
-    private final RestTemplate restTemplate;
+    @GetMapping("/{orderId}/payment-info")
+    OrderPaymentInfoResponse getPaymentInfo(@PathVariable("orderId") UUID orderId);
 
-//    private static final String ORDER_SERVICE_URL = "http://order-service/api/orders";
-    private static final String ORDER_SERVICE_URL = "http://localhost:8086/api/orders";
-
-    public OrderPaymentInfoResponse getPaymentInfo(UUID orderId) {
-        return restTemplate.getForObject(
-                ORDER_SERVICE_URL + "/" + orderId + "/payment-info",
-                OrderPaymentInfoResponse.class
-        );
-    }
-
-    public void markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
-        restTemplate.put(
-                ORDER_SERVICE_URL + "/" + orderId + "/mark-paid",
-                request
-        );
-    }
+    @PutMapping("/{orderId}/mark-paid")
+    void markOrderPaid(
+            @PathVariable("orderId") UUID orderId,
+            @RequestBody MarkOrderPaidRequest request
+    );
 }
