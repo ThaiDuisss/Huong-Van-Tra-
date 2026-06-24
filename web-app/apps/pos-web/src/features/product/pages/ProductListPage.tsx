@@ -307,7 +307,7 @@ export function ProductListPage() {
     );
 }
 
-function ProductDetailContent({ productId }: { productId: number }) {
+function ProductDetailContent({ productId }: { productId: string | number }) {
     const loadDetail = useCallback(() => productApi.detail(String(productId)), [productId]);
     const { data: product, loading, error } = useApiResource(loadDetail);
 

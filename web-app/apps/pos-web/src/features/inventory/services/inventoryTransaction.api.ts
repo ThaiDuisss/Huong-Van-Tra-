@@ -1,5 +1,6 @@
 import { apiClient } from "../../../api/api-client";
 import type {
+    EntityId,
     InventoryTransactionQuery,
     InventoryTransactionResponse,
     PageResponse,
@@ -14,7 +15,7 @@ export const inventoryTransactionApi = {
             { query }
         );
     },
-    detail(id: number) {
+    detail(id: EntityId) {
         return apiClient.get<InventoryTransactionResponse>(
             `/inventory/inventory-transactions/${id}`
         );

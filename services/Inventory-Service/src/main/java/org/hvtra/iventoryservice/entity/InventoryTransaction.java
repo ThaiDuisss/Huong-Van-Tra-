@@ -34,7 +34,7 @@ public class InventoryTransaction extends BaseEntity {
     @Column(name = "reference_id", length = 50)
     private String referenceId;
 
-    @Column(name = "branch_id", nullable = false, columnDefinition = "CHAR(36)")
+    @Column(name = "branch_id", nullable = false)
     private UUID branchId;
 
     @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)

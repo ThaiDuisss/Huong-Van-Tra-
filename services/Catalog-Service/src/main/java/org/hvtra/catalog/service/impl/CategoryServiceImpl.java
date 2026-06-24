@@ -131,5 +131,15 @@ public class CategoryServiceImpl implements CategoryService {
         }
         return parent;
     }
+
+    @Override
+    public java.util.List<CategoryResponse> findAllByIds(java.util.List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return repository.findAllById(ids).stream()
+                .map(mapper::toResponse)
+                .toList();
+    }
 }
 

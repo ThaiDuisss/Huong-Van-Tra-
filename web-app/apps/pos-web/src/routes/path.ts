@@ -17,7 +17,7 @@ export const routePaths = {
     priceLists: "/system/price-lists",
     priceListDetail: "/system/price-lists/:id",
     inventoryLocations: "/system/inventory/locations",
-    inventoryBalances: "/system/inventory/balances",
+    inventoryBalances: "/pos/inventory",
     inventoryStockIn: "/system/inventory/stock-in",
     inventoryAdjustment: "/system/inventory/adjustment",
     inventoryTransactions: "/system/inventory/transactions",

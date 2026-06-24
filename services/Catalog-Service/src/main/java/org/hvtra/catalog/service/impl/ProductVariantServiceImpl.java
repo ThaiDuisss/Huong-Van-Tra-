@@ -455,5 +455,71 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             throw new RuntimeException("Lỗi tạo file mẫu Excel biến thể: " + e.getMessage(), e);
         }
     }
+
+    @Override
+    public java.util.List<ProductResponse.VariantResponse> findAllByIds(java.util.List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return repository.findAllById(ids).stream()
+                .map(mapper::toVariantResponse)
+                .toList();
+    }
+
+    @Override
+    public java.util.List<UUID> searchVariantIds(String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId) {
+        Specification<ProductVariant> spec = (root, query, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+            if (sku != null && !sku.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("sku")), "%" + sku.toLowerCase() + "%"));
+            }
+            if (productCode != null && !productCode.isBlank()) {
+                predicates.add(cb.equal(cb.lower(root.get("product").get("productCode")), productCode.toLowerCase()));
+            }
+            if (productName != null && !productName.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("product").get("name")), "%" + productName.toLowerCase() + "%"));
+            }
+            if (categoryCode != null && !categoryCode.isBlank()) {
+                predicates.add(cb.equal(cb.lower(root.get("product").get("category").get("categoryCode")), categoryCode.toLowerCase()));
+            }
+            if (categoryId != null) {
+                predicates.add(cb.equal(root.get("product").get("category").get("id"), categoryId));
+            }
+            if (unitId != null) {
+                predicates.add(cb.equal(root.get("baseUnitId"), unitId));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return repository.findAll(spec).stream()
+                .map(ProductVariant::getId)
+                .toList();
+    }
+
+    @Override
+    public java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(String sku, String productName) {
+        Specification<ProductVariant> spec = (root, query, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+            if (sku != null && !sku.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("sku")), "%" + sku.toLowerCase() + "%"));
+            }
+            if (productName != null && !productName.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("product").get("name")), "%" + productName.toLowerCase() + "%"));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+
+        return repository.findAll(spec).stream()
+                .map(v -> new org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse(
+                        v.getProduct().getId(),
+                        v.getId(),
+                        v.getSku(),
+                        v.getProduct().getName(),
+                        v.getVariantName(),
+                        v.getProduct().getCategory() != null ? v.getProduct().getCategory().getName() : null,
+                        v.getSellingPrice(),
+                        v.getProduct().getImageUrl()
+                ))
+                .toList();
+    }
 }
 

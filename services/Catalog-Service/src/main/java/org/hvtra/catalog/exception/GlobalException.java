@@ -44,13 +44,13 @@ public class GlobalException extends BaseGlobalExceptionHandler {
                 .body(new ErrorResponse("INVALID_PARAMETER", message, 400));
     }
 
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleUnreadableBody(
-            HttpMessageNotReadableException exception, HttpServletRequest request) {
-        log.warn("Invalid request body at {}: {}", request.getRequestURI(), exception.getMessage());
-        return ResponseEntity.badRequest()
-                .body(new ErrorResponse("INVALID_REQUEST_BODY", "Invalid request body", 400));
-    }
+//    @ExceptionHandler(HttpMessageNotReadableException.class)
+//    public ResponseEntity<ErrorResponse> handleUnreadableBody(
+//            HttpMessageNotReadableException exception, HttpServletRequest request) {
+//        log.warn("Invalid request body at {}: {}", request.getRequestURI(), exception.getMessage());
+//        return ResponseEntity.badRequest()
+//                .body(new ErrorResponse("INVALID_REQUEST_BODY", "Invalid request body", 400));
+//    }
 
     @Override
     @ExceptionHandler(Exception.class)
