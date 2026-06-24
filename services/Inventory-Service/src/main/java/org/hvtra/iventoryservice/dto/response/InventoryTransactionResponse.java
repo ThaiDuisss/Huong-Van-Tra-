@@ -15,7 +15,7 @@ public record InventoryTransactionResponse(
         InventoryReferenceType referenceType,
         String referenceId,
         UUID branchId,
-        String createdBy,
+        UUID createdBy,
         Instant createdAt,
         List<LineResponse> lines
 ) {

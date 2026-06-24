@@ -17,7 +17,7 @@ ALTER TABLE inventory_locations ADD UNIQUE KEY uq_inventory_locations_branch_cod
 
 
 -- 2. inventory_transactions: Convert branch_id
-ALTER TABLE inventory_transactions DROP INDEX idx_inventory_tra nsactions_branch;
+ALTER TABLE inventory_transactions DROP INDEX idx_inventory_transactions_branch;
 
 ALTER TABLE inventory_transactions ADD COLUMN branch_id_bin BINARY(16) NULL;
 UPDATE inventory_transactions SET branch_id_bin = UUID_TO_BIN(branch_id);
