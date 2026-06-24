@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StockInRequest;
@@ -88,6 +89,10 @@ public class InventoryTransactionController {
         return service.storeAdjust(request);
     }
 
+    @Tag(
+            name = "Tạo đơn xuất kho từ cửa hàng hiện tại",
+            description = "Thực hiện xuất hàng hóa và tự động cập nhật số dư kho (before/after quantity) trong bảng INVENTORY_BALANCES dựa trên locationId của cửa hàng."
+    )
     @PostMapping("/store/stock-out")
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryTransactionResponse storeStockOut(
