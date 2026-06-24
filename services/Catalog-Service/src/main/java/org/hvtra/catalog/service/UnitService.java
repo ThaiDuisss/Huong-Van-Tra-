@@ -12,5 +12,6 @@ public interface UnitService {
     UnitResponse create(UnitRequest request);
     UnitResponse update(UUID id, UnitRequest request);
     UnitResponse updateStatus(UUID id, Status status);
+    java.util.List<UnitResponse> findAllByIds(java.util.List<UUID> ids);
 }
 

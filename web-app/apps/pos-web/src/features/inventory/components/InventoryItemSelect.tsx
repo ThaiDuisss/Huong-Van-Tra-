@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { useInventoryPage } from "../hooks/useInventoryResource";
 import { inventoryItemApi } from "../services/inventoryItem.api";
 import type {
+    EntityId,
     InventoryItemResponse,
     InventoryItemType
 } from "../types/inventory.types";
@@ -12,7 +13,7 @@ export function InventoryItemSelect({
     value,
     onChange
 }: {
-    value: number | null;
+    value: EntityId | null;
     onChange(item: InventoryItemResponse | null): void;
 }) {
     const [referenceId, setReferenceId] = useState("");
@@ -25,7 +26,7 @@ export function InventoryItemSelect({
                 page: 0,
                 size: 100,
                 referenceId: referenceId
-                    ? Number(referenceId)
+                    ? referenceId
                     : undefined,
                 itemType: itemType === "ALL" ? undefined : itemType,
                 status: "ACTIVE"
@@ -72,7 +73,7 @@ export function InventoryItemSelect({
                 value={value ?? ""}
                 onChange={(event) => {
                     const selected = items.find(
-                        (item) => item.id === Number(event.currentTarget.value)
+                        (item) => String(item.id) === event.currentTarget.value
                     );
                     onChange(selected ?? null);
                 }}

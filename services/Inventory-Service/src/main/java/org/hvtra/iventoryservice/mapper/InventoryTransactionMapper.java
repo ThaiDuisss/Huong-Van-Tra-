@@ -15,7 +15,7 @@ public class InventoryTransactionMapper {
                 transaction.getReferenceId(),
                 transaction.getBranchId(),
                 transaction.getCreatedBy(),
-                transaction.getCreatDate(),
+                transaction.getCreatedAt(),
                 transaction.getLines().stream().map(line -> new InventoryTransactionResponse.LineResponse(
                         line.getId(),
                         line.getInventoryItem().getId(),

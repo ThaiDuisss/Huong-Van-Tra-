@@ -5,11 +5,7 @@ import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.request.CustomerTierRequest;
 import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
 import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
-import org.hvtra.customer.dto.response.CustomerAddressResponse;
-import org.hvtra.customer.dto.response.CustomerResponse;
-import org.hvtra.customer.dto.response.CustomerTierResponse;
-import org.hvtra.customer.dto.response.LoyaltyAccountResponse;
-import org.hvtra.customer.dto.response.LoyaltyTransactionResponse;
+import org.hvtra.customer.dto.response.*;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerAddress;
 import org.hvtra.customer.model.entity.CustomerTier;
@@ -28,10 +24,21 @@ public class CustomerMapper {
 
     public CustomerResponse toResponse(Customer customer) {
         CustomerTier tier = customer.getTier();
-        return new CustomerResponse(customer.getId(), customer.getCustomerCode(), customer.getFullName(),
-                customer.getPhone(), customer.getEmail(), customer.getDateOfBirth(),
-                tier == null ? null : tier.getId(), tier == null ? null : tier.getCode(),
-                tier == null ? null : tier.getName(), customer.getCreditLimit(), customer.getStatus());
+        return new CustomerResponse(
+                customer.getId(),
+                customer.getCustomerCode(),
+                customer.getFullName(),
+                customer.getPhone(),
+                customer.getEmail(),
+                customer.getDateOfBirth(),
+                tier == null ? null : tier.getId(),
+                tier == null ? null : tier.getCode(),
+                tier == null ? null : tier.getName(),
+                tier == null ? null : tier.getColorCode(),
+                customer.getCreditLimit(),
+                customer.getLastPurchaseDate(),
+                customer.getTotalSpent(),
+                customer.getStatus());
     }
 
     public CustomerAddressResponse toResponse(CustomerAddress address) {

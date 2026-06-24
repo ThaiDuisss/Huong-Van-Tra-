@@ -64,7 +64,6 @@ public class CustomerServiceImpl implements CustomerService {
         customerMapper.update(customer, normalizedRequest, findTier(normalizedRequest.tierId()));
         CustomerResponse response = customerMapper.toResponse(customerRepository.save(customer));
 
-
         LoyaltyAccountRequest loyaltyAccountRequest = new LoyaltyAccountRequest(response.id(), 0);
         loyaltyAccountService.create(loyaltyAccountRequest);
 
@@ -141,6 +140,8 @@ public class CustomerServiceImpl implements CustomerService {
                 request.dateOfBirth(),
                 request.tierId(),
                 request.creditLimit(),
+                request.lastPurchaseDate(),
+                request.totalSpent(),
                 request.status() != null ? request.status() : CustomerStatus.ACTIVE
         );
     }
@@ -154,6 +155,8 @@ public class CustomerServiceImpl implements CustomerService {
                 request.dateOfBirth(),
                 request.tierId(),
                 request.creditLimit(),
+                request.lastPurchaseDate(),
+                request.totalSpent(),
                 request.status() != null ? request.status() : customer.getStatus()
         );
     }

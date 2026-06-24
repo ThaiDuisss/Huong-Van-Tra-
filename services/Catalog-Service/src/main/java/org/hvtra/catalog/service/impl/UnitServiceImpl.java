@@ -58,4 +58,14 @@ public class UnitServiceImpl implements UnitService {
     private Unit get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Unit", id));
     }
+
+    @Override
+    public java.util.List<UnitResponse> findAllByIds(java.util.List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return repository.findAllById(ids).stream()
+                .map(mapper::toResponse)
+                .toList();
+    }
 }

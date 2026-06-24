@@ -1,8 +1,8 @@
 package org.hvtra.iventoryservice.enums;
 
 public enum InventoryLocationType {
-    SHELF,
-    COUNTER,
+    WAREHOUSE,
     STORAGE,
-    DAMAGED
+    DAMAGED,
+
 }

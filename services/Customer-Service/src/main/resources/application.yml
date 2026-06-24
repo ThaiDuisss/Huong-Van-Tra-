@@ -5,11 +5,6 @@ spring:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
-  jpa:
-    properties:
-      hibernate:
-        type:
-          preferred_uuid_jdbc_type: CHAR
 
 server:
   port: 8082

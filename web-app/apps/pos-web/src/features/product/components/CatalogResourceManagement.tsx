@@ -3,7 +3,8 @@ import {
     Eye,
     Pencil,
     Plus,
-    ToggleLeft
+    ToggleLeft,
+    X
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
@@ -126,6 +127,20 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     const [actionError, setActionError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
+    const activeStatusOption = (statusOptions ?? [
+        { label: "Tất cả", value: "ALL" },
+        { label: "Đang hoạt động", value: "ACTIVE" },
+        { label: "Ngừng hoạt động", value: "INACTIVE" }
+    ]).find(opt => opt.value === status);
+
+    const activeSecondaryOption = secondaryFilter
+        ? secondaryFilter.options.find(opt => opt.value === secondaryFilter.value)
+        : null;
+
+    const hasActiveFilters =
+        (onStatusChange && status !== undefined && status !== "ALL" && activeStatusOption) ||
+        (secondaryFilter && secondaryFilter.value !== "ALL" && activeSecondaryOption);
+
     function notify(message: string) {
         setToast(message);
         window.setTimeout(() => setToast(""), 2500);
@@ -211,51 +226,87 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 </div>
             </header>
 
-            <div className="flex flex-wrap items-end gap-4 rounded-2xl bg-white p-4 shadow-pos-card">
-                {onStatusChange && status !== undefined ? (
-                    <div className="w-48">
-                        <SelectField
-                            label="Trạng thái"
-                            value={status}
-                            options={
-                                statusOptions ?? [
+            <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-pos-card">
+                <div className="flex flex-wrap items-end gap-4">
+                    {onStatusChange && status !== undefined ? (
+                        <div className="w-48">
+                            <SelectField
+                                label="Trạng thái"
+                                value={status}
+                                options={
+                                    statusOptions ?? [
+                                        { label: "Tất cả", value: "ALL" },
+                                        { label: "Đang hoạt động", value: "ACTIVE" as any },
+                                        {
+                                            label: "Ngừng hoạt động",
+                                            value: "INACTIVE" as any
+                                        }
+                                    ]
+                                }
+                                onChange={(value) =>
+                                    onStatusChange(
+                                        value as "ALL" | S
+                                    )
+                                }
+                            />
+                        </div>
+                    ) : null}
+                    {secondaryFilter ? (
+                        <div className="w-48">
+                            <SelectField
+                                label={secondaryFilter.label}
+                                value={secondaryFilter.value}
+                                options={[
                                     { label: "Tất cả", value: "ALL" },
-                                    { label: "Đang hoạt động", value: "ACTIVE" as any },
-                                    {
-                                        label: "Ngừng hoạt động",
-                                        value: "INACTIVE" as any
-                                    }
-                                ]
-                            }
-                            onChange={(value) =>
-                                onStatusChange(
-                                    value as "ALL" | S
-                                )
-                            }
-                        />
+                                    ...secondaryFilter.options
+                                ]}
+                                onChange={secondaryFilter.onChange}
+                            />
+                        </div>
+                    ) : null}
+                </div>
+
+                {hasActiveFilters ? (
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-gray-400 font-medium">Đang lọc theo:</span>
+                            {secondaryFilter && secondaryFilter.value !== "ALL" && activeSecondaryOption ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50/50 text-emerald-800 text-xs font-semibold">
+                                    <span>{secondaryFilter.label}: {activeSecondaryOption.label}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => secondaryFilter.onChange("ALL")}
+                                        className="hover:bg-emerald-100 p-0.5 rounded-full text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            ) : null}
+                            {onStatusChange && status !== undefined && status !== "ALL" && activeStatusOption ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-200 bg-amber-50/50 text-amber-800 text-xs font-semibold">
+                                    <span>Trạng thái: {activeStatusOption.label}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => onStatusChange("ALL")}
+                                        className="hover:bg-amber-100 p-0.5 rounded-full text-amber-500 hover:text-amber-700 transition-colors cursor-pointer"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            ) : null}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (onStatusChange) onStatusChange("ALL");
+                                if (secondaryFilter) secondaryFilter.onChange("ALL");
+                            }}
+                            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors cursor-pointer"
+                        >
+                            Xóa tất cả
+                        </button>
                     </div>
                 ) : null}
-                {secondaryFilter ? (
-                    <div className="w-48">
-                        <SelectField
-                            label={secondaryFilter.label}
-                            value={secondaryFilter.value}
-                            options={[
-                                { label: "Tất cả", value: "ALL" },
-                                ...secondaryFilter.options
-                            ]}
-                            onChange={secondaryFilter.onChange}
-                        />
-                    </div>
-                ) : null}
-                {/* <button
-                    type="button"
-                    onClick={onRefresh}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border px-4 text-sm font-bold text-gray-600 hover:bg-neutral-50"
-                >
-                    <RefreshCw size={15} aria-hidden="true" />
-                    Tải lại dữ liệu
-                </button> */}
             </div>
 
             <div className={`grid gap-4 ${selectedItem ? "grid-cols-1 lg:grid-cols-[1fr_380px]" : "grid-cols-1"}`}>

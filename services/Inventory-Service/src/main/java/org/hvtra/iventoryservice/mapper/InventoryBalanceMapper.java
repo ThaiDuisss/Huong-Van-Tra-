@@ -16,7 +16,7 @@ public class InventoryBalanceMapper {
                 balance.getQuantityReserved(),
                 balance.getQuantityOnHand().subtract(balance.getQuantityReserved()),
                 balance.getVersion(),
-                balance.getUpdateDate()
+                balance.getUpdatedAt()
         );
     }
 }

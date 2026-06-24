@@ -25,6 +25,11 @@ public class UnitController {
         return service.findAll();
     }
 
+    @PostMapping("/batch")
+    public java.util.List<UnitResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+        return service.findAllByIds(ids);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public UnitResponse create(@Valid @RequestBody UnitRequest request) {
