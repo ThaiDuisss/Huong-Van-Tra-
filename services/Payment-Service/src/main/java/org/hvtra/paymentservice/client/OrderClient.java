@@ -9,16 +9,16 @@ import java.util.UUID;
 
 @FeignClient(
         name = "order-service",
-        url = "http://localhost:8086/api/orders"
+        path = "/api/orders"
 )
 public interface OrderClient {
 
     @GetMapping("/{orderId}/payment-info")
-    OrderPaymentInfoResponse getPaymentInfo(@PathVariable UUID orderId);
+    OrderPaymentInfoResponse getPaymentInfo(@PathVariable("orderId") UUID orderId);
 
     @PutMapping("/{orderId}/mark-paid")
     void markOrderPaid(
-            @PathVariable UUID orderId,
+            @PathVariable("orderId") UUID orderId,
             @RequestBody MarkOrderPaidRequest request
     );
 }
