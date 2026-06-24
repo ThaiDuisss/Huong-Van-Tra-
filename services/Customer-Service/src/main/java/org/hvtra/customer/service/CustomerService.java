@@ -6,6 +6,7 @@ import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.dto.response.PageResponse;
 import org.springframework.data.domain.Pageable;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface CustomerService {
@@ -18,6 +19,8 @@ public interface CustomerService {
     CustomerResponse create(CustomerRequest request);
 
     CustomerResponse update(UUID id, CustomerRequest request);
+
+    CustomerResponse updatePurchase(UUID customerId, BigDecimal purchaseAmount);
 
     void delete(UUID id);
 }

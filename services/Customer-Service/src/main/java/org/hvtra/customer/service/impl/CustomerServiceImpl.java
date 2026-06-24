@@ -13,6 +13,7 @@ import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.enums.CustomerStatus;
+import org.hvtra.customer.model.enums.CustomerTierStatus;
 import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.service.CustomerService;
@@ -23,6 +24,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Service
@@ -72,6 +75,29 @@ public class CustomerServiceImpl implements CustomerService {
         CustomerRequest normalizedRequest = normalizeUpdateRequest(request, customer);
         ensureUniqueFields(normalizedRequest, id);
         customerMapper.update(customer, normalizedRequest, findTier(normalizedRequest.tierId()));
+        return customerMapper.toResponse(customerRepository.save(customer));
+    }
+
+    @Override
+    @Transactional
+    public CustomerResponse updatePurchase(UUID customerId, BigDecimal purchaseAmount) {
+        if (customerId == null || purchaseAmount == null || purchaseAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw invalidRequest("Thông tin đơn hàng không hợp lệ");
+        }
+
+        Customer customer = findCustomer(customerId);
+        BigDecimal currentTotalSpent = defaultMoney(customer.getTotalSpent());
+        BigDecimal newTotalSpent = currentTotalSpent.add(purchaseAmount);
+
+        customer.setLastPurchaseDate(LocalDate.now());
+        customer.setTotalSpent(newTotalSpent);
+        customerTierRepository
+                .findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(
+                        newTotalSpent,
+                        CustomerTierStatus.ACTIVE
+                )
+                .ifPresent(customer::setTier);
+
         return customerMapper.toResponse(customerRepository.save(customer));
     }
 
@@ -168,11 +194,19 @@ public class CustomerServiceImpl implements CustomerService {
         return value != null && !value.isBlank();
     }
 
+    private BigDecimal defaultMoney(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
     private CustomerServiceException notFound(String message) {
         return new CustomerServiceException(ErrorCode.CUSTOMER_NOT_FOUND, message, HttpStatus.NOT_FOUND);
     }
 
     private CustomerServiceException conflict(String message) {
         return new CustomerServiceException(ErrorCode.CUSTOMER_CONFLICT, message, HttpStatus.CONFLICT);
+    }
+
+    private CustomerServiceException invalidRequest(String message) {
+        return new CustomerServiceException(ErrorCode.CUSTOMER_INVALID_REQUEST, message, HttpStatus.BAD_REQUEST);
     }
 }

@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.customer.client.OrderClient;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
@@ -41,6 +42,7 @@ import java.util.UUID;
 @Tag(name = "Customers", description = "CRUD khách hàng")
 public class CustomerController {
     private final CustomerService customerService;
+    private final OrderClient orderClient;
 
     @GetMapping
     @Operation(
@@ -84,7 +86,9 @@ public class CustomerController {
 
     @GetMapping(ApiPath.ID)
     @Operation(summary = "Lấy chi tiết khách hàng")
-    public CustomerResponse getById(@PathVariable @Parameter(description = "ID khách hàng") UUID id) {
+    public CustomerResponse getById(
+            @PathVariable(ApiParam.ID) @Parameter(description = "ID khách hàng") UUID id
+    ) {
         return customerService.getById(id);
     }
 
@@ -97,15 +101,26 @@ public class CustomerController {
 
     @PutMapping(ApiPath.ID)
     @Operation(summary = "Cập nhật khách hàng")
-    public CustomerResponse update(@PathVariable @Parameter(description = "ID khách hàng") UUID id,
+    public CustomerResponse update(@PathVariable(ApiParam.ID) @Parameter(description = "ID khách hàng") UUID id,
                                    @Valid @RequestBody CustomerRequest request) {
         return customerService.update(id, request);
+    }
+
+    @PutMapping(ApiPath.PURCHASE_UPDATE)
+    @Operation(summary = "Cập nhật thông tin mua hàng của khách hàng từ đơn hàng")
+    public CustomerResponse updatePurchase(
+            @PathVariable("orderId") @Parameter(description = "ID đơn hàng") UUID orderId
+    ) {
+        OrderClient.OrderResponse order = orderClient.getOrderById(orderId);
+        return customerService.updatePurchase(order.customerId(), order.finalAmount());
     }
 
     @DeleteMapping(ApiPath.ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Xóa mềm khách hàng")
-    public void delete(@PathVariable @Parameter(description = "ID khách hàng") UUID id) {
+    public void delete(@PathVariable(ApiParam.ID) @Parameter(description = "ID khách hàng") UUID id) {
         customerService.delete(id);
     }
+
+
 }
