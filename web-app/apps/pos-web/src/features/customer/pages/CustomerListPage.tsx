@@ -9,10 +9,13 @@ import {
     Search,
     X
 } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { Dialog } from "../../../components/ui/dialog";
+import { CustomerCreateDialog } from "../components/CustomerCreateDialog";
+import { CustomerDeleteDialog } from "../components/CustomerDeleteDialog";
+import { CustomerDetailDrawer } from "../components/CustomerDetailDrawer";
 import { CustomerFilterDialog } from "../components/CustomerFilterDialog";
 import { CustomerTable } from "../components/CustomerTable";
 import {
@@ -30,6 +33,7 @@ import type {
     CustomerFilterDraft,
     CustomerQuickViewId
 } from "../types/customer-list.types";
+import type { CustomerResponse } from "../types/customer.types";
 import {
     appendCustomerFilterDraft,
     customerErrorMessage,
@@ -45,10 +49,20 @@ export function CustomerListPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchDraft, setSearchDraft] = useState(searchParams.get("q") ?? "");
     const [showFilters, setShowFilters] = useState(false);
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [editingCustomer, setEditingCustomer] =
+        useState<CustomerResponse | null>(null);
+    const [deletingCustomer, setDeletingCustomer] =
+        useState<CustomerResponse | null>(null);
     const [filterDraft, setFilterDraft] = useState<CustomerFilterDraft>(() =>
         customerFilterDraftFromParams(searchParams)
     );
     const [exporting, setExporting] = useState(false);
+    const [detailOpen, setDetailOpen] = useState(false);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailError, setDetailError] = useState("");
+    const [selectedCustomer, setSelectedCustomer] =
+        useState<CustomerResponse | null>(null);
     const queryString = searchParams.toString();
     const {
         tiers,
@@ -63,6 +77,25 @@ export function CustomerListPage() {
     } = useCustomerListData(queryString);
     const activeQuickView = getActiveCustomerQuickView(searchParams, tiers);
     const appliedFilters = getAppliedCustomerFilters(searchParams, tiers);
+
+    const closeDetail = useCallback(() => {
+        setDetailOpen(false);
+    }, []);
+
+    async function openCustomerDetail(customer: CustomerResponse) {
+        setSelectedCustomer(customer);
+        setDetailOpen(true);
+        setDetailLoading(true);
+        setDetailError("");
+
+        try {
+            setSelectedCustomer(await customerApi.detail(customer.id));
+        } catch (detailRequestError) {
+            setDetailError(customerErrorMessage(detailRequestError));
+        } finally {
+            setDetailLoading(false);
+        }
+    }
 
     function submitSearch(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -170,8 +203,8 @@ export function CustomerListPage() {
                         />
                     </label>
                     <button
-                        className={`${CUSTOMER_BUTTON_BASE} cursor-not-allowed border border-[#b8c7bd] bg-[#e8eeea] text-[#728078]`}
-                        disabled
+                        className={`${CUSTOMER_BUTTON_BASE} bg-[#159734] text-white hover:bg-[#12862d]`}
+                        onClick={() => setShowCreateDialog(true)}
                         type="button"
                     >
                         <Plus size={17} aria-hidden="true" />
@@ -222,6 +255,59 @@ export function CustomerListPage() {
                         onClear={() => setFilterDraft(EMPTY_CUSTOMER_FILTER)}
                         onSubmit={applyFilters}
                     />
+                </Dialog>
+
+                <Dialog
+                    onOpenChange={setShowCreateDialog}
+                    open={showCreateDialog}
+                >
+                    {showCreateDialog && (
+                        <CustomerCreateDialog
+                            tiers={tiers}
+                            onCancel={() => setShowCreateDialog(false)}
+                            onSaved={async () => {
+                                setShowCreateDialog(false);
+                                await reload();
+                            }}
+                        />
+                    )}
+                </Dialog>
+
+                <Dialog
+                    onOpenChange={(open) => {
+                        if (!open) setEditingCustomer(null);
+                    }}
+                    open={editingCustomer !== null}
+                >
+                    {editingCustomer && (
+                        <CustomerCreateDialog
+                            customer={editingCustomer}
+                            tiers={tiers}
+                            onCancel={() => setEditingCustomer(null)}
+                            onSaved={async () => {
+                                setEditingCustomer(null);
+                                await reload();
+                            }}
+                        />
+                    )}
+                </Dialog>
+
+                <Dialog
+                    onOpenChange={(open) => {
+                        if (!open) setDeletingCustomer(null);
+                    }}
+                    open={deletingCustomer !== null}
+                >
+                    {deletingCustomer && (
+                        <CustomerDeleteDialog
+                            customer={deletingCustomer}
+                            onCancel={() => setDeletingCustomer(null)}
+                            onDeleted={async () => {
+                                setDeletingCustomer(null);
+                                await reload();
+                            }}
+                        />
+                    )}
                 </Dialog>
 
                 <div className="flex flex-wrap gap-2" aria-label="Lọc nhanh">
@@ -332,9 +418,23 @@ export function CustomerListPage() {
                     loading={loading}
                     loadingMore={loadingMore}
                     result={result}
+                    onCustomerClick={(customer) =>
+                        void openCustomerDetail(customer)
+                    }
+                    onCustomerDelete={setDeletingCustomer}
+                    onCustomerEdit={setEditingCustomer}
                     onLoadMore={() => void loadMore()}
                 />
             </main>
+            <CustomerDetailDrawer
+                customer={selectedCustomer}
+                error={detailError}
+                loading={detailLoading}
+                onClose={closeDetail}
+                onDelete={setDeletingCustomer}
+                onEdit={setEditingCustomer}
+                open={detailOpen}
+            />
         </section>
     );
 }

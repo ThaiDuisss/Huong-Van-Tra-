@@ -1,5 +1,17 @@
-import { LoaderCircle, MoreHorizontal } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import {
+    Eye,
+    LoaderCircle,
+    MoreHorizontal,
+    Pencil,
+    Trash2
+} from "lucide-react";
+import {
+    type ReactNode,
+    useEffect,
+    useRef,
+    useState
+} from "react";
+import { createPortal } from "react-dom";
 
 import {
     CUSTOMER_BUTTON_BASE,
@@ -23,6 +35,9 @@ interface Props {
     loadingMore: boolean;
     error: string;
     onLoadMore: () => void;
+    onCustomerClick: (customer: CustomerResponse) => void;
+    onCustomerEdit: (customer: CustomerResponse) => void;
+    onCustomerDelete: (customer: CustomerResponse) => void;
 }
 
 export function CustomerTable({
@@ -31,7 +46,10 @@ export function CustomerTable({
     loading,
     loadingMore,
     error,
-    onLoadMore
+    onLoadMore,
+    onCustomerClick,
+    onCustomerEdit,
+    onCustomerDelete
 }: Props) {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(
         () => new Set()
@@ -105,6 +123,9 @@ export function CustomerTable({
                                 index={index}
                                 isSelected={selectedIds.has(customer.id)}
                                 key={customer.id}
+                                onClick={() => onCustomerClick(customer)}
+                                onDelete={() => onCustomerDelete(customer)}
+                                onEdit={() => onCustomerEdit(customer)}
                                 onToggle={() => toggleCustomer(customer.id)}
                             />
                         ))}
@@ -162,24 +183,105 @@ function CustomerTableRow({
     customer,
     index,
     isSelected,
+    onClick,
+    onDelete,
+    onEdit,
     onToggle
 }: {
     customer: CustomerResponse;
     index: number;
     isSelected: boolean;
+    onClick: () => void;
+    onDelete: () => void;
+    onEdit: () => void;
     onToggle: () => void;
 }) {
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+
+        function closeMenuOnOutsideClick(event: PointerEvent) {
+            const target = event.target as Node;
+            if (
+                !menuButtonRef.current?.contains(target) &&
+                !menuRef.current?.contains(target)
+            ) {
+                setMenuOpen(false);
+            }
+        }
+
+        function closeMenu() {
+            setMenuOpen(false);
+        }
+
+        document.addEventListener("pointerdown", closeMenuOnOutsideClick);
+        window.addEventListener("resize", closeMenu);
+        window.addEventListener("scroll", closeMenu, true);
+        return () => {
+            document.removeEventListener("pointerdown", closeMenuOnOutsideClick);
+            window.removeEventListener("resize", closeMenu);
+            window.removeEventListener("scroll", closeMenu, true);
+        };
+    }, [menuOpen]);
+
+    function runAction(action: () => void) {
+        setMenuOpen(false);
+        action();
+    }
+
+    function toggleMenu() {
+        if (menuOpen) {
+            setMenuOpen(false);
+            return;
+        }
+
+        const rect = menuButtonRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const menuWidth = 176;
+        const menuHeight = 106;
+        const gap = 4;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const top =
+            spaceBelow >= menuHeight + gap
+                ? rect.bottom + gap
+                : rect.top - menuHeight - gap;
+
+        setMenuPosition({
+            left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+            top: Math.max(8, top)
+        });
+        setMenuOpen(true);
+    }
+
     return (
         <tr
             className={`group cursor-pointer ${isSelected ? "[&>td]:bg-[#f0faf2]" : ""
                 }`}
+            onClick={onClick}
+            onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onClick();
+                }
+            }}
+            role="button"
+            tabIndex={0}
         >
             <td className="h-[58px] w-12 whitespace-nowrap border-b border-[#eef2f0] bg-white px-3.5 pr-1 text-center align-middle group-hover:bg-[#f7fbf8]">
                 <input
                     aria-label={`Chọn ${customer.fullName}`}
                     checked={isSelected}
                     className="size-4 accent-[#159734]"
-                    onChange={onToggle}
+                    onChange={(event) => {
+                        event.stopPropagation();
+                        onToggle();
+                    }}
+                    onClick={(event) => event.stopPropagation()}
                     type="checkbox"
                 />
             </td>
@@ -192,6 +294,10 @@ function CustomerTableRow({
             <TableCell>
                 <button
                     className="bg-transparent p-0 text-left font-black text-[#172317] hover:text-[#159734]"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onClick();
+                    }}
                     type="button"
                 >
                     {customer.fullName}
@@ -223,15 +329,78 @@ function CustomerTableRow({
                 </span>
             </TableCell>
             <TableCell>
-                <button
-                    className="grid size-8 place-items-center rounded-lg border border-transparent bg-transparent text-[#596879] hover:border-[#dce5e1] hover:bg-white hover:text-[#172317]"
-                    type="button"
-                    aria-label={`Mở thao tác cho ${customer.fullName}`}
+                <div
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
                 >
-                    <MoreHorizontal size={18} aria-hidden="true" />
-                </button>
+                    <button
+                        aria-expanded={menuOpen}
+                        aria-haspopup="menu"
+                        aria-label={`Mở thao tác cho ${customer.fullName}`}
+                        className="grid size-8 place-items-center rounded-lg border border-transparent bg-transparent text-[#596879] hover:border-[#dce5e1] hover:bg-white hover:text-[#172317]"
+                        onClick={toggleMenu}
+                        ref={menuButtonRef}
+                        type="button"
+                    >
+                        <MoreHorizontal size={18} aria-hidden="true" />
+                    </button>
+                    {menuOpen &&
+                        createPortal(
+                        <div
+                            className="fixed z-[60] w-44 overflow-hidden rounded-lg border border-[#dce5e1] bg-white py-1 text-xs font-bold shadow-[0_12px_30px_rgba(31,53,43,0.18)]"
+                            onClick={(event) => event.stopPropagation()}
+                            ref={menuRef}
+                            role="menu"
+                            style={menuPosition}
+                        >
+                            <ActionItem
+                                icon={Eye}
+                                label="Xem chi tiết"
+                                onClick={() => runAction(onClick)}
+                            />
+                            <ActionItem
+                                icon={Pencil}
+                                label="Chỉnh sửa"
+                                onClick={() => runAction(onEdit)}
+                            />
+                            <ActionItem
+                                danger
+                                icon={Trash2}
+                                label="Xóa khách hàng"
+                                onClick={() => runAction(onDelete)}
+                            />
+                        </div>,
+                        document.body
+                    )}
+                </div>
             </TableCell>
         </tr>
+    );
+}
+
+function ActionItem({
+    danger = false,
+    icon: Icon,
+    label,
+    onClick
+}: {
+    danger?: boolean;
+    icon: typeof Eye;
+    label: string;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[#f3f7f4] ${
+                danger ? "text-[#c4422e]" : "text-[#334336]"
+            }`}
+            onClick={onClick}
+            role="menuitem"
+            type="button"
+        >
+            <Icon size={15} aria-hidden="true" />
+            {label}
+        </button>
     );
 }
 
