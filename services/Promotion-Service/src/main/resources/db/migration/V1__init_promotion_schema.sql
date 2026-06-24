@@ -9,7 +9,10 @@ CREATE TABLE events (
 
                         status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
 
+                        created_by BINARY(16) NULL,
                         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                        updated_by BINARY(16) NULL,
                         updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                         version BIGINT NOT NULL DEFAULT 0,
@@ -38,7 +41,10 @@ CREATE TABLE promotions (
                             priority INT NOT NULL DEFAULT 0,
                             status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
 
+                            created_by BINARY(16) NULL,
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                            updated_by BINARY(16) NULL,
                             updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                             version BIGINT NOT NULL DEFAULT 0,
@@ -69,7 +75,10 @@ CREATE TABLE promotion_conditions (
                                       operator VARCHAR(30) NOT NULL,
                                       condition_value VARCHAR(255) NOT NULL,
 
+                                      created_by BINARY(16) NULL,
                                       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                                      updated_by BINARY(16) NULL,
                                       updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                                       version BIGINT NOT NULL DEFAULT 0,
@@ -94,7 +103,10 @@ CREATE TABLE promotion_benefits (
                                     value DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
                                     max_discount DECIMAL(14, 2) NULL,
 
+                                    created_by BINARY(16) NULL,
                                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                                    updated_by BINARY(16) NULL,
                                     updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                                     version BIGINT NOT NULL DEFAULT 0,
@@ -115,12 +127,6 @@ CREATE TABLE coupons (
 
                          promotion_id BINARY(16) NOT NULL,
 
-    /*
-      customer_id là ID của customer-service.
-      Không tạo FK tới bảng customers vì promotion-service không own customer table.
-      NULL nghĩa là coupon dùng chung cho mọi khách.
-      NOT NULL nghĩa là coupon được gán riêng cho một khách.
-    */
                          customer_id BINARY(16) NULL,
 
                          code VARCHAR(100) NOT NULL,
@@ -131,7 +137,10 @@ CREATE TABLE coupons (
                          expires_at DATETIME NULL,
                          status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
 
+                         created_by BINARY(16) NULL,
                          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                         updated_by BINARY(16) NULL,
                          updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                          version BIGINT NOT NULL DEFAULT 0,
@@ -157,23 +166,11 @@ CREATE TABLE coupon_usages (
 
                                coupon_id BINARY(16) NOT NULL,
 
-    /*
-      order_id là ID của order-service.
-      customer_id là ID của customer-service.
-      Không tạo FK tới orders/customers vì khác bounded context.
-    */
                                order_id BINARY(16) NOT NULL,
                                customer_id BINARY(16) NOT NULL,
 
                                discount_amount DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
 
-    /*
-      Flow gợi ý:
-      RESERVED -> APPLIED
-      RESERVED -> RELEASED
-      RESERVED -> EXPIRED
-      APPLIED  -> CANCELLED nếu order bị hủy sau thanh toán
-    */
                                status VARCHAR(30) NOT NULL DEFAULT 'RESERVED',
 
                                reservation_token VARCHAR(100) NULL,
@@ -183,7 +180,10 @@ CREATE TABLE coupon_usages (
                                used_at DATETIME NULL,
                                released_at DATETIME NULL,
 
+                               created_by BINARY(16) NULL,
                                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                               updated_by BINARY(16) NULL,
                                updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                                version BIGINT NOT NULL DEFAULT 0,
