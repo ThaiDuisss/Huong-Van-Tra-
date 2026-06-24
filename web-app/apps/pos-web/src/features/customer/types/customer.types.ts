@@ -27,6 +27,19 @@ export interface CustomerResponse {
     createdAt: string;
 }
 
+export interface CreateCustomerRequest {
+    customerCode?: string | null;
+    fullName: string;
+    phone: string;
+    email?: string | null;
+    dateOfBirth?: string | null;
+    tierId?: string | null;
+    creditLimit?: number | null;
+    lastPurchaseDate?: string | null;
+    totalSpent?: number | null;
+    status?: CustomerStatus | null;
+}
+
 export interface CustomerTierResponse {
     id: string;
     code: string;
