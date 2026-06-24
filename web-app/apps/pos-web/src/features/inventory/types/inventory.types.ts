@@ -193,7 +193,6 @@ export interface InventoryTransactionQuery extends QueryParams {
 }
 
 export interface StoreStockInRequest {
-    branchId: EntityId;
     referenceType: InventoryReferenceType;
     referenceId: EntityId | null;
     lines: Array<{
@@ -203,11 +202,19 @@ export interface StoreStockInRequest {
 }
 
 export interface StoreStockAdjustmentRequest {
-    branchId: EntityId;
     referenceType: InventoryReferenceType;
     referenceId: EntityId | null;
     lines: Array<{
         inventoryItemId: EntityId;
         actualQuantity: number;
+    }>;
+}
+
+export interface StoreStockOutRequest {
+    referenceType: InventoryReferenceType;
+    referenceId: EntityId | null;
+    lines: Array<{
+        inventoryItemId: EntityId;
+        quantity: number;
     }>;
 }

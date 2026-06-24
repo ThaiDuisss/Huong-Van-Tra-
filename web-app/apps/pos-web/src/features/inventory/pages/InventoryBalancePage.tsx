@@ -657,7 +657,6 @@ export function InventoryBalancePage() {
                                 onSubmit={async (input) => {
                                     if (activeModal === "stock-in") {
                                         return inventoryTransactionApi.storeStockIn({
-                                            branchId: input.branchId,
                                             referenceType: input.referenceType,
                                             referenceId: input.referenceId,
                                             lines: input.lines.map((line) => ({
@@ -667,7 +666,6 @@ export function InventoryBalancePage() {
                                         });
                                     } else {
                                         return inventoryTransactionApi.storeAdjust({
-                                            branchId: input.branchId,
                                             referenceType: input.referenceType,
                                             referenceId: input.referenceId,
                                             lines: input.lines.map((line) => ({

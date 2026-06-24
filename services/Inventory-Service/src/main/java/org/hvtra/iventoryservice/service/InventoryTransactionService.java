@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 
 import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockOutRequest;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -19,6 +20,7 @@ public interface InventoryTransactionService {
     InventoryTransactionResponse adjust(StockAdjustmentRequest request);
     InventoryTransactionResponse storeStockIn(StoreStockInRequest request);
     InventoryTransactionResponse storeAdjust(StoreStockAdjustmentRequest request);
+    InventoryTransactionResponse storeStockOut(StoreStockOutRequest request);
     PageResponse<InventoryTransactionResponse> findAll(
             String transactionCode,
             InventoryTransactionType type,

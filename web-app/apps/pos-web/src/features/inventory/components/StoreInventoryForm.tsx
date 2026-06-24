@@ -31,7 +31,7 @@ interface StoreInventoryFormProps {
     mode: "stock-in" | "adjustment";
     onSuccess(): void;
     onSubmit(input: {
-        branchId: EntityId;
+        branchId?: EntityId;
         referenceType: InventoryReferenceType;
         referenceId: EntityId | null;
         locationId?: EntityId;
@@ -196,7 +196,7 @@ export function StoreInventoryForm({
     // Submit transaction
     const handleSubmit = async () => {
         if (submitting) return;
-        if (!branchId || lines.length === 0) {
+        if (lines.length === 0) {
             setError("Vui lòng nhập đầy đủ thông tin bắt buộc.");
             return;
         }

@@ -5,6 +5,7 @@ import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StockInRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockOutRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.enums.InventoryReferenceType;
@@ -85,5 +86,12 @@ public class InventoryTransactionController {
     public InventoryTransactionResponse storeAdjust(
             @Valid @RequestBody StoreStockAdjustmentRequest request) {
         return service.storeAdjust(request);
+    }
+
+    @PostMapping("/store/stock-out")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InventoryTransactionResponse storeStockOut(
+            @Valid @RequestBody StoreStockOutRequest request) {
+        return service.storeStockOut(request);
     }
 }
