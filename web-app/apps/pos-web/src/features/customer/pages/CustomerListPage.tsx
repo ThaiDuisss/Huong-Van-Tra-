@@ -27,7 +27,6 @@ const quickFilters = [
     { label: "Tất cả", count: "12.458", active: true },
     { label: "Mới tạo", count: "126" },
     { label: "Mua gần đây", count: "1.204" },
-    { label: "Khách thân thiết", count: "328" },
     { label: "Sinh nhật tháng này", count: "46" }
 ];
 
@@ -166,13 +165,6 @@ export function CustomerListPage() {
                         className={`${buttonBase} ${compactButton}`}
                         type="button"
                     >
-                        <ScanLine size={16} aria-hidden="true" />
-                        Quét mã
-                    </button>
-                    <button
-                        className={`${buttonBase} ${compactButton}`}
-                        type="button"
-                    >
                         <Filter size={16} aria-hidden="true" />
                         Bộ lọc
                     </button>
@@ -188,11 +180,10 @@ export function CustomerListPage() {
                 <div className="flex flex-wrap gap-2" aria-label="Lọc nhanh">
                     {quickFilters.map((filter) => (
                         <button
-                            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-[11px] text-xs font-extrabold ${
-                                filter.active
-                                    ? "border-[#159734] bg-[#eaf8ed] text-[#0f7d29]"
-                                    : "border-[#dde6e2] bg-white text-[#5f6b7a] hover:bg-[#f7fbf8]"
-                            }`}
+                            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-[11px] text-xs font-extrabold ${filter.active
+                                ? "border-[#159734] bg-[#eaf8ed] text-[#0f7d29]"
+                                : "border-[#dde6e2] bg-white text-[#5f6b7a] hover:bg-[#f7fbf8]"
+                                }`}
                             key={filter.label}
                             type="button"
                         >
@@ -300,11 +291,10 @@ export function CustomerListPage() {
                                         <TableCell>{customer.phone}</TableCell>
                                         <TableCell>
                                             <span
-                                                className={`inline-flex h-[25px] items-center justify-center rounded-[7px] px-[9px] text-[11px] font-black ${
-                                                    tierClassNames[
-                                                        customer.tier
-                                                    ]
-                                                }`}
+                                                className={`inline-flex h-[25px] items-center justify-center rounded-[7px] px-[9px] text-[11px] font-black ${tierClassNames[
+                                                    customer.tier
+                                                ]
+                                                    }`}
                                             >
                                                 {customer.tier}
                                             </span>

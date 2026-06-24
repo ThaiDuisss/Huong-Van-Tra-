@@ -66,9 +66,20 @@ public class ProductVariantController {
     )
     @GetMapping("/search-view-pos")
     public java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(
+            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productName", required = false) String productName) {
-        return service.searchVariants(sku, productName);
+        return service.searchVariants(keyword, sku, productName);
+    }
+
+    @Tag(
+            name = "API cho POS CatalogService",
+            description = "Output: productId, variantId, sku, productName, variantName, categoryName, sellingPrice, imageUrl"
+    )
+    @GetMapping("/{variantId}/pos-view")
+    public org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse getPosView(
+            @PathVariable("variantId") UUID variantId) {
+        return service.getPosView(variantId);
     }
 
     @PutMapping("/{id}")

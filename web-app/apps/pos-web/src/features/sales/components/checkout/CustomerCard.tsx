@@ -7,6 +7,9 @@ import type { SaleCustomer } from "../../types/sale.types";
 interface CustomerSelectorProps {
   customers: SaleCustomer[];
   selectedCustomer: SaleCustomer | null;
+  loading: boolean;
+  error: string;
+  onOpen(): void;
   onSelect(customerId: string): void;
   onClear(): void;
 }
@@ -14,6 +17,9 @@ interface CustomerSelectorProps {
 export function CustomerSelector({
   customers,
   selectedCustomer,
+  loading,
+  error,
+  onOpen,
   onSelect,
   onClear
 }: CustomerSelectorProps) {
@@ -45,7 +51,10 @@ export function CustomerSelector({
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
           aria-haspopup="dialog"
           aria-expanded={open}
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            onOpen();
+            setOpen(true);
+          }}
         >
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-neutral-100 text-neutral-500">
             <User size={22} aria-hidden="true" />
@@ -55,8 +64,9 @@ export function CustomerSelector({
               {selectedCustomer?.name ?? "Chọn khách hàng"}
             </strong>
             <span className="text-xs text-[#53678f]">
-              {selectedCustomer?.phone ??
-                "Tìm theo tên, SĐT hoặc mã KH"}
+              {selectedCustomer
+                ? selectedCustomer.phone || selectedCustomer.customerCode
+                : "Tìm theo tên, SĐT hoặc mã KH"}
             </span>
           </div>
         </button>
@@ -83,6 +93,8 @@ export function CustomerSelector({
         open={open}
         customers={customers}
         selectedCustomerId={selectedCustomer?.id ?? ""}
+        loading={loading}
+        error={error}
         onSelect={onSelect}
         onClose={closeDialog}
       />

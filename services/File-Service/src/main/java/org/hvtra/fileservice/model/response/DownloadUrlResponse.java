@@ -1,6 +1,10 @@
 package org.hvtra.fileservice.model.response;
 
+import org.hvtra.fileservice.model.enums.FileVisibility;
+
 public record DownloadUrlResponse(
-        String downloadUrl,
-        Integer expiresInSeconds
-) {}
+        String url,
+        Integer expiresInSeconds,
+        FileVisibility visibility
+) {
+}

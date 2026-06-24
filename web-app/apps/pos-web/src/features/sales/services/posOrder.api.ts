@@ -54,12 +54,7 @@ export const posOrderApi = {
                 shippingFee: number;
                 items: Array<{
                     productVariantId: string;
-                    skuSnapshot: string;
-                    productNameSnapshot: string;
-                    variantNameSnapshot: string;
                     quantity: number;
-                    originalUnitPrice: number;
-                    actualUnitPrice: number;
                     discountAmount: number;
                 }>;
             }
@@ -70,12 +65,7 @@ export const posOrderApi = {
             shippingFee: 0,
             items: input.items.map((item) => ({
                 productVariantId: getProductVariantId(item),
-                skuSnapshot: item.sku,
-                productNameSnapshot: item.name,
-                variantNameSnapshot: item.variant,
                 quantity: item.quantity,
-                originalUnitPrice: item.unitPrice,
-                actualUnitPrice: item.unitPrice,
                 discountAmount: 0
             }))
         });

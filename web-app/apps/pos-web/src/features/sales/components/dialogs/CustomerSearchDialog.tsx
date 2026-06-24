@@ -19,6 +19,8 @@ interface CustomerSearchDialogProps {
   open: boolean;
   customers: SaleCustomer[];
   selectedCustomerId: string;
+  loading: boolean;
+  error: string;
   onSelect(customerId: string): void;
   onClose(): void;
 }
@@ -71,6 +73,8 @@ export function CustomerSearchDialog({
   open,
   customers,
   selectedCustomerId,
+  loading,
+  error,
   onSelect,
   onClose
 }: CustomerSearchDialogProps) {
@@ -108,6 +112,9 @@ export function CustomerSearchDialog({
     return customers.filter(
       (customer) =>
         customer.name.toLowerCase().includes(normalizedQuery) ||
+        (customer.customerCode ?? "")
+          .toLowerCase()
+          .includes(normalizedQuery) ||
         customer.phone.replace(/\s/g, "").includes(
           normalizedQuery.replace(/\s/g, "")
         )
@@ -183,21 +190,46 @@ export function CustomerSearchDialog({
         />
       </label>
 
-      <CustomerGroup
-        title="Khách hàng gần đây"
-        customers={recentCustomers}
-        selectedCustomerId={selectedCustomerId}
-        onSelect={selectCustomer}
-      />
+      {loading ? (
+        <div className="rounded-xl border border-dashed border-pos-border py-6 text-center text-sm text-neutral-500">
+          Đang tải danh sách khách hàng...
+        </div>
+      ) : null}
 
-      <CustomerGroup
-        title="Khách hàng mua nhiều nhất hôm nay"
-        customers={frequentCustomers}
-        selectedCustomerId={selectedCustomerId}
-        onSelect={selectCustomer}
-      />
+      {!loading && error ? (
+        <div className="rounded-xl border border-dashed border-red-200 bg-red-50 py-6 text-center text-sm font-semibold text-red-700">
+          Không thể tải danh sách khách hàng
+        </div>
+      ) : null}
 
-      {filteredCustomers.length === 0 ? (
+      {!loading && !error ? (
+        <>
+          <CustomerGroup
+            title="Khách hàng gần đây"
+            customers={recentCustomers}
+            selectedCustomerId={selectedCustomerId}
+            onSelect={selectCustomer}
+          />
+
+          <CustomerGroup
+            title="Khách hàng mua nhiều nhất hôm nay"
+            customers={frequentCustomers}
+            selectedCustomerId={selectedCustomerId}
+            onSelect={selectCustomer}
+          />
+        </>
+      ) : null}
+
+      {!loading && !error && customers.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-pos-border py-6 text-center text-sm text-neutral-500">
+          Chưa có khách hàng
+        </div>
+      ) : null}
+
+      {!loading &&
+      !error &&
+      customers.length > 0 &&
+      filteredCustomers.length === 0 ? (
         <div className="rounded-xl border border-dashed border-pos-border py-6 text-center text-sm text-neutral-500">
           Không tìm thấy khách hàng phù hợp.
         </div>
@@ -268,7 +300,7 @@ function CustomerGroup({
                     {customer.name}
                   </strong>
                   <span className="block text-xs text-neutral-500">
-                    {customer.phone}
+                    {customer.phone || customer.customerCode}
                   </span>
                 </span>
               </span>
@@ -280,11 +312,13 @@ function CustomerGroup({
                   {customer.tier}
                 </span>
                 <span className="text-xs text-neutral-500">
-                  {customer.orderCount} đơn
+                  {customer.customerCode}
                 </span>
-                <span className="text-xs font-semibold text-gray-500">
-                  {formatCurrency(customer.totalSpent)}
-                </span>
+                {customer.totalSpent > 0 ? (
+                  <span className="text-xs font-semibold text-gray-500">
+                    {formatCurrency(customer.totalSpent)}
+                  </span>
+                ) : null}
               </span>
             </button>
           );

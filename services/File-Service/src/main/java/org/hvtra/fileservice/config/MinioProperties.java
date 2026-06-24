@@ -7,16 +7,27 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration
-@ConfigurationProperties(prefix = "minio")
 @Getter
 @Setter
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@Configuration
+@ConfigurationProperties(prefix = "minio")
 public class MinioProperties {
+
     private String endpoint;
+    private String publicEndpoint;
+
     private String accessKey;
     private String secretKey;
-    private String bucket;
-    private int presignedUploadExpirySeconds = 300;
-    private int presignedDownloadExpirySeconds = 300;
+
+    private Buckets buckets = new Buckets();
+
+    private Integer presignedUploadExpirySeconds = 300;
+    private Integer presignedDownloadExpirySeconds = 300;
+
+    @Getter
+    @Setter
+    public static class Buckets {
+        private String publicBucket;
+        private String privateBucket;
+    }
 }

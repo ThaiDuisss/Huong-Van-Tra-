@@ -20,7 +20,7 @@ import { CombinedPaymentDialog } from "../components/dialogs/CombinedPaymentDial
 import type { PaymentStatusValue } from "../components/dialogs/PaymentStatus";
 import { ProductSearchBar } from "../components/product/ProductSearchBar";
 import { mockDiscounts } from "../mock/discounts.mock";
-import { mockCustomers } from "../mock/customers.mock";
+import { posCustomerApi } from "../services/posCustomer.api";
 import { formatCurrency } from "../services/money";
 import { posOrderApi } from "../services/posOrder.api";
 import { posPaymentApi } from "../services/posPayment.api";
@@ -32,6 +32,7 @@ import {
 import type {
     SaleCartItem,
     SaleDiscountOption,
+    SaleCustomer,
     SaleOrderType,
     SalePaymentMethod,
     SaleProductPreview,
@@ -53,6 +54,7 @@ const noDiscount: SaleDiscountOption = {
 };
 
 const bankTransferReferenceCode = "HVT-HD000015";
+const currentInvoiceId = "invoice-1";
 
 const initialCartItems: Record<string, SaleCartItem> = {};
 
@@ -87,6 +89,9 @@ export function PosSalePage() {
     >([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchError, setSearchError] = useState("");
+    const [addingProductId, setAddingProductId] = useState<string | null>(
+        null
+    );
     const [cartItemsById, setCartItemsById] = useState<
         Record<string, SaleCartItem>
     >(initialCartItems);
@@ -104,11 +109,20 @@ export function PosSalePage() {
         useState<SalePaymentMethod>("CASH");
     const [bankTransferStatus, setBankTransferStatus] =
         useState<PaymentStatusValue>("WAITING");
-    const [selectedCustomerId, setSelectedCustomerId] =
-        useState<string | null>(null);
+    const [customers, setCustomers] = useState<SaleCustomer[]>([]);
+    const [customersLoading, setCustomersLoading] = useState(false);
+    const [customersLoaded, setCustomersLoaded] = useState(false);
+    const [customersError, setCustomersError] = useState("");
+    const [selectedCustomersByInvoice, setSelectedCustomersByInvoice] =
+        useState<Record<string, SaleCustomer | null>>({
+            [currentInvoiceId]: null
+        });
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [checkoutError, setCheckoutError] = useState("");
     const [checkoutSuccess, setCheckoutSuccess] = useState("");
+    const [createdOrderId, setCreatedOrderId] = useState<string | null>(
+        null
+    );
 
     useEffect(() => {
         const normalizedQuery = searchQuery.trim();
@@ -142,7 +156,7 @@ export function PosSalePage() {
                         setSearchLoading(false);
                     }
                 });
-        }, 250);
+        }, 300);
 
         return () => {
             active = false;
@@ -160,11 +174,8 @@ export function PosSalePage() {
             (discount) => discount.id === selectedDiscountId
         ) ?? noDiscount;
     const selectedCustomer =
-        selectedCustomerId === null
-            ? null
-            : mockCustomers.find(
-                (customer) => customer.id === selectedCustomerId
-            ) ?? null;
+        selectedCustomersByInvoice[currentInvoiceId] ?? null;
+    const selectedCustomerId = selectedCustomer?.id ?? null;
 
     const baseTotals = calculateSaleTotals(cartItems, selectedDiscount);
     const subtotalOverrideDiscount =
@@ -187,6 +198,11 @@ export function PosSalePage() {
     async function completePayment() {
         if (cartItems.length === 0) {
             setCheckoutError("Giỏ hàng đang rỗng.");
+            return;
+        }
+
+        if (orderType !== "QUICK_SALE") {
+            setCheckoutError("Vui lòng chọn tab Bán nhanh để thanh toán.");
             return;
         }
 
@@ -213,25 +229,52 @@ export function PosSalePage() {
         setCheckoutError("");
         setCheckoutSuccess("");
 
+        let orderId = createdOrderId;
+        let orderCode = "";
+        let amountToPay = totals.total;
+
         try {
-            const order = await posOrderApi.create({
-                customerId: isUuid(selectedCustomerId)
-                    ? selectedCustomerId
-                    : null,
-                orderType,
-                discountAmount: totals.discountAmount,
-                items: cartItems
-            });
-            const amountToPay = Number(order.finalAmount ?? totals.total);
+            if (!orderId) {
+                try {
+                    const order = await posOrderApi.create({
+                        customerId: isUuid(selectedCustomerId)
+                            ? selectedCustomerId
+                            : null,
+                        orderType,
+                        discountAmount: totals.discountAmount,
+                        items: cartItems
+                    });
+
+                    orderId = order.id;
+                    orderCode = order.orderCode;
+                    amountToPay = Number(order.finalAmount ?? totals.total);
+                    setCreatedOrderId(order.id);
+                } catch (error) {
+                    logApiError(error);
+                    setCheckoutError(
+                        `Tạo đơn thất bại: ${getErrorMessage(error)}`
+                    );
+                    return;
+                }
+            }
+
             const receivedAmount =
                 paymentMethod === "CASH"
                     ? Math.max(cashReceived, amountToPay)
                     : amountToPay;
 
-            await posPaymentApi.payByCash({
-                orderId: order.id,
-                receivedAmount
-            });
+            try {
+                await posPaymentApi.payByCash({
+                    orderId,
+                    receivedAmount
+                });
+            } catch (error) {
+                logApiError(error);
+                setCheckoutError(
+                    `Đã tạo đơn nhưng thanh toán thất bại: ${getErrorMessage(error)}`
+                );
+                return;
+            }
 
             setCartItemsById({});
             setNote("");
@@ -240,8 +283,12 @@ export function PosSalePage() {
             setSubtotalOverrideNote("");
             setCashReceived(0);
             setBankTransferStatus("WAITING");
+            setCreatedOrderId(null);
+            clearCustomer();
             setCheckoutSuccess(
-                `Thanh toán thành công đơn ${order.orderCode}.`
+                orderCode
+                    ? `Thanh toán thành công đơn ${orderCode}.`
+                    : "Thanh toán thành công."
             );
         } catch (error) {
             logApiError(error);
@@ -251,7 +298,48 @@ export function PosSalePage() {
         }
     }
 
-    function addProduct(product: SaleProductPreview) {
+    function loadCustomers() {
+        if (customersLoading || customersLoaded) {
+            return;
+        }
+
+        setCustomersLoading(true);
+        setCustomersError("");
+
+        void posCustomerApi
+            .listCustomerInfo()
+            .then((nextCustomers) => {
+                setCustomers(nextCustomers);
+                setCustomersLoaded(true);
+            })
+            .catch((error: unknown) => {
+                logApiError(error);
+                setCustomers([]);
+                setCustomersError("Không thể tải danh sách khách hàng");
+            })
+            .finally(() => {
+                setCustomersLoading(false);
+            });
+    }
+
+    function selectCustomer(customerId: string) {
+        const nextCustomer =
+            customers.find((customer) => customer.id === customerId) ?? null;
+
+        setSelectedCustomersByInvoice((currentCustomers) => ({
+            ...currentCustomers,
+            [currentInvoiceId]: nextCustomer
+        }));
+    }
+
+    function clearCustomer() {
+        setSelectedCustomersByInvoice((currentCustomers) => ({
+            ...currentCustomers,
+            [currentInvoiceId]: null
+        }));
+    }
+
+    function upsertCartItem(product: SaleProductPreview) {
         setCheckoutError("");
         setCheckoutSuccess("");
         setCartItemsById((currentItems) => {
@@ -263,9 +351,7 @@ export function PosSalePage() {
                     productId: product.id,
                     productVariantId: product.productVariantId,
                     name: product.name,
-                    sku: product.sku.startsWith("SKU-")
-                        ? product.sku
-                        : `SKU-${product.sku}`,
+                    sku: product.sku,
                     variant: product.variant,
                     quantity: Math.min(
                         product.availableQuantity,
@@ -277,9 +363,41 @@ export function PosSalePage() {
         });
     }
 
-    function addProductFromSearch(product: SaleProductPreview) {
-        addProduct(product);
-        clearSearch();
+    async function addProduct(product: SaleProductPreview) {
+        const variantId = product.productVariantId ?? product.id;
+
+        if (addingProductId) {
+            return false;
+        }
+
+        if (!variantId) {
+            setCheckoutError("Không xác định được mã biến thể sản phẩm.");
+            return false;
+        }
+
+        setAddingProductId(product.id);
+
+        try {
+            const snapshot = await posProductApi.getPosView(variantId);
+            upsertCartItem(snapshot);
+            return true;
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(
+                `Không thể thêm sản phẩm: ${getErrorMessage(error)}`
+            );
+            return false;
+        } finally {
+            setAddingProductId(null);
+        }
+    }
+
+    async function addProductFromSearch(product: SaleProductPreview) {
+        const added = await addProduct(product);
+
+        if (added) {
+            clearSearch();
+        }
     }
 
     function changeSearchQuery(value: string) {
@@ -289,6 +407,8 @@ export function PosSalePage() {
             setSearchResults([]);
             setSearchError("");
             setSearchLoading(false);
+        } else {
+            setSearchLoading(true);
         }
     }
 
@@ -369,12 +489,15 @@ export function PosSalePage() {
                     subtotalOverrideNote={subtotalOverrideNote}
                     cashReceived={cashReceived}
                     changeAmount={changeAmount}
+                    orderType={orderType}
                     paymentMethod={paymentMethod}
                     bankTransferStatus={bankTransferStatus}
                     checkoutLoading={checkoutLoading}
                     checkoutError={checkoutError}
                     checkoutSuccess={checkoutSuccess}
-                    customers={mockCustomers}
+                    customers={customers}
+                    customersLoading={customersLoading}
+                    customersError={customersError}
                     selectedCustomer={selectedCustomer}
                     onCashReceivedChange={setCashReceived}
                     onDiscountChange={setSelectedDiscountId}
@@ -387,8 +510,9 @@ export function PosSalePage() {
                         setSubtotalOverrideNote("");
                     }}
                     onPaymentMethodChange={changePaymentMethod}
-                    onCustomerChange={setSelectedCustomerId}
-                    onCustomerClear={() => setSelectedCustomerId(null)}
+                    onCustomerOpen={loadCustomers}
+                    onCustomerChange={selectCustomer}
+                    onCustomerClear={clearCustomer}
                     onBankTransferCancel={() =>
                         setBankTransferStatus("CANCELLED")
                     }
@@ -409,6 +533,7 @@ export function PosSalePage() {
                         results={searchResults}
                         loading={searchLoading}
                         error={searchError}
+                        addingProductId={addingProductId}
                         formatCurrency={formatCurrency}
                         onChange={changeSearchQuery}
                         onClear={clearSearch}
@@ -469,18 +594,22 @@ interface CheckoutPanelProps {
     subtotalOverrideNote: string;
     cashReceived: number;
     changeAmount: number;
+    orderType: SaleOrderType;
     paymentMethod: SalePaymentMethod;
     bankTransferStatus: PaymentStatusValue;
     checkoutLoading: boolean;
     checkoutError: string;
     checkoutSuccess: string;
-    customers: typeof mockCustomers;
-    selectedCustomer: (typeof mockCustomers)[number] | null;
+    customers: SaleCustomer[];
+    customersLoading: boolean;
+    customersError: string;
+    selectedCustomer: SaleCustomer | null;
     onDiscountChange(discountId: string): void;
     onSubtotalOverride(value: number, note: string): void;
     onSubtotalReset(): void;
     onCashReceivedChange(value: number): void;
     onPaymentMethodChange(value: SalePaymentMethod): void;
+    onCustomerOpen(): void;
     onCustomerChange(customerId: string): void;
     onCustomerClear(): void;
     onBankTransferCancel(): void;
@@ -496,18 +625,22 @@ function CheckoutPanel({
     subtotalOverrideNote,
     cashReceived,
     changeAmount,
+    orderType,
     paymentMethod,
     bankTransferStatus,
     checkoutLoading,
     checkoutError,
     checkoutSuccess,
     customers,
+    customersLoading,
+    customersError,
     selectedCustomer,
     onDiscountChange,
     onSubtotalOverride,
     onSubtotalReset,
     onCashReceivedChange,
     onPaymentMethodChange,
+    onCustomerOpen,
     onCustomerChange,
     onCustomerClear,
     onBankTransferCancel,
@@ -521,6 +654,7 @@ function CheckoutPanel({
     const isCombinedPayment = paymentMethod === "COMBINED";
     const canCompletePayment =
         totals.total > 0 &&
+        orderType === "QUICK_SALE" &&
         (paymentMethod !== "CASH" || cashReceived >= totals.total) &&
         (!isBankTransfer || bankTransferStatus === "RECEIVED") &&
         !checkoutLoading;
@@ -530,6 +664,9 @@ function CheckoutPanel({
             <CustomerSelector
                 customers={customers}
                 selectedCustomer={selectedCustomer}
+                loading={customersLoading}
+                error={customersError}
+                onOpen={onCustomerOpen}
                 onSelect={onCustomerChange}
                 onClear={onCustomerClear}
             />

@@ -5,8 +5,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.customer.model.enums.CustomerTierStatus;
 
 import java.math.BigDecimal;
@@ -15,7 +19,7 @@ import java.math.BigDecimal;
 @Setter
 @Entity
 @Table(name = "customer_tiers")
-public class CustomerTier extends CustomerBaseEntity {
+public class CustomerTier extends BaseEntity {
 
     @Column(name = "code", nullable = false, unique = true, length = 50)
     private String code;
@@ -32,4 +36,9 @@ public class CustomerTier extends CustomerBaseEntity {
     @Column(name = "status", nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     private CustomerTierStatus status = CustomerTierStatus.ACTIVE;
+
+    @Size(max = 7)
+    @ColumnDefault("'#6B7280'")
+    @Column(name = "color_code", nullable = false, length = 7)
+    private String colorCode;
 }
