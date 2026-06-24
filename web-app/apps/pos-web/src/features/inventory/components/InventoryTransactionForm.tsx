@@ -19,6 +19,7 @@ import {
 } from "../utils/inventory-labels";
 import { InventoryItemSelect } from "./InventoryItemSelect";
 import { routePaths } from "../../../routes/path";
+import type { ProductVariant } from "@hvt/api-client";
 
 interface TransactionLine {
     item: InventoryItemResponse;
@@ -55,6 +56,8 @@ export function InventoryTransactionForm({
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] =
         useState<InventoryTransactionResponse | null>(null);
+    const [variantsMap, setVariantsMap] = useState<Record<string, ProductVariant>>({});
+        
     const loadLocations = useCallback(
         () =>
             inventoryLocationApi.list({

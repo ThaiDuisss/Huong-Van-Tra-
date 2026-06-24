@@ -11,4 +11,9 @@ public interface InventoryLocationRepository
     boolean existsByBranchIdAndCode(UUID branchId, String code);
     boolean existsByBranchIdAndCodeAndIdNot(UUID branchId, String code, UUID id);
     java.util.Optional<InventoryLocation> findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType type);
+    java.util.Optional<InventoryLocation> findFirstByBranchIdAndTypeAndStatus(
+            UUID branchId,
+            org.hvtra.iventoryservice.enums.InventoryLocationType type,
+            org.hvtra.iventoryservice.enums.InventoryStatus status
+    );
 }

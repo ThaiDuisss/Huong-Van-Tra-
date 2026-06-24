@@ -3,6 +3,8 @@ package org.hvtra.iventoryservice.controller;
 import jakarta.validation.Valid;
 import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StockInRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.enums.InventoryReferenceType;
@@ -69,5 +71,19 @@ public class InventoryTransactionController {
     public InventoryTransactionResponse adjust(
             @Valid @RequestBody StockAdjustmentRequest request) {
         return service.adjust(request);
+    }
+
+    @PostMapping("/store/stock-in")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InventoryTransactionResponse storeStockIn(
+            @Valid @RequestBody StoreStockInRequest request) {
+        return service.storeStockIn(request);
+    }
+
+    @PostMapping("/store/adjustment")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InventoryTransactionResponse storeAdjust(
+            @Valid @RequestBody StoreStockAdjustmentRequest request) {
+        return service.storeAdjust(request);
     }
 }

@@ -175,6 +175,7 @@ export interface InventoryBalanceViewResponse {
     availableQuantity: number;
     cost_price?: number;
     selling_price?: number;
+    reorderPoint?: number;
     updatedAt: string;
 }
 
@@ -189,4 +190,24 @@ export interface InventoryTransactionQuery extends QueryParams {
     branchId?: EntityId;
     referenceType?: InventoryReferenceType;
     referenceId?: EntityId;
+}
+
+export interface StoreStockInRequest {
+    branchId: EntityId;
+    referenceType: InventoryReferenceType;
+    referenceId: EntityId | null;
+    lines: Array<{
+        inventoryItemId: EntityId;
+        quantity: number;
+    }>;
+}
+
+export interface StoreStockAdjustmentRequest {
+    branchId: EntityId;
+    referenceType: InventoryReferenceType;
+    referenceId: EntityId | null;
+    lines: Array<{
+        inventoryItemId: EntityId;
+        actualQuantity: number;
+    }>;
 }

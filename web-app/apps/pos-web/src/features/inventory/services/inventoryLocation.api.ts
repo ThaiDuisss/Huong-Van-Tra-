@@ -37,5 +37,11 @@ export const inventoryLocationApi = {
             InventoryLocationResponse,
             { status: InventoryStatus }
         >(`/inventory/inventory-locations/${id}/status`, { status });
+    },
+    defaultWarehouse(branchId: EntityId) {
+        return apiClient.get<InventoryLocationResponse>(
+            "/inventory/inventory-locations/default-warehouse",
+            { query: { branchId } }
+        );
     }
 };

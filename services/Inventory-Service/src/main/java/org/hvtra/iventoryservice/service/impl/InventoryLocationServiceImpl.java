@@ -110,4 +110,16 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory location", id));
     }
+
+    @Override
+    public InventoryLocationResponse findDefaultWarehouse(UUID branchId) {
+        InventoryLocation location = repository.findFirstByBranchIdAndTypeAndStatus(
+                branchId,
+                InventoryLocationType.WAREHOUSE,
+                InventoryStatus.ACTIVE
+        )
+        .orElseThrow(() -> new ResourceNotFoundException(
+                "No active WAREHOUSE location found for branch", branchId));
+        return mapper.toResponse(location);
+    }
 }
