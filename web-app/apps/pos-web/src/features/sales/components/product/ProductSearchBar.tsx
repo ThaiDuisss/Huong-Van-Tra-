@@ -26,6 +26,15 @@ export function ProductSearchBar({
   onAdd
 }: ProductSearchBarProps) {
   const visibleResults = results.slice(0, 5);
+  const getStockLabel = (product: SaleProductPreview) => {
+    if (product.availableQuantity === null) {
+      return "Tồn: Không rõ";
+    }
+
+    return product.availableQuantity <= 0
+      ? "Hết hàng"
+      : `Tồn: ${product.availableQuantity}`;
+  };
 
   return (
     <div className="relative">
@@ -120,8 +129,15 @@ export function ProductSearchBar({
                     </p>
                   </div>
 
-                  <span className="rounded-md bg-hvt-green-50 px-2 py-1 text-xs font-semibold text-hvt-green-800">
-                    Tồn: {product.availableQuantity}
+                  <span
+                    className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                      product.availableQuantity !== null &&
+                      product.availableQuantity <= 0
+                        ? "bg-red-50 text-red-700"
+                        : "bg-hvt-green-50 text-hvt-green-800"
+                    }`}
+                  >
+                    {getStockLabel(product)}
                   </span>
 
                   <div className="grid justify-items-end gap-2">
@@ -130,7 +146,11 @@ export function ProductSearchBar({
                     </strong>
                     <button
                       type="button"
-                      disabled={addingProductId === product.id}
+                      disabled={
+                        addingProductId === product.id ||
+                        (product.availableQuantity !== null &&
+                          product.availableQuantity <= 0)
+                      }
                       onClick={(event) => {
                         event.stopPropagation();
                         onAdd(product);

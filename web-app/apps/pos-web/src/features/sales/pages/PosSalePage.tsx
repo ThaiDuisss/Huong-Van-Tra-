@@ -344,6 +344,7 @@ export function PosSalePage() {
         setCheckoutSuccess("");
         setCartItemsById((currentItems) => {
             const currentItem = currentItems[product.id];
+            const nextQuantity = (currentItem?.quantity ?? 0) + 1;
 
             return {
                 ...currentItems,
@@ -353,11 +354,11 @@ export function PosSalePage() {
                     name: product.name,
                     sku: product.sku,
                     variant: product.variant,
-                    quantity: Math.min(
-                        product.availableQuantity,
-                        (currentItem?.quantity ?? 0) + 1
-                    ),
-                    unitPrice: product.price
+                    quantity: nextQuantity,
+                    unitPrice: product.price,
+                    availableQuantity: product.availableQuantity,
+                    quantityOnHand: product.quantityOnHand,
+                    quantityReserved: product.quantityReserved
                 }
             };
         });
@@ -375,11 +376,34 @@ export function PosSalePage() {
             return false;
         }
 
+        const currentQuantity = cartItemsById[product.id]?.quantity ?? 0;
+
+        if (
+            product.availableQuantity !== null &&
+            product.availableQuantity <= 0
+        ) {
+            setCheckoutError("Sản phẩm đã hết hàng");
+            return false;
+        }
+
+        if (
+            product.availableQuantity !== null &&
+            currentQuantity + 1 > product.availableQuantity
+        ) {
+            setCheckoutError("Số lượng vượt quá tồn kho khả dụng");
+            return false;
+        }
+
         setAddingProductId(product.id);
 
         try {
             const snapshot = await posProductApi.getPosView(variantId);
-            upsertCartItem(snapshot);
+            upsertCartItem({
+                ...snapshot,
+                availableQuantity: product.availableQuantity,
+                quantityOnHand: product.quantityOnHand,
+                quantityReserved: product.quantityReserved
+            });
             return true;
         } catch (error) {
             logApiError(error);
@@ -426,6 +450,17 @@ export function PosSalePage() {
             if (!currentItem) {
                 return currentItems;
             }
+
+            if (
+                currentItem.availableQuantity !== null &&
+                currentItem.availableQuantity !== undefined &&
+                currentItem.quantity + 1 > currentItem.availableQuantity
+            ) {
+                setCheckoutError("Số lượng vượt quá tồn kho khả dụng");
+                return currentItems;
+            }
+
+            setCheckoutError("");
 
             return {
                 ...currentItems,

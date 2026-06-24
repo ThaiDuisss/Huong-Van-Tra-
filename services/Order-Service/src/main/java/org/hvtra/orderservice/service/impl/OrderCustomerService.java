@@ -1,4 +1,4 @@
-package org.hvtra.orderservice.service;
+package org.hvtra.orderservice.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.hvtra.orderservice.client.CustomerClient;
