@@ -33,6 +33,10 @@ springdoc:
     tags-sorter: alpha
 
 eureka:
+  instance:
+    prefer-ip-address: false
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    instance-id: ${spring.application.name}:${server.port}
   client:
     healthcheck:
       enabled: true
