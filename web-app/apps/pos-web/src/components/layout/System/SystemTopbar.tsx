@@ -7,22 +7,66 @@ import {
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
-import { routePaths } from "../../../routes/path";
 
 export function SystemTopbar() {
     const location = useLocation();
-    const isOrders = location.pathname.startsWith(routePaths.orders);
-    const isInvoices = location.pathname.startsWith(routePaths.invoices);
-    const isInvoiceDetail =
-        isInvoices && location.pathname !== routePaths.invoices;
-    const section = isOrders ? "Đơn hàng" : "Khách hàng";
-    const page = isInvoiceDetail
-        ? "Chi tiết hóa đơn"
-        : isInvoices
-            ? "Hóa đơn"
-            : isOrders
-                ? "Tất cả đơn hàng"
-                : "Danh sách khách hàng";
+    const pathname = location.pathname;
+
+    let section = "Hệ thống";
+    let page = "Tổng quan";
+
+    if (pathname.includes("/system/orders/invoices/")) {
+        section = "Đơn hàng";
+        page = "Chi tiết hóa đơn";
+    } else if (pathname === "/system/orders/invoices") {
+        section = "Đơn hàng";
+        page = "Hóa đơn";
+    } else if (pathname === "/system/orders/returns") {
+        section = "Đơn hàng";
+        page = "Hoàn hàng";
+    } else if (pathname === "/system/orders/refunds") {
+        section = "Đơn hàng";
+        page = "Hoàn tiền";
+    } else if (pathname === "/system/orders") {
+        section = "Đơn hàng";
+        page = "Tất cả đơn hàng";
+    } else if (pathname.includes("/system/products/") && pathname.includes("/variants")) {
+        section = "Sản phẩm";
+        page = "Biến thể của sản phẩm";
+    } else if (pathname.includes("/system/products/")) {
+        section = "Sản phẩm";
+        page = "Chi tiết sản phẩm";
+    } else if (pathname === "/system/products") {
+        section = "Sản phẩm";
+        page = "Sản phẩm";
+    } else if (pathname === "/system/categories") {
+        section = "Sản phẩm";
+        page = "Danh mục sản phẩm";
+    } else if (pathname.includes("/system/product-variants/")) {
+        section = "Sản phẩm";
+        page = "Chi tiết biến thể";
+    } else if (pathname === "/system/product-variants") {
+        section = "Sản phẩm";
+        page = "Biến thể sản phẩm";
+    } else if (pathname === "/system/inventory/locations") {
+        section = "Kho";
+        page = "Quản lý kệ hàng";
+    } else if (pathname === "/system/inventory/stock-in") {
+        section = "Kho";
+        page = "Nhập hàng lên kệ";
+    } else if (pathname === "/system/inventory/adjustment") {
+        section = "Kho";
+        page = "Điều chỉnh tồn kho";
+    } else if (pathname === "/system/inventory/transactions") {
+        section = "Kho";
+        page = "Lịch sử biến động";
+    } else if (pathname === "/system/customers/groups") {
+        section = "Khách hàng";
+        page = "Nhóm khách hàng";
+    } else if (pathname === "/system/customers") {
+        section = "Khách hàng";
+        page = "Danh sách khách hàng";
+    }
 
     return (
         <header className="flex h-[58px] shrink-0 items-center gap-4 border-b border-[#e8eef0] bg-white px-4 text-[#172317] sm:px-5">

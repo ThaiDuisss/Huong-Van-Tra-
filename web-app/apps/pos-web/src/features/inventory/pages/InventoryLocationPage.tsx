@@ -2,7 +2,6 @@ import { Eye, Pencil, Plus, ToggleLeft, X } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
-import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
@@ -100,7 +99,7 @@ export function InventoryLocationPage() {
 
     return (
         <section className="grid gap-5">
-            <Breadcrumbs items={["Quản lý tồn kho", "Quản lý kệ hàng"]} />
+            {/* <Breadcrumbs items={["Quản lý tồn kho", "Quản lý kệ hàng"]} /> */}
             <PageHeader
                 title="Quản lý kệ hàng"
                 description="Quản lý kệ, quầy thu ngân và các vị trí lưu trữ tại cửa hàng."

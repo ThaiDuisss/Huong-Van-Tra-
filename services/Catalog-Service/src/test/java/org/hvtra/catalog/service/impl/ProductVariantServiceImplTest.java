@@ -5,12 +5,14 @@ import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.ProductVariant;
+import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.enums.InventoryPolicy;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.repository.UnitRepository;
+import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -20,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,51 +46,65 @@ class ProductVariantServiceImplTest {
     @Mock
     private UnitRepository unitRepository;
 
+    @Mock
+    private BusinessSequenceRepository businessSequenceRepository;
+
     @InjectMocks
     private ProductVariantServiceImpl service;
 
     @Test
     void createAlsoCreatesInventoryItem() {
+        UUID productId = UUID.randomUUID();
+        UUID baseUnitId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+
         Product product = new Product();
-        product.setId(15L);
+        product.setId(productId);
+        product.setName("Trà Sen");
 
         ProductVariantRequest request = new ProductVariantRequest(
-                "SKU-001",
                 "Default",
                 new BigDecimal("100000"),
                 new BigDecimal("60000"),
-                3L,
+                baseUnitId,
                 InventoryPolicy.TRACK_STOCK,
-                Status.ACTIVE);
+                Status.ACTIVE,
+                1);
 
         ProductResponse.VariantResponse expected = new ProductResponse.VariantResponse(
-                21L,
-                15L,
-                "Tea",
-                "SKU-001",
+                variantId,
+                productId,
+                "Trà Sen",
+                "PRD00001",
+                "TS100001",
                 "Default",
                 new BigDecimal("100000"),
                 new BigDecimal("60000"),
-                3L,
+                1,
+                baseUnitId,
                 InventoryPolicy.TRACK_STOCK,
                 Status.ACTIVE,
                 Status.ACTIVE,
                 true,
                 List.of());
 
-        when(repository.existsBySku("SKU-001")).thenReturn(false);
-        when(productRepository.findById(15L)).thenReturn(Optional.of(product));
-        when(unitRepository.existsById(3L)).thenReturn(true);
+        BusinessSequence seq = new BusinessSequence();
+        seq.setSequenceKey("SKU");
+        seq.setCurrentValue(0L);
+
+        when(businessSequenceRepository.findBySequenceKeyWithLock("SKU")).thenReturn(Optional.of(seq));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(unitRepository.existsById(baseUnitId)).thenReturn(true);
         when(repository.saveAndFlush(any(ProductVariant.class))).thenAnswer(invocation -> {
             ProductVariant variant = invocation.getArgument(0);
-            variant.setId(21L);
+            variant.setId(variantId);
             return variant;
         });
         when(mapper.toVariantResponse(any(ProductVariant.class))).thenReturn(expected);
 
-        ProductResponse.VariantResponse actual = service.create(15L, request);
+        ProductResponse.VariantResponse actual = service.create(productId, request);
 
         assertSame(expected, actual);
-        verify(inventoryClient).createProductVariantItem(21L, 3L, Status.ACTIVE);
+        verify(inventoryClient).createProductVariantItem(any(InventoryClient.CreateInventoryItemRequest.class));
     }
 }

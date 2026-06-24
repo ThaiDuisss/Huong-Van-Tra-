@@ -3,7 +3,6 @@ import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
-import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { useInventoryPage, messageOf } from "../hooks/useInventoryResource";
 import { inventoryBalanceApi } from "../services/inventoryBalance.api";
@@ -155,7 +154,7 @@ export function InventoryTransactionForm({
 
     return (
         <section className="grid gap-5">
-            <Breadcrumbs items={["Quản lý tồn kho", title]} />
+            {/* <Breadcrumbs items={["Quản lý tồn kho", title]} /> */}
             <PageHeader
                 title={title}
                 description={

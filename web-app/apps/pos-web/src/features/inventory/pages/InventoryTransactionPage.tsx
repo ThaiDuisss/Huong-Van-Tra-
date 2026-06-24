@@ -1,7 +1,6 @@
 import { Eye } from "lucide-react";
 import { useCallback, useState } from "react";
 
-import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
@@ -83,9 +82,9 @@ export function InventoryTransactionPage() {
 
     return (
         <section className="grid gap-5">
-            <Breadcrumbs
+            {/* <Breadcrumbs
                 items={["Quản lý tồn kho", "Lịch sử biến động tồn kho"]}
-            />
+            /> */}
             <PageHeader
                 title="Lịch sử biến động tồn kho"
                 description="Tra cứu các giao dịch nhập, bán, hoàn và điều chỉnh tồn kho."

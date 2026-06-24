@@ -11,7 +11,6 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record ProductVariantRequest(
-        @NotBlank @Size(max = 100) String sku,
         @NotBlank @Size(max = 255) String variantName,
         @NotNull @DecimalMin("0.00") BigDecimal sellingPrice,
         @NotNull @DecimalMin("0.00") BigDecimal costPrice,

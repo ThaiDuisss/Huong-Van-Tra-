@@ -74,7 +74,6 @@ export function ProductVariantListPage() {
     ) {
         const input = {
             productId: getString(values, "productId"),
-            sku: getString(values, "sku"),
             variantName: getString(values, "variantName"),
             sellingPrice: getNumber(values, "sellingPrice"),
             costPrice: getNumber(values, "costPrice"),
@@ -136,10 +135,10 @@ export function ProductVariantListPage() {
     const validateVariantRow = (row: any) => {
         const productCode = String(row["Mã sản phẩm"] || "").trim();
         const variantName = String(row["Tên biến thể"] || "").trim();
-        const sku = String(row["SKU"] || "").trim();
         const sellingPriceStr = String(row["Giá bán"] || "").trim();
         const costPriceStr = String(row["Giá vốn"] || "").trim();
         const unitName = String(row["Đơn vị"] || "").trim();
+        const packQuantityStr = String(row["Định lượng"] || "").trim();
         const policyStr = String(row["Chính sách tồn kho"] || "").trim();
         const statusStr = String(row["Trạng thái"] || "").trim();
 
@@ -156,9 +155,6 @@ export function ProductVariantListPage() {
 
         if (!variantName) {
             return { isValid: false, error: "Tên biến thể trống" };
-        }
-        if (!sku) {
-            return { isValid: false, error: "SKU trống" };
         }
 
         const sellingPrice = Number(String(sellingPriceStr).replace(/,/g, ""));
@@ -180,6 +176,11 @@ export function ProductVariantListPage() {
         );
         if (!matchedUnit) {
             return { isValid: false, error: "Đơn vị không tồn tại" };
+        }
+
+        const packQuantity = Number(packQuantityStr || "1");
+        if (isNaN(packQuantity) || packQuantity < 1 || !Number.isInteger(packQuantity)) {
+            return { isValid: false, error: "Định lượng không hợp lệ (phải là số nguyên >= 1)" };
         }
 
         if (policyStr) {
@@ -270,7 +271,6 @@ export function ProductVariantListPage() {
                 }
                 getInitialValues={(item) => ({
                     productId: String(item.productId),
-                    sku: item.sku,
                     variantName: item.variantName,
                     sellingPrice: String(item.sellingPrice),
                     costPrice: String(item.costPrice),
@@ -361,7 +361,6 @@ export function ProductVariantListPage() {
                             value: String(product.id)
                         }))
                     },
-                    { name: "sku", label: "SKU", required: true },
                     {
                         name: "variantName",
                         label: "Tên biến thể",

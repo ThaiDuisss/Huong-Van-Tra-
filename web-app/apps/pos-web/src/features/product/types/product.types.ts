@@ -95,7 +95,6 @@ export interface ProductVariant {
 
 export interface ProductVariantInput {
     productId: EntityId;
-    sku: string;
     variantName: string;
     sellingPrice: number;
     costPrice: number;

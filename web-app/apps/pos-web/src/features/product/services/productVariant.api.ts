@@ -59,7 +59,6 @@ export const productVariantApi = {
     },
     update(id: string, input: ProductVariantInput) {
         const body: Omit<ProductVariantInput, "productId"> = {
-            sku: input.sku,
             variantName: input.variantName,
             sellingPrice: input.sellingPrice,
             costPrice: input.costPrice,
