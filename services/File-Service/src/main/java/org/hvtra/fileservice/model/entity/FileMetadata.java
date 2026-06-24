@@ -2,14 +2,12 @@ package org.hvtra.fileservice.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.UuidGenerator;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.commonservice.domain.entity.BaseEntityNoId;
+import org.hvtra.fileservice.model.enums.FilePurpose;
 import org.hvtra.fileservice.model.enums.FileStatus;
 import org.hvtra.fileservice.model.enums.FileVisibility;
 
 import java.util.UUID;
-
 @Entity
 @Table(name = "files")
 @Getter
@@ -18,8 +16,9 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class FileMetadata extends BaseEntityNoId {
+
     @Id
-    @Column(columnDefinition = "BINARY(16)", updatable = false, nullable = false)
+    @Column(columnDefinition = "BINARY(16)")
     private UUID id;
 
     @Column(nullable = false)
@@ -27,6 +26,9 @@ public class FileMetadata extends BaseEntityNoId {
 
     @Column(name = "object_key", nullable = false, unique = true, length = 500)
     private String objectKey;
+
+    @Column(name = "public_url", length = 1000)
+    private String publicUrl;
 
     @Column(name = "original_filename", nullable = false)
     private String originalFilename;
@@ -39,22 +41,29 @@ public class FileMetadata extends BaseEntityNoId {
     @Column(name = "size_bytes", nullable = false)
     private Long sizeBytes;
 
-    private String etag;
-
-    @Column(name = "version_id")
-    private String versionId;
-
-    @Column(columnDefinition = "BINARY(16)", updatable = false, nullable = true)
-    private UUID ownerId;
-
-    @Column(name = "owner_type", nullable = false)
-    private String ownerType;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private FilePurpose purpose;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private FileVisibility visibility;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private FileStatus status;
 
+    @Column(name = "owner_id", columnDefinition = "BINARY(16)")
+    private UUID ownerId;
 
+    @Column(name = "owner_type")
+    private String ownerType;
+
+    @Column(name = "ref_type")
+    private String refType;
+
+    @Column(name = "ref_id", columnDefinition = "BINARY(16)")
+    private UUID refId;
+
+    private String etag;
 }
