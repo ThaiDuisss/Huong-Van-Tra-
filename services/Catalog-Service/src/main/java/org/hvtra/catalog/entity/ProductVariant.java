@@ -34,6 +34,9 @@ public class ProductVariant extends BaseEntity {
     @Column(name = "cost_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal costPrice;
 
+    @Column(name = "pack_quantity", nullable = false)
+    private Integer packQuantity = 1;
+
     @Column(name = "base_unit_id", nullable = false, columnDefinition = "CHAR(36)")
     private UUID baseUnitId;
 

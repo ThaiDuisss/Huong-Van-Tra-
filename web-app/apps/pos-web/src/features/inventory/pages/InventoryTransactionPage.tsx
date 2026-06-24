@@ -54,9 +54,9 @@ export function InventoryTransactionPage() {
                 type: type === "ALL" ? undefined : type,
                 referenceType:
                     referenceType === "ALL" ? undefined : referenceType,
-                branchId: branchId ? Number(branchId) : undefined,
-                createdBy: createdBy ? Number(createdBy) : undefined,
-                referenceId: referenceId ? Number(referenceId) : undefined,
+                branchId: branchId ? branchId : undefined,
+                createdBy: createdBy ? createdBy : undefined,
+                referenceId: referenceId ? referenceId : undefined,
                 fromDate: fromDate ? `${fromDate}T00:00:00` : undefined,
                 toDate: toDate ? `${toDate}T23:59:59` : undefined
             }),
@@ -95,9 +95,9 @@ export function InventoryTransactionPage() {
                     <InventoryInput label="Mã giao dịch" value={transactionCode} onChange={(value: string) => resetPage(setTransactionCode, value)} />
                     <InventorySelect label="Loại giao dịch" value={type} options={[{ value: "ALL", label: "Tất cả" }, ...Object.entries(transactionTypeLabels).map(([value, label]) => ({ value, label }))]} onChange={(value) => { setType(value as "ALL" | InventoryTransactionType); setPage(1); }} />
                     <InventorySelect label="Loại tham chiếu" value={referenceType} options={[{ value: "ALL", label: "Tất cả" }, ...Object.entries(referenceTypeLabels).map(([value, label]) => ({ value, label }))]} onChange={(value) => { setReferenceType(value as "ALL" | InventoryReferenceType); setPage(1); }} />
-                    <InventoryInput label="Mã tham chiếu" value={referenceId} type="number" onChange={(value: string) => resetPage(setReferenceId, value)} />
+                    <InventoryInput label="Mã tham chiếu" value={referenceId} onChange={(value: string) => resetPage(setReferenceId, value)} />
                     {/* <InventoryInput label="Chi nhánh" value={branchId} type="number" onChange={(value: string) => resetPage(setBranchId, value)} /> */}
-                    <InventoryInput label="Người tạo" value={createdBy} type="number" onChange={(value: string) => resetPage(setCreatedBy, value)} />
+                    <InventoryInput label="Người tạo" value={createdBy} onChange={(value: string) => resetPage(setCreatedBy, value)} />
                     <InventoryInput label="Từ ngày" value={fromDate} type="date" onChange={(value: string) => resetPage(setFromDate, value)} />
                     <InventoryInput label="Đến ngày" value={toDate} type="date" onChange={(value: string) => resetPage(setToDate, value)} />
                     {/* <button type="button" onClick={resource.refresh} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold"><RefreshCw size={15} />Tải lại dữ liệu</button> */}

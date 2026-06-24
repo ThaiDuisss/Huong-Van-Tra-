@@ -7,6 +7,7 @@ import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.Product;
+import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.enums.InventoryItemType;
 import org.hvtra.catalog.enums.Status;
@@ -92,12 +93,19 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setProduct(product);
         apply(variant, request);
         ProductVariant savedVariant = repository.saveAndFlush(variant);
+
+        Category category = product.getCategory();
+        Integer reorderPoint = (category != null && category.getDefaultReorderPoint() != null)
+                ? category.getDefaultReorderPoint()
+                : 10;
+
         inventoryClient.createProductVariantItem(
                 InventoryClient.CreateInventoryItemRequest.builder()
                         .status(savedVariant.getStatus().toString())
                         .baseUnitId(savedVariant.getBaseUnitId())
                         .referenceId(savedVariant.getId())
                         .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                        .reorderPoint(reorderPoint)
                         .build());
         return mapper.toVariantResponse(savedVariant);
     }
@@ -132,6 +140,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setVariantName(request.variantName().trim());
         variant.setSellingPrice(request.sellingPrice());
         variant.setCostPrice(request.costPrice());
+        variant.setPackQuantity(request.packQuantity());
         variant.setBaseUnitId(request.baseUnitId());
         variant.setInventoryPolicy(request.inventoryPolicy());
         variant.setStatus(request.status());

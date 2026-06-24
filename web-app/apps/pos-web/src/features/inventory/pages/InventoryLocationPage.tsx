@@ -53,7 +53,7 @@ export function InventoryLocationPage() {
             inventoryLocationApi.list({
                 page: page - 1,
                 size: pageSize,
-                branchId: branchId ? Number(branchId) : undefined,
+                branchId: branchId ? branchId : undefined,
                 type: type === "ALL" ? undefined : type,
                 status: status === "ALL" ? undefined : status
             }),
@@ -282,7 +282,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 function LocationForm({ item, locations, error, onClose, onSubmit }: { item: InventoryLocationResponse | null; locations: InventoryLocationResponse[]; error: string; onClose(): void; onSubmit(input: InventoryLocationRequest): void }) {
     return (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/35 p-5">
-            <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); onSubmit({ branchId: Number(data.get("branchId")), parentLocationId: data.get("parentLocationId") ? Number(data.get("parentLocationId")) : null, code: String(data.get("code") ?? "").trim(), name: String(data.get("name") ?? "").trim(), type: data.get("type") as InventoryLocationType, status: data.get("status") as InventoryStatus }); }} className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-pos-panel">
+            <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); onSubmit({ branchId: String(data.get("branchId") || ""), parentLocationId: data.get("parentLocationId") ? String(data.get("parentLocationId")) : null, code: String(data.get("code") ?? "").trim(), name: String(data.get("name") ?? "").trim(), type: data.get("type") as InventoryLocationType, status: data.get("status") as InventoryStatus }); }} className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-pos-panel">
                 <header className="mb-5 flex items-center justify-between"><h2 className="text-2xl font-bold">{item ? "Chỉnh sửa vị trí" : "Tạo vị trí"}</h2><button type="button" onClick={onClose} aria-label="Đóng"><X /></button></header>
                 <div className="grid gap-4 sm:grid-cols-2">
                     {/* <FormInput name="branchId" label="Mã chi nhánh" type="number" value={String(item?.branchId ?? "")} /> */}

@@ -52,13 +52,13 @@ public class ProductMapper {
                 variant.getVariantName(),
                 variant.getSellingPrice(),
                 variant.getCostPrice(),
+                variant.getPackQuantity(),
                 variant.getBaseUnitId(),
                 variant.getInventoryPolicy(),
                 variant.getStatus(),
                 product.getStatus(),
                 isSellable(variant),
-                variant.getBarcodes().stream().map(this::toBarcodeResponse).toList()
-        );
+                variant.getBarcodes().stream().map(this::toBarcodeResponse).toList());
     }
 
     public ProductResponse.BarcodeResponse toBarcodeResponse(Barcode barcode) {
@@ -75,6 +75,7 @@ public class ProductMapper {
         return new ProductResponse.VariantSummaryResponse(
                 variant.getId(), product.getId(), product.getName(), product.getProductCode(), variant.getSku(),
                 variant.getVariantName(), variant.getSellingPrice(), variant.getCostPrice(),
+                variant.getPackQuantity(),
                 variant.getBaseUnitId(),
                 variant.getInventoryPolicy(), variant.getStatus(), product.getStatus(), isSellable(variant)
         );

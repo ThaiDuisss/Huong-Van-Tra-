@@ -65,7 +65,8 @@ export const productVariantApi = {
             costPrice: input.costPrice,
             baseUnitId: input.baseUnitId,
             inventoryPolicy: input.inventoryPolicy,
-            status: input.status
+            status: input.status,
+            packQuantity: input.packQuantity
         };
 
         return apiClient.put<

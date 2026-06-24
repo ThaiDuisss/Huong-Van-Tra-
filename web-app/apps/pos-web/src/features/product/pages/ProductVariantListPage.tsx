@@ -73,17 +73,18 @@ export function ProductVariantListPage() {
         editingItem: ProductVariant | null
     ) {
         const input = {
-            productId: getNumber(values, "productId"),
+            productId: getString(values, "productId"),
             sku: getString(values, "sku"),
             variantName: getString(values, "variantName"),
             sellingPrice: getNumber(values, "sellingPrice"),
             costPrice: getNumber(values, "costPrice"),
-            baseUnitId: getNumber(values, "baseUnitId"),
+            baseUnitId: getString(values, "baseUnitId"),
             inventoryPolicy: getString(
                 values,
                 "inventoryPolicy"
             ) as InventoryPolicy,
-            status: getString(values, "status") as CatalogStatus
+            status: getString(values, "status") as CatalogStatus,
+            packQuantity: getNumber(values, "packQuantity")
         };
 
         if (editingItem) {
@@ -99,7 +100,7 @@ export function ProductVariantListPage() {
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.setAttribute("href", url);
-            
+
             const now = new Date();
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -108,7 +109,7 @@ export function ProductVariantListPage() {
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const seconds = String(now.getSeconds()).padStart(2, '0');
             const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
-            
+
             link.setAttribute("download", `Danh sách biến thể sản phẩm_${timestamp}.xlsx`);
             document.body.appendChild(link);
             link.click();
@@ -124,7 +125,7 @@ export function ProductVariantListPage() {
         if (!currentProductId || currentProductId === "ALL") {
             currentProductId = String(products[0]?.id);
         }
-        
+
         if (!currentProductId) {
             alert("Không tìm thấy sản phẩm hợp lệ để import biến thể!");
             return;
@@ -159,12 +160,12 @@ export function ProductVariantListPage() {
         if (!sku) {
             return { isValid: false, error: "SKU trống" };
         }
-        
+
         const sellingPrice = Number(String(sellingPriceStr).replace(/,/g, ""));
         if (isNaN(sellingPrice) || sellingPrice < 0) {
             return { isValid: false, error: "Giá bán không hợp lệ" };
         }
-        
+
         const costPrice = Number(String(costPriceStr).replace(/,/g, ""));
         if (isNaN(costPrice) || costPrice < 0) {
             return { isValid: false, error: "Giá vốn không hợp lệ" };
@@ -275,20 +276,21 @@ export function ProductVariantListPage() {
                     costPrice: String(item.costPrice),
                     baseUnitId: String(item.baseUnitId),
                     inventoryPolicy: item.inventoryPolicy,
-                    status: item.status
+                    status: item.status,
+                    packQuantity: String(item.packQuantity)
                 })}
                 secondaryFilter={
                     productId
                         ? undefined
                         : {
-                              label: "Sản phẩm",
-                              value: state.secondaryValue,
-                              options: products.map((product) => ({
-                                  label: product.name,
-                                  value: String(product.id)
-                              })),
-                              onChange: state.setSecondaryValue
-                          }
+                            label: "Sản phẩm",
+                            value: state.secondaryValue,
+                            options: products.map((product) => ({
+                                label: product.name,
+                                value: String(product.id)
+                            })),
+                            onChange: state.setSecondaryValue
+                        }
                 }
                 columns={[
                     { key: "sku", label: "SKU" },
@@ -411,6 +413,12 @@ export function ProductVariantListPage() {
                             { label: "Đang hoạt động", value: "ACTIVE" },
                             { label: "Ngừng hoạt động", value: "INACTIVE" }
                         ]
+                    },
+                    {
+                        name: "packQuantity",
+                        label: "Định lượng đóng gói",
+                        type: "number",
+                        required: true
                     }
                 ]}
             />

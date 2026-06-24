@@ -20,7 +20,8 @@ public interface InventoryClient {
             UUID referenceId,
             String itemType,
             UUID baseUnitId,
-            String status
+            String status,
+            Integer reorderPoint
     ) {
     }
 }

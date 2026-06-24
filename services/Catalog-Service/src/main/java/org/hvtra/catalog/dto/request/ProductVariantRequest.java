@@ -17,7 +17,8 @@ public record ProductVariantRequest(
         @NotNull @DecimalMin("0.00") BigDecimal costPrice,
         @NotNull UUID baseUnitId,
         @NotNull InventoryPolicy inventoryPolicy,
-        @NotNull Status status
+        @NotNull Status status,
+        @NotNull @jakarta.validation.constraints.Min(1) Integer packQuantity
 ) {
 }
 
