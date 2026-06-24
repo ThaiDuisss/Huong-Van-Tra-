@@ -20,7 +20,6 @@ import type {
     ProductSummary
 } from "../types/product.types";
 import {
-    getNumber,
     getString
 } from "../utils/form-values";
 import { formatCurrency } from "../utils/product-formatters";
@@ -76,7 +75,7 @@ export function ProductListPage() {
         }
 
         const input = {
-            categoryId: getNumber(values, "categoryId"),
+            categoryId: getString(values, "categoryId"),
             productCode: editingItem ? editingItem.productCode : undefined,
             name: getString(values, "name"),
             description,

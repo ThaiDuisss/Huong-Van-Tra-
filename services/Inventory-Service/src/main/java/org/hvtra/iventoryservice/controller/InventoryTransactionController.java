@@ -1,8 +1,12 @@
 package org.hvtra.iventoryservice.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StockInRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockOutRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.enums.InventoryReferenceType;
@@ -69,5 +73,30 @@ public class InventoryTransactionController {
     public InventoryTransactionResponse adjust(
             @Valid @RequestBody StockAdjustmentRequest request) {
         return service.adjust(request);
+    }
+
+    @PostMapping("/store/stock-in")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InventoryTransactionResponse storeStockIn(
+            @Valid @RequestBody StoreStockInRequest request) {
+        return service.storeStockIn(request);
+    }
+
+    @PostMapping("/store/adjustment")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InventoryTransactionResponse storeAdjust(
+            @Valid @RequestBody StoreStockAdjustmentRequest request) {
+        return service.storeAdjust(request);
+    }
+
+    @Tag(
+            name = "Tạo đơn xuất kho từ cửa hàng hiện tại",
+            description = "Thực hiện xuất hàng hóa và tự động cập nhật số dư kho (before/after quantity) trong bảng INVENTORY_BALANCES dựa trên locationId của cửa hàng."
+    )
+    @PostMapping("/store/stock-out")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InventoryTransactionResponse storeStockOut(
+            @Valid @RequestBody StoreStockOutRequest request) {
+        return service.storeStockOut(request);
     }
 }

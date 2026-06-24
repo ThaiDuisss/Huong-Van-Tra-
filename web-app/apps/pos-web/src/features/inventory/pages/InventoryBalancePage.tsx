@@ -1,4 +1,4 @@
-import { Eye, History, ArrowUpDown } from "lucide-react";
+import { Eye, History, ArrowUpDown, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -12,6 +12,8 @@ import {
 } from "../components/InventoryState";
 import { inventoryBalanceApi } from "../services/inventoryBalance.api";
 import { inventoryLocationApi } from "../services/inventoryLocation.api";
+import { inventoryTransactionApi } from "../services/inventoryTransaction.api";
+import { StoreInventoryForm } from "../components/StoreInventoryForm";
 import { routePaths } from "../../../routes/path";
 import { formatInventoryDate, formatQuantity } from "../utils/inventory-labels";
 import type { InventoryBalanceViewResponse, InventoryLocationResponse } from "../types/inventory.types";
@@ -63,6 +65,7 @@ export function InventoryBalancePage() {
     const [searchName, setSearchName] = useState("");
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const [filterUnitId, setFilterUnitId] = useState("");
+    const [filterStatus, setFilterStatus] = useState("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
@@ -75,7 +78,16 @@ export function InventoryBalancePage() {
 
     // Drawer / Panel state
     const [selectedRow, setSelectedRow] = useState<JoinedRow | null>(null);
+    const [activeModal, setActiveModal] = useState<"stock-in" | "adjustment" | null>(null);
 
+    // Dashboard Metrics state
+    const [dashboardMetrics, setDashboardMetrics] = useState({
+        totalSku: 0,
+        totalStock: 0,
+        lowStock: 0,
+        outOfStock: 0,
+        totalValue: 0
+    });
 
     // 1. Resolve Active Store and Load Locations
     useEffect(() => {
@@ -94,23 +106,39 @@ export function InventoryBalancePage() {
                 const unitRes = await unitApi.list();
                 setUnits(unitRes ?? []);
 
-                // Find active location & branch (First location whose type is WAREHOUSE)
-                const warehouseLoc = locs.find(l => l.type === "WAREHOUSE");
-                if (warehouseLoc) {
-                    setActiveStoreId(String(warehouseLoc.branchId));
-                    setActiveLocationId(String(warehouseLoc.id));
-                } else if (locs.length > 0) {
-                    setActiveStoreId(String(locs[0].branchId));
-                    setActiveLocationId(String(locs[0].id));
+                // Determine branchId
+                let resolvedBranchId = FALLBACK_STORE_ID;
+                if (locs.length > 0) {
+                    resolvedBranchId = String(locs[0].branchId);
                 } else {
-                    // Fallback to check balance branch IDs if any
                     const balCheck = await inventoryBalanceApi.view({ page: 0, size: 10 });
                     if (balCheck.content && balCheck.content.length > 0) {
-                        setActiveStoreId(String(balCheck.content[0].branchId));
-                        setActiveLocationId(String(balCheck.content[0].locationId));
+                        resolvedBranchId = String(balCheck.content[0].branchId);
+                    }
+                }
+                setActiveStoreId(resolvedBranchId);
+
+                // Fetch default warehouse from backend
+                try {
+                    const defaultWarehouse = await inventoryLocationApi.defaultWarehouse(resolvedBranchId);
+                    if (defaultWarehouse) {
+                        setActiveLocationId(String(defaultWarehouse.id));
                     } else {
-                        setActiveStoreId(FALLBACK_STORE_ID);
-                        setActiveLocationId(null);
+                        // Fallback: search locally
+                        const warehouseLoc = locs.find(l => l.type === "WAREHOUSE" && String(l.branchId) === resolvedBranchId);
+                        if (warehouseLoc) {
+                            setActiveLocationId(String(warehouseLoc.id));
+                        } else if (locs.length > 0) {
+                            setActiveLocationId(String(locs[0].id));
+                        }
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch default warehouse from backend, falling back to client-side resolution", err);
+                    const warehouseLoc = locs.find(l => l.type === "WAREHOUSE" && String(l.branchId) === resolvedBranchId);
+                    if (warehouseLoc) {
+                        setActiveLocationId(String(warehouseLoc.id));
+                    } else if (locs.length > 0) {
+                        setActiveLocationId(String(locs[0].id));
                     }
                 }
             } catch (err) {
@@ -125,9 +153,15 @@ export function InventoryBalancePage() {
 
     // Active warehouse location name
     const activeLocationName = useMemo(() => {
-        if (!activeLocationId) return "";
-        return locations.find(l => String(l.id) === activeLocationId)?.name || "";
-    }, [activeLocationId, locations]);
+        if (activeLocationId) {
+            return locations.find(l => String(l.id) === activeLocationId)?.name || "";
+        }
+        if (balances.length > 0) {
+            return balances[0].locationName || "";
+        }
+        const warehouseLoc = locations.find(l => l.type === "WAREHOUSE" && String(l.branchId) === activeStoreId);
+        return warehouseLoc ? warehouseLoc.name : "Cửa hàng";
+    }, [activeLocationId, locations, balances, activeStoreId]);
 
     // 2. Fetch inventory balances filtered by active store, location, and search criteria
     const loadBalances = useCallback(async () => {
@@ -159,14 +193,67 @@ export function InventoryBalancePage() {
         loadBalances();
     }, [loadBalances]);
 
+    // Fetch dashboard metrics over the entire warehouse location
+    useEffect(() => {
+        async function fetchDashboardMetrics() {
+            if (!activeStoreId) return;
+            try {
+                const res = await inventoryBalanceApi.view({
+                    page: 0,
+                    size: 1000,
+                    branchId: activeStoreId as any,
+                    locationId: activeLocationId ? (activeLocationId as any) : undefined
+                });
+                const items = res.content ?? [];
+                
+                const totalSku = items.length;
+                let totalStock = 0;
+                let lowStock = 0;
+                let outOfStock = 0;
+                let totalValue = 0;
+                
+                items.forEach(item => {
+                    const qoh = item.quantityOnHand || 0;
+                    const avail = item.availableQuantity || 0;
+                    const rop = item.reorderPoint !== undefined ? item.reorderPoint : 10;
+                    const cost = item.cost_price || 0;
+                    
+                    totalStock += qoh;
+                    totalValue += qoh * cost;
+                    
+                    if (avail <= 0) {
+                        outOfStock += 1;
+                    } else if (avail <= rop) {
+                        lowStock += 1;
+                    }
+                });
+                
+                setDashboardMetrics({
+                    totalSku,
+                    totalStock,
+                    lowStock,
+                    outOfStock,
+                    totalValue
+                });
+            } catch (err) {
+                console.error("Error fetching dashboard metrics:", err);
+            }
+        }
+        fetchDashboardMetrics();
+    }, [activeStoreId, activeLocationId, balances]);
+
     // Reset page to 1 when filters change
     useEffect(() => {
         setPage(1);
-    }, [searchSku, searchName, filterCategoryId, filterUnitId]);
+    }, [searchSku, searchName, filterCategoryId, filterUnitId, filterStatus]);
 
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
         return (balances as unknown as InventoryBalanceViewResponse[]).map((bal) => {
+            const rop = bal.reorderPoint !== undefined ? bal.reorderPoint : 10;
+            const isOutOfStock = bal.availableQuantity <= 0;
+            const isLowStock = bal.availableQuantity > 0 && bal.availableQuantity <= rop;
+
             const baseRow: JoinedRow = {
                 id: String(bal.inventoryBalanceId),
                 inventoryItemId: String(bal.inventoryItemId),
@@ -183,15 +270,23 @@ export function InventoryBalancePage() {
                 "Vị trí": bal.locationName || `Mã vị trí: #${bal.locationId}`,
                 "Giá nhập": bal.cost_price,
                 "Giá bán": bal.selling_price,
-                "Ngày cập nhật": bal.updatedAt
+                "Ngày cập nhật": bal.updatedAt,
+                isOutOfStock,
+                isLowStock
             };
             return baseRow;
         });
     }, [balances]);
 
-    // 4. Client-side Sorting
+    // 4. Client-side Filtering & Sorting
     const filteredRows = useMemo(() => {
         let result = [...joinedRows];
+
+        if (filterStatus === "LOW_STOCK") {
+            result = result.filter(r => r.isLowStock);
+        } else if (filterStatus === "OUT_OF_STOCK") {
+            result = result.filter(r => r.isOutOfStock);
+        }
 
         // Sorting logic
         if (sortColumn) {
@@ -210,17 +305,7 @@ export function InventoryBalancePage() {
         }
 
         return result;
-    }, [joinedRows, sortColumn, sortDirection]);
-
-    // Metrics based on active branch
-    const metrics = useMemo(() => {
-        return {
-            items: totalElements,
-            onHand: filteredRows.reduce((acc, r) => acc + (r["Tồn thực tế"] || 0), 0),
-            reserved: filteredRows.reduce((acc, r) => acc + (r["Tồn giữ chỗ"] || 0), 0),
-            low: filteredRows.filter(r => r["Có thể bán"] <= 0).length
-        };
-    }, [totalElements, filteredRows]);
+    }, [joinedRows, sortColumn, sortDirection, filterStatus]);
 
     // 5. Hardcoded columns for the grid (omitting "Đơn vị", "Giá bán", and "Giá nhập")
     const schemaColumns = useMemo(() => {
@@ -291,12 +376,29 @@ export function InventoryBalancePage() {
                         Theo dõi lượng tồn kho chi tiết và cấu hình hiển thị linh hoạt.
                     </p>
                 </div>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setActiveModal("stock-in")}
+                        className="flex items-center justify-center gap-2 px-4 h-11 rounded-xl bg-hvt-green-700 font-bold text-white hover:bg-hvt-green-800 transition-colors shadow-sm"
+                    >
+                        Nhập hàng
+                    </button>
+                    <button
+                        onClick={() => setActiveModal("adjustment")}
+                        className="flex items-center justify-center gap-2 px-4 h-11 rounded-xl border border-pos-border bg-white font-bold text-gray-700 hover:bg-neutral-50 transition-colors shadow-sm"
+                    >
+                        Điều chỉnh tồn kho
+                    </button>
+                </div>
             </header>
 
             {/* Metrics Summaries */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Metric label="Tổng mặt hàng" value={formatQuantity(metrics.items)} />
-                <Metric label="Mặt hàng sắp hết" value={formatQuantity(metrics.low)} danger={metrics.low > 0} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <Metric label="Tổng SKU đang có" value={formatQuantity(dashboardMetrics.totalSku)} />
+                <Metric label="Tổng tồn kho" value={formatQuantity(dashboardMetrics.totalStock)} />
+                <Metric label="Sản phẩm sắp hết" value={formatQuantity(dashboardMetrics.lowStock)} danger={dashboardMetrics.lowStock > 0} />
+                <Metric label="Sản phẩm hết hàng" value={formatQuantity(dashboardMetrics.outOfStock)} danger={dashboardMetrics.outOfStock > 0} />
+                <Metric label="Giá trị tồn kho" value={`${formatQuantity(dashboardMetrics.totalValue)} đ`} />
             </div>
 
             {/* Config & Filters Row */}
@@ -350,6 +452,18 @@ export function InventoryBalancePage() {
                                     {u.name} ({u.symbol})
                                 </option>
                             ))}
+                        </select>
+                    </div>
+                    <div className="w-52">
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Trạng thái tồn kho</label>
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
+                        >
+                            <option value="">Tất cả trạng thái</option>
+                            <option value="LOW_STOCK">Sắp hết hàng</option>
+                            <option value="OUT_OF_STOCK">Hết hàng</option>
                         </select>
                     </div>
                 </div>
@@ -519,7 +633,53 @@ export function InventoryBalancePage() {
                 ) : null}
             </div>
 
-
+            {activeModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-0 md:p-6">
+                    <div className="flex h-full w-full flex-col bg-white shadow-2xl md:h-[90vh] md:max-h-[850px] md:max-w-[950px] md:rounded-3xl overflow-hidden">
+                        {/* Header with Close X */}
+                        <header className="flex items-center justify-between border-b border-neutral-100 px-6 py-4">
+                            <h2 className="text-lg font-bold text-gray-800">
+                                {activeModal === "stock-in" ? "Nhập hàng từ kho tổng" : "Điều chỉnh tồn kho"}
+                            </h2>
+                            <button
+                                onClick={() => setActiveModal(null)}
+                                className="rounded-xl p-2 hover:bg-neutral-100 text-neutral-400 hover:text-neutral-600"
+                            >
+                                <X size={20} />
+                            </button>
+                        </header>
+                        
+                        {/* Content Body */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <StoreInventoryForm
+                                mode={activeModal}
+                                onSuccess={() => loadBalances()}
+                                onSubmit={async (input) => {
+                                    if (activeModal === "stock-in") {
+                                        return inventoryTransactionApi.storeStockIn({
+                                            referenceType: input.referenceType,
+                                            referenceId: input.referenceId,
+                                            lines: input.lines.map((line) => ({
+                                                inventoryItemId: line.item.id,
+                                                quantity: Number(line.quantity)
+                                            }))
+                                        });
+                                    } else {
+                                        return inventoryTransactionApi.storeAdjust({
+                                            referenceType: input.referenceType,
+                                            referenceId: input.referenceId,
+                                            lines: input.lines.map((line) => ({
+                                                inventoryItemId: line.item.id,
+                                                actualQuantity: Number(line.quantity)
+                                            }))
+                                        });
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </section>
     );

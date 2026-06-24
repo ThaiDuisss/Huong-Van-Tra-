@@ -26,6 +26,7 @@ export interface Category {
     name: string;
     status: CatalogStatus;
     categoryCode: string;
+    defaultReorderPoint: number;
 }
 
 export interface CategoryInput {
@@ -33,6 +34,7 @@ export interface CategoryInput {
     name: string;
     status: CatalogStatus;
     categoryCode?: string;
+    defaultReorderPoint: number;
 }
 
 export interface ProductSummary {
@@ -88,17 +90,18 @@ export interface ProductVariant {
     status: CatalogStatus;
     productStatus: CatalogStatus;
     sellable: boolean;
+    packQuantity: number;
 }
 
 export interface ProductVariantInput {
     productId: EntityId;
-    sku: string;
     variantName: string;
     sellingPrice: number;
     costPrice: number;
     baseUnitId: EntityId;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
+    packQuantity: number;
 }
 
 export interface PriceListItem {

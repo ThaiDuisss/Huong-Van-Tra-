@@ -5,7 +5,10 @@ import type {
     InventoryTransactionResponse,
     PageResponse,
     StockAdjustmentRequest,
-    StockInRequest
+    StockInRequest,
+    StoreStockAdjustmentRequest,
+    StoreStockInRequest,
+    StoreStockOutRequest
 } from "../types/inventory.types";
 
 export const inventoryTransactionApi = {
@@ -31,5 +34,23 @@ export const inventoryTransactionApi = {
             InventoryTransactionResponse,
             StockAdjustmentRequest
         >("/inventory/inventory-transactions/adjustment", input);
+    },
+    storeStockIn(input: StoreStockInRequest) {
+        return apiClient.post<
+            InventoryTransactionResponse,
+            StoreStockInRequest
+        >("/inventory/inventory-transactions/store/stock-in", input);
+    },
+    storeAdjust(input: StoreStockAdjustmentRequest) {
+        return apiClient.post<
+            InventoryTransactionResponse,
+            StoreStockAdjustmentRequest
+        >("/inventory/inventory-transactions/store/adjustment", input);
+    },
+    storeStockOut(input: StoreStockOutRequest) {
+        return apiClient.post<
+            InventoryTransactionResponse,
+            StoreStockOutRequest
+        >("/inventory/inventory-transactions/store/stock-out", input);
     }
 };

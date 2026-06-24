@@ -28,6 +28,9 @@ public class Category extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
+    @Column(name = "default_reorder_point", nullable = false)
+    private Integer defaultReorderPoint = 10;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private Status status = Status.ACTIVE;

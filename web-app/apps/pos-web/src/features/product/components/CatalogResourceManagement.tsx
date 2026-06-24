@@ -10,7 +10,6 @@ import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
-import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
@@ -80,7 +79,6 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
         options: Array<{ label: string; value: string }>;
         onChange(value: string): void;
     };
-    breadcrumbs?: string[];
     statusOptions?: Array<{ label: string; value: "ALL" | S }>;
     extraHeaderActions?: ReactNode;
     totalItemsLabel?: string;
@@ -114,7 +112,6 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     onChangeStatus,
     detailPath,
     secondaryFilter,
-    breadcrumbs,
     statusOptions,
     extraHeaderActions,
     totalItemsLabel
@@ -188,7 +185,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
 
     return (
         <section className="grid gap-5">
-            <Breadcrumbs items={breadcrumbs ?? ["Product Management", title]} />
+            {/* <Breadcrumbs items={breadcrumbs ?? ["Product Management", title]} /> */}
 
             <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="grid gap-1 min-w-[240px]">

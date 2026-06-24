@@ -110,10 +110,11 @@ public class ProductVariantController {
 
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
         String timestamp = java.time.LocalDateTime.now().format(formatter);
-        String rawFilename = "Danh sách biến thể sản phẩm_" + timestamp + ".xlsx";
+        String rawFilename = "Danh_sach_bien_the_san_pham_" + timestamp + ".xlsx";
         String encodedFilename = "";
         try {
-            encodedFilename = java.net.URLEncoder.encode(rawFilename, "UTF-8").replace("+", "%20");
+            encodedFilename = java.net.URLEncoder.encode(rawFilename, java.nio.charset.StandardCharsets.UTF_8)
+                    .replace("+", "%20");
         } catch (Exception ignored) {
         }
 
