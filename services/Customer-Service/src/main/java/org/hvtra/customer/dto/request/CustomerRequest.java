@@ -18,6 +18,8 @@ public record CustomerRequest(
         LocalDate dateOfBirth,
         UUID tierId,
         @DecimalMin("0.00") BigDecimal creditLimit,
+        LocalDate lastPurchaseDate,
+        @DecimalMin("0.00") BigDecimal totalSpent,
         CustomerStatus status
 ) {
 }
