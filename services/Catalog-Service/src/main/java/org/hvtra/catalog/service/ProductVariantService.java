@@ -20,6 +20,7 @@ public interface ProductVariantService {
     byte[] getImportTemplate();
     java.util.List<ProductResponse.VariantResponse> findAllByIds(java.util.List<UUID> ids);
     java.util.List<UUID> searchVariantIds(String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId);
-    java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(String sku, String productName);
+    java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName);
+    org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse getPosView(UUID variantId);
 }
 

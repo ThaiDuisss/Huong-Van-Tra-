@@ -89,6 +89,9 @@ export function PosSalePage() {
     >([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchError, setSearchError] = useState("");
+    const [addingProductId, setAddingProductId] = useState<string | null>(
+        null
+    );
     const [cartItemsById, setCartItemsById] = useState<
         Record<string, SaleCartItem>
     >(initialCartItems);
@@ -117,6 +120,9 @@ export function PosSalePage() {
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [checkoutError, setCheckoutError] = useState("");
     const [checkoutSuccess, setCheckoutSuccess] = useState("");
+    const [createdOrderId, setCreatedOrderId] = useState<string | null>(
+        null
+    );
 
     useEffect(() => {
         const normalizedQuery = searchQuery.trim();
@@ -150,7 +156,7 @@ export function PosSalePage() {
                         setSearchLoading(false);
                     }
                 });
-        }, 250);
+        }, 300);
 
         return () => {
             active = false;
@@ -195,6 +201,11 @@ export function PosSalePage() {
             return;
         }
 
+        if (orderType !== "QUICK_SALE") {
+            setCheckoutError("Vui lòng chọn tab Bán nhanh để thanh toán.");
+            return;
+        }
+
         if (paymentMethod === "COMBINED") {
             setCheckoutError(
                 "Payment-Service hiện chưa có API thanh toán tổng hợp."
@@ -218,25 +229,52 @@ export function PosSalePage() {
         setCheckoutError("");
         setCheckoutSuccess("");
 
+        let orderId = createdOrderId;
+        let orderCode = "";
+        let amountToPay = totals.total;
+
         try {
-            const order = await posOrderApi.create({
-                customerId: isUuid(selectedCustomerId)
-                    ? selectedCustomerId
-                    : null,
-                orderType,
-                discountAmount: totals.discountAmount,
-                items: cartItems
-            });
-            const amountToPay = Number(order.finalAmount ?? totals.total);
+            if (!orderId) {
+                try {
+                    const order = await posOrderApi.create({
+                        customerId: isUuid(selectedCustomerId)
+                            ? selectedCustomerId
+                            : null,
+                        orderType,
+                        discountAmount: totals.discountAmount,
+                        items: cartItems
+                    });
+
+                    orderId = order.id;
+                    orderCode = order.orderCode;
+                    amountToPay = Number(order.finalAmount ?? totals.total);
+                    setCreatedOrderId(order.id);
+                } catch (error) {
+                    logApiError(error);
+                    setCheckoutError(
+                        `Tạo đơn thất bại: ${getErrorMessage(error)}`
+                    );
+                    return;
+                }
+            }
+
             const receivedAmount =
                 paymentMethod === "CASH"
                     ? Math.max(cashReceived, amountToPay)
                     : amountToPay;
 
-            await posPaymentApi.payByCash({
-                orderId: order.id,
-                receivedAmount
-            });
+            try {
+                await posPaymentApi.payByCash({
+                    orderId,
+                    receivedAmount
+                });
+            } catch (error) {
+                logApiError(error);
+                setCheckoutError(
+                    `Đã tạo đơn nhưng thanh toán thất bại: ${getErrorMessage(error)}`
+                );
+                return;
+            }
 
             setCartItemsById({});
             setNote("");
@@ -245,8 +283,12 @@ export function PosSalePage() {
             setSubtotalOverrideNote("");
             setCashReceived(0);
             setBankTransferStatus("WAITING");
+            setCreatedOrderId(null);
+            clearCustomer();
             setCheckoutSuccess(
-                `Thanh toán thành công đơn ${order.orderCode}.`
+                orderCode
+                    ? `Thanh toán thành công đơn ${orderCode}.`
+                    : "Thanh toán thành công."
             );
         } catch (error) {
             logApiError(error);
@@ -297,7 +339,7 @@ export function PosSalePage() {
         }));
     }
 
-    function addProduct(product: SaleProductPreview) {
+    function upsertCartItem(product: SaleProductPreview) {
         setCheckoutError("");
         setCheckoutSuccess("");
         setCartItemsById((currentItems) => {
@@ -309,9 +351,7 @@ export function PosSalePage() {
                     productId: product.id,
                     productVariantId: product.productVariantId,
                     name: product.name,
-                    sku: product.sku.startsWith("SKU-")
-                        ? product.sku
-                        : `SKU-${product.sku}`,
+                    sku: product.sku,
                     variant: product.variant,
                     quantity: Math.min(
                         product.availableQuantity,
@@ -323,9 +363,41 @@ export function PosSalePage() {
         });
     }
 
-    function addProductFromSearch(product: SaleProductPreview) {
-        addProduct(product);
-        clearSearch();
+    async function addProduct(product: SaleProductPreview) {
+        const variantId = product.productVariantId ?? product.id;
+
+        if (addingProductId) {
+            return false;
+        }
+
+        if (!variantId) {
+            setCheckoutError("Không xác định được mã biến thể sản phẩm.");
+            return false;
+        }
+
+        setAddingProductId(product.id);
+
+        try {
+            const snapshot = await posProductApi.getPosView(variantId);
+            upsertCartItem(snapshot);
+            return true;
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(
+                `Không thể thêm sản phẩm: ${getErrorMessage(error)}`
+            );
+            return false;
+        } finally {
+            setAddingProductId(null);
+        }
+    }
+
+    async function addProductFromSearch(product: SaleProductPreview) {
+        const added = await addProduct(product);
+
+        if (added) {
+            clearSearch();
+        }
     }
 
     function changeSearchQuery(value: string) {
@@ -335,6 +407,8 @@ export function PosSalePage() {
             setSearchResults([]);
             setSearchError("");
             setSearchLoading(false);
+        } else {
+            setSearchLoading(true);
         }
     }
 
@@ -415,6 +489,7 @@ export function PosSalePage() {
                     subtotalOverrideNote={subtotalOverrideNote}
                     cashReceived={cashReceived}
                     changeAmount={changeAmount}
+                    orderType={orderType}
                     paymentMethod={paymentMethod}
                     bankTransferStatus={bankTransferStatus}
                     checkoutLoading={checkoutLoading}
@@ -458,6 +533,7 @@ export function PosSalePage() {
                         results={searchResults}
                         loading={searchLoading}
                         error={searchError}
+                        addingProductId={addingProductId}
                         formatCurrency={formatCurrency}
                         onChange={changeSearchQuery}
                         onClear={clearSearch}
@@ -518,6 +594,7 @@ interface CheckoutPanelProps {
     subtotalOverrideNote: string;
     cashReceived: number;
     changeAmount: number;
+    orderType: SaleOrderType;
     paymentMethod: SalePaymentMethod;
     bankTransferStatus: PaymentStatusValue;
     checkoutLoading: boolean;
@@ -548,6 +625,7 @@ function CheckoutPanel({
     subtotalOverrideNote,
     cashReceived,
     changeAmount,
+    orderType,
     paymentMethod,
     bankTransferStatus,
     checkoutLoading,
@@ -576,6 +654,7 @@ function CheckoutPanel({
     const isCombinedPayment = paymentMethod === "COMBINED";
     const canCompletePayment =
         totals.total > 0 &&
+        orderType === "QUICK_SALE" &&
         (paymentMethod !== "CASH" || cashReceived >= totals.total) &&
         (!isBankTransfer || bankTransferStatus === "RECEIVED") &&
         !checkoutLoading;

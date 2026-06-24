@@ -496,9 +496,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(String sku, String productName) {
+    public java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            if (keyword != null && !keyword.isBlank()) {
+                String normalizedKeyword = "%" + keyword.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("sku")), normalizedKeyword),
+                        cb.like(cb.lower(root.get("variantName")), normalizedKeyword),
+                        cb.like(cb.lower(root.get("product").get("name")), normalizedKeyword)
+                ));
+            }
             if (sku != null && !sku.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("sku")), "%" + sku.toLowerCase() + "%"));
             }
@@ -520,6 +528,12 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                         v.getProduct().getImageUrl()
                 ))
                 .toList();
+    }
+
+    @Override
+    public org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse getPosView(UUID variantId) {
+        return repository.findPosViewByVariantId(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product variant", variantId));
     }
 }
 

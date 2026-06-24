@@ -1,44 +1,41 @@
 import { apiClient } from "../../../api/api-client";
-import type {
-    PageResult,
-    Product,
-    ProductSummary,
-    ProductVariant
-} from "../../product/types/product.types";
 import type { SaleProductPreview } from "../types/sale.types";
 
 const fallbackImageUrl =
     "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=360&q=80";
 
-function mapVariantToSaleProduct(variant: ProductVariant): SaleProductPreview {
-    return {
-        id: String(variant.id),
-        productVariantId: String(variant.id),
-        name: variant.productName,
-        sku: variant.sku,
-        barcode: "",
-        category: "",
-        variant: variant.variantName,
-        price: Number(variant.sellingPrice ?? 0),
-        imageUrl: fallbackImageUrl,
-        availableQuantity: 999
-    };
+interface PosVariantResponse {
+    productId: string;
+    variantId: string;
+    sku: string;
+    barcode?: string | null;
+    productName: string;
+    variantName: string;
+    categoryName?: string | null;
+    sellingPrice?: number | string | null;
+    selling_price?: number | string | null;
+    imageUrl?: string | null;
 }
 
-function mapProductVariantToSaleProduct(
-    product: Product,
-    variant: ProductVariant
+function toNumber(value: number | string | null | undefined) {
+    const numberValue = Number(value ?? 0);
+
+    return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function mapPosVariantToSaleProduct(
+    variant: PosVariantResponse
 ): SaleProductPreview {
     return {
-        id: String(variant.id),
-        productVariantId: String(variant.id),
-        name: product.name,
+        id: String(variant.variantId),
+        productVariantId: String(variant.variantId),
+        name: variant.productName,
         sku: variant.sku,
-        barcode: "",
-        category: product.category?.name ?? "",
+        barcode: variant.barcode ?? "",
+        category: variant.categoryName ?? "",
         variant: variant.variantName,
-        price: Number(variant.sellingPrice ?? 0),
-        imageUrl: product.imageUrl ?? fallbackImageUrl,
+        price: toNumber(variant.sellingPrice ?? variant.selling_price),
+        imageUrl: variant.imageUrl ?? fallbackImageUrl,
         availableQuantity: 999
     };
 }
@@ -66,69 +63,23 @@ export const posProductApi = {
             return [];
         }
 
-        const [skuResult, variantResult, productResult] =
-            await Promise.allSettled([
-                apiClient.get<PageResult<ProductVariant>>(
-                    "/catalog/product-variants",
-                    {
-                        query: {
-                            page: 0,
-                            size: 10,
-                            sku: query,
-                            status: "ACTIVE"
-                        }
-                    }
-                ),
-                apiClient.get<PageResult<ProductVariant>>(
-                    "/catalog/product-variants",
-                    {
-                        query: {
-                            page: 0,
-                            size: 10,
-                            variantName: query,
-                            status: "ACTIVE"
-                        }
-                    }
-                ),
-                apiClient
-                    .get<PageResult<ProductSummary>>("/catalog/products", {
-                        query: {
-                            page: 0,
-                            size: 5,
-                            name: query,
-                            status: "ACTIVE"
-                        }
-                    })
-                    .then(async (response) => {
-                        const products = await Promise.all(
-                            response.content.map((product) =>
-                                apiClient.get<Product>(
-                                    `/catalog/products/${encodeURIComponent(product.id)}`
-                                )
-                            )
-                        );
-
-                        return products.flatMap((product) =>
-                            product.variants
-                                .filter((variant) => variant.sellable)
-                                .map((variant) =>
-                                    mapProductVariantToSaleProduct(
-                                        product,
-                                        variant
-                                    )
-                                )
-                        );
-                    })
-            ]);
-
-        const variantProducts = [skuResult, variantResult].flatMap((result) =>
-            result.status === "fulfilled"
-                ? result.value.content.map(mapVariantToSaleProduct)
-                : []
+        const variants = await apiClient.get<PosVariantResponse[]>(
+            "/catalog/product-variants/search-view-pos",
+            {
+                query: {
+                    keyword: query
+                }
+            }
         );
-        const productNameProducts =
-            productResult.status === "fulfilled" ? productResult.value : [];
 
-        return uniqueProducts([...variantProducts, ...productNameProducts]);
+        return uniqueProducts(variants.map(mapPosVariantToSaleProduct));
+    },
+
+    async getPosView(variantId: string) {
+        const variant = await apiClient.get<PosVariantResponse>(
+            `/catalog/product-variants/${encodeURIComponent(variantId)}/pos-view`
+        );
+
+        return mapPosVariantToSaleProduct(variant);
     }
 };

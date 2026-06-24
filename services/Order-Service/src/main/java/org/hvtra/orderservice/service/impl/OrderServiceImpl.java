@@ -2,6 +2,7 @@ package org.hvtra.orderservice.service.impl;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
@@ -32,6 +33,7 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final CatalogClient catalogClient;
 
     @Override
     @Transactional
@@ -60,19 +62,20 @@ public class OrderServiceImpl implements OrderService {
 
         // Duyệt từng sản phẩm trong request để tạo order item
         for (var itemRequest : request.getItems()) {
+            var variant = catalogClient.getProductVariantPosView(itemRequest.getProductVariantId());
             BigDecimal quantity = defaultZero(itemRequest.getQuantity());
-            BigDecimal actualUnitPrice = defaultZero(itemRequest.getActualUnitPrice());
+            BigDecimal actualUnitPrice = defaultZero(variant.sellingPrice());
             BigDecimal itemDiscount = defaultZero(itemRequest.getDiscountAmount());
             // Tính tổng tiền của từng dòng sản phẩm
             BigDecimal lineTotal = actualUnitPrice.multiply(quantity).subtract(itemDiscount);
 
             OrderItem item = OrderItem.builder()
-                    .productVariantId(itemRequest.getProductVariantId())
-                    .skuSnapshot(itemRequest.getSkuSnapshot())
-                    .productNameSnapshot(itemRequest.getProductNameSnapshot())
-                    .variantNameSnapshot(itemRequest.getVariantNameSnapshot())
+                    .productVariantId(variant.variantId())
+                    .skuSnapshot(variant.sku())
+                    .productNameSnapshot(variant.productName())
+                    .variantNameSnapshot(variant.variantName())
                     .quantity(quantity)
-                    .originalUnitPrice(defaultZero(itemRequest.getOriginalUnitPrice()))
+                    .originalUnitPrice(actualUnitPrice)
                     .actualUnitPrice(actualUnitPrice)
                     .discountAmount(itemDiscount)
                     .lineTotal(lineTotal)
