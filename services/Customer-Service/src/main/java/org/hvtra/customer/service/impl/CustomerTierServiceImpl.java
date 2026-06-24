@@ -1,6 +1,7 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.customer.constant.CacheName;
 import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.CustomerTierRequest;
@@ -11,6 +12,7 @@ import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.service.CustomerTierService;
 import org.springframework.http.HttpStatus;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +41,7 @@ public class CustomerTierServiceImpl implements CustomerTierService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public CustomerTierResponse create(CustomerTierRequest request) {
         ensureCodeAvailable(request.code(), null);
         CustomerTier tier = new CustomerTier();
@@ -48,6 +51,7 @@ public class CustomerTierServiceImpl implements CustomerTierService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public CustomerTierResponse update(UUID id, CustomerTierRequest request) {
         CustomerTier tier = findTier(id);
         ensureCodeAvailable(request.code(), id);
@@ -57,6 +61,7 @@ public class CustomerTierServiceImpl implements CustomerTierService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public void delete(UUID id) {
         CustomerTier tier = findTier(id);
         tier.setIsDeleted(true);

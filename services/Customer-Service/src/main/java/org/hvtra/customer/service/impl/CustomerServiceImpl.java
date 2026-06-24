@@ -1,6 +1,7 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.customer.constant.CacheName;
 import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
@@ -20,6 +21,8 @@ import org.hvtra.customer.service.CustomerService;
 import org.hvtra.customer.service.LoyaltyAccountService;
 import org.hvtra.customer.specification.CustomerSpecification;
 import org.springframework.data.domain.Pageable;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +41,11 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(
+            cacheNames = CacheName.CUSTOMER_FULL_LIST,
+            keyGenerator = "customerFullListKeyGenerator",
+            condition = "#p1.unpaged"
+    )
     public PageResponse<CustomerResponse> findAll(
             CustomerFilterRequest filter,
             Pageable pageable) {
@@ -55,6 +63,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public CustomerResponse create(CustomerRequest request) {
         CustomerRequest normalizedRequest = normalizeCreateRequest(request);
         ensureUniqueFields(normalizedRequest, null);
@@ -70,6 +79,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public CustomerResponse update(UUID id, CustomerRequest request) {
         Customer customer = findCustomer(id);
         CustomerRequest normalizedRequest = normalizeUpdateRequest(request, customer);
@@ -80,6 +90,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public CustomerResponse updatePurchase(UUID customerId, BigDecimal purchaseAmount) {
         if (customerId == null || purchaseAmount == null || purchaseAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw invalidRequest("Thông tin đơn hàng không hợp lệ");
@@ -103,6 +114,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public void delete(UUID id) {
         Customer customer = findCustomer(id);
         customer.setIsDeleted(true);
