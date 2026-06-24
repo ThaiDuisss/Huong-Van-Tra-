@@ -140,6 +140,8 @@ public class CustomerServiceImpl implements CustomerService {
                 request.dateOfBirth(),
                 request.tierId(),
                 request.creditLimit(),
+                request.lastPurchaseDate(),
+                request.totalSpent(),
                 request.status() != null ? request.status() : CustomerStatus.ACTIVE
         );
     }
@@ -153,6 +155,8 @@ public class CustomerServiceImpl implements CustomerService {
                 request.dateOfBirth(),
                 request.tierId(),
                 request.creditLimit(),
+                request.lastPurchaseDate(),
+                request.totalSpent(),
                 request.status() != null ? request.status() : customer.getStatus()
         );
     }

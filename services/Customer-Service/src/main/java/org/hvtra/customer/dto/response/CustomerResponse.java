@@ -16,7 +16,10 @@ public record CustomerResponse(
         UUID tierId,
         String tierCode,
         String tierName,
+        String tierColor,
         BigDecimal creditLimit,
+        LocalDate lastPurchaseDate,
+        BigDecimal totalSpent,
         CustomerStatus status
 ) {
 }
