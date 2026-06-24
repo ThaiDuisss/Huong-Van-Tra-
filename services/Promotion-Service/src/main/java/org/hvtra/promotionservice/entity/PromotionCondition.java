@@ -27,6 +27,7 @@ import org.hvtra.promotionservice.enums.condition.ConditionType;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@SuppressWarnings("java:S2160")
 public class PromotionCondition extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)

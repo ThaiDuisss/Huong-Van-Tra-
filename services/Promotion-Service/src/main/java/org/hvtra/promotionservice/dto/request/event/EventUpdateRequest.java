@@ -1,4 +1,4 @@
-package org.hvtra.promotionservice.dto.request.Event;
+package org.hvtra.promotionservice.dto.request.event;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.promotionservice.validation.annotation.ValidEventTime;
+import org.hvtra.promotionservice.validation.annotation.ValidTimeRange;
 
 import java.time.LocalDateTime;
 
@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Schema(description = "Request cập nhật sự kiện khuyến mãi")
-@ValidEventTime
+@ValidTimeRange
 public class EventUpdateRequest {
 
     @Schema(description = "Tên sự kiện khuyến mãi", example = "Tet Holiday Campaign 2027")

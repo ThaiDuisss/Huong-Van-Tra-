@@ -1,4 +1,4 @@
-package org.hvtra.promotionservice.constant;
+package org.hvtra.promotionservice.constant.event;
 
 public final class EventSuccessMessage {
 
@@ -17,11 +17,4 @@ public final class EventSuccessMessage {
 
     public static final String DELETED = "Event deleted successfully";
 
-    public static final String ACTIVATED = "Event activated successfully";
-
-    public static final String DEACTIVATED = "Event deactivated successfully";
-
-    public static final String CANCELLED = "Event cancelled successfully";
-
-    public static final String ENDED = "Event ended successfully";
 }

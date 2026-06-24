@@ -1,7 +1,7 @@
 package org.hvtra.promotionservice.mapper;
 
-import org.hvtra.promotionservice.dto.request.Event.EventCreateRequest;
-import org.hvtra.promotionservice.dto.request.Event.EventUpdateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventUpdateRequest;
 import org.hvtra.promotionservice.dto.response.EventResponse;
 import org.hvtra.promotionservice.entity.Event;
 import org.mapstruct.BeanMapping;

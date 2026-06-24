@@ -32,6 +32,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@SuppressWarnings("java:S2160")
 public class CouponUsage extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -69,4 +70,5 @@ public class CouponUsage extends BaseEntity {
 
     @Column(name = "released_at")
     LocalDateTime releasedAt;
+
 }

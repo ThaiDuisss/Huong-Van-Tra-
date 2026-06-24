@@ -4,9 +4,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.exception.ResourceNotFoundException;
-import org.hvtra.promotionservice.dto.request.Event.EventCreateRequest;
-import org.hvtra.promotionservice.dto.request.Event.EventStatusUpdateRequest;
-import org.hvtra.promotionservice.dto.request.Event.EventUpdateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventStatusUpdateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventUpdateRequest;
 import org.hvtra.promotionservice.dto.response.EventResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.entity.Event;
@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
-import static org.hvtra.promotionservice.constant.EventErrorMessage.EVENT_NOT_FOUND_WITH_ID;
+import static org.hvtra.promotionservice.constant.event.EventErrorMessage.EVENT_NOT_FOUND_WITH_ID;
 
 @Service
 @RequiredArgsConstructor

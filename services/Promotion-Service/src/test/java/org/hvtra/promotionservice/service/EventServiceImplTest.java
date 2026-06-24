@@ -1,9 +1,9 @@
 package org.hvtra.promotionservice.service;
 
 import org.hvtra.commonservice.exception.ResourceNotFoundException;
-import org.hvtra.promotionservice.dto.request.Event.EventCreateRequest;
-import org.hvtra.promotionservice.dto.request.Event.EventStatusUpdateRequest;
-import org.hvtra.promotionservice.dto.request.Event.EventUpdateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventStatusUpdateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventUpdateRequest;
 import org.hvtra.promotionservice.dto.response.EventResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.entity.Event;
@@ -225,7 +225,7 @@ class EventServiceImplTest {
             assertThat(actualResponse.getContent()).hasSize(1);
             assertThat(actualResponse.getContent().get(0)).isEqualTo(eventResponse);
 
-            assertThat(actualResponse.getPage()).isEqualTo(0);
+            assertThat(actualResponse.getPage()).isZero();
             assertThat(actualResponse.getSize()).isEqualTo(10);
             assertThat(actualResponse.getTotalElements()).isEqualTo(1);
             assertThat(actualResponse.getTotalPages()).isEqualTo(1);
@@ -264,7 +264,7 @@ class EventServiceImplTest {
 
             assertThat(actualResponse.getContent()).isEmpty();
 
-            assertThat(actualResponse.getPage()).isEqualTo(0);
+            assertThat(actualResponse.getPage()).isZero();
             assertThat(actualResponse.getSize()).isEqualTo(10);
             assertThat(actualResponse.getTotalElements()).isZero();
             assertThat(actualResponse.getTotalPages()).isZero();

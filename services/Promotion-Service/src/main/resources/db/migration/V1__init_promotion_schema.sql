@@ -9,10 +9,10 @@ CREATE TABLE events (
 
                         status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
 
-                        created_by VARCHAR(255) NULL,
+                        created_by BINARY(16) NULL,
                         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                        updated_by VARCHAR(255) NULL,
+                        updated_by BINARY(16) NULL,
                         updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                         version BIGINT NOT NULL DEFAULT 0,
@@ -41,10 +41,10 @@ CREATE TABLE promotions (
                             priority INT NOT NULL DEFAULT 0,
                             status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
 
-                            created_by VARCHAR(255) NULL,
+                            created_by BINARY(16) NULL,
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                            updated_by VARCHAR(255) NULL,
+                            updated_by BINARY(16) NULL,
                             updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                             version BIGINT NOT NULL DEFAULT 0,
@@ -75,10 +75,10 @@ CREATE TABLE promotion_conditions (
                                       operator VARCHAR(30) NOT NULL,
                                       condition_value VARCHAR(255) NOT NULL,
 
-                                      created_by VARCHAR(255) NULL,
+                                      created_by BINARY(16) NULL,
                                       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                                      updated_by VARCHAR(255) NULL,
+                                      updated_by BINARY(16) NULL,
                                       updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                                       version BIGINT NOT NULL DEFAULT 0,
@@ -103,10 +103,10 @@ CREATE TABLE promotion_benefits (
                                     value DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
                                     max_discount DECIMAL(14, 2) NULL,
 
-                                    created_by VARCHAR(255) NULL,
+                                    created_by BINARY(16) NULL,
                                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                                    updated_by VARCHAR(255) NULL,
+                                    updated_by BINARY(16) NULL,
                                     updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                                     version BIGINT NOT NULL DEFAULT 0,
@@ -137,10 +137,10 @@ CREATE TABLE coupons (
                          expires_at DATETIME NULL,
                          status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
 
-                         created_by VARCHAR(255) NULL,
+                         created_by BINARY(16) NULL,
                          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                         updated_by VARCHAR(255) NULL,
+                         updated_by BINARY(16) NULL,
                          updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                          version BIGINT NOT NULL DEFAULT 0,
@@ -180,10 +180,10 @@ CREATE TABLE coupon_usages (
                                used_at DATETIME NULL,
                                released_at DATETIME NULL,
 
-                               created_by VARCHAR(255) NULL,
+                               created_by BINARY(16) NULL,
                                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                               updated_by VARCHAR(255) NULL,
+                               updated_by BINARY(16) NULL,
                                updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
 
                                version BIGINT NOT NULL DEFAULT 0,

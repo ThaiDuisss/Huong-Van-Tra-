@@ -1,4 +1,4 @@
-package org.hvtra.promotionservice.dto.request.Event;
+package org.hvtra.promotionservice.dto.request.event;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;

@@ -35,10 +35,11 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@SuppressWarnings("java:S2160")
 public class Promotion extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "event_id")
+    @JoinColumn(name = "event_id", nullable = true)
     Event event;
 
     @Column(name = "name", nullable = false)
@@ -69,7 +70,7 @@ public class Promotion extends BaseEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    PromotionStatus status = PromotionStatus.ACTIVE;
+    PromotionStatus status = PromotionStatus.DRAFT;
 
     @Builder.Default
     @OneToMany(

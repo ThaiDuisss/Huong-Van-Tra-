@@ -28,6 +28,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@SuppressWarnings("java:S2160")
 public class Event extends BaseEntity {
 
     @Column(name = "name", nullable = false)
@@ -50,4 +51,9 @@ public class Event extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "event")
     List<Promotion> promotions = new ArrayList<>();
+
+    public void addPromotion(Promotion promotion) {
+        promotions.add(promotion);
+        promotion.setEvent(this);
+    }
 }

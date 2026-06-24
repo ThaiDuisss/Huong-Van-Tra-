@@ -35,6 +35,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@SuppressWarnings("java:S2160")
 public class Coupon extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -67,4 +68,5 @@ public class Coupon extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "coupon")
     List<CouponUsage> usages = new ArrayList<>();
+
 }

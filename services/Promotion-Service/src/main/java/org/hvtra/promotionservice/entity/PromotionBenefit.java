@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@SuppressWarnings("java:S2160")
 public class PromotionBenefit extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
