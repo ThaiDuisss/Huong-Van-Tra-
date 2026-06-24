@@ -3,9 +3,11 @@ package org.hvtra.customer.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
+import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
+import org.hvtra.customer.dto.response.PageResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
@@ -15,11 +17,12 @@ import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.service.CustomerService;
 import org.hvtra.customer.service.LoyaltyAccountService;
+import org.hvtra.customer.specification.CustomerSpecification;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -32,21 +35,13 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CustomerResponse> getAll() {
-        return customerRepository.findAllByIsDeletedFalse().stream()
-                .map(customerMapper::toResponse)
-                .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<CustomerResponse> search(String keyword) {
-        if (!hasText(keyword)) {
-            return getAll();
-        }
-        return customerRepository.searchByKeyword(keyword.trim()).stream()
-                .map(customerMapper::toResponse)
-                .toList();
+    public PageResponse<CustomerResponse> findAll(
+            CustomerFilterRequest filter,
+            Pageable pageable) {
+        return PageResponse.from(
+                customerRepository.findAll(CustomerSpecification.from(filter), pageable)
+                        .map(customerMapper::toResponse)
+        );
     }
 
     @Override

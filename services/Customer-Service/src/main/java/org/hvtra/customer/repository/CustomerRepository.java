@@ -2,28 +2,12 @@ package org.hvtra.customer.repository;
 
 import org.hvtra.customer.model.entity.Customer;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface CustomerRepository extends JpaRepository<Customer, UUID> {
-    List<Customer> findAllByIsDeletedFalse();
-
-    @Query("""
-            select customer
-            from Customer customer
-            where customer.isDeleted = false
-              and (
-                    lower(customer.fullName) like lower(concat('%', :keyword, '%'))
-                 or lower(customer.phone) like lower(concat('%', :keyword, '%'))
-                 or lower(customer.customerCode) like lower(concat('%', :keyword, '%'))
-              )
-            """)
-    List<Customer> searchByKeyword(@Param("keyword") String keyword);
-
+public interface CustomerRepository extends JpaRepository<Customer, UUID>, JpaSpecificationExecutor<Customer> {
     Optional<Customer> findByIdAndIsDeletedFalse(UUID id);
 
     boolean existsByCustomerCode(String customerCode);
