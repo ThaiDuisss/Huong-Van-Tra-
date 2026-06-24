@@ -16,4 +16,5 @@ public interface InventoryLocationService {
     InventoryLocationResponse create(InventoryLocationRequest request);
     InventoryLocationResponse update(UUID id, InventoryLocationRequest request);
     InventoryLocationResponse updateStatus(UUID id, InventoryStatus status);
+    InventoryLocationResponse findDefaultWarehouse(UUID branchId);
 }

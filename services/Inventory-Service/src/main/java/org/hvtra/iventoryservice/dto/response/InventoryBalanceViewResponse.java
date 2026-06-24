@@ -30,6 +30,7 @@ public record InventoryBalanceViewResponse(
         BigDecimal quantityOnHand,
         BigDecimal quantityReserved,
         BigDecimal availableQuantity,
+        Integer reorderPoint,
         Instant updatedAt
 ) {
 }

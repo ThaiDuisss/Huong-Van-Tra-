@@ -38,6 +38,12 @@ public class InventoryLocationController {
         return service.findById(id);
     }
 
+    @GetMapping("/default-warehouse")
+    public InventoryLocationResponse findDefaultWarehouse(
+            @RequestParam(name = "branchId") UUID branchId) {
+        return service.findDefaultWarehouse(branchId);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryLocationResponse create(

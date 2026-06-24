@@ -44,7 +44,7 @@ export function PriceListPage() {
         editingItem: PriceList | null
     ) {
         const baseInput = {
-            branchId: getNumber(values, "branchId"),
+            branchId: getString(values, "branchId"),
             name: getString(values, "name"),
             effectiveFrom: toApiDateTime(
                 getString(values, "effectiveFrom")
@@ -62,7 +62,7 @@ export function PriceListPage() {
             await priceListApi.update(String(editingItem.id), {
                 ...baseInput,
                 items: detail.items.map((item) => ({
-                    productVariantId: item.productVariant.id,
+                    productVariantId: String(item.productVariant.id),
                     sellingPrice: item.sellingPrice
                 }))
             });
@@ -71,7 +71,7 @@ export function PriceListPage() {
                 ...baseInput,
                 items: [
                     {
-                        productVariantId: getNumber(
+                        productVariantId: getString(
                             values,
                             "productVariantId"
                         ),
@@ -190,7 +190,6 @@ export function PriceListPage() {
                 {
                     name: "branchId",
                     label: "ID chi nhánh",
-                    type: "number",
                     required: true
                 },
                 {
@@ -208,7 +207,6 @@ export function PriceListPage() {
                           {
                               name: "productVariantId",
                               label: "ID biến thể đầu tiên",
-                              type: "number" as const,
                               required: true
                           },
                           {

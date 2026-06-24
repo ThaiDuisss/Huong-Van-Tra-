@@ -31,4 +31,7 @@ public class InventoryItem extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private InventoryStatus status = InventoryStatus.ACTIVE;
+
+    @Column(name = "reorder_point", nullable = false)
+    private Integer reorderPoint;
 }

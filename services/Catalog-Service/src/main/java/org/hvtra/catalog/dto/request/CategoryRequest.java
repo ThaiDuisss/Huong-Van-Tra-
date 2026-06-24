@@ -11,7 +11,8 @@ public record CategoryRequest(
         UUID parentId,
         String categoryCode,
         @NotBlank @Size(max = 255) String name,
-        @NotNull Status status
+        @NotNull Status status,
+        @NotNull @jakarta.validation.constraints.Min(0) Integer defaultReorderPoint
 ) {
 }
 

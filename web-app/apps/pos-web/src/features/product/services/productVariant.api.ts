@@ -59,13 +59,13 @@ export const productVariantApi = {
     },
     update(id: string, input: ProductVariantInput) {
         const body: Omit<ProductVariantInput, "productId"> = {
-            sku: input.sku,
             variantName: input.variantName,
             sellingPrice: input.sellingPrice,
             costPrice: input.costPrice,
             baseUnitId: input.baseUnitId,
             inventoryPolicy: input.inventoryPolicy,
-            status: input.status
+            status: input.status,
+            packQuantity: input.packQuantity
         };
 
         return apiClient.put<

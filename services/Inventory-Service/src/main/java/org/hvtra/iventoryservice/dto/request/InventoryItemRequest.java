@@ -10,7 +10,9 @@ public record InventoryItemRequest(
         @NotNull UUID referenceId,
         @NotNull InventoryItemType itemType,
         @NotNull UUID baseUnitId,
-        @NotNull InventoryStatus status
+        @NotNull InventoryStatus status,
+        @NotNull Integer reorderPoint
+
 ) {
 }
 

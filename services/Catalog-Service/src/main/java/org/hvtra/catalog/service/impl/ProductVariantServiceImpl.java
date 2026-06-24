@@ -7,6 +7,7 @@ import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.Product;
+import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.enums.InventoryItemType;
 import org.hvtra.catalog.enums.Status;
@@ -16,6 +17,7 @@ import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.repository.UnitRepository;
+import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -33,18 +35,21 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     private final ProductMapper mapper;
     private final InventoryClient inventoryClient;
     private final UnitRepository unitRepository;
+    private final BusinessSequenceRepository businessSequenceRepository;
 
     public ProductVariantServiceImpl(
             ProductVariantRepository repository,
             ProductRepository productRepository,
             ProductMapper mapper,
             InventoryClient inventoryClient,
-            UnitRepository unitRepository) {
+            UnitRepository unitRepository,
+            BusinessSequenceRepository businessSequenceRepository) {
         this.repository = repository;
         this.productRepository = productRepository;
         this.mapper = mapper;
         this.inventoryClient = inventoryClient;
         this.unitRepository = unitRepository;
+        this.businessSequenceRepository = businessSequenceRepository;
     }
 
     @Override
@@ -82,22 +87,57 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         return mapper.toVariantResponse(get(id));
     }
 
+    @Transactional
+    public String generateSku(Product product, int packQuantity) {
+        String name = product.getName();
+        String normalized = java.text.Normalizer.normalize(name != null ? name : "", java.text.Normalizer.Form.NFD);
+        normalized = normalized.replaceAll("\\p{M}", "");
+        String clean = normalized.replaceAll("[^a-zA-Z0-9\\s]", "").toUpperCase().trim();
+        String[] words = clean.split("\\s+");
+        String prefix = java.util.Arrays.stream(words)
+                .filter(w -> !w.isEmpty())
+                .map(w -> w.substring(0, 1))
+                .collect(java.util.stream.Collectors.joining());
+
+        if (prefix.isEmpty()) {
+            prefix = "PR";
+        }
+
+        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("SKU")
+                .orElseThrow(() -> new RuntimeException("SKU sequence not initialized"));
+        long nextVal = seq.getCurrentValue() + 1;
+        seq.setCurrentValue(nextVal);
+        businessSequenceRepository.saveAndFlush(seq);
+
+        return String.format("%s%d-%05d", prefix, packQuantity, nextVal);
+    }
+
     @Override
     @Transactional
     public ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request) {
-        validateSku(request.sku(), null);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
         ProductVariant variant = new ProductVariant();
         variant.setProduct(product);
         apply(variant, request);
+
+        String generatedSku = generateSku(product, request.packQuantity());
+        variant.setSku(generatedSku);
+
         ProductVariant savedVariant = repository.saveAndFlush(variant);
+
+        Category category = product.getCategory();
+        Integer reorderPoint = (category != null && category.getDefaultReorderPoint() != null)
+                ? category.getDefaultReorderPoint()
+                : 10;
+
         inventoryClient.createProductVariantItem(
                 InventoryClient.CreateInventoryItemRequest.builder()
                         .status(savedVariant.getStatus().toString())
                         .baseUnitId(savedVariant.getBaseUnitId())
                         .referenceId(savedVariant.getId())
                         .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                        .reorderPoint(reorderPoint)
                         .build());
         return mapper.toVariantResponse(savedVariant);
     }
@@ -106,7 +146,6 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Transactional
     public ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request) {
         ProductVariant variant = get(id);
-        validateSku(request.sku(), id);
         apply(variant, request);
         return mapper.toVariantResponse(repository.save(variant));
     }
@@ -128,21 +167,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         if (!unitRepository.existsById(request.baseUnitId())) {
             throw new ResourceNotFoundException("Unit", request.baseUnitId());
         }
-        variant.setSku(request.sku().trim());
         variant.setVariantName(request.variantName().trim());
         variant.setSellingPrice(request.sellingPrice());
         variant.setCostPrice(request.costPrice());
+        variant.setPackQuantity(request.packQuantity());
         variant.setBaseUnitId(request.baseUnitId());
         variant.setInventoryPolicy(request.inventoryPolicy());
         variant.setStatus(request.status());
-    }
-
-    private void validateSku(String sku, UUID id) {
-        String normalized = sku.trim();
-        boolean exists = id == null
-                ? repository.existsBySku(normalized)
-                : repository.existsBySkuAndIdNot(normalized, id);
-        if (exists) throw new BadRequestException("SKU already exists: " + normalized);
     }
 
     @Override
@@ -168,7 +199,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             org.apache.poi.ss.usermodel.DataFormat format = workbook.createDataFormat();
             priceStyle.setDataFormat(format.getFormat("#,##0"));
             
-            String[] headers = {"Mã sản phẩm", "Tên biến thể", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Chính sách tồn kho", "Trạng thái"};
+            String[] headers = {"Mã sản phẩm", "Tên biến thể", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Định lượng", "Chính sách tồn kho", "Trạng thái"};
             org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
                 org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
@@ -211,13 +242,15 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 }
                 row.createCell(5).setCellValue(unitStr);
                 
+                row.createCell(6).setCellValue(v.getPackQuantity() != null ? v.getPackQuantity() : 1);
+                
                 String policyStr = "Không theo dõi";
                 if (v.getInventoryPolicy() == org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK) {
                     policyStr = "Theo dõi tồn kho";
                 }
-                row.createCell(6).setCellValue(policyStr);
+                row.createCell(7).setCellValue(policyStr);
                 
-                row.createCell(7).setCellValue(v.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
+                row.createCell(8).setCellValue(v.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
             }
             
             sheet.createFreezePane(0, 1);
@@ -258,8 +291,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 String sellingPriceStr = getCellValueAsString(row.getCell(3));
                 String costPriceStr = getCellValueAsString(row.getCell(4));
                 String unitName = getCellValueAsString(row.getCell(5));
-                String policyStr = getCellValueAsString(row.getCell(6));
-                String statusStr = getCellValueAsString(row.getCell(7));
+                String packQuantityStr = getCellValueAsString(row.getCell(6));
+                String policyStr = getCellValueAsString(row.getCell(7));
+                String statusStr = getCellValueAsString(row.getCell(8));
                 
                 if (variantName.isBlank() && sku.isBlank() && productCode.isBlank()) {
                     continue;
@@ -272,32 +306,45 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 if (variantName.isBlank()) {
                     throw new BadRequestException("Row " + rowNum + ": Variant Name is blank.");
                 }
-                if (sku.isBlank()) {
-                    throw new BadRequestException("Row " + rowNum + ": SKU is blank.");
-                }
-                
+
                 Product product = productRepository.findByProductCode(productCode)
                         .orElseThrow(() -> new BadRequestException("Row " + rowNum + ": Product Code '" + productCode + "' does not exist."));
-                
-                // Skip if SKU already exists in database
-                if (repository.existsBySku(sku.trim())) {
-                    continue;
+
+                Integer packQuantity = 1;
+                if (!packQuantityStr.isBlank()) {
+                    try {
+                        packQuantity = Integer.parseInt(packQuantityStr);
+                        if (packQuantity < 1) {
+                            packQuantity = 1;
+                        }
+                    } catch (Exception ignored) {}
                 }
-                
+
+                String finalSku;
+                if (sku.isBlank()) {
+                    finalSku = generateSku(product, packQuantity);
+                } else {
+                    finalSku = sku.trim();
+                    // Skip if SKU already exists in database
+                    if (repository.existsBySku(finalSku)) {
+                        continue;
+                    }
+                }
+
                 java.math.BigDecimal sellingPrice = java.math.BigDecimal.ZERO;
                 if (!sellingPriceStr.isBlank()) {
                     try {
                         sellingPrice = new java.math.BigDecimal(sellingPriceStr);
                     } catch (Exception ignored) {}
                 }
-                
+
                 java.math.BigDecimal costPrice = java.math.BigDecimal.ZERO;
                 if (!costPriceStr.isBlank()) {
                     try {
                         costPrice = new java.math.BigDecimal(costPriceStr);
                     } catch (Exception ignored) {}
                 }
-                
+
                 UUID baseUnitId = null;
                 for (var u : units) {
                     if (u.getName().equalsIgnoreCase(unitName) || u.getSymbol().equalsIgnoreCase(unitName)) {
@@ -311,26 +358,27 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 if (baseUnitId == null) {
                     continue;
                 }
-                
+
                 org.hvtra.catalog.enums.InventoryPolicy policy = org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK;
                 if ("Theo dõi tồn kho".equalsIgnoreCase(policyStr) || "TRACK_STOCK".equalsIgnoreCase(policyStr)) {
                     policy = org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK;
                 } else if ("Không theo dõi".equalsIgnoreCase(policyStr) || "DO_NOT_TRACK".equalsIgnoreCase(policyStr)) {
                     policy = org.hvtra.catalog.enums.InventoryPolicy.DO_NOT_TRACK;
                 }
-                
+
                 Status status = "Ngừng hoạt động".equals(statusStr) || "INACTIVE".equalsIgnoreCase(statusStr) 
                         ? Status.INACTIVE : Status.ACTIVE;
-                        
+
                 ProductVariant variant = new ProductVariant();
                 variant.setProduct(product);
-                variant.setSku(sku.trim());
+                variant.setSku(finalSku);
                 variant.setVariantName(variantName.trim());
                 variant.setSellingPrice(sellingPrice);
                 variant.setCostPrice(costPrice);
                 variant.setBaseUnitId(baseUnitId);
                 variant.setInventoryPolicy(policy);
                 variant.setStatus(status);
+                variant.setPackQuantity(packQuantity);
                 
                 ProductVariant savedVariant = repository.saveAndFlush(variant);
                 
@@ -397,7 +445,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             org.apache.poi.ss.usermodel.DataFormat format = workbook.createDataFormat();
             priceStyle.setDataFormat(format.getFormat("#,##0"));
             
-            String[] headers = {"Mã sản phẩm", "Tên biến thể", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Chính sách tồn kho", "Trạng thái"};
+            String[] headers = {"Mã sản phẩm", "Tên biến thể", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Định lượng", "Chính sách tồn kho", "Trạng thái"};
             org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
                 org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
@@ -420,8 +468,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             cellCost1.setCellStyle(priceStyle);
             
             row1.createCell(5).setCellValue("Gói");
-            row1.createCell(6).setCellValue("Theo dõi tồn kho");
-            row1.createCell(7).setCellValue("Đang hoạt động");
+            row1.createCell(6).setCellValue(1);
+            row1.createCell(7).setCellValue("Theo dõi tồn kho");
+            row1.createCell(8).setCellValue("Đang hoạt động");
             
             org.apache.poi.ss.usermodel.Row row2 = sheet.createRow(2);
             row2.createCell(0).setCellValue("PRD00001");
@@ -437,8 +486,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             cellCost2.setCellStyle(priceStyle);
             
             row2.createCell(5).setCellValue("Gói");
-            row2.createCell(6).setCellValue("Theo dõi tồn kho");
-            row2.createCell(7).setCellValue("Đang hoạt động");
+            row2.createCell(6).setCellValue(1);
+            row2.createCell(7).setCellValue("Theo dõi tồn kho");
+            row2.createCell(8).setCellValue("Đang hoạt động");
             
             sheet.createFreezePane(0, 1);
             sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, 2, 0, headers.length - 1));

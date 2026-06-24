@@ -12,7 +12,7 @@ public class CategoryMapper {
     public CategoryResponse toResponse(Category category) {
         if (category == null) return null;
         UUID parentId = category.getParentCategory() == null ? null : category.getParentCategory().getId();
-        return new CategoryResponse(category.getId(), parentId, category.getName(), category.getStatus(), category.getCategoryCode());
+        return new CategoryResponse(category.getId(), parentId, category.getName(), category.getStatus(), category.getCategoryCode(), category.getDefaultReorderPoint());
     }
 
 
@@ -20,6 +20,7 @@ public class CategoryMapper {
         category.setParentCategory(parent);
         category.setName(request.name().trim());
         category.setStatus(request.status());
+        category.setDefaultReorderPoint(request.defaultReorderPoint());
     }
 }
 

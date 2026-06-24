@@ -13,7 +13,8 @@ public class InventoryItemMapper {
                 item.getReferenceId(),
                 item.getItemType(),
                 item.getBaseUnitId(),
-                item.getStatus()
+                item.getStatus(),
+                item.getReorderPoint()
         );
     }
 
@@ -22,5 +23,6 @@ public class InventoryItemMapper {
         item.setItemType(request.itemType());
         item.setBaseUnitId(request.baseUnitId());
         item.setStatus(request.status());
+        item.setReorderPoint(request.reorderPoint());
     }
 }
