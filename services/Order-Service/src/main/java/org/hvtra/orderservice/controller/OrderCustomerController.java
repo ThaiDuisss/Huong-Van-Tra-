@@ -2,7 +2,7 @@ package org.hvtra.orderservice.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.hvtra.orderservice.dto.response.CustomerResponse;
-import org.hvtra.orderservice.service.OrderCustomerService;
+import org.hvtra.orderservice.service.impl.OrderCustomerService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
