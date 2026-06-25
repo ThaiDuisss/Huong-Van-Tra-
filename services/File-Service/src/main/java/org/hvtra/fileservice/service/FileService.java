@@ -14,6 +14,7 @@ import org.hvtra.fileservice.model.entity.FileMetadata;
 import org.hvtra.fileservice.model.enums.FilePurpose;
 import org.hvtra.fileservice.model.enums.FileStatus;
 import org.hvtra.fileservice.model.enums.FileVisibility;
+import org.hvtra.fileservice.model.request.FileAttach;
 import org.hvtra.fileservice.model.request.InitUploadRequest;
 import org.hvtra.fileservice.model.response.CompleteUploadResponse;
 import org.hvtra.fileservice.model.response.DownloadUrlResponse;
@@ -45,7 +46,6 @@ public class FileService {
         String extension = extractExtension(request.originalFilename());
         String objectKey = buildObjectKey(
                 request.purpose(),
-                request.refType(),
                 request.refId(),
                 currentUserId,
                 fileId,
@@ -72,7 +72,6 @@ public class FileService {
                 .status(FileStatus.PENDING)
                 .ownerId(request.ownerId() != null ? request.ownerId() : currentUserId)
                 .ownerType(request.ownerType())
-                .refType(request.refType())
                 .refId(request.refId())
                 .build();
 
@@ -104,6 +103,11 @@ public class FileService {
         } catch (Exception e) {
             throw new AppException(8001, "Cannot create upload URL");
         }
+    }
+    @Transactional
+    public Integer attachFile(FileAttach attach) {
+
+        return fileRepository.updateReferenceId(attach.refId(), attach.fieldId());
     }
 
 
@@ -229,7 +233,6 @@ public class FileService {
 
     private String buildObjectKey(
             FilePurpose purpose,
-            String refType,
             UUID refId,
             UUID currentUserId,
             UUID fileId,

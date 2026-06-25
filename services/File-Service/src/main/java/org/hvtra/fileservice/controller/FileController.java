@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.domain.entity.UserHeaderInformation;
 import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.fileservice.model.request.FileAttach;
 import org.hvtra.fileservice.model.request.InitUploadRequest;
 import org.hvtra.fileservice.model.response.DownloadUrlResponse;
 import org.hvtra.fileservice.model.response.InitUploadResponse;
@@ -101,6 +102,23 @@ public class FileController {
     @GetMapping("/{fileId}/download-url")
     public ApiResponse<DownloadUrlResponse> downloadUrl(
             @PathVariable("fileId") UUID fileId,
+            HttpServletRequest servletRequest
+    ) {
+        // Lấy thông tin user từ header
+        UserHeaderInformation userHeader = UserHeaderInformation.fromRequest(servletRequest);
+
+        // Lấy userId để kiểm tra quyền download
+        UUID userId = extractUserId(userHeader);
+
+        // Tạo presigned download URL từ MinIO
+        DownloadUrlResponse response = fileService.createDownloadUrl(fileId, userId);
+
+        return ApiResponse.<DownloadUrlResponse>builder().data(response).status("success").code(200).build();
+    }
+
+    @PutMapping("/attach")
+    public ApiResponse<Integer> downloadUrl(
+            @RequestBody FileAttach fileAttach,
             HttpServletRequest servletRequest
     ) {
         // Lấy thông tin user từ header
