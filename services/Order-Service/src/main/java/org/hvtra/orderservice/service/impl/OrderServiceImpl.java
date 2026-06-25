@@ -3,6 +3,8 @@ package org.hvtra.orderservice.service.impl;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
@@ -49,8 +51,8 @@ public class OrderServiceImpl implements OrderService {
                 .shiftId(request.getShiftId())
                 .customerId(request.getCustomerId())
                 .orderType(request.getOrderType() == null ? "POS" : request.getOrderType())
-                .status(ORDER_STATUS_PENDING)
-                .paymentStatus(PAYMENT_STATUS_UNPAID)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .paymentStatus(PaymentStatus.WAITING_PAYMENT)
                 .fulfillmentStatus(FULFILLMENT_STATUS_PENDING)
                 .originalAmount(BigDecimal.ZERO)
                 .discountAmount(defaultZero(request.getDiscountAmount()))
