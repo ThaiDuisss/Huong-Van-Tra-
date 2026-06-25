@@ -59,8 +59,7 @@ public class FileMetadata extends BaseEntityNoId {
     @Column(name = "owner_type")
     private String ownerType;
 
-    @Column(name = "ref_type")
-    private String refType;
+
 
     @Column(name = "ref_id", columnDefinition = "BINARY(16)")
     private UUID refId;

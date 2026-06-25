@@ -1,5 +1,6 @@
 package org.hvtra.fileservice.controller;
 
+import com.google.protobuf.Api;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -121,16 +122,7 @@ public class FileController {
             @RequestBody FileAttach fileAttach,
             HttpServletRequest servletRequest
     ) {
-        // Lấy thông tin user từ header
-        UserHeaderInformation userHeader = UserHeaderInformation.fromRequest(servletRequest);
-
-        // Lấy userId để kiểm tra quyền download
-        UUID userId = extractUserId(userHeader);
-
-        // Tạo presigned download URL từ MinIO
-        DownloadUrlResponse response = fileService.createDownloadUrl(fileId, userId);
-
-        return ApiResponse.<DownloadUrlResponse>builder().data(response).status("success").code(200).build();
+        return ApiResponse.<Integer>builder().data(fileService.attachFile(fileAttach)).build();
     }
 
     /**

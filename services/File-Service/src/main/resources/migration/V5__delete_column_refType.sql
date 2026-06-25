@@ -1,1 +1,1 @@
-alter table files drop column files
+alter table files drop column ref_type
