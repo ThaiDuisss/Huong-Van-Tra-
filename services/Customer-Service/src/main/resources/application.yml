@@ -5,6 +5,19 @@ spring:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:100.122.52.101}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:Hvt@2026}
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
+  cache:
+    type: redis
+
+customer:
+  cache:
+    full-list-ttl: ${CUSTOMER_FULL_LIST_CACHE_TTL:PT10M}
 
 server:
   port: 8082

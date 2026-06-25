@@ -1,21 +1,26 @@
 package org.hvtra.customer.service;
 
 import org.hvtra.customer.dto.request.CustomerRequest;
+import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
+import org.hvtra.customer.dto.response.PageResponse;
+import org.springframework.data.domain.Pageable;
 
-import java.util.List;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface CustomerService {
-    List<CustomerResponse> getAll();
-
-    List<CustomerResponse> search(String keyword);
+    PageResponse<CustomerResponse> findAll(
+            CustomerFilterRequest filter,
+            Pageable pageable);
 
     CustomerResponse getById(UUID id);
 
     CustomerResponse create(CustomerRequest request);
 
     CustomerResponse update(UUID id, CustomerRequest request);
+
+    CustomerResponse updatePurchase(UUID customerId, BigDecimal purchaseAmount);
 
     void delete(UUID id);
 }

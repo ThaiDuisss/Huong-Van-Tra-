@@ -11,6 +11,7 @@ public record CustomerTierResponse(
         String name,
         BigDecimal minSpending,
         BigDecimal discountRate,
-        CustomerTierStatus status
+        CustomerTierStatus status,
+        String colorCode
 ) {
 }
