@@ -63,9 +63,10 @@ export interface SaleCustomer {
   customerCode?: string;
   name: string;
   phone: string;
+  email?: string | null;
   tier: string;
   points: number;
   orderCount: number;
   totalSpent: number;
-  avatarUrl: string;
+  avatarUrl?: string;
 }
