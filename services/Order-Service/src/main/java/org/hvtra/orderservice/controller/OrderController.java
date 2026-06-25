@@ -21,7 +21,7 @@ public class OrderController {
     private final OrderService orderService;
 
     @Operation(summary = "tao don hang")
-    @PostMapping
+    @PostMapping("/pos/checkout")
     @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse createOrder(@Valid @RequestBody CreateOrderRequest request) {
         return orderService.createOrder(request);

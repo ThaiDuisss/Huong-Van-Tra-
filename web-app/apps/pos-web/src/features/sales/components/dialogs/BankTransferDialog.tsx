@@ -24,26 +24,22 @@ interface BankTransferDialogProps {
 
 const bankInformation = {
   bankName: "MB Bank",
+  bankCode: "MBBank",
   accountName: "HƯƠNG VÂN TRÀ",
   accountNumber: "0345102087",
   branch: "CN Ba Đình"
 };
 
-const qrCells = Array.from({ length: 169 }, (_, index) => {
-  const darkCellIndexes = new Set([
-    0, 1, 2, 3, 4, 8, 9, 11, 12, 13, 14, 16, 20, 22, 23, 25, 26, 28, 31,
-    32, 34, 36, 38, 39, 40, 42, 46, 48, 49, 51, 52, 55, 57, 58, 59, 61,
-    63, 65, 67, 68, 70, 73, 75, 76, 79, 81, 82, 83, 85, 87, 90, 92, 94,
-    96, 98, 99, 101, 102, 104, 107, 108, 110, 112, 114, 116, 118, 119,
-    120, 122, 124, 127, 128, 130, 132, 134, 137, 138, 140, 142, 144, 146,
-    147, 149, 151, 154, 156, 157, 159, 160, 162, 164, 165, 166, 167, 168
-  ]);
+function createSepayQrUrl(amount: number, referenceCode: string) {
+  const params = new URLSearchParams({
+    acc: bankInformation.accountNumber,
+    bank: bankInformation.bankCode,
+    amount: String(Math.round(amount)),
+    des: referenceCode
+  });
 
-  return {
-    id: `qr-cell-${index}`,
-    dark: darkCellIndexes.has(index)
-  };
-});
+  return `https://qr.sepay.vn/img?${params.toString()}`;
+}
 
 export function BankTransferDialog({
   amount,
@@ -55,6 +51,7 @@ export function BankTransferDialog({
   onRefreshStatus
 }: BankTransferDialogProps) {
   const received = status === "RECEIVED";
+  const qrImageUrl = createSepayQrUrl(amount, referenceCode);
 
   return (
     <section
@@ -89,31 +86,11 @@ export function BankTransferDialog({
             <strong className="text-[22px] font-black">SePay</strong>
           </div>
 
-          <div
-            aria-label="QR thanh toán mẫu"
-            className="grid aspect-square w-[174px] grid-cols-[repeat(13,minmax(0,1fr))] gap-[2px] rounded-lg border border-[#d8eadc] bg-white p-2"
-            role="img"
-          >
-            {qrCells.map((cell, index) => {
-              const row = Math.floor(index / 13);
-              const col = index % 13;
-              const finder =
-                (row < 4 && col < 4) ||
-                (row < 4 && col > 8) ||
-                (row > 8 && col < 4);
-
-              return (
-                <span
-                  key={cell.id}
-                  className={`rounded-[1px] ${
-                    finder || cell.dark
-                      ? "bg-[#111827]"
-                      : "bg-transparent"
-                  }`}
-                />
-              );
-            })}
-          </div>
+          <img
+            className="aspect-square w-[174px] rounded-lg border border-[#d8eadc] bg-white object-contain p-2"
+            src={qrImageUrl}
+            alt={`QR thanh toán SePay ${referenceCode}`}
+          />
 
           <p className="max-w-[190px] text-center text-[11px] font-medium leading-snug text-[#5f6b7a]">
             Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử hỗ trợ VietQR.

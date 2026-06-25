@@ -2,9 +2,9 @@ spring:
   application:
     name: Order-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/order_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:order_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
 
 server:
   port: 8086
