@@ -12,6 +12,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/catalog/categories")
 public class CategoryController {
@@ -30,8 +32,13 @@ public class CategoryController {
     }
 
     @GetMapping("/{id}")
-    public CategoryResponse findById(@PathVariable("id") Long id) {
+    public CategoryResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
+    }
+
+    @PostMapping("/batch")
+    public java.util.List<CategoryResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+        return service.findAllByIds(ids);
     }
 
     @PostMapping
@@ -42,13 +49,13 @@ public class CategoryController {
 
     @PutMapping("/{id}")
     public CategoryResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody CategoryRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody CategoryRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public CategoryResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

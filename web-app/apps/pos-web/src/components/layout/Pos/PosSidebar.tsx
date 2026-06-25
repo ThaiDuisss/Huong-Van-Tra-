@@ -7,9 +7,10 @@ import {
   FileText,
   LogOut,
   Settings,
-  ShoppingBag
+  ShoppingBag,
+  Warehouse
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { HvtLogo } from "../../shared/HvtLogo";
 import { routePaths } from "../../../routes/path";
@@ -18,19 +19,24 @@ const navItems = [
   {
     label: "POS",
     icon: BriefcaseBusiness,
-    active: true
+    to: routePaths.posSales
+  },
+  {
+    label: "Tồn kho hiện tại",
+    icon: Warehouse,
+    to: routePaths.inventoryBalances
   },
   {
     label: "Đơn hàng",
     icon: ShoppingBag,
-    active: false
+    to: null
   },
   {
     label: "Ca làm việc",
     icon: Clock3,
-    active: false
+    to: null
   }
-] as const;
+];
 
 const utilityItems = [
   {
@@ -49,6 +55,7 @@ const utilityItems = [
 
 export function PosSidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   return (
     <nav
@@ -62,18 +69,24 @@ export function PosSidebar() {
       <ul className="grid gap-3">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const isActive = item.to ? location.pathname === item.to : false;
 
           return (
             <li key={item.label}>
               <button
                 className={`flex min-h-[52px] w-full items-center gap-3 rounded-lg px-2 text-left text-[14px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hvt-green-600 ${
-                  item.active
+                  isActive
                     ? "bg-[#f4f5f3] text-[#159734]"
                     : "text-[#159734] hover:bg-[#f4f5f3]"
                 }`}
                 type="button"
-                aria-current={item.active ? "page" : undefined}
+                aria-current={isActive ? "page" : undefined}
                 aria-label={item.label}
+                onClick={() => {
+                  if (item.to) {
+                    navigate(item.to);
+                  }
+                }}
               >
                 <span
                   className="grid size-8 shrink-0 place-items-center text-[#159734]"

@@ -3,6 +3,7 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 import java.math.BigDecimal;
 
@@ -10,10 +11,7 @@ import java.math.BigDecimal;
 @Table(name = "bom_items")
 @Getter
 @Setter
-public class BomItem {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class BomItem extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "bom_id", nullable = false)

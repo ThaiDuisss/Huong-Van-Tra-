@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -41,7 +42,7 @@ public class PriceListServiceImpl implements PriceListService {
 
     @Override
     public PageResponse<PriceListResponse> findAll(
-            Long branchId, Status status, LocalDateTime effectiveAt, Pageable pageable) {
+            UUID branchId, Status status, LocalDateTime effectiveAt, Pageable pageable) {
         Specification<PriceList> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (branchId != null) predicates.add(cb.equal(root.get("branchId"), branchId));
@@ -60,7 +61,7 @@ public class PriceListServiceImpl implements PriceListService {
     }
 
     @Override
-    public PriceListResponse findById(Long id) {
+    public PriceListResponse findById(UUID id) {
         return mapper.toResponse(get(id));
     }
 
@@ -75,7 +76,7 @@ public class PriceListServiceImpl implements PriceListService {
 
     @Override
     @Transactional
-    public PriceListResponse update(Long id, PriceListRequest request) {
+    public PriceListResponse update(UUID id, PriceListRequest request) {
         validate(request);
         PriceList priceList = get(id);
         apply(priceList, request);
@@ -84,7 +85,7 @@ public class PriceListServiceImpl implements PriceListService {
 
     @Override
     @Transactional
-    public PriceListResponse updateStatus(Long id, Status status) {
+    public PriceListResponse updateStatus(UUID id, Status status) {
         PriceList priceList = get(id);
         priceList.setStatus(status);
         return mapper.toResponse(repository.save(priceList));
@@ -113,7 +114,7 @@ public class PriceListServiceImpl implements PriceListService {
                 && request.effectiveTo().isBefore(request.effectiveFrom())) {
             throw new BadRequestException("effectiveTo must be after effectiveFrom");
         }
-        var variantIds = new HashSet<Long>();
+        var variantIds = new HashSet<UUID>();
         for (PriceListRequest.ItemRequest item : request.items()) {
             if (!variantIds.add(item.productVariantId())) {
                 throw new BadRequestException("A product variant can occur only once in a price list");
@@ -121,7 +122,8 @@ public class PriceListServiceImpl implements PriceListService {
         }
     }
 
-    private PriceList get(Long id) {
+    private PriceList get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Price list", id));
     }
 }
+

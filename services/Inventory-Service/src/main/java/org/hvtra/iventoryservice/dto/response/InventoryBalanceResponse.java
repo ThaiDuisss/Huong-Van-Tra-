@@ -1,17 +1,18 @@
 package org.hvtra.iventoryservice.dto.response;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.UUID;
 
 public record InventoryBalanceResponse(
-        Long id,
-        Long inventoryItemId,
-        Long locationId,
-        Long branchId,
+        UUID id,
+        UUID inventoryItemId,
+        UUID locationId,
+        UUID branchId,
         BigDecimal quantityOnHand,
         BigDecimal quantityReserved,
         BigDecimal availableQuantity,
         Long version,
-        LocalDateTime updatedAt
+        Instant updatedAt
 ) {
 }

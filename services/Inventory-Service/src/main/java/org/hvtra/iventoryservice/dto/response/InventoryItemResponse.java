@@ -3,11 +3,15 @@ package org.hvtra.iventoryservice.dto.response;
 import org.hvtra.iventoryservice.enums.InventoryItemType;
 import org.hvtra.iventoryservice.enums.InventoryStatus;
 
+import java.util.UUID;
+
 public record InventoryItemResponse(
-        Long id,
-        Long referenceId,
+        UUID id,
+        UUID referenceId,
         InventoryItemType itemType,
-        Long baseUnitId,
-        InventoryStatus status
+        UUID baseUnitId,
+        InventoryStatus status,
+        Integer reorderPoint
 ) {
 }
+

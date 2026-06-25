@@ -6,10 +6,14 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
 
+import java.util.UUID;
+
 public interface CategoryService {
     PageResponse<CategoryResponse> findAll(String name, Status status, Pageable pageable);
-    CategoryResponse findById(Long id);
+    CategoryResponse findById(UUID id);
     CategoryResponse create(CategoryRequest request);
-    CategoryResponse update(Long id, CategoryRequest request);
-    CategoryResponse updateStatus(Long id, Status status);
+    CategoryResponse update(UUID id, CategoryRequest request);
+    CategoryResponse updateStatus(UUID id, Status status);
+    java.util.List<CategoryResponse> findAllByIds(java.util.List<UUID> ids);
 }
+

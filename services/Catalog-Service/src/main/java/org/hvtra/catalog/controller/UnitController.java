@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/catalog/units")
@@ -24,6 +25,11 @@ public class UnitController {
         return service.findAll();
     }
 
+    @PostMapping("/batch")
+    public java.util.List<UnitResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+        return service.findAllByIds(ids);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public UnitResponse create(@Valid @RequestBody UnitRequest request) {
@@ -32,13 +38,13 @@ public class UnitController {
 
     @PutMapping("/{id}")
     public UnitResponse update(
-            @PathVariable("id") Long id, @Valid @RequestBody UnitRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody UnitRequest request) {
         return service.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
     public UnitResponse updateStatus(
-            @PathVariable("id") Long id, @Valid @RequestBody StatusRequest request) {
+            @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 }

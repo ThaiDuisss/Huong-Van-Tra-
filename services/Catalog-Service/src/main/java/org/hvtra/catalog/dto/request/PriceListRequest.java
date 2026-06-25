@@ -7,9 +7,10 @@ import org.hvtra.catalog.enums.Status;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 public record PriceListRequest(
-        @NotNull Long branchId,
+        @NotNull UUID branchId,
         @NotBlank @Size(max = 255) String name,
         LocalDateTime effectiveFrom,
         LocalDateTime effectiveTo,
@@ -17,8 +18,9 @@ public record PriceListRequest(
         @NotEmpty List<@Valid ItemRequest> items
 ) {
     public record ItemRequest(
-            @NotNull Long productVariantId,
+            @NotNull UUID productVariantId,
             @NotNull @DecimalMin("0.00") BigDecimal sellingPrice
     ) {
     }
 }
+

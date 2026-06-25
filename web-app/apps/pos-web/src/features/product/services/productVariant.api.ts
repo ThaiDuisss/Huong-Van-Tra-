@@ -59,13 +59,13 @@ export const productVariantApi = {
     },
     update(id: string, input: ProductVariantInput) {
         const body: Omit<ProductVariantInput, "productId"> = {
-            sku: input.sku,
             variantName: input.variantName,
             sellingPrice: input.sellingPrice,
             costPrice: input.costPrice,
             baseUnitId: input.baseUnitId,
             inventoryPolicy: input.inventoryPolicy,
-            status: input.status
+            status: input.status,
+            packQuantity: input.packQuantity
         };
 
         return apiClient.put<
@@ -84,5 +84,20 @@ export const productVariantApi = {
             `/catalog/product-variants/${encodeURIComponent(id)}/status`,
             { status }
         );
+    },
+    export(productId?: string) {
+        return apiClient.download("/catalog/product-variants/export", {
+            query: productId && productId !== "ALL" ? { productId } : {}
+        });
+    },
+    import(file: File, productId: string) {
+        const formData = new FormData();
+        formData.append("file", file);
+        return apiClient.upload<void>("/catalog/product-variants/import", formData, {
+            query: { productId }
+        });
+    },
+    downloadTemplate() {
+        return apiClient.download("/catalog/product-variants/import/template");
     }
 };

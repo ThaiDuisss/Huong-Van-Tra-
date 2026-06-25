@@ -1,5 +1,7 @@
 import type { QueryParams } from "@hvt/api-client";
 
+export type EntityId = string | number;
+
 export type InventoryItemType =
     | "PRODUCT_VARIANT"
     | "INGREDIENT"
@@ -7,8 +9,7 @@ export type InventoryItemType =
     | "COMBO";
 
 export type InventoryLocationType =
-    | "SHELF"
-    | "COUNTER"
+    | "WAREHOUSE"
     | "STORAGE"
     | "DAMAGED";
 
@@ -39,9 +40,9 @@ export interface PageResponse<T> {
 }
 
 export interface InventoryLocationResponse {
-    id: number;
-    branchId: number;
-    parentLocationId: number | null;
+    id: EntityId;
+    branchId: EntityId;
+    parentLocationId: EntityId | null;
     code: string;
     name: string;
     type: InventoryLocationType;
@@ -49,8 +50,8 @@ export interface InventoryLocationResponse {
 }
 
 export interface InventoryLocationRequest {
-    branchId: number;
-    parentLocationId: number | null;
+    branchId: EntityId;
+    parentLocationId: EntityId | null;
     code: string;
     name: string;
     type: InventoryLocationType;
@@ -58,18 +59,18 @@ export interface InventoryLocationRequest {
 }
 
 export interface InventoryItemResponse {
-    id: number;
-    referenceId: number;
+    id: EntityId;
+    referenceId: EntityId;
     itemType: InventoryItemType;
-    baseUnitId: number;
+    baseUnitId: EntityId;
     status: InventoryStatus;
 }
 
 export interface InventoryBalanceResponse {
-    id: number;
-    inventoryItemId: number;
-    locationId: number;
-    branchId: number;
+    id: EntityId;
+    inventoryItemId: EntityId;
+    locationId: EntityId;
+    branchId: EntityId;
     quantityOnHand: number;
     quantityReserved: number;
     availableQuantity: number;
@@ -78,44 +79,44 @@ export interface InventoryBalanceResponse {
 }
 
 export interface InventoryTransactionLineResponse {
-    id: number;
-    inventoryItemId: number;
-    locationId: number;
+    id: EntityId;
+    inventoryItemId: EntityId;
+    locationId: EntityId;
     quantity: number;
     beforeQuantity: number;
     afterQuantity: number;
 }
 
 export interface InventoryTransactionResponse {
-    id: number;
+    id: EntityId;
     transactionCode: string;
     type: InventoryTransactionType;
     referenceType: InventoryReferenceType;
-    referenceId: number | null;
-    branchId: number;
-    createdBy: number;
+    referenceId: EntityId | null;
+    branchId: EntityId;
+    createdBy: EntityId;
     createdAt: string;
     lines: InventoryTransactionLineResponse[];
 }
 
 export interface StockInRequest {
-    branchId: number;
+    branchId: EntityId;
     referenceType: InventoryReferenceType;
-    referenceId: number | null;
+    referenceId: EntityId | null;
     lines: Array<{
-        inventoryItemId: number;
-        locationId: number;
+        inventoryItemId: EntityId;
+        locationId: EntityId;
         quantity: number;
     }>;
 }
 
 export interface StockAdjustmentRequest {
-    branchId: number;
+    branchId: EntityId;
     referenceType: InventoryReferenceType;
-    referenceId: number | null;
+    referenceId: EntityId | null;
     lines: Array<{
-        inventoryItemId: number;
-        locationId: number;
+        inventoryItemId: EntityId;
+        locationId: EntityId;
         actualQuantity: number;
     }>;
 }
@@ -123,7 +124,7 @@ export interface StockAdjustmentRequest {
 export interface InventoryLocationQuery extends QueryParams {
     page?: number;
     size?: number;
-    branchId?: number;
+    branchId?: EntityId;
     type?: InventoryLocationType;
     status?: InventoryStatus;
 }
@@ -131,7 +132,7 @@ export interface InventoryLocationQuery extends QueryParams {
 export interface InventoryItemQuery extends QueryParams {
     page?: number;
     size?: number;
-    referenceId?: number;
+    referenceId?: EntityId;
     itemType?: InventoryItemType;
     status?: InventoryStatus;
 }
@@ -139,9 +140,43 @@ export interface InventoryItemQuery extends QueryParams {
 export interface InventoryBalanceQuery extends QueryParams {
     page?: number;
     size?: number;
-    inventoryItemId?: number;
-    locationId?: number;
-    branchId?: number;
+    inventoryItemId?: EntityId;
+    locationId?: EntityId;
+    branchId?: EntityId;
+    sku?: string;
+    productCode?: string;
+    productName?: string;
+    categoryCode?: string;
+    categoryId?: string;
+    unitId?: string;
+}
+
+export interface InventoryBalanceViewResponse {
+    inventoryBalanceId: string;
+    inventoryItemId: string;
+    productId: string;
+    productCode: string;
+    productName: string;
+    variantId: string;
+    variantName: string;
+    sku: string;
+    categoryId: string;
+    categoryCode: string;
+    categoryName: string;
+    unitId: string;
+    unitName: string;
+    unitSymbol: string;
+    locationId: string;
+    locationName: string;
+    branchId: string;
+    imageUrl: string | null;
+    quantityOnHand: number;
+    quantityReserved: number;
+    availableQuantity: number;
+    cost_price?: number;
+    selling_price?: number;
+    reorderPoint?: number;
+    updatedAt: string;
 }
 
 export interface InventoryTransactionQuery extends QueryParams {
@@ -151,8 +186,35 @@ export interface InventoryTransactionQuery extends QueryParams {
     type?: InventoryTransactionType;
     fromDate?: string;
     toDate?: string;
-    createdBy?: number;
-    branchId?: number;
+    createdBy?: EntityId;
+    branchId?: EntityId;
     referenceType?: InventoryReferenceType;
-    referenceId?: number;
+    referenceId?: EntityId;
+}
+
+export interface StoreStockInRequest {
+    referenceType: InventoryReferenceType;
+    referenceId: EntityId | null;
+    lines: Array<{
+        inventoryItemId: EntityId;
+        quantity: number;
+    }>;
+}
+
+export interface StoreStockAdjustmentRequest {
+    referenceType: InventoryReferenceType;
+    referenceId: EntityId | null;
+    lines: Array<{
+        inventoryItemId: EntityId;
+        actualQuantity: number;
+    }>;
+}
+
+export interface StoreStockOutRequest {
+    referenceType: InventoryReferenceType;
+    referenceId: EntityId | null;
+    lines: Array<{
+        inventoryItemId: EntityId;
+        quantity: number;
+    }>;
 }

@@ -21,7 +21,7 @@ export function BomTable({
     return (
         <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                <thead className="bg-neutral-50 text-xs font-bold text-pos-muted">
+                <thead className="bg-neutral-50 text-xs font-bold text-gray-500">
                     <tr>
                         <th className="w-12 px-4 py-3"> </th>
                         <th className="px-4 py-3">Mã BOM</th>
@@ -66,7 +66,7 @@ export function BomTable({
                                         aria-label={`Chọn ${item.name}`}
                                     />
                                 </td>
-                                <td className="border-b border-pos-border px-4 py-4 font-semibold text-pos-ink">
+                                <td className="border-b border-pos-border px-4 py-4 font-semibold text-gray-500">
                                     {item.code}
                                 </td>
                                 <td className="border-b border-pos-border px-4 py-4">
@@ -80,10 +80,10 @@ export function BomTable({
                                             className="size-9 rounded-lg object-cover"
                                         />
                                         <div>
-                                            <p className="font-semibold text-pos-ink">
+                                            <p className="font-semibold text-gray-500">
                                                 {item.productName}
                                             </p>
-                                            <p className="text-xs text-pos-muted">
+                                            <p className="text-xs text-gray-500">
                                                 SKU:{" "}
                                                 {item.productSku}
                                             </p>

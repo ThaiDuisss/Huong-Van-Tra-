@@ -2,9 +2,9 @@ spring:
   application:
     name: Inventory-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/inventory_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:inventory_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
   jpa:
       hibernate:
          ddl-auto: update
@@ -12,6 +12,8 @@ spring:
       properties:
         hibernate:
           format_sql: true
+  flyway:
+     baseline-on-migrate: true
 server:
   port: 8084
 
@@ -34,6 +36,6 @@ eureka:
     register-with-eureka: true
     fetch-registry: true
   instance:
-    hostname: localhost
     prefer-ip-address: false
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
     instance-id: ${spring.application.name}:${server.port}

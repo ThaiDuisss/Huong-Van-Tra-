@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -33,7 +34,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
 
     @Override
     public PageResponse<InventoryLocationResponse> findAll(
-            Long branchId,
+            UUID branchId,
             InventoryLocationType type,
             InventoryStatus status,
             Pageable pageable) {
@@ -48,7 +49,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     }
 
     @Override
-    public InventoryLocationResponse findById(Long id) {
+    public InventoryLocationResponse findById(UUID id) {
         return mapper.toResponse(get(id));
     }
 
@@ -63,7 +64,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
 
     @Override
     @Transactional
-    public InventoryLocationResponse update(Long id, InventoryLocationRequest request) {
+    public InventoryLocationResponse update(UUID id, InventoryLocationRequest request) {
         validateCode(request, id);
         InventoryLocation location = get(id);
         mapper.update(location, request, resolveParent(request, id));
@@ -72,21 +73,21 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
 
     @Override
     @Transactional
-    public InventoryLocationResponse updateStatus(Long id, InventoryStatus status) {
+    public InventoryLocationResponse updateStatus(UUID id, InventoryStatus status) {
         InventoryLocation location = get(id);
         location.setStatus(status);
         return mapper.toResponse(repository.save(location));
     }
 
-    private InventoryLocation resolveParent(InventoryLocationRequest request, Long locationId) {
+    private InventoryLocation resolveParent(InventoryLocationRequest request, UUID locationId) {
         if (request.parentLocationId() == null) return null;
         if (request.parentLocationId().equals(locationId)) {
             throw new BadRequestException("Inventory location cannot be its own parent");
         }
         InventoryLocation parent = get(request.parentLocationId());
-        if (!parent.getBranchId().equals(request.branchId())) {
-            throw new BadRequestException("Parent location must belong to the same branch");
-        }
+//        if (!parent.getBranchId().equals(request.branchId())) {
+//            throw new BadRequestException("Parent location must belong to the same branch");
+//        }
         for (InventoryLocation current = parent;
              current != null;
              current = current.getParentLocation()) {
@@ -97,16 +98,28 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
         return parent;
     }
 
-    private void validateCode(InventoryLocationRequest request, Long id) {
+    private void validateCode(InventoryLocationRequest request, UUID id) {
         String code = request.code().trim();
-        boolean exists = id == null
-                ? repository.existsByBranchIdAndCode(request.branchId(), code)
-                : repository.existsByBranchIdAndCodeAndIdNot(request.branchId(), code, id);
-        if (exists) throw new BadRequestException("Location code already exists in branch: " + code);
+//        boolean exists = id == null
+//                ? repository.existsByBranchIdAndCode(request.branchId(), code)
+//                : repository.existsByBranchIdAndCodeAndIdNot(request.branchId(), code, id);
+//        if (exists) throw new BadRequestException("Location code already exists in branch: " + code);
     }
 
-    private InventoryLocation get(Long id) {
+    private InventoryLocation get(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory location", id));
+    }
+
+    @Override
+    public InventoryLocationResponse findDefaultWarehouse(UUID branchId) {
+        InventoryLocation location = repository.findFirstByBranchIdAndTypeAndStatus(
+                branchId,
+                InventoryLocationType.WAREHOUSE,
+                InventoryStatus.ACTIVE
+        )
+        .orElseThrow(() -> new ResourceNotFoundException(
+                "No active WAREHOUSE location found for branch", branchId));
+        return mapper.toResponse(location);
     }
 }

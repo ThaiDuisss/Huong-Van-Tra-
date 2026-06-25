@@ -25,16 +25,21 @@ export interface Category {
     parentId: EntityId | null;
     name: string;
     status: CatalogStatus;
+    categoryCode: string;
+    defaultReorderPoint: number;
 }
 
 export interface CategoryInput {
     parentId: EntityId | null;
     name: string;
     status: CatalogStatus;
+    categoryCode?: string;
+    defaultReorderPoint: number;
 }
 
 export interface ProductSummary {
     id: EntityId;
+    productCode: string;
     name: string;
     category: Category;
     imageUrl: string | null;
@@ -44,6 +49,7 @@ export interface ProductSummary {
 
 export interface Product {
     id: EntityId;
+    productCode: string;
     category: Category;
     name: string;
     description: string | null;
@@ -54,6 +60,7 @@ export interface Product {
 
 export interface ProductInput {
     categoryId: EntityId;
+    productCode?: string;
     name: string;
     description: string;
     imageUrl: string | null;
@@ -83,17 +90,18 @@ export interface ProductVariant {
     status: CatalogStatus;
     productStatus: CatalogStatus;
     sellable: boolean;
+    packQuantity: number;
 }
 
 export interface ProductVariantInput {
     productId: EntityId;
-    sku: string;
     variantName: string;
     sellingPrice: number;
     costPrice: number;
     baseUnitId: EntityId;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
+    packQuantity: number;
 }
 
 export interface PriceListItem {

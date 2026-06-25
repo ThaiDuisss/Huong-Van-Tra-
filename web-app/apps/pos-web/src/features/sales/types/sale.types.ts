@@ -58,19 +58,15 @@ export interface SaleTotals {
   total: number;
 }
 
-export type SaleCustomerTier =
-  | "VIP Bạc"
-  | "VIP Vàng"
-  | "VIP Kim Cương"
-  | "Khách quen";
-
 export interface SaleCustomer {
   id: string;
+  customerCode?: string;
   name: string;
   phone: string;
-  tier: SaleCustomerTier;
+  email?: string | null;
+  tier: string;
   points: number;
   orderCount: number;
   totalSpent: number;
-  avatarUrl: string;
+  avatarUrl?: string;
 }

@@ -5,10 +5,11 @@ import org.hvtra.catalog.enums.Status;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 public record BomResponse(
-        Long id,
-        Long productVariantId,
+        UUID id,
+        UUID productVariantId,
         Integer version,
         Status status,
         LocalDateTime effectiveFrom,
@@ -16,7 +17,7 @@ public record BomResponse(
         List<ItemResponse> items
 ) {
     public record ItemResponse(
-            Long id,
+            UUID id,
             IngredientResponse ingredient,
             BigDecimal quantity,
             UnitResponse unit,
@@ -24,3 +25,4 @@ public record BomResponse(
     ) {
     }
 }
+

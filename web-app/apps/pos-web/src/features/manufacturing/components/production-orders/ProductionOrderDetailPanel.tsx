@@ -26,7 +26,7 @@ export function ProductionOrderDetailPanel({
         >
             <div className="grid gap-6">
                 <section className="grid gap-4">
-                    <h3 className="font-bold text-pos-ink">
+                    <h3 className="font-bold text-gray-500">
                         Thông tin chung
                     </h3>
                     <div className="flex gap-4">
@@ -36,7 +36,7 @@ export function ProductionOrderDetailPanel({
                             className="size-24 rounded-xl object-cover"
                         />
                         <div className="grid gap-1 text-sm">
-                            <strong className="text-base text-pos-ink">
+                            <strong className="text-base text-gray-500">
                                 {order.code}
                             </strong>
                             <span>Thành phẩm: {order.productName}</span>
@@ -49,7 +49,7 @@ export function ProductionOrderDetailPanel({
                 </section>
 
                 <section className="grid gap-3">
-                    <h3 className="font-bold text-pos-ink">
+                    <h3 className="font-bold text-gray-500">
                         Tiến độ sản xuất
                     </h3>
                     <ProductionProgress
@@ -60,7 +60,7 @@ export function ProductionOrderDetailPanel({
                 </section>
 
                 <section className="grid gap-3">
-                    <h3 className="font-bold text-pos-ink">
+                    <h3 className="font-bold text-gray-500">
                         Nguyên liệu sử dụng
                     </h3>
                     <div className="overflow-hidden rounded-xl border border-pos-border">
@@ -103,7 +103,7 @@ export function ProductionOrderDetailPanel({
                 </section>
 
                 <section className="grid gap-3">
-                    <h3 className="font-bold text-pos-ink">
+                    <h3 className="font-bold text-gray-500">
                         Nhật ký sản xuất
                     </h3>
                     <ProductionLog logs={order.logs} />
@@ -119,7 +119,7 @@ export function ProductionOrderDetailPanel({
                     </button>
                     <button
                         type="button"
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border bg-white text-sm font-bold text-pos-ink"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border bg-white text-sm font-bold text-gray-500"
                     >
                         <Printer size={16} aria-hidden="true" />
                         In lệnh sản xuất

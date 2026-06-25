@@ -3,6 +3,9 @@ package org.hvtra.iventoryservice.service.impl;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StockInRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
+import org.hvtra.iventoryservice.dto.request.StoreStockOutRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.entity.*;
@@ -60,7 +63,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         InventoryTransaction transaction = createTransaction(
                 InventoryTransactionType.STOCK_IN,
                 request.branchId(),
-                request.createdBy(),
+                null,
                 request.referenceType(),
                 request.referenceId());
 
@@ -89,7 +92,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         InventoryTransaction transaction = createTransaction(
                 InventoryTransactionType.ADJUSTMENT,
                 request.branchId(),
-                request.createdBy(),
+                null,
                 request.referenceType(),
                 request.referenceId());
 
@@ -119,10 +122,10 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             InventoryTransactionType type,
             LocalDateTime fromDate,
             LocalDateTime toDate,
-            Long createdBy,
-            Long branchId,
+            String createdBy,
+            UUID branchId,
             InventoryReferenceType referenceType,
-            Long referenceId,
+            String referenceId,
             Pageable pageable) {
         if (fromDate != null && toDate != null && toDate.isBefore(fromDate)) {
             throw new BadRequestException("toDate must be greater than or equal to fromDate");
@@ -152,7 +155,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     }
 
     @Override
-    public InventoryTransactionResponse findById(Long id) {
+    public InventoryTransactionResponse findById(UUID id) {
         InventoryTransaction transaction = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory transaction", id));
         return mapper.toResponse(transaction);
@@ -160,10 +163,10 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
 
     private InventoryTransaction createTransaction(
             InventoryTransactionType type,
-            Long branchId,
-            Long createdBy,
+            UUID branchId,
+            UUID createdBy,
             InventoryReferenceType referenceType,
-            Long referenceId) {
+            String referenceId) {
         InventoryTransaction transaction = new InventoryTransaction();
         transaction.setTransactionCode(generateCode(type));
         transaction.setType(type);
@@ -198,7 +201,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         return balance;
     }
 
-    private InventoryItem activeItemForUpdate(Long id) {
+    private InventoryItem activeItemForUpdate(UUID id) {
         InventoryItem item = itemRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory item", id));
         if (item.getStatus() != InventoryStatus.ACTIVE) {
@@ -207,7 +210,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         return item;
     }
 
-    private InventoryLocation activeLocation(Long id, Long branchId) {
+    private InventoryLocation activeLocation(UUID id, UUID branchId) {
         InventoryLocation location = locationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory location", id));
         if (location.getStatus() != InventoryStatus.ACTIVE) {
@@ -235,7 +238,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         }
     }
 
-    private void validateMovementKey(Set<String> keys, Long itemId, Long locationId) {
+    private void validateMovementKey(Set<String> keys, UUID itemId, UUID locationId) {
         String key = itemId + ":" + locationId;
         if (!keys.add(key)) {
             throw new BadRequestException(
@@ -246,6 +249,140 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     private void validateNonNegative(BigDecimal quantity, String field) {
         if (quantity.compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestException(field + " cannot be negative");
+        }
+    }
+
+    private InventoryLocation resolveWarehouseLocation() {
+        return locationRepository.findFirstByTypeAndStatus(
+                        InventoryLocationType.WAREHOUSE,
+                        InventoryStatus.ACTIVE
+                )
+                .orElseThrow(() -> new BadRequestException(
+                        "No active WAREHOUSE location found"));
+    }
+
+    @Override
+    @Transactional
+    public InventoryTransactionResponse storeStockIn(StoreStockInRequest request) {
+        InventoryLocation location = resolveWarehouseLocation();
+
+        validateDistinctStoreStockInLines(request.lines());
+
+        InventoryTransaction transaction = createTransaction(
+                InventoryTransactionType.STOCK_IN,
+                location.getBranchId(),
+                null,
+                request.referenceType(),
+                request.referenceId());
+
+        for (StoreStockInRequest.LineRequest requestLine : request.lines()) {
+            InventoryItem item = activeItemForUpdate(requestLine.inventoryItemId());
+            InventoryBalance balance = balanceRepository
+                    .findForUpdate(item.getId(), location.getId())
+                    .orElseGet(() -> newBalance(item, location));
+
+            BigDecimal before = balance.getQuantityOnHand();
+            BigDecimal after = before.add(requestLine.quantity());
+            validateNonNegative(after, "quantityOnHand");
+            balance.setQuantityOnHand(after);
+            balanceRepository.save(balance);
+            transaction.addLine(createLine(
+                    item, location, requestLine.quantity(), before, after));
+        }
+        return mapper.toResponse(transactionRepository.saveAndFlush(transaction));
+    }
+
+    @Override
+    @Transactional
+    public InventoryTransactionResponse storeAdjust(StoreStockAdjustmentRequest request) {
+        InventoryLocation location = resolveWarehouseLocation();
+
+        validateDistinctStoreAdjustmentLines(request.lines());
+
+        InventoryTransaction transaction = createTransaction(
+                InventoryTransactionType.ADJUSTMENT,
+                location.getBranchId(),
+                null,
+                request.referenceType(),
+                request.referenceId());
+
+        for (StoreStockAdjustmentRequest.LineRequest requestLine : request.lines()) {
+            InventoryItem item = activeItemForUpdate(requestLine.inventoryItemId());
+            InventoryBalance balance = balanceRepository
+                    .findForUpdate(item.getId(), location.getId())
+                    .orElseThrow(() -> new BadRequestException(
+                            "Inventory balance does not exist for item "
+                                    + item.getId() + " at location " + location.getId()));
+
+            BigDecimal before = balance.getQuantityOnHand();
+            BigDecimal after = requestLine.actualQuantity();
+            validateNonNegative(after, "actualQuantity");
+            BigDecimal difference = after.subtract(before);
+            balance.setQuantityOnHand(after);
+            balanceRepository.save(balance);
+            transaction.addLine(createLine(item, location, difference, before, after));
+        }
+        return mapper.toResponse(transactionRepository.saveAndFlush(transaction));
+    }
+
+    @Override
+    @Transactional
+    public InventoryTransactionResponse storeStockOut(StoreStockOutRequest request) {
+        InventoryLocation location = resolveWarehouseLocation();
+
+        validateDistinctStoreStockOutLines(request.lines());
+
+        InventoryTransaction transaction = createTransaction(
+                InventoryTransactionType.SALE_OUT,
+                location.getBranchId(),
+                null,
+                request.referenceType(),
+                request.referenceId());
+
+        for (StoreStockOutRequest.LineRequest requestLine : request.lines()) {
+            InventoryItem item = activeItemForUpdate(requestLine.inventoryItemId());
+            InventoryBalance balance = balanceRepository
+                    .findForUpdate(item.getId(), location.getId())
+                    .orElseThrow(() -> new BadRequestException(
+                            "Inventory balance does not exist for item "
+                                    + item.getId() + " at location " + location.getId()));
+
+            BigDecimal before = balance.getQuantityOnHand();
+            BigDecimal after = before.subtract(requestLine.quantity());
+            validateNonNegative(after, "quantityOnHand");
+            balance.setQuantityOnHand(after);
+            balanceRepository.save(balance);
+            transaction.addLine(createLine(
+                    item, location, requestLine.quantity().negate(), before, after));
+        }
+        return mapper.toResponse(transactionRepository.saveAndFlush(transaction));
+    }
+
+    private void validateDistinctStoreStockOutLines(java.util.List<StoreStockOutRequest.LineRequest> lines) {
+        Set<UUID> itemIds = new HashSet<>();
+        for (StoreStockOutRequest.LineRequest line : lines) {
+            if (!itemIds.add(line.inventoryItemId())) {
+                throw new BadRequestException("Duplicate inventory item in transaction: " + line.inventoryItemId());
+            }
+        }
+    }
+
+    private void validateDistinctStoreStockInLines(java.util.List<StoreStockInRequest.LineRequest> lines) {
+        Set<UUID> itemIds = new HashSet<>();
+        for (StoreStockInRequest.LineRequest line : lines) {
+            if (!itemIds.add(line.inventoryItemId())) {
+                throw new BadRequestException("Duplicate inventory item in transaction: " + line.inventoryItemId());
+            }
+        }
+    }
+
+    private void validateDistinctStoreAdjustmentLines(
+            java.util.List<StoreStockAdjustmentRequest.LineRequest> lines) {
+        Set<UUID> itemIds = new HashSet<>();
+        for (StoreStockAdjustmentRequest.LineRequest line : lines) {
+            if (!itemIds.add(line.inventoryItemId())) {
+                throw new BadRequestException("Duplicate inventory item in transaction: " + line.inventoryItemId());
+            }
         }
     }
 

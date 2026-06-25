@@ -1,4 +1,4 @@
-import type { FormValues } from "../components/ProductManagementPage";
+import type { FormValues } from "../components/CatalogResourceManagement";
 
 export function getString(values: FormValues, key: string) {
     const value = values[key];

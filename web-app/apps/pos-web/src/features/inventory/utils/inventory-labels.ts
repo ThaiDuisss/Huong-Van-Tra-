@@ -7,8 +7,7 @@ import type {
 } from "../types/inventory.types";
 
 export const locationTypeLabels: Record<InventoryLocationType, string> = {
-    SHELF: "Kệ hàng",
-    COUNTER: "Quầy thu ngân",
+    WAREHOUSE: "Cửa hàng",
     STORAGE: "Kho chứa",
     DAMAGED: "Khu hàng lỗi"
 };

@@ -35,7 +35,7 @@ export function BomDetailPanel({
         <DetailPanel title="Chi tiết BOM" onClose={onClose}>
             <div className="grid gap-6">
                 <section className="grid gap-4">
-                    <h3 className="font-bold text-pos-ink">
+                    <h3 className="font-bold text-gray-500">
                         Thông tin thành phẩm
                     </h3>
                     <div className="flex gap-4">
@@ -45,7 +45,7 @@ export function BomDetailPanel({
                             className="size-24 rounded-xl object-cover"
                         />
                         <div className="grid gap-1 text-sm">
-                            <strong className="text-base text-pos-ink">
+                            <strong className="text-base text-gray-500">
                                 {bom.productName}
                             </strong>
                             <span>SKU: {bom.productSku}</span>
@@ -60,12 +60,12 @@ export function BomDetailPanel({
                 </section>
 
                 <section className="grid gap-3">
-                    <h3 className="font-bold text-pos-ink">
+                    <h3 className="font-bold text-gray-500">
                         Danh sách thành phần BOM
                     </h3>
                     <div className="overflow-hidden rounded-xl border border-pos-border">
                         <table className="w-full text-left text-sm">
-                            <thead className="bg-neutral-50 text-xs text-pos-muted">
+                            <thead className="bg-neutral-50 text-xs text-gray-500">
                                 <tr>
                                     <th className="p-3">Tên thành phần</th>
                                     <th className="p-3">Nhóm</th>
@@ -129,7 +129,7 @@ export function BomDetailPanel({
                 </section>
 
                 <section className="grid gap-3">
-                    <h3 className="font-bold text-pos-ink">
+                    <h3 className="font-bold text-gray-500">
                         Lịch sử thay đổi
                     </h3>
                     {bom.history.length > 0 ? (
@@ -142,17 +142,17 @@ export function BomDetailPanel({
                                     <p className="font-semibold">
                                         {formatDate(entry.date)}
                                     </p>
-                                    <p className="text-pos-muted">
+                                    <p className="text-gray-500">
                                         {entry.description}
                                     </p>
                                 </div>
-                                <span className="text-pos-muted">
+                                <span className="text-gray-500">
                                     {entry.actor}
                                 </span>
                             </div>
                         ))
                     ) : (
-                        <p className="text-sm text-pos-muted">
+                        <p className="text-sm text-gray-500">
                             Chưa có lịch sử thay đổi.
                         </p>
                     )}
@@ -168,7 +168,7 @@ export function BomDetailPanel({
                     </button>
                     <button
                         type="button"
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border bg-white text-sm font-bold text-pos-ink"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border bg-white text-sm font-bold text-gray-500"
                     >
                         <Copy size={16} aria-hidden="true" />
                         Nhân bản BOM
@@ -188,8 +188,8 @@ function StatCard({
 }) {
     return (
         <div className="rounded-xl border border-pos-border p-3">
-            <p className="text-xs text-pos-muted">{label}</p>
-            <strong className="mt-1 block text-lg text-pos-ink">
+            <p className="text-xs text-gray-500">{label}</p>
+            <strong className="mt-1 block text-lg text-gray-500">
                 {value}
             </strong>
         </div>

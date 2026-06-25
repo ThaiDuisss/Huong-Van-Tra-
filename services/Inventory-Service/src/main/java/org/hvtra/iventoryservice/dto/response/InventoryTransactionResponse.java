@@ -4,24 +4,25 @@ import org.hvtra.iventoryservice.enums.InventoryReferenceType;
 import org.hvtra.iventoryservice.enums.InventoryTransactionType;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public record InventoryTransactionResponse(
-        Long id,
+        UUID id,
         String transactionCode,
         InventoryTransactionType type,
         InventoryReferenceType referenceType,
-        Long referenceId,
-        Long branchId,
-        Long createdBy,
-        LocalDateTime createdAt,
+        String referenceId,
+        UUID branchId,
+        UUID createdBy,
+        Instant createdAt,
         List<LineResponse> lines
 ) {
     public record LineResponse(
-            Long id,
-            Long inventoryItemId,
-            Long locationId,
+            UUID id,
+            UUID inventoryItemId,
+            UUID locationId,
             BigDecimal quantity,
             BigDecimal beforeQuantity,
             BigDecimal afterQuantity

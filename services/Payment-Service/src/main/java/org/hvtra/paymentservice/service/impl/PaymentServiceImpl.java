@@ -4,10 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.paymentservice.client.OrderClient;
 import org.hvtra.paymentservice.domain.entity.Payments;
 import org.hvtra.paymentservice.domain.entity.PaymentTransaction;
-import org.hvtra.paymentservice.domain.dto.request.MarkOrderPaidRequest;
-import org.hvtra.paymentservice.domain.dto.response.OrderPaymentInfoResponse;
-import org.hvtra.paymentservice.domain.dto.request.CashPaymentRequest;
-import org.hvtra.paymentservice.domain.dto.response.CashPaymentResponse;
+import org.hvtra.paymentservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.paymentservice.dto.response.OrderPaymentInfoResponse;
+import org.hvtra.paymentservice.dto.request.CashPaymentRequest;
+import org.hvtra.paymentservice.dto.response.CashPaymentResponse;
 import org.hvtra.paymentservice.repository.PaymentRepository;
 import org.hvtra.paymentservice.service.PaymentService;
 import org.springframework.stereotype.Service;
@@ -33,8 +33,6 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public CashPaymentResponse payByCash(CashPaymentRequest request) {
-        //fegin call to order service to get order payment info
-        OrderPaymentInfoResponse orderInfo = orderClient.getPaymentInfo(request.getOrderId());
 
         if (orderInfo == null) {
             throw new IllegalArgumentException("Không lấy được thông tin đơn hàng");

@@ -48,5 +48,16 @@ export const productApi = {
             `/catalog/products/${encodeURIComponent(id)}/status`,
             { status }
         );
+    },
+    export() {
+        return apiClient.download("/catalog/products/export");
+    },
+    import(file: File) {
+        const formData = new FormData();
+        formData.append("file", file);
+        return apiClient.upload<void>("/catalog/products/import", formData);
+    },
+    downloadTemplate() {
+        return apiClient.download("/catalog/products/import/template");
     }
 };

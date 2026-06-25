@@ -3,16 +3,14 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.catalog.enums.Status;
 
 @Entity
 @Table(name = "units")
 @Getter
 @Setter
-public class Unit {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class Unit extends BaseEntity {
 
     @Column(nullable = false, length = 100)
     private String name;

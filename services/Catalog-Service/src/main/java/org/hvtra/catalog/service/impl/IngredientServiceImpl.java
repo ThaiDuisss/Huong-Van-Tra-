@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -51,7 +52,7 @@ public class IngredientServiceImpl implements IngredientService {
     }
 
     @Override
-    public IngredientResponse findById(Long id) {
+    public IngredientResponse findById(UUID id) {
         return mapper.toResponse(get(id));
     }
 
@@ -66,7 +67,7 @@ public class IngredientServiceImpl implements IngredientService {
 
     @Override
     @Transactional
-    public IngredientResponse update(Long id, IngredientRequest request) {
+    public IngredientResponse update(UUID id, IngredientRequest request) {
         validateCode(request.ingredientCode(), id);
         Ingredient ingredient = get(id);
         mapper.update(ingredient, request, getUnit(request.baseUnitId()));
@@ -75,24 +76,25 @@ public class IngredientServiceImpl implements IngredientService {
 
     @Override
     @Transactional
-    public IngredientResponse updateStatus(Long id, Status status) {
+    public IngredientResponse updateStatus(UUID id, Status status) {
         Ingredient ingredient = get(id);
         ingredient.setStatus(status);
         return mapper.toResponse(repository.save(ingredient));
     }
 
-    private void validateCode(String code, Long id) {
+    private void validateCode(String code, UUID id) {
         boolean exists = id == null
                 ? repository.existsByIngredientCode(code)
                 : repository.existsByIngredientCodeAndIdNot(code, id);
         if (exists) throw new BadRequestException("Ingredient code already exists: " + code);
     }
 
-    private Ingredient get(Long id) {
+    private Ingredient get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Ingredient", id));
     }
 
-    private Unit getUnit(Long id) {
+    private Unit getUnit(UUID id) {
         return unitRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Unit", id));
     }
 }
+

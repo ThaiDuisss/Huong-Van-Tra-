@@ -1,5 +1,6 @@
 import { apiClient } from "../../../api/api-client";
 import type {
+    EntityId,
     InventoryLocationQuery,
     InventoryLocationRequest,
     InventoryLocationResponse,
@@ -14,7 +15,7 @@ export const inventoryLocationApi = {
             { query }
         );
     },
-    detail(id: number) {
+    detail(id: EntityId) {
         return apiClient.get<InventoryLocationResponse>(
             `/inventory/inventory-locations/${id}`
         );
@@ -25,16 +26,22 @@ export const inventoryLocationApi = {
             InventoryLocationRequest
         >("/inventory/inventory-locations", input);
     },
-    update(id: number, input: InventoryLocationRequest) {
+    update(id: EntityId, input: InventoryLocationRequest) {
         return apiClient.put<
             InventoryLocationResponse,
             InventoryLocationRequest
         >(`/inventory/inventory-locations/${id}`, input);
     },
-    updateStatus(id: number, status: InventoryStatus) {
+    updateStatus(id: EntityId, status: InventoryStatus) {
         return apiClient.patch<
             InventoryLocationResponse,
             { status: InventoryStatus }
         >(`/inventory/inventory-locations/${id}/status`, { status });
+    },
+    defaultWarehouse(branchId: EntityId) {
+        return apiClient.get<InventoryLocationResponse>(
+            "/inventory/inventory-locations/default-warehouse",
+            { query: { branchId } }
+        );
     }
 };

@@ -10,14 +10,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface InventoryItemRepository
-        extends JpaRepository<InventoryItem, Long>, JpaSpecificationExecutor<InventoryItem> {
-    boolean existsByReferenceIdAndItemType(Long referenceId, InventoryItemType itemType);
+        extends JpaRepository<InventoryItem, UUID>, JpaSpecificationExecutor<InventoryItem> {
+    boolean existsByReferenceIdAndItemType(UUID referenceId, InventoryItemType itemType);
     boolean existsByReferenceIdAndItemTypeAndIdNot(
-            Long referenceId, InventoryItemType itemType, Long id);
+            UUID referenceId, InventoryItemType itemType, UUID id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from InventoryItem i where i.id = :id")
-    Optional<InventoryItem> findByIdForUpdate(@Param("id") Long id);
+    Optional<InventoryItem> findByIdForUpdate(@Param("id") UUID id);
 }

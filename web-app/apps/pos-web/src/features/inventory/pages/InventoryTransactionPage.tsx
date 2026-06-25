@@ -1,7 +1,6 @@
-import { Eye, RefreshCw } from "lucide-react";
+import { Eye } from "lucide-react";
 import { useCallback, useState } from "react";
 
-import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
@@ -36,7 +35,7 @@ export function InventoryTransactionPage() {
         useState<"ALL" | InventoryTransactionType>("ALL");
     const [referenceType, setReferenceType] =
         useState<"ALL" | InventoryReferenceType>("ALL");
-    const [branchId, setBranchId] = useState("");
+    const [branchId, _setBranchId] = useState("");
     const [createdBy, setCreatedBy] = useState("");
     const [referenceId, setReferenceId] = useState("");
     const [fromDate, setFromDate] = useState("");
@@ -54,9 +53,9 @@ export function InventoryTransactionPage() {
                 type: type === "ALL" ? undefined : type,
                 referenceType:
                     referenceType === "ALL" ? undefined : referenceType,
-                branchId: branchId ? Number(branchId) : undefined,
-                createdBy: createdBy ? Number(createdBy) : undefined,
-                referenceId: referenceId ? Number(referenceId) : undefined,
+                branchId: branchId ? branchId : undefined,
+                createdBy: createdBy ? createdBy : undefined,
+                referenceId: referenceId ? referenceId : undefined,
                 fromDate: fromDate ? `${fromDate}T00:00:00` : undefined,
                 toDate: toDate ? `${toDate}T23:59:59` : undefined
             }),
@@ -83,24 +82,24 @@ export function InventoryTransactionPage() {
 
     return (
         <section className="grid gap-5">
-            <Breadcrumbs
+            {/* <Breadcrumbs
                 items={["Quản lý tồn kho", "Lịch sử biến động tồn kho"]}
-            />
+            /> */}
             <PageHeader
                 title="Lịch sử biến động tồn kho"
                 description="Tra cứu các giao dịch nhập, bán, hoàn và điều chỉnh tồn kho."
             />
             <div className="grid min-h-[640px] grid-cols-1 gap-4 xl:grid-cols-[250px_minmax(0,1fr)] min-[1800px]:grid-cols-[250px_minmax(0,1fr)_380px]">
                 <InventoryFilters>
-                    <InventoryInput label="Mã giao dịch" value={transactionCode} onChange={(value) => resetPage(setTransactionCode, value)} />
+                    <InventoryInput label="Mã giao dịch" value={transactionCode} onChange={(value: string) => resetPage(setTransactionCode, value)} />
                     <InventorySelect label="Loại giao dịch" value={type} options={[{ value: "ALL", label: "Tất cả" }, ...Object.entries(transactionTypeLabels).map(([value, label]) => ({ value, label }))]} onChange={(value) => { setType(value as "ALL" | InventoryTransactionType); setPage(1); }} />
                     <InventorySelect label="Loại tham chiếu" value={referenceType} options={[{ value: "ALL", label: "Tất cả" }, ...Object.entries(referenceTypeLabels).map(([value, label]) => ({ value, label }))]} onChange={(value) => { setReferenceType(value as "ALL" | InventoryReferenceType); setPage(1); }} />
-                    <InventoryInput label="Mã tham chiếu" value={referenceId} type="number" onChange={(value) => resetPage(setReferenceId, value)} />
-                    <InventoryInput label="Chi nhánh" value={branchId} type="number" onChange={(value) => resetPage(setBranchId, value)} />
-                    <InventoryInput label="Người tạo" value={createdBy} type="number" onChange={(value) => resetPage(setCreatedBy, value)} />
-                    <InventoryInput label="Từ ngày" value={fromDate} type="date" onChange={(value) => resetPage(setFromDate, value)} />
-                    <InventoryInput label="Đến ngày" value={toDate} type="date" onChange={(value) => resetPage(setToDate, value)} />
-                    <button type="button" onClick={resource.refresh} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold"><RefreshCw size={15} />Tải lại dữ liệu</button>
+                    <InventoryInput label="Mã tham chiếu" value={referenceId} onChange={(value: string) => resetPage(setReferenceId, value)} />
+                    {/* <InventoryInput label="Chi nhánh" value={branchId} type="number" onChange={(value: string) => resetPage(setBranchId, value)} /> */}
+                    <InventoryInput label="Người tạo" value={createdBy} onChange={(value: string) => resetPage(setCreatedBy, value)} />
+                    <InventoryInput label="Từ ngày" value={fromDate} type="date" onChange={(value: string) => resetPage(setFromDate, value)} />
+                    <InventoryInput label="Đến ngày" value={toDate} type="date" onChange={(value: string) => resetPage(setToDate, value)} />
+                    {/* <button type="button" onClick={resource.refresh} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold"><RefreshCw size={15} />Tải lại dữ liệu</button> */}
                 </InventoryFilters>
                 <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
                     {resource.loading ? <InventoryLoading /> : null}

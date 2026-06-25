@@ -19,6 +19,8 @@ interface CustomerSearchDialogProps {
   open: boolean;
   customers: SaleCustomer[];
   selectedCustomerId: string;
+  loading: boolean;
+  error: string;
   onSelect(customerId: string): void;
   onClose(): void;
 }
@@ -71,6 +73,8 @@ export function CustomerSearchDialog({
   open,
   customers,
   selectedCustomerId,
+  loading,
+  error,
   onSelect,
   onClose
 }: CustomerSearchDialogProps) {
@@ -108,6 +112,9 @@ export function CustomerSearchDialog({
     return customers.filter(
       (customer) =>
         customer.name.toLowerCase().includes(normalizedQuery) ||
+        (customer.customerCode ?? "")
+          .toLowerCase()
+          .includes(normalizedQuery) ||
         customer.phone.replace(/\s/g, "").includes(
           normalizedQuery.replace(/\s/g, "")
         )
@@ -138,13 +145,13 @@ export function CustomerSearchDialog({
       <header className="mb-3 flex items-start justify-between gap-3">
         <div className="flex min-w-0 gap-3">
           <User
-            className="mt-1 size-5 shrink-0 text-pos-ink"
+            className="mt-1 size-5 shrink-0 text-gray-500"
             aria-hidden="true"
           />
           <div className="min-w-0">
             <h3
               id={titleId}
-              className="text-sm font-bold text-pos-ink"
+              className="text-sm font-bold text-gray-500"
             >
               Tìm khách hàng
             </h3>
@@ -159,7 +166,7 @@ export function CustomerSearchDialog({
 
         <button
           type="button"
-          className="grid size-8 place-items-center rounded-lg text-pos-ink hover:bg-neutral-100"
+          className="grid size-8 place-items-center rounded-lg text-gray-500 hover:bg-neutral-100"
           aria-label="Đóng tìm khách hàng"
           onClick={closeDialog}
         >
@@ -183,21 +190,46 @@ export function CustomerSearchDialog({
         />
       </label>
 
-      <CustomerGroup
-        title="Khách hàng gần đây"
-        customers={recentCustomers}
-        selectedCustomerId={selectedCustomerId}
-        onSelect={selectCustomer}
-      />
+      {loading ? (
+        <div className="rounded-xl border border-dashed border-pos-border py-6 text-center text-sm text-neutral-500">
+          Đang tải danh sách khách hàng...
+        </div>
+      ) : null}
 
-      <CustomerGroup
-        title="Khách hàng mua nhiều nhất hôm nay"
-        customers={frequentCustomers}
-        selectedCustomerId={selectedCustomerId}
-        onSelect={selectCustomer}
-      />
+      {!loading && error ? (
+        <div className="rounded-xl border border-dashed border-red-200 bg-red-50 py-6 text-center text-sm font-semibold text-red-700">
+          Không thể tải danh sách khách hàng
+        </div>
+      ) : null}
 
-      {filteredCustomers.length === 0 ? (
+      {!loading && !error ? (
+        <>
+          <CustomerGroup
+            title="Khách hàng gần đây"
+            customers={recentCustomers}
+            selectedCustomerId={selectedCustomerId}
+            onSelect={selectCustomer}
+          />
+
+          <CustomerGroup
+            title="Khách hàng mua nhiều nhất hôm nay"
+            customers={frequentCustomers}
+            selectedCustomerId={selectedCustomerId}
+            onSelect={selectCustomer}
+          />
+        </>
+      ) : null}
+
+      {!loading && !error && customers.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-pos-border py-6 text-center text-sm text-neutral-500">
+          Chưa có khách hàng
+        </div>
+      ) : null}
+
+      {!loading &&
+      !error &&
+      customers.length > 0 &&
+      filteredCustomers.length === 0 ? (
         <div className="rounded-xl border border-dashed border-pos-border py-6 text-center text-sm text-neutral-500">
           Không tìm thấy khách hàng phù hợp.
         </div>
@@ -234,7 +266,7 @@ function CustomerGroup({
   return (
     <section className="mb-3">
       <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-xs font-bold text-pos-ink">{title}</h4>
+        <h4 className="text-xs font-bold text-gray-500">{title}</h4>
         <button
           type="button"
           className="text-xs font-semibold text-hvt-green-800"
@@ -264,11 +296,11 @@ function CustomerGroup({
               <span className="flex min-w-0 items-center gap-3">
                 <CustomerAvatar customer={customer} />
                 <span className="min-w-0">
-                  <strong className="block truncate text-sm text-pos-ink">
+                  <strong className="block truncate text-sm text-gray-500">
                     {customer.name}
                   </strong>
                   <span className="block text-xs text-neutral-500">
-                    {customer.phone}
+                    {customer.phone || customer.customerCode}
                   </span>
                 </span>
               </span>
@@ -280,11 +312,13 @@ function CustomerGroup({
                   {customer.tier}
                 </span>
                 <span className="text-xs text-neutral-500">
-                  {customer.orderCount} đơn
+                  {customer.customerCode}
                 </span>
-                <span className="text-xs font-semibold text-pos-ink">
-                  {formatCurrency(customer.totalSpent)}
-                </span>
+                {customer.totalSpent > 0 ? (
+                  <span className="text-xs font-semibold text-gray-500">
+                    {formatCurrency(customer.totalSpent)}
+                  </span>
+                ) : null}
               </span>
             </button>
           );

@@ -7,12 +7,14 @@ import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public interface PriceListService {
     PageResponse<PriceListResponse> findAll(
-            Long branchId, Status status, LocalDateTime effectiveAt, Pageable pageable);
-    PriceListResponse findById(Long id);
+            UUID branchId, Status status, LocalDateTime effectiveAt, Pageable pageable);
+    PriceListResponse findById(UUID id);
     PriceListResponse create(PriceListRequest request);
-    PriceListResponse update(Long id, PriceListRequest request);
-    PriceListResponse updateStatus(Long id, Status status);
+    PriceListResponse update(UUID id, PriceListRequest request);
+    PriceListResponse updateStatus(UUID id, Status status);
 }
+

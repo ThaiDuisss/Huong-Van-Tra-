@@ -3,26 +3,28 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.catalog.enums.Status;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "boms", uniqueConstraints = @UniqueConstraint(columnNames = {"product_variant_id", "version"}))
+@AttributeOverrides({
+        @AttributeOverride(name = "version", column = @Column(name = "version_audit"))
+})
 @Getter
 @Setter
-public class Bom {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class Bom extends BaseEntity {
 
-    @Column(name = "product_variant_id", nullable = false)
-    private Long productVariantId;
+    @Column(name = "product_variant_id", nullable = false, columnDefinition = "CHAR(36)")
+    private UUID productVariantId;
 
-    @Column(nullable = false)
-    private Integer version;
+    @Column(name = "version", nullable = false)
+    private Integer bomVersion;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)

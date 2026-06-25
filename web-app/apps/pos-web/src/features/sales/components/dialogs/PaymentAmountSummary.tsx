@@ -20,7 +20,7 @@ export function PaymentAmountSummary({
       {referenceCode ? (
         <p className="text-xs text-pos-muted">
           Nội dung chuyển khoản:{" "}
-          <span className="font-semibold text-pos-ink">
+          <span className="font-semibold text-gray-500">
             {referenceCode}
           </span>
         </p>

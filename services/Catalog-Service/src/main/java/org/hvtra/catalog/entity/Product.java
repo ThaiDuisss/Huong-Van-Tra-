@@ -3,6 +3,7 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.catalog.enums.Status;
 
 import java.util.ArrayList;
@@ -12,14 +13,14 @@ import java.util.List;
 @Table(name = "products")
 @Getter
 @Setter
-public class Product {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class Product extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
+
+    @Column(name = "product_code", nullable = false, unique = true, length = 50)
+    private String productCode;
 
     @Column(nullable = false)
     private String name;

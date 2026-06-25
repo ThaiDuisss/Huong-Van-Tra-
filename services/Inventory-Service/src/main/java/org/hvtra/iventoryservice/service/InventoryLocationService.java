@@ -7,11 +7,14 @@ import org.hvtra.iventoryservice.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.enums.InventoryStatus;
 import org.springframework.data.domain.Pageable;
 
+import java.util.UUID;
+
 public interface InventoryLocationService {
     PageResponse<InventoryLocationResponse> findAll(
-            Long branchId, InventoryLocationType type, InventoryStatus status, Pageable pageable);
-    InventoryLocationResponse findById(Long id);
+            UUID branchId, InventoryLocationType type, InventoryStatus status, Pageable pageable);
+    InventoryLocationResponse findById(UUID id);
     InventoryLocationResponse create(InventoryLocationRequest request);
-    InventoryLocationResponse update(Long id, InventoryLocationRequest request);
-    InventoryLocationResponse updateStatus(Long id, InventoryStatus status);
+    InventoryLocationResponse update(UUID id, InventoryLocationRequest request);
+    InventoryLocationResponse updateStatus(UUID id, InventoryStatus status);
+    InventoryLocationResponse findDefaultWarehouse(UUID branchId);
 }

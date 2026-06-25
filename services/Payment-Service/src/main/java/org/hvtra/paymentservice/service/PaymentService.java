@@ -1,7 +1,7 @@
 package org.hvtra.paymentservice.service;
 
-import org.hvtra.paymentservice.domain.dto.request.CashPaymentRequest;
-import org.hvtra.paymentservice.domain.dto.response.CashPaymentResponse;
+import org.hvtra.paymentservice.dto.request.CashPaymentRequest;
+import org.hvtra.paymentservice.dto.response.CashPaymentResponse;
 
 public interface PaymentService {
 

@@ -7,6 +7,7 @@ interface ProductSearchBarProps {
   results: SaleProductPreview[];
   loading?: boolean;
   error?: string;
+  addingProductId?: string | null;
   formatCurrency(value: number): string;
   onChange(value: string): void;
   onClear(): void;
@@ -18,6 +19,7 @@ export function ProductSearchBar({
   results,
   loading = false,
   error = "",
+  addingProductId = null,
   formatCurrency,
   onChange,
   onClear,
@@ -45,7 +47,7 @@ export function ProductSearchBar({
           <button
             type="button"
             onClick={onClear}
-            className="grid size-9 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-pos-ink"
+            className="grid size-9 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-gray-500"
             aria-label="Xóa từ khóa tìm kiếm"
           >
             <X size={22} aria-hidden="true" />
@@ -70,7 +72,7 @@ export function ProductSearchBar({
                 className="text-hvt-green-900"
                 aria-hidden="true"
               />
-              <strong className="text-pos-ink">Kết quả tìm kiếm</strong>
+              <strong className="text-gray-500">Kết quả tìm kiếm</strong>
               <span>{results.length} sản phẩm phù hợp</span>
             </div>
             <span className="text-xs text-neutral-500">
@@ -83,15 +85,20 @@ export function ProductSearchBar({
               <div className="rounded-xl border border-dashed border-red-200 bg-red-50 px-4 py-3 text-center text-red-700">
                 {error}
               </div>
+            ) : loading && visibleResults.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-pos-border py-8 text-center">
+                Đang tìm sản phẩm...
+              </div>
             ) : visibleResults.length > 0 ? (
               visibleResults.map((product, index) => (
                 <article
-                  className={`grid grid-cols-[64px_minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-pos-border px-2 py-3 last:border-b-0 ${
+                  className={`grid cursor-pointer grid-cols-[64px_minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-pos-border px-2 py-3 last:border-b-0 ${
                     index === 0
                       ? "rounded-xl border border-hvt-green-300 bg-hvt-green-50/70"
                       : ""
                   }`}
                   key={product.id}
+                  onClick={() => onAdd(product)}
                 >
                   <img
                     className="size-16 rounded-xl object-cover"
@@ -100,11 +107,13 @@ export function ProductSearchBar({
                   />
 
                   <div className="min-w-0">
-                    <h3 className="truncate text-base font-bold text-pos-ink">
+                    <h3 className="truncate text-base font-bold text-gray-500">
                       {product.name}
                     </h3>
                     <p className="mt-1 text-sm text-neutral-600">
+                      {product.variant ? `${product.variant} · ` : null}
                       SKU: {product.sku}
+                      {product.barcode ? ` · ${product.barcode}` : ""}
                     </p>
                     <p className="text-sm text-neutral-600">
                       Danh mục: {product.category}
@@ -121,11 +130,19 @@ export function ProductSearchBar({
                     </strong>
                     <button
                       type="button"
-                      onClick={() => onAdd(product)}
-                      className="grid size-9 place-items-center rounded-full border border-pos-border bg-white text-pos-ink shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:border-hvt-green-700 hover:bg-hvt-green-50"
+                      disabled={addingProductId === product.id}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onAdd(product);
+                      }}
+                      className="grid size-9 place-items-center rounded-full border border-pos-border bg-white text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:border-hvt-green-700 hover:bg-hvt-green-50"
                       aria-label={`Thêm ${product.name} vào giỏ`}
                     >
-                      <Plus size={20} aria-hidden="true" />
+                      {addingProductId === product.id ? (
+                        <span className="text-xs font-bold">...</span>
+                      ) : (
+                        <Plus size={20} aria-hidden="true" />
+                      )}
                     </button>
                   </div>
                 </article>

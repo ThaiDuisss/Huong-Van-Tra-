@@ -1,14 +1,12 @@
-import { Eye, Pencil, Plus, RefreshCw, ToggleLeft, X } from "lucide-react";
+import { Eye, Pencil, Plus, ToggleLeft, X } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
-import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import {
     InventoryFilters,
-    InventoryInput,
     InventorySelect
 } from "../components/InventoryFilters";
 import {
@@ -37,7 +35,7 @@ import {
 } from "../utils/inventory-labels";
 
 export function InventoryLocationPage() {
-    const [branchId, setBranchId] = useState("");
+    const [branchId, _setBranchId] = useState("");
     const [type, setType] = useState<"ALL" | InventoryLocationType>("ALL");
     const [status, setStatus] = useState<"ALL" | InventoryStatus>("ALL");
     const [page, setPage] = useState(1);
@@ -54,7 +52,7 @@ export function InventoryLocationPage() {
             inventoryLocationApi.list({
                 page: page - 1,
                 size: pageSize,
-                branchId: branchId ? Number(branchId) : undefined,
+                branchId: branchId ? branchId : undefined,
                 type: type === "ALL" ? undefined : type,
                 status: status === "ALL" ? undefined : status
             }),
@@ -101,7 +99,7 @@ export function InventoryLocationPage() {
 
     return (
         <section className="grid gap-5">
-            <Breadcrumbs items={["Quản lý tồn kho", "Quản lý kệ hàng"]} />
+            {/* <Breadcrumbs items={["Quản lý tồn kho", "Quản lý kệ hàng"]} /> */}
             <PageHeader
                 title="Quản lý kệ hàng"
                 description="Quản lý kệ, quầy thu ngân và các vị trí lưu trữ tại cửa hàng."
@@ -121,7 +119,7 @@ export function InventoryLocationPage() {
 
             <div className="grid min-h-[640px] grid-cols-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)] min-[1800px]:grid-cols-[250px_minmax(0,1fr)_340px]">
                 <InventoryFilters>
-                    <InventoryInput
+                    {/* <InventoryInput
                         label="Chi nhánh"
                         value={branchId}
                         type="number"
@@ -130,7 +128,7 @@ export function InventoryLocationPage() {
                             setBranchId(value);
                             setPage(1);
                         }}
-                    />
+                    /> */}
                     <InventorySelect
                         label="Loại vị trí"
                         value={type}
@@ -159,14 +157,14 @@ export function InventoryLocationPage() {
                             setPage(1);
                         }}
                     />
-                    <button
+                    {/* <button
                         type="button"
                         onClick={resource.refresh}
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold"
                     >
                         <RefreshCw size={15} />
                         Tải lại dữ liệu
-                    </button>
+                    </button> */}
                 </InventoryFilters>
 
                 <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
@@ -192,7 +190,7 @@ export function InventoryLocationPage() {
                                         <th className="px-4 py-3">Mã kệ</th>
                                         <th className="px-4 py-3">Tên vị trí</th>
                                         <th className="px-4 py-3">Loại vị trí</th>
-                                        <th className="px-4 py-3">Chi nhánh</th>
+                                        {/* <th className="px-4 py-3">Chi nhánh</th> */}
                                         <th className="px-4 py-3">Vị trí cha</th>
                                         <th className="px-4 py-3">Trạng thái</th>
                                         <th className="px-4 py-3 text-right">Thao tác</th>
@@ -208,7 +206,7 @@ export function InventoryLocationPage() {
                                             <Cell strong>{item.code}</Cell>
                                             <Cell>{item.name}</Cell>
                                             <Cell><LocationTypeBadge type={item.type} /></Cell>
-                                            <Cell>#{item.branchId}</Cell>
+                                            {/* <Cell>#{item.branchId}</Cell> */}
                                             <Cell>{item.parentLocationId ? `#${item.parentLocationId}` : "-"}</Cell>
                                             <Cell><InventoryStatusBadge status={item.status} /></Cell>
                                             <Cell>
@@ -243,7 +241,7 @@ export function InventoryLocationPage() {
                                 <Detail label="Mã kệ" value={selected.code} />
                                 <Detail label="Tên vị trí" value={selected.name} />
                                 <Detail label="Loại vị trí" value={locationTypeLabels[selected.type]} />
-                                <Detail label="Chi nhánh" value={`#${selected.branchId}`} />
+                                {/* <Detail label="Chi nhánh" value={`#${selected.branchId}`} /> */}
                                 <Detail label="Trạng thái" value={inventoryStatusLabels[selected.status]} />
                             </dl>
                         </DetailPanel>
@@ -283,10 +281,10 @@ function Detail({ label, value }: { label: string; value: string }) {
 function LocationForm({ item, locations, error, onClose, onSubmit }: { item: InventoryLocationResponse | null; locations: InventoryLocationResponse[]; error: string; onClose(): void; onSubmit(input: InventoryLocationRequest): void }) {
     return (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/35 p-5">
-            <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); onSubmit({ branchId: Number(data.get("branchId")), parentLocationId: data.get("parentLocationId") ? Number(data.get("parentLocationId")) : null, code: String(data.get("code") ?? "").trim(), name: String(data.get("name") ?? "").trim(), type: data.get("type") as InventoryLocationType, status: data.get("status") as InventoryStatus }); }} className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-pos-panel">
+            <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); onSubmit({ branchId: String(data.get("branchId") || ""), parentLocationId: data.get("parentLocationId") ? String(data.get("parentLocationId")) : null, code: String(data.get("code") ?? "").trim(), name: String(data.get("name") ?? "").trim(), type: data.get("type") as InventoryLocationType, status: data.get("status") as InventoryStatus }); }} className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-pos-panel">
                 <header className="mb-5 flex items-center justify-between"><h2 className="text-2xl font-bold">{item ? "Chỉnh sửa vị trí" : "Tạo vị trí"}</h2><button type="button" onClick={onClose} aria-label="Đóng"><X /></button></header>
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <FormInput name="branchId" label="Mã chi nhánh" type="number" value={String(item?.branchId ?? "")} />
+                    {/* <FormInput name="branchId" label="Mã chi nhánh" type="number" value={String(item?.branchId ?? "")} /> */}
                     <label className="grid gap-2 text-sm font-bold">Vị trí cha<select name="parentLocationId" defaultValue={String(item?.parentLocationId ?? "")} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal"><option value="">Không có</option>{locations.filter((location) => location.id !== item?.id).map((location) => <option key={location.id} value={location.id}>{location.code} - {location.name}</option>)}</select></label>
                     <FormInput name="code" label="Mã kệ" value={item?.code ?? ""} />
                     <FormInput name="name" label="Tên vị trí" value={item?.name ?? ""} />

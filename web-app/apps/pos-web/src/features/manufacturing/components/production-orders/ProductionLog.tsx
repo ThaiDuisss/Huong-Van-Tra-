@@ -21,7 +21,7 @@ export function ProductionLog({ logs }: ProductionLogProps) {
                     className="grid grid-cols-[1fr_auto] gap-2 border-l-2 border-hvt-green-800 pl-3 text-sm"
                 >
                     <div>
-                        <p className="font-semibold text-pos-ink">
+                        <p className="font-semibold text-gray-500">
                             {formatDateTime(log.time)}
                         </p>
                         <p className="text-pos-muted">{log.message}</p>

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -40,7 +41,7 @@ public class UnitServiceImpl implements UnitService {
 
     @Override
     @Transactional
-    public UnitResponse update(Long id, UnitRequest request) {
+    public UnitResponse update(UUID id, UnitRequest request) {
         Unit unit = get(id);
         mapper.update(unit, request);
         return mapper.toResponse(repository.save(unit));
@@ -48,13 +49,23 @@ public class UnitServiceImpl implements UnitService {
 
     @Override
     @Transactional
-    public UnitResponse updateStatus(Long id, Status status) {
+    public UnitResponse updateStatus(UUID id, Status status) {
         Unit unit = get(id);
         unit.setStatus(status);
         return mapper.toResponse(repository.save(unit));
     }
 
-    private Unit get(Long id) {
+    private Unit get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Unit", id));
+    }
+
+    @Override
+    public java.util.List<UnitResponse> findAllByIds(java.util.List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return repository.findAllById(ids).stream()
+                .map(mapper::toResponse)
+                .toList();
     }
 }

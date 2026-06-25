@@ -3,23 +3,22 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.catalog.enums.Status;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "price_lists")
 @Getter
 @Setter
-public class PriceList {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class PriceList extends BaseEntity {
 
-    @Column(name = "branch_id", nullable = false)
-    private Long branchId;
+    @Column(name = "branch_id", nullable = false, columnDefinition = "CHAR(36)")
+    private UUID branchId;
 
     @Column(nullable = false)
     private String name;

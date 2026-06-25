@@ -4,9 +4,9 @@ import {
     CatalogStatusBadge,
     DetailList,
     type FormValues,
-    ProductManagementPage,
+    CatalogResourceManagement,
     TableCell
-} from "../components/ProductManagementPage";
+} from "../components/CatalogResourceManagement";
 import { useApiResource, usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { categoryApi } from "../services/category.api";
@@ -15,7 +15,7 @@ import type {
     Category
 } from "../types/product.types";
 import {
-    getNullableNumber,
+    getNumber,
     getString
 } from "../utils/form-values";
 
@@ -57,9 +57,11 @@ export function CategoryListPage() {
 
     async function submit(values: FormValues, editingItem: Category | null) {
         const input = {
-            parentId: getNullableNumber(values, "parentId"),
+            parentId: getString(values, "parentId") || null,
+            categoryCode: editingItem ? editingItem.categoryCode : undefined,
             name: getString(values, "name"),
-            status: getString(values, "status") as CatalogStatus
+            status: getString(values, "status") as CatalogStatus,
+            defaultReorderPoint: getNumber(values, "defaultReorderPoint")
         };
 
         if (editingItem) {
@@ -70,11 +72,12 @@ export function CategoryListPage() {
     }
 
     return (
-        <ProductManagementPage
+        <CatalogResourceManagement
             title="Danh mục sản phẩm"
             description="Quản lý cây danh mục và trạng thái phân loại sản phẩm."
             createLabel="Tạo danh mục"
             searchPlaceholder="Tìm tên danh mục..."
+            totalItemsLabel="Tổng số danh mục"
             items={categories}
             loading={resource.loading}
             error={resource.error}
@@ -99,7 +102,8 @@ export function CategoryListPage() {
             getInitialValues={(item) => ({
                 name: item.name,
                 parentId: item.parentId?.toString() ?? "",
-                status: item.status
+                status: item.status,
+                defaultReorderPoint: String(item.defaultReorderPoint ?? 10)
             })}
             columns={[
                 { key: "name", label: "Tên danh mục" },
@@ -108,8 +112,9 @@ export function CategoryListPage() {
             ]}
             renderCells={(item) => (
                 <>
-                    <TableCell className="font-bold text-pos-ink">
-                        {item.name}
+                    <TableCell className="font-bold text-gray-500">
+                        <span>{item.name}</span>
+                        <span className="text-gray-500 block text-[10px] font-normal">{item.categoryCode}</span>
                     </TableCell>
                     <TableCell>{getParentName(item)}</TableCell>
                     <TableCell>
@@ -121,6 +126,7 @@ export function CategoryListPage() {
                 <DetailList
                     items={[
                         { label: "Tên danh mục", value: item.name },
+                        { label: "Mã danh mục", value: item.categoryCode },
                         {
                             label: "Danh mục cha",
                             value: getParentName(item)
@@ -130,6 +136,10 @@ export function CategoryListPage() {
                             value: (
                                 <CatalogStatusBadge status={item.status} />
                             )
+                        },
+                        {
+                            label: "Tồn kho cảnh báo mặc định",
+                            value: item.defaultReorderPoint
                         }
                     ]}
                 />
@@ -151,6 +161,12 @@ export function CategoryListPage() {
                             value: String(category.id)
                         }))
                     ]
+                },
+                {
+                    name: "defaultReorderPoint",
+                    label: "Tồn tối thiểu mặc định",
+                    type: "number",
+                    required: true
                 },
                 {
                     name: "status",

@@ -59,7 +59,7 @@ export function ProductionOrderTable({
                                         aria-label={`Chọn ${item.code}`}
                                     />
                                 </td>
-                                <td className="border-b border-pos-border px-4 py-4 font-semibold text-pos-ink">
+                                <td className="border-b border-pos-border px-4 py-4 font-semibold text-gray-500">
                                     {item.code}
                                 </td>
                                 <td className="border-b border-pos-border px-4 py-4">
@@ -69,7 +69,7 @@ export function ProductionOrderTable({
                                             alt={item.productName}
                                             className="size-9 rounded-lg object-cover"
                                         />
-                                        <span className="font-semibold text-pos-ink">
+                                        <span className="font-semibold text-gray-500">
                                             {item.productName}
                                         </span>
                                     </div>

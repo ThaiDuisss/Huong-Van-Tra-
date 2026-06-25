@@ -1,434 +1,440 @@
 import {
-    Bell,
-    CalendarDays,
-    ChevronLeft,
-    ChevronRight,
+    AlertCircle,
+    ChevronDown,
     Download,
-    Mail,
-    MoreHorizontal,
-    Phone,
+    Filter,
+    LoaderCircle,
     Plus,
-    Upload,
-    User,
-    WalletCards
+    RefreshCw,
+    Search,
+    X
 } from "lucide-react";
+import { type FormEvent, useCallback, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
-import { TimeHierarchyFilter } from "../../../components/shared/TimeHierarchyFilter";
-import { formatCurrency } from "../../sales/services/money";
-import styles from "./CustomerListPage.module.css";
-
-interface CustomerRow {
-    id: string;
-    code: string;
-    name: string;
-    tier: "VIP Gold" | "VIP Silver" | "VIP Diamond" | "Thành viên";
-    points: number;
-    totalSpent: number;
-    orderCount: number;
-    phone: string;
-    email: string;
-    birthday: string;
-    gender: string;
-    address: string;
-    source: string;
-    note: string;
-    avatarUrl: string;
-}
-
-const customers: CustomerRow[] = [
-    {
-        id: "1",
-        code: "KH-000125",
-        name: "Đỗ Xuân Thái",
-        tier: "VIP Gold",
-        points: 1250,
-        totalSpent: 25600000,
-        orderCount: 86,
-        phone: "0987654321",
-        email: "thai@gmail.com",
-        birthday: "15/08/1998",
-        gender: "Nam",
-        address: "Tây Hồ, Hà Nội",
-        source: "Facebook",
-        note: "Khách hàng thân thiết, thường mua trà biếu tặng.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80"
-    },
-    {
-        id: "2",
-        code: "KH-000126",
-        name: "Nguyễn Minh Anh",
-        tier: "VIP Silver",
-        points: 550,
-        totalSpent: 8500000,
-        orderCount: 24,
-        phone: "0912345678",
-        email: "minhanh@gmail.com",
-        birthday: "02/04/1995",
-        gender: "Nữ",
-        address: "Cầu Giấy, Hà Nội",
-        source: "Cửa hàng",
-        note: "Ưu tiên trà ô long và các set quà nhỏ.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80"
-    },
-    {
-        id: "3",
-        code: "KH-000127",
-        name: "Trần Thu Hà",
-        tier: "Thành viên",
-        points: 180,
-        totalSpent: 2400000,
-        orderCount: 8,
-        phone: "0902111222",
-        email: "thuha@gmail.com",
-        birthday: "11/12/1992",
-        gender: "Nữ",
-        address: "Đống Đa, Hà Nội",
-        source: "Zalo",
-        note: "Hay mua trà sen theo mùa.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
-    },
-    {
-        id: "4",
-        code: "KH-000128",
-        name: "Lê Hoàng Nam",
-        tier: "VIP Diamond",
-        points: 2260,
-        totalSpent: 32800000,
-        orderCount: 112,
-        phone: "0988111222",
-        email: "nam@gmail.com",
-        birthday: "20/03/1988",
-        gender: "Nam",
-        address: "Ba Đình, Hà Nội",
-        source: "Giới thiệu",
-        note: "Mua sỉ trà biếu doanh nghiệp.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=120&q=80"
-    },
-    {
-        id: "5",
-        code: "KH-000129",
-        name: "Phạm Thu Phương",
-        tier: "VIP Gold",
-        points: 1680,
-        totalSpent: 18750000,
-        orderCount: 64,
-        phone: "0966555444",
-        email: "phuong@gmail.com",
-        birthday: "09/09/1990",
-        gender: "Nữ",
-        address: "Hoàn Kiếm, Hà Nội",
-        source: "Website",
-        note: "Thích trà nhài và trà túi lọc.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80"
-    },
-    {
-        id: "6",
-        code: "KH-000130",
-        name: "Võ Đức Tuấn",
-        tier: "Thành viên",
-        points: 120,
-        totalSpent: 1950000,
-        orderCount: 6,
-        phone: "0909876123",
-        email: "tuan@gmail.com",
-        birthday: "01/01/1991",
-        gender: "Nam",
-        address: "Thanh Xuân, Hà Nội",
-        source: "Cửa hàng",
-        note: "Mua thử sản phẩm mới.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=80"
-    },
-    {
-        id: "7",
-        code: "KH-000131",
-        name: "Ngô Thị Hằng",
-        tier: "VIP Silver",
-        points: 120,
-        totalSpent: 2200000,
-        orderCount: 28,
-        phone: "0933444555",
-        email: "hang@gmail.com",
-        birthday: "23/07/1996",
-        gender: "Nữ",
-        address: "Hà Đông, Hà Nội",
-        source: "Facebook",
-        note: "Thường mua combo nhỏ.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=120&q=80"
-    },
-    {
-        id: "8",
-        code: "KH-000132",
-        name: "Đặng Minh Quân",
-        tier: "VIP Gold",
-        points: 1350,
-        totalSpent: 21300000,
-        orderCount: 70,
-        phone: "0911222333",
-        email: "quan@gmail.com",
-        birthday: "19/05/1989",
-        gender: "Nam",
-        address: "Tây Hồ, Hà Nội",
-        source: "Giới thiệu",
-        note: "Mua trà làm quà đối tác.",
-        avatarUrl:
-            "https://images.unsplash.com/photo-1507591064344-4c6ce005b128?auto=format&fit=crop&w=120&q=80"
-    }
-];
-
-const selectedCustomer = customers[0];
-
-function getTierClassName(tier: CustomerRow["tier"]) {
-    const tierClass = {
-        "VIP Gold": styles.gold,
-        "VIP Silver": styles.silver,
-        "VIP Diamond": styles.diamond,
-        "Thành viên": styles.member
-    }[tier];
-
-    return `${styles.tier} ${tierClass}`;
-}
+import { Dialog } from "../../../components/ui/dialog";
+import { CustomerCreateDialog } from "../components/CustomerCreateDialog";
+import { CustomerDeleteDialog } from "../components/CustomerDeleteDialog";
+import { CustomerDetailDrawer } from "../components/CustomerDetailDrawer";
+import { CustomerFilterDialog } from "../components/CustomerFilterDialog";
+import { CustomerTable } from "../components/CustomerTable";
+import {
+    CUSTOMER_BUTTON_BASE,
+    CUSTOMER_COMPACT_BUTTON,
+    CUSTOMER_OUTLINE_BUTTON,
+    CUSTOMER_QUICK_VIEWS,
+    CUSTOMER_SORT_OPTIONS,
+    CUSTOMER_STATUS_LABELS,
+    EMPTY_CUSTOMER_FILTER
+} from "../constants/customer-list.constants";
+import { useCustomerListData } from "../hooks/useCustomerListData";
+import { customerApi } from "../services/customer.api";
+import type {
+    CustomerFilterDraft,
+    CustomerQuickViewId
+} from "../types/customer-list.types";
+import type { CustomerResponse } from "../types/customer.types";
+import {
+    appendCustomerFilterDraft,
+    customerErrorMessage,
+    customerFilterDraftFromParams,
+    customerQuickViewParams,
+    getActiveCustomerQuickView,
+    getAppliedCustomerFilters,
+    getCustomerSort,
+    toCustomerQuery
+} from "../utils/customer-list.utils";
 
 export function CustomerListPage() {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchDraft, setSearchDraft] = useState(searchParams.get("q") ?? "");
+    const [showFilters, setShowFilters] = useState(false);
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [editingCustomer, setEditingCustomer] =
+        useState<CustomerResponse | null>(null);
+    const [deletingCustomer, setDeletingCustomer] =
+        useState<CustomerResponse | null>(null);
+    const [filterDraft, setFilterDraft] = useState<CustomerFilterDraft>(() =>
+        customerFilterDraftFromParams(searchParams)
+    );
+    const [exporting, setExporting] = useState(false);
+    const [detailOpen, setDetailOpen] = useState(false);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailError, setDetailError] = useState("");
+    const [selectedCustomer, setSelectedCustomer] =
+        useState<CustomerResponse | null>(null);
+    const queryString = searchParams.toString();
+    const {
+        tiers,
+        result,
+        customers,
+        loading,
+        loadingMore,
+        error,
+        setError,
+        loadMore,
+        reload
+    } = useCustomerListData(queryString);
+    const activeQuickView = getActiveCustomerQuickView(searchParams, tiers);
+    const appliedFilters = getAppliedCustomerFilters(searchParams, tiers);
+
+    const closeDetail = useCallback(() => {
+        setDetailOpen(false);
+    }, []);
+
+    async function openCustomerDetail(customer: CustomerResponse) {
+        setSelectedCustomer(customer);
+        setDetailOpen(true);
+        setDetailLoading(true);
+        setDetailError("");
+
+        try {
+            setSelectedCustomer(await customerApi.detail(customer.id));
+        } catch (detailRequestError) {
+            setDetailError(customerErrorMessage(detailRequestError));
+        } finally {
+            setDetailLoading(false);
+        }
+    }
+
+    function submitSearch(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        updateParams({ q: searchDraft.trim() || null });
+    }
+
+    function applyQuickView(view: CustomerQuickViewId) {
+        const params = customerQuickViewParams(view, tiers);
+        const sort = searchParams.get("sort");
+        if (sort) params.set("sort", sort);
+        setSearchParams(params);
+        setSearchDraft("");
+        setFilterDraft(customerFilterDraftFromParams(params));
+    }
+
+    function applyFilters(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const next = new URLSearchParams();
+        if (searchDraft.trim()) next.set("q", searchDraft.trim());
+        const sort = searchParams.get("sort");
+        if (sort) next.set("sort", sort);
+        appendCustomerFilterDraft(next, filterDraft);
+        setSearchParams(next);
+        setShowFilters(false);
+    }
+
+    function clearAllFilters() {
+        const sort = searchParams.get("sort");
+        setSearchParams(sort ? { sort } : {});
+        setSearchDraft("");
+        setFilterDraft(EMPTY_CUSTOMER_FILTER);
+    }
+
+    function removeFilter(key: string) {
+        const next = new URLSearchParams(searchParams);
+        next.delete(key);
+        setSearchParams(next);
+        setSearchDraft(next.get("q") ?? "");
+        setFilterDraft(customerFilterDraftFromParams(next));
+    }
+
+    function updateParams(updates: Record<string, string | null>) {
+        const next = new URLSearchParams(searchParams);
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value) next.set(key, value);
+            else next.delete(key);
+        });
+        setSearchParams(next);
+    }
+
+    async function exportCustomers() {
+        setExporting(true);
+        setError("");
+        try {
+            const response = await customerApi.list(
+                toCustomerQuery(new URLSearchParams(queryString))
+            );
+            const XLSX = await import("xlsx");
+            const rows = response.content.map((customer) => ({
+                "Mã khách hàng": customer.customerCode,
+                "Tên khách hàng": customer.fullName,
+                "Số điện thoại": customer.phone,
+                Email: customer.email ?? "",
+                "Hạng thành viên": customer.tierName ?? "Chưa xếp hạng",
+                "Ngày sinh": customer.dateOfBirth ?? "",
+                "Lần mua gần nhất": customer.lastPurchaseDate ?? "",
+                "Tổng chi tiêu": customer.totalSpent,
+                "Trạng thái": CUSTOMER_STATUS_LABELS[customer.status],
+                "Ngày tạo": customer.createdAt
+            }));
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(
+                workbook,
+                XLSX.utils.json_to_sheet(rows),
+                "Khach hang"
+            );
+            XLSX.writeFile(workbook, "danh-sach-khach-hang.xlsx");
+        } catch (exportError) {
+            setError(customerErrorMessage(exportError));
+        } finally {
+            setExporting(false);
+        }
+    }
+
     return (
-        <section className={styles.page}>
-            <TimeHierarchyFilter />
+        <section className="h-full min-h-0 bg-[#f6f8fb]">
+            <main
+                className="flex h-full min-h-0 flex-col gap-3 p-[18px] text-[#172317] max-xl:p-3.5"
+                aria-labelledby="customer-title"
+            >
+                <form
+                    className="grid grid-cols-[minmax(360px,1fr)_auto_auto_auto] items-center gap-2.5 max-xl:grid-cols-[minmax(0,1fr)_auto_auto]"
+                    onSubmit={submitSearch}
+                >
+                    <label className="flex h-11 min-w-0 items-center gap-2.5 rounded-lg border border-[#dce5e1] bg-white px-[13px] text-[#7a8794] focus-within:border-[#159734] focus-within:shadow-[0_0_0_3px_rgba(21,151,52,0.12)]">
+                        <Search size={18} aria-hidden="true" />
+                        <input
+                            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#172317] outline-none placeholder:text-[#8a96a3]"
+                            onChange={(event) =>
+                                setSearchDraft(event.target.value)
+                            }
+                            placeholder="Tìm tên, SĐT, email hoặc mã khách hàng..."
+                            type="search"
+                            value={searchDraft}
+                        />
+                    </label>
+                    <button
+                        className={`${CUSTOMER_BUTTON_BASE} bg-[#159734] text-white hover:bg-[#12862d]`}
+                        onClick={() => setShowCreateDialog(true)}
+                        type="button"
+                    >
+                        <Plus size={17} aria-hidden="true" />
+                        Thêm khách hàng
+                    </button>
+                    <button
+                        aria-expanded={showFilters}
+                        aria-haspopup="dialog"
+                        className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON} ${showFilters
+                                ? "border-[#159734] text-[#159734]"
+                                : ""
+                            }`}
+                        onClick={() => setShowFilters((current) => !current)}
+                        type="button"
+                    >
+                        <Filter size={16} aria-hidden="true" />
+                        Bộ lọc
+                        {!!appliedFilters.length && (
+                            <span className="grid size-5 place-items-center rounded-full bg-[#159734] text-[10px] text-white">
+                                {appliedFilters.length}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_OUTLINE_BUTTON} max-xl:col-span-full max-xl:justify-self-start`}
+                        disabled={exporting || loading}
+                        onClick={() => void exportCustomers()}
+                        type="button"
+                    >
+                        {exporting ? (
+                            <LoaderCircle
+                                className="animate-spin"
+                                size={16}
+                                aria-hidden="true"
+                            />
+                        ) : (
+                            <Download size={16} aria-hidden="true" />
+                        )}
+                        {exporting ? "Đang xuất..." : "Xuất Excel"}
+                    </button>
+                </form>
 
-            <div className={styles.tablePanel}>
-                <div className={styles.tableToolbar}>
-                    <div className={styles.dateCrumbs}>
-                        <span>2026</span>
-                        <span>/</span>
-                        <span>Quý 2</span>
-                        <span>/</span>
-                        <span>Tháng 6</span>
-                        <span>/</span>
-                        <span>17-06-2026</span>
-                    </div>
-                    <div className={styles.actions}>
-                        <button className={styles.primaryButton} type="button">
-                            <Plus size={15} aria-hidden="true" />
-                            Thêm khách hàng
-                        </button>
-                        <button className={styles.ghostButton} type="button">
-                            <Download size={15} aria-hidden="true" />
-                            Import Excel
-                        </button>
-                        <button className={styles.ghostButton} type="button">
-                            <Upload size={15} aria-hidden="true" />
-                            Xuất Excel
-                        </button>
-                    </div>
-                </div>
+                <Dialog onOpenChange={setShowFilters} open={showFilters}>
+                    <CustomerFilterDialog
+                        draft={filterDraft}
+                        tiers={tiers}
+                        onChange={setFilterDraft}
+                        onClear={() => setFilterDraft(EMPTY_CUSTOMER_FILTER)}
+                        onSubmit={applyFilters}
+                    />
+                </Dialog>
 
-                <div className={styles.tableWrap}>
-                    <table className={styles.customerTable}>
-                        <thead>
-                            <tr>
-                                <th>Avatar</th>
-                                <th>Mã khách hàng</th>
-                                <th>Tên khách hàng</th>
-                                <th>Hạng thành viên</th>
-                                <th>Điểm tích lũy</th>
-                                <th>Tổng chi tiêu</th>
-                                <th>Số đơn hàng</th>
-                                <th>Trạng thái</th>
-                                <th>Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {customers.map((customer) => (
-                                <tr key={customer.id}>
-                                    <td>
-                                        <div className={styles.avatar}>
-                                            <img
-                                                src={customer.avatarUrl}
-                                                alt={customer.name}
-                                            />
-                                        </div>
-                                    </td>
-                                    <td>{customer.code}</td>
-                                    <td>
-                                        <strong>{customer.name}</strong>
-                                    </td>
-                                    <td>
-                                        <span
-                                            className={getTierClassName(
-                                                customer.tier
-                                            )}
-                                        >
-                                            {customer.tier}
-                                        </span>
-                                    </td>
-                                    <td>{customer.points.toLocaleString("vi-VN")}</td>
-                                    <td>{customer.totalSpent.toLocaleString("vi-VN")}</td>
-                                    <td>{customer.orderCount}</td>
-                                    <td>
-                                        <span className={styles.status}>
-                                            Đang hoạt động
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className={styles.moreButton}
-                                            type="button"
-                                            aria-label={`Mở thao tác cho ${customer.name}`}
-                                        >
-                                            <MoreHorizontal
-                                                size={16}
-                                                aria-hidden="true"
-                                            />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <Dialog
+                    onOpenChange={setShowCreateDialog}
+                    open={showCreateDialog}
+                >
+                    {showCreateDialog && (
+                        <CustomerCreateDialog
+                            tiers={tiers}
+                            onCancel={() => setShowCreateDialog(false)}
+                            onSaved={async () => {
+                                setShowCreateDialog(false);
+                                await reload();
+                            }}
+                        />
+                    )}
+                </Dialog>
 
-                <div className={styles.pagination}>
-                    <span>Hiển thị 20 / 12.568 khách hàng</span>
-                    <div className={styles.pages}>
-                        <button className={styles.pageButton} type="button">
-                            <ChevronLeft size={14} aria-hidden="true" />
-                        </button>
-                        {[1, 2, 3, 4, 5].map((page) => (
-                            <button
-                                className={`${styles.pageButton} ${
-                                    page === 1 ? styles.activePage : ""
+                <Dialog
+                    onOpenChange={(open) => {
+                        if (!open) setEditingCustomer(null);
+                    }}
+                    open={editingCustomer !== null}
+                >
+                    {editingCustomer && (
+                        <CustomerCreateDialog
+                            customer={editingCustomer}
+                            tiers={tiers}
+                            onCancel={() => setEditingCustomer(null)}
+                            onSaved={async () => {
+                                setEditingCustomer(null);
+                                await reload();
+                            }}
+                        />
+                    )}
+                </Dialog>
+
+                <Dialog
+                    onOpenChange={(open) => {
+                        if (!open) setDeletingCustomer(null);
+                    }}
+                    open={deletingCustomer !== null}
+                >
+                    {deletingCustomer && (
+                        <CustomerDeleteDialog
+                            customer={deletingCustomer}
+                            onCancel={() => setDeletingCustomer(null)}
+                            onDeleted={async () => {
+                                setDeletingCustomer(null);
+                                await reload();
+                            }}
+                        />
+                    )}
+                </Dialog>
+
+                <div className="flex flex-wrap gap-2" aria-label="Lọc nhanh">
+                    {CUSTOMER_QUICK_VIEWS.map((view) => (
+                        <button
+                            className={`inline-flex h-8 items-center rounded-lg border px-[11px] text-xs font-extrabold transition-colors ${activeQuickView === view.id
+                                    ? "border-[#159734] bg-[#eaf8ed] text-[#0f7d29]"
+                                    : "border-[#dde6e2] bg-white text-[#5f6b7a] hover:bg-[#f7fbf8]"
                                 }`}
-                                key={page}
+                            disabled={view.id === "vip" && !tiers.length}
+                            key={view.id}
+                            onClick={() => applyQuickView(view.id)}
+                            type="button"
+                        >
+                            {view.label}
+                        </button>
+                    ))}
+                </div>
+
+                {!!appliedFilters.length && (
+                    <div className="flex min-h-[30px] items-center gap-2 overflow-x-auto">
+                        <span className="shrink-0 text-xs font-extrabold text-[#697684]">
+                            Bộ lọc đang áp dụng
+                        </span>
+                        {appliedFilters.map((filter) => (
+                            <button
+                                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-[7px] border border-[#dce8df] bg-white px-[9px] text-xs font-extrabold text-[#334336]"
+                                key={filter.key}
+                                onClick={() => removeFilter(filter.key)}
                                 type="button"
                             >
-                                {page}
+                                {filter.label}
+                                <X size={13} aria-hidden="true" />
                             </button>
                         ))}
-                        <span>...</span>
-                        <button className={styles.pageButton} type="button">
-                            629
-                        </button>
-                        <button className={styles.pageButton} type="button">
-                            <ChevronRight size={14} aria-hidden="true" />
+                        <button
+                            className="ml-auto shrink-0 bg-transparent text-xs font-black text-[#159734]"
+                            onClick={clearAllFilters}
+                            type="button"
+                        >
+                            Xóa tất cả
                         </button>
                     </div>
+                )}
+
+                <div className="flex items-center justify-between gap-3.5 text-[13px] text-[#253225]">
+                    <strong className="font-black">
+                        {(result?.totalElements ?? 0).toLocaleString("vi-VN")}{" "}
+                        khách hàng phù hợp
+                    </strong>
+                    <label className="relative flex h-[34px] items-center rounded-lg border border-[#dce5e1] bg-white text-xs font-extrabold text-[#4c5a67] hover:bg-[#f7fbf8]">
+                        <span className="pl-3.5">Sắp xếp:</span>
+                        <select
+                            aria-label="Sắp xếp danh sách khách hàng"
+                            className="h-full appearance-none bg-transparent py-0 pl-1.5 pr-8 font-extrabold outline-none"
+                            onChange={(event) =>
+                                updateParams({
+                                    sort:
+                                        event.target.value ===
+                                            "lastPurchaseDesc"
+                                            ? null
+                                            : event.target.value
+                                })
+                            }
+                            value={getCustomerSort(searchParams)}
+                        >
+                            {CUSTOMER_SORT_OPTIONS.map((option) => (
+                                <option
+                                    key={option.value}
+                                    value={option.value}
+                                >
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                        <ChevronDown
+                            aria-hidden="true"
+                            className="pointer-events-none absolute right-2.5"
+                            size={15}
+                        />
+                    </label>
                 </div>
-            </div>
 
-            <CustomerDetailPanel customer={selectedCustomer} />
-        </section>
-    );
-}
-
-function CustomerDetailPanel({ customer }: { customer: CustomerRow }) {
-    return (
-        <aside className={styles.detailPanel} aria-label="Chi tiết khách hàng">
-            <div className="flex justify-end">
-                <button
-                    className={styles.moreButton}
-                    type="button"
-                    aria-label="Đóng chi tiết khách hàng"
-                >
-                    ×
-                </button>
-            </div>
-
-            <div className={styles.detailHeader}>
-                <div className={styles.detailAvatar}>
-                    <img src={customer.avatarUrl} alt={customer.name} />
-                </div>
-                <div className="min-w-0">
-                    <div className={styles.detailName}>
-                        <h2>{customer.name}</h2>
-                        <span className={getTierClassName(customer.tier)}>
-                            {customer.tier}
+                {error && (
+                    <div
+                        className="flex items-center justify-between gap-3 rounded-lg border border-[#f1c8c1] bg-[#fff5f3] px-3.5 py-2.5 text-xs font-bold text-[#a43a2a]"
+                        role="alert"
+                    >
+                        <span className="flex items-center gap-2">
+                            <AlertCircle size={16} aria-hidden="true" />
+                            {error}
                         </span>
+                        <button
+                            className="inline-flex items-center gap-1.5 text-[#159734]"
+                            onClick={reload}
+                            type="button"
+                        >
+                            <RefreshCw size={14} aria-hidden="true" />
+                            Thử lại
+                        </button>
                     </div>
-                    <p className="mt-2 text-[12px] font-semibold text-[#5f6b7a]">
-                        Mã khách hàng&nbsp;&nbsp;
-                        <strong className="text-[#172317]">
-                            {customer.code}
-                        </strong>
-                    </p>
-                    <p className="mt-1 text-[12px] font-semibold text-[#5f6b7a]">
-                        Ngày tham gia&nbsp;&nbsp;
-                        <strong className="text-[#172317]">
-                            15/03/2025
-                        </strong>
-                    </p>
-                </div>
-            </div>
+                )}
 
-            <div className={styles.stats}>
-                <div className={styles.statCard}>
-                    <span>Điểm tích lũy</span>
-                    <strong>{customer.points.toLocaleString("vi-VN")}</strong>
-                </div>
-                <div className={styles.statCard}>
-                    <span>Tổng chi tiêu</span>
-                    <strong>{formatCurrency(customer.totalSpent)}</strong>
-                </div>
-                <div className={styles.statCard}>
-                    <span>Công nợ</span>
-                    <strong>0đ</strong>
-                </div>
-            </div>
-
-            <div className={styles.tabs}>
-                <button
-                    className={`${styles.tab} ${styles.activeTab}`}
-                    type="button"
-                >
-                    Thông tin
-                </button>
-                <button className={styles.tab} type="button">
-                    Lịch sử mua
-                </button>
-                <button className={styles.tab} type="button">
-                    Công nợ
-                </button>
-                <button className={styles.tab} type="button">
-                    Loyalty
-                </button>
-            </div>
-
-            <div className={styles.infoList}>
-                <InfoRow icon={Phone} label="Số điện thoại" value={customer.phone} />
-                <InfoRow icon={Mail} label="Email" value={customer.email} />
-                <InfoRow icon={CalendarDays} label="Ngày sinh" value={customer.birthday} />
-                <InfoRow icon={User} label="Giới tính" value={customer.gender} />
-                <InfoRow icon={WalletCards} label="Địa chỉ" value={customer.address} />
-                <InfoRow icon={Bell} label="Nguồn khách hàng" value={customer.source} />
-                <InfoRow icon={MoreHorizontal} label="Ghi chú" value={customer.note} />
-            </div>
-
-            <div className="mt-auto flex items-center justify-between border-t border-[#edf0f4] pt-4 text-[12px] font-semibold">
-                <span className="text-[#5f6b7a]">Trạng thái</span>
-                <span className={styles.status}>Đang hoạt động</span>
-            </div>
-        </aside>
-    );
-}
-
-function InfoRow({
-    icon: Icon,
-    label,
-    value
-}: {
-    icon: typeof Phone;
-    label: string;
-    value: string;
-}) {
-    return (
-        <div className={styles.infoRow}>
-            <Icon size={14} aria-hidden="true" />
-            <span>{label}</span>
-            <strong>{value}</strong>
-        </div>
+                <CustomerTable
+                    customers={customers}
+                    error={error}
+                    key={queryString}
+                    loading={loading}
+                    loadingMore={loadingMore}
+                    result={result}
+                    onCustomerClick={(customer) =>
+                        void openCustomerDetail(customer)
+                    }
+                    onCustomerDelete={setDeletingCustomer}
+                    onCustomerEdit={setEditingCustomer}
+                    onLoadMore={() => void loadMore()}
+                />
+            </main>
+            <CustomerDetailDrawer
+                customer={selectedCustomer}
+                error={detailError}
+                loading={detailLoading}
+                onClose={closeDetail}
+                onDelete={setDeletingCustomer}
+                onEdit={setEditingCustomer}
+                open={detailOpen}
+            />
+        </section>
     );
 }
