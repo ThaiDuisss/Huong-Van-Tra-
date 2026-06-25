@@ -210,4 +210,27 @@ public abstract class BaseGlobalExceptionHandler {
     public void returnError(Exception e) {
         log.error("AppException: {}", e.getMessage());
     }
+
+    @ExceptionHandler(ResourceAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleResourceAlreadyExistsException(
+            ResourceAlreadyExistsException exception,
+            HttpServletRequest request
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "RESOURCE_ALREADY_EXISTS",
+                exception.getMessage(),
+                HttpStatus.BAD_REQUEST.value()
+        );
+
+        log.error(
+                "Resource already exists at {}: path={} message={}",
+                Instant.now(),
+                request.getRequestURI(),
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(response);
+    }
 }

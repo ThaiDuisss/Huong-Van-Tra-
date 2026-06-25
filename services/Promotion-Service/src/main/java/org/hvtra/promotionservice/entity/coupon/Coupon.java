@@ -63,7 +63,7 @@ public class Coupon extends BaseEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    CouponStatus status = CouponStatus.ACTIVE;
+    CouponStatus status = CouponStatus.DRAFT;
 
     @Builder.Default
     @OneToMany(mappedBy = "coupon")
