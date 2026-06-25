@@ -8,7 +8,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.domain.response.ApiResponse;
-import org.hvtra.promotionservice.constant.promotion.PromotionSuccessMessage;
+import org.hvtra.promotionservice.constant.eventpromotion.EventPromotionSuccessMessage;
 import org.hvtra.promotionservice.dto.request.eventpromotion.EventPromotionRequest;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionCreateRequest;
 import org.hvtra.promotionservice.dto.response.PageResponse;
@@ -53,7 +53,7 @@ public class EventPromotionController {
                 eventPromotionService.getPromotionsByEvent(eventId, page, size);
 
         return ApiResponse.success(
-                PromotionSuccessMessage.LIST_FETCHED,
+                EventPromotionSuccessMessage.LIST_FETCHED,
                 response
         );
     }
@@ -77,7 +77,7 @@ public class EventPromotionController {
                 eventPromotionService.createPromotionInEvent(eventId, request);
 
         return ApiResponse.created(
-                PromotionSuccessMessage.CREATED,
+                EventPromotionSuccessMessage.CREATED,
                 response
         );
     }
@@ -99,7 +99,10 @@ public class EventPromotionController {
     ) {
         eventPromotionService.attachPromotionsToEvent(eventId, request);
 
-        return ApiResponse.updated(PromotionSuccessMessage.UPDATED, null);
+        return ApiResponse.updated(
+                EventPromotionSuccessMessage.ATTACHED,
+                null
+        );
     }
 
     @Operation(
@@ -119,6 +122,9 @@ public class EventPromotionController {
     ) {
         eventPromotionService.detachPromotionsFromEvent(eventId, request);
 
-        return ApiResponse.updated(PromotionSuccessMessage.UPDATED, null);
+        return ApiResponse.updated(
+                EventPromotionSuccessMessage.DETACHED,
+                null
+        );
     }
 }
