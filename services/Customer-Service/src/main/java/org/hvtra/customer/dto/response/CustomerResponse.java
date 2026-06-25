@@ -3,6 +3,7 @@ package org.hvtra.customer.dto.response;
 import org.hvtra.customer.model.enums.CustomerStatus;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -20,6 +21,7 @@ public record CustomerResponse(
         BigDecimal creditLimit,
         LocalDate lastPurchaseDate,
         BigDecimal totalSpent,
-        CustomerStatus status
+        CustomerStatus status,
+        Instant createdAt
 ) {
 }

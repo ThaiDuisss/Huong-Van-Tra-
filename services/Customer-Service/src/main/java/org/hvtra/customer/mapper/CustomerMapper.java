@@ -19,7 +19,7 @@ import java.math.BigDecimal;
 public class CustomerMapper {
     public CustomerTierResponse toResponse(CustomerTier tier) {
         return new CustomerTierResponse(tier.getId(), tier.getCode(), tier.getName(),
-                tier.getMinSpending(), tier.getDiscountRate(), tier.getStatus());
+                tier.getMinSpending(), tier.getDiscountRate(), tier.getStatus(), tier.getColorCode());
     }
 
     public CustomerResponse toResponse(Customer customer) {
@@ -38,7 +38,8 @@ public class CustomerMapper {
                 customer.getCreditLimit(),
                 customer.getLastPurchaseDate(),
                 customer.getTotalSpent(),
-                customer.getStatus());
+                customer.getStatus(),
+                customer.getCreatedAt());
     }
 
     public CustomerAddressResponse toResponse(CustomerAddress address) {
@@ -76,6 +77,8 @@ public class CustomerMapper {
         customer.setDateOfBirth(request.dateOfBirth());
         customer.setTier(tier);
         customer.setCreditLimit(defaultMoney(request.creditLimit()));
+        customer.setLastPurchaseDate(request.lastPurchaseDate());
+        customer.setTotalSpent(defaultMoney(request.totalSpent()));
         customer.setStatus(request.status());
     }
 
