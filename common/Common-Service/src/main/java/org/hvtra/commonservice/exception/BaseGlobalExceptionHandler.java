@@ -138,6 +138,7 @@ public abstract class BaseGlobalExceptionHandler {
 
         return ResponseEntity.badRequest().body(response);
     }
+    @ExceptionHandler(FeignClientException.class)
     public ResponseEntity<ErrorResponse> handleFeignClientException(
             FeignClientException ex,
             HttpServletRequest request

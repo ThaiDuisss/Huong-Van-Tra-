@@ -1,7 +1,8 @@
-ALTER TABLE order_status_history DROP column fulfillment_status;
 
-UPDATE orders
-SET status = TRIM(status);
+ALTER TABLE orders
+DROP COLUMN fulfillment_status;
+
+     UPDATE orders SET status = TRIM(status);
 
 UPDATE orders
 SET status = 'PENDING_PAYMENT'
@@ -14,4 +15,3 @@ WHERE status IN ('PAID', 'paid', 'DONE', 'done', 'SUCCESS', 'success', 'COMPLETE
 UPDATE orders
 SET status = 'CANCELLED'
 WHERE status IN ('CANCEL', 'cancel', 'CANCELED', 'canceled', 'CANCELLED', 'cancelled');
-
