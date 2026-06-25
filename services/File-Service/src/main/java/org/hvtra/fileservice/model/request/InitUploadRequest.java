@@ -16,7 +16,6 @@ public record InitUploadRequest(
         String ownerType,
         UUID ownerId,
 
-        String refType,
         UUID refId
 ) {
 }
