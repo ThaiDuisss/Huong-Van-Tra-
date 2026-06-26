@@ -23,5 +23,5 @@ public interface CatalogClient {
             String categoryName,
             @JsonProperty("selling_price") BigDecimal sellingPrice,
             String imageUrl
-    ) {}
+    ){}
 }

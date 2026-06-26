@@ -3,6 +3,8 @@ package org.hvtra.orderservice.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.hvtra.orderservice.domain.enums.PaymentStatus;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -40,10 +42,12 @@ public class Order extends BaseEntity {
     private String orderType;
 
     @Column(name = "status", nullable = false, length = 50)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
 
     @Column(name = "payment_status", nullable = false, length = 50)
-    private String paymentStatus;
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus paymentStatus;
 
     @Column(name = "fulfillment_status", length = 50)
     private String fulfillmentStatus;

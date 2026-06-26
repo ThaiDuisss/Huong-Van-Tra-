@@ -3,6 +3,8 @@ package org.hvtra.orderservice.service.impl;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
@@ -49,8 +51,8 @@ public class OrderServiceImpl implements OrderService {
                 .shiftId(request.getShiftId())
                 .customerId(request.getCustomerId())
                 .orderType(request.getOrderType() == null ? "POS" : request.getOrderType())
-                .status(ORDER_STATUS_PENDING)
-                .paymentStatus(PAYMENT_STATUS_UNPAID)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .paymentStatus(PaymentStatus.WAITING_PAYMENT)
                 .fulfillmentStatus(FULFILLMENT_STATUS_PENDING)
                 .originalAmount(BigDecimal.ZERO)
                 .discountAmount(defaultZero(request.getDiscountAmount()))
@@ -109,11 +111,10 @@ public class OrderServiceImpl implements OrderService {
         saveStatusHistory(
                 savedOrder,
                 null,
-                ORDER_STATUS_PENDING,
+                OrderStatus.DRAFT,
                 "Tạo đơn hàng",
                 null
         );
-
         return toResponse(savedOrder);
     }
 
@@ -144,7 +145,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
         Order order = getExistingOrder(orderId);
 
-        if (PAYMENT_STATUS_PAID.equalsIgnoreCase(order.getPaymentStatus())) {
+        if (PaymentStatus.PAID.toString().equalsIgnoreCase(order.getPaymentStatus().toString())  ) {
             throw new OrderAlreadyPaidException("Đơn hàng đã được thanh toán");
         }
 
@@ -154,10 +155,10 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
         }
         // Lưu trạng thái cũ để ghi vào order_status_history
-        String oldStatus = order.getStatus();
+        OrderStatus oldStatus = order.getStatus();
         // Cập nhật đơn hàng sau khi Payment-Service đã lưu payment thành công
-        order.setPaymentStatus(PAYMENT_STATUS_PAID);
-        order.setStatus(ORDER_STATUS_COMPLETED);
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setStatus(OrderStatus.COMPLETED);
         order.setPaidAmount(order.getFinalAmount());
         order.setDebtAmount(BigDecimal.ZERO);
 
@@ -166,7 +167,7 @@ public class OrderServiceImpl implements OrderService {
         saveStatusHistory(
                 savedOrder,
                 oldStatus,
-                ORDER_STATUS_COMPLETED,
+                OrderStatus.COMPLETED,
                 "Thanh toán thành công, mã thanh toán: " + request.getPaymentCode(),
                 request.getChangedBy()
         );
@@ -181,8 +182,8 @@ public class OrderServiceImpl implements OrderService {
     // Ghi lại lịch sử thay đổi trạng thái của đơn hàng
     private void saveStatusHistory(
             Order order,
-            String fromStatus,
-            String toStatus,
+            OrderStatus fromStatus,
+            OrderStatus toStatus,
             String reason,
             UUID changedBy
     ) {
