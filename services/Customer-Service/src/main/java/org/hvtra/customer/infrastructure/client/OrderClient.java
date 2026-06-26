@@ -19,6 +19,7 @@ public interface OrderClient {
     record OrderResponse(
             UUID id,
             UUID customerId,
+            BigDecimal originalAmount,
             BigDecimal finalAmount
     ) {
     }

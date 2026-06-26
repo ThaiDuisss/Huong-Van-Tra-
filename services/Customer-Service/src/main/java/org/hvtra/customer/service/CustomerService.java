@@ -20,7 +20,7 @@ public interface CustomerService {
 
     CustomerResponse update(UUID id, CustomerRequest request);
 
-    CustomerResponse updatePurchase(UUID customerId, BigDecimal purchaseAmount);
+    CustomerResponse updatePurchase(UUID orderId);
 
     void delete(UUID id);
 }

@@ -9,6 +9,8 @@ import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.dto.response.PageResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
+import org.hvtra.customer.infrastructure.client.OrderClient;
+import org.hvtra.customer.infrastructure.gateway.OrderGateway;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerTier;
@@ -35,6 +37,7 @@ public class CustomerServiceImpl implements CustomerService {
     private final CustomerTierRepository customerTierRepository;
     private final CustomerMapper customerMapper;
     private final LoyaltyAccountService loyaltyAccountService;
+    private final OrderGateway orderGateway;
 
     // Tìm kiếm khách hàng theo bộ lọc.
     @Override
@@ -88,14 +91,16 @@ public class CustomerServiceImpl implements CustomerService {
     // Sau đó tự động điều chỉnh hạng thành viên phù hợp.
     @Override
     @Transactional
-    public CustomerResponse updatePurchase(UUID customerId, BigDecimal purchaseAmount) {
-        if (customerId == null || purchaseAmount == null || purchaseAmount.compareTo(BigDecimal.ZERO) < 0) {
+    public CustomerResponse updatePurchase(UUID orderId) {
+        OrderClient.OrderResponse res = orderGateway.getOrderById(orderId);
+
+        if (res.customerId() == null || res.finalAmount() == null || res.finalAmount().compareTo(BigDecimal.ZERO) < 0) {
             throw invalidRequest("Thông tin đơn hàng không hợp lệ");
         }
 
-        Customer customer = findCustomer(customerId);
+        Customer customer = findCustomer(res.customerId());
         BigDecimal currentTotalSpent = defaultMoney(customer.getTotalSpent());
-        BigDecimal newTotalSpent = currentTotalSpent.add(purchaseAmount);
+        BigDecimal newTotalSpent = currentTotalSpent.add(res.finalAmount());
 
         customer.setLastPurchaseDate(LocalDate.now());
         customer.setTotalSpent(newTotalSpent);

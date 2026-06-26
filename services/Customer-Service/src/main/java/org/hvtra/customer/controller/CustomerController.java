@@ -7,7 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.client.OrderClient;
+import org.hvtra.customer.infrastructure.client.OrderClient;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
@@ -103,8 +103,7 @@ public class CustomerController {
     public CustomerResponse updatePurchase(
             @PathVariable("orderId") @Parameter(description = "ID đơn hàng") UUID orderId
     ) {
-        OrderClient.OrderResponse order = orderClient.getOrderById(orderId);
-        return customerService.updatePurchase(order.customerId(), order.finalAmount());
+        return customerService.updatePurchase(orderId);
     }
 
     @DeleteMapping(ApiPath.ID)
