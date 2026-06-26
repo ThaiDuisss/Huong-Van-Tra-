@@ -93,10 +93,10 @@ export function InvoiceListPage() {
     const [selectedTimeYear, setSelectedTimeYear] = useState<number | null>(
         null
     );
-    const [isTimeCollapsed, setIsTimeCollapsed] = useState(false);
+    const [isTimeCollapsed, setIsTimeCollapsed] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRow | null>(
-        invoices[0]
+        null
     );
     const [selectedInvoiceCodes, setSelectedInvoiceCodes] = useState<string[]>(
         []

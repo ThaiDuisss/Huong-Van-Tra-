@@ -135,7 +135,7 @@ export function OrderListPage() {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
     const [activeOrder, setActiveOrder] = useState<OrderRow | null>(null);
-    const [isTimeCollapsed, setIsTimeCollapsed] = useState(false);
+    const [isTimeCollapsed, setIsTimeCollapsed] = useState(true);
     const [openActionCode, setOpenActionCode] = useState<string | null>(null);
     const today = useMemo(() => new Date(), []);
 
