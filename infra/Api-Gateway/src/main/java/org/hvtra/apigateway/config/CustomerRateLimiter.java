@@ -68,10 +68,10 @@ public class CustomerRateLimiter implements RateLimiter<CustomerRateLimiter.Conf
         }
 
         if (key != null && key.startsWith("user:")) {
-            return new RateLimitPolicy("USER", 100, 60);
+            return new RateLimitPolicy("USER", 200, 60);
         }
 
-        return new RateLimitPolicy("GUEST", 10, 60);
+        return new RateLimitPolicy("GUEST", 200, 60);
     }
 
     private RedisScript<List> buildScript() {

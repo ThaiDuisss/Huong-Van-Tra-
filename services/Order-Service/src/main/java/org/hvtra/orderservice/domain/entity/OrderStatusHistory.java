@@ -3,6 +3,7 @@ package org.hvtra.orderservice.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -21,10 +22,10 @@ public class OrderStatusHistory extends BaseEntity {
     private Order order;
 
     @Column(name = "from_status", length = 50)
-    private String fromStatus;
+    private OrderStatus fromStatus;
 
     @Column(name = "to_status", nullable = false, length = 50)
-    private String toStatus;
+    private OrderStatus toStatus;
 
     @Column(name = "reason")
     private String reason;

@@ -1,55 +1,43 @@
+import { apiClient } from "../../../api/api-client";
+import type {
+    CustomerResponse,
+    PageResponse
+} from "../../customer/types/customer.types";
 import type { SaleCustomer } from "../types/sale.types";
 
-export interface CustomerInfoResponse {
-    id: string;
-    customerCode: string;
-    fullName: string;
-    phone: string;
-    email: string;
-    dateOfBirth: string;
-    tierId: string;
-    tierCode: string;
-    tierName: string;
-    creditLimit: number;
-    status: string;
-}
-
-function toSaleCustomer(customer: CustomerInfoResponse): SaleCustomer {
+function toSaleCustomer(customer: CustomerResponse): SaleCustomer {
     return {
         id: customer.id,
         customerCode: customer.customerCode,
         name: customer.fullName,
-        phone: customer.phone,
-        tier: customer.tierName,
+        phone: customer.phone ?? "",
+        email: customer.email,
+        tier: customer.tierName ?? "Khách thường",
         points: 0,
         orderCount: 0,
-        totalSpent: 0,
+        totalSpent: Number(customer.totalSpent ?? 0),
         avatarUrl: ""
     };
 }
 
+function getCustomers(
+    response: CustomerResponse[] | PageResponse<CustomerResponse>
+) {
+    return Array.isArray(response) ? response : response.content;
+}
+
 export const posCustomerApi = {
     async listCustomerInfo() {
-        const baseUrl =
-            import.meta.env.VITE_API_BASE_URL ??
-            "http://localhost:8080/api";
-        const response = await fetch(
-            `${baseUrl}/orders/customer-info`,
-            {
-                headers: {
-                    Accept: "application/json",
-                    "X-Client-Type": "POS_WEB"
-                }
+        const response = await apiClient.get<
+            CustomerResponse[] | PageResponse<CustomerResponse>
+        >("/customer", {
+            query: {
+                status: "ACTIVE",
+                page: 0,
+                size: 100
             }
-        );
+        });
 
-        if (!response.ok) {
-            throw new Error("Không thể tải danh sách khách hàng");
-        }
-
-        const customers =
-            (await response.json()) as CustomerInfoResponse[];
-
-        return customers.map(toSaleCustomer);
+        return getCustomers(response).map(toSaleCustomer);
     }
 };
