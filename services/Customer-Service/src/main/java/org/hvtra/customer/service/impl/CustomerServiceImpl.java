@@ -6,6 +6,7 @@ import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
+import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.dto.response.PageResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
@@ -14,12 +15,17 @@ import org.hvtra.customer.infrastructure.gateway.OrderGateway;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerTier;
+import org.hvtra.customer.model.entity.LoyaltyPointRule;
 import org.hvtra.customer.model.enums.CustomerStatus;
 import org.hvtra.customer.model.enums.CustomerTierStatus;
+import org.hvtra.customer.model.enums.LoyaltyReferenceType;
+import org.hvtra.customer.model.enums.LoyaltyTransactionType;
 import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
+import org.hvtra.customer.repository.LoyaltyTransactionRepository;
 import org.hvtra.customer.service.CustomerService;
 import org.hvtra.customer.service.LoyaltyAccountService;
+import org.hvtra.customer.service.LoyaltyPointRuleService;
 import org.hvtra.customer.specification.CustomerSpecification;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -27,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -37,6 +44,8 @@ public class CustomerServiceImpl implements CustomerService {
     private final CustomerTierRepository customerTierRepository;
     private final CustomerMapper customerMapper;
     private final LoyaltyAccountService loyaltyAccountService;
+    private final LoyaltyPointRuleService loyaltyPointRuleService;
+    private final LoyaltyTransactionRepository loyaltyTransactionRepository;
     private final OrderGateway orderGateway;
 
     // Tìm kiếm khách hàng theo bộ lọc.
@@ -96,6 +105,36 @@ public class CustomerServiceImpl implements CustomerService {
 
         if (res.customerId() == null || res.finalAmount() == null || res.finalAmount().compareTo(BigDecimal.ZERO) < 0) {
             throw invalidRequest("Thông tin đơn hàng không hợp lệ");
+        }
+
+        Customer cus = customerRepository.findByIdAndIsDeletedFalse(res.customerId())
+                .orElseThrow(() -> notFound(Message.CUSTOMER_NOT_FOUND));
+
+        UUID tierId = cus.getTier() == null ? null : cus.getTier().getId();
+        LoyaltyPointRule pointRule = loyaltyPointRuleService.findApplicableRule(tierId, res.finalAmount(), Instant.now())
+                .orElse(null);
+
+        int point = pointRule != null ?
+
+                (((res.finalAmount().multiply(BigDecimal.valueOf( pointRule.getPointsPerBlock()))).multiply(pointRule.getPointMultiplier())).divide(pointRule.getSpendAmountPerBlock())).intValue()
+                : 0;
+
+        boolean alreadyEarnedPoints = loyaltyTransactionRepository.existsByTypeAndReferenceTypeAndReferenceIdAndIsDeletedFalse(
+                LoyaltyTransactionType.EARN,
+                LoyaltyReferenceType.ORDER,
+                orderId
+        );
+
+        if (point != 0 && !alreadyEarnedPoints){
+            loyaltyAccountService.updateBalance(
+                    new LoyaltyTransactionRequest(
+                            loyaltyAccountService.getByCustomerId(res.customerId()).id(),
+                            LoyaltyTransactionType.EARN,
+                            point,
+                            LoyaltyReferenceType.ORDER,
+                            orderId
+                            )
+            );
         }
 
         Customer customer = findCustomer(res.customerId());

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
+import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
 import org.hvtra.customer.dto.response.LoyaltyAccountResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.mapper.CustomerMapper;
@@ -12,6 +13,7 @@ import org.hvtra.customer.model.entity.LoyaltyAccount;
 import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.repository.LoyaltyAccountRepository;
 import org.hvtra.customer.service.LoyaltyAccountService;
+import org.hvtra.customer.service.LoyaltyTransactionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ public class LoyaltyAccountServiceImpl implements LoyaltyAccountService {
     private final LoyaltyAccountRepository loyaltyAccountRepository;
     private final CustomerRepository customerRepository;
     private final CustomerMapper customerMapper;
+    private final LoyaltyTransactionService loyaltyTransactionService;
 
     @Override
     @Transactional(readOnly = true)
@@ -63,6 +66,14 @@ public class LoyaltyAccountServiceImpl implements LoyaltyAccountService {
         ensureCustomerAvailable(request.customerId(), id);
         customerMapper.update(account, request, findCustomer(request.customerId()));
         return customerMapper.toResponse(loyaltyAccountRepository.save(account));
+    }
+
+    @Override
+    @Transactional
+    public LoyaltyAccountResponse updateBalance(LoyaltyTransactionRequest request){
+        loyaltyTransactionService.create(request);
+
+        return customerMapper.toResponse(findAccount(request.loyaltyAccountId()));
     }
 
     @Override
