@@ -24,7 +24,6 @@ public class OrderResponse {
     private String orderType;
     private OrderStatus status;
     private PaymentStatus paymentStatus;
-    private String fulfillmentStatus;
 
     private BigDecimal originalAmount;
     private BigDecimal discountAmount;
