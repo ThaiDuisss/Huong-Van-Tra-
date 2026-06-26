@@ -1,7 +1,6 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.constant.CacheName;
 import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
@@ -21,8 +20,6 @@ import org.hvtra.customer.service.CustomerService;
 import org.hvtra.customer.service.LoyaltyAccountService;
 import org.hvtra.customer.specification.CustomerSpecification;
 import org.springframework.data.domain.Pageable;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,13 +36,9 @@ public class CustomerServiceImpl implements CustomerService {
     private final CustomerMapper customerMapper;
     private final LoyaltyAccountService loyaltyAccountService;
 
+    // Tìm kiếm khách hàng theo bộ lọc.
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(
-            cacheNames = CacheName.CUSTOMER_FULL_LIST,
-            keyGenerator = "customerFullListKeyGenerator",
-            condition = "#p1.unpaged"
-    )
     public PageResponse<CustomerResponse> findAll(
             CustomerFilterRequest filter,
             Pageable pageable) {
@@ -55,15 +48,17 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
+    // Lấy thông tin một khách hàng chưa bị xóa theo ID.
     @Override
     @Transactional(readOnly = true)
     public CustomerResponse getById(UUID id) {
         return customerMapper.toResponse(findCustomer(id));
     }
 
+    // Chuẩn hóa, kiểm tra và tạo khách hàng mới.
+    // Sau đó khởi tạo tài khoản tích điểm với số điểm ban đầu bằng 0.
     @Override
     @Transactional
-    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public CustomerResponse create(CustomerRequest request) {
         CustomerRequest normalizedRequest = normalizeCreateRequest(request);
         ensureUniqueFields(normalizedRequest, null);
@@ -77,9 +72,10 @@ public class CustomerServiceImpl implements CustomerService {
         return response;
     }
 
+    // Cập nhật khách hàng sau khi chuẩn hóa và kiểm tra tính duy nhất
+    // của mã khách hàng, số điện thoại và email.
     @Override
     @Transactional
-    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public CustomerResponse update(UUID id, CustomerRequest request) {
         Customer customer = findCustomer(id);
         CustomerRequest normalizedRequest = normalizeUpdateRequest(request, customer);
@@ -88,9 +84,10 @@ public class CustomerServiceImpl implements CustomerService {
         return customerMapper.toResponse(customerRepository.save(customer));
     }
 
+    // Cập nhật ngày mua gần nhất và tổng chi tiêu từ giá trị đơn hàng.
+    // Sau đó tự động điều chỉnh hạng thành viên phù hợp.
     @Override
     @Transactional
-    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public CustomerResponse updatePurchase(UUID customerId, BigDecimal purchaseAmount) {
         if (customerId == null || purchaseAmount == null || purchaseAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw invalidRequest("Thông tin đơn hàng không hợp lệ");
@@ -112,20 +109,22 @@ public class CustomerServiceImpl implements CustomerService {
         return customerMapper.toResponse(customerRepository.save(customer));
     }
 
+    // Xóa mềm khách hàng.
     @Override
     @Transactional
-    @CacheEvict(cacheNames = CacheName.CUSTOMER_FULL_LIST, allEntries = true)
     public void delete(UUID id) {
         Customer customer = findCustomer(id);
         customer.setIsDeleted(true);
         customerRepository.save(customer);
     }
 
+    // Tìm khách hàng chưa bị xóa hoặc ném lỗi nếu không tồn tại.
     private Customer findCustomer(UUID id) {
         return customerRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> notFound(Message.CUSTOMER_NOT_FOUND));
     }
 
+    // Tìm hạng thành viên chưa bị xóa; cho phép không truyền hạng.
     private CustomerTier findTier(UUID tierId) {
         if (tierId == null) {
             return null;
@@ -134,6 +133,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .orElseThrow(() -> notFound(Message.CUSTOMER_TIER_NOT_FOUND));
     }
 
+    // Kiểm tra tính duy nhất của mã khách hàng, số điện thoại và email.
     private void ensureUniqueFields(CustomerRequest request, UUID currentId) {
         if (hasText(request.customerCode()) && existsCustomerCode(request.customerCode(), currentId)) {
             throw conflict(Message.CUSTOMER_CODE_EXISTS);
@@ -146,24 +146,28 @@ public class CustomerServiceImpl implements CustomerService {
         }
     }
 
+    // Kiểm tra mã khách hàng đã được sử dụng bởi khách hàng khác hay chưa.
     private boolean existsCustomerCode(String customerCode, UUID currentId) {
         return currentId == null
                 ? customerRepository.existsByCustomerCode(customerCode)
                 : customerRepository.existsByCustomerCodeAndIdNot(customerCode, currentId);
     }
 
+    // Kiểm tra số điện thoại đã được sử dụng bởi khách hàng khác hay chưa.
     private boolean existsPhone(String phone, UUID currentId) {
         return currentId == null
                 ? customerRepository.existsByPhone(phone)
                 : customerRepository.existsByPhoneAndIdNot(phone, currentId);
     }
 
+    // Kiểm tra email đã được sử dụng bởi khách hàng khác hay chưa.
     private boolean existsEmail(String email, UUID currentId) {
         return currentId == null
                 ? customerRepository.existsByEmail(email)
                 : customerRepository.existsByEmailAndIdNot(email, currentId);
     }
 
+    // Bổ sung mã khách hàng và trạng thái mặc định khi tạo mới nếu còn thiếu.
     private CustomerRequest normalizeCreateRequest(CustomerRequest request) {
         return new CustomerRequest(
                 hasText(request.customerCode()) ? request.customerCode() : generateCustomerCode(),
@@ -179,6 +183,7 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
+    // Giữ lại mã và trạng thái hiện tại khi dữ liệu cập nhật không cung cấp giá trị mới.
     private CustomerRequest normalizeUpdateRequest(CustomerRequest request, Customer customer) {
         return new CustomerRequest(
                 hasText(request.customerCode()) ? request.customerCode() : customer.getCustomerCode(),
@@ -194,6 +199,7 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
+    // Sinh mã khách hàng ngẫu nhiên và bảo đảm mã chưa tồn tại.
     private String generateCustomerCode() {
         String customerCode;
         do {
@@ -202,22 +208,27 @@ public class CustomerServiceImpl implements CustomerService {
         return customerCode;
     }
 
+    // Kiểm tra chuỗi có giá trị và không chỉ chứa khoảng trắng.
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
+    // Chuyển giá trị tiền null thành 0 để tính toán an toàn.
     private BigDecimal defaultMoney(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    // Tạo exception cho trường hợp không tìm thấy tài nguyên.
     private CustomerServiceException notFound(String message) {
         return new CustomerServiceException(ErrorCode.CUSTOMER_NOT_FOUND, message, HttpStatus.NOT_FOUND);
     }
 
+    // Tạo exception cho trường hợp dữ liệu bị trùng hoặc xung đột.
     private CustomerServiceException conflict(String message) {
         return new CustomerServiceException(ErrorCode.CUSTOMER_CONFLICT, message, HttpStatus.CONFLICT);
     }
 
+    // Tạo exception cho trường hợp dữ liệu yêu cầu không hợp lệ.
     private CustomerServiceException invalidRequest(String message) {
         return new CustomerServiceException(ErrorCode.CUSTOMER_INVALID_REQUEST, message, HttpStatus.BAD_REQUEST);
     }
