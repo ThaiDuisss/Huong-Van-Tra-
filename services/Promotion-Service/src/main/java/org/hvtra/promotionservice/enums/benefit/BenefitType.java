@@ -1,8 +1,8 @@
 package org.hvtra.promotionservice.enums.benefit;
 
 public enum BenefitType {
-    PERCENT_DISCOUNT, // giam %
-    FIXED_DISCOUNT, // giam tien
-    FREE_SHIPPING, // freeship
-    FREE_PRODUCT // tang qua
+    PERCENT_DISCOUNT,   // giảm theo %
+    FIXED_DISCOUNT,     // giảm số tiền cố định
+    FREE_SHIPPING,      // miễn phí vận chuyển
+    FREE_PRODUCT        // tặng sản phẩm
 }

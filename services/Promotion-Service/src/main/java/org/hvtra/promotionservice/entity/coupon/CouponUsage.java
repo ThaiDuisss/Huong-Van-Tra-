@@ -44,7 +44,7 @@ public class CouponUsage extends BaseEntity {
     UUID orderId;
 
     @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "customer_id", columnDefinition = "BINARY(16)", nullable = false)
+    @Column(name = "customer_id", columnDefinition = "BINARY(16)")
     UUID customerId;
 
     @Builder.Default
@@ -70,5 +70,4 @@ public class CouponUsage extends BaseEntity {
 
     @Column(name = "released_at")
     LocalDateTime releasedAt;
-
 }

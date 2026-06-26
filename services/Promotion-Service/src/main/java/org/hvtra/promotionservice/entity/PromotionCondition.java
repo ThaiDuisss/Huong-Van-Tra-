@@ -42,6 +42,6 @@ public class PromotionCondition extends BaseEntity {
     @Column(name = "operator", nullable = false, length = 30)
     ConditionOperator operator;
 
-    @Column(name = "condition_value", nullable = false)
+    @Column(name = "condition_value", nullable = false, columnDefinition = "TEXT")
     String conditionValue;
 }

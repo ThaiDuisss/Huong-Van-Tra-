@@ -1,9 +1,9 @@
 package org.hvtra.promotionservice.enums.promotion;
 
 public enum PromotionStatus {
-    DRAFT,      // moi tao, chua gan vao event, chua san sang ap dung
-    ACTIVE, // dang dung duoc
-    INACTIVE, // tam khoa
-    EXPIRED, // het han
-    CANCELLED // bi huy
+    DRAFT,      // mới tạo, chưa sẵn sàng áp dụng
+    ACTIVE,     // đang áp dụng được
+    INACTIVE,   // tạm khóa
+    EXPIRED,    // hết hạn
+    CANCELLED   // bị hủy
 }
