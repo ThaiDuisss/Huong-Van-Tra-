@@ -5,6 +5,11 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/order_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME:order_app}
     password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
+  cloud:
+    openfeign:
+      client:
+
+
 
 server:
   port: 8086
@@ -31,3 +36,9 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      paymentService:
+

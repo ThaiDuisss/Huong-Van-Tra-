@@ -75,8 +75,6 @@ public class PaymentServiceImpl implements PaymentService {
                 .paidAt(Instant.now())
                 .build();
 
-        payment.addTransaction(transaction);
-
         Payments savedPayment = paymentRepository.save(payment);
 
         MarkOrderPaidRequest markPaidRequest = MarkOrderPaidRequest.builder()
