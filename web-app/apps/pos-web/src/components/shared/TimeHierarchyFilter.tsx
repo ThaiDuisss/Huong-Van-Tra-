@@ -5,6 +5,8 @@ import styles from "./TimeHierarchyFilter.module.css";
 
 interface TimeHierarchyFilterProps {
     activeDate?: string;
+    selectedYear?: number | null;
+    onYearChange?: (year: number) => void;
 }
 
 interface MonthNode {
@@ -88,7 +90,11 @@ function buildTimeTree(today: Date): YearNode[] {
     });
 }
 
-export function TimeHierarchyFilter({ activeDate }: TimeHierarchyFilterProps) {
+export function TimeHierarchyFilter({
+    activeDate,
+    selectedYear,
+    onYearChange
+}: TimeHierarchyFilterProps) {
     const [openYears, setOpenYears] = useState<Set<number>>(new Set());
     const [openQuarters, setOpenQuarters] = useState<Set<string>>(new Set());
     const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
@@ -99,6 +105,7 @@ export function TimeHierarchyFilter({ activeDate }: TimeHierarchyFilterProps) {
         formatDate(today.getDate(), today.getMonth() + 1, today.getFullYear());
 
     const toggleYear = (year: number) => {
+        onYearChange?.(year);
         setOpenYears((current) => {
             const next = new Set(current);
 
@@ -156,6 +163,10 @@ export function TimeHierarchyFilter({ activeDate }: TimeHierarchyFilterProps) {
                             <button
                                 className={`${styles.item} ${
                                     yearOpen ? styles.open : ""
+                                } ${
+                                    selectedYear === yearNode.year
+                                        ? styles.activeItem
+                                        : ""
                                 }`}
                                 aria-expanded={yearOpen}
                                 onClick={() => toggleYear(yearNode.year)}
