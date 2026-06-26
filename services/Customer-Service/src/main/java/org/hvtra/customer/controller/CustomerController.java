@@ -7,7 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.client.OrderClient;
+import org.hvtra.customer.infrastructure.client.OrderClient;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
@@ -15,23 +15,13 @@ import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.dto.response.PageResponse;
 import org.hvtra.customer.service.CustomerService;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
@@ -101,8 +91,10 @@ public class CustomerController {
 
     @PutMapping(ApiPath.ID)
     @Operation(summary = "Cập nhật khách hàng")
-    public CustomerResponse update(@PathVariable(ApiParam.ID) @Parameter(description = "ID khách hàng") UUID id,
-                                   @Valid @RequestBody CustomerRequest request) {
+    public CustomerResponse update(
+            @PathVariable(ApiParam.ID) @Parameter(description = "ID khách hàng") UUID id,
+            @Valid @RequestBody CustomerRequest request
+    ) {
         return customerService.update(id, request);
     }
 
@@ -111,8 +103,7 @@ public class CustomerController {
     public CustomerResponse updatePurchase(
             @PathVariable("orderId") @Parameter(description = "ID đơn hàng") UUID orderId
     ) {
-        OrderClient.OrderResponse order = orderClient.getOrderById(orderId);
-        return customerService.updatePurchase(order.customerId(), order.finalAmount());
+        return customerService.updatePurchase(orderId);
     }
 
     @DeleteMapping(ApiPath.ID)

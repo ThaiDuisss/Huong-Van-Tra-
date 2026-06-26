@@ -16,7 +16,9 @@ export interface SaleProductPreview {
   variant: string;
   price: number;
   imageUrl: string;
-  availableQuantity: number;
+  availableQuantity: number | null;
+  quantityOnHand?: number | null;
+  quantityReserved?: number | null;
 }
 
 export interface SaleCartItem {
@@ -27,6 +29,9 @@ export interface SaleCartItem {
   variant: string;
   quantity: number;
   unitPrice: number;
+  availableQuantity?: number | null;
+  quantityOnHand?: number | null;
+  quantityReserved?: number | null;
 }
 
 export type SaleOrderType = "QUICK_SALE" | "DELIVERY";

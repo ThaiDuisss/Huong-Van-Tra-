@@ -80,6 +80,12 @@
   font-weight: 800;
 }
 
+.activeItem {
+  background: #eaf8ed;
+  color: #159734;
+  font-weight: 900;
+}
+
 .activeDate::before {
   width: 7px;
   height: 7px;
