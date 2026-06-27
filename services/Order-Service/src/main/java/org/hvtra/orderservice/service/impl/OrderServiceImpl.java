@@ -36,6 +36,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final CatalogClient catalogClient;
+    private final OrderCustomerServiceImpl orderCustomerServiceImpl;
 
     @Override
     @Transactional
@@ -144,17 +145,20 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
         Order order = getExistingOrder(orderId);
 
-        if (PaymentStatus.PAID.toString().equalsIgnoreCase(order.getPaymentStatus().toString())  ) {
+        if (PaymentStatus.PAID.toString().equalsIgnoreCase(order.getPaymentStatus().toString())) {
             throw new OrderAlreadyPaidException("Đơn hàng đã được thanh toán");
         }
 
         BigDecimal paidAmount = defaultZero(request.getPaidAmount());
+
         // Kiểm tra số tiền Payment-Service gửi sang có đủ thanh toán đơn không
         if (paidAmount.compareTo(order.getFinalAmount()) < 0) {
             throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
         }
+
         // Lưu trạng thái cũ để ghi vào order_status_history
         OrderStatus oldStatus = order.getStatus();
+
         // Cập nhật đơn hàng sau khi Payment-Service đã lưu payment thành công
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.COMPLETED);
@@ -162,6 +166,7 @@ public class OrderServiceImpl implements OrderService {
         order.setDebtAmount(BigDecimal.ZERO);
 
         Order savedOrder = orderRepository.save(order);
+
         // Lưu lịch sử chuyển trạng thái từ PENDING sang COMPLETED
         saveStatusHistory(
                 savedOrder,
@@ -170,6 +175,10 @@ public class OrderServiceImpl implements OrderService {
                 "Thanh toán thành công, mã thanh toán: " + request.getPaymentCode(),
                 request.getChangedBy()
         );
+
+        // Gọi Customer-Service để cập nhật mua hàng / tích điểm
+        // Chỗ này sẽ được bảo vệ bởi Resilience4j trong OrderCustomerServiceImpl, nếu Customer-Service lỗi thì vẫn cho phép thanh toán thành công
+        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
 
         return toResponse(savedOrder);
     }
