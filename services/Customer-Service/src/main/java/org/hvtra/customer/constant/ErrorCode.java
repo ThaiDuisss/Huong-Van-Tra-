@@ -5,6 +5,8 @@ public final class ErrorCode {
     public static final String CUSTOMER_CONFLICT = "CUSTOMER_CONFLICT";
     public static final String CUSTOMER_INVALID_REQUEST = "CUSTOMER_INVALID_REQUEST";
 
+    public static final String ORDER_SERVICE_UNAVAILABLE = "ORDER_SERVICE_UNAVAILABLE";
+
     private ErrorCode() {
     }
 }

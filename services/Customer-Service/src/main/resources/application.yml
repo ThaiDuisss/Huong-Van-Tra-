@@ -1,3 +1,6 @@
+server:
+  port: 8082
+
 spring:
   application:
     name: Customer-Service
@@ -5,22 +8,18 @@ spring:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
-  data:
-    redis:
-      host: ${SPRING_DATA_REDIS_HOST:100.122.52.101}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
-      password: ${SPRING_DATA_REDIS_PASSWORD:Hvt@2026}
-      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:2s}
-      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
-  cache:
-    type: redis
 
-customer:
-  cache:
-    full-list-ttl: ${CUSTOMER_FULL_LIST_CACHE_TTL:PT10M}
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: false
 
-server:
-  port: 8082
+      client:
+        config:
+          order-service:
+            connectTimeout: 300
+            readTimeout: 700
+            loggerLevel: basic
 
 springdoc:
   api-docs:
@@ -44,3 +43,76 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
+
+resilience4j:
+
+  retry:
+    instances:
+      orderService:
+        maxAttempts: 2
+        waitDuration: 150ms
+
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        exponentialMaxWaitDuration: 300ms
+
+        retryExceptionPredicate: >
+          org.hvtra.customer.infrastructure.resilience.TransientFeignFailurePredicate
+
+        eventConsumerBufferSize: 50
+
+
+  circuitbreaker:
+    instances:
+      orderService:
+
+        slidingWindowType: COUNT_BASED
+
+        slidingWindowSize: 20
+
+        minimumNumberOfCalls: 10
+
+        failureRateThreshold: 50
+
+        slowCallDurationThreshold: 600ms
+
+        slowCallRateThreshold: 70
+
+        waitDurationInOpenState: 15s
+
+        permittedNumberOfCallsInHalfOpenState: 3
+
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+        recordFailurePredicate: >
+          org.hvtra.customer.infrastructure.resilience.OrderFailurePredicate
+
+        ignoreExceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+
+        eventConsumerBufferSize: 100
+
+
+  bulkhead:
+    instances:
+      orderService:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 0ms
+        eventConsumerBufferSize: 50
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: >
+          health,
+          info,
+          metrics,
+          circuitbreakers,
+          circuitbreakerevents,
+          retries,
+          retryevents,
+          bulkheads,
+          bulkheadevents
