@@ -2,12 +2,14 @@ package org.hvtra.iventoryservice.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
+import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
-
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,7 +36,7 @@ public class InventoryBalanceController {
     }
 
     @GetMapping("/view")
-    public PageResponse<org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse> findAllView(
+    public PageResponse<InventoryBalanceViewResponse> findAllView(
             @RequestParam(name = "branchId", required = false) UUID branchId,
             @RequestParam(name = "locationId", required = false) UUID locationId,
             @RequestParam(name = "sku", required = false) String sku,
@@ -52,7 +54,7 @@ public class InventoryBalanceController {
             description = "Output: Id, locationId, inventoryItemId, variantId, itemType, quantityOnHand, quantityReserved, availableQuantity, status"
     )
     @GetMapping("/search-view-pos")
-    public java.util.List<org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse> findWarehouseBalances(
+    public List<InventoryBalanceWarehouseResponse> findWarehouseBalances(
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productName", required = false) String productName) {
         return service.findWarehouseBalances(sku, productName);

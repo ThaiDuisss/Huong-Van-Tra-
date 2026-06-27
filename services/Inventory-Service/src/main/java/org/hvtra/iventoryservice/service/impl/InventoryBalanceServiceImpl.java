@@ -12,6 +12,7 @@ import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -133,7 +134,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
 
-        org.springframework.data.domain.Page<InventoryBalance> balancePage = repository.findAll(specification, pageable);
+        Page<InventoryBalance> balancePage = repository.findAll(specification, pageable);
         if (balancePage.isEmpty()) {
             return new PageResponse<>(
                     java.util.Collections.emptyList(),
