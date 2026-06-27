@@ -46,54 +46,52 @@ public class PaymentTransaction {
     @Column(name = "method", nullable = false, length = 30)
     PaymentMethod method;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "provider", length = 30)
-    PaymentProvider provider;
+//    @Enumerated(EnumType.STRING)
+//    @Column(name = "provider", length = 30)
+//    PaymentProvider provider;
+//
+//    @Column(name = "provider_transaction_id", length = 100)
+//    String providerTransactionId;
 
-    @Column(name = "provider_transaction_id", length = 100)
-    String providerTransactionId;
+//    @Column(name = "payment_code", length = 50)
+//    String paymentCode;
+//
+//    @Column(name = "reference_code", length = 100)
+//    String referenceCode;
 
-    @Column(name = "payment_code", length = 50)
-    String paymentCode;
+//    @Column(name = "gateway", length = 100)
+//    String gateway;
 
-    @Column(name = "reference_code", length = 100)
-    String referenceCode;
-
-    @Column(name = "gateway", length = 100)
-    String gateway;
-
-    @Column(name = "account_number", length = 100)
-    String accountNumber;
-
-    @Column(name = "sub_account", length = 100)
-    String subAccount;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "transaction_type", nullable = false, length = 30)
-    PaymentTransactionType transactionType;
+//    @Column(name = "account_number", length = 100)
+//    String accountNumber;
+//
+//    @Column(name = "sub_account", length = 100)
+//    String subAccount;
+//
+//    @Enumerated(EnumType.STRING)
+//    @Column(name = "transaction_type", nullable = false, length = 30)
+//    PaymentTransactionType transactionType;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     PaymentTransactionStatus status;
+//
+//    @Column(name = "amount_vnd", nullable = false)
+//    Long amountVnd;
 
-    @Column(name = "amount_vnd", nullable = false)
-    Long amountVnd;
-
-    @Column(name = "transaction_date")
-    Instant transactionDate;
-
-    @Column(name = "content", columnDefinition = "TEXT")
-    String content;
-
-    @Column(name = "description", columnDefinition = "TEXT")
-    String description;
-
-    @Column(name = "review_reason", columnDefinition = "TEXT")
-    String reviewReason;
-
-    @Column(name = "raw_payload", columnDefinition = "JSON")
-    String rawPayload;
-
+//    @Column(name = "transaction_date")
+//    Instant transactionDate;
+//
+//
+//    @Column(name = "description", columnDefinition = "TEXT")
+//    String description;
+//
+//    @Column(name = "review_reason", columnDefinition = "TEXT")
+//    String reviewReason;
+//
+//    @Column(name = "raw_payload", columnDefinition = "JSON")
+//    String rawPayload;
+//
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;
 
@@ -102,10 +100,10 @@ public class PaymentTransaction {
         if (id == null) {
             id = UUID.randomUUID();
         }
-
-        if (transactionType == null) {
-            transactionType = PaymentTransactionType.PAYMENT;
-        }
+//
+//        if (transactionType == null) {
+//            transactionType = PaymentTransactionType.PAYMENT;
+//        }
 
         if (status == null) {
             status = PaymentTransactionStatus.RECEIVED;
@@ -117,16 +115,17 @@ public class PaymentTransaction {
     public void markMatched(UUID paymentId) {
         this.paymentId = paymentId;
         this.status = PaymentTransactionStatus.MATCHED;
-        this.reviewReason = null;
+//        this.reviewReason = null;
     }
 
     public void markNeedReview(String reason) {
         this.status = PaymentTransactionStatus.NEED_REVIEW;
-        this.reviewReason = reason;
+//        this.reviewReason = reason;
     }
+
 
     public void markUnmatched(String reason) {
         this.status = PaymentTransactionStatus.UNMATCHED;
-        this.reviewReason = reason;
+//        this.reviewReason = reason;
     }
 }

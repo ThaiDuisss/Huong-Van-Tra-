@@ -8,8 +8,10 @@ spring:
   cloud:
     openfeign:
       client:
-
-
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 5000
 
 server:
   port: 8086
@@ -41,4 +43,75 @@ resilience4j:
   circuitbreaker:
     instances:
       paymentService:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 2s
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+  retry:
+    instances:
+      paymentService:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retry-exceptions:
+          - java.io.IOException
+          - java.net.SocketTimeoutException
+          - feign.RetryableException
+          - java.util.concurrent.TimeoutException
+          - org.hvtra.commonservice.exception.FeignClientException
+        ignore-exceptions:
+          - feign.FeignException$Unauthorized
+
+  bulkhead:
+    instances:
+      paymentService:
+        maxConcurrentCalls: 5
+        maxWaitDuration: 100ms
+
+  ratelimiter:
+    instances:
+      paymentService:
+        limitForPeriod: 20
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0
+
+  timelimiter:
+    instances:
+      paymentService:
+        timeoutDuration: 2s
+        cancelRunningFuture: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - metrics
+          - prometheus
+          - circuitbreakers
+          - circuitbreakerevents
+          - retries
+          - retryevents
+          - ratelimiters
+          - ratelimiterevents
+          - bulkheads
+          - bulkheadevents
+          - timelimiters
+          - timelimiterevents
+
+  endpoint:
+    health:
+      show-details: always
+clients:
+  payment-service:
+    url: http://localhost:8087
 
