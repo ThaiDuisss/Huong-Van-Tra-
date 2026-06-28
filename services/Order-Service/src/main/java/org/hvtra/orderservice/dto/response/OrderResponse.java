@@ -2,6 +2,8 @@ package org.hvtra.orderservice.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.hvtra.orderservice.domain.enums.PaymentStatus;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -20,9 +22,8 @@ public class OrderResponse {
     private UUID customerId;
 
     private String orderType;
-    private String status;
-    private String paymentStatus;
-    private String fulfillmentStatus;
+    private OrderStatus status;
+    private PaymentStatus paymentStatus;
 
     private BigDecimal originalAmount;
     private BigDecimal discountAmount;

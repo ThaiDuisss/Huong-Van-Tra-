@@ -22,4 +22,11 @@ public class PaymentController {
     public CashPaymentResponse payByCash(@Valid @RequestBody CashPaymentRequest request) {
         return paymentService.payByCash(request);
     }
+
+//    @PostMapping("/webhooks/sepay")
+//    @ResponseStatus(HttpStatus.CREATED)
+//    @Operation(summary = "Thanh toán bằng tiền mặt")
+//    public CashPaymentResponse payByCash(@Valid @RequestBody CashPaymentRequest request) {
+//        return paymentService.payByCash(request);
+//    }
 }

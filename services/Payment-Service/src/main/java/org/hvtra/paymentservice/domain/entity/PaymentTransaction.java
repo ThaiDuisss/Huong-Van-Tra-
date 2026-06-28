@@ -3,6 +3,7 @@ package org.hvtra.paymentservice.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.paymentservice.domain.enums.PaymentMethod;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,7 +22,8 @@ public class PaymentTransaction extends BaseEntity {
     private Payments payment;
 
     @Column(name = "method", nullable = false, length = 50)
-    private String method;
+    @Enumerated(EnumType.STRING)
+    private PaymentMethod method;
 
     @Column(name = "amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal amount;

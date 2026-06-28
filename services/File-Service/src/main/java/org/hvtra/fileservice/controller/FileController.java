@@ -1,10 +1,12 @@
 package org.hvtra.fileservice.controller;
 
+import com.google.protobuf.Api;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.domain.entity.UserHeaderInformation;
 import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.fileservice.model.request.FileAttach;
 import org.hvtra.fileservice.model.request.InitUploadRequest;
 import org.hvtra.fileservice.model.response.DownloadUrlResponse;
 import org.hvtra.fileservice.model.response.InitUploadResponse;
@@ -113,6 +115,14 @@ public class FileController {
         DownloadUrlResponse response = fileService.createDownloadUrl(fileId, userId);
 
         return ApiResponse.<DownloadUrlResponse>builder().data(response).status("success").code(200).build();
+    }
+
+    @PutMapping("/attach")
+    public ApiResponse<Integer> downloadUrl(
+            @RequestBody FileAttach fileAttach,
+            HttpServletRequest servletRequest
+    ) {
+        return ApiResponse.<Integer>builder().data(fileService.attachFile(fileAttach)).build();
     }
 
     /**

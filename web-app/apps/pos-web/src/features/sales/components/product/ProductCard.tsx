@@ -59,6 +59,7 @@ export function ProductCard({
               <QuantityControl
                 value={quantity}
                 disabledIncrement={
+                  product.availableQuantity !== null &&
                   quantity >= product.availableQuantity
                 }
                 onIncrement={() => onIncrement(product.id)}
