@@ -20,4 +20,9 @@ public class OrderItemResponse {
     private BigDecimal discountAmount;
     private BigDecimal lineTotal;
     private UUID bomVersionId;
+
+    private String unitNameSnapshot;
+    private String imageUrlSnapshot;
+    private BigDecimal taxAmount;
+    private String note;
 }

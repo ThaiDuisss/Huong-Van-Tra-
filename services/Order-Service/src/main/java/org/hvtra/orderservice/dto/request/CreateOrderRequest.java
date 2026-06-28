@@ -18,6 +18,22 @@ public class CreateOrderRequest {
     private UUID shiftId;
     private UUID customerId;
 
+    private String customerNameSnapshot;
+    private String customerPhoneSnapshot;
+    private String customerEmailSnapshot;
+
+    private String branchNameSnapshot;
+    private String terminalNameSnapshot;
+    private String shiftCodeSnapshot;
+
+    private UUID cashierId;
+    private String cashierNameSnapshot;
+
+    private String recipientNameSnapshot;
+    private String recipientPhoneSnapshot;
+    private String shippingAddressSnapshot;
+    private String shippingProviderSnapshot;
+
     private String orderType = "POS";
 
     @DecimalMin(value = "0.00", message = "discountAmount phải lớn hơn hoặc bằng 0")
