@@ -1,16 +1,24 @@
 package org.hvtra.orderservice.service.impl;
 
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.request.PaymentCreateRequest;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.domain.entity.*;
+import org.hvtra.orderservice.dto.response.PaymentResponse;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.exception.*;
 import org.hvtra.orderservice.repository.OrderRepository;
@@ -25,6 +33,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
     private static final String ORDER_STATUS_PENDING = "PENDING";
@@ -33,6 +42,7 @@ public class OrderServiceImpl implements OrderService {
     private static final String PAYMENT_STATUS_PAID = "PAID";
     private static final String FULFILLMENT_STATUS_PENDING = "PENDING";
 
+    private  final PaymentClient paymentClient;
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final CatalogClient catalogClient;
@@ -252,4 +262,26 @@ public class OrderServiceImpl implements OrderService {
     private String generateOrderCode() {
         return "ORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
     }
+
+
+    @CircuitBreaker(name = "paymentService", fallbackMethod = "createPaymentFallback")
+    @Retry(name = "paymentService", fallbackMethod = "createPaymentFallback")
+    @Bulkhead(name = "paymentService", fallbackMethod = "createPaymentFallback")
+    @RateLimiter(name = "paymentService", fallbackMethod = "createPaymentFallback")
+    public PaymentResponse createPayment(PaymentCreateRequest request) {
+        return paymentClient.createPayment(request).getData();
+    }
+
+    private PaymentResponse createPaymentFallback(PaymentCreateRequest request, Throwable ex) {
+        log.error("Payment Service unavailable. orderId={}, reason={}",
+                request.getOrderId(),
+                ex.getMessage(),
+                ex
+        );
+
+        return PaymentResponse.builder()
+                .orderId(request.getOrderId())
+                .build();
+    }
+
 }
