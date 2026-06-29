@@ -1,10 +1,10 @@
-package org.hvtra.commonservice.outbox.service;
+package org.hvtra.commonservice.kafka.outbox.service;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.outbox.dto.ClaimedOutboxMessage;
-import org.hvtra.commonservice.outbox.entity.BaseOutboxEvent;
-import org.hvtra.commonservice.outbox.enums.OutboxStatus;
-import org.hvtra.commonservice.outbox.repository.BaseOutboxEventRepository;
+import org.hvtra.commonservice.kafka.outbox.dto.ClaimedOutboxMessage;
+import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.kafka.outbox.enums.OutboxStatus;
+import org.hvtra.commonservice.kafka.outbox.repository.BaseOutboxEventRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;

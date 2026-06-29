@@ -1,10 +1,10 @@
-package org.hvtra.commonservice.outbox.entity;
+package org.hvtra.commonservice.kafka.outbox.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
-import org.hvtra.commonservice.outbox.enums.OutboxStatus;
+import org.hvtra.commonservice.kafka.outbox.enums.OutboxStatus;
 
 import java.time.Instant;
 import java.util.UUID;

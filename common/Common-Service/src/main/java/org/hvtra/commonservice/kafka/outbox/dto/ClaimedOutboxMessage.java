@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.outbox.dto;
+package org.hvtra.commonservice.kafka.outbox.dto;
 
 import java.util.UUID;
 
