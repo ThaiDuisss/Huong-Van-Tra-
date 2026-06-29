@@ -105,9 +105,28 @@ public class FileService {
         }
     }
     @Transactional
-    public Integer attachFile(FileAttach attach) {
+    public Integer attachFile(FileAttach attach, UUID currentUserId) {
+        if (attach.fieldId() == null) {
+            throw new AppException(7000, "File id is required");
+        }
 
-        return fileRepository.updateReferenceId(attach.refId(), attach.fieldId());
+        if (attach.refId() == null) {
+            throw new AppException(7001, "Reference id is required");
+        }
+
+        FileMetadata file = fileRepository.findById(attach.fieldId())
+                .orElseThrow(() -> new AppException(7000, "File not found"));
+
+        checkOwnerOrPermission(file, currentUserId);
+
+        if (file.getStatus() != FileStatus.ACTIVE) {
+            throw new AppException(7009, "File is not available");
+        }
+
+        file.setRefId(attach.refId());
+        fileRepository.save(file);
+
+        return 1;
     }
 
 
@@ -242,17 +261,19 @@ public class FileService {
 
         return switch (purpose) {
             case PRODUCT_IMAGE, ITEM_IMAGE -> {
-                if (refId == null) {
-                    throw new AppException(7001, "Product or item id is required");
+                if (refId != null) {
+                    yield "items/%s/%s%s".formatted(refId, fileId, ext);
                 }
-                yield "items/%s/%s%s".formatted(refId, fileId, ext);
+
+                yield "pending/items/%s/%s%s".formatted(currentUserId, fileId, ext);
             }
 
             case CATEGORY_IMAGE -> {
-                if (refId == null) {
-                    throw new AppException(7002, "Category id is required");
+                if (refId != null) {
+                    yield "categories/%s/%s%s".formatted(refId, fileId, ext);
                 }
-                yield "categories/%s/%s%s".formatted(refId, fileId, ext);
+
+                yield "pending/categories/%s/%s%s".formatted(currentUserId, fileId, ext);
             }
 
             case PROMOTION_IMAGE, BANNER_IMAGE -> {
