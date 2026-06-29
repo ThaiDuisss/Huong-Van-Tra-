@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka;
+package org.hvtra.commonservice.kafka.saga;
 
 public enum SagaStatus {
 }

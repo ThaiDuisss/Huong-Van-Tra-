@@ -4,6 +4,7 @@ import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
 import { BomListPage } from "../features/manufacturing/pages/BomListPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
+import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
@@ -124,6 +125,10 @@ export function AppRouter() {
                 <Route
                     path="manufacturing/production-orders"
                     element={<ProductionOrderListPage />}
+                />
+                <Route
+                    path="manufacturing/raw-materials"
+                    element={<RawMaterialListPage />}
                 />
             </Route>
 

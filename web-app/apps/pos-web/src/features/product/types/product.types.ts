@@ -149,3 +149,16 @@ export interface PriceListInput {
         sellingPrice: number;
     }>;
 }
+
+export interface Ingredient {
+    id: EntityId;
+    ingredientCode: string;
+    name: string;
+    status: CatalogStatus;
+}
+
+export interface IngredientInput {
+    ingredientCode: string;
+    name: string;
+    status: CatalogStatus;
+}

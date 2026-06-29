@@ -1,7 +1,7 @@
-package org.hvtra.commonservice.outbox.repository;
+package org.hvtra.commonservice.kafka.outbox.repository;
 
-import org.hvtra.commonservice.outbox.entity.BaseOutboxEvent;
-import org.hvtra.commonservice.outbox.enums.OutboxStatus;
+import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.kafka.outbox.enums.OutboxStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
