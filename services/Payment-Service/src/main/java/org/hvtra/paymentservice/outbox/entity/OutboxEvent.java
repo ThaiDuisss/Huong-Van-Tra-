@@ -1,4 +1,4 @@
-package org.hvtra.paymentservice.domain.entity;
+package org.hvtra.paymentservice.outbox.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Index;
@@ -7,7 +7,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hvtra.commonservice.outbox.BaseOutboxEvent;
+import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
 
 @Entity
 @Table(

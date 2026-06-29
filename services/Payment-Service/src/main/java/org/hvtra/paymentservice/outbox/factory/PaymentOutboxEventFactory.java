@@ -1,8 +1,8 @@
-package org.hvtra.paymentservice.factory;
+package org.hvtra.paymentservice.outbox.factory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.hvtra.commonservice.outbox.factory.OutboxEventFactory;
-import org.hvtra.paymentservice.domain.entity.OutboxEvent;
+import org.hvtra.commonservice.kafka.outbox.factory.OutboxEventFactory;
+import org.hvtra.paymentservice.outbox.entity.OutboxEvent;
 import org.springframework.stereotype.Component;
 
 @Component
