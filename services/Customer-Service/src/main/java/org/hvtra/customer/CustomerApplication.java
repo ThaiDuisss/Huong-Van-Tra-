@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Import;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "org.hvtra")
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
 public class CustomerApplication {
