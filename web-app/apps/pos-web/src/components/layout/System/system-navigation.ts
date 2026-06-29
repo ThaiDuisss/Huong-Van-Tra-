@@ -6,16 +6,15 @@ import {
     History,
     Home,
     Layers3,
-    MapPinned,
     Package,
-    PackagePlus,
     Plane,
-    SlidersHorizontal,
+    Ruler,
     Settings,
     ShoppingCart,
     User,
     Users,
-    WalletCards
+    WalletCards,
+    Warehouse
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -66,13 +65,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         ]
     },
     {
-        label: "Sản phẩm",
+        label: "Hàng hóa",
         icon: Package,
         children: [
             {
-                label: "Danh mục sản phẩm",
-                to: routePaths.categories,
-                icon: FolderTree
+                label: "Mặt hàng",
+                to: routePaths.productVariants,
+                icon: Layers3
             },
             {
                 label: "Sản phẩm",
@@ -80,9 +79,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 icon: Package
             },
             {
-                label: "Biến thể sản phẩm",
-                to: routePaths.productVariants,
-                icon: Layers3
+                label: "Danh mục sản phẩm",
+                to: routePaths.categories,
+                icon: FolderTree
+            },
+            {
+                label: "Đơn vị tính",
+                to: routePaths.units,
+                icon: Ruler
             },
             // {
             //     label: "Bảng giá",
@@ -96,20 +100,15 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Boxes,
         children: [
             {
-                label: "Quản lý kệ hàng",
-                to: routePaths.inventoryLocations,
-                icon: MapPinned
+                label: "Tồn kho hiện tại",
+                icon: Warehouse,
+                to: routePaths.inventoryBalances
             },
-            {
-                label: "Nhập hàng lên kệ",
-                to: routePaths.inventoryStockIn,
-                icon: PackagePlus
-            },
-            {
-                label: "Điều chỉnh tồn kho",
-                to: routePaths.inventoryAdjustment,
-                icon: SlidersHorizontal
-            },
+            // {
+            //     label: "Quản lý kệ hàng",
+            //     to: routePaths.inventoryLocations,
+            //     icon: MapPinned
+            // },
             {
                 label: "Lịch sử biến động",
                 to: routePaths.inventoryTransactions,

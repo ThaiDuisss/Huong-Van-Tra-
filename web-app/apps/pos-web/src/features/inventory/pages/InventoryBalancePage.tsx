@@ -1,4 +1,4 @@
-import { Eye, History, ArrowUpDown, X } from "lucide-react";
+import { Eye, History, ArrowUpDown, X, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -61,8 +61,7 @@ export function InventoryBalancePage() {
     const [error, setError] = useState<string | null>(null);
 
     // Filter, pagination & sorting states
-    const [searchSku, setSearchSku] = useState("");
-    const [searchName, setSearchName] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const [filterUnitId, setFilterUnitId] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
@@ -103,8 +102,8 @@ export function InventoryBalancePage() {
                 setCategories(catRes.content ?? []);
 
                 // Fetch units list
-                const unitRes = await unitApi.list();
-                setUnits(unitRes ?? []);
+                const unitRes = await unitApi.list({ page: 0, size: 500 });
+                setUnits(unitRes.content ?? []);
 
                 // Determine branchId
                 let resolvedBranchId = FALLBACK_STORE_ID;
@@ -174,8 +173,8 @@ export function InventoryBalancePage() {
                 size: pageSize,
                 branchId: activeStoreId as any,
                 locationId: activeLocationId ? (activeLocationId as any) : undefined,
-                sku: searchSku.trim() || undefined,
-                productName: searchName.trim() || undefined,
+                sku: searchQuery.trim() || undefined,
+                productName: searchQuery.trim() || undefined,
                 categoryId: filterCategoryId || undefined,
                 unitId: filterUnitId || undefined
             });
@@ -187,7 +186,7 @@ export function InventoryBalancePage() {
         } finally {
             setLoadingBalances(false);
         }
-    }, [activeStoreId, activeLocationId, page, pageSize, searchSku, searchName, filterCategoryId, filterUnitId]);
+    }, [activeStoreId, activeLocationId, page, pageSize, searchQuery, filterCategoryId, filterUnitId]);
 
     useEffect(() => {
         loadBalances();
@@ -245,7 +244,7 @@ export function InventoryBalancePage() {
     // Reset page to 1 when filters change
     useEffect(() => {
         setPage(1);
-    }, [searchSku, searchName, filterCategoryId, filterUnitId, filterStatus]);
+    }, [searchQuery, filterCategoryId, filterUnitId, filterStatus]);
 
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
@@ -364,30 +363,40 @@ export function InventoryBalancePage() {
     }
 
     return (
-        <section className="grid gap-5">
-            <Breadcrumbs items={["Tồn kho hiện tại"]} />
-            
-            <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="grid gap-1 min-w-[240px]">
+        <section className="grid gap-5">            
+            <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="grid gap-0.5 min-w-[200px] shrink-0">
                     <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
                         Tồn kho tại: {activeLocationName}
                     </h1>
                     <p className="text-sm text-gray-500">
-                        Theo dõi lượng tồn kho chi tiết và cấu hình hiển thị linh hoạt.
+                        Theo dõi lượng tồn kho chi tiết.
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex-1 max-w-sm md:mx-4">
+                    <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Tìm theo SKU hoặc tên sản phẩm..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white shadow-sm"
+                        />
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
                     <button
                         onClick={() => setActiveModal("stock-in")}
-                        className="flex items-center justify-center gap-2 px-4 h-11 rounded-xl bg-hvt-green-700 font-bold text-white hover:bg-hvt-green-800 transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl bg-hvt-green-700 font-bold text-white hover:bg-hvt-green-800 transition-colors shadow-sm"
                     >
                         Nhập hàng
                     </button>
                     <button
                         onClick={() => setActiveModal("adjustment")}
-                        className="flex items-center justify-center gap-2 px-4 h-11 rounded-xl border border-pos-border bg-white font-bold text-gray-700 hover:bg-neutral-50 transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl border border-pos-border bg-white font-bold text-gray-700 hover:bg-neutral-50 transition-colors shadow-sm"
                     >
-                        Điều chỉnh tồn kho
+                        Điều chỉnh kho
                     </button>
                 </div>
             </header>
@@ -402,28 +411,8 @@ export function InventoryBalancePage() {
             </div>
 
             {/* Config & Filters Row */}
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-4 shadow-pos-card">
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="w-52">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Tìm theo SKU</label>
-                        <input
-                            type="text"
-                            placeholder="Nhập SKU..."
-                            value={searchSku}
-                            onChange={(e) => setSearchSku(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700"
-                        />
-                    </div>
-                    <div className="w-64">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Tìm theo tên sản phẩm</label>
-                        <input
-                            type="text"
-                            placeholder="Nhập tên sản phẩm..."
-                            value={searchName}
-                            onChange={(e) => setSearchName(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700"
-                        />
-                    </div>
+            <div className="flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-pos-card">
+                <div className="flex flex-wrap items-end gap-3">
                     <div className="w-52">
                         <label className="block text-xs font-bold text-gray-500 mb-1">Danh mục</label>
                         <select
@@ -467,6 +456,75 @@ export function InventoryBalancePage() {
                         </select>
                     </div>
                 </div>
+
+                {/* Active filter tags - hiện khi có filter đang hoạt động */}
+                {(filterCategoryId || filterUnitId || filterStatus || searchQuery.trim()) ? (
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-gray-400 font-medium">Đang lọc theo:</span>
+                            {searchQuery.trim() ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-blue-200 bg-blue-50/50 text-blue-800 text-xs font-semibold">
+                                    <span>Tìm kiếm: {searchQuery}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery("")}
+                                        className="hover:bg-blue-100 p-0.5 rounded-full text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            ) : null}
+                            {filterCategoryId ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50/50 text-emerald-800 text-xs font-semibold">
+                                    <span>Danh mục: {categories.find(c => String(c.id) === filterCategoryId)?.name ?? filterCategoryId}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilterCategoryId("")}
+                                        className="hover:bg-emerald-100 p-0.5 rounded-full text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            ) : null}
+                            {filterUnitId ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50/50 text-emerald-800 text-xs font-semibold">
+                                    <span>Đơn vị: {units.find(u => String(u.id) === filterUnitId)?.name ?? filterUnitId}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilterUnitId("")}
+                                        className="hover:bg-emerald-100 p-0.5 rounded-full text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            ) : null}
+                            {filterStatus ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-200 bg-amber-50/50 text-amber-800 text-xs font-semibold">
+                                    <span>Trạng thái: {filterStatus === "LOW_STOCK" ? "Sắp hết hàng" : "Hết hàng"}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilterStatus("")}
+                                        className="hover:bg-amber-100 p-0.5 rounded-full text-amber-500 hover:text-amber-700 transition-colors cursor-pointer"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            ) : null}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSearchQuery("");
+                                setFilterCategoryId("");
+                                setFilterUnitId("");
+                                setFilterStatus("");
+                            }}
+                            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors cursor-pointer"
+                        >
+                            Xóa tất cả
+                        </button>
+                    </div>
+                ) : null}
             </div>
 
             {/* Main Data Grid */}

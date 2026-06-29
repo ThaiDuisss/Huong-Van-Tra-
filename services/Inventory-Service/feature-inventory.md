@@ -229,7 +229,7 @@ Return all balances of an inventory item across locations.
 
 ====================================================
 
-4. Stock In API
+<!-- 4. Stock In API
 
 POST /api/inventory-transactions/stock-in
 
@@ -258,7 +258,7 @@ Business Logic:
   difference = actualQuantity - currentQuantity
 * Update quantity_on_hand.
 * Create transaction type ADJUSTMENT.
-* Save before_quantity and after_quantity.
+* Save before_quantity and after_quantity. -->
 
 ====================================================
 

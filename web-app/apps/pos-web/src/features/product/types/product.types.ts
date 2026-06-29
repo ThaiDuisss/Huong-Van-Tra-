@@ -77,6 +77,13 @@ export interface Unit {
     status: CatalogStatus;
 }
 
+export interface UnitInput {
+    name: string;
+    symbol: string;
+    precisionScale: number;
+    status: CatalogStatus;
+}
+
 export interface ProductVariant {
     id: EntityId;
     productId: EntityId;

@@ -14,8 +14,6 @@ public interface InventoryBalanceService {
     InventoryBalanceResponse findById(UUID id);
     PageResponse<InventoryBalanceResponse> findByInventoryItem(UUID itemId, Pageable pageable);
     PageResponse<InventoryBalanceViewResponse> findAllView(
-            UUID branchId,
-            UUID locationId,
             String sku,
             String productCode,
             String productName,

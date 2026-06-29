@@ -279,7 +279,7 @@ export function PosSalePage() {
         }
 
         if (!variantId) {
-            setCheckoutError("Không xác định được mã biến thể sản phẩm.");
+            setCheckoutError("Không xác định được mã Mặt hàng.");
             return false;
         }
 

@@ -43,15 +43,6 @@ Inventory Management
 Shelf Locations
 → Quản lý kệ hàng
 
-Inventory Balances
-→ Tồn kho hiện tại
-
-Stock In
-→ Nhập hàng lên kệ
-
-Stock Adjustment
-→ Điều chỉnh tồn kho
-
 Stock Movement History
 → Lịch sử biến động tồn kho
 
@@ -64,12 +55,6 @@ Page titles:
 
 /system/inventory/balances:
 "Tồn kho hiện tại"
-
-/system/inventory/stock-in:
-"Nhập hàng lên kệ"
-
-/system/inventory/adjustment:
-"Điều chỉnh tồn kho"
 
 /system/inventory/transactions:
 "Lịch sử biến động tồn kho"

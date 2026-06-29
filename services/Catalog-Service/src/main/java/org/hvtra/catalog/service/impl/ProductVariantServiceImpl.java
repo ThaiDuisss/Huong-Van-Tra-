@@ -188,7 +188,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
              java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
              
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Danh sách biến thể");
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Danh sách Mặt hàng");
             
             org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
             headerFont.setBold(true);
@@ -199,7 +199,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             org.apache.poi.ss.usermodel.DataFormat format = workbook.createDataFormat();
             priceStyle.setDataFormat(format.getFormat("#,##0"));
             
-            String[] headers = {"Mã sản phẩm", "Tên biến thể", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Định lượng", "Chính sách tồn kho", "Trạng thái"};
+            String[] headers = {"Mã sản phẩm", "Tên Mặt hàng", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Định lượng", "Chính sách tồn kho", "Trạng thái"};
             org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
                 org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
@@ -268,7 +268,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             workbook.write(out);
             return out.toByteArray();
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi xuất file Excel biến thể: " + e.getMessage(), e);
+            throw new RuntimeException("Lỗi xuất file Excel Mặt hàng: " + e.getMessage(), e);
         }
     }
 
@@ -434,7 +434,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
              java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
              
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Mẫu nhập biến thể");
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Mẫu nhập Mặt hàng");
             
             org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
             headerFont.setBold(true);
@@ -445,7 +445,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             org.apache.poi.ss.usermodel.DataFormat format = workbook.createDataFormat();
             priceStyle.setDataFormat(format.getFormat("#,##0"));
             
-            String[] headers = {"Mã sản phẩm", "Tên biến thể", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Định lượng", "Chính sách tồn kho", "Trạng thái"};
+            String[] headers = {"Mã sản phẩm", "Tên Mặt hàng", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Định lượng", "Chính sách tồn kho", "Trạng thái"};
             org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
                 org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
@@ -502,7 +502,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             workbook.write(out);
             return out.toByteArray();
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi tạo file mẫu Excel biến thể: " + e.getMessage(), e);
+            throw new RuntimeException("Lỗi tạo file mẫu Excel Mặt hàng: " + e.getMessage(), e);
         }
     }
 

@@ -1,0 +1,159 @@
+import { useCallback } from "react";
+
+import {
+    CatalogStatusBadge,
+    DetailList,
+    type FormValues,
+    CatalogResourceManagement,
+    TableCell
+} from "../components/CatalogResourceManagement";
+import { usePagedApiResource } from "../hooks/useApiResource";
+import { useCatalogPageState } from "../hooks/useCatalogPageState";
+import { unitApi } from "../services/unit.api";
+import type { CatalogStatus, Unit } from "../types/product.types";
+import { getNumber, getString } from "../utils/form-values";
+
+export function UnitListPage() {
+    const state = useCatalogPageState();
+
+    const loadUnits = useCallback(
+        () =>
+            unitApi.list({
+                page: state.page - 1,
+                size: state.pageSize,
+                keyword: state.query || undefined,
+                status: state.status === "ALL" ? undefined : state.status
+            }),
+        [state.page, state.pageSize, state.query, state.status]
+    );
+
+    const resource = usePagedApiResource(loadUnits);
+    const units = resource.data?.content ?? [];
+
+    async function submit(values: FormValues, editingItem: Unit | null) {
+        const input = {
+            name: getString(values, "name"),
+            symbol: getString(values, "symbol"),
+            precisionScale: getNumber(values, "precisionScale"),
+            status: getString(values, "status") as CatalogStatus
+        };
+
+        if (editingItem) {
+            await unitApi.update(String(editingItem.id), input);
+        } else {
+            await unitApi.create(input);
+        }
+    }
+
+    return (
+        <CatalogResourceManagement
+            title="Đơn vị tính"
+            description="Quản lý các đơn vị tính dùng cho sản phẩm và biến thể."
+            createLabel="Tạo đơn vị"
+            searchPlaceholder="Tìm tên hoặc ký hiệu đơn vị..."
+            totalItemsLabel="Tổng số đơn vị"
+            items={units}
+            loading={resource.loading}
+            error={resource.error}
+            query={state.query}
+            status={state.status}
+            page={(resource.data?.page ?? 0) + 1}
+            pageCount={resource.data?.totalPages ?? 1}
+            totalItems={resource.data?.totalElements ?? 0}
+            pageSize={state.pageSize}
+            onQueryChange={state.setQuery}
+            onStatusChange={state.setStatus}
+            onPageChange={state.setPage}
+            onPageSizeChange={state.setPageSize}
+            onRefresh={resource.refresh}
+            onSubmit={submit}
+            onChangeStatus={(item) =>
+                unitApi
+                    .updateStatus(
+                        String(item.id),
+                        item.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
+                    )
+                    .then(() => undefined)
+            }
+            getInitialValues={(item) => ({
+                name: item.name,
+                symbol: item.symbol,
+                precisionScale: String(item.precisionScale ?? 0),
+                status: item.status
+            })}
+            columns={[
+                { key: "name", label: "Tên đơn vị" },
+                { key: "symbol", label: "Ký hiệu" },
+                { key: "precisionScale", label: "Độ chính xác" },
+                { key: "status", label: "Trạng thái" }
+            ]}
+            renderCells={(item) => (
+                <>
+                    <TableCell className="font-bold text-gray-700">
+                        {item.name}
+                    </TableCell>
+                    <TableCell>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-gray-100 text-gray-700 font-mono text-sm font-semibold">
+                            {item.symbol}
+                        </span>
+                    </TableCell>
+                    <TableCell>
+                        <span className="text-gray-600">
+                            {item.precisionScale} chữ số thập phân
+                        </span>
+                    </TableCell>
+                    <TableCell>
+                        <CatalogStatusBadge status={item.status} />
+                    </TableCell>
+                </>
+            )}
+            renderDetail={(item) => (
+                <DetailList
+                    items={[
+                        { label: "Tên đơn vị", value: item.name },
+                        { label: "Ký hiệu", value: item.symbol },
+                        {
+                            label: "Độ chính xác thập phân",
+                            value: `${item.precisionScale} chữ số`
+                        },
+                        {
+                            label: "Trạng thái",
+                            value: <CatalogStatusBadge status={item.status} />
+                        }
+                    ]}
+                />
+            )}
+            formFields={[
+                {
+                    name: "name",
+                    label: "Tên đơn vị",
+                    required: true,
+                    placeholder: "Ví dụ: Kilogram, Hộp, Thùng..."
+                },
+                {
+                    name: "symbol",
+                    label: "Ký hiệu",
+                    required: true,
+                    placeholder: "Ví dụ: kg, hộp, thùng..."
+                },
+                {
+                    name: "precisionScale",
+                    label: "Độ chính xác thập phân",
+                    type: "number",
+                    required: true,
+                    placeholder: "0 = số nguyên, 1 = 0.1, 2 = 0.01..."
+                },
+                {
+                    name: "status",
+                    label: "Trạng thái",
+                    type: "select",
+                    required: true,
+                    options: [
+                        { label: "Đang hoạt động", value: "ACTIVE" },
+                        { label: "Ngừng hoạt động", value: "INACTIVE" }
+                    ]
+                }
+            ]}
+        />
+    );
+}

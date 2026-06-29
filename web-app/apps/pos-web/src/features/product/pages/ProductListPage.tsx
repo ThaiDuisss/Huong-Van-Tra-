@@ -168,7 +168,7 @@ export function ProductListPage() {
         <>
             <CatalogResourceManagement
                 title="Sản phẩm"
-                description="Quản lý thông tin nhóm sản phẩm và các biến thể trực thuộc."
+                description="Quản lý thông tin nhóm sản phẩm và các Mặt hàng trực thuộc."
                 createLabel="Tạo sản phẩm"
                 searchPlaceholder="Tìm tên sản phẩm..."
                 totalItemsLabel="Tổng số sản phẩm"
@@ -225,7 +225,7 @@ export function ProductListPage() {
                 { key: "image", label: "Ảnh" },
                 { key: "name", label: "Tên sản phẩm" },
                 { key: "category", label: "Danh mục" },
-                { key: "variants", label: "Số biến thể" },
+                { key: "variants", label: "Số Mặt hàng" },
                 { key: "status", label: "Trạng thái" }
             ]}
             renderCells={(item) => (
@@ -343,7 +343,7 @@ function ProductDetailContent({ productId }: { productId: string | number }) {
             {product.variants && product.variants.length > 0 ? (
                 <div className="border-t border-pos-border pt-4">
                     <h3 className="text-sm font-bold text-gray-700 mb-2">
-                        Danh sách biến thể ({product.variants.length})
+                        Danh sách Mặt hàng ({product.variants.length})
                     </h3>
                     <div className="grid gap-2 text-xs">
                         {product.variants.map((variant) => (

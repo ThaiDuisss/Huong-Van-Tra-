@@ -62,11 +62,11 @@ export function ProductVariantListPage() {
     );
     const resource = usePagedApiResource(loadVariants);
     const productResource = useApiResource(loadProducts);
-    const loadUnits = useCallback(() => unitApi.list(), []);
+    const loadUnits = useCallback(() => unitApi.list({ page: 0, size: 500 }), []);
     const unitResource = useApiResource(loadUnits);
     const variants = resource.data?.content ?? [];
     const products = productResource.data?.content ?? [];
-    const units = unitResource.data ?? [];
+    const units = unitResource.data?.content ?? [];
 
     async function submit(
         values: FormValues,
@@ -109,7 +109,7 @@ export function ProductVariantListPage() {
             const seconds = String(now.getSeconds()).padStart(2, '0');
             const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
 
-            link.setAttribute("download", `Danh sách biến thể sản phẩm_${timestamp}.xlsx`);
+            link.setAttribute("download", `Danh sách Mặt hàng_${timestamp}.xlsx`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -126,7 +126,7 @@ export function ProductVariantListPage() {
         }
 
         if (!currentProductId) {
-            alert("Không tìm thấy sản phẩm hợp lệ để import biến thể!");
+            alert("Không tìm thấy sản phẩm hợp lệ để import Mặt hàng!");
             return;
         }
         setIsImportModalOpen(true);
@@ -134,7 +134,7 @@ export function ProductVariantListPage() {
 
     const validateVariantRow = (row: any) => {
         const productCode = String(row["Mã sản phẩm"] || "").trim();
-        const variantName = String(row["Tên biến thể"] || "").trim();
+        const variantName = String(row["Tên Mặt hàng"] || "").trim();
         const sellingPriceStr = String(row["Giá bán"] || "").trim();
         const costPriceStr = String(row["Giá vốn"] || "").trim();
         const unitName = String(row["Đơn vị"] || "").trim();
@@ -154,7 +154,7 @@ export function ProductVariantListPage() {
         }
 
         if (!variantName) {
-            return { isValid: false, error: "Tên biến thể trống" };
+            return { isValid: false, error: "Tên Mặt hàng trống" };
         }
 
         const sellingPrice = Number(String(sellingPriceStr).replace(/,/g, ""));
@@ -206,7 +206,7 @@ export function ProductVariantListPage() {
             currentProductId = String(products[0]?.id);
         }
         if (!currentProductId) {
-            throw new Error("Không tìm thấy sản phẩm hợp lệ để import biến thể!");
+            throw new Error("Không tìm thấy sản phẩm hợp lệ để import Mặt hàng!");
         }
         await productVariantApi.import(file, currentProductId);
         resource.refresh();
@@ -231,11 +231,11 @@ export function ProductVariantListPage() {
     return (
         <>
             <CatalogResourceManagement
-                title="Biến thể sản phẩm"
+                title="Mặt hàng"
                 description="Quản lý các mặt hàng bán được, SKU và chính sách tồn kho."
-                createLabel="Tạo biến thể"
+                createLabel="Tạo Mặt hàng"
                 searchPlaceholder="Tìm theo SKU..."
-                totalItemsLabel="Tổng số biến thể"
+                totalItemsLabel="Tổng số Mặt hàng"
                 extraHeaderActions={
                     <>
                         <ActionButton variant="secondary" onClick={handleImportClick}>
@@ -295,7 +295,7 @@ export function ProductVariantListPage() {
                 columns={[
                     { key: "sku", label: "SKU" },
                     { key: "product", label: "Sản phẩm" },
-                    { key: "variant", label: "Tên biến thể" },
+                    { key: "variant", label: "Tên Mặt hàng" },
                     { key: "selling", label: "Giá bán" },
                     // { key: "cost", label: "Giá vốn" },
                     { key: "inventory", label: "Tồn kho" },
@@ -325,7 +325,7 @@ export function ProductVariantListPage() {
                         items={[
                             { label: "Sản phẩm", value: item.productName },
                             { label: "SKU", value: item.sku },
-                            { label: "Tên biến thể", value: item.variantName },
+                            { label: "Tên Mặt hàng", value: item.variantName },
                             {
                                 label: "Giá bán",
                                 value: formatCurrency(item.sellingPrice)
@@ -363,7 +363,7 @@ export function ProductVariantListPage() {
                     },
                     {
                         name: "variantName",
-                        label: "Tên biến thể",
+                        label: "Tên Mặt hàng",
                         required: true
                     },
                     {

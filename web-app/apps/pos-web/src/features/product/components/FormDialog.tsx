@@ -26,6 +26,9 @@ export function FormDialog({
 }: FormDialogProps) {
     const [filePreviews, setFilePreviews] = useState<Record<string, string>>({});
     const [deletedFields, setDeletedFields] = useState<Record<string, boolean>>({});
+    const handleFileChange = (refId: string, file: File | null) => {
+
+    }
 
     return (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/35 p-6">
@@ -159,6 +162,7 @@ export function FormDialog({
                                                                 const file = e.target.files?.[0];
                                                                 if (file) {
                                                                     const preview = URL.createObjectURL(file);
+                                                                    
                                                                     setFilePreviews(prev => ({ ...prev, [field.name]: preview }));
                                                                     setDeletedFields(prev => ({ ...prev, [field.name]: false }));
                                                                 }

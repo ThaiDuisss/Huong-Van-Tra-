@@ -1,6 +1,8 @@
 package org.hvtra.catalog.service.impl;
 
+import jakarta.persistence.criteria.Predicate;
 import org.hvtra.catalog.dto.request.UnitRequest;
+import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.UnitResponse;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.Status;
@@ -8,10 +10,14 @@ import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.UnitMapper;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.UnitService;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,6 +30,21 @@ public class UnitServiceImpl implements UnitService {
     public UnitServiceImpl(UnitRepository repository, UnitMapper mapper) {
         this.repository = repository;
         this.mapper = mapper;
+    }
+
+    @Override
+    public PageResponse<UnitResponse> findAll(String name, Status status, Pageable pageable) {
+        Specification<Unit> spec = (root, query, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+            if (name != null && !name.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
     }
 
     @Override
@@ -60,9 +81,9 @@ public class UnitServiceImpl implements UnitService {
     }
 
     @Override
-    public java.util.List<UnitResponse> findAllByIds(java.util.List<UUID> ids) {
+    public List<UnitResponse> findAllByIds(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
         return repository.findAllById(ids).stream()
                 .map(mapper::toResponse)
