@@ -98,8 +98,8 @@ export function UnitListPage() {
                 label: "Phân loại",
                 value: state.secondaryValue,
                 options: [
-                    { label: "Gốc / Cơ sở (BASE)", value: "BASE" },
-                    { label: "Đóng gói (PACKAGING)", value: "PACKAGING" }
+                    { label: "Gốc ", value: "BASE" },
+                    { label: "Đóng gói", value: "PACKAGING" }
                 ],
                 onChange: state.setSecondaryValue
             }}
@@ -161,10 +161,10 @@ export function UnitListPage() {
                             { label: "Ký hiệu", value: item.symbol },
                             {
                                 label: "Phân loại",
-                                value: item.type === "PACKAGING" ? "Đóng gói (PACKAGING)" : "Gốc (BASE)"
+                                value: item.type === "PACKAGING" ? "Đóng gói " : "Gốc "
                             },
                             {
-                                label: "Đơn vị gốc (base_unit_id)",
+                                label: "Đơn vị gốc",
                                 value: item.baseUnitId ? (
                                     <span className="font-mono text-xs">
                                         {baseUnit ? `${baseUnit.name} (${item.baseUnitId})` : String(item.baseUnitId)}
@@ -217,7 +217,7 @@ export function UnitListPage() {
                     type: "select",
                     required: true,
                     options: [
-                        { label: "Gốc / Cơ sở (BASE)", value: "BASE" },
+                        { label: "Gốc ", value: "BASE" },
                         { label: "Đóng gói thương mại (PACKAGING)", value: "PACKAGING" }
                     ]
                 },

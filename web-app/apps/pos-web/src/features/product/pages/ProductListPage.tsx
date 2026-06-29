@@ -65,14 +65,7 @@ export function ProductListPage() {
     ) {
         const description = getString(values, "description");
         
-        let imageUrl = editingItem?.imageUrl ?? null;
-        const imageFile = values.imageFile;
-
-        if (imageFile instanceof File && imageFile.size > 0) {
-            imageUrl = URL.createObjectURL(imageFile);
-        } else if (imageFile === "") {
-            imageUrl = null;
-        }
+        const imageUrl = getString(values, "imageFile") || null;
 
         const input = {
             categoryId: getString(values, "categoryId"),
@@ -279,7 +272,8 @@ export function ProductListPage() {
                 {
                     name: "imageFile",
                     label: "Hình ảnh sản phẩm",
-                    type: "file"
+                    type: "file",
+                    purpose: "PRODUCT_IMAGE"
                 },
                 {
                     name: "status",

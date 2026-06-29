@@ -81,15 +81,13 @@ export const fileApi = {
      */
     async uploadFile(
         file: File,
-        purpose: FilePurpose,
-        options?: Omit<InitUploadRequest, "originalFilename" | "contentType" | "sizeBytes" | "purpose">
+        options: Omit<InitUploadRequest, "originalFilename" | "contentType" | "sizeBytes">
     ): Promise<InitUploadResponse> {
         // 1. Init upload
         const initResponse = await this.initUpload({
             originalFilename: file.name,
             contentType: file.type,
             sizeBytes: file.size,
-            purpose,
             ...options
         });
 

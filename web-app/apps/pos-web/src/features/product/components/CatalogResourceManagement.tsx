@@ -44,6 +44,7 @@ export interface FormField {
     required?: boolean;
     options?: Array<{ label: string; value: string }>;
     placeholder?: string;
+    purpose?: string;
 }
 
 export interface CatalogResourceManagementProps<T extends RowBase, S extends string = string> {

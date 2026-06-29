@@ -313,36 +313,44 @@ export function ProductVariantListPage() {
                         </TableCell>
                     </>
                 )}
-                renderDetail={(item) => (
-                    <DetailList
-                        items={[
-                            { label: "Sản phẩm", value: item.productName },
-                            { label: "SKU", value: item.sku },
-                            { label: "Tên Mặt hàng", value: item.variantName },
-                            {
-                                label: "Giá bán",
-                                value: formatCurrency(item.sellingPrice)
-                            },
-                            {
-                                label: "Giá vốn",
-                                value: formatCurrency(item.costPrice)
-                            },
-                            {
-                                label: "Chính sách tồn kho",
-                                value:
-                                    item.inventoryPolicy === "TRACK_STOCK"
-                                        ? "Theo dõi tồn kho"
-                                        : "Không theo dõi"
-                            },
-                            {
-                                label: "Trạng thái",
-                                value: (
-                                    <CatalogStatusBadge status={item.status} />
-                                )
-                            }
-                        ]}
-                    />
-                )}
+                renderDetail={(item) => {
+                    const matchedUnit = units.find((u) => u.id === item.unitId);
+                    const unitText = matchedUnit ? `${matchedUnit.name} (${matchedUnit.symbol})` : `Mã đơn vị: ${item.unitId}`;
+                    return (
+                        <DetailList
+                            items={[
+                                { label: "Sản phẩm", value: item.productName },
+                                { label: "SKU", value: item.sku },
+                                { label: "Tên Mặt hàng", value: item.variantName },
+                                {
+                                    label: "Giá bán",
+                                    value: formatCurrency(item.sellingPrice)
+                                },
+                                {
+                                    label: "Giá vốn",
+                                    value: formatCurrency(item.costPrice)
+                                },
+                                {
+                                    label: "Đơn vị bán",
+                                    value: unitText
+                                },
+                                {
+                                    label: "Chính sách tồn kho",
+                                    value:
+                                        item.inventoryPolicy === "TRACK_STOCK"
+                                            ? "Theo dõi tồn kho"
+                                            : "Không theo dõi"
+                                },
+                                {
+                                    label: "Trạng thái",
+                                    value: (
+                                        <CatalogStatusBadge status={item.status} />
+                                    )
+                                }
+                            ]}
+                        />
+                    );
+                }}
                 formFields={[
                     {
                         name: "productId",
