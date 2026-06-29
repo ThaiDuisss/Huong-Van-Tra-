@@ -2,7 +2,6 @@ import { Eye, History, ArrowUpDown, X, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { Breadcrumbs } from "../../manufacturing/components/shared/Breadcrumbs";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import {
