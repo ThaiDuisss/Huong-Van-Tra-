@@ -118,11 +118,14 @@ public class FileController {
     }
 
     @PutMapping("/attach")
-    public ApiResponse<Integer> downloadUrl(
+    public ApiResponse<Integer> attachFile(
             @RequestBody FileAttach fileAttach,
             HttpServletRequest servletRequest
     ) {
-        return ApiResponse.<Integer>builder().data(fileService.attachFile(fileAttach)).build();
+        UserHeaderInformation userHeader = UserHeaderInformation.fromRequest(servletRequest);
+        UUID userId = extractUserId(userHeader);
+
+        return ApiResponse.<Integer>builder().data(fileService.attachFile(fileAttach, userId)).build();
     }
 
     /**

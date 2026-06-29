@@ -1,16 +1,24 @@
 package org.hvtra.orderservice.service.impl;
 
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.request.PaymentCreateRequest;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.domain.entity.*;
+import org.hvtra.orderservice.dto.response.PaymentResponse;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.exception.*;
 import org.hvtra.orderservice.repository.OrderRepository;
@@ -25,6 +33,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
     private static final String ORDER_STATUS_PENDING = "PENDING";
@@ -33,9 +42,11 @@ public class OrderServiceImpl implements OrderService {
     private static final String PAYMENT_STATUS_PAID = "PAID";
     private static final String FULFILLMENT_STATUS_PENDING = "PENDING";
 
+    private  final PaymentClient paymentClient;
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final CatalogClient catalogClient;
+    private final OrderCustomerServiceImpl orderCustomerServiceImpl;
 
     @Override
     @Transactional
@@ -53,7 +64,6 @@ public class OrderServiceImpl implements OrderService {
                 .orderType(request.getOrderType() == null ? "POS" : request.getOrderType())
                 .status(OrderStatus.PENDING_PAYMENT)
                 .paymentStatus(PaymentStatus.WAITING_PAYMENT)
-                .fulfillmentStatus(FULFILLMENT_STATUS_PENDING)
                 .originalAmount(BigDecimal.ZERO)
                 .discountAmount(defaultZero(request.getDiscountAmount()))
                 .shippingFee(BigDecimal.ZERO)
@@ -145,17 +155,20 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
         Order order = getExistingOrder(orderId);
 
-        if (PaymentStatus.PAID.toString().equalsIgnoreCase(order.getPaymentStatus().toString())  ) {
+        if (PaymentStatus.PAID.toString().equalsIgnoreCase(order.getPaymentStatus().toString())) {
             throw new OrderAlreadyPaidException("Đơn hàng đã được thanh toán");
         }
 
         BigDecimal paidAmount = defaultZero(request.getPaidAmount());
+
         // Kiểm tra số tiền Payment-Service gửi sang có đủ thanh toán đơn không
         if (paidAmount.compareTo(order.getFinalAmount()) < 0) {
             throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
         }
+
         // Lưu trạng thái cũ để ghi vào order_status_history
         OrderStatus oldStatus = order.getStatus();
+
         // Cập nhật đơn hàng sau khi Payment-Service đã lưu payment thành công
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.COMPLETED);
@@ -163,6 +176,7 @@ public class OrderServiceImpl implements OrderService {
         order.setDebtAmount(BigDecimal.ZERO);
 
         Order savedOrder = orderRepository.save(order);
+
         // Lưu lịch sử chuyển trạng thái từ PENDING sang COMPLETED
         saveStatusHistory(
                 savedOrder,
@@ -171,6 +185,10 @@ public class OrderServiceImpl implements OrderService {
                 "Thanh toán thành công, mã thanh toán: " + request.getPaymentCode(),
                 request.getChangedBy()
         );
+
+        // Gọi Customer-Service để cập nhật mua hàng / tích điểm
+        // Chỗ này sẽ được bảo vệ bởi Resilience4j trong OrderCustomerServiceImpl, nếu Customer-Service lỗi thì vẫn cho phép thanh toán thành công
+        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
 
         return toResponse(savedOrder);
     }
@@ -211,7 +229,6 @@ public class OrderServiceImpl implements OrderService {
                 .orderType(order.getOrderType())
                 .status(order.getStatus())
                 .paymentStatus(order.getPaymentStatus())
-                .fulfillmentStatus(order.getFulfillmentStatus())
                 .originalAmount(order.getOriginalAmount())
                 .discountAmount(order.getDiscountAmount())
                 .shippingFee(order.getShippingFee())
@@ -245,4 +262,26 @@ public class OrderServiceImpl implements OrderService {
     private String generateOrderCode() {
         return "ORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
     }
+
+
+    @CircuitBreaker(name = "paymentService", fallbackMethod = "createPaymentFallback")
+    @Retry(name = "paymentService", fallbackMethod = "createPaymentFallback")
+    @Bulkhead(name = "paymentService", fallbackMethod = "createPaymentFallback")
+    @RateLimiter(name = "paymentService", fallbackMethod = "createPaymentFallback")
+    public PaymentResponse createPayment(PaymentCreateRequest request) {
+        return paymentClient.createPayment(request).getData();
+    }
+
+    private PaymentResponse createPaymentFallback(PaymentCreateRequest request, Throwable ex) {
+        log.error("Payment Service unavailable. orderId={}, reason={}",
+                request.getOrderId(),
+                ex.getMessage(),
+                ex
+        );
+
+        return PaymentResponse.builder()
+                .orderId(request.getOrderId())
+                .build();
+    }
+
 }

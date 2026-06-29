@@ -22,7 +22,9 @@
         <springdoc.version>2.8.9</springdoc.version>
         <mysql.version>8.0.33</mysql.version>
         <common.version>0.0.1-SNAPSHOT</common.version>
-
+        <resilience4j.version>2.4.0</resilience4j.version>
+        <arvo-version>1.11.3</arvo-version>
+        <kafka-arvo-version>7.6.1</kafka-arvo-version>
     </properties>
 
     <modules>
@@ -47,6 +49,13 @@
 
     </modules>
 
+    <repositories>
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+    </repositories>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -60,6 +69,13 @@
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-bom</artifactId>
+                <version>${resilience4j.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -107,9 +123,21 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro</artifactId>
+                <version>${arvo-version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-avro-serializer</artifactId>
+                <version>${kafka-arvo-version}</version>
+            </dependency>
 
         </dependencies>
     </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>

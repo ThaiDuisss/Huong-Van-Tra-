@@ -2,7 +2,7 @@ package org.hvtra.paymentservice.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.paymentservice.dto.request.CashPaymentRequest;
+import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.response.CashPaymentResponse;
 import org.hvtra.paymentservice.service.PaymentService;
 import org.springframework.http.HttpStatus;
@@ -16,17 +16,15 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    @PostMapping("/cash")
+    @PostMapping("")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Thanh toán bằng tiền mặt")
-    public CashPaymentResponse payByCash(@Valid @RequestBody CashPaymentRequest request) {
+    public CashPaymentResponse payByCash(@Valid @RequestBody CheckoutRequest request) {
         return paymentService.payByCash(request);
     }
 
     @PostMapping("/webhooks/sepay")
-    @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Thanh toán bằng tiền mặt")
-    public CashPaymentResponse payByCash(@Valid @RequestBody CashPaymentRequest request) {
-        return paymentService.payByCash(request);
+    public void getWebhooks(@Valid @RequestBody CheckoutRequest request) {
+//        return paymentService.payByCash(request);
     }
 }

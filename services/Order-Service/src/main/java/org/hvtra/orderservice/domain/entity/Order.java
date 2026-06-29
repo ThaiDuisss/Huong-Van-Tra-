@@ -49,9 +49,6 @@ public class Order extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private PaymentStatus paymentStatus;
 
-    @Column(name = "fulfillment_status", length = 50)
-    private String fulfillmentStatus;
-
     @Column(name = "original_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal originalAmount;
 

@@ -1,6 +1,7 @@
 package org.hvtra.customer.service;
 
 import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
+import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
 import org.hvtra.customer.dto.response.LoyaltyAccountResponse;
 
 import java.util.List;
@@ -16,6 +17,8 @@ public interface LoyaltyAccountService {
     LoyaltyAccountResponse create(LoyaltyAccountRequest request);
 
     LoyaltyAccountResponse update(UUID id, LoyaltyAccountRequest request);
+
+    LoyaltyAccountResponse updateBalance(LoyaltyTransactionRequest request);
 
     void delete(UUID id);
 }

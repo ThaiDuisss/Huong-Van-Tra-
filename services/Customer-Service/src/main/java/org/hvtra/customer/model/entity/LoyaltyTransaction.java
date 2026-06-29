@@ -39,7 +39,6 @@ public class LoyaltyTransaction extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private LoyaltyReferenceType referenceType;
 
-    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "reference_id", columnDefinition = "BINARY(16)")
     private UUID referenceId;
 }

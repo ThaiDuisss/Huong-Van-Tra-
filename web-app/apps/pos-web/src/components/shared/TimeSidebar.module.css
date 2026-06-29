@@ -1,0 +1,36 @@
+.pane {
+  position: relative;
+  min-width: 0;
+}
+
+.pane > aside {
+  height: 100%;
+}
+
+.collapseButton {
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  z-index: 3;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #536078;
+}
+
+.collapsedButton {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  gap: 2px;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #07883a;
+  box-shadow: 0 12px 28px rgb(31 53 43 / 0.06);
+}

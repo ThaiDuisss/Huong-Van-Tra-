@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @Data
-public class CashPaymentRequest {
+public class CheckoutRequest {
 
     @NotNull(message = "orderId không được null")
     private UUID orderId;
@@ -16,6 +16,9 @@ public class CashPaymentRequest {
     @NotNull(message = "receivedAmount không được null")
     @DecimalMin(value = "0.00", inclusive = false, message = "receivedAmount phải lớn hơn 0")
     private BigDecimal receivedAmount;
+
+    @NotNull(message = "Payment method not null")
+    private String paymentMethod;
 
     private UUID createdBy;
 }
