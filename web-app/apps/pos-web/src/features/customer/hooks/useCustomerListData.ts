@@ -48,7 +48,7 @@ export function useCustomerListData(queryString: string) {
             }
         });
         void customerApi
-            .list(toCustomerQuery(new URLSearchParams(queryString), 0, 10))
+            .list(toCustomerQuery(new URLSearchParams(queryString), 0, 10, tiers))
             .then((response) => {
                 if (active) setResult(response);
             })
@@ -64,7 +64,7 @@ export function useCustomerListData(queryString: string) {
         return () => {
             active = false;
         };
-    }, [queryString, reloadKey]);
+    }, [queryString, reloadKey, tiers]);
 
     const loadMore = useCallback(async () => {
         if (!result || result.last || loadingMore) return;
@@ -75,7 +75,8 @@ export function useCustomerListData(queryString: string) {
                 toCustomerQuery(
                     new URLSearchParams(queryString),
                     result.page + 1,
-                    result.size
+                    result.size,
+                    tiers
                 )
             );
             setResult({
@@ -87,7 +88,7 @@ export function useCustomerListData(queryString: string) {
         } finally {
             setLoadingMore(false);
         }
-    }, [loadingMore, queryString, result]);
+    }, [loadingMore, queryString, result, tiers]);
 
     return {
         tiers,
