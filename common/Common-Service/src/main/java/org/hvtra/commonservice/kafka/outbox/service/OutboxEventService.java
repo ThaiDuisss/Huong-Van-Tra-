@@ -1,11 +1,11 @@
-package org.hvtra.commonservice.outbox.service;
+package org.hvtra.commonservice.kafka.outbox.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.outbox.entity.BaseOutboxEvent;
-import org.hvtra.commonservice.outbox.factory.OutboxEventFactory;
-import org.hvtra.commonservice.outbox.repository.BaseOutboxEventRepository;
+import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.kafka.outbox.factory.OutboxEventFactory;
+import org.hvtra.commonservice.kafka.outbox.repository.BaseOutboxEventRepository;
 
 import java.util.UUID;
 

@@ -1,23 +1,13 @@
-package org.hvtra.commonservice.outbox.service;
+package org.hvtra.commonservice.kafka.outbox.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.hvtra.commonservice.outbox.entity.BaseOutboxEvent;
-import org.hvtra.commonservice.outbox.enums.OutboxStatus;
-import org.hvtra.commonservice.outbox.repository.BaseOutboxEventRepository;
-import org.hvtra.commonservice.outbox.resolver.OutboxTopicResolver;
+import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.kafka.outbox.repository.BaseOutboxEventRepository;
+import org.hvtra.commonservice.kafka.outbox.resolver.OutboxTopicResolver;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.kafka.core.KafkaTemplate;
-
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RequiredArgsConstructor

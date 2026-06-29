@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.outbox.enums;
+package org.hvtra.commonservice.kafka.outbox.enums;
 
 public enum OutboxStatus {
     PENDING,

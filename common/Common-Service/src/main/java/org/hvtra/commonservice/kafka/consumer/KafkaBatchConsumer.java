@@ -1,4 +1,7 @@
 package org.hvtra.commonservice.kafka.consumer;
 
-public interface KafkaBatchConsumer {
+import java.util.List;
+
+public interface KafkaBatchConsumer<T> {
+    void receive(List<T> messages, List<String> keys, List<Integer> partitions, List<Long> offsets);
 }
