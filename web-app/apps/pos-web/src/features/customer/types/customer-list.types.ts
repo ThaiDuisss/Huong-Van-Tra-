@@ -1,5 +1,7 @@
 import type { CustomerStatus } from "./customer.types";
 
+export type CustomerPrimaryTab = "all" | "care" | "loyal" | "new" | "inactive";
+
 export type PurchasedFilter = "" | "true" | "false";
 
 export interface CustomerFilterDraft {

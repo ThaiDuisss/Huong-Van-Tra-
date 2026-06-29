@@ -1,68 +1,69 @@
-import {
-    AlertCircle,
-    ChevronDown,
-    Download,
-    Filter,
-    LoaderCircle,
-    Plus,
-    RefreshCw,
-    Search,
-    X
-} from "lucide-react";
-import { type FormEvent, useCallback, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { keycloak } from "../../../auth/keycloak";
 import { Dialog } from "../../../components/ui/dialog";
 import { CustomerCreateDialog } from "../components/CustomerCreateDialog";
 import { CustomerDeleteDialog } from "../components/CustomerDeleteDialog";
 import { CustomerDetailDrawer } from "../components/CustomerDetailDrawer";
-import { CustomerFilterDialog } from "../components/CustomerFilterDialog";
+import {
+    CustomerEmptyState,
+    CustomerInnerTabs,
+    CustomerListToolbar,
+    CustomerLoadingState,
+    CustomerOuterTabs,
+    CustomerPageHeader
+} from "../components/CustomerPageSections";
 import { CustomerTable } from "../components/CustomerTable";
 import {
-    CUSTOMER_BUTTON_BASE,
-    CUSTOMER_COMPACT_BUTTON,
-    CUSTOMER_OUTLINE_BUTTON,
-    CUSTOMER_QUICK_VIEWS,
-    CUSTOMER_SORT_OPTIONS,
-    CUSTOMER_STATUS_LABELS,
-    EMPTY_CUSTOMER_FILTER
+    CUSTOMER_DEFAULT_SORT_BY_TAB,
+    CUSTOMER_SECONDARY_TABS,
+    CUSTOMER_STATUS_LABELS
 } from "../constants/customer-list.constants";
 import { useCustomerListData } from "../hooks/useCustomerListData";
 import { customerApi } from "../services/customer.api";
+import type { CustomerPrimaryTab } from "../types/customer-list.types";
 import type {
-    CustomerFilterDraft,
-    CustomerQuickViewId
-} from "../types/customer-list.types";
-import type { CustomerResponse } from "../types/customer.types";
+    CustomerResponse,
+    CustomerSort
+} from "../types/customer.types";
 import {
-    appendCustomerFilterDraft,
     customerErrorMessage,
-    customerFilterDraftFromParams,
-    customerQuickViewParams,
-    getActiveCustomerQuickView,
-    getAppliedCustomerFilters,
     getCustomerSort,
     toCustomerQuery
 } from "../utils/customer-list.utils";
 
+const PRIMARY_TAB_VALUES: CustomerPrimaryTab[] = [
+    "all",
+    "care",
+    "loyal",
+    "new",
+    "inactive"
+];
+
 export function CustomerListPage() {
     const [searchParams, setSearchParams] = useSearchParams();
+    const preferredTab = getPreferredTab();
+    const activeTab = getPrimaryTab(searchParams, preferredTab);
+    const activeSegment = getSecondaryTab(searchParams, activeTab);
     const [searchDraft, setSearchDraft] = useState(searchParams.get("q") ?? "");
-    const [showFilters, setShowFilters] = useState(false);
+    const [sortTouched, setSortTouched] = useState(searchParams.has("sort"));
+    const [bulkSelection, setBulkSelection] = useState(false);
+    const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(
+        () => new Set()
+    );
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [editingCustomer, setEditingCustomer] =
         useState<CustomerResponse | null>(null);
     const [deletingCustomer, setDeletingCustomer] =
         useState<CustomerResponse | null>(null);
-    const [filterDraft, setFilterDraft] = useState<CustomerFilterDraft>(() =>
-        customerFilterDraftFromParams(searchParams)
-    );
     const [exporting, setExporting] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState("");
     const [selectedCustomer, setSelectedCustomer] =
         useState<CustomerResponse | null>(null);
+
     const queryString = searchParams.toString();
     const {
         tiers,
@@ -75,8 +76,35 @@ export function CustomerListPage() {
         loadMore,
         reload
     } = useCustomerListData(queryString);
-    const activeQuickView = getActiveCustomerQuickView(searchParams, tiers);
-    const appliedFilters = getAppliedCustomerFilters(searchParams, tiers);
+    const sort = getCustomerSort(searchParams);
+    const total = result?.totalElements ?? 0;
+    const counts = buildTabCounts(activeTab, customers, total);
+
+    useEffect(() => {
+        if (searchParams.get("view")) return;
+        setSearchParams(
+            buildCustomerParams({
+                current: searchParams,
+                primaryTab: preferredTab,
+                secondaryTab: "all",
+                sort: CUSTOMER_DEFAULT_SORT_BY_TAB[preferredTab]
+            }),
+            { replace: true }
+        );
+    }, [preferredTab, searchParams, setSearchParams]);
+
+    useEffect(() => {
+        const currentQuery = searchParams.get("q") ?? "";
+        if (searchDraft === currentQuery) return;
+        const handle = window.setTimeout(() => {
+            const next = new URLSearchParams(searchParams);
+            const value = searchDraft.trim();
+            if (value) next.set("q", value);
+            else next.delete("q");
+            setSearchParams(next);
+        }, 400);
+        return () => window.clearTimeout(handle);
+    }, [searchDraft, searchParams, setSearchParams]);
 
     const closeDetail = useCallback(() => {
         setDetailOpen(false);
@@ -102,39 +130,38 @@ export function CustomerListPage() {
         updateParams({ q: searchDraft.trim() || null });
     }
 
-    function applyQuickView(view: CustomerQuickViewId) {
-        const params = customerQuickViewParams(view, tiers);
-        const sort = searchParams.get("sort");
-        if (sort) params.set("sort", sort);
+    function applyPrimaryTab(nextTab: CustomerPrimaryTab) {
+        const params = buildCustomerParams({
+            current: searchParams,
+            primaryTab: nextTab,
+            secondaryTab: "all",
+            sort: sortTouched ? sort : CUSTOMER_DEFAULT_SORT_BY_TAB[nextTab]
+        });
+        setSearchParams(params);
+        setSelectedCustomerIds(new Set());
+    }
+
+    function applySecondaryTab(nextSegment: string) {
+        const params = buildCustomerParams({
+            current: searchParams,
+            primaryTab: activeTab,
+            secondaryTab: nextSegment,
+            sort
+        });
+        setSearchParams(params);
+        setSelectedCustomerIds(new Set());
+    }
+
+    function clearSearch() {
+        const params = buildCustomerParams({
+            current: searchParams,
+            primaryTab: activeTab,
+            secondaryTab: activeSegment,
+            sort
+        });
+        params.delete("q");
         setSearchParams(params);
         setSearchDraft("");
-        setFilterDraft(customerFilterDraftFromParams(params));
-    }
-
-    function applyFilters(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        const next = new URLSearchParams();
-        if (searchDraft.trim()) next.set("q", searchDraft.trim());
-        const sort = searchParams.get("sort");
-        if (sort) next.set("sort", sort);
-        appendCustomerFilterDraft(next, filterDraft);
-        setSearchParams(next);
-        setShowFilters(false);
-    }
-
-    function clearAllFilters() {
-        const sort = searchParams.get("sort");
-        setSearchParams(sort ? { sort } : {});
-        setSearchDraft("");
-        setFilterDraft(EMPTY_CUSTOMER_FILTER);
-    }
-
-    function removeFilter(key: string) {
-        const next = new URLSearchParams(searchParams);
-        next.delete(key);
-        setSearchParams(next);
-        setSearchDraft(next.get("q") ?? "");
-        setFilterDraft(customerFilterDraftFromParams(next));
     }
 
     function updateParams(updates: Record<string, string | null>) {
@@ -146,12 +173,17 @@ export function CustomerListPage() {
         setSearchParams(next);
     }
 
+    function updateSort(nextSort: CustomerSort) {
+        setSortTouched(true);
+        updateParams({ sort: nextSort });
+    }
+
     async function exportCustomers() {
         setExporting(true);
         setError("");
         try {
             const response = await customerApi.list(
-                toCustomerQuery(new URLSearchParams(queryString))
+                toCustomerQuery(new URLSearchParams(queryString), undefined, undefined, tiers)
             );
             const XLSX = await import("xlsx");
             const rows = response.content.map((customer) => ({
@@ -180,87 +212,81 @@ export function CustomerListPage() {
         }
     }
 
+    const showTable = !error && (loading || customers.length > 0);
+    const emptyType = error ? "error" : searchParams.toString() ? "group" : "empty";
+
     return (
         <section className="h-full min-h-0 bg-[#f6f8fb]">
-            <main
-                className="flex h-full min-h-0 flex-col gap-3 p-[18px] text-[#172317] max-xl:p-3.5"
-                aria-labelledby="customer-title"
-            >
-                <form
-                    className="grid grid-cols-[minmax(360px,1fr)_auto_auto_auto] items-center gap-2.5 max-xl:grid-cols-[minmax(0,1fr)_auto_auto]"
+            <main className="flex h-full min-h-0 flex-col gap-3 p-[18px] text-[#172317] max-xl:p-3.5">
+                <CustomerPageHeader
+                    exporting={exporting}
+                    loading={loading}
+                    searchDraft={searchDraft}
+                    onCreate={() => setShowCreateDialog(true)}
+                    onExport={() => void exportCustomers()}
+                    onSearchDraftChange={setSearchDraft}
                     onSubmit={submitSearch}
+                />
+
+                <CustomerOuterTabs
+                    activeTab={activeTab}
+                    counts={counts}
+                    onChange={applyPrimaryTab}
                 >
-                    <label className="flex h-11 min-w-0 items-center gap-2.5 rounded-lg border border-[#dce5e1] bg-white px-[13px] text-[#7a8794] focus-within:border-[#159734] focus-within:shadow-[0_0_0_3px_rgba(21,151,52,0.12)]">
-                        <Search size={18} aria-hidden="true" />
-                        <input
-                            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#172317] outline-none placeholder:text-[#8a96a3]"
-                            onChange={(event) =>
-                                setSearchDraft(event.target.value)
-                            }
-                            placeholder="Tìm tên, SĐT, email hoặc mã khách hàng..."
-                            type="search"
-                            value={searchDraft}
+                    <CustomerInnerTabs
+                        activeSegment={activeSegment}
+                        activeTab={activeTab}
+                        onChange={applySecondaryTab}
+                    >
+                        <CustomerListToolbar
+                            activeTab={activeTab}
+                            bulkSelection={bulkSelection}
+                            selectedCount={selectedCustomerIds.size}
+                            sort={sort}
+                            onBulkSelectionChange={(enabled) => {
+                                setBulkSelection(enabled);
+                                if (!enabled) setSelectedCustomerIds(new Set());
+                            }}
+                            onSortChange={updateSort}
                         />
-                    </label>
-                    <button
-                        className={`${CUSTOMER_BUTTON_BASE} bg-[#159734] text-white hover:bg-[#12862d]`}
-                        onClick={() => setShowCreateDialog(true)}
-                        type="button"
-                    >
-                        <Plus size={17} aria-hidden="true" />
-                        Thêm khách hàng
-                    </button>
-                    <button
-                        aria-expanded={showFilters}
-                        aria-haspopup="dialog"
-                        className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_COMPACT_BUTTON} ${showFilters
-                                ? "border-[#159734] text-[#159734]"
-                                : ""
-                            }`}
-                        onClick={() => setShowFilters((current) => !current)}
-                        type="button"
-                    >
-                        <Filter size={16} aria-hidden="true" />
-                        Bộ lọc
-                        {!!appliedFilters.length && (
-                            <span className="grid size-5 place-items-center rounded-full bg-[#159734] text-[10px] text-white">
-                                {appliedFilters.length}
-                            </span>
+
+                        {showTable && (
+                            loading && !customers.length ? (
+                                <CustomerLoadingState />
+                            ) : (
+                                <CustomerTable
+                                    activeTab={activeTab}
+                                    bulkSelection={bulkSelection}
+                                    customers={customers}
+                                    key={queryString}
+                                    loading={loading}
+                                    loadingMore={loadingMore}
+                                    result={result}
+                                    selectedIds={selectedCustomerIds}
+                                    onSelectedIdsChange={setSelectedCustomerIds}
+                                    onCustomerClick={(customer) =>
+                                        void openCustomerDetail(customer)
+                                    }
+                                    onCustomerDelete={setDeletingCustomer}
+                                    onCustomerEdit={setEditingCustomer}
+                                    onLoadMore={() => void loadMore()}
+                                />
+                            )
                         )}
-                    </button>
-                    <button
-                        className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_OUTLINE_BUTTON} max-xl:col-span-full max-xl:justify-self-start`}
-                        disabled={exporting || loading}
-                        onClick={() => void exportCustomers()}
-                        type="button"
-                    >
-                        {exporting ? (
-                            <LoaderCircle
-                                className="animate-spin"
-                                size={16}
-                                aria-hidden="true"
+
+                        {!showTable && (
+                            <CustomerEmptyState
+                                type={emptyType}
+                                onClearSearch={clearSearch}
+                                onCreate={() => setShowCreateDialog(true)}
+                                onGoAll={() => applyPrimaryTab("all")}
+                                onRetry={() => void reload()}
                             />
-                        ) : (
-                            <Download size={16} aria-hidden="true" />
                         )}
-                        {exporting ? "Đang xuất..." : "Xuất Excel"}
-                    </button>
-                </form>
+                    </CustomerInnerTabs>
+                </CustomerOuterTabs>
 
-                <Dialog onOpenChange={setShowFilters} open={showFilters}>
-                    <CustomerFilterDialog
-                        draft={filterDraft}
-                        tiers={tiers}
-                        onChange={setFilterDraft}
-                        onClear={() => setFilterDraft(EMPTY_CUSTOMER_FILTER)}
-                        onSubmit={applyFilters}
-                    />
-                </Dialog>
-
-                <Dialog
-                    onOpenChange={setShowCreateDialog}
-                    open={showCreateDialog}
-                >
+                <Dialog onOpenChange={setShowCreateDialog} open={showCreateDialog}>
                     {showCreateDialog && (
                         <CustomerCreateDialog
                             tiers={tiers}
@@ -309,122 +335,6 @@ export function CustomerListPage() {
                         />
                     )}
                 </Dialog>
-
-                <div className="flex flex-wrap gap-2" aria-label="Lọc nhanh">
-                    {CUSTOMER_QUICK_VIEWS.map((view) => (
-                        <button
-                            className={`inline-flex h-8 items-center rounded-lg border px-[11px] text-xs font-extrabold transition-colors ${activeQuickView === view.id
-                                    ? "border-[#159734] bg-[#eaf8ed] text-[#0f7d29]"
-                                    : "border-[#dde6e2] bg-white text-[#5f6b7a] hover:bg-[#f7fbf8]"
-                                }`}
-                            disabled={view.id === "vip" && !tiers.length}
-                            key={view.id}
-                            onClick={() => applyQuickView(view.id)}
-                            type="button"
-                        >
-                            {view.label}
-                        </button>
-                    ))}
-                </div>
-
-                {!!appliedFilters.length && (
-                    <div className="flex min-h-[30px] items-center gap-2 overflow-x-auto">
-                        <span className="shrink-0 text-xs font-extrabold text-[#697684]">
-                            Bộ lọc đang áp dụng
-                        </span>
-                        {appliedFilters.map((filter) => (
-                            <button
-                                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-[7px] border border-[#dce8df] bg-white px-[9px] text-xs font-extrabold text-[#334336]"
-                                key={filter.key}
-                                onClick={() => removeFilter(filter.key)}
-                                type="button"
-                            >
-                                {filter.label}
-                                <X size={13} aria-hidden="true" />
-                            </button>
-                        ))}
-                        <button
-                            className="ml-auto shrink-0 bg-transparent text-xs font-black text-[#159734]"
-                            onClick={clearAllFilters}
-                            type="button"
-                        >
-                            Xóa tất cả
-                        </button>
-                    </div>
-                )}
-
-                <div className="flex items-center justify-between gap-3.5 text-[13px] text-[#253225]">
-                    <strong className="font-black">
-                        {(result?.totalElements ?? 0).toLocaleString("vi-VN")}{" "}
-                        khách hàng phù hợp
-                    </strong>
-                    <label className="relative flex h-[34px] items-center rounded-lg border border-[#dce5e1] bg-white text-xs font-extrabold text-[#4c5a67] hover:bg-[#f7fbf8]">
-                        <span className="pl-3.5">Sắp xếp:</span>
-                        <select
-                            aria-label="Sắp xếp danh sách khách hàng"
-                            className="h-full appearance-none bg-transparent py-0 pl-1.5 pr-8 font-extrabold outline-none"
-                            onChange={(event) =>
-                                updateParams({
-                                    sort:
-                                        event.target.value ===
-                                            "lastPurchaseDesc"
-                                            ? null
-                                            : event.target.value
-                                })
-                            }
-                            value={getCustomerSort(searchParams)}
-                        >
-                            {CUSTOMER_SORT_OPTIONS.map((option) => (
-                                <option
-                                    key={option.value}
-                                    value={option.value}
-                                >
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                        <ChevronDown
-                            aria-hidden="true"
-                            className="pointer-events-none absolute right-2.5"
-                            size={15}
-                        />
-                    </label>
-                </div>
-
-                {error && (
-                    <div
-                        className="flex items-center justify-between gap-3 rounded-lg border border-[#f1c8c1] bg-[#fff5f3] px-3.5 py-2.5 text-xs font-bold text-[#a43a2a]"
-                        role="alert"
-                    >
-                        <span className="flex items-center gap-2">
-                            <AlertCircle size={16} aria-hidden="true" />
-                            {error}
-                        </span>
-                        <button
-                            className="inline-flex items-center gap-1.5 text-[#159734]"
-                            onClick={reload}
-                            type="button"
-                        >
-                            <RefreshCw size={14} aria-hidden="true" />
-                            Thử lại
-                        </button>
-                    </div>
-                )}
-
-                <CustomerTable
-                    customers={customers}
-                    error={error}
-                    key={queryString}
-                    loading={loading}
-                    loadingMore={loadingMore}
-                    result={result}
-                    onCustomerClick={(customer) =>
-                        void openCustomerDetail(customer)
-                    }
-                    onCustomerDelete={setDeletingCustomer}
-                    onCustomerEdit={setEditingCustomer}
-                    onLoadMore={() => void loadMore()}
-                />
             </main>
             <CustomerDetailDrawer
                 customer={selectedCustomer}
@@ -437,4 +347,91 @@ export function CustomerListPage() {
             />
         </section>
     );
+}
+
+function getPreferredTab(): CustomerPrimaryTab {
+    const roleNames = ["MANAGER", "manager", "STORE_MANAGER", "store_manager"];
+    const isManager = roleNames.some((role) => {
+        try {
+            return keycloak.hasRealmRole(role) || keycloak.hasResourceRole(role);
+        } catch {
+            return false;
+        }
+    });
+    return isManager ? "care" : "all";
+}
+
+function getPrimaryTab(
+    params: URLSearchParams,
+    fallback: CustomerPrimaryTab
+): CustomerPrimaryTab {
+    const view = params.get("view") as CustomerPrimaryTab | null;
+    return view && PRIMARY_TAB_VALUES.includes(view) ? view : fallback;
+}
+
+function getSecondaryTab(params: URLSearchParams, tab: CustomerPrimaryTab) {
+    const segment = params.get("segment") ?? "all";
+    return CUSTOMER_SECONDARY_TABS[tab].some((item) => item.id === segment)
+        ? segment
+        : "all";
+}
+
+function buildCustomerParams({
+    current,
+    primaryTab,
+    secondaryTab,
+    sort
+}: {
+    current: URLSearchParams;
+    primaryTab: CustomerPrimaryTab;
+    secondaryTab: string;
+    sort: CustomerSort;
+}) {
+    const params = new URLSearchParams();
+    const q = current.get("q");
+    if (q) params.set("q", q);
+    params.set("view", primaryTab);
+    params.set("segment", secondaryTab);
+    params.set("sort", sort);
+    return params;
+}
+
+function buildTabCounts(
+    activeTab: CustomerPrimaryTab,
+    customers: CustomerResponse[],
+    total: number
+): Record<CustomerPrimaryTab, number> {
+    const monthAgo = daysAgo(30);
+    const ninetyDaysAgo = daysAgo(90);
+    return {
+        all: activeTab === "all" ? total : customers.length,
+        care: customers.filter(
+            (customer) =>
+                !customer.lastPurchaseDate ||
+                new Date(`${customer.lastPurchaseDate}T00:00:00`) <= monthAgo
+        ).length,
+        loyal: customers.filter(
+            (customer) =>
+                ["DIAMOND", "PLATINUM", "GOLD", "SILVER"].includes(
+                    customer.tierCode ?? ""
+                ) ||
+                customer.totalSpent >= 1_000_000
+        ).length,
+        new: customers.filter(
+            (customer) => new Date(customer.createdAt) >= monthAgo
+        ).length,
+        inactive: customers.filter(
+            (customer) =>
+                customer.status === "INACTIVE" ||
+                !customer.lastPurchaseDate ||
+                new Date(`${customer.lastPurchaseDate}T00:00:00`) <= ninetyDaysAgo
+        ).length
+    };
+}
+
+function daysAgo(days: number) {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    date.setHours(0, 0, 0, 0);
+    return date;
 }
