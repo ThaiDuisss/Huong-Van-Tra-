@@ -12,4 +12,6 @@ public class OrderStatsResponse {
     private long shipping;
     private long completed;
     private long returnedOrRefunded;
+    private long unpaidInvoices;
+    private long paidInvoices;
 }

@@ -2,13 +2,10 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
-    FilePenLine,
     FileSpreadsheet,
-    ListFilter,
     MoreHorizontal,
     Plus,
-    Search,
-    Settings
+    Search
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -138,8 +135,6 @@ export function OrderListPage() {
         useState<OrderStatusTabKey>("ALL");
     const [dateFilter, setDateFilter] = useState<DateFilterKey>("ALL");
     const [currentPage, setCurrentPage] = useState(0);
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
     const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
     const [activeSummary, setActiveSummary] =
         useState<OrderSummaryResponse | null>(null);
@@ -172,6 +167,7 @@ export function OrderListPage() {
                 keyword: debouncedKeyword,
                 status: activeStatusTab?.status ?? undefined,
                 ...dateRange,
+                sort: "businessStatus",
                 page: currentPage,
                 size: PAGE_SIZE
             })
@@ -262,50 +258,18 @@ export function OrderListPage() {
     const totalPages = Math.max(ordersPage.totalPages ?? 0, 1);
     const totalElements = ordersPage.totalElements ?? 0;
 
-    const selectedVisibleOrders = visibleOrders.filter((order) =>
-        selectedOrderIds.includes(order.id)
-    );
-    const isAllVisibleSelected =
-        visibleOrders.length > 0 &&
-        selectedVisibleOrders.length === visibleOrders.length;
-    const canEditOrder = selectedOrderIds.length === 1;
-
-    const toggleOrderSelection = (orderId: string) => {
-        setSelectedOrderIds((current) =>
-            current.includes(orderId)
-                ? current.filter((id) => id !== orderId)
-                : [...current, orderId]
-        );
-    };
-
-    const toggleVisibleOrders = () => {
-        setSelectedOrderIds((current) => {
-            const visibleIds = visibleOrders.map((order) => order.id);
-
-            if (isAllVisibleSelected) {
-                return current.filter((id) => !visibleIds.includes(id));
-            }
-
-            return Array.from(new Set([...current, ...visibleIds]));
-        });
-    };
-
     const selectFilterStatus = (status: OrderStatusTabKey) => {
         setFilterStatus(status);
-        setIsFilterOpen(false);
         setCurrentPage(0);
-        setSelectedOrderIds([]);
     };
 
     const selectDateFilter = (filter: DateFilterKey) => {
         setDateFilter(filter);
         setCurrentPage(0);
-        setSelectedOrderIds([]);
     };
 
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
-        setSelectedOrderIds([]);
         setCurrentPage(0);
     };
 
@@ -392,58 +356,10 @@ export function OrderListPage() {
                             <Plus size={18} aria-hidden="true" />
                             Đặt hàng
                         </button>
-                        <button
-                            className={styles.secondaryButton}
-                            disabled={!canEditOrder}
-                            type="button"
-                        >
-                            <FilePenLine size={18} aria-hidden="true" />
-                            Sửa đơn
-                        </button>
                         <button className={styles.secondaryButton} type="button">
                             <FileSpreadsheet size={18} aria-hidden="true" />
                             Xuất file
                             <ChevronDown size={16} aria-hidden="true" />
-                        </button>
-                        <div className={styles.filterMenu}>
-                            <button
-                                aria-expanded={isFilterOpen}
-                                aria-label="Lọc trạng thái đơn hàng"
-                                className={`${styles.iconButton} ${
-                                    filterStatus !== "ALL"
-                                        ? styles.activeIconButton
-                                        : ""
-                                }`}
-                                onClick={() =>
-                                    setIsFilterOpen((value) => !value)
-                                }
-                                type="button"
-                            >
-                                <ListFilter size={19} aria-hidden="true" />
-                            </button>
-                            {isFilterOpen ? (
-                                <div className={styles.filterPopover}>
-                                    {ORDER_STATUS_TABS.map((filter) => (
-                                        <button
-                                            className={`${styles.filterOption} ${
-                                                filterStatus === filter.key
-                                                    ? styles.activeFilterOption
-                                                    : ""
-                                            }`}
-                                            key={filter.key}
-                                            onClick={() =>
-                                                selectFilterStatus(filter.key)
-                                            }
-                                            type="button"
-                                        >
-                                            {filter.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : null}
-                        </div>
-                        <button className={styles.iconButton} type="button">
-                            <Settings size={19} aria-hidden="true" />
                         </button>
                     </div>
                 </div>
@@ -488,40 +404,10 @@ export function OrderListPage() {
                             </div>
                         </div>
 
-                        {selectedOrderIds.length > 0 ? (
-                            <div className={styles.bulkBar}>
-                                <strong>
-                                    Đã chọn {selectedOrderIds.length} đơn
-                                </strong>
-                                <button type="button">Xuất file</button>
-                                <button type="button">In hóa đơn</button>
-                                <button type="button">Cập nhật trạng thái</button>
-                                <button
-                                    className={styles.clearBulk}
-                                    onClick={() => setSelectedOrderIds([])}
-                                    type="button"
-                                >
-                                    Bỏ chọn tất cả
-                                </button>
-                            </div>
-                        ) : null}
-
                         <div className={styles.tableWrap}>
                             <table className={styles.orderTable}>
                                 <thead>
                                     <tr>
-                                        <th>
-                                            <button
-                                                aria-label="Chọn tất cả đơn hàng đang hiển thị"
-                                                className={`${styles.checkbox} ${
-                                                    isAllVisibleSelected
-                                                        ? styles.checked
-                                                        : ""
-                                                }`}
-                                                onClick={toggleVisibleOrders}
-                                                type="button"
-                                            />
-                                        </th>
                                         <th>Mã đơn hàng</th>
                                         <th>Trạng thái</th>
                                         <th>Giá trị đơn hàng</th>
@@ -535,7 +421,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>Đang tải đơn hàng</strong>
                                                 <span>
@@ -550,7 +436,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>
                                                     Không tải được danh sách đơn hàng
@@ -573,25 +459,6 @@ export function OrderListPage() {
                                                       selectOrder(order)
                                                   }
                                               >
-                                                  <td>
-                                                      <button
-                                                          aria-label={`Chọn đơn hàng ${getOrderCode(order)}`}
-                                                          className={`${styles.checkbox} ${
-                                                              selectedOrderIds.includes(
-                                                                  order.id
-                                                              )
-                                                                  ? styles.checked
-                                                                  : ""
-                                                          }`}
-                                                          onClick={(event) => {
-                                                              event.stopPropagation();
-                                                              toggleOrderSelection(
-                                                                  order.id
-                                                              );
-                                                          }}
-                                                          type="button"
-                                                      />
-                                                  </td>
                                                   <td className={styles.code}>
                                                       {getOrderCode(order)}
                                                   </td>
@@ -694,7 +561,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>
                                                     Không tìm thấy đơn hàng phù hợp

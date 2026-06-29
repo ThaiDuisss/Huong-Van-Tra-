@@ -29,6 +29,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderController {
 
+    private static final String UUID_PATH = "{orderId:[0-9a-fA-F\\-]{36}}";
+
     private final OrderService orderService;
 
     @Operation(summary = "tao don hang")
@@ -39,19 +41,19 @@ public class OrderController {
     }
 
     @Operation(summary = "lay chi tiet don hang")
-    @GetMapping("/{orderId}")
+    @GetMapping("/" + UUID_PATH)
     public OrderResponse getOrderById(@PathVariable UUID orderId) {
         return orderService.getOrderById(orderId);
     }
 
     @Operation(summary = "api cho Payment-Service gọi để lấy thông tin cần thanh toán của đơn hàng")
-    @GetMapping("/{orderId}/payment-info")
+    @GetMapping("/" + UUID_PATH + "/payment-info")
     public OrderPaymentInfoResponse getPaymentInfo(@PathVariable UUID orderId) {
         return orderService.getPaymentInfo(orderId);
     }
 
     @Operation(summary = "Api cho Payment-Service gọi sau khi thanh toán thành công để cập nhật trạng thái đơn hàng")
-    @PutMapping("/{orderId}/mark-paid")
+    @PutMapping("/" + UUID_PATH + "/mark-paid")
     public OrderResponse markOrderPaid(
             @PathVariable UUID orderId,
             @Valid @RequestBody MarkOrderPaidRequest request
@@ -66,6 +68,7 @@ public class OrderController {
             @RequestParam(required = false) String orderType,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "businessStatus") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
@@ -76,6 +79,7 @@ public class OrderController {
                 orderType,
                 fromDate,
                 toDate,
+                sort,
                 page,
                 size
         );
@@ -105,7 +109,7 @@ public class OrderController {
         return orderService.getOrderStats(fromDate, toDate);
     }
 
-    @PutMapping("/{orderId}/status")
+    @PutMapping("/" + UUID_PATH + "/status")
     public OrderResponse updateOrderStatus(
             @PathVariable UUID orderId,
             @Valid @RequestBody UpdateOrderStatusRequest request
@@ -113,7 +117,7 @@ public class OrderController {
         return orderService.updateOrderStatus(orderId, request);
     }
 
-    @PutMapping("/{orderId}/cancel")
+    @PutMapping("/" + UUID_PATH + "/cancel")
     public OrderResponse cancelOrder(
             @PathVariable UUID orderId,
             @Valid @RequestBody CancelOrderRequest request

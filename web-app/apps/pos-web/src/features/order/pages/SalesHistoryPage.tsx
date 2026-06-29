@@ -1,85 +1,160 @@
 import { AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { SalesHistoryFilters } from "../components/sales-history/SalesHistoryFilters";
 import { SalesOrderDetailDrawer } from "../components/sales-history/SalesOrderDetailDrawer";
 import { SalesOrdersTable } from "../components/sales-history/SalesOrdersTable";
 import { SalesSummaryCards } from "../components/sales-history/SalesSummaryCards";
-import { getTodaySalesHistory } from "../services/sales-history.api";
+import {
+    getSalesOrderDetail,
+    getTodaySales,
+    getTodaySalesSummary
+} from "../services/sales-history.api";
 import type {
     SalesHistoryFilters as SalesHistoryFilterValues,
     SalesHistoryOrder,
-    SalesHistoryResponse
+    SalesHistoryPageResponse,
+    SalesHistorySummary,
+    SalesOrderDetail
 } from "../types/sales-history.types";
 import styles from "./SalesHistoryPage.module.css";
+
+const PAGE_SIZE = 20;
 
 const defaultFilters: SalesHistoryFilterValues = {
     status: "ALL",
     paymentMethod: "ALL"
 };
 
-const emptyResponse: SalesHistoryResponse = {
-    summary: {
-        totalOrders: 0,
-        completedOrders: 0,
-        pendingPaymentOrders: 0,
-        cancelledOrders: 0,
-        grossAmount: 0,
-        discountAmount: 0,
-        netRevenue: 0,
-        averageOrderValue: 0,
-        totalItemsSold: 0,
-        receivableAmount: 0
-    },
-    filterCounts: {
-        status: {
-            ALL: 0,
-            UNPAID: 0,
-            PAID: 0,
-            CANCELLED: 0
-        },
-        paymentMethod: {
-            ALL: 0,
-            CASH: 0,
-            BANK_TRANSFER: 0,
-            DEBT: 0
-        }
-    },
-    orders: []
+const emptySummary: SalesHistorySummary = {
+    todayRevenue: 0,
+    totalOrders: 0,
+    completedOrders: 0,
+    pendingPaymentOrders: 0,
+    averageOrderValue: 0,
+    pendingAmount: 0
 };
+
+const emptyPage: SalesHistoryPageResponse<SalesHistoryOrder> = {
+    content: [],
+    totalElements: 0,
+    totalPages: 0,
+    number: 0,
+    size: PAGE_SIZE
+};
+
+function getErrorMessage(error: unknown) {
+    if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof error.message === "string"
+    ) {
+        return error.message;
+    }
+
+    return "Không thể tải lịch sử bán hàng. Vui lòng thử lại.";
+}
 
 export function SalesHistoryPage() {
     const [filters, setFilters] =
         useState<SalesHistoryFilterValues>(defaultFilters);
-    const [data, setData] = useState<SalesHistoryResponse>(emptyResponse);
+    const [summary, setSummary] = useState<SalesHistorySummary>(emptySummary);
+    const [ordersPage, setOrdersPage] = useState(emptyPage);
+    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
     const [selectedOrder, setSelectedOrder] =
-        useState<SalesHistoryOrder | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+        useState<SalesOrderDetail | null>(null);
+    const [summaryLoading, setSummaryLoading] = useState(true);
+    const [listLoading, setListLoading] = useState(true);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [summaryError, setSummaryError] = useState<string | null>(null);
+    const [listError, setListError] = useState<string | null>(null);
+    const [detailError, setDetailError] = useState<string | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const loadSummary = useCallback(() => {
+        setSummaryLoading(true);
+        setSummaryError(null);
+
+        return getTodaySalesSummary()
+            .then((response) => {
+                setSummary(response);
+            })
+            .catch((error: unknown) => {
+                setSummary(emptySummary);
+                setSummaryError(getErrorMessage(error));
+            })
+            .finally(() => {
+                setSummaryLoading(false);
+            });
+    }, []);
+
+    const loadOrders = useCallback(() => {
+        setListLoading(true);
+        setListError(null);
+
+        return getTodaySales({
+            filters,
+            page: 0,
+            size: PAGE_SIZE
+        })
+            .then((response) => {
+                setOrdersPage({
+                    ...emptyPage,
+                    ...response,
+                    content: response.content ?? []
+                });
+            })
+            .catch((error: unknown) => {
+                setOrdersPage(emptyPage);
+                setListError(getErrorMessage(error));
+            })
+            .finally(() => {
+                setListLoading(false);
+            });
+    }, [filters]);
 
     useEffect(() => {
         let ignore = false;
         const timerId = window.setTimeout(() => {
-            setLoading(true);
-            setError(null);
+            Promise.all([loadSummary(), loadOrders()]).then(() => {
+                if (ignore) {
+                    return;
+                }
+            });
+        }, 0);
 
-            getTodaySalesHistory(filters)
+        return () => {
+            ignore = true;
+            window.clearTimeout(timerId);
+        };
+    }, [loadOrders, loadSummary, refreshKey]);
+
+    useEffect(() => {
+        if (!selectedOrderId) {
+            return;
+        }
+
+        let ignore = false;
+        const timerId = window.setTimeout(() => {
+            setDetailLoading(true);
+            setDetailError(null);
+            setSelectedOrder(null);
+
+            getSalesOrderDetail(selectedOrderId)
                 .then((response) => {
                     if (!ignore) {
-                        setData(response);
+                        setSelectedOrder(response);
                     }
                 })
-                .catch(() => {
+                .catch((error: unknown) => {
                     if (!ignore) {
-                        setData(emptyResponse);
-                        setError(
-                            "Không thể tải lịch sử bán hàng. Vui lòng thử lại."
-                        );
+                        setDetailError(getErrorMessage(error));
                     }
                 })
                 .finally(() => {
                     if (!ignore) {
-                        setLoading(false);
+                        setDetailLoading(false);
                     }
                 });
         }, 0);
@@ -88,11 +163,24 @@ export function SalesHistoryPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [filters]);
+    }, [selectedOrderId]);
 
-    const handlePrint = (order: SalesHistoryOrder) => {
+    const closeDetail = () => {
+        setSelectedOrderId(null);
+        setSelectedOrder(null);
+        setDetailError(null);
+        setDetailLoading(false);
+    };
+
+    const handlePrintDetail = (order: SalesOrderDetail) => {
+        console.log("TODO: In lại hóa đơn", order.orderCode || order.orderId);
+    };
+
+    const handlePrintFromTable = (order: SalesHistoryOrder) => {
         console.log("TODO: In lại hóa đơn", order.orderCode);
     };
+
+    const error = summaryError || listError;
 
     return (
         <section className={styles.page}>
@@ -110,7 +198,7 @@ export function SalesHistoryPage() {
                 </div>
                 <button
                     className={styles.refreshButton}
-                    onClick={() => setFilters({ ...filters })}
+                    onClick={() => setRefreshKey((key) => key + 1)}
                     type="button"
                 >
                     <RefreshCw size={17} aria-hidden="true" />
@@ -126,27 +214,29 @@ export function SalesHistoryPage() {
             ) : null}
 
             <SalesSummaryCards
-                summary={data.summary}
-                loading={loading}
+                summary={summary}
+                loading={summaryLoading}
             />
 
             <SalesHistoryFilters
                 value={filters}
-                counts={data.filterCounts}
                 onChange={setFilters}
             />
 
             <SalesOrdersTable
-                orders={data.orders}
-                loading={loading}
-                onOpenDetail={setSelectedOrder}
-                onPrint={handlePrint}
+                orders={ordersPage.content}
+                loading={listLoading}
+                onOpenDetail={setSelectedOrderId}
+                onPrint={handlePrintFromTable}
             />
 
             <SalesOrderDetailDrawer
                 order={selectedOrder}
-                onClose={() => setSelectedOrder(null)}
-                onPrint={handlePrint}
+                loading={detailLoading}
+                error={detailError}
+                open={Boolean(selectedOrderId)}
+                onClose={closeDetail}
+                onPrint={handlePrintDetail}
             />
         </section>
     );

@@ -7,30 +7,34 @@ import {
     ReceiptText
 } from "lucide-react";
 
-import { getSalesPaymentMethod } from "../../constants/sales-history-options";
-import type { SalesHistoryOrder } from "../../types/sales-history.types";
+import type {
+    SalesHistoryOrder,
+    SalesPaymentMethod
+} from "../../types/sales-history.types";
 import {
     formatCurrency,
+    formatQuantity,
     formatSaleTime,
+    getOrderSaleTime,
     getSalesOrderCustomer,
     getSalesPaymentMethodLabel,
-    getSalesPaymentStatusLabel
+    getSalesStatusLabel
 } from "../../utils/sales-history-formatters";
 import styles from "../../pages/SalesHistoryPage.module.css";
 
 interface SalesOrdersTableProps {
     orders: SalesHistoryOrder[];
     loading: boolean;
-    onOpenDetail: (order: SalesHistoryOrder) => void;
+    onOpenDetail: (orderId: string) => void;
     onPrint: (order: SalesHistoryOrder) => void;
 }
 
-function getPaymentIcon(method: SalesHistoryOrder["paymentMethod"]) {
+function getPaymentIcon(method?: SalesPaymentMethod | null) {
     if (method === "CASH") {
         return Banknote;
     }
 
-    if (method === "BANK_TRANSFER") {
+    if (method === "BANK_TRANSFER" || method === "TRANSFER" || method === "QR_CODE") {
         return Landmark;
     }
 
@@ -38,11 +42,11 @@ function getPaymentIcon(method: SalesHistoryOrder["paymentMethod"]) {
 }
 
 function getStatusClass(order: SalesHistoryOrder) {
-    if (order.paymentStatus === "PAID") {
+    if (order.paymentStatus === "PAID" || order.status === "COMPLETED") {
         return styles.statusPaid;
     }
 
-    if (order.orderStatus === "CANCELLED") {
+    if (order.status === "CANCELLED") {
         return styles.statusCancelled;
     }
 
@@ -94,6 +98,7 @@ export function SalesOrdersTable({
                             <th>Mã hóa đơn</th>
                             <th>Thời gian</th>
                             <th>Khách hàng</th>
+                            <th>Nhân viên</th>
                             <th>Số món</th>
                             <th>Tổng tiền</th>
                             <th>Thanh toán</th>
@@ -103,14 +108,14 @@ export function SalesOrdersTable({
                     </thead>
                     <tbody>
                         {orders.map((order) => {
-                            const paymentMethod =
-                                getSalesPaymentMethod(order);
-                            const PaymentIcon = getPaymentIcon(paymentMethod);
+                            const PaymentIcon = getPaymentIcon(
+                                order.paymentMethod
+                            );
 
                             return (
                                 <tr
                                     key={order.orderId}
-                                    onClick={() => onOpenDetail(order)}
+                                    onClick={() => onOpenDetail(order.orderId)}
                                 >
                                     <td>
                                         <button
@@ -120,7 +125,11 @@ export function SalesOrdersTable({
                                             {order.orderCode}
                                         </button>
                                     </td>
-                                    <td>{formatSaleTime(order.createdAt)}</td>
+                                    <td>
+                                        {formatSaleTime(
+                                            getOrderSaleTime(order)
+                                        )}
+                                    </td>
                                     <td>
                                         <strong>
                                             {getSalesOrderCustomer(order)}
@@ -133,7 +142,10 @@ export function SalesOrdersTable({
                                             </span>
                                         ) : null}
                                     </td>
-                                    <td>{order.totalItems}</td>
+                                    <td>{order.cashierName || "--"}</td>
+                                    <td>
+                                        {formatQuantity(order.totalItems)}
+                                    </td>
                                     <td>
                                         <strong>
                                             {formatCurrency(order.finalAmount)}
@@ -146,7 +158,8 @@ export function SalesOrdersTable({
                                                 aria-hidden="true"
                                             />
                                             {getSalesPaymentMethodLabel(
-                                                paymentMethod
+                                                order.paymentMethod,
+                                                order.paymentMethodLabel
                                             )}
                                         </span>
                                     </td>
@@ -156,8 +169,9 @@ export function SalesOrdersTable({
                                                 order
                                             )}`}
                                         >
-                                            {getSalesPaymentStatusLabel(
-                                                order.paymentStatus
+                                            {getSalesStatusLabel(
+                                                order.status,
+                                                order.statusLabel
                                             )}
                                         </span>
                                     </td>
@@ -167,7 +181,7 @@ export function SalesOrdersTable({
                                                 aria-label={`Xem chi tiết ${order.orderCode}`}
                                                 onClick={(event) => {
                                                     event.stopPropagation();
-                                                    onOpenDetail(order);
+                                                    onOpenDetail(order.orderId);
                                                 }}
                                                 title="Xem chi tiết"
                                                 type="button"

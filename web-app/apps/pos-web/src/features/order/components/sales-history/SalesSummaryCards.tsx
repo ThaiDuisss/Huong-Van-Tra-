@@ -18,12 +18,12 @@ interface SalesSummaryCardsProps {
 
 const metrics = [
     {
-        key: "netRevenue",
+        key: "todayRevenue",
         label: "Doanh thu hôm nay",
         icon: CircleDollarSign,
         tone: "green",
         getValue: (summary: SalesHistorySummary) =>
-            formatCurrency(summary.netRevenue)
+            formatCurrency(summary.todayRevenue)
     },
     {
         key: "totalOrders",
@@ -58,12 +58,12 @@ const metrics = [
             formatCurrency(summary.averageOrderValue)
     },
     {
-        key: "receivableAmount",
+        key: "pendingAmount",
         label: "Chờ thu",
         icon: HandCoins,
         tone: "orange",
         getValue: (summary: SalesHistorySummary) =>
-            formatCurrency(summary.receivableAmount)
+            formatCurrency(summary.pendingAmount)
     }
 ] as const;
 

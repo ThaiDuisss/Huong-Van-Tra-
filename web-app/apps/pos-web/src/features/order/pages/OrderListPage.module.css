@@ -78,8 +78,7 @@
 }
 
 .primaryButton,
-.secondaryButton,
-.iconButton {
+.secondaryButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -111,59 +110,9 @@
   box-shadow: none;
 }
 
-.iconButton {
-  width: 48px;
-  border: 1px solid #dfe6ee;
-  background: #ffffff;
-  color: #536078;
-}
-
-.activeIconButton {
-  border-color: #07883a;
-  background: #e9f8ed;
-  color: #07883a;
-}
-
-.filterMenu {
-  position: relative;
-}
-
-.filterPopover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 20;
-  display: grid;
-  width: 178px;
-  gap: 4px;
-  border: 1px solid #edf0f4;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 8px;
-  box-shadow: 0 16px 36px rgb(31 53 43 / 0.14);
-}
-
-.filterOption {
-  min-height: 34px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #172317;
-  padding: 0 10px;
-  text-align: left;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.filterOption:hover,
-.activeFilterOption {
-  background: #e9f8ed;
-  color: #07883a;
-}
-
 .tablePanel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   align-self: start;
   min-height: 0;
   border: 1px solid #edf0f4;
@@ -237,40 +186,6 @@
   color: #ffffff;
 }
 
-.bulkBar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid #edf0f4;
-  background: #f5fbf6;
-  padding: 10px 14px;
-  color: #172317;
-  font-size: 13px;
-}
-
-.bulkBar strong {
-  margin-right: 4px;
-  font-weight: 950;
-}
-
-.bulkBar button {
-  height: 32px;
-  border: 1px solid #d8eadc;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #172317;
-  padding: 0 12px;
-  font-size: 13px;
-  font-weight: 850;
-}
-
-.bulkBar .clearBulk {
-  border-color: transparent;
-  background: transparent;
-  color: #df2525;
-}
-
 .tableWrap {
   min-height: 0;
   max-height: calc(100vh - 320px);
@@ -305,22 +220,6 @@
 .orderTable th:first-child,
 .orderTable td:first-child {
   padding-left: 18px;
-}
-
-.checkbox {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #94a3b8;
-  border-radius: 4px;
-  background: #ffffff;
-  padding: 0;
-  vertical-align: middle;
-}
-
-.checked {
-  border-color: #07883a;
-  background: #07883a;
-  box-shadow: inset 0 0 0 3px #ffffff;
 }
 
 .activeRow {

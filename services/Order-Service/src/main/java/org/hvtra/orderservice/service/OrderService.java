@@ -30,6 +30,7 @@ public interface OrderService {
             String orderType,
             LocalDate fromDate,
             LocalDate toDate,
+            String sort,
             int page,
             int size
     );

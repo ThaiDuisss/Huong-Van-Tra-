@@ -1,10 +1,9 @@
 import {
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
-    Download,
+    FileSpreadsheet,
     MoreHorizontal,
-    Plus,
-    Printer,
     Search
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -14,10 +13,11 @@ import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import type { DateFilterKey } from "../../../components/shared/dateFilters";
 import { InvoiceDetailPanel } from "../components/InvoiceDetailPanel";
 import { PaymentStatusBadge } from "../components/PaymentStatusBadge";
-import { getOrderById, getOrders } from "../services/order.api";
+import { getOrderById, getOrders, getOrderStats } from "../services/order.api";
 import type {
     OrderDetailResponse,
     OrderPageResponse,
+    OrderStatsResponse,
     OrderSummaryResponse
 } from "../types/order.types";
 import {
@@ -27,8 +27,7 @@ import {
     formatDateTime,
     getCustomerName,
     getOrderCode,
-    getPaymentStatusText,
-    getStaffName
+    getPaymentStatusText
 } from "../utils/order-formatters";
 import styles from "./InvoiceListPage.module.css";
 
@@ -48,10 +47,21 @@ const INVOICE_PAYMENT_TABS: {
     key: InvoicePaymentTabKey;
     label: string;
     paymentStatus: string | null;
+    countKey: keyof OrderStatsResponse;
 }[] = [
-    { key: "ALL", label: "Tất cả", paymentStatus: null },
-    { key: "UNPAID", label: "Chưa thanh toán", paymentStatus: "UNPAID" },
-    { key: "PAID", label: "Đã thanh toán", paymentStatus: "PAID" }
+    { key: "ALL", label: "Tất cả", paymentStatus: null, countKey: "total" },
+    {
+        key: "UNPAID",
+        label: "Chưa thanh toán",
+        paymentStatus: "UNPAID",
+        countKey: "unpaidInvoices"
+    },
+    {
+        key: "PAID",
+        label: "Đã thanh toán",
+        paymentStatus: "PAID",
+        countKey: "paidInvoices"
+    }
 ];
 
 function getErrorMessage(error: unknown) {
@@ -103,9 +113,9 @@ export function InvoiceListPage() {
     const [selectedRowIndex, setSelectedRowIndex] = useState(0);
     const [selectedDetail, setSelectedDetail] =
         useState<OrderDetailResponse | null>(null);
-    const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
     const [openActionCode, setOpenActionCode] = useState<string | null>(null);
     const [invoicePage, setInvoicePage] = useState(emptyPage);
+    const [stats, setStats] = useState<OrderStatsResponse>({});
     const [isListLoading, setIsListLoading] = useState(false);
     const [listError, setListError] = useState<string | null>(null);
     const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -129,6 +139,7 @@ export function InvoiceListPage() {
                 keyword: debouncedKeyword,
                 paymentStatus: activePaymentTab?.paymentStatus ?? undefined,
                 ...dateRange,
+                sort: "invoicePayment",
                 page: currentPage,
                 size: PAGE_SIZE
             })
@@ -164,6 +175,26 @@ export function InvoiceListPage() {
         dateRange,
         debouncedKeyword
     ]);
+
+    useEffect(() => {
+        let ignore = false;
+
+        getOrderStats(dateRange)
+            .then((response) => {
+                if (!ignore) {
+                    setStats(response ?? {});
+                }
+            })
+            .catch(() => {
+                if (!ignore) {
+                    setStats({});
+                }
+            });
+
+        return () => {
+            ignore = true;
+        };
+    }, [dateRange]);
 
     useEffect(() => {
         if (!selectedOrderId) {
@@ -203,33 +234,6 @@ export function InvoiceListPage() {
     const visibleInvoices = invoicePage.content ?? [];
     const totalPages = Math.max(invoicePage.totalPages ?? 0, 1);
     const totalElements = invoicePage.totalElements ?? 0;
-    const selectedVisibleInvoices = visibleInvoices.filter((order) =>
-        selectedInvoiceIds.includes(order.id)
-    );
-    const isAllVisibleSelected =
-        visibleInvoices.length > 0 &&
-        selectedVisibleInvoices.length === visibleInvoices.length;
-    const canPrintInvoice = selectedInvoiceIds.length === 1;
-
-    const toggleInvoiceSelection = (orderId: string) => {
-        setSelectedInvoiceIds((current) =>
-            current.includes(orderId)
-                ? current.filter((id) => id !== orderId)
-                : [...current, orderId]
-        );
-    };
-
-    const toggleVisibleInvoices = () => {
-        setSelectedInvoiceIds((current) => {
-            const visibleIds = visibleInvoices.map((order) => order.id);
-
-            if (isAllVisibleSelected) {
-                return current.filter((id) => !visibleIds.includes(id));
-            }
-
-            return Array.from(new Set([...current, ...visibleIds]));
-        });
-    };
 
     const handleAction = (
         action: string,
@@ -246,12 +250,10 @@ export function InvoiceListPage() {
     const selectPaymentFilter = (status: InvoicePaymentTabKey) => {
         setFilterPaymentStatus(status);
         setCurrentPage(0);
-        setSelectedInvoiceIds([]);
     };
 
     const selectDateFilter = (status: DateFilterKey) => {
         setDateFilter(status);
-        setSelectedInvoiceIds([]);
         setCurrentPage(0);
     };
 
@@ -302,7 +304,7 @@ export function InvoiceListPage() {
                         <div className={styles.breadcrumbs}>
                             <span>Đơn hàng</span>
                             <ChevronRight size={16} aria-hidden="true" />
-                            <span className={styles.greenText}>Hóa đơn</span>
+                            <span>Hóa đơn</span>
                         </div>
                         <h1>Hóa đơn</h1>
                         <p>
@@ -313,35 +315,22 @@ export function InvoiceListPage() {
 
                     <div className={styles.actions}>
                         <label className={styles.searchBox}>
-                            <Search size={18} aria-hidden="true" />
+                            <Search size={20} aria-hidden="true" />
                             <input
                                 aria-label="Tìm kiếm hóa đơn"
                                 onChange={(event) => {
                                     setSearchTerm(event.target.value);
                                     setCurrentPage(0);
-                                    setSelectedInvoiceIds([]);
                                 }}
                                 placeholder="Tìm mã HĐ, mã ĐH, khách hàng, SĐT..."
                                 value={searchTerm}
                             />
                         </label>
-                        <button className={styles.primaryButton} type="button">
-                            <Plus size={17} aria-hidden="true" />
-                            Tạo thủ công
-                        </button>
-                        <button
-                            className={styles.secondaryButton}
-                            disabled={!canPrintInvoice}
-                            type="button"
-                        >
-                            <Printer size={17} aria-hidden="true" />
-                            In hóa đơn
-                        </button>
                         <button className={styles.secondaryButton} type="button">
-                            <Download size={17} aria-hidden="true" />
-                            Xuất Excel
+                            <FileSpreadsheet size={18} aria-hidden="true" />
+                            Xuất file
+                            <ChevronDown size={16} aria-hidden="true" />
                         </button>
-                        <TeaSetArt />
                     </div>
                 </div>
 
@@ -370,7 +359,11 @@ export function InvoiceListPage() {
                                                 }
                                                 type="button"
                                             >
-                                                {filter.label}
+                                                {filter.label}{" "}
+                                                <span>
+                                                    {stats[filter.countKey] ??
+                                                        0}
+                                                </span>
                                             </button>
                                         ))}
                                     </div>
@@ -381,34 +374,18 @@ export function InvoiceListPage() {
                                     onChange={selectDateFilter}
                                 />
                             </div>
-                            <span className={styles.summaryText}>
-                                Tổng: {totalElements} hóa đơn
-                            </span>
                         </div>
 
                         <div className={styles.tableWrap}>
                             <table className={styles.invoiceTable}>
                                 <thead>
                                     <tr>
-                                        <th>
-                                            <button
-                                                aria-label="Chọn tất cả hóa đơn đang hiển thị"
-                                                className={`${styles.checkbox} ${
-                                                    isAllVisibleSelected
-                                                        ? styles.checked
-                                                        : ""
-                                                }`}
-                                                onClick={toggleVisibleInvoices}
-                                                type="button"
-                                            />
-                                        </th>
                                         <th>Mã HĐ</th>
                                         <th>Thanh toán</th>
                                         <th>Tổng tiền</th>
                                         <th>Khách hàng</th>
                                         <th>Ngày</th>
                                         <th>Mã ĐH</th>
-                                        <th>Nhân viên</th>
                                         <th>Thao tác</th>
                                     </tr>
                                 </thead>
@@ -417,7 +394,7 @@ export function InvoiceListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={9}
+                                                colSpan={7}
                                             >
                                                 <strong>Đang tải hóa đơn</strong>
                                                 <span>
@@ -432,7 +409,7 @@ export function InvoiceListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={9}
+                                                colSpan={7}
                                             >
                                                 <strong>
                                                     Không tải được danh sách hóa đơn
@@ -470,27 +447,6 @@ export function InvoiceListPage() {
                                                           )
                                                       }
                                                   >
-                                                      <td>
-                                                          <button
-                                                              aria-label={`Chọn hóa đơn ${invoiceCode}`}
-                                                              className={`${styles.checkbox} ${
-                                                                  selectedInvoiceIds.includes(
-                                                                      order.id
-                                                                  )
-                                                                      ? styles.checked
-                                                                      : ""
-                                                              }`}
-                                                              onClick={(
-                                                                  event
-                                                              ) => {
-                                                                  event.stopPropagation();
-                                                                  toggleInvoiceSelection(
-                                                                      order.id
-                                                                  );
-                                                              }}
-                                                              type="button"
-                                                          />
-                                                      </td>
                                                       <td>
                                                           <button
                                                               className={
@@ -532,13 +488,6 @@ export function InvoiceListPage() {
                                                       </td>
                                                       <td>
                                                           {getOrderCode(order)}
-                                                      </td>
-                                                      <td>
-                                                          <strong>
-                                                              {getStaffName(
-                                                                  order
-                                                              )}
-                                                          </strong>
                                                       </td>
                                                       <td
                                                           className={
@@ -628,7 +577,7 @@ export function InvoiceListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={9}
+                                                colSpan={7}
                                             >
                                                 <strong>
                                                     Không tìm thấy hóa đơn phù hợp
@@ -730,48 +679,5 @@ export function InvoiceListPage() {
                 </div>
             </div>
         </section>
-    );
-}
-
-function TeaSetArt() {
-    return (
-        <svg
-            className={styles.heroArt}
-            viewBox="0 0 164 72"
-            aria-hidden="true"
-        >
-            <path
-                d="M8 56c18-8 35-10 52-5 24-20 58-26 93-16-14 17-39 26-69 25-26 8-52 8-76-4Z"
-                fill="#4c8d2b"
-                opacity="0.22"
-            />
-            <path
-                d="M100 31c12-12 32-12 43 0 8 9 6 21-7 26-16 6-38 2-44-10-3-6 0-12 8-16Z"
-                fill="#244322"
-            />
-            <ellipse cx="118" cy="32" rx="25" ry="8" fill="#dce8db" />
-            <ellipse cx="118" cy="32" rx="18" ry="5" fill="#315b2c" />
-            <path
-                d="M143 38c13 0 15 13 2 17"
-                fill="none"
-                stroke="#244322"
-                strokeWidth="6"
-                strokeLinecap="round"
-            />
-            <path
-                d="M92 36c-12-6-20-3-25 6"
-                fill="none"
-                stroke="#244322"
-                strokeWidth="6"
-                strokeLinecap="round"
-            />
-            <ellipse cx="62" cy="52" rx="22" ry="9" fill="#244322" />
-            <ellipse cx="62" cy="49" rx="17" ry="6" fill="#dce8db" />
-            <ellipse cx="62" cy="49" rx="10" ry="3" fill="#315b2c" />
-            <path
-                d="M25 50c8-12 20-15 34-9-10 8-22 11-34 9Z"
-                fill="#5c9b36"
-            />
-        </svg>
     );
 }

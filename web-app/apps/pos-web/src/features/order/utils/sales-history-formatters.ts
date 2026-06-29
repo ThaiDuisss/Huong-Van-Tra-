@@ -1,37 +1,45 @@
 import type {
     SalesHistoryOrder,
-    SalesPaymentMethod,
-    SalesPaymentStatus
+    SalesOrderDetail,
+    SalesOrderItemDetail,
+    SalesPaymentMethod
 } from "../types/sales-history.types";
 
-const paymentMethodLabels: Record<SalesPaymentMethod, string> = {
+const paymentMethodLabels: Record<string, string> = {
     CASH: "Tiền mặt",
     BANK_TRANSFER: "Chuyển khoản",
     TRANSFER: "Chuyển khoản",
+    QR_CODE: "Chuyển khoản",
     DEBT: "Công nợ"
-};
-
-const paymentStatusLabels: Record<SalesPaymentStatus, string> = {
-    PAID: "Đã thanh toán",
-    UNPAID: "Chưa thanh toán",
-    PENDING: "Chưa thanh toán",
-    PENDING_PAYMENT: "Chưa thanh toán",
-    CANCELLED: "Đã hủy"
 };
 
 function pad(value: number) {
     return String(value).padStart(2, "0");
 }
 
-export function formatCurrency(value?: number | string | null) {
-    const numericValue =
-        typeof value === "number" ? value : Number(value ?? Number.NaN);
-
-    if (!Number.isFinite(numericValue)) {
-        return "--";
+export function toNumber(value?: number | string | null) {
+    if (value === null || value === undefined || value === "") {
+        return 0;
     }
 
-    return `${numericValue.toLocaleString("vi-VN")} đ`;
+    const numericValue =
+        typeof value === "number" ? value : Number(value);
+
+    return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+export function formatCurrency(value?: number | string | null) {
+    return `${toNumber(value).toLocaleString("vi-VN")} đ`;
+}
+
+export function formatQuantity(value?: number | string | null) {
+    const numericValue = toNumber(value);
+
+    return Number.isInteger(numericValue)
+        ? numericValue.toLocaleString("vi-VN")
+        : numericValue.toLocaleString("vi-VN", {
+              maximumFractionDigits: 3
+          });
 }
 
 export function formatSaleTime(value?: string | null) {
@@ -66,14 +74,59 @@ export function formatSaleDateTime(value?: string | null) {
     )}`;
 }
 
-export function getSalesPaymentMethodLabel(method: SalesPaymentMethod) {
-    return paymentMethodLabels[method] ?? method;
+export function getOrderSaleTime(
+    order: Pick<SalesHistoryOrder, "soldAt" | "createdAt">
+) {
+    return order.soldAt || order.createdAt || null;
 }
 
-export function getSalesPaymentStatusLabel(status: SalesPaymentStatus) {
-    return paymentStatusLabels[status] ?? status;
+export function getDetailSaleTime(order: SalesOrderDetail) {
+    return order.soldAt || order.createdAt || null;
 }
 
-export function getSalesOrderCustomer(order: SalesHistoryOrder) {
-    return order.customerName.trim() || "Khách lẻ";
+export function getSalesPaymentMethodLabel(
+    method?: SalesPaymentMethod | null,
+    label?: string | null
+) {
+    return label?.trim() || (method ? paymentMethodLabels[method] ?? method : "Chưa xác định");
+}
+
+export function getSalesStatusLabel(
+    status?: string | null,
+    label?: string | null
+) {
+    return label?.trim() || status || "--";
+}
+
+export function getSalesOrderCustomer(
+    order: Pick<SalesHistoryOrder, "customerName">
+) {
+    return order.customerName?.trim() || "Khách lẻ";
+}
+
+export function getDetailCustomer(order: SalesOrderDetail) {
+    return order.customerName?.trim() || "Khách lẻ";
+}
+
+export function getOrderId(order: SalesOrderDetail) {
+    return order.orderId || order.id || "";
+}
+
+export function getItemProductName(item: SalesOrderItemDetail) {
+    return (
+        item.productName?.trim() ||
+        item.productNameSnapshot?.trim() ||
+        item.variantName?.trim() ||
+        item.variantNameSnapshot?.trim() ||
+        item.name?.trim() ||
+        "--"
+    );
+}
+
+export function getItemSku(item: SalesOrderItemDetail) {
+    return item.sku?.trim() || item.skuSnapshot?.trim() || "--";
+}
+
+export function getItemUnitPrice(item: SalesOrderItemDetail) {
+    return item.unitPrice ?? item.actualUnitPrice ?? item.price ?? 0;
 }

@@ -1,9 +1,8 @@
 import {
     SALES_PAYMENT_METHOD_OPTIONS,
-    SALES_PAYMENT_STATUS_OPTIONS
+    SALES_STATUS_FILTER_OPTIONS
 } from "../../constants/sales-history-options";
 import type {
-    SalesHistoryFilterCounts,
     SalesHistoryFilters as SalesHistoryFilterValues,
     SalesHistoryPaymentFilter,
     SalesHistoryStatusFilter
@@ -12,13 +11,11 @@ import styles from "../../pages/SalesHistoryPage.module.css";
 
 interface SalesHistoryFiltersProps {
     value: SalesHistoryFilterValues;
-    counts: SalesHistoryFilterCounts;
     onChange: (value: SalesHistoryFilterValues) => void;
 }
 
 interface FilterChipProps<T extends string> {
     active: boolean;
-    count: number;
     label: string;
     value: T;
     onSelect: (value: T) => void;
@@ -26,7 +23,6 @@ interface FilterChipProps<T extends string> {
 
 function FilterChip<T extends string>({
     active,
-    count,
     label,
     value,
     onSelect
@@ -40,14 +36,12 @@ function FilterChip<T extends string>({
             type="button"
         >
             {label}
-            <span>{count.toLocaleString("vi-VN")}</span>
         </button>
     );
 }
 
 export function SalesHistoryFilters({
     value,
-    counts,
     onChange
 }: SalesHistoryFiltersProps) {
     return (
@@ -58,10 +52,9 @@ export function SalesHistoryFilters({
             <div className={styles.filterRow}>
                 <span className={styles.filterLabel}>Trạng thái:</span>
                 <div className={styles.chipGroup}>
-                    {SALES_PAYMENT_STATUS_OPTIONS.map((option) => (
+                    {SALES_STATUS_FILTER_OPTIONS.map((option) => (
                         <FilterChip<SalesHistoryStatusFilter>
                             active={value.status === option.key}
-                            count={counts.status[option.key]}
                             key={option.key}
                             label={option.label}
                             onSelect={(status) =>
@@ -84,7 +77,6 @@ export function SalesHistoryFilters({
                     {SALES_PAYMENT_METHOD_OPTIONS.map((option) => (
                         <FilterChip<SalesHistoryPaymentFilter>
                             active={value.paymentMethod === option.key}
-                            count={counts.paymentMethod[option.key]}
                             key={option.key}
                             label={option.label}
                             onSelect={(paymentMethod) =>

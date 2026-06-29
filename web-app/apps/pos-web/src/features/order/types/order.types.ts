@@ -13,6 +13,7 @@ export interface OrderQueryParams {
     orderType?: string;
     fromDate?: string;
     toDate?: string;
+    sort?: "businessStatus" | "invoicePayment";
     page?: number;
     size?: number;
 }
@@ -108,6 +109,8 @@ export interface OrderStatsResponse {
     shipping?: number | null;
     completed?: number | null;
     returnedOrRefunded?: number | null;
+    unpaidInvoices?: number | null;
+    paidInvoices?: number | null;
 }
 
 export interface UpdateOrderStatusRequest {
