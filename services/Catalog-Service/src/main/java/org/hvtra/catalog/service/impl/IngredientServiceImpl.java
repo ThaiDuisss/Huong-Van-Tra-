@@ -5,13 +5,11 @@ import org.hvtra.catalog.dto.request.IngredientRequest;
 import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.entity.Ingredient;
-import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.IngredientMapper;
 import org.hvtra.catalog.repository.IngredientRepository;
-import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.IngredientService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -25,13 +23,10 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class IngredientServiceImpl implements IngredientService {
     private final IngredientRepository repository;
-    private final UnitRepository unitRepository;
     private final IngredientMapper mapper;
 
-    public IngredientServiceImpl(
-            IngredientRepository repository, UnitRepository unitRepository, IngredientMapper mapper) {
+    public IngredientServiceImpl(IngredientRepository repository, IngredientMapper mapper) {
         this.repository = repository;
-        this.unitRepository = unitRepository;
         this.mapper = mapper;
     }
 
@@ -61,7 +56,7 @@ public class IngredientServiceImpl implements IngredientService {
     public IngredientResponse create(IngredientRequest request) {
         validateCode(request.ingredientCode(), null);
         Ingredient ingredient = new Ingredient();
-        mapper.update(ingredient, request, getUnit(request.baseUnitId()));
+        mapper.update(ingredient, request);
         return mapper.toResponse(repository.save(ingredient));
     }
 
@@ -70,7 +65,7 @@ public class IngredientServiceImpl implements IngredientService {
     public IngredientResponse update(UUID id, IngredientRequest request) {
         validateCode(request.ingredientCode(), id);
         Ingredient ingredient = get(id);
-        mapper.update(ingredient, request, getUnit(request.baseUnitId()));
+        mapper.update(ingredient, request);
         return mapper.toResponse(repository.save(ingredient));
     }
 
@@ -92,9 +87,6 @@ public class IngredientServiceImpl implements IngredientService {
     private Ingredient get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Ingredient", id));
     }
-
-    private Unit getUnit(UUID id) {
-        return unitRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Unit", id));
-    }
 }
+
 

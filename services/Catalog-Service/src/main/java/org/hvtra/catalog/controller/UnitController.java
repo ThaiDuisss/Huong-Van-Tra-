@@ -6,6 +6,7 @@ import org.hvtra.catalog.dto.request.UnitRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.UnitResponse;
 import org.hvtra.catalog.enums.Status;
+import org.hvtra.catalog.enums.UnitType;
 import org.hvtra.catalog.service.UnitService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -28,8 +29,9 @@ public class UnitController {
     public PageResponse<UnitResponse> findAll(
             @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "status", required = false) Status status,
+            @RequestParam(name = "type", required = false) UnitType type,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        return service.findAll(name, status, pageable);
+        return service.findAll(name, status, type, pageable);
     }
 
     @PostMapping("/batch")

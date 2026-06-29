@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface UnitService {
-    PageResponse<UnitResponse> findAll(String name, Status status, Pageable pageable);
+    PageResponse<UnitResponse> findAll(String name, Status status, org.hvtra.catalog.enums.UnitType type, Pageable pageable);
     List<UnitResponse> findAll();
     UnitResponse create(UnitRequest request);
     UnitResponse update(UUID id, UnitRequest request);

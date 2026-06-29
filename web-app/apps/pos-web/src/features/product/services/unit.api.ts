@@ -8,7 +8,8 @@ export const unitApi = {
                 page: query.page,
                 size: query.size,
                 name: query.keyword,
-                status: query.status
+                status: query.status,
+                type: query.type
             }
         });
     },

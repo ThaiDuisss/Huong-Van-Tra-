@@ -2,6 +2,7 @@ import type { QueryParams } from "@hvt/api-client";
 
 export type CatalogStatus = "ACTIVE" | "INACTIVE";
 export type EntityId = number | string;
+export type UnitType = "BASE" | "PACKAGING";
 
 export interface PageResult<T> {
     content: T[];
@@ -18,6 +19,7 @@ export interface CatalogQuery extends QueryParams {
     size?: number;
     keyword?: string;
     status?: CatalogStatus;
+    type?: UnitType;
 }
 
 export interface Category {
@@ -74,6 +76,12 @@ export interface Unit {
     name: string;
     symbol: string;
     precisionScale: number;
+    /** Phân loại: BASE (đơn vị gốc) hoặc PACKAGING (đơn vị đóng gói) */
+    type: UnitType;
+    /** ID đơn vị gốc. Chỉ có giá trị khi type = PACKAGING */
+    baseUnitId: EntityId | null;
+    /** Tỷ lệ quy đổi so với đơn vị gốc. Ví dụ: 1 Hộp = 100g -> conversionRate = 100 */
+    conversionRate: number;
     status: CatalogStatus;
 }
 
@@ -81,6 +89,9 @@ export interface UnitInput {
     name: string;
     symbol: string;
     precisionScale: number;
+    type: UnitType;
+    baseUnitId: EntityId | null;
+    conversionRate: number;
     status: CatalogStatus;
 }
 
@@ -92,12 +103,12 @@ export interface ProductVariant {
     variantName: string;
     sellingPrice: number;
     costPrice: number;
-    baseUnitId: EntityId;
+    /** ID đơn vị bán thương mại (thay thế baseUnitId + packQuantity cũ) */
+    unitId: EntityId;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
     productStatus: CatalogStatus;
     sellable: boolean;
-    packQuantity: number;
 }
 
 export interface ProductVariantInput {
@@ -105,10 +116,10 @@ export interface ProductVariantInput {
     variantName: string;
     sellingPrice: number;
     costPrice: number;
-    baseUnitId: EntityId;
+    /** ID đơn vị bán thương mại */
+    unitId: EntityId;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
-    packQuantity: number;
 }
 
 export interface PriceListItem {

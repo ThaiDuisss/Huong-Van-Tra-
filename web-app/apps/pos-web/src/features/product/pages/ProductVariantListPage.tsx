@@ -77,13 +77,12 @@ export function ProductVariantListPage() {
             variantName: getString(values, "variantName"),
             sellingPrice: getNumber(values, "sellingPrice"),
             costPrice: getNumber(values, "costPrice"),
-            baseUnitId: getString(values, "baseUnitId"),
+            unitId: getString(values, "unitId"),
             inventoryPolicy: getString(
                 values,
                 "inventoryPolicy"
             ) as InventoryPolicy,
-            status: getString(values, "status") as CatalogStatus,
-            packQuantity: getNumber(values, "packQuantity")
+            status: getString(values, "status") as CatalogStatus
         };
 
         if (editingItem) {
@@ -137,9 +136,9 @@ export function ProductVariantListPage() {
         const variantName = String(row["Tên Mặt hàng"] || "").trim();
         const sellingPriceStr = String(row["Giá bán"] || "").trim();
         const costPriceStr = String(row["Giá vốn"] || "").trim();
-        const unitName = String(row["Đơn vị"] || "").trim();
-        const packQuantityStr = String(row["Định lượng"] || "").trim();
+        const unitName = String(row["Đơn vị bán"] || row["Đơn vị"] || "").trim();
         const policyStr = String(row["Chính sách tồn kho"] || "").trim();
+
         const statusStr = String(row["Trạng thái"] || "").trim();
 
         if (!productCode) {
@@ -176,11 +175,6 @@ export function ProductVariantListPage() {
         );
         if (!matchedUnit) {
             return { isValid: false, error: "Đơn vị không tồn tại" };
-        }
-
-        const packQuantity = Number(packQuantityStr || "1");
-        if (isNaN(packQuantity) || packQuantity < 1 || !Number.isInteger(packQuantity)) {
-            return { isValid: false, error: "Định lượng không hợp lệ (phải là số nguyên >= 1)" };
         }
 
         if (policyStr) {
@@ -274,10 +268,9 @@ export function ProductVariantListPage() {
                     variantName: item.variantName,
                     sellingPrice: String(item.sellingPrice),
                     costPrice: String(item.costPrice),
-                    baseUnitId: String(item.baseUnitId),
+                    unitId: String(item.unitId),
                     inventoryPolicy: item.inventoryPolicy,
-                    status: item.status,
-                    packQuantity: String(item.packQuantity)
+                    status: item.status
                 })}
                 secondaryFilter={
                     productId
@@ -379,8 +372,8 @@ export function ProductVariantListPage() {
                         required: true
                     },
                     {
-                        name: "baseUnitId",
-                        label: "Đơn vị cơ sở",
+                        name: "unitId",
+                        label: "Đơn vị bán thương mại",
                         type: "select",
                         required: true,
                         options: units
@@ -412,12 +405,6 @@ export function ProductVariantListPage() {
                             { label: "Đang hoạt động", value: "ACTIVE" },
                             { label: "Ngừng hoạt động", value: "INACTIVE" }
                         ]
-                    },
-                    {
-                        name: "packQuantity",
-                        label: "Định lượng đóng gói",
-                        type: "number",
-                        required: true
                     }
                 ]}
             />

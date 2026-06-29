@@ -12,7 +12,7 @@ public class InventoryItemMapper {
                 item.getId(),
                 item.getReferenceId(),
                 item.getItemType(),
-                item.getBaseUnitId(),
+                item.getUnitId(),
                 item.getStatus(),
                 item.getReorderPoint()
         );
@@ -21,7 +21,7 @@ public class InventoryItemMapper {
     public void update(InventoryItem item, InventoryItemRequest request) {
         item.setReferenceId(request.referenceId());
         item.setItemType(request.itemType());
-        item.setBaseUnitId(request.baseUnitId());
+        item.setUnitId(request.unitId());
         item.setStatus(request.status());
         item.setReorderPoint(request.reorderPoint());
     }
