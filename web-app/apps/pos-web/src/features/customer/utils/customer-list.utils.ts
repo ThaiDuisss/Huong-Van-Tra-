@@ -6,6 +6,7 @@ import {
 import type {
     AppliedCustomerFilter,
     CustomerFilterDraft,
+    CustomerPrimaryTab,
     CustomerQuickViewId
 } from "../types/customer-list.types";
 import type {
@@ -162,10 +163,11 @@ export function getCustomerSort(params: URLSearchParams): CustomerSort {
 export function toCustomerQuery(
     params: URLSearchParams,
     page?: number,
-    size?: number
+    size?: number,
+    tiers: CustomerTierResponse[] = []
 ): CustomerQuery {
     const query: CustomerQuery = { sort: getCustomerSort(params) };
-    const q = params.get("q");
+    const q = params.get("q")?.trim();
     const status = params.get("status") as CustomerStatus | null;
     const tierIds = params.getAll("tierIds");
     const vipTierIds = params.getAll("vipTierIds");
@@ -190,6 +192,7 @@ export function toCustomerQuery(
     if (params.get("birthYear")) {
         query.birthYear = Number(params.get("birthYear"));
     }
+    applyCustomerViewQuery(query, params, tiers);
     if (page !== undefined) query.page = page;
     if (size !== undefined) query.size = size;
     return query;
@@ -259,6 +262,68 @@ function copyStringParam(
 ) {
     const value = params.get(key);
     if (value) query[key] = value;
+}
+
+function applyCustomerViewQuery(
+    query: CustomerQuery,
+    params: URLSearchParams,
+    tiers: CustomerTierResponse[]
+) {
+    const view = (params.get("view") ?? "all") as CustomerPrimaryTab;
+    const segment = params.get("segment") ?? "all";
+    const today = new Date();
+
+    if (view === "care") {
+        query.includeNeverPurchased = true;
+        query.lastPurchaseTo = daysAgoDate(segment === "long-time" ? 60 : 30);
+        if (segment === "birthday") {
+            delete query.lastPurchaseTo;
+            query.birthMonth = today.getMonth() + 1;
+        }
+        if (segment === "vip-drop") {
+            query.vipTierIds = tierIdsByCodes(tiers, ["GOLD", "PLATINUM", "DIAMOND"]);
+        }
+        if (segment === "one-order") query.hasPurchased = true;
+    }
+
+    if (view === "loyal") {
+        const codesBySegment: Record<string, string[]> = {
+            all: ["SILVER", "GOLD", "PLATINUM", "DIAMOND"],
+            silver: ["SILVER"],
+            gold: ["GOLD"],
+            platinum: ["PLATINUM"],
+            diamond: ["DIAMOND"]
+        };
+        query.tierIds = tierIdsByCodes(tiers, codesBySegment[segment] ?? codesBySegment.all);
+    }
+
+    if (view === "new") {
+        query.createdFrom = daysAgoIso(segment === "today" ? 1 : 30);
+        if (segment === "week") query.createdFrom = daysAgoIso(7);
+        if (segment === "first-order") query.hasPurchased = true;
+        if (segment === "no-order") query.hasPurchased = false;
+    }
+
+    if (view === "inactive") {
+        query.lastPurchaseTo = daysAgoDate(segment === "30-days" ? 30 : segment === "60-days" ? 60 : 90);
+        query.includeNeverPurchased = true;
+        if (segment === "never-purchased") {
+            delete query.lastPurchaseTo;
+            query.hasPurchased = false;
+        }
+    }
+
+    if (view === "all") {
+        if (segment === "has-tier") query.tierIds = tiers.map((tier) => tier.id);
+        if (segment === "purchased") query.hasPurchased = true;
+        if (segment === "never-purchased") query.hasPurchased = false;
+    }
+}
+
+function tierIdsByCodes(tiers: CustomerTierResponse[], codes: string[]) {
+    return tiers
+        .filter((tier) => codes.includes(tier.code))
+        .map((tier) => tier.id);
 }
 
 function daysAgoDate(days: number) {
