@@ -9,14 +9,13 @@ import lombok.experimental.FieldDefaults;
 import org.hvtra.promotionservice.enums.condition.ConditionOperator;
 import org.hvtra.promotionservice.enums.condition.ConditionType;
 
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-@Schema(description = "Request cập nhật điều kiện khuyến mãi")
+@Schema(description = "Request cập nhật điều kiện áp dụng khuyến mãi")
 public class PromotionConditionUpdateRequest {
 
     @Schema(
@@ -34,10 +33,10 @@ public class PromotionConditionUpdateRequest {
     ConditionOperator operator;
 
     @Schema(
-            description = "Giá trị của điều kiện",
-            example = "500000"
+            description = "Giá trị điều kiện ở dạng JSON string",
+            example = "{\"amount\":500000}"
     )
     @NotBlank(message = "Promotion condition value is required")
-    @Size(max = 255, message = "Promotion condition value must not exceed 255 characters")
+    @Size(max = 2000, message = "Promotion condition value must not exceed 2000 characters")
     String conditionValue;
 }

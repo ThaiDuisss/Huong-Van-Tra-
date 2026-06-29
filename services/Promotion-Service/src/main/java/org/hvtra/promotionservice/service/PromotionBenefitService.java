@@ -20,6 +20,11 @@ public interface PromotionBenefitService {
             int size
     );
 
+    PromotionBenefitResponse getBenefitById(
+            UUID promotionId,
+            UUID benefitId
+    );
+
     PromotionBenefitResponse updateBenefit(
             UUID promotionId,
             UUID benefitId,
@@ -30,5 +35,4 @@ public interface PromotionBenefitService {
             UUID promotionId,
             UUID benefitId
     );
-
 }

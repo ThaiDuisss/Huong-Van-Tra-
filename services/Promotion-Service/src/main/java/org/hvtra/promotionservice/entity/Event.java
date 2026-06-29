@@ -65,17 +65,10 @@ public class Event extends BaseEntity {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
-    List<EventPromotion> eventPromotions = new ArrayList<>();
+    List<Promotion> promotions = new ArrayList<>();
 
     public void addPromotion(Promotion promotion) {
-        EventPromotion eventPromotion = EventPromotion.builder()
-                .event(this)
-                .promotion(promotion)
-                .priority(promotion.getPriority())
-                .stackable(promotion.getStackable())
-                .build();
-
-        this.eventPromotions.add(eventPromotion);
-        promotion.getEventPromotions().add(eventPromotion);
+        promotions.add(promotion);
+        promotion.setEvent(this);
     }
 }

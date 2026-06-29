@@ -5,6 +5,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -34,6 +37,10 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @SuppressWarnings("java:S2160")
 public class Promotion extends BaseEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", nullable = false)
+    Event event;
 
     @Column(name = "name", nullable = false)
     String name;
@@ -70,14 +77,6 @@ public class Promotion extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     PromotionStatus status = PromotionStatus.DRAFT;
-
-    @Builder.Default
-    @OneToMany(
-            mappedBy = "promotion",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
-    List<EventPromotion> eventPromotions = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(

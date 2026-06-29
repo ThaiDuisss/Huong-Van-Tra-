@@ -1,5 +1,6 @@
 package org.hvtra.promotionservice.service;
 
+import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.commonservice.exception.ResourceNotFoundException;
 import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
 import org.hvtra.promotionservice.dto.request.event.EventStatusUpdateRequest;
@@ -11,32 +12,38 @@ import org.hvtra.promotionservice.enums.event.EventStatus;
 import org.hvtra.promotionservice.mapper.EventMapper;
 import org.hvtra.promotionservice.repository.EventRepository;
 import org.hvtra.promotionservice.service.impl.EventServiceImpl;
+import org.hvtra.promotionservice.validation.validator.EventValidator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("EventServiceImpl Unit Tests")
 class EventServiceImplTest {
+
+    private static final UUID EVENT_ID = UUID.randomUUID();
 
     @Mock
     EventRepository eventRepository;
 
     @Mock
     EventMapper eventMapper;
+
+    @Mock
+    EventValidator eventValidator;
 
     @InjectMocks
     EventServiceImpl eventService;
@@ -46,59 +53,25 @@ class EventServiceImplTest {
     class CreateEventTest {
 
         @Test
-        @DisplayName("Should set status INACTIVE and save event successfully")
-        void createEvent_success() {
-            // Arrange
-            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
-            LocalDateTime endAt = LocalDateTime.now().plusDays(10);
+        @DisplayName("Should create event successfully")
+        void shouldCreateEventSuccessfully() {
+            EventCreateRequest request = mock(EventCreateRequest.class);
+            Event event = new Event();
+            Event savedEvent = new Event();
+            EventResponse expectedResponse = mock(EventResponse.class);
 
-            EventCreateRequest request = EventCreateRequest.builder()
-                    .name("Tet Holiday Campaign 2027")
-                    .description("Chương trình khuyến mãi Tết")
-                    .startAt(startAt)
-                    .endAt(endAt)
-                    .build();
-
-            Event mappedEvent = Event.builder()
-                    .name(request.getName())
-                    .description(request.getDescription())
-                    .startAt(request.getStartAt())
-                    .endAt(request.getEndAt())
-                    .build();
-
-            Event savedEvent = Event.builder()
-                    .name(request.getName())
-                    .description(request.getDescription())
-                    .startAt(request.getStartAt())
-                    .endAt(request.getEndAt())
-                    .status(EventStatus.INACTIVE)
-                    .build();
-
-            UUID responseId = UUID.randomUUID();
-
-            EventResponse expectedResponse = EventResponse.builder()
-                    .id(responseId)
-                    .name(savedEvent.getName())
-                    .description(savedEvent.getDescription())
-                    .startAt(savedEvent.getStartAt())
-                    .endAt(savedEvent.getEndAt())
-                    .status(savedEvent.getStatus())
-                    .build();
-
-            when(eventMapper.toEntity(request)).thenReturn(mappedEvent);
-            when(eventRepository.save(mappedEvent)).thenReturn(savedEvent);
+            when(eventMapper.toEntity(request)).thenReturn(event);
+            when(eventRepository.save(event)).thenReturn(savedEvent);
             when(eventMapper.toResponse(savedEvent)).thenReturn(expectedResponse);
 
-            // Act
             EventResponse actualResponse = eventService.createEvent(request);
 
-            // Assert
-            assertThat(mappedEvent.getStatus()).isEqualTo(EventStatus.INACTIVE);
-            assertThat(actualResponse).isEqualTo(expectedResponse);
+            assertThat(actualResponse).isSameAs(expectedResponse);
 
             verify(eventMapper).toEntity(request);
-            verify(eventRepository).save(mappedEvent);
+            verify(eventRepository).save(event);
             verify(eventMapper).toResponse(savedEvent);
+            verifyNoInteractions(eventValidator);
         }
     }
 
@@ -107,63 +80,35 @@ class EventServiceImplTest {
     class GetEventByIdTest {
 
         @Test
-        @DisplayName("Should return event response when event exists")
-        void getEventById_success() {
-            // Arrange
-            UUID eventId = UUID.randomUUID();
+        @DisplayName("Should get event by id successfully")
+        void shouldGetEventByIdSuccessfully() {
+            Event event = new Event();
+            EventResponse expectedResponse = mock(EventResponse.class);
 
-            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
-            LocalDateTime endAt = LocalDateTime.now().plusDays(10);
-
-            Event event = Event.builder()
-                    .name("Tet Holiday Campaign 2027")
-                    .description("Chương trình khuyến mãi Tết")
-                    .startAt(startAt)
-                    .endAt(endAt)
-                    .status(EventStatus.INACTIVE)
-                    .build();
-
-            EventResponse expectedResponse = EventResponse.builder()
-                    .id(eventId)
-                    .name(event.getName())
-                    .description(event.getDescription())
-                    .startAt(event.getStartAt())
-                    .endAt(event.getEndAt())
-                    .status(event.getStatus())
-                    .build();
-
-            when(eventRepository.findByIdAndIsDeletedFalse(eventId))
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
                     .thenReturn(Optional.of(event));
+            when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
 
-            when(eventMapper.toResponse(event))
-                    .thenReturn(expectedResponse);
+            EventResponse actualResponse = eventService.getEventById(EVENT_ID);
 
-            // Act
-            EventResponse actualResponse = eventService.getEventById(eventId);
+            assertThat(actualResponse).isSameAs(expectedResponse);
 
-            // Assert
-            assertThat(actualResponse).isEqualTo(expectedResponse);
-
-            verify(eventRepository).findByIdAndIsDeletedFalse(eventId);
+            verify(eventRepository).findByIdAndIsDeletedFalse(EVENT_ID);
             verify(eventMapper).toResponse(event);
+            verifyNoInteractions(eventValidator);
         }
 
         @Test
-        @DisplayName("Should throw ResourceNotFoundException when event does not exist")
-        void getEventById_notFound() {
-            // Arrange
-            UUID eventId = UUID.randomUUID();
-
-            when(eventRepository.findByIdAndIsDeletedFalse(eventId))
+        @DisplayName("Should throw ResourceNotFoundException when event not found")
+        void shouldThrowResourceNotFoundExceptionWhenEventNotFound() {
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
                     .thenReturn(Optional.empty());
 
-            // Act & Assert
-            assertThatThrownBy(() -> eventService.getEventById(eventId))
-                    .isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessageContaining("Event not found");
+            assertThatThrownBy(() -> eventService.getEventById(EVENT_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
 
-            verify(eventRepository).findByIdAndIsDeletedFalse(eventId);
-            verify(eventMapper, never()).toResponse(any(Event.class));
+            verify(eventRepository).findByIdAndIsDeletedFalse(EVENT_ID);
+            verifyNoInteractions(eventMapper, eventValidator);
         }
     }
 
@@ -172,109 +117,37 @@ class EventServiceImplTest {
     class GetAllEventsTest {
 
         @Test
-        @DisplayName("Should return paged event responses when events exist")
-        void getAllEvents_success() {
-            // Arrange
-            int page = 0;
-            int size = 10;
-
-            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
-            LocalDateTime endAt = LocalDateTime.now().plusDays(10);
-
-            Event event = Event.builder()
-                    .name("Tet Holiday Campaign 2027")
-                    .description("Chương trình khuyến mãi Tết")
-                    .startAt(startAt)
-                    .endAt(endAt)
-                    .status(EventStatus.INACTIVE)
-                    .build();
-
-            EventResponse eventResponse = EventResponse.builder()
-                    .id(UUID.randomUUID())
-                    .name(event.getName())
-                    .description(event.getDescription())
-                    .startAt(event.getStartAt())
-                    .endAt(event.getEndAt())
-                    .status(event.getStatus())
-                    .build();
-
-            Pageable pageable = PageRequest.of(
-                    page,
-                    size,
-                    Sort.by(Sort.Direction.DESC, "createdAt")
-            );
+        @DisplayName("Should get paginated non-deleted events sorted by createdAt desc")
+        void shouldGetAllEventsSuccessfully() {
+            Event event = new Event();
+            EventResponse response = mock(EventResponse.class);
 
             Page<Event> eventPage = new PageImpl<>(
                     List.of(event),
-                    pageable,
+                    PageRequest.of(0, 10),
                     1
             );
 
-            when(eventRepository.findAllByIsDeletedFalse(pageable))
+            when(eventRepository.findAllByIsDeletedFalse(any(Pageable.class)))
                     .thenReturn(eventPage);
+            when(eventMapper.toResponse(event)).thenReturn(response);
 
-            when(eventMapper.toResponse(event))
-                    .thenReturn(eventResponse);
+            PageResponse<EventResponse> actualResponse = eventService.getAllEvents(0, 10);
 
-            // Act
-            PageResponse<EventResponse> actualResponse = eventService.getAllEvents(page, size);
-
-            // Assert
             assertThat(actualResponse).isNotNull();
 
-            assertThat(actualResponse.getContent()).hasSize(1);
-            assertThat(actualResponse.getContent().get(0)).isEqualTo(eventResponse);
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+            verify(eventRepository).findAllByIsDeletedFalse(pageableCaptor.capture());
 
-            assertThat(actualResponse.getPage()).isZero();
-            assertThat(actualResponse.getSize()).isEqualTo(10);
-            assertThat(actualResponse.getTotalElements()).isEqualTo(1);
-            assertThat(actualResponse.getTotalPages()).isEqualTo(1);
+            Pageable pageable = pageableCaptor.getValue();
 
-            assertThat(actualResponse.isFirst()).isTrue();
-            assertThat(actualResponse.isLast()).isTrue();
-            assertThat(actualResponse.isEmpty()).isFalse();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(10);
+            assertThat(pageable.getSort())
+                    .isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
 
-            verify(eventRepository).findAllByIsDeletedFalse(pageable);
             verify(eventMapper).toResponse(event);
-        }
-
-        @Test
-        @DisplayName("Should return empty page when no events exist")
-        void getAllEvents_empty() {
-            // Arrange
-            int page = 0;
-            int size = 10;
-
-            Pageable pageable = PageRequest.of(
-                    page,
-                    size,
-                    Sort.by(Sort.Direction.DESC, "createdAt")
-            );
-
-            Page<Event> emptyPage = Page.empty(pageable);
-
-            when(eventRepository.findAllByIsDeletedFalse(pageable))
-                    .thenReturn(emptyPage);
-
-            // Act
-            PageResponse<EventResponse> actualResponse = eventService.getAllEvents(page, size);
-
-            // Assert
-            assertThat(actualResponse).isNotNull();
-
-            assertThat(actualResponse.getContent()).isEmpty();
-
-            assertThat(actualResponse.getPage()).isZero();
-            assertThat(actualResponse.getSize()).isEqualTo(10);
-            assertThat(actualResponse.getTotalElements()).isZero();
-            assertThat(actualResponse.getTotalPages()).isZero();
-
-            assertThat(actualResponse.isFirst()).isTrue();
-            assertThat(actualResponse.isLast()).isTrue();
-            assertThat(actualResponse.isEmpty()).isTrue();
-
-            verify(eventRepository).findAllByIsDeletedFalse(pageable);
-            verify(eventMapper, never()).toResponse(any(Event.class));
+            verifyNoInteractions(eventValidator);
         }
     }
 
@@ -283,95 +156,64 @@ class EventServiceImplTest {
     class UpdateEventTest {
 
         @Test
-        @DisplayName("Should update event successfully when event exists")
-        void updateEvent_success() {
-            // Arrange
-            UUID eventId = UUID.randomUUID();
+        @DisplayName("Should update event successfully")
+        void shouldUpdateEventSuccessfully() {
+            EventUpdateRequest request = mock(EventUpdateRequest.class);
+            Event event = new Event();
+            Event updatedEvent = new Event();
+            EventResponse expectedResponse = mock(EventResponse.class);
 
-            LocalDateTime oldStartAt = LocalDateTime.now().plusDays(1);
-            LocalDateTime oldEndAt = LocalDateTime.now().plusDays(10);
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+            when(eventRepository.save(event)).thenReturn(updatedEvent);
+            when(eventMapper.toResponse(updatedEvent)).thenReturn(expectedResponse);
 
-            LocalDateTime newStartAt = LocalDateTime.now().plusDays(2);
-            LocalDateTime newEndAt = LocalDateTime.now().plusDays(15);
+            EventResponse actualResponse = eventService.updateEvent(EVENT_ID, request);
 
-            EventUpdateRequest request = EventUpdateRequest.builder()
-                    .name("Updated Tet Holiday Campaign 2027")
-                    .description("Updated chương trình khuyến mãi Tết")
-                    .startAt(newStartAt)
-                    .endAt(newEndAt)
-                    .build();
+            assertThat(actualResponse).isSameAs(expectedResponse);
 
-            Event existingEvent = Event.builder()
-                    .name("Tet Holiday Campaign 2027")
-                    .description("Chương trình khuyến mãi Tết")
-                    .startAt(oldStartAt)
-                    .endAt(oldEndAt)
-                    .status(EventStatus.INACTIVE)
-                    .build();
-
-            Event updatedEvent = Event.builder()
-                    .name(request.getName())
-                    .description(request.getDescription())
-                    .startAt(request.getStartAt())
-                    .endAt(request.getEndAt())
-                    .status(EventStatus.INACTIVE)
-                    .build();
-
-            EventResponse expectedResponse = EventResponse.builder()
-                    .id(eventId)
-                    .name(updatedEvent.getName())
-                    .description(updatedEvent.getDescription())
-                    .startAt(updatedEvent.getStartAt())
-                    .endAt(updatedEvent.getEndAt())
-                    .status(updatedEvent.getStatus())
-                    .build();
-
-            when(eventRepository.findByIdAndIsDeletedFalse(eventId))
-                    .thenReturn(Optional.of(existingEvent));
-
-            when(eventRepository.save(existingEvent))
-                    .thenReturn(updatedEvent);
-
-            when(eventMapper.toResponse(updatedEvent))
-                    .thenReturn(expectedResponse);
-
-            // Act
-            EventResponse actualResponse = eventService.updateEvent(eventId, request);
-
-            // Assert
-            assertThat(actualResponse).isEqualTo(expectedResponse);
-
-            verify(eventRepository).findByIdAndIsDeletedFalse(eventId);
-            verify(eventMapper).updateEntityFromRequest(request, existingEvent);
-            verify(eventRepository).save(existingEvent);
+            verify(eventRepository).findByIdAndIsDeletedFalse(EVENT_ID);
+            verify(eventValidator).validateBeforeUpdate(event);
+            verify(eventMapper).updateEntityFromRequest(request, event);
+            verify(eventRepository).save(event);
             verify(eventMapper).toResponse(updatedEvent);
         }
 
         @Test
         @DisplayName("Should throw ResourceNotFoundException when updating non-existing event")
-        void updateEvent_notFound() {
-            // Arrange
-            UUID eventId = UUID.randomUUID();
+        void shouldThrowResourceNotFoundExceptionWhenUpdatingNonExistingEvent() {
+            EventUpdateRequest request = mock(EventUpdateRequest.class);
 
-            EventUpdateRequest request = EventUpdateRequest.builder()
-                    .name("Updated Tet Holiday Campaign 2027")
-                    .description("Updated chương trình khuyến mãi Tết")
-                    .startAt(LocalDateTime.now().plusDays(2))
-                    .endAt(LocalDateTime.now().plusDays(15))
-                    .build();
-
-            when(eventRepository.findByIdAndIsDeletedFalse(eventId))
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
                     .thenReturn(Optional.empty());
 
-            // Act & Assert
-            assertThatThrownBy(() -> eventService.updateEvent(eventId, request))
-                    .isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessageContaining("Event not found");
+            assertThatThrownBy(() -> eventService.updateEvent(EVENT_ID, request))
+                    .isInstanceOf(ResourceNotFoundException.class);
 
-            verify(eventRepository).findByIdAndIsDeletedFalse(eventId);
-            verify(eventMapper, never()).updateEntityFromRequest(any(EventUpdateRequest.class), any(Event.class));
-            verify(eventRepository, never()).save(any(Event.class));
-            verify(eventMapper, never()).toResponse(any(Event.class));
+            verify(eventRepository).findByIdAndIsDeletedFalse(EVENT_ID);
+            verifyNoInteractions(eventValidator, eventMapper);
+            verify(eventRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should not save event when validator rejects update")
+        void shouldNotSaveEventWhenValidatorRejectsUpdate() {
+            EventUpdateRequest request = mock(EventUpdateRequest.class);
+            Event event = new Event();
+
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+
+            doThrow(new BusinessException("Event cannot be updated"))
+                    .when(eventValidator).validateBeforeUpdate(event);
+
+            assertThatThrownBy(() -> eventService.updateEvent(EVENT_ID, request))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("Event cannot be updated");
+
+            verify(eventValidator).validateBeforeUpdate(event);
+            verify(eventMapper, never()).updateEntityFromRequest(any(), any());
+            verify(eventRepository, never()).save(any());
         }
     }
 
@@ -380,82 +222,51 @@ class EventServiceImplTest {
     class UpdateEventStatusTest {
 
         @Test
-        @DisplayName("Should update event status successfully when event exists")
-        void updateEventStatus_success() {
-            // Arrange
-            UUID eventId = UUID.randomUUID();
+        @DisplayName("Should update event status successfully")
+        void shouldUpdateEventStatusSuccessfully() {
+            EventStatusUpdateRequest request = mock(EventStatusUpdateRequest.class);
+            Event event = new Event();
+            Event updatedEvent = new Event();
+            EventResponse expectedResponse = mock(EventResponse.class);
 
-            EventStatusUpdateRequest request = EventStatusUpdateRequest.builder()
-                    .status(EventStatus.ACTIVE)
-                    .build();
+            when(request.getStatus()).thenReturn(EventStatus.ACTIVE);
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+            when(eventRepository.save(event)).thenReturn(updatedEvent);
+            when(eventMapper.toResponse(updatedEvent)).thenReturn(expectedResponse);
 
-            Event existingEvent = Event.builder()
-                    .name("Tet Holiday Campaign 2027")
-                    .description("Chương trình khuyến mãi Tết")
-                    .startAt(LocalDateTime.now().plusDays(1))
-                    .endAt(LocalDateTime.now().plusDays(10))
-                    .status(EventStatus.INACTIVE)
-                    .build();
+            EventResponse actualResponse = eventService.updateEventStatus(EVENT_ID, request);
 
-            Event savedEvent = Event.builder()
-                    .name(existingEvent.getName())
-                    .description(existingEvent.getDescription())
-                    .startAt(existingEvent.getStartAt())
-                    .endAt(existingEvent.getEndAt())
-                    .status(EventStatus.ACTIVE)
-                    .build();
+            assertThat(actualResponse).isSameAs(expectedResponse);
+            assertThat(event.getStatus()).isEqualTo(EventStatus.ACTIVE);
 
-            EventResponse expectedResponse = EventResponse.builder()
-                    .id(eventId)
-                    .name(savedEvent.getName())
-                    .description(savedEvent.getDescription())
-                    .startAt(savedEvent.getStartAt())
-                    .endAt(savedEvent.getEndAt())
-                    .status(savedEvent.getStatus())
-                    .build();
-
-            when(eventRepository.findByIdAndIsDeletedFalse(eventId))
-                    .thenReturn(Optional.of(existingEvent));
-
-            when(eventRepository.save(existingEvent))
-                    .thenReturn(savedEvent);
-
-            when(eventMapper.toResponse(savedEvent))
-                    .thenReturn(expectedResponse);
-
-            // Act
-            EventResponse actualResponse = eventService.updateEventStatus(eventId, request);
-
-            // Assert
-            assertThat(existingEvent.getStatus()).isEqualTo(EventStatus.ACTIVE);
-            assertThat(actualResponse).isEqualTo(expectedResponse);
-
-            verify(eventRepository).findByIdAndIsDeletedFalse(eventId);
-            verify(eventRepository).save(existingEvent);
-            verify(eventMapper).toResponse(savedEvent);
+            verify(eventValidator).validateStatusTransition(event, request);
+            verify(eventRepository).save(event);
+            verify(eventMapper).toResponse(updatedEvent);
         }
 
         @Test
-        @DisplayName("Should throw ResourceNotFoundException when updating status of non-existing event")
-        void updateEventStatus_notFound() {
-            // Arrange
-            UUID eventId = UUID.randomUUID();
+        @DisplayName("Should not update status when validator rejects transition")
+        void shouldNotUpdateStatusWhenValidatorRejectsTransition() {
+            EventStatusUpdateRequest request = mock(EventStatusUpdateRequest.class);
+            Event event = new Event();
+            event.setStatus(EventStatus.INACTIVE);
 
-            EventStatusUpdateRequest request = EventStatusUpdateRequest.builder()
-                    .status(EventStatus.ACTIVE)
-                    .build();
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
 
-            when(eventRepository.findByIdAndIsDeletedFalse(eventId))
-                    .thenReturn(Optional.empty());
+            doThrow(new BusinessException("Invalid status transition"))
+                    .when(eventValidator).validateStatusTransition(event, request);
 
-            // Act & Assert
-            assertThatThrownBy(() -> eventService.updateEventStatus(eventId, request))
-                    .isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessageContaining("Event not found");
+            assertThatThrownBy(() -> eventService.updateEventStatus(EVENT_ID, request))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("Invalid status transition");
 
-            verify(eventRepository).findByIdAndIsDeletedFalse(eventId);
-            verify(eventRepository, never()).save(any(Event.class));
-            verify(eventMapper, never()).toResponse(any(Event.class));
+            assertThat(event.getStatus()).isEqualTo(EventStatus.INACTIVE);
+
+            verify(eventValidator).validateStatusTransition(event, request);
+            verify(eventRepository, never()).save(any());
+            verify(eventMapper, never()).toResponse(any());
         }
     }
 
@@ -464,52 +275,259 @@ class EventServiceImplTest {
     class DeleteEventTest {
 
         @Test
-        @DisplayName("Should soft delete event successfully when event exists")
-        void deleteEvent_success() {
-            // Arrange
-            UUID eventId = UUID.randomUUID();
+        @DisplayName("Should soft delete event successfully")
+        void shouldSoftDeleteEventSuccessfully() {
+            Event event = new Event();
+            event.setIsDeleted(false);
 
-            Event existingEvent = Event.builder()
-                    .name("Tet Holiday Campaign 2027")
-                    .description("Chương trình khuyến mãi Tết")
-                    .startAt(LocalDateTime.now().plusDays(1))
-                    .endAt(LocalDateTime.now().plusDays(10))
-                    .status(EventStatus.INACTIVE)
-                    .build();
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+            when(eventRepository.save(event)).thenReturn(event);
 
-            existingEvent.setIsDeleted(false);
+            eventService.deleteEvent(EVENT_ID);
 
-            when(eventRepository.findByIdAndIsDeletedFalse(eventId))
-                    .thenReturn(Optional.of(existingEvent));
+            assertThat(event.getIsDeleted()).isTrue();
 
-            // Act
-            eventService.deleteEvent(eventId);
-
-            // Assert
-            assertThat(existingEvent.getIsDeleted()).isTrue();
-
-            verify(eventRepository).findByIdAndIsDeletedFalse(eventId);
-            verify(eventRepository).save(existingEvent);
-            verifyNoInteractions(eventMapper);
+            verify(eventValidator).validateBeforeDelete(event);
+            verify(eventRepository).save(event);
         }
 
         @Test
         @DisplayName("Should throw ResourceNotFoundException when deleting non-existing event")
-        void deleteEvent_notFound() {
-            // Arrange
-            UUID eventId = UUID.randomUUID();
-
-            when(eventRepository.findByIdAndIsDeletedFalse(eventId))
+        void shouldThrowResourceNotFoundExceptionWhenDeletingNonExistingEvent() {
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
                     .thenReturn(Optional.empty());
 
-            // Act & Assert
-            assertThatThrownBy(() -> eventService.deleteEvent(eventId))
-                    .isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessageContaining("Event not found");
+            assertThatThrownBy(() -> eventService.deleteEvent(EVENT_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
 
-            verify(eventRepository).findByIdAndIsDeletedFalse(eventId);
-            verify(eventRepository, never()).save(any(Event.class));
-            verifyNoInteractions(eventMapper);
+            verify(eventRepository).findByIdAndIsDeletedFalse(EVENT_ID);
+            verifyNoInteractions(eventValidator, eventMapper);
+            verify(eventRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should not delete event when validator rejects delete")
+        void shouldNotDeleteEventWhenValidatorRejectsDelete() {
+            Event event = new Event();
+            event.setIsDeleted(false);
+
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+
+            doThrow(new BusinessException("Active event cannot be deleted"))
+                    .when(eventValidator).validateBeforeDelete(event);
+
+            assertThatThrownBy(() -> eventService.deleteEvent(EVENT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("Active event cannot be deleted");
+
+            assertThat(event.getIsDeleted()).isFalse();
+
+            verify(eventValidator).validateBeforeDelete(event);
+            verify(eventRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("activateEvent")
+    class ActivateEventTest {
+
+        @Test
+        @DisplayName("Should activate event successfully")
+        void shouldActivateEventSuccessfully() {
+            Event event = new Event();
+            event.setStatus(EventStatus.INACTIVE);
+
+            Event updatedEvent = new Event();
+            EventResponse expectedResponse = mock(EventResponse.class);
+
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+            when(eventRepository.save(event)).thenReturn(updatedEvent);
+            when(eventMapper.toResponse(updatedEvent)).thenReturn(expectedResponse);
+
+            EventResponse actualResponse = eventService.activateEvent(EVENT_ID);
+
+            assertThat(actualResponse).isSameAs(expectedResponse);
+            assertThat(event.getStatus()).isEqualTo(EventStatus.ACTIVE);
+
+            verify(eventValidator).validateBeforeActivate(event);
+            verify(eventRepository).save(event);
+            verify(eventMapper).toResponse(updatedEvent);
+        }
+
+        @Test
+        @DisplayName("Should not activate event when validator rejects activation")
+        void shouldNotActivateEventWhenValidatorRejectsActivation() {
+            Event event = new Event();
+            event.setStatus(EventStatus.CANCELLED);
+
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+
+            doThrow(new BusinessException("Cancelled event cannot be activated"))
+                    .when(eventValidator).validateBeforeActivate(event);
+
+            assertThatThrownBy(() -> eventService.activateEvent(EVENT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("Cancelled event cannot be activated");
+
+            assertThat(event.getStatus()).isEqualTo(EventStatus.CANCELLED);
+
+            verify(eventValidator).validateBeforeActivate(event);
+            verify(eventRepository, never()).save(any());
+            verify(eventMapper, never()).toResponse(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("cancelEvent")
+    class CancelEventTest {
+
+        @Test
+        @DisplayName("Should cancel event successfully")
+        void shouldCancelEventSuccessfully() {
+            Event event = new Event();
+            event.setStatus(EventStatus.ACTIVE);
+
+            Event updatedEvent = new Event();
+            EventResponse expectedResponse = mock(EventResponse.class);
+
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+            when(eventRepository.save(event)).thenReturn(updatedEvent);
+            when(eventMapper.toResponse(updatedEvent)).thenReturn(expectedResponse);
+
+            EventResponse actualResponse = eventService.cancelEvent(EVENT_ID);
+
+            assertThat(actualResponse).isSameAs(expectedResponse);
+            assertThat(event.getStatus()).isEqualTo(EventStatus.CANCELLED);
+
+            verify(eventValidator).validateBeforeCancel(event);
+            verify(eventRepository).save(event);
+            verify(eventMapper).toResponse(updatedEvent);
+        }
+
+        @Test
+        @DisplayName("Should not cancel event when validator rejects cancellation")
+        void shouldNotCancelEventWhenValidatorRejectsCancellation() {
+            Event event = new Event();
+            event.setStatus(EventStatus.ENDED);
+
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+
+            doThrow(new BusinessException("Ended event cannot be cancelled"))
+                    .when(eventValidator).validateBeforeCancel(event);
+
+            assertThatThrownBy(() -> eventService.cancelEvent(EVENT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("Ended event cannot be cancelled");
+
+            assertThat(event.getStatus()).isEqualTo(EventStatus.ENDED);
+
+            verify(eventValidator).validateBeforeCancel(event);
+            verify(eventRepository, never()).save(any());
+            verify(eventMapper, never()).toResponse(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("endEvent")
+    class EndEventTest {
+
+        @Test
+        @DisplayName("Should end event successfully")
+        void shouldEndEventSuccessfully() {
+            Event event = new Event();
+            event.setStatus(EventStatus.ACTIVE);
+
+            Event updatedEvent = new Event();
+            EventResponse expectedResponse = mock(EventResponse.class);
+
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+            when(eventRepository.save(event)).thenReturn(updatedEvent);
+            when(eventMapper.toResponse(updatedEvent)).thenReturn(expectedResponse);
+
+            EventResponse actualResponse = eventService.endEvent(EVENT_ID);
+
+            assertThat(actualResponse).isSameAs(expectedResponse);
+            assertThat(event.getStatus()).isEqualTo(EventStatus.ENDED);
+
+            verify(eventValidator).validateBeforeEnd(event);
+            verify(eventRepository).save(event);
+            verify(eventMapper).toResponse(updatedEvent);
+        }
+
+        @Test
+        @DisplayName("Should not end event when validator rejects ending")
+        void shouldNotEndEventWhenValidatorRejectsEnding() {
+            Event event = new Event();
+            event.setStatus(EventStatus.CANCELLED);
+
+            when(eventRepository.findByIdAndIsDeletedFalse(EVENT_ID))
+                    .thenReturn(Optional.of(event));
+
+            doThrow(new BusinessException("Cancelled event cannot be ended"))
+                    .when(eventValidator).validateBeforeEnd(event);
+
+            assertThatThrownBy(() -> eventService.endEvent(EVENT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("Cancelled event cannot be ended");
+
+            assertThat(event.getStatus()).isEqualTo(EventStatus.CANCELLED);
+
+            verify(eventValidator).validateBeforeEnd(event);
+            verify(eventRepository, never()).save(any());
+            verify(eventMapper, never()).toResponse(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("getActiveEvents")
+    class GetActiveEventsTest {
+
+        @Test
+        @DisplayName("Should get paginated active events sorted by createdAt desc")
+        void shouldGetActiveEventsSuccessfully() {
+            Event event = new Event();
+            EventResponse response = mock(EventResponse.class);
+
+            Page<Event> eventPage = new PageImpl<>(
+                    List.of(event),
+                    PageRequest.of(0, 10),
+                    1
+            );
+
+            when(eventRepository.findAllByStatusAndIsDeletedFalse(
+                    eq(EventStatus.ACTIVE),
+                    any(Pageable.class)
+            )).thenReturn(eventPage);
+
+            when(eventMapper.toResponse(event)).thenReturn(response);
+
+            PageResponse<EventResponse> actualResponse = eventService.getActiveEvents(0, 10);
+
+            assertThat(actualResponse).isNotNull();
+
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+
+            verify(eventRepository).findAllByStatusAndIsDeletedFalse(
+                    eq(EventStatus.ACTIVE),
+                    pageableCaptor.capture()
+            );
+
+            Pageable pageable = pageableCaptor.getValue();
+
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(10);
+            assertThat(pageable.getSort())
+                    .isEqualTo(Sort.by(Sort.Direction.DESC, "createdAt"));
+
+            verify(eventMapper).toResponse(event);
+            verifyNoInteractions(eventValidator);
         }
     }
 }

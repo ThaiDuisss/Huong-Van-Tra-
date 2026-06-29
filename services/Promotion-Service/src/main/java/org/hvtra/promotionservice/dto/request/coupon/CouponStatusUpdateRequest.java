@@ -12,10 +12,14 @@ import org.hvtra.promotionservice.enums.coupon.CouponStatus;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-@Schema(description = "Request cập nhật trạng thái mã giảm giá")
+@Schema(description = "Request cập nhật trạng thái coupon")
 public class CouponStatusUpdateRequest {
 
-    @Schema(description = "Trạng thái mã giảm giá", example = "ACTIVE")
+    @Schema(
+            description = "Trạng thái mới của coupon",
+            example = "ACTIVE",
+            allowableValues = {"DRAFT", "SCHEDULED", "ACTIVE", "PAUSED", "EXPIRED", "CANCELLED", "ARCHIVED"}
+    )
     @NotNull(message = "Coupon status is required")
     CouponStatus status;
 }

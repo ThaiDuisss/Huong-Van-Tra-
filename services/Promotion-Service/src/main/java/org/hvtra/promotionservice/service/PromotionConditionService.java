@@ -20,6 +20,11 @@ public interface PromotionConditionService {
             int size
     );
 
+    PromotionConditionResponse getConditionById(
+            UUID promotionId,
+            UUID conditionId
+    );
+
     PromotionConditionResponse updateCondition(
             UUID promotionId,
             UUID conditionId,
@@ -30,5 +35,4 @@ public interface PromotionConditionService {
             UUID promotionId,
             UUID conditionId
     );
-
 }

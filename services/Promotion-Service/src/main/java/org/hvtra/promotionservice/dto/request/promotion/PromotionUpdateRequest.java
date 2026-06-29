@@ -1,7 +1,11 @@
 package org.hvtra.promotionservice.dto.request.promotion;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.FutureOrPresent;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.promotionservice.enums.promotion.PromotionApplyMethod;
@@ -16,56 +20,50 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-@Schema(description = "Request cập nhật khuyến mãi độc lập")
 @ValidTimeRange
+@Schema(description = "Request cập nhật promotion")
 public class PromotionUpdateRequest {
-    @Schema(
-            description = "Tên khuyến mãi",
-            example = "Giảm 20% cho đơn hàng từ 500K"
-    )
+
+    @Schema(description = "Tên promotion", example = "Giảm 20% cho đơn hàng từ 500K")
     @NotBlank(message = "Promotion name is required")
     @Size(max = 255, message = "Promotion name must not exceed 255 characters")
     String name;
 
+    @Schema(description = "Mô tả promotion", example = "Áp dụng cho khách mua online trong dịp Tết")
+    @Size(max = 2000, message = "Promotion description must not exceed 2000 characters")
+    String description;
+
+    @Schema(description = "Mục tiêu kinh doanh của promotion", example = "Tăng doanh số nhóm trà cao cấp")
+    @Size(max = 2000, message = "Promotion objective must not exceed 2000 characters")
+    String objective;
+
     @Schema(
-            description = "Loại khuyến mãi",
+            description = "Loại promotion",
             example = "PERCENT_DISCOUNT"
     )
     @NotNull(message = "Promotion type is required")
     PromotionType type;
 
     @Schema(
-            description = "Cách áp dụng khuyến mãi",
+            description = "Cách áp dụng promotion",
             example = "COUPON_CODE"
     )
     @NotNull(message = "Promotion apply method is required")
     PromotionApplyMethod applyMethod;
 
-    @Schema(
-            description = "Thời gian bắt đầu khuyến mãi",
-            example = "2027-02-01T00:00:00"
-    )
+    @Schema(description = "Thời gian bắt đầu promotion", example = "2027-02-01T00:00:00")
     @NotNull(message = "Promotion start time is required")
-    @FutureOrPresent(message = "Promotion start time must be in present or future")
+    @FutureOrPresent(message = "Promotion start time must be now or in the future")
     LocalDateTime startAt;
 
-    @Schema(
-            description = "Thời gian kết thúc khuyến mãi",
-            example = "2027-02-10T23:59:59"
-    )
+    @Schema(description = "Thời gian kết thúc promotion", example = "2027-02-10T23:59:59")
     @NotNull(message = "Promotion end time is required")
     LocalDateTime endAt;
 
-    @Schema(
-            description = "Có được dùng chung với khuyến mãi khác hay không",
-            example = "false"
-    )
+    @Schema(description = "Promotion có được dùng chung với promotion khác không", example = "false")
     Boolean stackable;
 
-    @Schema(
-            description = "Độ ưu tiên áp dụng khuyến mãi. Số càng lớn thì ưu tiên càng cao.",
-            example = "0"
-    )
+    @Schema(description = "Độ ưu tiên. Số càng lớn thì ưu tiên càng cao.", example = "10")
     @Min(value = 0, message = "Promotion priority must be greater than or equal to 0")
     Integer priority;
 }

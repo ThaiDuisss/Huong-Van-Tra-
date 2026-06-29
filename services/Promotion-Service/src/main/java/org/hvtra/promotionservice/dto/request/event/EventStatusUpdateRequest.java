@@ -12,11 +12,11 @@ import org.hvtra.promotionservice.enums.event.EventStatus;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-@Schema(description = "Request cập nhật trạng thái sự kiện khuyến mãi")
+@Schema(description = "Request cập nhật trạng thái event/campaign")
 public class EventStatusUpdateRequest {
 
     @Schema(
-            description = "Trạng thái mới của sự kiện",
+            description = "Trạng thái mới của event",
             example = "ACTIVE",
             allowableValues = {"ACTIVE", "INACTIVE", "ENDED", "CANCELLED"}
     )

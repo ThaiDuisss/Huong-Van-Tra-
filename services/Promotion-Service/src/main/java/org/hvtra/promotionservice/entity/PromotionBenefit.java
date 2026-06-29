@@ -68,6 +68,15 @@ public class PromotionBenefit extends BaseEntity {
     @Column(name = "expected_margin_percent", precision = 5, scale = 2)
     BigDecimal expectedMarginPercent;
 
+    @Column(name = "recommended_value", precision = 14, scale = 2)
+    BigDecimal recommendedValue;
+
+    @Column(name = "recommend_reason", columnDefinition = "TEXT")
+    String recommendReason;
+
+    @Column(name = "confidence_score", precision = 5, scale = 2)
+    BigDecimal confidenceScore;
+
     @Builder.Default
     @Column(name = "ai_recommended", nullable = false)
     Boolean aiRecommended = false;

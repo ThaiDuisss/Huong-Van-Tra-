@@ -1,18 +1,21 @@
 package org.hvtra.promotionservice.service;
 
-import org.hvtra.promotionservice.dto.request.coupon.CouponCreateRequest;
-import org.hvtra.promotionservice.dto.request.coupon.CouponStatusUpdateRequest;
-import org.hvtra.promotionservice.dto.request.coupon.CouponUpdateRequest;
+import org.hvtra.promotionservice.dto.request.coupon.*;
 import org.hvtra.promotionservice.dto.response.CouponResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface CouponService {
 
-    CouponResponse createCoupon(UUID promotionId, CouponCreateRequest request);
+    CouponResponse createCoupon(CouponCreateRequest request);
+
+    CouponResponse createCouponByPromotion(UUID promotionId, CouponCreateRequest request);
 
     CouponResponse getCouponById(UUID couponId);
+
+    PageResponse<CouponResponse> getAllCoupons(int page, int size);
 
     PageResponse<CouponResponse> getCouponsByPromotion(UUID promotionId, int page, int size);
 
@@ -22,4 +25,17 @@ public interface CouponService {
 
     void deleteCoupon(UUID couponId);
 
+    CouponResponse activateCoupon(UUID couponId);
+
+    CouponResponse pauseCoupon(UUID couponId);
+
+    CouponResponse cancelCoupon(UUID couponId);
+
+    CouponResponse archiveCoupon(UUID couponId);
+
+    CouponResponse generatePublicCoupon(UUID promotionId, CouponGeneratePublicRequest request);
+
+    CouponResponse generatePersonalCoupon(UUID promotionId, CouponGeneratePersonalRequest request);
+
+    List<CouponResponse> bulkGenerateCoupons(UUID promotionId, CouponBulkGenerateRequest request);
 }

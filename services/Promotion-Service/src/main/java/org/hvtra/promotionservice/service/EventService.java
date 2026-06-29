@@ -22,4 +22,12 @@ public interface EventService {
 
     void deleteEvent(UUID eventId);
 
+    EventResponse activateEvent(UUID eventId);
+
+    EventResponse cancelEvent(UUID eventId);
+
+    EventResponse endEvent(UUID eventId);
+
+    PageResponse<EventResponse> getActiveEvents(int page, int size);
+
 }

@@ -4,10 +4,7 @@ import org.hvtra.promotionservice.dto.request.promotioncondition.PromotionCondit
 import org.hvtra.promotionservice.dto.request.promotioncondition.PromotionConditionUpdateRequest;
 import org.hvtra.promotionservice.dto.response.PromotionConditionResponse;
 import org.hvtra.promotionservice.entity.PromotionCondition;
-import org.mapstruct.BeanMapping;
-import org.mapstruct.Mapper;
-import org.mapstruct.MappingTarget;
-import org.mapstruct.ReportingPolicy;
+import org.mapstruct.*;
 
 @Mapper(componentModel = "spring")
 
@@ -16,6 +13,7 @@ public interface PromotionConditionMapper {
     @BeanMapping(unmappedTargetPolicy = ReportingPolicy.IGNORE)
     PromotionCondition toEntity(PromotionConditionCreateRequest request);
 
+    @Mapping(target = "promotionId", source = "promotion.id")
     PromotionConditionResponse toResponse(PromotionCondition promotionCondition);
 
     @BeanMapping(unmappedTargetPolicy = ReportingPolicy.IGNORE)

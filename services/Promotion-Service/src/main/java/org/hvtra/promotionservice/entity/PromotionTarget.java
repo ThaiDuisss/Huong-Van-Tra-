@@ -56,6 +56,10 @@ public class PromotionTarget extends BaseEntity {
     @Column(name = "target_id", columnDefinition = "BINARY(16)", nullable = false)
     UUID targetId;
 
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "import_batch_id", columnDefinition = "BINARY(16)")
+    UUID importBatchId;
+
     @Builder.Default
     @Column(name = "is_excluded", nullable = false)
     Boolean excluded = false;
