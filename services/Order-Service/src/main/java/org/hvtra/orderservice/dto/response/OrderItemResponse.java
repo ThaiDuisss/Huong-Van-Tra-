@@ -12,11 +12,14 @@ public class OrderItemResponse {
     private UUID id;
     private UUID productVariantId;
     private String skuSnapshot;
+    private String sku;
     private String productNameSnapshot;
+    private String productName;
     private String variantNameSnapshot;
     private BigDecimal quantity;
     private BigDecimal originalUnitPrice;
     private BigDecimal actualUnitPrice;
+    private BigDecimal unitPrice;
     private BigDecimal discountAmount;
     private BigDecimal lineTotal;
     private UUID bomVersionId;

@@ -28,6 +28,12 @@ public class PaymentTransaction extends BaseEntity {
     @Column(name = "amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal amount;
 
+    @Column(name = "received_amount", precision = 14, scale = 2)
+    private BigDecimal receivedAmount;
+
+    @Column(name = "change_amount", nullable = false, precision = 14, scale = 2)
+    private BigDecimal changeAmount;
+
     @Column(name = "status", nullable = false, length = 50)
     private String status;
 

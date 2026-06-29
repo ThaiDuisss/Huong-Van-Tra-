@@ -25,13 +25,17 @@ public class OrderResponse {
     private String orderType;
     private OrderStatus status;
     private PaymentStatus paymentStatus;
+    private String paymentMethod;
+    private String paymentMethodLabel;
 
     private BigDecimal originalAmount;
+    private BigDecimal subTotal;
     private BigDecimal discountAmount;
     private BigDecimal shippingFee;
     private BigDecimal finalAmount;
     private BigDecimal paidAmount;
     private BigDecimal debtAmount;
+    private BigDecimal changeAmount;
 
     private List<OrderItemResponse> items;
 
@@ -60,6 +64,7 @@ public class OrderResponse {
     private String createdBy;
     private String createdByName;
     private LocalDateTime createdAt;
+    private LocalDateTime soldAt;
 
     private String updatedBy;
     private LocalDateTime updatedAt;

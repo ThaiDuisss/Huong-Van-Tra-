@@ -9,6 +9,8 @@ import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
+import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
+import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.springframework.data.domain.Page;
@@ -31,6 +33,14 @@ public interface OrderService {
             int page,
             int size
     );
+    Page<TodaySalesItemResponse> getTodaySales(
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String paymentMethod,
+            int page,
+            int size
+    );
+    TodaySalesSummaryResponse getTodaySalesSummary();
     OrderStatsResponse getOrderStats(LocalDate fromDate, LocalDate toDate);
     OrderResponse updateOrderStatus(UUID orderId, UpdateOrderStatusRequest request);
     OrderResponse cancelOrder(UUID orderId, CancelOrderRequest request);

@@ -9,6 +9,7 @@ import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
+import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
@@ -44,6 +45,15 @@ export function AppRouter() {
                 element={
                     <PosShell>
                         <InventoryBalancePage />
+                    </PosShell>
+                }
+            />
+
+            <Route
+                path={routePaths.salesHistory}
+                element={
+                    <PosShell>
+                        <SalesHistoryPage />
                     </PosShell>
                 }
             />

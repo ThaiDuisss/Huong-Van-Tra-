@@ -13,6 +13,8 @@ import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
+import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
+import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -77,6 +79,22 @@ public class OrderController {
                 page,
                 size
         );
+    }
+
+    @GetMapping("/today-sales")
+    public Page<TodaySalesItemResponse> getTodaySales(
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) PaymentStatus paymentStatus,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return orderService.getTodaySales(status, paymentStatus, paymentMethod, page, size);
+    }
+
+    @GetMapping("/today-sales/summary")
+    public TodaySalesSummaryResponse getTodaySalesSummary() {
+        return orderService.getTodaySalesSummary();
     }
 
     @GetMapping("/stats")

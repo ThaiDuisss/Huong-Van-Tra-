@@ -4,6 +4,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
@@ -20,6 +21,8 @@ import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderStatusHistoryResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
+import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
+import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
 import org.hvtra.orderservice.exception.OrderAlreadyPaidException;
@@ -28,7 +31,9 @@ import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -42,6 +47,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.time.format.DateTimeFormatter;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -57,6 +63,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final CatalogClient catalogClient;
+    private final PaymentClient paymentClient;
     private final OrderCustomerServiceImpl orderCustomerServiceImpl;
 
     @Override
@@ -248,6 +255,76 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<TodaySalesItemResponse> getTodaySales(
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String paymentMethod,
+            int page,
+            int size
+    ) {
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 200),
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+
+        List<TodaySalesItemResponse> filteredItems = orderRepository.findAll(
+                        orderSpecification(null, status, paymentStatus, null, today, today),
+                        Sort.by(Sort.Direction.DESC, "createdAt")
+                )
+                .stream()
+                .map(this::toTodaySalesItemResponse)
+                .filter(item -> paymentMethodMatches(item, paymentMethod))
+                .toList();
+        int start = (int) Math.min(pageable.getOffset(), filteredItems.size());
+        int end = Math.min(start + pageable.getPageSize(), filteredItems.size());
+
+        return new PageImpl<>(filteredItems.subList(start, end), pageable, filteredItems.size());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TodaySalesSummaryResponse getTodaySalesSummary() {
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        List<Order> todayOrders = orderRepository.findAll(
+                orderSpecification(null, null, null, null, today, today)
+        );
+
+        long totalOrders = todayOrders.size();
+        long completedOrders = todayOrders.stream().filter(this::isCompletedSale).count();
+        long pendingPaymentOrders = todayOrders.stream().filter(this::isPendingPaymentSale).count();
+
+        // Doanh thu chỉ tính đơn đã thanh toán/hoàn thành và không bị hủy.
+        BigDecimal todayRevenue = todayOrders.stream()
+                .filter(this::isCompletedSale)
+                .map(order -> defaultZero(order.getFinalAmount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Chờ thu chỉ tính đơn chưa thanh toán và chưa hủy.
+        BigDecimal pendingAmount = todayOrders.stream()
+                .filter(this::isPendingPaymentSale)
+                .map(order -> defaultZero(order.getDebtAmount()).compareTo(BigDecimal.ZERO) > 0
+                        ? defaultZero(order.getDebtAmount())
+                        : defaultZero(order.getFinalAmount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal averageOrderValue = completedOrders == 0
+                ? BigDecimal.ZERO
+                : todayRevenue.divide(BigDecimal.valueOf(completedOrders), 2, RoundingMode.HALF_UP);
+
+        return TodaySalesSummaryResponse.builder()
+                .todayRevenue(todayRevenue)
+                .totalOrders(totalOrders)
+                .completedOrders(completedOrders)
+                .pendingPaymentOrders(pendingPaymentOrders)
+                .averageOrderValue(averageOrderValue)
+                .pendingAmount(pendingAmount)
+                .build();
+    }
+
+    @Override
     @Transactional
     public OrderResponse updateOrderStatus(UUID orderId, UpdateOrderStatusRequest request) {
         Order order = getExistingOrder(orderId);
@@ -381,6 +458,11 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
+        PaymentClient.PaymentOrderInfoResponse paymentInfo = fetchPaymentInfo(order.getId());
+        BigDecimal changeAmount = paymentInfo == null ? BigDecimal.ZERO : defaultZero(paymentInfo.changeAmount());
+        String paymentMethod = resolvePaymentMethod(order, paymentInfo);
+        LocalDateTime createdAt = toLocalDateTime(auditValue(order, "getCreatedAt"));
+
         return OrderResponse.builder()
                 .id(order.getId())
                 .orderCode(order.getOrderCode())
@@ -392,12 +474,16 @@ public class OrderServiceImpl implements OrderService {
                 .orderType(order.getOrderType())
                 .status(order.getStatus())
                 .paymentStatus(order.getPaymentStatus())
+                .paymentMethod(paymentMethod)
+                .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))
                 .originalAmount(order.getOriginalAmount())
+                .subTotal(order.getOriginalAmount())
                 .discountAmount(order.getDiscountAmount())
                 .shippingFee(order.getShippingFee())
                 .finalAmount(order.getFinalAmount())
                 .paidAmount(order.getPaidAmount())
                 .debtAmount(order.getDebtAmount())
+                .changeAmount(changeAmount)
                 .items(order.getItems().stream().map(this::toItemResponse).toList())
                 .customerName(order.getCustomerNameSnapshot())
                 .customerPhone(order.getCustomerPhoneSnapshot())
@@ -416,7 +502,8 @@ public class OrderServiceImpl implements OrderService {
                 .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
                 .createdByName(order.getCashierNameSnapshot())
-                .createdAt(toLocalDateTime(auditValue(order, "getCreatedAt")))
+                .createdAt(createdAt)
+                .soldAt(createdAt)
                 .updatedBy(toAuditString(auditValue(order, "getUpdatedBy")))
                 .updatedAt(toLocalDateTime(auditValue(order, "getUpdatedAt")))
                 .statusHistories(toStatusHistoryResponses(order.getId()))
@@ -444,16 +531,43 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    private TodaySalesItemResponse toTodaySalesItemResponse(Order order) {
+        LocalDateTime createdAt = toLocalDateTime(auditValue(order, "getCreatedAt"));
+        PaymentClient.PaymentOrderInfoResponse paymentInfo = fetchPaymentInfo(order.getId());
+        String paymentMethod = resolvePaymentMethod(order, paymentInfo);
+
+        return TodaySalesItemResponse.builder()
+                .orderId(order.getId())
+                .orderCode(order.getOrderCode())
+                .soldAt(createdAt)
+                .createdAt(createdAt)
+                .customerName(order.getCustomerNameSnapshot())
+                .customerPhone(order.getCustomerPhoneSnapshot())
+                .cashierName(order.getCashierNameSnapshot())
+                .totalItems(totalItems(order))
+                .finalAmount(order.getFinalAmount())
+                .paymentMethod(paymentMethod)
+                .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))
+                .status(order.getStatus())
+                .statusLabel(toOrderStatusLabel(order.getStatus()))
+                .paymentStatus(order.getPaymentStatus())
+                .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
+                .build();
+    }
+
     private OrderItemResponse toItemResponse(OrderItem item) {
         return OrderItemResponse.builder()
                 .id(item.getId())
                 .productVariantId(item.getProductVariantId())
                 .skuSnapshot(item.getSkuSnapshot())
+                .sku(item.getSkuSnapshot())
                 .productNameSnapshot(item.getProductNameSnapshot())
+                .productName(item.getProductNameSnapshot())
                 .variantNameSnapshot(item.getVariantNameSnapshot())
                 .quantity(item.getQuantity())
                 .originalUnitPrice(item.getOriginalUnitPrice())
                 .actualUnitPrice(item.getActualUnitPrice())
+                .unitPrice(item.getActualUnitPrice())
                 .discountAmount(item.getDiscountAmount())
                 .lineTotal(item.getLineTotal())
                 .bomVersionId(item.getBomVersionId())
@@ -535,8 +649,85 @@ public class OrderServiceImpl implements OrderService {
         };
     }
 
+    private String toPaymentMethodLabel(String paymentMethod) {
+        if (paymentMethod == null) {
+            return null;
+        }
+        return switch (paymentMethod) {
+            case "CASH" -> "Tiền mặt";
+            case "BANK_TRANSFER", "QR_CODE" -> "Chuyển khoản";
+            case "DEBT" -> "Công nợ";
+            case "CARD" -> "Thẻ";
+            case "E_WALLET" -> "Ví điện tử";
+            case "COMBINED" -> "Kết hợp";
+            default -> paymentMethod;
+        };
+    }
+
     private BigDecimal defaultZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private boolean isCompletedSale(Order order) {
+        return OrderStatus.CANCELLED != order.getStatus()
+                && (PaymentStatus.PAID == order.getPaymentStatus() || OrderStatus.COMPLETED == order.getStatus());
+    }
+
+    private boolean isPendingPaymentSale(Order order) {
+        return OrderStatus.CANCELLED != order.getStatus()
+                && (PaymentStatus.UNPAID == order.getPaymentStatus()
+                || PaymentStatus.WAITING_PAYMENT == order.getPaymentStatus()
+                || OrderStatus.PENDING_PAYMENT == order.getStatus());
+    }
+
+    private BigDecimal totalItems(Order order) {
+        if (order.getItems() == null) {
+            return BigDecimal.ZERO;
+        }
+        return order.getItems().stream()
+                .map(item -> defaultZero(item.getQuantity()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private boolean paymentMethodMatches(TodaySalesItemResponse item, String paymentMethod) {
+        String normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+        return normalizedPaymentMethod == null
+                || normalizedPaymentMethod.equals(normalizePaymentMethod(item.getPaymentMethod()));
+    }
+
+    private PaymentClient.PaymentOrderInfoResponse fetchPaymentInfo(UUID orderId) {
+        try {
+            return paymentClient.getPaymentByOrderId(orderId);
+        } catch (RuntimeException ex) {
+            log.debug("Không lấy được payment info cho orderId={}: {}", orderId, ex.getMessage());
+            return null;
+        }
+    }
+
+    private String resolvePaymentMethod(Order order, PaymentClient.PaymentOrderInfoResponse paymentInfo) {
+        if (paymentInfo != null && paymentInfo.method() != null) {
+            return normalizePaymentMethod(paymentInfo.method());
+        }
+        if (defaultZero(order.getDebtAmount()).compareTo(BigDecimal.ZERO) > 0 || isPendingPaymentSale(order)) {
+            return "DEBT";
+        }
+        return PaymentStatus.PAID == order.getPaymentStatus() ? "CASH" : null;
+    }
+
+    private String normalizePaymentMethod(String paymentMethod) {
+        if (paymentMethod == null || paymentMethod.isBlank()) {
+            return null;
+        }
+        String normalized = paymentMethod.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "TRANSFER", "BANK_TRANSFER", "QR_CODE" -> "BANK_TRANSFER";
+            case "CASH" -> "CASH";
+            case "DEBT", "CREDIT" -> "DEBT";
+            case "CARD" -> "CARD";
+            case "E_WALLET" -> "E_WALLET";
+            case "COMBINED" -> "COMBINED";
+            default -> normalized;
+        };
     }
 
     private String normalizeOrderType(String orderType) {
