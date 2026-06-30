@@ -14,7 +14,7 @@ import java.util.UUID;
 public abstract class OutboxEventFactory<T extends BaseOutboxEvent> {
 
     private final ObjectMapper objectMapper;
-    @Value("${app.outbox.max-retry}")
+//    @Value("${app.outbox.max-retry}")
     private Integer maxRetry;
     protected abstract T newEvent();
 
