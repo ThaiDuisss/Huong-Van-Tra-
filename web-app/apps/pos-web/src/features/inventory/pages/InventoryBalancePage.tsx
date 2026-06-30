@@ -1,4 +1,4 @@
-import { Eye, History, ArrowUpDown, ArrowLeftRight, X, Search } from "lucide-react";
+import { Eye, History, ArrowUpDown, ArrowLeftRight, X, Search, MoreHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -83,10 +83,11 @@ export function InventoryBalancePage() {
 
     // Drawer / Panel state
     const [selectedRow, setSelectedRow] = useState<JoinedRow | null>(null);
-    const [activeModal, setActiveModal] = useState<"stock-in" | "adjustment" | null>(null);
+    const [activeModal, setActiveModal] = useState<"stock-in" | "adjustment" | "transfer" | null>(null);
+    const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
     // Dashboard Metrics state (reserved for future KPI display)
-    const [_dashboardMetrics, setDashboardMetrics] = useState({
+    const [_dashboardMetrics] = useState({
         totalSku: 0,
         totalStock: 0,
         lowStock: 0,
