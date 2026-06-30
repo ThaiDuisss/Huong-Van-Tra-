@@ -372,162 +372,165 @@ export function InventoryBalancePage() {
                         Theo dõi lượng tồn kho chi tiết.
                     </p>
                 </div>
-                <div className="flex-1 max-w-sm md:mx-4">
-                    <div className="relative">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Tìm theo SKU hoặc tên sản phẩm..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white shadow-sm"
-                        />
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-3 shrink-0 ml-auto">
                     <button
                         onClick={() => setActiveModal("stock-in")}
-                        className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl bg-hvt-green-700 font-bold text-white hover:bg-hvt-green-800 transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-[9px] h-12 rounded-lg bg-[#07883a] text-white px-[22px] font-black shadow-[0_10px_24px_rgba(7,136,58,0.24)] hover:opacity-90 transition-all cursor-pointer"
                     >
                         Nhập hàng
                     </button>
                     <button
                         onClick={() => setActiveModal("adjustment")}
-                        className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl border border-pos-border bg-white font-bold text-gray-700 hover:bg-neutral-50 transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-[9px] h-12 rounded-lg border border-[#dfe6ee] bg-white text-[#172317] px-[18px] font-black hover:bg-neutral-50 transition-all cursor-pointer"
                     >
                         Điều chỉnh kho
                     </button>
                 </div>
             </header>
 
-            {/* Metrics Summaries */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                <Metric label="Tổng SKU đang có" value={formatQuantity(dashboardMetrics.totalSku)} />
-                <Metric label="Tổng tồn kho" value={formatQuantity(dashboardMetrics.totalStock)} />
-                <Metric label="Sản phẩm sắp hết" value={formatQuantity(dashboardMetrics.lowStock)} danger={dashboardMetrics.lowStock > 0} />
-                <Metric label="Sản phẩm hết hàng" value={formatQuantity(dashboardMetrics.outOfStock)} danger={dashboardMetrics.outOfStock > 0} />
-                <Metric label="Giá trị tồn kho" value={`${formatQuantity(dashboardMetrics.totalValue)} đ`} />
+            {/* Dashboard KPI Metrics Grid */}
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+                {[
+                    { label: "Tổng số mặt hàng", value: dashboardMetrics.totalSku, color: "text-blue-600 bg-blue-50" },
+                    { label: "Tổng lượng tồn", value: formatQuantity(dashboardMetrics.totalStock), color: "text-emerald-600 bg-emerald-50" },
+                    { label: "Sắp hết hàng", value: dashboardMetrics.lowStock, color: "text-amber-600 bg-amber-50" },
+                    { label: "Hết hàng", value: dashboardMetrics.outOfStock, color: "text-rose-600 bg-rose-50" },
+                    { label: "Tổng giá trị", value: new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(dashboardMetrics.totalValue), color: "text-indigo-600 bg-indigo-50" }
+                ].map((kpi, idx) => (
+                    <div key={idx} className="flex flex-col gap-1 rounded-2xl border border-neutral-100 bg-white p-4 shadow-pos-card">
+                        <span className="text-[13px] font-[900] text-[#536078]">{kpi.label}</span>
+                        <span className={`self-start px-2.5 py-1 rounded-lg text-lg font-black ${kpi.color}`}>
+                            {kpi.value}
+                        </span>
+                    </div>
+                ))}
             </div>
 
             {/* Config & Filters Row */}
-            <div className="flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-pos-card">
-                <div className="flex flex-wrap items-end gap-3">
-                    <div className="w-52">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Danh mục</label>
-                        <select
-                            value={filterCategoryId}
-                            onChange={(e) => setFilterCategoryId(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
-                        >
-                            <option value="">Tất cả danh mục</option>
-                            {categories.map((c) => (
-                                <option key={c.id} value={String(c.id)}>
-                                    {c.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="w-52">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Đơn vị tính</label>
-                        <select
-                            value={filterUnitId}
-                            onChange={(e) => setFilterUnitId(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
-                        >
-                            <option value="">Tất cả đơn vị</option>
-                            {units.map((u) => (
-                                <option key={u.id} value={String(u.id)}>
-                                    {u.name} ({u.symbol})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="w-52">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Trạng thái tồn kho</label>
-                        <select
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
-                        >
-                            <option value="">Tất cả trạng thái</option>
-                            <option value="LOW_STOCK">Sắp hết hàng</option>
-                            <option value="OUT_OF_STOCK">Hết hàng</option>
-                        </select>
+            <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
+                {/* Search Bar at the top of the card */}
+                <div className="border-b border-[#f3f5f7] pb-3">
+                    <div className="relative w-full">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Tìm theo SKU hoặc tên sản phẩm..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
+                        />
                     </div>
                 </div>
 
-                {/* Active filter tags - hiện khi có filter đang hoạt động */}
-                {(filterCategoryId || filterUnitId || filterStatus || searchQuery.trim()) ? (
-                    <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs text-gray-400 font-medium">Đang lọc theo:</span>
-                            {searchQuery.trim() ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-blue-200 bg-blue-50/50 text-blue-800 text-xs font-semibold">
-                                    <span>Tìm kiếm: {searchQuery}</span>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-[10px] pt-3">
+                    {/* Categories filter chips */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                            Danh mục:
+                        </span>
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <button
+                                type="button"
+                                onClick={() => setFilterCategoryId("")}
+                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                    filterCategoryId === ""
+                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                }`}
+                            >
+                                Tất cả
+                            </button>
+                            {categories.map((c) => {
+                                const isActive = filterCategoryId === String(c.id);
+                                return (
                                     <button
+                                        key={c.id}
                                         type="button"
-                                        onClick={() => setSearchQuery("")}
-                                        className="hover:bg-blue-100 p-0.5 rounded-full text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
+                                        onClick={() => setFilterCategoryId(String(c.id))}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            isActive
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
                                     >
-                                        <X size={12} />
+                                        {c.name}
                                     </button>
-                                </span>
-                            ) : null}
-                            {filterCategoryId ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50/50 text-emerald-800 text-xs font-semibold">
-                                    <span>Danh mục: {categories.find(c => String(c.id) === filterCategoryId)?.name ?? filterCategoryId}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFilterCategoryId("")}
-                                        className="hover:bg-emerald-100 p-0.5 rounded-full text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </span>
-                            ) : null}
-                            {filterUnitId ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50/50 text-emerald-800 text-xs font-semibold">
-                                    <span>Đơn vị: {units.find(u => String(u.id) === filterUnitId)?.name ?? filterUnitId}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFilterUnitId("")}
-                                        className="hover:bg-emerald-100 p-0.5 rounded-full text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </span>
-                            ) : null}
-                            {filterStatus ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-200 bg-amber-50/50 text-amber-800 text-xs font-semibold">
-                                    <span>Trạng thái: {filterStatus === "LOW_STOCK" ? "Sắp hết hàng" : "Hết hàng"}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFilterStatus("")}
-                                        className="hover:bg-amber-100 p-0.5 rounded-full text-amber-500 hover:text-amber-700 transition-colors cursor-pointer"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </span>
-                            ) : null}
+                                );
+                            })}
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSearchQuery("");
-                                setFilterCategoryId("");
-                                setFilterUnitId("");
-                                setFilterStatus("");
-                            }}
-                            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors cursor-pointer"
-                        >
-                            Xóa tất cả
-                        </button>
                     </div>
-                ) : null}
+
+                    {/* Units filter chips */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                            Đơn vị tính:
+                        </span>
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <button
+                                type="button"
+                                onClick={() => setFilterUnitId("")}
+                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                    filterUnitId === ""
+                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                }`}
+                            >
+                                Tất cả
+                            </button>
+                            {units.map((u) => {
+                                const isActive = filterUnitId === String(u.id);
+                                return (
+                                    <button
+                                        key={u.id}
+                                        type="button"
+                                        onClick={() => setFilterUnitId(String(u.id))}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            isActive
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
+                                    >
+                                        {u.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Status filter chips */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                            Trạng thái tồn kho:
+                        </span>
+                        <div className="flex flex-wrap gap-2 items-center">
+                            {[
+                                { value: "", label: "Tất cả" },
+                                { value: "LOW_STOCK", label: "Sắp hết hàng" },
+                                { value: "OUT_OF_STOCK", label: "Hết hàng" }
+                            ].map((opt) => {
+                                const isActive = filterStatus === opt.value;
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => setFilterStatus(opt.value)}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            isActive
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Main Data Grid */}
-            <div className={`grid gap-4 ${selectedRow ? "grid-cols-1 lg:grid-cols-[1fr_380px]" : "grid-cols-1"}`}>
+            <div className="grid gap-4 grid-cols-1">
                 <section className="flex flex-col min-h-[580px] min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
                     <div className="flex-1 overflow-x-auto">
                         {loadingBalances ? <InventoryLoading /> : null}
@@ -535,7 +538,7 @@ export function InventoryBalancePage() {
                         {!loadingBalances && !error && filteredRows.length === 0 ? <InventoryEmpty /> : null}
                         {!loadingBalances && !error && filteredRows.length > 0 ? (
                             <table className="table-layout-fixed w-full text-left text-sm border-separate border-spacing-0">
-                                <thead className="bg-neutral-50 text-xs text-gray-600 font-bold sticky top-0 z-10">
+                                <thead className="bg-white text-[13px] font-[950] text-[#172317] sticky top-0 z-10">
                                     <tr>
                                         {schemaColumns.map(col => {
                                             if (!columnVisibility[col]) return null;
@@ -544,7 +547,7 @@ export function InventoryBalancePage() {
                                                 <th
                                                     key={col}
                                                     style={{ width: `${width}px` }}
-                                                    className="px-4 py-3 relative border-b border-pos-border group cursor-pointer select-none"
+                                                    className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] relative group cursor-pointer select-none first:pl-[18px]"
                                                     onClick={() => handleSort(col)}
                                                 >
                                                     <div className="flex items-center gap-1.5">
@@ -561,7 +564,7 @@ export function InventoryBalancePage() {
                                                 </th>
                                             );
                                         })}
-                                        <th className="px-4 py-3 text-right border-b border-pos-border sticky right-0 bg-neutral-50" style={{ width: "100px" }}>
+                                        <th className="h-[52px] align-middle px-4 py-0 text-right border-b border-[#edf0f4] sticky right-0 bg-white pr-[18px]" style={{ width: "100px" }}>
                                             Thao tác
                                         </th>
                                     </tr>
@@ -571,13 +574,13 @@ export function InventoryBalancePage() {
                                         <tr
                                             key={row.id}
                                             onClick={() => setSelectedRow(row)}
-                                            className={`hover:bg-neutral-50 cursor-pointer border-b border-pos-border last:border-0 ${selectedRow?.id === row.id ? "bg-hvt-green-50/20" : ""}`}
+                                            className={`hover:bg-neutral-50 cursor-pointer transition-all ${selectedRow?.id === row.id ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]" : ""}`}
                                         >
                                             {schemaColumns.map(col => {
                                                 if (!columnVisibility[col]) return null;
                                                 const val = row[col];
                                                 return (
-                                                    <td key={col} className="px-4 py-3.5 border-b border-pos-border max-w-[300px] truncate">
+                                                    <td key={col} className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] max-w-[300px] truncate first:pl-[18px]">
                                                         {col === "Ảnh sản phẩm" ? (
                                                             val ? (
                                                                 <img src={val} alt="" className="size-10 rounded-lg object-cover border border-pos-border" />
@@ -596,7 +599,7 @@ export function InventoryBalancePage() {
                                                     </td>
                                                 );
                                             })}
-                                            <td className="px-4 py-3.5 border-b border-pos-border text-right sticky right-0 bg-white" onClick={(e) => e.stopPropagation()}>
+                                            <td className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right sticky right-0 bg-white pr-[18px]" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex justify-end gap-1">
                                                     <button
                                                         type="button"
@@ -638,55 +641,48 @@ export function InventoryBalancePage() {
 
                 {/* Dynamic Details Panel */}
                 {selectedRow ? (
-                    <DetailPanel title="Thông tin chi tiết" onClose={() => setSelectedRow(null)}>
-                        {selectedRow["Ảnh sản phẩm"] ? (
-                            <img
-                                src={selectedRow["Ảnh sản phẩm"]}
-                                alt=""
-                                className="h-40 w-full rounded-2xl object-cover mb-4 border border-pos-border"
-                            />
-                        ) : null}
+                    <div
+                        className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-5"
+                        onClick={() => setSelectedRow(null)}
+                        role="presentation"
+                    >
+                        <div
+                            aria-modal="true"
+                            className="w-full max-w-xl max-h-[85vh] overflow-y-auto"
+                            onClick={(event) => event.stopPropagation()}
+                            role="dialog"
+                        >
+                            <DetailPanel title="Thông tin chi tiết" onClose={() => setSelectedRow(null)}>
+                                {selectedRow["Ảnh sản phẩm"] ? (
+                                    <img
+                                        src={selectedRow["Ảnh sản phẩm"]}
+                                        alt=""
+                                        className="h-40 w-full rounded-2xl object-cover mb-4 border border-pos-border"
+                                    />
+                                ) : null}
 
-                        <dl className="grid gap-3 border-b border-pos-border pb-4 mb-4 text-sm">
-                            {/* Dynamically render all schema keys (adapts automatically to future schema additions) */}
-                            {Object.entries(selectedRow)
-                                .filter(([key]) => !["id", "inventoryItemId", "locationId", "branchId", "Ảnh sản phẩm", "Tồn thực tế", "Tồn giữ chỗ", "Vị trí"].includes(key))
-                                .map(([key, val]) => (
-                                    <div key={key} className="flex justify-between py-1 border-b border-dashed border-neutral-100 last:border-0">
-                                        <dt className="text-gray-500 font-medium">{key}</dt>
-                                        <dd className="text-gray-900 font-semibold max-w-[200px] truncate text-right">
-                                            {key === "Ngày cập nhật"
-                                                ? formatInventoryDate(val)
-                                                : (key === "Giá nhập" || key === "Giá bán")
-                                                ? (typeof val === "number" ? `${formatQuantity(val)} đ` : String(val ?? "-"))
-                                                : typeof val === "number"
-                                                ? formatQuantity(val)
-                                                : String(val ?? "-")}
-                                        </dd>
-                                    </div>
-                                ))}
-                        </dl>
-
-                        {/* Actions Pane */}
-                        {/* <div className="grid gap-2">
-                            <button
-                                type="button"
-                                onClick={handleRequestTransfer}
-                                className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-hvt-green-900 font-bold text-white hover:bg-hvt-green-950 transition-colors"
-                            >
-                                <ArrowRightLeft size={16} />
-                                Yêu cầu chuyển kho
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => navigate(`${routePaths.inventoryTransactions}?inventoryItemId=${selectedRow.inventoryItemId}`)}
-                                className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-pos-border font-bold text-gray-700 hover:bg-neutral-50 transition-colors"
-                            >
-                                <FileSearch size={16} />
-                                Xem lịch sử biến động
-                            </button>
-                        </div> */}
-                    </DetailPanel>
+                                <dl className="grid gap-3 border-b border-pos-border pb-4 mb-4 text-sm">
+                                    {/* Dynamically render all schema keys (adapts automatically to future schema additions) */}
+                                    {Object.entries(selectedRow)
+                                        .filter(([key]) => !["id", "inventoryItemId", "locationId", "branchId", "Ảnh sản phẩm", "Tồn thực tế", "Tồn giữ chỗ", "Vị trí"].includes(key))
+                                        .map(([key, val]) => (
+                                            <div key={key} className="flex justify-between py-1 border-b border-dashed border-neutral-100 last:border-0">
+                                                <dt className="text-gray-500 font-medium">{key}</dt>
+                                                <dd className="text-gray-900 font-semibold max-w-[200px] truncate text-right">
+                                                    {key === "Ngày cập nhật"
+                                                        ? formatInventoryDate(val)
+                                                        : (key === "Giá nhập" || key === "Giá bán")
+                                                        ? (typeof val === "number" ? `${formatQuantity(val)} đ` : String(val ?? "-"))
+                                                        : typeof val === "number"
+                                                        ? formatQuantity(val)
+                                                        : String(val ?? "-")}
+                                                </dd>
+                                            </div>
+                                        ))}
+                                </dl>
+                            </DetailPanel>
+                        </div>
+                    </div>
                 ) : null}
             </div>
 
@@ -742,11 +738,4 @@ export function InventoryBalancePage() {
     );
 }
 
-function Metric({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
-    return (
-        <article className="rounded-2xl bg-white p-5 shadow-pos-card border border-pos-border/40">
-            <p className="text-sm font-semibold text-gray-500">{label}</p>
-            <strong className={`mt-2 block text-3xl ${danger ? "text-red-600" : "text-gray-900"}`}>{value}</strong>
-        </article>
-    );
-}
+

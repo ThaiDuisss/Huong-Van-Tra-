@@ -15,10 +15,10 @@ export function ActionButton({
         <button
             type="button"
             onClick={onClick}
-            className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold shadow-sm ${
+            className={`inline-flex h-12 items-center justify-center gap-[9px] rounded-lg text-sm font-black transition-all cursor-pointer ${
                 variant === "primary"
-                    ? "bg-hvt-green-900 text-white"
-                    : "border border-pos-border bg-white text-gray-500"
+                    ? "border-0 bg-[#07883a] text-white px-[22px] shadow-[0_10px_24px_rgba(7,136,58,0.24)] hover:opacity-90"
+                    : "border border-[#dfe6ee] bg-white text-[#172317] px-[18px] hover:bg-neutral-50"
             }`}
         >
             {children}

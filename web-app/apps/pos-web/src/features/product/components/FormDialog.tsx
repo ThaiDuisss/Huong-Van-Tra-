@@ -267,14 +267,14 @@ export function FormDialog({
                         type="button"
                         onClick={onClose}
                         disabled={submitting}
-                        className="h-11 rounded-xl border border-pos-border px-5 text-sm font-bold"
+                        className="h-11 rounded-lg border border-[#dfe6ee] bg-white text-[#172317] px-5 text-sm font-black transition-all cursor-pointer hover:bg-neutral-50"
                     >
                         Hủy
                     </button>
                     <button
                         type="submit"
                         disabled={submitting || uploadingField !== null}
-                        className="h-11 rounded-xl bg-hvt-green-900 px-5 text-sm font-bold text-white disabled:opacity-60"
+                        className="h-11 rounded-lg border-0 bg-[#07883a] text-white px-5 text-sm font-black shadow-[0_6px_16px_rgba(7,136,58,0.18)] disabled:opacity-60 transition-all cursor-pointer hover:opacity-90"
                     >
                         {submitting ? "Đang lưu..." : (uploadingField ? "Đang tải ảnh..." : submitLabel)}
                     </button>

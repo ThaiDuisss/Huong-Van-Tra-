@@ -3,8 +3,7 @@ import {
     Eye,
     Pencil,
     Plus,
-    ToggleLeft,
-    X
+    ToggleLeft
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
@@ -18,7 +17,6 @@ import { CatalogStatusBadge } from "./CatalogStatusBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { FormDialog } from "./FormDialog";
 import { IconAction } from "./IconAction";
-import { SelectField } from "./SelectField";
 
 // Re-export helper components for backward compatibility
 export { TableCell } from "./TableCell";
@@ -45,6 +43,13 @@ export interface FormField {
     options?: Array<{ label: string; value: string }>;
     placeholder?: string;
     purpose?: string;
+}
+
+export interface CatalogFilter {
+    label: string;
+    value: string;
+    options: Array<{ label: string; value: string }>;
+    onChange(value: string): void;
 }
 
 export interface CatalogResourceManagementProps<T extends RowBase, S extends string = string> {
@@ -83,6 +88,7 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     statusOptions?: Array<{ label: string; value: "ALL" | S }>;
     extraHeaderActions?: ReactNode;
     totalItemsLabel?: string;
+    filters?: CatalogFilter[];
 }
 
 export function CatalogResourceManagement<T extends RowBase, S extends string = string>({
@@ -115,7 +121,8 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     secondaryFilter,
     statusOptions,
     extraHeaderActions,
-    totalItemsLabel
+    totalItemsLabel,
+    filters
 }: CatalogResourceManagementProps<T, S>) {
     const [selectedItem, setSelectedItem] = useState<T | null>(null);
     const [editingItem, setEditingItem] = useState<T | null>(null);
@@ -125,19 +132,36 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     const [actionError, setActionError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    const activeStatusOption = (statusOptions ?? [
-        { label: "Tất cả", value: "ALL" },
-        { label: "Đang hoạt động", value: "ACTIVE" },
-        { label: "Ngừng hoạt động", value: "INACTIVE" }
-    ]).find(opt => opt.value === status);
+    const activeFilters: CatalogFilter[] = [];
 
-    const activeSecondaryOption = secondaryFilter
-        ? secondaryFilter.options.find(opt => opt.value === secondaryFilter.value)
-        : null;
+    if (onStatusChange && status !== undefined) {
+        activeFilters.push({
+            label: "Trạng thái",
+            value: String(status),
+            options: (statusOptions ?? [
+                { label: "Tất cả", value: "ALL" },
+                { label: "Đang hoạt động", value: "ACTIVE" as any },
+                { label: "Ngừng hoạt động", value: "INACTIVE" as any }
+            ]).map(opt => ({ label: opt.label, value: String(opt.value) })),
+            onChange: (val) => onStatusChange(val as any)
+        });
+    }
 
-    const hasActiveFilters =
-        (onStatusChange && status !== undefined && status !== "ALL" && activeStatusOption) ||
-        (secondaryFilter && secondaryFilter.value !== "ALL" && activeSecondaryOption);
+    if (secondaryFilter) {
+        activeFilters.push({
+            label: secondaryFilter.label,
+            value: secondaryFilter.value,
+            options: [
+                { label: "Tất cả", value: "ALL" },
+                ...secondaryFilter.options
+            ],
+            onChange: secondaryFilter.onChange
+        });
+    }
+
+    if (filters) {
+        activeFilters.push(...filters);
+    }
 
     function notify(message: string) {
         setToast(message);
@@ -198,16 +222,6 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                     </p>
                 </div>
 
-                {searchPlaceholder ? (
-                    <div className="w-full max-w-md md:mx-4 flex-1">
-                        <SearchBox
-                            value={query}
-                            placeholder={searchPlaceholder}
-                            onChange={onQueryChange}
-                        />
-                    </div>
-                ) : null}
-
                 <div className="flex items-center gap-3 min-w-[120px] justify-end">
                     {extraHeaderActions}
                     <ActionButton
@@ -224,90 +238,56 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 </div>
             </header>
 
-            <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-pos-card">
-                <div className="flex flex-wrap items-end gap-4">
-                    {onStatusChange && status !== undefined ? (
-                        <div className="w-48">
-                            <SelectField
-                                label="Trạng thái"
-                                value={status}
-                                options={
-                                    statusOptions ?? [
-                                        { label: "Tất cả", value: "ALL" },
-                                        { label: "Đang hoạt động", value: "ACTIVE" as any },
-                                        {
-                                            label: "Ngừng hoạt động",
-                                            value: "INACTIVE" as any
-                                        }
-                                    ]
-                                }
-                                onChange={(value) =>
-                                    onStatusChange(
-                                        value as "ALL" | S
-                                    )
-                                }
+            <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
+                {searchPlaceholder ? (
+                    <div className="border-b border-[#f3f5f7] pb-3">
+                        <div className="w-full">
+                            <SearchBox
+                                value={query}
+                                placeholder={searchPlaceholder}
+                                onChange={onQueryChange}
+                                className="w-full"
                             />
                         </div>
-                    ) : null}
-                    {secondaryFilter ? (
-                        <div className="w-48">
-                            <SelectField
-                                label={secondaryFilter.label}
-                                value={secondaryFilter.value}
-                                options={[
-                                    { label: "Tất cả", value: "ALL" },
-                                    ...secondaryFilter.options
-                                ]}
-                                onChange={secondaryFilter.onChange}
-                            />
-                        </div>
-                    ) : null}
-                </div>
+                    </div>
+                ) : null}
 
-                {hasActiveFilters ? (
-                    <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs text-gray-400 font-medium">Đang lọc theo:</span>
-                            {secondaryFilter && secondaryFilter.value !== "ALL" && activeSecondaryOption ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50/50 text-emerald-800 text-xs font-semibold">
-                                    <span>{secondaryFilter.label}: {activeSecondaryOption.label}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => secondaryFilter.onChange("ALL")}
-                                        className="hover:bg-emerald-100 p-0.5 rounded-full text-emerald-500 hover:text-emerald-700 transition-colors cursor-pointer"
-                                    >
-                                        <X size={12} />
-                                    </button>
+                {activeFilters.length > 0 ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-[10px] pt-3">
+                        {activeFilters.map((filter, index) => (
+                            <div
+                                key={filter.label + "-" + index}
+                                className="flex flex-wrap items-center gap-2"
+                            >
+                                <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                                    {filter.label}:
                                 </span>
-                            ) : null}
-                            {onStatusChange && status !== undefined && status !== "ALL" && activeStatusOption ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-200 bg-amber-50/50 text-amber-800 text-xs font-semibold">
-                                    <span>Trạng thái: {activeStatusOption.label}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => onStatusChange("ALL")}
-                                        className="hover:bg-amber-100 p-0.5 rounded-full text-amber-500 hover:text-amber-700 transition-colors cursor-pointer"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </span>
-                            ) : null}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (onStatusChange) onStatusChange("ALL");
-                                if (secondaryFilter) secondaryFilter.onChange("ALL");
-                            }}
-                            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors cursor-pointer"
-                        >
-                            Xóa tất cả
-                        </button>
+                                <div className="flex flex-wrap gap-2 items-center">
+                                    {filter.options.map((opt) => {
+                                        const isActive = filter.value === opt.value;
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                onClick={() => filter.onChange(opt.value)}
+                                                type="button"
+                                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                                    isActive
+                                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                                }`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : null}
             </div>
 
-            <div className={`grid gap-4 ${selectedItem ? "grid-cols-1 lg:grid-cols-[1fr_380px]" : "grid-cols-1"}`}>
+            <div className="grid gap-4 grid-cols-1">
                 <section className="flex flex-col min-h-[580px] min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
                     <div className="flex-1">
                         {loading ? <ApiLoadingState /> : null}
@@ -336,17 +316,17 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                         {!loading && !error && items.length > 0 ? (
                             <div className="overflow-x-auto">
                                 <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                                    <thead className="bg-neutral-50 text-xs font-bold text-gray-600">
+                                    <thead className="bg-white text-[13px] font-[950] text-[#172317]">
                                         <tr>
                                             {columns.map((column) => (
                                                 <th
                                                     key={column.key}
-                                                    className="px-4 py-3"
+                                                    className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px]"
                                                 >
                                                     {column.label}
                                                 </th>
                                             ))}
-                                            <th className="px-4 py-3 text-right">
+                                            <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">
                                                 Thao tác
                                             </th>
                                         </tr>
@@ -358,14 +338,14 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                 onClick={() =>
                                                     setSelectedItem(item)
                                                 }
-                                                className={`cursor-pointer hover:bg-neutral-50 ${
+                                                className={`cursor-pointer hover:bg-neutral-50 transition-all ${
                                                     selectedItem?.id === item.id
-                                                        ? "bg-hvt-green-50/70"
+                                                        ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
                                                         : ""
                                                 }`}
                                             >
                                                 {renderCells(item)}
-                                                <td className="border-b border-pos-border px-4 py-4">
+                                                <td className="border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px]">
                                                     <div className="flex justify-end gap-1">
                                                         {detailPath ? (
                                                             <Link
@@ -437,13 +417,24 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 </section>
 
                 {selectedItem ? (
-                    <div className="min-w-0">
-                        <DetailPanel
-                            title={`Chi tiết ${title.toLowerCase()}`}
-                            onClose={() => setSelectedItem(null)}
+                    <div
+                        className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-5"
+                        onClick={() => setSelectedItem(null)}
+                        role="presentation"
+                    >
+                        <div
+                            aria-modal="true"
+                            className="w-full max-w-xl max-h-[85vh] overflow-y-auto"
+                            onClick={(event) => event.stopPropagation()}
+                            role="dialog"
                         >
-                            {renderDetail(selectedItem)}
-                        </DetailPanel>
+                            <DetailPanel
+                                title={`Chi tiết ${title.toLowerCase()}`}
+                                onClose={() => setSelectedItem(null)}
+                            >
+                                {renderDetail(selectedItem)}
+                            </DetailPanel>
+                        </div>
                     </div>
                 ) : null}
             </div>

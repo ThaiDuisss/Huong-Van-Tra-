@@ -152,13 +152,23 @@ export function RawMaterialListPage() {
                 loading={resource.loading}
                 error={resource.error}
                 query={state.query}
-                status={state.status}
+                filters={[
+                    {
+                        label: "Trạng thái",
+                        value: state.status,
+                        options: [
+                            { label: "Tất cả", value: "ALL" },
+                            { label: "Đang hoạt động", value: "ACTIVE" },
+                            { label: "Ngừng hoạt động", value: "INACTIVE" }
+                        ],
+                        onChange: (val) => state.setStatus(val as any)
+                    }
+                ]}
                 page={(resource.data?.page ?? 0) + 1}
                 pageCount={resource.data?.totalPages ?? 1}
                 totalItems={resource.data?.totalElements ?? 0}
                 pageSize={state.pageSize}
                 onQueryChange={state.setQuery}
-                onStatusChange={state.setStatus}
                 onPageChange={state.setPage}
                 onPageSizeChange={state.setPageSize}
                 onRefresh={resource.refresh}
