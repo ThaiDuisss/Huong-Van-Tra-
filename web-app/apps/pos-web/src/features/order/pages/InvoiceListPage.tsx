@@ -24,9 +24,8 @@ import {
     buildDateRangeFilter,
     buildInvoiceCode,
     formatCurrency,
-    formatDateTime,
+    formatDateOnly,
     getCustomerName,
-    getOrderCode,
     getPaymentStatusText
 } from "../utils/order-formatters";
 import styles from "./InvoiceListPage.module.css";
@@ -314,18 +313,6 @@ export function InvoiceListPage() {
                     </div>
 
                     <div className={styles.actions}>
-                        <label className={styles.searchBox}>
-                            <Search size={20} aria-hidden="true" />
-                            <input
-                                aria-label="Tìm kiếm hóa đơn"
-                                onChange={(event) => {
-                                    setSearchTerm(event.target.value);
-                                    setCurrentPage(0);
-                                }}
-                                placeholder="Tìm mã HĐ, mã ĐH, khách hàng, SĐT..."
-                                value={searchTerm}
-                            />
-                        </label>
                         <button className={styles.secondaryButton} type="button">
                             <FileSpreadsheet size={18} aria-hidden="true" />
                             Xuất file
@@ -336,39 +323,57 @@ export function InvoiceListPage() {
 
                 <div className={`${styles.body} ${styles.bodyExpanded}`}>
                     <div className={styles.tablePanel}>
-                        <div className={styles.summary}>
-                            <div className={styles.filterStack}>
-                                <div className={styles.filterGroup}>
-                                    <span className={styles.filterLabel}>
-                                        Thanh toán:
-                                    </span>
-                                    <div className={styles.paymentFilters}>
-                                        {INVOICE_PAYMENT_TABS.map((filter) => (
-                                            <button
-                                                className={`${styles.paymentChip} ${
-                                                    filterPaymentStatus ===
-                                                    filter.key
-                                                        ? styles.activePaymentChip
-                                                        : ""
-                                                }`}
-                                                key={filter.key}
-                                                onClick={() =>
-                                                    selectPaymentFilter(
-                                                        filter.key
-                                                    )
-                                                }
-                                                type="button"
-                                            >
-                                                {filter.label}{" "}
-                                                <span>
-                                                    {stats[filter.countKey] ??
-                                                        0}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                        <div className={styles.filterRows}>
+                            <div className={styles.filterToolbar}>
+                                <label className={styles.searchBox}>
+                                    <Search size={20} aria-hidden="true" />
+                                    <input
+                                        aria-label="Tìm kiếm hóa đơn"
+                                        onChange={(event) => {
+                                            setSearchTerm(event.target.value);
+                                            setCurrentPage(0);
+                                        }}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Escape") {
+                                                setSearchTerm("");
+                                                setCurrentPage(0);
+                                            }
+                                        }}
+                                        placeholder="Tìm mã HĐ, mã ĐH, khách hàng, SĐT..."
+                                        value={searchTerm}
+                                    />
+                                </label>
+                            </div>
 
+                            <div className={styles.filterGroup}>
+                                <span className={styles.filterLabel}>
+                                    Thanh toán:
+                                </span>
+                                <div className={styles.paymentFilters}>
+                                    {INVOICE_PAYMENT_TABS.map((filter) => (
+                                        <button
+                                            className={`${styles.paymentChip} ${
+                                                filterPaymentStatus ===
+                                                filter.key
+                                                    ? styles.activePaymentChip
+                                                    : ""
+                                            }`}
+                                            key={filter.key}
+                                            onClick={() =>
+                                                selectPaymentFilter(filter.key)
+                                            }
+                                            type="button"
+                                        >
+                                            {filter.label}{" "}
+                                            <span>
+                                                {stats[filter.countKey] ?? 0}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className={styles.filterGroup}>
                                 <DateQuickFilter
                                     value={dateFilter}
                                     onChange={selectDateFilter}
@@ -380,12 +385,11 @@ export function InvoiceListPage() {
                             <table className={styles.invoiceTable}>
                                 <thead>
                                     <tr>
-                                        <th>Mã HĐ</th>
+                                        <th>Mã hóa đơn</th>
                                         <th>Thanh toán</th>
                                         <th>Tổng tiền</th>
                                         <th>Khách hàng</th>
                                         <th>Ngày</th>
-                                        <th>Mã ĐH</th>
                                         <th>Thao tác</th>
                                     </tr>
                                 </thead>
@@ -394,7 +398,7 @@ export function InvoiceListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>Đang tải hóa đơn</strong>
                                                 <span>
@@ -409,7 +413,7 @@ export function InvoiceListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>
                                                     Không tải được danh sách hóa đơn
@@ -430,7 +434,6 @@ export function InvoiceListPage() {
                                                       order,
                                                       absoluteIndex
                                                   );
-
                                               return (
                                                   <tr
                                                       className={
@@ -482,12 +485,9 @@ export function InvoiceListPage() {
                                                           </strong>
                                                       </td>
                                                       <td>
-                                                          {formatDateTime(
+                                                          {formatDateOnly(
                                                               order.createdAt
                                                           )}
-                                                      </td>
-                                                      <td>
-                                                          {getOrderCode(order)}
                                                       </td>
                                                       <td
                                                           className={
@@ -577,7 +577,7 @@ export function InvoiceListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>
                                                     Không tìm thấy hóa đơn phù hợp

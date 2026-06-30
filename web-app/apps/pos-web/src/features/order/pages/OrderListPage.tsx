@@ -28,10 +28,9 @@ import type {
 import {
     buildDateRangeFilter,
     formatCurrency,
-    formatDateTime,
+    formatDateOnly,
     getOrderCode,
-    getOrderStatusText,
-    getOrderTypeText
+    getOrderStatusText
 } from "../utils/order-formatters";
 import styles from "./OrderListPage.module.css";
 
@@ -336,22 +335,6 @@ export function OrderListPage() {
                     </div>
 
                     <div className={styles.headerActions}>
-                        <label className={styles.searchBox}>
-                            <Search size={20} aria-hidden="true" />
-                            <input
-                                aria-label="Tìm kiếm đơn hàng"
-                                onChange={(event) =>
-                                    handleSearchChange(event.target.value)
-                                }
-                                onKeyDown={(event) => {
-                                    if (event.key === "Escape") {
-                                        handleSearchChange("");
-                                    }
-                                }}
-                                placeholder="Tìm mã đơn, khách hàng, SĐT..."
-                                value={searchTerm}
-                            />
-                        </label>
                         <button className={styles.primaryButton} type="button">
                             <Plus size={18} aria-hidden="true" />
                             Đặt hàng
@@ -369,6 +352,27 @@ export function OrderListPage() {
                 >
                     <div className={styles.tablePanel}>
                         <div className={styles.filterRows}>
+                            <div className={styles.filterToolbar}>
+                                <label className={styles.searchBox}>
+                                    <Search size={20} aria-hidden="true" />
+                                    <input
+                                        aria-label="Tìm kiếm đơn hàng"
+                                        onChange={(event) =>
+                                            handleSearchChange(
+                                                event.target.value
+                                            )
+                                        }
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Escape") {
+                                                handleSearchChange("");
+                                            }
+                                        }}
+                                        placeholder="Tìm mã đơn, khách hàng, SĐT..."
+                                        value={searchTerm}
+                                    />
+                                </label>
+                            </div>
+
                             <div className={styles.filterGroup}>
                                 <span className={styles.filterLabel}>
                                     Trạng thái:
@@ -412,7 +416,6 @@ export function OrderListPage() {
                                         <th>Trạng thái</th>
                                         <th>Giá trị đơn hàng</th>
                                         <th>Ngày đặt</th>
-                                        <th>Nghiệp vụ</th>
                                         <th>Thao tác</th>
                                     </tr>
                                 </thead>
@@ -421,7 +424,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={6}
+                                                colSpan={5}
                                             >
                                                 <strong>Đang tải đơn hàng</strong>
                                                 <span>
@@ -436,7 +439,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={6}
+                                                colSpan={5}
                                             >
                                                 <strong>
                                                     Không tải được danh sách đơn hàng
@@ -478,12 +481,9 @@ export function OrderListPage() {
                                                       </strong>
                                                   </td>
                                                   <td>
-                                                      {formatDateTime(
+                                                      {formatDateOnly(
                                                           order.createdAt
                                                       )}
-                                                  </td>
-                                                  <td>
-                                                      {getOrderTypeText(order)}
                                                   </td>
                                                   <td
                                                       className={
@@ -561,7 +561,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={6}
+                                                colSpan={5}
                                             >
                                                 <strong>
                                                     Không tìm thấy đơn hàng phù hợp
