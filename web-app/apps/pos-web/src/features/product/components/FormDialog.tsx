@@ -171,7 +171,7 @@ export function FormDialog({
                                                 onClick={() => {
                                                     setFilePreviews(prev => ({ ...prev, [field.name]: "" }));
                                                     setDeletedFields(prev => ({ ...prev, [field.name]: true }));
-                                                    setFormValues(prev => ({ ...prev, [field.name]: "" }));
+                                                    setFormValues(prev => ({ ...prev, [field.name]: "", [field.name + "Id"]: "" }));
                                                 }}
                                                 className="grid size-8 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                                 aria-label="Xóa ảnh"
@@ -215,7 +215,11 @@ export function FormDialog({
                                                                         const url = uploadRes.publicUrl || "";
                                                                         setFilePreviews(prev => ({ ...prev, [field.name]: url }));
                                                                         setDeletedFields(prev => ({ ...prev, [field.name]: false }));
-                                                                        setFormValues(prev => ({ ...prev, [field.name]: url }));
+                                                                        setFormValues(prev => ({
+                                                                            ...prev,
+                                                                            [field.name]: url,
+                                                                            [field.name + "Id"]: uploadRes.fileId
+                                                                        }));
                                                                     } catch (err) {
                                                                         console.error("Upload error:", err);
                                                                         alert("Lỗi tải lên hình ảnh!");

@@ -67,6 +67,7 @@ export interface ProductInput {
     description: string;
     imageUrl: string | null;
     status: CatalogStatus;
+    fieldId?: string | null;
 }
 
 export type InventoryPolicy = "TRACK_STOCK" | "DO_NOT_TRACK";

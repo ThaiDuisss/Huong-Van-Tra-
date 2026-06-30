@@ -66,6 +66,7 @@ export function ProductListPage() {
         const description = getString(values, "description");
         
         const imageUrl = getString(values, "imageFile") || null;
+        const fieldId = getString(values, "imageFileId") || null;
 
         const input = {
             categoryId: getString(values, "categoryId"),
@@ -73,7 +74,8 @@ export function ProductListPage() {
             name: getString(values, "name"),
             description,
             imageUrl: imageUrl,
-            status: getString(values, "status") as CatalogStatus
+            status: getString(values, "status") as CatalogStatus,
+            fieldId: fieldId
         };
 
         if (editingItem) {
