@@ -1,6 +1,7 @@
 export const routePaths = {
     home: "/",
     posSales: "/pos/sales",
+    salesHistory: "/sales-history",
     system: "/system",
     orders: "/system/orders",
     invoices: "/system/orders/invoices",

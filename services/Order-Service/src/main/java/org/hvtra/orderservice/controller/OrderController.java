@@ -3,20 +3,33 @@ package org.hvtra.orderservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.*;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.dto.request.CancelOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.OrderStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
+import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
+import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
 import org.hvtra.orderservice.service.OrderService;
+import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
 public class OrderController {
+
+    private static final String UUID_PATH = "{orderId:[0-9a-fA-F\\-]{36}}";
 
     private final OrderService orderService;
 
@@ -28,23 +41,87 @@ public class OrderController {
     }
 
     @Operation(summary = "lay chi tiet don hang")
-    @GetMapping("/{orderId}")
+    @GetMapping("/" + UUID_PATH)
     public OrderResponse getOrderById(@PathVariable UUID orderId) {
         return orderService.getOrderById(orderId);
     }
 
     @Operation(summary = "api cho Payment-Service gọi để lấy thông tin cần thanh toán của đơn hàng")
-    @GetMapping("/{orderId}/payment-info")
+    @GetMapping("/" + UUID_PATH + "/payment-info")
     public OrderPaymentInfoResponse getPaymentInfo(@PathVariable UUID orderId) {
         return orderService.getPaymentInfo(orderId);
     }
 
     @Operation(summary = "Api cho Payment-Service gọi sau khi thanh toán thành công để cập nhật trạng thái đơn hàng")
-    @PutMapping("/{orderId}/mark-paid")
+    @PutMapping("/" + UUID_PATH + "/mark-paid")
     public OrderResponse markOrderPaid(
             @PathVariable UUID orderId,
             @Valid @RequestBody MarkOrderPaidRequest request
     ) {
         return orderService.markOrderPaid(orderId, request);
+    }
+    @GetMapping
+    public Page<OrderSummaryResponse> getOrders(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) PaymentStatus paymentStatus,
+            @RequestParam(required = false) String orderType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "businessStatus") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return orderService.getOrders(
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate,
+                sort,
+                page,
+                size
+        );
+    }
+
+    @GetMapping("/today-sales")
+    public Page<TodaySalesItemResponse> getTodaySales(
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) PaymentStatus paymentStatus,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return orderService.getTodaySales(status, paymentStatus, paymentMethod, page, size);
+    }
+
+    @GetMapping("/today-sales/summary")
+    public TodaySalesSummaryResponse getTodaySalesSummary() {
+        return orderService.getTodaySalesSummary();
+    }
+
+    @GetMapping("/stats")
+    public OrderStatsResponse getOrderStats(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return orderService.getOrderStats(fromDate, toDate);
+    }
+
+    @PutMapping("/" + UUID_PATH + "/status")
+    public OrderResponse updateOrderStatus(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody UpdateOrderStatusRequest request
+    ) {
+        return orderService.updateOrderStatus(orderId, request);
+    }
+
+    @PutMapping("/" + UUID_PATH + "/cancel")
+    public OrderResponse cancelOrder(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody CancelOrderRequest request
+    ) {
+        return orderService.cancelOrder(orderId, request);
     }
 }

@@ -9,6 +9,7 @@ import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
+import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
@@ -19,6 +20,7 @@ import { ProductListPage } from "../features/product/pages/ProductListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
+import { PosShell } from "../components/layout/Pos/PosShell";
 
 export function AppRouter() {
     return (
@@ -36,6 +38,14 @@ export function AppRouter() {
             <Route
                 path={routePaths.posSales}
                 element={<PosSalePage />}
+            />
+            <Route
+                path={routePaths.salesHistory}
+                element={
+                    <PosShell>
+                        <SalesHistoryPage />
+                    </PosShell>
+                }
             />
 
             <Route

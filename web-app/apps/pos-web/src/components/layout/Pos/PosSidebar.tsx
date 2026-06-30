@@ -1,5 +1,6 @@
 import {
   Bell,
+  BarChart3,
   BriefcaseBusiness,
   ChevronDown,
   Clock3,
@@ -112,6 +113,23 @@ export function PosSidebar() {
                   >
                     <FileText size={18} aria-hidden="true" />
                     Đơn trong ca
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex h-9 items-center gap-2 rounded-md px-2 text-left text-[13px] font-semibold transition hover:bg-[#f4f5f3] ${
+                      location.pathname === routePaths.salesHistory
+                        ? "bg-[#f4f5f3] text-[#159734]"
+                        : "text-[#159734]"
+                    }`}
+                    aria-current={
+                      location.pathname === routePaths.salesHistory
+                        ? "page"
+                        : undefined
+                    }
+                    onClick={() => navigate(routePaths.salesHistory)}
+                  >
+                    <BarChart3 size={18} aria-hidden="true" />
+                    Bán hàng hôm nay
                   </button>
                 </div>
               ) : null}
