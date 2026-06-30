@@ -173,6 +173,58 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         return mapper.toResponse(transaction);
     }
 
+    @Override
+    public PageResponse<InventoryTransactionResponse> findAllForStore(
+            String transactionCode,
+            InventoryTransactionType type,
+            LocalDateTime fromDate,
+            LocalDateTime toDate,
+            String createdBy,
+            InventoryReferenceType referenceType,
+            String referenceId,
+            Pageable pageable) {
+        if (fromDate != null && toDate != null && toDate.isBefore(fromDate)) {
+            throw new BadRequestException("toDate must be greater than or equal to fromDate");
+        }
+
+        // Lấy danh sách ID transaction thuộc kệ SHELF của WAREHOUSE đầu tiên
+        java.util.List<UUID> storeTransactionIds = transactionRepository.findStoreTransactionIds();
+
+        Specification<InventoryTransaction> specification = (root, query, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+
+            // Chỉ lấy các transaction thuộc store (SHELF → parent WAREHOUSE đầu tiên)
+            if (!storeTransactionIds.isEmpty()) {
+                predicates.add(root.get("id").in(storeTransactionIds));
+            } else {
+                // Không có transaction nào thỏa điều kiện → trả về rỗng
+                predicates.add(cb.disjunction());
+            }
+
+            if (transactionCode != null && !transactionCode.isBlank()) {
+                String searchTrim = transactionCode.trim().toLowerCase();
+                var searchPredicates = new ArrayList<Predicate>();
+                searchPredicates.add(cb.like(cb.lower(root.get("transactionCode")), "%" + searchTrim + "%"));
+                searchPredicates.add(cb.like(cb.lower(root.get("referenceId")), "%" + searchTrim + "%"));
+                try {
+                    searchPredicates.add(cb.equal(root.get("createdBy"), java.util.UUID.fromString(searchTrim)));
+                } catch (IllegalArgumentException e) {
+                    // Ignored: not a valid UUID
+                }
+                predicates.add(cb.or(searchPredicates.toArray(Predicate[]::new)));
+            }
+            if (type != null) predicates.add(cb.equal(root.get("type"), type));
+            if (fromDate != null) predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), fromDate));
+            if (toDate != null) predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), toDate));
+            if (createdBy != null) predicates.add(cb.equal(root.get("createdBy"), createdBy));
+            if (referenceType != null) predicates.add(cb.equal(root.get("referenceType"), referenceType));
+            if (referenceId != null) predicates.add(cb.equal(root.get("referenceId"), referenceId));
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return PageResponse.from(
+                transactionRepository.findAll(specification, pageable).map(mapper::toResponse));
+    }
+
     private InventoryTransaction createTransaction(
             InventoryTransactionType type,
             UUID branchId,

@@ -19,6 +19,13 @@ export const inventoryTransactionApi = {
             { query }
         );
     },
+    /** Biến động kho dành cho Cửa hàng: chỉ SHELF thuộc WAREHOUSE đầu tiên */
+    storeList(query: InventoryTransactionQuery = {}) {
+        return apiClient.get<PageResponse<InventoryTransactionResponse>>(
+            "/inventory/inventory-transactions/store",
+            { query }
+        );
+    },
     detail(id: EntityId) {
         return apiClient.get<InventoryTransactionResponse>(
             `/inventory/inventory-transactions/${id}`

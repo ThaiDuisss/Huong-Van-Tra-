@@ -33,5 +33,14 @@ public interface InventoryTransactionService {
             InventoryReferenceType referenceType,
             String referenceId,
             Pageable pageable);
+    PageResponse<InventoryTransactionResponse> findAllForStore(
+            String transactionCode,
+            InventoryTransactionType type,
+            LocalDateTime fromDate,
+            LocalDateTime toDate,
+            String createdBy,
+            InventoryReferenceType referenceType,
+            String referenceId,
+            Pageable pageable);
     InventoryTransactionResponse findById(UUID id);
 }

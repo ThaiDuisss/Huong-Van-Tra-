@@ -40,7 +40,7 @@ export function InventoryTransactionPage() {
     const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
     const load = useCallback(
         () =>
-            inventoryTransactionApi.list({
+            inventoryTransactionApi.storeList({
                 page: page - 1,
                 size: pageSize,
                 transactionCode: transactionCode || undefined,
@@ -81,9 +81,9 @@ export function InventoryTransactionPage() {
             />
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                <div className="grid grid-cols-8 gap-3 items-center">
-                    {/* Search: 50% */}
-                    <div className="relative col-span-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Search */}
+                    <div className="relative w-full sm:w-[320px] md:w-[400px]">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         <input
                             type="text"
@@ -93,25 +93,28 @@ export function InventoryTransactionPage() {
                             className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
                         />
                     </div>
-                    {/* Filter: Từ ngày - 1/8 (12.5%) */}
-                    <div className="flex items-center gap-1.5 col-span-1 min-w-0">
-                        <span className="text-xs font-bold text-[#536078] shrink-0">Từ:</span>
-                        <input
-                            type="date"
-                            value={fromDate}
-                            onChange={(e) => resetPage(setFromDate, e.target.value)}
-                            className="h-10 w-full min-w-0 rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
-                        />
-                    </div>
-                    {/* Filter: Đến ngày - 1/8 (12.5%) */}
-                    <div className="flex items-center gap-1.5 col-span-1 min-w-0">
-                        <span className="text-xs font-bold text-[#536078] shrink-0">Đến:</span>
-                        <input
-                            type="date"
-                            value={toDate}
-                            onChange={(e) => resetPage(setToDate, e.target.value)}
-                            className="h-10 w-full min-w-0 rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
-                        />
+                    {/* Time Filters Group */}
+                    <div className="flex items-center gap-3">
+                        {/* Filter: Từ ngày */}
+                        <div className="flex items-center gap-1.5 min-w-[150px]">
+                            <span className="text-xs font-bold text-[#536078] shrink-0">Từ:</span>
+                            <input
+                                type="date"
+                                value={fromDate}
+                                onChange={(e) => resetPage(setFromDate, e.target.value)}
+                                className="h-10 w-full rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                            />
+                        </div>
+                        {/* Filter: Đến ngày */}
+                        <div className="flex items-center gap-1.5 min-w-[150px]">
+                            <span className="text-xs font-bold text-[#536078] shrink-0">Đến:</span>
+                            <input
+                                type="date"
+                                value={toDate}
+                                onChange={(e) => resetPage(setToDate, e.target.value)}
+                                className="h-10 w-full rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -207,8 +210,8 @@ export function InventoryTransactionPage() {
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Loại</th>
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Loại tham chiếu</th>
                                         {/* <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Mã tham chiếu</th> */}
-                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Chi nhánh</th>
-                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Người tạo</th>
+                                        {/* <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Chi nhánh</th> */}
+                                        {/* <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Người tạo</th> */}
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Thời gian tạo</th>
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Thao tác</th>
                                     </tr>
@@ -233,8 +236,8 @@ export function InventoryTransactionPage() {
                                                 <Cell><TransactionTypeBadge type={item.type} /></Cell>
                                                 <Cell>{referenceTypeLabels[item.referenceType]}</Cell>
                                                 {/* <Cell>{item.referenceId ? `#${item.referenceId}` : "-"}</Cell> */}
-                                                <Cell>#{item.branchId}</Cell>
-                                                <Cell>#{item.createdBy}</Cell>
+                                                {/* <Cell>#{item.branchId}</Cell> */}
+                                                {/* <Cell>#{item.createdBy}</Cell> */}
                                                 <Cell>{formatInventoryDate(item.createdAt)}</Cell>
                                                 <td className={`h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px] relative ${activeActionMenuId === String(item.id) ? "z-30" : "z-20"}`} onClick={(e) => e.stopPropagation()}>
                                                     <div className="flex justify-end relative">
