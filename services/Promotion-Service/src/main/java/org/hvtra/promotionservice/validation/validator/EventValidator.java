@@ -1,91 +1,190 @@
 package org.hvtra.promotionservice.validation.validator;
 
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.exception.BusinessException;
-import org.hvtra.promotionservice.dto.request.event.EventStatusUpdateRequest;
 import org.hvtra.promotionservice.entity.Event;
 import org.hvtra.promotionservice.enums.event.EventStatus;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+
 @Component
-@RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class EventValidator {
 
-    public void validateStatusTransition(Event event, EventStatusUpdateRequest request) {
-        EventStatus currentStatus = event.getStatus();
-        EventStatus nextStatus = request.getStatus();
+    public void validateStatusTransition(Event event, EventStatus targetStatus) {
+        EventStatus currentStatus = validateAndGetCurrentStatus(event, targetStatus);
 
-        if (currentStatus == nextStatus) {
-            throw new BusinessException("Event is already in status: " + nextStatus);
-        }
-
-        if (currentStatus == EventStatus.CANCELLED) {
-            throw new BusinessException("Cancelled event cannot be updated to another status");
-        }
-
-        if (currentStatus == EventStatus.ENDED) {
-            throw new BusinessException("Ended event cannot be updated to another status");
-        }
-
-        if (nextStatus == EventStatus.ACTIVE && event.getEndAt() != null && event.getEndAt().isBefore(java.time.LocalDateTime.now())) {
-            throw new BusinessException("Expired event cannot be activated");
+        switch (targetStatus) {
+            case DRAFT -> validateCanMoveToDraft();
+            case SCHEDULED -> validateCanSchedule(event, currentStatus);
+            case ACTIVE -> validateCanActivate(event, currentStatus);
+            case PAUSED -> validateCanPause(currentStatus);
+            case ENDED -> validateCanEnd(currentStatus);
+            case CANCELLED -> validateCanCancel(currentStatus);
         }
     }
 
+    public EventStatus resolveResumeTargetStatus(Event event) {
+        validateEventNotNull(event);
+
+        if (event.getStatus() != EventStatus.PAUSED) {
+            throw new BusinessException("Only PAUSED event can be resumed");
+        }
+
+        validateStartAndEndTime(event);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (event.getEndAt() != null && !event.getEndAt().isAfter(now)) {
+            throw new BusinessException("Expired event cannot be resumed");
+        }
+
+        if (event.getStartAt() != null && event.getStartAt().isAfter(now)) {
+            return EventStatus.SCHEDULED;
+        }
+
+        return EventStatus.ACTIVE;
+    }
+
     public void validateBeforeUpdate(Event event) {
-        if (event.getStatus() == EventStatus.CANCELLED) {
+        validateEventNotNull(event);
+
+        EventStatus status = event.getStatus();
+
+        if (status == EventStatus.CANCELLED) {
             throw new BusinessException("Cancelled event cannot be updated");
         }
 
-        if (event.getStatus() == EventStatus.ENDED) {
+        if (status == EventStatus.ENDED) {
             throw new BusinessException("Ended event cannot be updated");
+        }
+
+        if (status == EventStatus.ACTIVE) {
+            throw new BusinessException("Active event cannot be updated. Please pause, cancel or end it first");
         }
     }
 
     public void validateBeforeDelete(Event event) {
-        if (event.getStatus() == EventStatus.ACTIVE) {
+        validateEventNotNull(event);
+
+        EventStatus status = event.getStatus();
+
+        if (status == EventStatus.ACTIVE) {
             throw new BusinessException("Active event cannot be deleted. Please cancel or end it first");
         }
+
+        if (status == EventStatus.PAUSED) {
+            throw new BusinessException("Paused event cannot be deleted. Please cancel or end it first");
+        }
+
+        if (status == EventStatus.ENDED) {
+            throw new BusinessException("Ended event cannot be deleted");
+        }
+
+        if (status == EventStatus.CANCELLED) {
+            throw new BusinessException("Cancelled event cannot be deleted");
+        }
     }
 
-    public void validateBeforeActivate(Event event) {
-        if (event.getStatus() == EventStatus.ACTIVE) {
-            throw new BusinessException("Event is already active");
+    private EventStatus validateAndGetCurrentStatus(Event event, EventStatus targetStatus) {
+        validateEventNotNull(event);
+
+        if (targetStatus == null) {
+            throw new BusinessException("Target event status is required");
         }
 
-        if (event.getStatus() == EventStatus.CANCELLED) {
-            throw new BusinessException("Cancelled event cannot be activated");
+        EventStatus currentStatus = event.getStatus();
+
+        if (currentStatus == null) {
+            throw new BusinessException("Current event status is required");
         }
 
-        if (event.getStatus() == EventStatus.ENDED) {
-            throw new BusinessException("Ended event cannot be activated");
+        if (currentStatus == targetStatus) {
+            throw new BusinessException("Event is already " + targetStatus.name());
         }
 
-        if (event.getEndAt() != null && event.getEndAt().isBefore(java.time.LocalDateTime.now())) {
+        if (currentStatus == EventStatus.ENDED) {
+            throw new BusinessException("Ended event cannot change status");
+        }
+
+        if (currentStatus == EventStatus.CANCELLED) {
+            throw new BusinessException("Cancelled event cannot change status");
+        }
+
+        return currentStatus;
+    }
+
+    private void validateEventNotNull(Event event) {
+        if (event == null) {
+            throw new BusinessException("Event is required");
+        }
+    }
+
+    private void validateCanMoveToDraft() {
+        throw new BusinessException("Event cannot be moved back to DRAFT");
+    }
+
+    private void validateCanSchedule(Event event, EventStatus currentStatus) {
+        if (currentStatus != EventStatus.DRAFT && currentStatus != EventStatus.PAUSED) {
+            throw new BusinessException("Only DRAFT or PAUSED event can be scheduled");
+        }
+
+        if (event.getStartAt() == null) {
+            throw new BusinessException("Start time is required to schedule event");
+        }
+
+        validateStartAndEndTime(event);
+
+        if (!event.getStartAt().isAfter(LocalDateTime.now())) {
+            throw new BusinessException("Start time must be in the future to schedule event");
+        }
+    }
+
+    private void validateCanActivate(Event event, EventStatus currentStatus) {
+        if (currentStatus != EventStatus.DRAFT
+                && currentStatus != EventStatus.SCHEDULED
+                && currentStatus != EventStatus.PAUSED) {
+            throw new BusinessException("Only DRAFT, SCHEDULED or PAUSED event can be activated");
+        }
+
+        validateStartAndEndTime(event);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (event.getEndAt() != null && !event.getEndAt().isAfter(now)) {
             throw new BusinessException("Expired event cannot be activated");
         }
-    }
 
-    public void validateBeforeCancel(Event event) {
-        if (event.getStatus() == EventStatus.CANCELLED) {
-            throw new BusinessException("Event is already cancelled");
-        }
-
-        if (event.getStatus() == EventStatus.ENDED) {
-            throw new BusinessException("Ended event cannot be cancelled");
+        if (event.getStartAt() != null && event.getStartAt().isAfter(now)) {
+            throw new BusinessException("Event has not started yet");
         }
     }
 
-    public void validateBeforeEnd(Event event) {
-        if (event.getStatus() == EventStatus.ENDED) {
-            throw new BusinessException("Event is already ended");
+    private void validateCanPause(EventStatus currentStatus) {
+        if (currentStatus != EventStatus.ACTIVE) {
+            throw new BusinessException("Only ACTIVE event can be paused");
         }
+    }
 
-        if (event.getStatus() == EventStatus.CANCELLED) {
-            throw new BusinessException("Cancelled event cannot be ended");
+    private void validateCanEnd(EventStatus currentStatus) {
+        if (currentStatus != EventStatus.ACTIVE && currentStatus != EventStatus.PAUSED) {
+            throw new BusinessException("Only ACTIVE or PAUSED event can be ended");
+        }
+    }
+
+    private void validateCanCancel(EventStatus currentStatus) {
+        if (currentStatus != EventStatus.DRAFT
+                && currentStatus != EventStatus.SCHEDULED
+                && currentStatus != EventStatus.ACTIVE
+                && currentStatus != EventStatus.PAUSED) {
+            throw new BusinessException("Only DRAFT, SCHEDULED, ACTIVE or PAUSED event can be cancelled");
+        }
+    }
+
+    private void validateStartAndEndTime(Event event) {
+        if (event.getStartAt() != null
+                && event.getEndAt() != null
+                && !event.getStartAt().isBefore(event.getEndAt())) {
+            throw new BusinessException("Start time must be before end time");
         }
     }
 }

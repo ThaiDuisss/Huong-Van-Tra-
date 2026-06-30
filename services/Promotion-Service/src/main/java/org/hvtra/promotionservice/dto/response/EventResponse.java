@@ -1,5 +1,6 @@
 package org.hvtra.promotionservice.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(
         name = "EventResponse",
         description = "Thông tin phản hồi chi tiết của sự kiện marketing/chiến dịch khuyến mãi"

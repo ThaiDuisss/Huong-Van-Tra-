@@ -2,25 +2,42 @@ package org.hvtra.promotionservice.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.event.EventSuccessMessage;
 import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
-import org.hvtra.promotionservice.dto.request.event.EventStatusUpdateRequest;
 import org.hvtra.promotionservice.dto.request.event.EventUpdateRequest;
 import org.hvtra.promotionservice.dto.response.EventResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.service.EventService;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+import static org.hvtra.promotionservice.constant.EventApiParameter.*;
+
+@Validated
 @RestController
-@RequestMapping("/api/v1/events")
+@RequestMapping(ApiPath.EVENTS)
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(
@@ -49,7 +66,14 @@ public class EventController {
     )
     @GetMapping("/{eventId}")
     public ApiResponse<EventResponse> getEventById(
-            @Parameter(description = "ID của sự kiện", required = true)
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
             @PathVariable UUID eventId
     ) {
         EventResponse response = eventService.getEventById(eventId);
@@ -62,11 +86,24 @@ public class EventController {
     )
     @GetMapping
     public ApiResponse<PageResponse<EventResponse>> getAllEvents(
-            @Parameter(description = "Số trang, bắt đầu từ 0", example = "0")
-            @RequestParam(defaultValue = "0") int page,
+            @Parameter(
+                    name = PAGE,
+                    description = PAGE_DESCRIPTION,
+                    example = PAGE_EXAMPLE
+            )
+            @RequestParam(defaultValue = PAGE_DEFAULT)
+            @PositiveOrZero(message = "Page index must be greater than or equal to 0")
+            int page,
 
-            @Parameter(description = "Số lượng bản ghi trên mỗi trang", example = "10")
-            @RequestParam(defaultValue = "10") int size
+            @Parameter(
+                    name = SIZE,
+                    description = SIZE_DESCRIPTION,
+                    example = SIZE_EXAMPLE
+            )
+            @RequestParam(defaultValue = SIZE_DEFAULT)
+            @Min(value = 1, message = "Page size must be greater than or equal to 1")
+            @Max(value = SIZE_MAX, message = "Page size must be less than or equal to 100")
+            int size
     ) {
         PageResponse<EventResponse> response = eventService.getAllEvents(page, size);
         return ApiResponse.success(EventSuccessMessage.LIST_FETCHED, response);
@@ -78,7 +115,14 @@ public class EventController {
     )
     @PutMapping("/{eventId}")
     public ApiResponse<EventResponse> updateEvent(
-            @Parameter(description = "ID của sự kiện", required = true)
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
             @PathVariable UUID eventId,
 
             @Valid @RequestBody EventUpdateRequest request
@@ -88,31 +132,43 @@ public class EventController {
     }
 
     @Operation(
-            summary = "Cập nhật trạng thái sự kiện",
-            description = "Cập nhật trạng thái vòng đời của sự kiện. Các giá trị hợp lệ gồm: ACTIVE, INACTIVE, ENDED, CANCELLED."
-    )
-    @PatchMapping("/{eventId}/status")
-    public ApiResponse<EventResponse> updateEventStatus(
-            @Parameter(description = "ID của sự kiện", required = true)
-            @PathVariable UUID eventId,
-
-            @Valid @RequestBody EventStatusUpdateRequest request
-    ) {
-        EventResponse response = eventService.updateEventStatus(eventId, request);
-        return ApiResponse.updated(EventSuccessMessage.STATUS_UPDATED, response);
-    }
-
-    @Operation(
             summary = "Xóa sự kiện",
             description = "Xóa mềm một sự kiện/chương trình khuyến mãi. Dữ liệu vẫn được lưu trong cơ sở dữ liệu và không bị xóa vật lý."
     )
     @DeleteMapping("/{eventId}")
     public ApiResponse<Void> deleteEvent(
-            @Parameter(description = "ID của sự kiện", required = true)
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
             @PathVariable UUID eventId
     ) {
         eventService.deleteEvent(eventId);
         return ApiResponse.deleted(EventSuccessMessage.DELETED);
+    }
+
+    @Operation(
+            summary = "Lên lịch sự kiện",
+            description = "Chuyển sự kiện/chương trình khuyến mãi sang trạng thái SCHEDULED. Sự kiện đã lên lịch sẽ chờ tới thời gian bắt đầu để được kích hoạt."
+    )
+    @PostMapping("/{eventId}/schedule")
+    public ApiResponse<EventResponse> scheduleEvent(
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
+            @PathVariable UUID eventId
+    ) {
+        EventResponse response = eventService.scheduleEvent(eventId);
+        return ApiResponse.updated(EventSuccessMessage.STATUS_UPDATED, response);
     }
 
     @Operation(
@@ -121,10 +177,57 @@ public class EventController {
     )
     @PostMapping("/{eventId}/activate")
     public ApiResponse<EventResponse> activateEvent(
-            @Parameter(description = "ID của sự kiện", required = true)
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
             @PathVariable UUID eventId
     ) {
         EventResponse response = eventService.activateEvent(eventId);
+        return ApiResponse.updated(EventSuccessMessage.STATUS_UPDATED, response);
+    }
+
+    @Operation(
+            summary = "Tạm dừng sự kiện",
+            description = "Tạm dừng một sự kiện/chương trình khuyến mãi đang hoạt động. Chỉ sự kiện ACTIVE mới có thể chuyển sang PAUSED."
+    )
+    @PostMapping("/{eventId}/pause")
+    public ApiResponse<EventResponse> pauseEvent(
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
+            @PathVariable UUID eventId
+    ) {
+        EventResponse response = eventService.pauseEvent(eventId);
+        return ApiResponse.updated(EventSuccessMessage.STATUS_UPDATED, response);
+    }
+
+    @Operation(
+            summary = "Tiếp tục sự kiện",
+            description = "Tiếp tục một sự kiện/chương trình khuyến mãi đang tạm dừng. Nếu đã tới thời gian chạy thì chuyển về ACTIVE, nếu thời gian bắt đầu ở tương lai thì chuyển về SCHEDULED."
+    )
+    @PostMapping("/{eventId}/resume")
+    public ApiResponse<EventResponse> resumeEvent(
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
+            @PathVariable UUID eventId
+    ) {
+        EventResponse response = eventService.resumeEvent(eventId);
         return ApiResponse.updated(EventSuccessMessage.STATUS_UPDATED, response);
     }
 
@@ -134,7 +237,14 @@ public class EventController {
     )
     @PostMapping("/{eventId}/cancel")
     public ApiResponse<EventResponse> cancelEvent(
-            @Parameter(description = "ID của sự kiện", required = true)
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
             @PathVariable UUID eventId
     ) {
         EventResponse response = eventService.cancelEvent(eventId);
@@ -147,7 +257,14 @@ public class EventController {
     )
     @PostMapping("/{eventId}/end")
     public ApiResponse<EventResponse> endEvent(
-            @Parameter(description = "ID của sự kiện", required = true)
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
             @PathVariable UUID eventId
     ) {
         EventResponse response = eventService.endEvent(eventId);
@@ -160,13 +277,28 @@ public class EventController {
     )
     @GetMapping("/active")
     public ApiResponse<PageResponse<EventResponse>> getActiveEvents(
-            @Parameter(description = "Số trang, bắt đầu từ 0", example = "0")
-            @RequestParam(defaultValue = "0") int page,
+            @Parameter(
+                    name = PAGE,
+                    description = PAGE_DESCRIPTION,
+                    example = PAGE_EXAMPLE
+            )
+            @RequestParam(defaultValue = PAGE_DEFAULT)
+            @PositiveOrZero(message = "Page index must be greater than or equal to 0")
+            int page,
 
-            @Parameter(description = "Số lượng bản ghi trên mỗi trang", example = "10")
-            @RequestParam(defaultValue = "10") int size
+            @Parameter(
+                    name = SIZE,
+                    description = SIZE_DESCRIPTION,
+                    example = SIZE_EXAMPLE
+            )
+            @RequestParam(defaultValue = SIZE_DEFAULT)
+            @Min(value = 1, message = "Page size must be greater than or equal to 1")
+            @Max(value = SIZE_MAX, message = "Page size must be less than or equal to 100")
+            int size
     ) {
         PageResponse<EventResponse> response = eventService.getActiveEvents(page, size);
         return ApiResponse.success(EventSuccessMessage.LIST_FETCHED, response);
     }
+
+
 }

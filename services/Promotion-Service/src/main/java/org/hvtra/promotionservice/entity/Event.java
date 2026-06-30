@@ -57,7 +57,7 @@ public class Event extends BaseEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    EventStatus status = EventStatus.INACTIVE;
+    EventStatus status = EventStatus.DRAFT;
 
     @Builder.Default
     @OneToMany(

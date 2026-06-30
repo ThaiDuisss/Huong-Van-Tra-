@@ -233,4 +233,28 @@ public abstract class BaseGlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
     }
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessException(
+            BusinessException exception,
+            HttpServletRequest request
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                exception.getCode(),
+                exception.getMessage(),
+                exception.getStatus().value()
+        );
+
+        log.error(
+                "Business exception at {}: path={} code={} message={}",
+                Instant.now(),
+                request.getRequestURI(),
+                exception.getCode(),
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(exception.getStatus())
+                .body(response);
+    }
 }
