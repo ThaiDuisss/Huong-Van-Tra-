@@ -10,6 +10,12 @@ import java.util.UUID;
 public interface CustomerRepository extends JpaRepository<Customer, UUID>, JpaSpecificationExecutor<Customer> {
     Optional<Customer> findByIdAndIsDeletedFalse(UUID id);
 
+    long countByIsDeletedFalse();
+
+    long countByTierIsNullAndIsDeletedFalse();
+
+    long countByTier_IdAndIsDeletedFalse(UUID tierId);
+
     boolean existsByCustomerCode(String customerCode);
 
     boolean existsByCustomerCodeAndIdNot(String customerCode, UUID id);

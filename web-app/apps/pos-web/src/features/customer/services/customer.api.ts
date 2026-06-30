@@ -3,6 +3,7 @@ import type {
     CreateCustomerRequest,
     CustomerQuery,
     CustomerResponse,
+    CustomerTierCountResponse,
     CustomerTierResponse,
     PageResponse
 } from "../types/customer.types";
@@ -35,5 +36,8 @@ export const customerApi = {
     },
     tiers() {
         return apiClient.get<CustomerTierResponse[]>("/customer/tiers");
+    },
+    tierCounts() {
+        return apiClient.get<CustomerTierCountResponse[]>("/customer/tiers/counts");
     }
 };

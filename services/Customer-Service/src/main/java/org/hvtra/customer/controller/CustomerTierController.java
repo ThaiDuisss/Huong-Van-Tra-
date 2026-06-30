@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerTierRequest;
+import org.hvtra.customer.dto.response.CustomerTierCountResponse;
 import org.hvtra.customer.dto.response.CustomerTierResponse;
 import org.hvtra.customer.service.CustomerTierService;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,12 @@ public class CustomerTierController {
     @Operation(summary = "Lấy danh sách hạng khách hàng")
     public List<CustomerTierResponse> getAll() {
         return customerTierService.getAll();
+    }
+
+    @GetMapping("/counts")
+    @Operation(summary = "Lấy danh sách hạng khách hàng kèm số lượng khách")
+    public List<CustomerTierCountResponse> getCounts() {
+        return customerTierService.getCounts();
     }
 
     @GetMapping(ApiPath.ID)

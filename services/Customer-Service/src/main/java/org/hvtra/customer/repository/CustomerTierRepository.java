@@ -12,6 +12,8 @@ import java.util.UUID;
 public interface CustomerTierRepository extends JpaRepository<CustomerTier, UUID> {
     List<CustomerTier> findAllByIsDeletedFalse();
 
+    List<CustomerTier> findAllByStatusAndIsDeletedFalseOrderByMinSpendingDesc(CustomerTierStatus status);
+
     Optional<CustomerTier> findByIdAndIsDeletedFalse(UUID id);
 
     Optional<CustomerTier> findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(

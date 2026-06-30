@@ -50,6 +50,14 @@ export interface CustomerTierResponse {
     colorCode: string;
 }
 
+export interface CustomerTierCountResponse {
+    id: string | null;
+    code: string;
+    name: string;
+    colorCode: string | null;
+    customerCount: number;
+}
+
 export interface PageResponse<T> {
     content: T[];
     page: number;

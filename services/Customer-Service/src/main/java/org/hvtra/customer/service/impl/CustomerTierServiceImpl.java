@@ -4,10 +4,13 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.CustomerTierRequest;
+import org.hvtra.customer.dto.response.CustomerTierCountResponse;
 import org.hvtra.customer.dto.response.CustomerTierResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.CustomerTier;
+import org.hvtra.customer.model.enums.CustomerTierStatus;
+import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.service.CustomerTierService;
 import org.springframework.http.HttpStatus;
@@ -21,6 +24,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CustomerTierServiceImpl implements CustomerTierService {
     private final CustomerTierRepository customerTierRepository;
+    private final CustomerRepository customerRepository;
     private final CustomerMapper customerMapper;
 
     @Override
@@ -29,6 +33,40 @@ public class CustomerTierServiceImpl implements CustomerTierService {
         return customerTierRepository.findAllByIsDeletedFalse().stream()
                 .map(customerMapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CustomerTierCountResponse> getCounts() {
+        List<CustomerTierCountResponse> tierCounts = customerTierRepository
+                .findAllByStatusAndIsDeletedFalseOrderByMinSpendingDesc(CustomerTierStatus.ACTIVE)
+                .stream()
+                .map(tier -> new CustomerTierCountResponse(
+                        tier.getId(),
+                        tier.getCode(),
+                        tier.getName(),
+                        tier.getColorCode(),
+                        customerRepository.countByTier_IdAndIsDeletedFalse(tier.getId())
+                ))
+                .toList();
+
+        List<CustomerTierCountResponse> result = new java.util.ArrayList<>();
+        result.add(new CustomerTierCountResponse(
+                null,
+                "ALL",
+                "Tất cả",
+                null,
+                customerRepository.countByIsDeletedFalse()
+        ));
+        result.addAll(tierCounts);
+        result.add(new CustomerTierCountResponse(
+                null,
+                "UNASSIGNED",
+                "Chưa phân hạng",
+                null,
+                customerRepository.countByTierIsNullAndIsDeletedFalse()
+        ));
+        return result;
     }
 
     @Override
