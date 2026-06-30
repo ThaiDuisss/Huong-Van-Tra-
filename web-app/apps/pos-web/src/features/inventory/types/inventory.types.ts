@@ -62,7 +62,7 @@ export interface InventoryItemResponse {
     id: EntityId;
     referenceId: EntityId;
     itemType: InventoryItemType;
-    baseUnitId: EntityId;
+    unitId: EntityId;
     status: InventoryStatus;
 }
 

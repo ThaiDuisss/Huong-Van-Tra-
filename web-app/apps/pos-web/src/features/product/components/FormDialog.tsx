@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { useState } from "react";
 
 import type { FormField, FormValues } from "./CatalogResourceManagement";
+import { fileApi } from "../../../api/file.api";
 
 interface FormDialogProps {
     title: string;
@@ -26,6 +27,23 @@ export function FormDialog({
 }: FormDialogProps) {
     const [filePreviews, setFilePreviews] = useState<Record<string, string>>({});
     const [deletedFields, setDeletedFields] = useState<Record<string, boolean>>({});
+    const [uploadingField, setUploadingField] = useState<string | null>(null);
+    const [formValues, setFormValues] = useState<Record<string, string>>(() => {
+        const init: Record<string, string> = {};
+        fields.forEach(f => {
+            init[f.name] = initialValues[f.name] ?? (f.type === "select" ? (f.options?.[0]?.value ?? "") : "");
+        });
+
+        // Prefill variantName with selected product name when creating a new variant
+        if (!initialValues.variantName && init.productId) {
+            const productField = fields.find(f => f.name === "productId");
+            const selectedOpt = productField?.options?.find(o => o.value === init.productId);
+            if (selectedOpt) {
+                init.variantName = selectedOpt.label + " ";
+            }
+        }
+        return init;
+    });
 
     return (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/35 p-6">
@@ -76,20 +94,41 @@ export function FormDialog({
                                     rows={4}
                                     required={field.required}
                                     placeholder={field.placeholder}
-                                    defaultValue={
-                                        initialValues[field.name] ?? ""
-                                    }
+                                    value={formValues[field.name]}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setFormValues(prev => ({
+                                            ...prev,
+                                            [field.name]: val
+                                        }));
+                                    }}
                                     className="rounded-xl border border-pos-border px-3 py-2 font-normal outline-none focus:border-hvt-green-700"
                                 />
                             ) : field.type === "select" ? (
                                 <select
                                     name={field.name}
                                     required={field.required}
-                                    defaultValue={
-                                        initialValues[field.name] ??
-                                        field.options?.[0]?.value ??
-                                        ""
-                                    }
+                                    value={formValues[field.name]}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setFormValues(prev => {
+                                            const updated = { ...prev, [field.name]: val };
+                                            if (field.name === "productId") {
+                                                const oldProductOpt = field.options?.find(o => o.value === prev.productId);
+                                                const newProductOpt = field.options?.find(o => o.value === val);
+                                                if (newProductOpt) {
+                                                    const oldPrefix = oldProductOpt ? oldProductOpt.label : "";
+                                                    const currentName = prev.variantName || "";
+                                                    if (oldPrefix && currentName.startsWith(oldPrefix)) {
+                                                        updated.variantName = currentName.replace(oldPrefix, newProductOpt.label);
+                                                    } else {
+                                                        updated.variantName = newProductOpt.label + " " + currentName;
+                                                    }
+                                                }
+                                            }
+                                            return updated;
+                                        });
+                                    }}
                                     className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal"
                                 >
                                     {field.options?.map((option) => (
@@ -103,7 +142,17 @@ export function FormDialog({
                                 </select>
                             ) : field.type === "file" ? (
                                 <div className="grid gap-2">
-                                    {filePreviews[field.name] || (initialValues[field.name] && !deletedFields[field.name]) ? (
+                                    <input
+                                        type="hidden"
+                                        name={field.name}
+                                        value={formValues[field.name] || ""}
+                                    />
+                                    {uploadingField === field.name ? (
+                                        <div className="flex items-center justify-center gap-3 rounded-xl border border-pos-border p-6 h-[88px] bg-neutral-50/50">
+                                            <div className="size-5 animate-spin rounded-full border-2 border-hvt-green-700 border-t-transparent" />
+                                            <span className="text-sm font-semibold text-gray-500">Đang tải ảnh lên...</span>
+                                        </div>
+                                    ) : filePreviews[field.name] || (initialValues[field.name] && !deletedFields[field.name]) ? (
                                         <div className="flex items-center gap-3 rounded-xl border border-pos-border p-3">
                                             <div className="relative size-16 overflow-hidden rounded-lg">
                                                 <img
@@ -122,6 +171,7 @@ export function FormDialog({
                                                 onClick={() => {
                                                     setFilePreviews(prev => ({ ...prev, [field.name]: "" }));
                                                     setDeletedFields(prev => ({ ...prev, [field.name]: true }));
+                                                    setFormValues(prev => ({ ...prev, [field.name]: "", [field.name + "Id"]: "" }));
                                                 }}
                                                 className="grid size-8 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                                 aria-label="Xóa ảnh"
@@ -150,17 +200,32 @@ export function FormDialog({
                                                     <span className="relative cursor-pointer rounded-md font-semibold text-hvt-green-800 hover:text-hvt-green-900 focus-within:outline-none">
                                                         <span>Chọn ảnh</span>
                                                         <input
-                                                            name={field.name}
                                                             type="file"
                                                             accept="image/*"
                                                             className="sr-only"
                                                             required={field.required && !initialValues[field.name]}
-                                                            onChange={(e) => {
+                                                            onChange={async (e) => {
                                                                 const file = e.target.files?.[0];
                                                                 if (file) {
-                                                                    const preview = URL.createObjectURL(file);
-                                                                    setFilePreviews(prev => ({ ...prev, [field.name]: preview }));
-                                                                    setDeletedFields(prev => ({ ...prev, [field.name]: false }));
+                                                                    setUploadingField(field.name);
+                                                                    try {
+                                                                        const uploadRes = await fileApi.uploadFile(file, {
+                                                                            purpose: (field.purpose as any) ?? "PRODUCT_IMAGE"
+                                                                        });
+                                                                        const url = uploadRes.publicUrl || "";
+                                                                        setFilePreviews(prev => ({ ...prev, [field.name]: url }));
+                                                                        setDeletedFields(prev => ({ ...prev, [field.name]: false }));
+                                                                        setFormValues(prev => ({
+                                                                            ...prev,
+                                                                            [field.name]: url,
+                                                                            [field.name + "Id"]: uploadRes.fileId
+                                                                        }));
+                                                                    } catch (err) {
+                                                                        console.error("Upload error:", err);
+                                                                        alert("Lỗi tải lên hình ảnh!");
+                                                                    } finally {
+                                                                        setUploadingField(null);
+                                                                    }
                                                                 }
                                                             }}
                                                         />
@@ -178,7 +243,14 @@ export function FormDialog({
                                     type={field.type ?? "text"}
                                     required={field.required}
                                     placeholder={field.placeholder}
-                                    defaultValue={initialValues[field.name] ?? ""}
+                                    value={formValues[field.name]}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setFormValues(prev => ({
+                                            ...prev,
+                                            [field.name]: val
+                                        }));
+                                    }}
                                     className="h-11 rounded-xl border border-pos-border px-3 font-normal outline-none focus:border-hvt-green-700"
                                 />
                             )}
@@ -195,16 +267,16 @@ export function FormDialog({
                         type="button"
                         onClick={onClose}
                         disabled={submitting}
-                        className="h-11 rounded-xl border border-pos-border px-5 text-sm font-bold"
+                        className="h-11 rounded-lg border border-[#dfe6ee] bg-white text-[#172317] px-5 text-sm font-black transition-all cursor-pointer hover:bg-neutral-50"
                     >
                         Hủy
                     </button>
                     <button
                         type="submit"
-                        disabled={submitting}
-                        className="h-11 rounded-xl bg-hvt-green-900 px-5 text-sm font-bold text-white disabled:opacity-60"
+                        disabled={submitting || uploadingField !== null}
+                        className="h-11 rounded-lg border-0 bg-[#07883a] text-white px-5 text-sm font-black shadow-[0_6px_16px_rgba(7,136,58,0.18)] disabled:opacity-60 transition-all cursor-pointer hover:opacity-90"
                     >
-                        {submitting ? "Đang lưu..." : submitLabel}
+                        {submitting ? "Đang lưu..." : (uploadingField ? "Đang tải ảnh..." : submitLabel)}
                     </button>
                 </footer>
             </form>

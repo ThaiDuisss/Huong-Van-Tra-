@@ -27,8 +27,7 @@ public record ProductResponse(
             String variantName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
-            Integer packQuantity,
-            UUID baseUnitId,
+            UUID unitId,
             InventoryPolicy inventoryPolicy,
             Status status,
             Status productStatus,
@@ -45,8 +44,7 @@ public record ProductResponse(
             String variantName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
-            Integer packQuantity,
-            UUID baseUnitId,
+            UUID unitId,
             InventoryPolicy inventoryPolicy,
             Status status,
             Status productStatus,
@@ -63,4 +61,5 @@ public record ProductResponse(
     ) {
     }
 }
+
 

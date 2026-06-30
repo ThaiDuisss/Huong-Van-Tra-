@@ -133,9 +133,20 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         Specification<InventoryTransaction> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (transactionCode != null && !transactionCode.isBlank()) {
-                predicates.add(cb.like(
+                String searchTrim = transactionCode.trim().toLowerCase();
+                var searchPredicates = new ArrayList<Predicate>();
+                searchPredicates.add(cb.like(
                         cb.lower(root.get("transactionCode")),
-                        "%" + transactionCode.trim().toLowerCase() + "%"));
+                        "%" + searchTrim + "%"));
+                searchPredicates.add(cb.like(
+                        cb.lower(root.get("referenceId")),
+                        "%" + searchTrim + "%"));
+                try {
+                    searchPredicates.add(cb.equal(root.get("createdBy"), java.util.UUID.fromString(searchTrim)));
+                } catch (IllegalArgumentException e) {
+                    // Ignored: search query is not a valid UUID format
+                }
+                predicates.add(cb.or(searchPredicates.toArray(Predicate[]::new)));
             }
             if (type != null) predicates.add(cb.equal(root.get("type"), type));
             if (fromDate != null) {

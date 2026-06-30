@@ -52,8 +52,7 @@ public class ProductMapper {
                 variant.getVariantName(),
                 variant.getSellingPrice(),
                 variant.getCostPrice(),
-                variant.getPackQuantity(),
-                variant.getBaseUnitId(),
+                variant.getUnit() != null ? variant.getUnit().getId() : null,
                 variant.getInventoryPolicy(),
                 variant.getStatus(),
                 product.getStatus(),
@@ -75,8 +74,7 @@ public class ProductMapper {
         return new ProductResponse.VariantSummaryResponse(
                 variant.getId(), product.getId(), product.getName(), product.getProductCode(), variant.getSku(),
                 variant.getVariantName(), variant.getSellingPrice(), variant.getCostPrice(),
-                variant.getPackQuantity(),
-                variant.getBaseUnitId(),
+                variant.getUnit() != null ? variant.getUnit().getId() : null,
                 variant.getInventoryPolicy(), variant.getStatus(), product.getStatus(), isSellable(variant)
         );
     }
@@ -85,3 +83,4 @@ public class ProductMapper {
         return variant.getStatus() == Status.ACTIVE && variant.getProduct().getStatus() == Status.ACTIVE;
     }
 }
+

@@ -59,10 +59,10 @@ export function Pagination({
                             onClick={() =>
                                 onPageChange(pageNumber)
                             }
-                            className={`grid size-8 place-items-center rounded-lg text-sm font-bold ${
+                            className={`grid size-8 place-items-center rounded-lg text-sm font-black transition-all cursor-pointer ${
                                 pageNumber === page
-                                    ? "bg-hvt-green-900 text-white"
-                                    : "text-gray-500 hover:bg-neutral-100"
+                                    ? "bg-[#07883a] text-white"
+                                    : "text-[#172317] hover:bg-neutral-100"
                             }`}
                         >
                             {pageNumber}

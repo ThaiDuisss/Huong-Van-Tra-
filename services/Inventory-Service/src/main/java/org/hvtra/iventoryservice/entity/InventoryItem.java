@@ -18,15 +18,19 @@ import java.util.UUID;
 @Setter
 public class InventoryItem extends BaseEntity {
 
-    @Column(name = "reference_id", nullable = false)
+    @Column(name = "reference_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID referenceId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "item_type", nullable = false, length = 50)
     private InventoryItemType itemType;
 
-    @Column(name = "base_unit_id", nullable = false)
-    private UUID baseUnitId;
+    /**
+     * ID đơn vị lưu kho thực tế của nguyên liệu / biến thể tại kho này.
+     * Ví dụ: lưu kho bằng Kg, Gram, Thùng...
+     */
+    @Column(name = "unit_id", nullable = false, columnDefinition = "BINARY(16)")
+    private UUID unitId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
