@@ -7,11 +7,9 @@ import {
     Plus,
     Search
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { DateQuickFilter } from "../../../components/shared/DateQuickFilter";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
-import type { DateFilterKey } from "../../../components/shared/dateFilters";
 import { OrderDetailPanel } from "../components/OrderDetailPanel";
 import { OrderStatusBadge } from "../components/OrderStatusBadge";
 import {
@@ -26,7 +24,6 @@ import type {
     OrderSummaryResponse
 } from "../types/order.types";
 import {
-    buildDateRangeFilter,
     formatCurrency,
     formatDateOnly,
     getOrderCode,
@@ -67,13 +64,13 @@ const ORDER_STATUS_TABS: {
     },
     {
         key: "PROCESSING",
-        label: "Đang xử lý",
+        label: "Xử lý",
         status: "PROCESSING",
         countKey: "processing"
     },
     {
         key: "SHIPPING",
-        label: "Đang giao",
+        label: "Giao",
         status: "SHIPPING",
         countKey: "shipping"
     },
@@ -85,7 +82,7 @@ const ORDER_STATUS_TABS: {
     },
     {
         key: "RETURN_REFUND",
-        label: "Hoàn/Hoàn tiền",
+        label: "Hoàn tiền",
         // TODO: khi backend hỗ trợ nhiều status/lần, truyền RETURNED và REFUNDED cùng lúc.
         status: "RETURNED",
         countKey: "returnedOrRefunded"
@@ -132,7 +129,6 @@ export function OrderListPage() {
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterStatus, setFilterStatus] =
         useState<OrderStatusTabKey>("ALL");
-    const [dateFilter, setDateFilter] = useState<DateFilterKey>("ALL");
     const [currentPage, setCurrentPage] = useState(0);
     const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
     const [activeSummary, setActiveSummary] =
@@ -148,10 +144,6 @@ export function OrderListPage() {
     const [isDetailLoading, setIsDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
 
-    const dateRange = useMemo(
-        () => buildDateRangeFilter(dateFilter),
-        [dateFilter]
-    );
     const activeStatusTab = ORDER_STATUS_TABS.find(
         (tab) => tab.key === filterStatus
     );
@@ -165,7 +157,6 @@ export function OrderListPage() {
             getOrders({
                 keyword: debouncedKeyword,
                 status: activeStatusTab?.status ?? undefined,
-                ...dateRange,
                 sort: "businessStatus",
                 page: currentPage,
                 size: PAGE_SIZE
@@ -196,12 +187,12 @@ export function OrderListPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [activeStatusTab?.status, currentPage, dateRange, debouncedKeyword]);
+    }, [activeStatusTab?.status, currentPage, debouncedKeyword]);
 
     useEffect(() => {
         let ignore = false;
 
-        getOrderStats(dateRange)
+        getOrderStats()
             .then((response) => {
                 if (!ignore) {
                     setStats(response ?? {});
@@ -216,7 +207,7 @@ export function OrderListPage() {
         return () => {
             ignore = true;
         };
-    }, [dateRange]);
+    }, []);
 
     useEffect(() => {
         if (!activeOrderId) {
@@ -259,11 +250,6 @@ export function OrderListPage() {
 
     const selectFilterStatus = (status: OrderStatusTabKey) => {
         setFilterStatus(status);
-        setCurrentPage(0);
-    };
-
-    const selectDateFilter = (filter: DateFilterKey) => {
-        setDateFilter(filter);
         setCurrentPage(0);
     };
 
@@ -323,11 +309,6 @@ export function OrderListPage() {
             <div className={styles.content}>
                 <div className={styles.header}>
                     <div className={styles.title}>
-                        <div className={styles.breadcrumbs}>
-                            <span>Đơn hàng</span>
-                            <ChevronRight size={16} aria-hidden="true" />
-                            <span>Tất cả đơn hàng</span>
-                        </div>
                         <h1>Tất cả đơn hàng</h1>
                         <p>
                             Quản lý và theo dõi tất cả đơn hàng trong hệ thống
@@ -371,45 +352,48 @@ export function OrderListPage() {
                                         value={searchTerm}
                                     />
                                 </label>
-                            </div>
 
-                            <div className={styles.filterGroup}>
-                                <span className={styles.filterLabel}>
-                                    Trạng thái:
-                                </span>
-                                <div className={styles.quickFilters}>
-                                    {ORDER_STATUS_TABS.map((filter) => (
-                                        <button
-                                            className={`${styles.filterChip} ${
-                                                filterStatus === filter.key
-                                                    ? styles.activeFilterChip
-                                                    : ""
-                                            }`}
-                                            key={filter.key}
-                                            onClick={() =>
-                                                selectFilterStatus(filter.key)
-                                            }
-                                            type="button"
-                                        >
-                                            {filter.label}{" "}
-                                            <span>
-                                                {stats[filter.countKey] ?? 0}
-                                            </span>
-                                        </button>
-                                    ))}
+                                <div className={styles.filterGroup}>
+                                    <span className={styles.filterLabel}>
+                                        Trạng thái:
+                                    </span>
+                                    <div className={styles.quickFilters}>
+                                        {ORDER_STATUS_TABS.map((filter) => (
+                                            <button
+                                                className={`${styles.filterChip} ${
+                                                    filterStatus === filter.key
+                                                        ? styles.activeFilterChip
+                                                        : ""
+                                                }`}
+                                                key={filter.key}
+                                                onClick={() =>
+                                                    selectFilterStatus(
+                                                        filter.key
+                                                    )
+                                                }
+                                                type="button"
+                                            >
+                                                {filter.label}{" "}
+                                                <span>
+                                                    {stats[filter.countKey] ??
+                                                        0}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-
-                            <div className={styles.filterGroup}>
-                                <DateQuickFilter
-                                    value={dateFilter}
-                                    onChange={selectDateFilter}
-                                />
                             </div>
                         </div>
 
                         <div className={styles.tableWrap}>
                             <table className={styles.orderTable}>
+                                <colgroup>
+                                    <col style={{ width: "22%" }} />
+                                    <col style={{ width: "40%" }} />
+                                    <col style={{ width: "20%" }} />
+                                    <col style={{ width: "21%" }} />
+                                    <col style={{ width: "10%" }} />
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th>Mã đơn hàng</th>
@@ -466,12 +450,20 @@ export function OrderListPage() {
                                                       {getOrderCode(order)}
                                                   </td>
                                                   <td>
-                                                      <OrderStatusBadge
-                                                          status={order.status}
-                                                          label={getOrderStatusText(
-                                                              order
-                                                          )}
-                                                      />
+                                                      <div
+                                                          className={
+                                                              styles.statusCell
+                                                          }
+                                                      >
+                                                          <OrderStatusBadge
+                                                              status={
+                                                                  order.status
+                                                              }
+                                                              label={getOrderStatusText(
+                                                                  order
+                                                              )}
+                                                          />
+                                                      </div>
                                                   </td>
                                                   <td>
                                                       <strong>
@@ -490,32 +482,42 @@ export function OrderListPage() {
                                                           styles.actionCell
                                                       }
                                                   >
-                                                      <button
-                                                          aria-expanded={
-                                                              openActionCode ===
-                                                              order.id
-                                                          }
-                                                          aria-label={`Mở thao tác cho đơn ${getOrderCode(order)}`}
+                                                      <div
                                                           className={
-                                                              styles.rowActionButton
+                                                              styles.actionButtonWrap
                                                           }
-                                                          onClick={(event) => {
-                                                              event.stopPropagation();
-                                                              setOpenActionCode(
-                                                                  (current) =>
-                                                                      current ===
-                                                                      order.id
-                                                                          ? null
-                                                                          : order.id
-                                                              );
-                                                          }}
-                                                          type="button"
                                                       >
-                                                          <MoreHorizontal
-                                                              size={18}
-                                                              aria-hidden="true"
-                                                          />
-                                                      </button>
+                                                          <button
+                                                              aria-expanded={
+                                                                  openActionCode ===
+                                                                  order.id
+                                                              }
+                                                              aria-label={`Mở thao tác cho đơn ${getOrderCode(order)}`}
+                                                              className={
+                                                                  styles.rowActionButton
+                                                              }
+                                                              onClick={(
+                                                                  event
+                                                              ) => {
+                                                                  event.stopPropagation();
+                                                                  setOpenActionCode(
+                                                                      (
+                                                                          current
+                                                                      ) =>
+                                                                          current ===
+                                                                          order.id
+                                                                              ? null
+                                                                              : order.id
+                                                                  );
+                                                              }}
+                                                              type="button"
+                                                          >
+                                                              <MoreHorizontal
+                                                                  size={18}
+                                                                  aria-hidden="true"
+                                                              />
+                                                          </button>
+                                                      </div>
                                                       {openActionCode ===
                                                       order.id ? (
                                                           <div

@@ -1,3 +1,5 @@
+import { Search } from "lucide-react";
+
 import {
     SALES_PAYMENT_METHOD_OPTIONS,
     SALES_STATUS_FILTER_OPTIONS
@@ -10,7 +12,9 @@ import type {
 import styles from "../../pages/SalesHistoryPage.module.css";
 
 interface SalesHistoryFiltersProps {
+    searchValue: string;
     value: SalesHistoryFilterValues;
+    onSearchChange: (value: string) => void;
     onChange: (value: SalesHistoryFilterValues) => void;
 }
 
@@ -41,7 +45,9 @@ function FilterChip<T extends string>({
 }
 
 export function SalesHistoryFilters({
+    searchValue,
     value,
+    onSearchChange,
     onChange
 }: SalesHistoryFiltersProps) {
     return (
@@ -49,45 +55,66 @@ export function SalesHistoryFilters({
             className={styles.filtersPanel}
             aria-label="Bộ lọc lịch sử bán hàng"
         >
-            <div className={styles.filterRow}>
-                <span className={styles.filterLabel}>Trạng thái:</span>
-                <div className={styles.chipGroup}>
-                    {SALES_STATUS_FILTER_OPTIONS.map((option) => (
-                        <FilterChip<SalesHistoryStatusFilter>
-                            active={value.status === option.key}
-                            key={option.key}
-                            label={option.label}
-                            onSelect={(status) =>
-                                onChange({
-                                    ...value,
-                                    status
-                                })
+            <div className={styles.filterTopRow}>
+                <label className={styles.searchBox}>
+                    <Search size={19} aria-hidden="true" />
+                    <input
+                        aria-label="Tìm kiếm hóa đơn bán hàng hôm nay"
+                        onChange={(event) =>
+                            onSearchChange(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                                onSearchChange("");
                             }
-                            value={option.key}
-                        />
-                    ))}
+                        }}
+                        placeholder="Tìm mã đơn, khách hàng, SĐT..."
+                        value={searchValue}
+                    />
+                </label>
+
+                <div className={styles.filterRow}>
+                    <span className={styles.filterLabel}>Trạng thái:</span>
+                    <div className={styles.chipGroup}>
+                        {SALES_STATUS_FILTER_OPTIONS.map((option) => (
+                            <FilterChip<SalesHistoryStatusFilter>
+                                active={value.status === option.key}
+                                key={option.key}
+                                label={option.label}
+                                onSelect={(status) =>
+                                    onChange({
+                                        ...value,
+                                        status
+                                    })
+                                }
+                                value={option.key}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            <div className={styles.filterRow}>
-                <span className={styles.filterLabel}>
-                    Phương thức thanh toán:
-                </span>
-                <div className={styles.chipGroup}>
-                    {SALES_PAYMENT_METHOD_OPTIONS.map((option) => (
-                        <FilterChip<SalesHistoryPaymentFilter>
-                            active={value.paymentMethod === option.key}
-                            key={option.key}
-                            label={option.label}
-                            onSelect={(paymentMethod) =>
-                                onChange({
-                                    ...value,
-                                    paymentMethod
-                                })
-                            }
-                            value={option.key}
-                        />
-                    ))}
+            <div className={styles.filterBottomRow}>
+                <div className={styles.filterRow}>
+                    <span className={styles.filterLabel}>
+                        Phương thức thanh toán:
+                    </span>
+                    <div className={styles.chipGroup}>
+                        {SALES_PAYMENT_METHOD_OPTIONS.map((option) => (
+                            <FilterChip<SalesHistoryPaymentFilter>
+                                active={value.paymentMethod === option.key}
+                                key={option.key}
+                                label={option.label}
+                                onSelect={(paymentMethod) =>
+                                    onChange({
+                                        ...value,
+                                        paymentMethod
+                                    })
+                                }
+                                value={option.key}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
         </section>

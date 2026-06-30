@@ -1,20 +1,17 @@
-import { AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SalesHistoryFilters } from "../components/sales-history/SalesHistoryFilters";
 import { SalesOrderDetailDrawer } from "../components/sales-history/SalesOrderDetailDrawer";
 import { SalesOrdersTable } from "../components/sales-history/SalesOrdersTable";
-import { SalesSummaryCards } from "../components/sales-history/SalesSummaryCards";
 import {
     getSalesOrderDetail,
-    getTodaySales,
-    getTodaySalesSummary
+    getTodaySales
 } from "../services/sales-history.api";
 import type {
     SalesHistoryFilters as SalesHistoryFilterValues,
     SalesHistoryOrder,
     SalesHistoryPageResponse,
-    SalesHistorySummary,
     SalesOrderDetail
 } from "../types/sales-history.types";
 import styles from "./SalesHistoryPage.module.css";
@@ -24,15 +21,6 @@ const PAGE_SIZE = 20;
 const defaultFilters: SalesHistoryFilterValues = {
     status: "ALL",
     paymentMethod: "ALL"
-};
-
-const emptySummary: SalesHistorySummary = {
-    todayRevenue: 0,
-    totalOrders: 0,
-    completedOrders: 0,
-    pendingPaymentOrders: 0,
-    averageOrderValue: 0,
-    pendingAmount: 0
 };
 
 const emptyPage: SalesHistoryPageResponse<SalesHistoryOrder> = {
@@ -56,38 +44,35 @@ function getErrorMessage(error: unknown) {
     return "Không thể tải lịch sử bán hàng. Vui lòng thử lại.";
 }
 
+function normalizeSearchValue(value?: string | null) {
+    return value?.trim().toLowerCase() ?? "";
+}
+
+function matchesSearchTerm(order: SalesHistoryOrder, keyword: string) {
+    if (!keyword) {
+        return true;
+    }
+
+    return [
+        order.orderCode,
+        order.customerName,
+        order.customerPhone
+    ].some((value) => normalizeSearchValue(value).includes(keyword));
+}
+
 export function SalesHistoryPage() {
     const [filters, setFilters] =
         useState<SalesHistoryFilterValues>(defaultFilters);
-    const [summary, setSummary] = useState<SalesHistorySummary>(emptySummary);
+    const [searchTerm, setSearchTerm] = useState("");
     const [ordersPage, setOrdersPage] = useState(emptyPage);
     const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
     const [selectedOrder, setSelectedOrder] =
         useState<SalesOrderDetail | null>(null);
-    const [summaryLoading, setSummaryLoading] = useState(true);
     const [listLoading, setListLoading] = useState(true);
     const [detailLoading, setDetailLoading] = useState(false);
-    const [summaryError, setSummaryError] = useState<string | null>(null);
     const [listError, setListError] = useState<string | null>(null);
     const [detailError, setDetailError] = useState<string | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
-
-    const loadSummary = useCallback(() => {
-        setSummaryLoading(true);
-        setSummaryError(null);
-
-        return getTodaySalesSummary()
-            .then((response) => {
-                setSummary(response);
-            })
-            .catch((error: unknown) => {
-                setSummary(emptySummary);
-                setSummaryError(getErrorMessage(error));
-            })
-            .finally(() => {
-                setSummaryLoading(false);
-            });
-    }, []);
 
     const loadOrders = useCallback(() => {
         setListLoading(true);
@@ -117,7 +102,7 @@ export function SalesHistoryPage() {
     useEffect(() => {
         let ignore = false;
         const timerId = window.setTimeout(() => {
-            Promise.all([loadSummary(), loadOrders()]).then(() => {
+            loadOrders().then(() => {
                 if (ignore) {
                     return;
                 }
@@ -128,7 +113,7 @@ export function SalesHistoryPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [loadOrders, loadSummary, refreshKey]);
+    }, [loadOrders, refreshKey]);
 
     useEffect(() => {
         if (!selectedOrderId) {
@@ -180,17 +165,20 @@ export function SalesHistoryPage() {
         console.log("TODO: In lại hóa đơn", order.orderCode);
     };
 
-    const error = summaryError || listError;
+    const normalizedSearchTerm = normalizeSearchValue(searchTerm);
+    const visibleOrders = useMemo(
+        () =>
+            ordersPage.content.filter((order) =>
+                matchesSearchTerm(order, normalizedSearchTerm)
+            ),
+        [normalizedSearchTerm, ordersPage.content]
+    );
+    const error = listError;
 
     return (
         <section className={styles.page}>
             <div className={styles.header}>
                 <div>
-                    <div className={styles.breadcrumbs}>
-                        <span>Đơn hàng</span>
-                        <ChevronRight size={16} aria-hidden="true" />
-                        <span>Bán hàng hôm nay</span>
-                    </div>
                     <h1>Bán hàng hôm nay</h1>
                     <p>
                         Theo dõi doanh thu, hóa đơn và giao dịch trong ngày.
@@ -213,22 +201,21 @@ export function SalesHistoryPage() {
                 </div>
             ) : null}
 
-            <SalesSummaryCards
-                summary={summary}
-                loading={summaryLoading}
-            />
+            <div className={styles.salesWorkspace}>
+                <SalesHistoryFilters
+                    searchValue={searchTerm}
+                    value={filters}
+                    onSearchChange={setSearchTerm}
+                    onChange={setFilters}
+                />
 
-            <SalesHistoryFilters
-                value={filters}
-                onChange={setFilters}
-            />
-
-            <SalesOrdersTable
-                orders={ordersPage.content}
-                loading={listLoading}
-                onOpenDetail={setSelectedOrderId}
-                onPrint={handlePrintFromTable}
-            />
+                <SalesOrdersTable
+                    orders={visibleOrders}
+                    loading={listLoading}
+                    onOpenDetail={setSelectedOrderId}
+                    onPrint={handlePrintFromTable}
+                />
+            </div>
 
             <SalesOrderDetailDrawer
                 order={selectedOrder}

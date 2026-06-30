@@ -1,9 +1,11 @@
 .page {
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
-  gap: 22px;
+  gap: 18px;
   height: 100%;
+  max-height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .pageTimeCollapsed {
@@ -13,9 +15,10 @@
 .content {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .header {
@@ -38,13 +41,13 @@
 .title h1 {
   margin: 0;
   color: #172317;
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 950;
   letter-spacing: 0;
 }
 
 .title p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #536078;
   font-size: 15px;
   font-weight: 600;
@@ -60,11 +63,12 @@
 
 .searchBox {
   display: flex;
+  flex: 0 0 700px;
   align-items: center;
   gap: 14px;
-  width: clamp(360px, 42vw, 480px);
+  width: 700px;
   max-width: 100%;
-  height: 48px;
+  height: 44px;
   border: 1px solid #dfe6ee;
   border-radius: 8px;
   background: #ffffff;
@@ -91,7 +95,7 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  height: 48px;
+  height: 44px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 900;
@@ -112,10 +116,11 @@
 
 .body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 292px;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .bodyExpanded {
@@ -129,12 +134,12 @@
   border: 1px solid #edf0f4;
   border-radius: 12px;
   background: #ffffff;
-  box-shadow: 0 16px 38px rgb(31 53 43 / 0.05);
 }
 
 .tablePanel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
 }
 
 .filterRows {
@@ -148,35 +153,36 @@
 .filterToolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 16px 18px 14px;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 12px 16px;
 }
 
 .filterGroup {
   display: flex;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 10px;
-  padding: 13px 18px;
-}
-
-.filterToolbar + .filterGroup,
-.filterGroup + .filterGroup {
-  border-top: 1px solid #f3f5f7;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .filterLabel {
+  flex: 0 0 auto;
   color: #536078;
   font-size: 13px;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .paymentFilters {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .paymentChip {
@@ -185,9 +191,11 @@
   border-radius: 999px;
   background: #ffffff;
   color: #536078;
-  padding: 0 11px;
-  font-size: 12px;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  font-size: 13px;
   font-weight: 850;
+  white-space: nowrap;
 }
 
 .paymentChip span {
@@ -209,10 +217,11 @@
 
 .invoiceTable {
   width: 100%;
-  min-width: 920px;
+  min-width: 840px;
   border-collapse: collapse;
   color: #172317;
-  font-size: 13px;
+  font-size: 14px;
+  table-layout: fixed;
 }
 
 .invoiceTable th,
@@ -224,7 +233,13 @@
 }
 
 .invoiceTable th {
-  font-size: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom-color: #d7f0df;
+  background: #eaf8ef;
+  color: #172317;
+  font-size: 13px;
   font-weight: 950;
 }
 
@@ -250,6 +265,16 @@
   padding-left: 18px;
 }
 
+.invoiceTable th:nth-child(2),
+.invoiceTable td:nth-child(2) {
+  text-align: center;
+}
+
+.invoiceTable th:nth-child(6),
+.invoiceTable td:nth-child(6) {
+  text-align: center;
+}
+
 .invoiceLink {
   border: 0;
   background: transparent;
@@ -260,8 +285,8 @@
 }
 
 .invoiceLink:hover {
-  color: #07883a;
-  text-decoration: underline;
+  color: #172317;
+  text-decoration: none;
 }
 
 .status {
@@ -315,10 +340,20 @@
   position: relative;
 }
 
+.paymentStatusCell,
+.actionButtonWrap {
+  display: flex;
+  justify-content: center;
+}
+
+.actionButtonWrap {
+  align-items: center;
+}
+
 .rowActionButton {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -328,7 +363,7 @@
 
 .rowActionButton:hover {
   border-color: #dfe6ee;
-  background: #ffffff;
+  background: #f8faf9;
   color: #172317;
 }
 
@@ -369,19 +404,19 @@
 
 .pagination {
   display: flex;
-  height: 54px;
+  height: 52px;
   align-items: center;
   justify-content: space-between;
   padding: 0 18px;
   color: #536078;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .pageTools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
 }
 
 .pageButton {
@@ -389,9 +424,9 @@
   min-width: 32px;
   height: 32px;
   place-items: center;
-  border: 1px solid #edf0f4;
+  border: 0;
   border-radius: 8px;
-  background: #ffffff;
+  background: transparent;
   color: #172317;
   font-weight: 900;
 }
@@ -402,7 +437,6 @@
 }
 
 .activePage {
-  border-color: #07883a;
   background: #07883a;
   color: #ffffff;
 }
@@ -528,6 +562,7 @@
   }
 
   .searchBox {
+    flex-basis: min(520px, 100%);
     width: min(480px, 100%);
   }
 
@@ -551,6 +586,7 @@
 
   .filterToolbar {
     align-items: stretch;
+    flex-wrap: wrap;
     flex-direction: column;
     padding: 14px;
   }
@@ -562,10 +598,13 @@
   .filterGroup {
     align-items: flex-start;
     flex-direction: column;
-    padding: 13px 14px;
+    flex-wrap: wrap;
+    overflow: visible;
   }
 
   .paymentFilters {
+    flex-wrap: wrap;
+    overflow: visible;
     width: 100%;
   }
 

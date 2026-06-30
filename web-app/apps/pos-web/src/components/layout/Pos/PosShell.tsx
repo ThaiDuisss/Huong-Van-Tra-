@@ -16,12 +16,15 @@ export function PosShell({
     : "grid-cols-[176px_minmax(0,1fr)] xl:grid-cols-[184px_minmax(0,1fr)] 2xl:grid-cols-[192px_minmax(0,1fr)]";
 
   const mainOverflow = checkout ? "overflow-hidden" : "overflow-y-auto";
+  const mainSpacing = checkout
+    ? "px-4 py-5 md:px-5"
+    : "px-4 pt-3 pb-4 md:px-5 md:pt-4 md:pb-5";
 
   return (
     <div className={`grid h-dvh min-h-0 ${gridCols} overflow-hidden bg-[#f7f8fb]`}>
       <PosSidebar />
 
-      <main className={`min-h-0 min-w-0 ${mainOverflow} px-4 py-5 md:px-5`}>
+      <main className={`min-h-0 min-w-0 ${mainOverflow} ${mainSpacing}`}>
         {children}
       </main>
 

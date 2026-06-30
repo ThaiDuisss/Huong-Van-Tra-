@@ -1,9 +1,11 @@
 .page {
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
-  gap: 22px;
+  gap: 18px;
   height: 100%;
+  max-height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .pageTimeCollapsed {
@@ -13,9 +15,10 @@
 .content {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .header {
@@ -38,13 +41,13 @@
 .title h1 {
   margin: 0;
   color: #172317;
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 950;
   letter-spacing: 0;
 }
 
 .title p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #536078;
   font-size: 15px;
   font-weight: 600;
@@ -60,11 +63,12 @@
 
 .searchBox {
   display: flex;
+  flex: 0 0 540px;
   align-items: center;
   gap: 14px;
-  width: clamp(360px, 42vw, 480px);
+  width: 540px;
   max-width: 100%;
-  height: 48px;
+  height: 44px;
   border: 1px solid #dfe6ee;
   border-radius: 8px;
   background: #ffffff;
@@ -86,7 +90,7 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  height: 48px;
+  height: 44px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 900;
@@ -116,8 +120,9 @@
 .tablePanel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  align-self: start;
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
   border: 1px solid #edf0f4;
   border-radius: 12px;
   background: #ffffff;
@@ -129,6 +134,7 @@
   gap: 16px;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .workspaceExpanded {
@@ -136,53 +142,56 @@
 }
 
 .filterRows {
-  display: grid;
+  display: block;
   border-bottom: 1px solid #edf0f4;
 }
 
 .filterToolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 16px 18px 14px;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 12px 16px;
 }
 
 .filterGroup {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 10px;
-  padding: 13px 18px;
-}
-
-.filterToolbar + .filterGroup,
-.filterGroup + .filterGroup {
-  border-top: 1px solid #f3f5f7;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .filterLabel {
+  flex: 0 0 auto;
   color: #536078;
   font-size: 13px;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .quickFilters {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .filterChip {
-  height: 30px;
+  height: 28px;
   border: 1px solid #dfe6ee;
   border-radius: 999px;
   background: #ffffff;
   color: #536078;
-  padding: 0 12px;
+  flex: 0 0 auto;
+  padding: 0 10px;
   font-size: 13px;
   font-weight: 850;
+  white-space: nowrap;
 }
 
 .filterChip span {
@@ -199,15 +208,15 @@
 
 .tableWrap {
   min-height: 0;
-  max-height: calc(100vh - 320px);
   overflow: auto;
 }
 
 .orderTable {
   width: 100%;
-  min-width: 840px;
+  min-width: 720px;
   border-collapse: collapse;
   font-size: 14px;
+  table-layout: fixed;
 }
 
 .orderTable th,
@@ -222,7 +231,8 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #ffffff;
+  border-bottom-color: #d7f0df;
+  background: #eaf8ef;
   color: #172317;
   font-size: 13px;
   font-weight: 950;
@@ -233,14 +243,32 @@
   padding-left: 18px;
 }
 
+.orderTable th:nth-child(2),
+.orderTable td:nth-child(2) {
+  text-align: center;
+}
+
+.orderTable th:nth-child(5),
+.orderTable td:nth-child(5) {
+  text-align: center;
+}
+
 .activeRow {
   background: #f0fbef;
   box-shadow: inset 4px 0 0 #07883a;
 }
 
 .code {
-  color: #159734;
+  color: #172317;
   font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusCell {
+  display: flex;
+  justify-content: center;
 }
 
 .status {
@@ -285,6 +313,12 @@
 
 .actionCell {
   position: relative;
+}
+
+.actionButtonWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .rowActionButton {
@@ -526,6 +560,7 @@
   }
 
   .searchBox {
+    flex-basis: min(420px, 100%);
     width: min(480px, 100%);
   }
 
@@ -554,8 +589,9 @@
 
   .filterToolbar {
     align-items: stretch;
+    flex-wrap: wrap;
     flex-direction: column;
-    padding: 14px;
+    padding: 12px 14px;
   }
 
   .searchBox {
@@ -565,10 +601,14 @@
   .filterGroup {
     align-items: flex-start;
     flex-direction: column;
-    padding: 13px 14px;
+    flex-wrap: wrap;
+    min-width: 0;
+    overflow: visible;
   }
 
   .quickFilters {
+    flex-wrap: wrap;
+    overflow: visible;
     width: 100%;
   }
 
