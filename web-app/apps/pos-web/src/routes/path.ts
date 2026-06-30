@@ -25,6 +25,13 @@ export const routePaths = {
 
     customers: "/system/customers",
     customerGroups: "/system/customers/groups",
+    marketingEvents: "/system/marketing/events",
+    discountPrograms: "/system/marketing/discount-programs",
+    discountProgramDetail:
+        "/system/marketing/discount-programs/:programId",
+    discountCodes: "/system/marketing/discount-codes",
+    discountHistory: "/system/marketing/discount-history",
+    discountRules: "/system/marketing/discount-rules",
     bomList: "/system/manufacturing/boms",
     productionOrders:
         "/system/manufacturing/production-orders",

@@ -1,0 +1,653 @@
+.page {
+    display: grid;
+    gap: 18px;
+    min-width: 0;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.titleBlock {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.title {
+    margin: 0;
+    color: #101933;
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.detailTitle {
+    margin: 0;
+    color: #101933;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.12;
+}
+
+.description {
+    margin: 0;
+    color: #667085;
+    font-size: 14px;
+}
+
+.metaLine {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    color: #667085;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.metaItem {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.primaryButton,
+.secondaryButton,
+.filterButton,
+.iconButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    height: 46px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.primaryButton {
+    border: 0;
+    background: #009b4d;
+    color: #ffffff;
+    padding: 0 22px;
+    box-shadow: 0 12px 24px rgb(0 155 77 / 0.22);
+}
+
+.primaryButton:hover {
+    background: #008a45;
+}
+
+.secondaryButton,
+.filterButton {
+    border: 1px solid #e1e7ef;
+    background: #ffffff;
+    color: #17213a;
+    padding: 0 16px;
+}
+
+.compactButton {
+    height: 42px;
+}
+
+.secondaryButton:hover,
+.filterButton:hover,
+.iconButton:hover {
+    background: #f8fafc;
+}
+
+.filtersCard,
+.tableCard,
+.detailCard {
+    border: 1px solid #edf1f6;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 8px 28px rgb(16 25 51 / 0.04);
+}
+
+.filtersCard {
+    padding: 16px;
+}
+
+.filters {
+    display: grid;
+    grid-template-columns:
+        minmax(280px, 1.4fr) minmax(160px, 0.75fr)
+        minmax(180px, 0.85fr) minmax(180px, 0.85fr)
+        minmax(220px, 1fr) auto;
+    gap: 12px;
+}
+
+.search,
+.selectWrap,
+.dateWrap {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    height: 46px;
+    border: 1px solid #edf1f6;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #667085;
+    padding: 0 14px;
+}
+
+.search:focus-within,
+.selectWrap:focus-within,
+.dateWrap:focus-within {
+    border-color: #94d3ad;
+    box-shadow: 0 0 0 3px rgb(0 155 77 / 0.1);
+}
+
+.searchInput,
+.select,
+.dateInput {
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: #17213a;
+    outline: none;
+}
+
+.searchInput::placeholder,
+.dateInput::placeholder {
+    color: #98a2b3;
+}
+
+.select {
+    appearance: none;
+}
+
+.tableCard {
+    overflow: hidden;
+}
+
+.tableScroll {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    min-width: 1010px;
+    border-collapse: collapse;
+    color: #17213a;
+}
+
+.table th {
+    height: 54px;
+    border-bottom: 1px solid #edf1f6;
+    color: #17213a;
+    font-size: 13px;
+    font-weight: 800;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.table td {
+    height: 72px;
+    border-bottom: 1px solid #edf1f6;
+    color: #17213a;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.table tr:last-child td {
+    border-bottom: 0;
+}
+
+.table th,
+.table td {
+    padding: 0 18px;
+}
+
+.programName {
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.eventLink {
+    color: #0574c8;
+    font-weight: 700;
+}
+
+.codeText {
+    display: block;
+    color: #101933;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+
+.codeMeta {
+    display: block;
+    margin-top: 6px;
+    color: #475467;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.timeRange {
+    display: grid;
+    gap: 5px;
+    line-height: 1.35;
+}
+
+.applicationBadge,
+.statusBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    border-radius: 4px;
+    padding: 0 10px;
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.applicationDiscountCode {
+    border: 1px solid #baf0d2;
+    background: #f0fff7;
+    color: #008f4a;
+}
+
+.applicationFreeShipping {
+    background: #e9fbfb;
+    color: #078d93;
+}
+
+.applicationBuyXGetY {
+    background: #fff0ff;
+    color: #b827b7;
+}
+
+.applicationAmountOff {
+    background: #fff4e5;
+    color: #c56d16;
+}
+
+.applicationGift {
+    background: #ffeefa;
+    color: #d62b8e;
+}
+
+.statusActive {
+    background: #ecfff5;
+    color: #009b4d;
+}
+
+.statusScheduled {
+    background: #eaf3ff;
+    color: #0867a8;
+}
+
+.statusInactive {
+    background: #f3f5f7;
+    color: #1d2939;
+}
+
+.statusUsed {
+    background: #f3f4f6;
+    color: #111827;
+}
+
+.statusExpired {
+    background: #ffefef;
+    color: #d92d20;
+}
+
+.scopePublic {
+    border: 1px solid #baf0d2;
+    background: #f0fff7;
+    color: #009b4d;
+}
+
+.scopePersonal {
+    border: 1px solid #cdeeff;
+    background: #f1fbff;
+    color: #0879bd;
+}
+
+.actionCell {
+    text-align: center;
+}
+
+.iconButton {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    background: transparent;
+    color: #101933;
+}
+
+.footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border-top: 1px solid #edf1f6;
+    padding: 14px 16px;
+    color: #667085;
+    font-size: 14px;
+}
+
+.paginationControls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pageSize {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    border: 1px solid #edf1f6;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 0 12px;
+    color: #17213a;
+    font-weight: 700;
+}
+
+.pageSize select {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    outline: 0;
+}
+
+.pageButton {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border: 1px solid #009b4d;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #009b4d;
+    font-weight: 800;
+}
+
+.pagerButton {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 1px solid #edf1f6;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #667085;
+}
+
+.empty {
+    padding: 48px 18px;
+    color: #667085;
+    text-align: center;
+}
+
+.detailCard {
+    overflow: hidden;
+    padding: 18px;
+}
+
+.detailCardHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.detailCardTitle {
+    margin: 0;
+    color: #17213a;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.editButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 32px;
+    border: 1px solid #e1e7ef;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #17213a;
+    padding: 0 11px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.infoGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 22px;
+}
+
+.infoColumn {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+}
+
+.infoColumn + .infoColumn {
+    border-left: 1px solid #edf1f6;
+    padding-left: 28px;
+}
+
+.infoRow {
+    display: grid;
+    grid-template-columns: minmax(140px, 0.65fr) minmax(0, 1fr);
+    gap: 18px;
+    min-width: 0;
+    color: #17213a;
+    font-size: 14px;
+}
+
+.infoLabel {
+    color: #667085;
+    font-weight: 600;
+}
+
+.infoValue {
+    min-width: 0;
+    font-weight: 700;
+}
+
+.blueText {
+    color: #0574c8;
+}
+
+.detailFooter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 18px;
+    border-top: 1px solid #edf1f6;
+    padding-top: 12px;
+    color: #667085;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.benefitGrid {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+}
+
+.benefitIcon {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    border: 1px solid #baf0d2;
+    border-radius: 8px;
+    background: #ecfff5;
+    color: #009b4d;
+}
+
+.benefitColumn {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+}
+
+.benefitColumn + .benefitColumn {
+    border-left: 1px solid #edf1f6;
+    padding-left: 28px;
+}
+
+.smallTable {
+    width: 100%;
+    border-collapse: collapse;
+    color: #17213a;
+}
+
+.smallTable th,
+.smallTable td {
+    height: 34px;
+    border: 1px solid #edf1f6;
+    padding: 0 14px;
+    font-size: 13px;
+    text-align: left;
+}
+
+.smallTable th {
+    background: #fbfcff;
+    color: #17213a;
+    font-weight: 800;
+}
+
+.conditionName {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+}
+
+.conditionIcon {
+    display: grid;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border-radius: 4px;
+    background: #e8fff2;
+    color: #009b4d;
+}
+
+.scopeObject {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+}
+
+.scopeIcon {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border-radius: 6px;
+    background: #f2ebff;
+    color: #8a35d7;
+}
+
+.scopeIconProduct {
+    background: #e9f7ff;
+    color: #1677bf;
+}
+
+.yesBadge,
+.noBadge,
+.overrideBadge {
+    display: inline-flex;
+    min-height: 24px;
+    align-items: center;
+    border-radius: 4px;
+    padding: 0 8px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.noBadge {
+    background: #eaffe9;
+    color: #009b4d;
+}
+
+.yesBadge {
+    background: #ffeaf0;
+    color: #e23d64;
+}
+
+.overrideBadge {
+    background: #f6eaff;
+    color: #9b2acf;
+}
+
+@media (max-width: 1279px) {
+    .header {
+        flex-direction: column;
+    }
+
+    .actions {
+        justify-content: flex-start;
+    }
+
+    .filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .filterButton {
+        width: max-content;
+    }
+}
+
+@media (max-width: 900px) {
+    .filters {
+        grid-template-columns: 1fr;
+    }
+
+    .footer {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .paginationControls {
+        flex-wrap: wrap;
+    }
+
+    .infoGrid,
+    .benefitGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .infoColumn + .infoColumn,
+    .benefitColumn + .benefitColumn {
+        border-left: 0;
+        border-top: 1px solid #edf1f6;
+        padding-left: 0;
+        padding-top: 16px;
+    }
+}
