@@ -1,12 +1,24 @@
 package org.hvtra.promotionservice.enums.condition;
 
 public enum ConditionType {
-    MIN_ORDER_AMOUNT, // don toi thieu
-    MAX_ORDER_AMOUNT, // don toi da
-    CUSTOMER_TIER, // loai khach hang: VIP, GOLD
-    PRODUCT_ID, // chi ap dung san pham A
-    CATEGORY_ID, // chi ap dung loai A
-    CHANNEL, // ONLINE, POS
-    BRANCH, // Chi nhanh
-    PAYMENT_METHOD // phuong thuc thanh toan
+
+    // Điều kiện theo đơn hàng
+    MIN_ORDER_AMOUNT,
+    MAX_ORDER_AMOUNT,
+    MIN_ITEM_QUANTITY,
+
+    // Điều kiện theo lịch sử khách hàng
+    MIN_ORDER_COUNT,
+    MIN_TOTAL_SPENT,
+    MIN_LOYALTY_POINT,
+    FIRST_PURCHASE,
+
+    // Điều kiện theo khách hàng
+    CUSTOMER_TIER,
+    CUSTOMER_ID,
+
+    // Điều kiện theo ngữ cảnh bán hàng
+    CHANNEL,
+    BRANCH,
+    PAYMENT_METHOD
 }
