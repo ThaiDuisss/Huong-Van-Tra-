@@ -111,7 +111,7 @@ export function CustomerCreateDialog({
     }
 
     return (
-        <DialogContent className="w-[min(680px,calc(100vw-32px))]">
+        <DialogContent className="w-[min(760px,calc(100vw-32px))]">
             <DialogHeader>
                 <DialogTitle>
                     {customer ? "Chỉnh sửa khách hàng" : "Thêm khách hàng"}
@@ -124,7 +124,7 @@ export function CustomerCreateDialog({
             </DialogHeader>
 
             <form onSubmit={(event) => void submit(event)}>
-                <div className="grid max-h-[70vh] grid-cols-2 gap-x-4 gap-y-3 overflow-y-auto p-5 max-sm:grid-cols-1">
+                <div className="grid max-h-[68vh] grid-cols-2 gap-x-5 gap-y-5 overflow-y-auto p-6 max-sm:grid-cols-1">
                     <FormField label="Tên khách hàng" required>
                         <input
                             autoFocus
@@ -229,7 +229,7 @@ export function CustomerCreateDialog({
 
                     {error && (
                         <div
-                            className="col-span-full flex items-start gap-2 rounded-lg border border-[#f1c8c1] bg-[#fff5f3] px-3.5 py-3 text-xs font-bold text-[#a43a2a]"
+                            className="col-span-full flex items-start gap-2 rounded-xl border border-[#f1c8c1] bg-[#fff5f3] px-4 py-3 text-sm font-bold text-[#a43a2a]"
                             role="alert"
                         >
                             <AlertCircle
@@ -285,8 +285,8 @@ function FormField({
     required?: boolean;
 }) {
     return (
-        <label className="grid gap-1.5">
-            <span className="text-[11px] font-black text-[#596879]">
+        <label className="grid gap-2">
+            <span className="text-xs font-bold text-[#536171]">
                 {label}
                 {required && <span className="ml-1 text-[#c4422e]">*</span>}
             </span>

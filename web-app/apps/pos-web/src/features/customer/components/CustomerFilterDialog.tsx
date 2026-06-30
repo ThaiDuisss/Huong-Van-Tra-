@@ -43,7 +43,7 @@ export function CustomerFilterDialog({
     }
 
     return (
-        <DialogContent className="w-[min(1180px,calc(100vw-32px))]">
+        <DialogContent className="w-[min(960px,calc(100vw-32px))]">
             <DialogHeader>
                 <DialogTitle>Bộ lọc khách hàng</DialogTitle>
                 <DialogDescription>
@@ -52,7 +52,7 @@ export function CustomerFilterDialog({
                 </DialogDescription>
             </DialogHeader>
             <form onSubmit={onSubmit}>
-                <div className="grid max-h-[65vh] grid-cols-3 overflow-y-auto max-lg:grid-cols-1">
+                <div className="grid max-h-[65vh] grid-cols-3 overflow-y-auto p-2 max-lg:grid-cols-1">
                     <FilterGroup title="Thông tin khách hàng">
                         <FilterField label="Trạng thái">
                             <select
@@ -226,13 +226,13 @@ function FilterGroup({
 }) {
     return (
         <section
-            className={`min-w-0 space-y-3 px-4 py-3.5 ${
+            className={`min-w-0 space-y-4 rounded-xl px-4 py-4 ${
                 isLast
                     ? ""
                     : "border-r border-[#e8eeeb] max-lg:border-r-0 max-lg:border-b"
             }`}
         >
-            <h2 className="text-[13px] font-black text-[#253225]">{title}</h2>
+            <h2 className="text-sm font-black text-[#253225]">{title}</h2>
             {children}
         </section>
     );
@@ -246,8 +246,8 @@ function FilterField({
     label: string;
 }) {
     return (
-        <div className="grid gap-1.5">
-            <span className="text-[11px] font-black text-[#596879]">
+        <div className="grid gap-2">
+            <span className="text-xs font-bold text-[#536171]">
                 {label}
             </span>
             {children}
@@ -265,7 +265,7 @@ function TierChecks({
     onToggle: (tierId: string) => void;
 }) {
     return (
-        <div className="grid min-h-9 gap-2 rounded-lg border border-[#d9e3df] bg-white px-2.5 py-2">
+        <div className="grid min-h-11 gap-2 rounded-lg border border-[#dce5e1] bg-white px-3 py-2.5">
             {!tiers.length && (
                 <span className="text-[11px] font-bold text-[#8a96a3]">
                     Chưa có dữ liệu hạng thành viên

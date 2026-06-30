@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { customerApi } from "../services/customer.api";
 import type {
     CustomerResponse,
+    CustomerTierCountResponse,
     CustomerTierResponse,
     PageResponse
 } from "../types/customer.types";
@@ -13,6 +14,7 @@ import {
 
 export function useCustomerListData(queryString: string) {
     const [tiers, setTiers] = useState<CustomerTierResponse[]>([]);
+    const [tierCounts, setTierCounts] = useState<CustomerTierCountResponse[]>([]);
     const [result, setResult] =
         useState<PageResponse<CustomerResponse> | null>(null);
     const [loading, setLoading] = useState(true);
@@ -22,17 +24,23 @@ export function useCustomerListData(queryString: string) {
 
     useEffect(() => {
         let active = true;
-        void customerApi
-            .tiers()
-            .then((response) => {
+        void Promise.all([
+            customerApi.tiers(),
+            customerApi.tierCounts()
+        ])
+            .then(([tiersResponse, tierCountsResponse]) => {
                 if (active) {
                     setTiers(
-                        response.filter((tier) => tier.status === "ACTIVE")
+                        tiersResponse.filter((tier) => tier.status === "ACTIVE")
                     );
+                    setTierCounts(tierCountsResponse);
                 }
             })
             .catch(() => {
-                if (active) setTiers([]);
+                if (active) {
+                    setTiers([]);
+                    setTierCounts([]);
+                }
             });
         return () => {
             active = false;
@@ -92,6 +100,7 @@ export function useCustomerListData(queryString: string) {
 
     return {
         tiers,
+        tierCounts,
         result,
         customers: result?.content ?? [],
         loading,
