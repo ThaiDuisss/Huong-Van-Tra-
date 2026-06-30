@@ -3,8 +3,13 @@ package org.hvtra.catalog.controller;
 import jakarta.validation.Valid;
 import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.request.UnitRequest;
+import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.UnitResponse;
+import org.hvtra.catalog.enums.Status;
+import org.hvtra.catalog.enums.UnitType;
 import org.hvtra.catalog.service.UnitService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,12 +26,16 @@ public class UnitController {
     }
 
     @GetMapping
-    public List<UnitResponse> findAll() {
-        return service.findAll();
+    public PageResponse<UnitResponse> findAll(
+            @RequestParam(name = "name", required = false) String name,
+            @RequestParam(name = "status", required = false) Status status,
+            @RequestParam(name = "type", required = false) UnitType type,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        return service.findAll(name, status, type, pageable);
     }
 
     @PostMapping("/batch")
-    public java.util.List<UnitResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+    public List<UnitResponse> findByIds(@RequestBody List<UUID> ids) {
         return service.findAllByIds(ids);
     }
 

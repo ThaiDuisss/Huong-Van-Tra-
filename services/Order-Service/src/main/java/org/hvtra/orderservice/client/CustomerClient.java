@@ -20,6 +20,9 @@ public interface CustomerClient {
     @GetMapping("/api/customer")
     List<CustomerResponse> getCustomers(@RequestParam(required = false) String q);
 
+    @GetMapping("/api/customer/{id}")
+    CustomerResponse getCustomerById(@PathVariable("id") UUID id);
+
     @PutMapping("/purchases/{orderId}")
     CustomerPurchaseResponse updateCustomerPurchase(@PathVariable UUID orderId);
 }

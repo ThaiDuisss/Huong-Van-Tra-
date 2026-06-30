@@ -5,10 +5,7 @@ import { ActionButton } from "../../manufacturing/components/shared/ActionButton
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
-import {
-    InventoryFilters,
-    InventorySelect
-} from "../components/InventoryFilters";
+
 import {
     InventoryStatusBadge,
     LocationTypeBadge
@@ -117,56 +114,87 @@ export function InventoryLocationPage() {
                 }
             />
 
-            <div className="grid min-h-[640px] grid-cols-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)] min-[1800px]:grid-cols-[250px_minmax(0,1fr)_340px]">
-                <InventoryFilters>
-                    {/* <InventoryInput
-                        label="Chi nhánh"
-                        value={branchId}
-                        type="number"
-                        placeholder="Nhập mã chi nhánh"
-                        onChange={(value) => {
-                            setBranchId(value);
-                            setPage(1);
-                        }}
-                    /> */}
-                    <InventorySelect
-                        label="Loại vị trí"
-                        value={type}
-                        options={[
-                            { value: "ALL", label: "Tất cả" },
-                            ...Object.entries(locationTypeLabels).map(
-                                ([value, label]) => ({ value, label })
-                            )
-                        ]}
-                        onChange={(value) => {
-                            setType(value as "ALL" | InventoryLocationType);
-                            setPage(1);
-                        }}
-                    />
-                    <InventorySelect
-                        label="Trạng thái"
-                        value={status}
-                        options={[
-                            { value: "ALL", label: "Tất cả" },
-                            ...Object.entries(inventoryStatusLabels).map(
-                                ([value, label]) => ({ value, label })
-                            )
-                        ]}
-                        onChange={(value) => {
-                            setStatus(value as "ALL" | InventoryStatus);
-                            setPage(1);
-                        }}
-                    />
-                    {/* <button
-                        type="button"
-                        onClick={resource.refresh}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-pos-border text-sm font-bold"
-                    >
-                        <RefreshCw size={15} />
-                        Tải lại dữ liệu
-                    </button> */}
-                </InventoryFilters>
+            {/* Config & Filters Row */}
+            <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
+                <div className="flex flex-col">
+                    {/* Loại vị trí */}
+                    <div className="flex flex-wrap items-center gap-2 py-[10px] border-b border-[#f3f5f7]">
+                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
+                            Loại vị trí:
+                        </span>
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <button
+                                type="button"
+                                onClick={() => { setType("ALL"); setPage(1); }}
+                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                    type === "ALL"
+                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                }`}
+                            >
+                                Tất cả
+                            </button>
+                            {Object.entries(locationTypeLabels).map(([value, label]) => {
+                                const isActive = type === value;
+                                return (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => { setType(value as any); setPage(1); }}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            isActive
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
 
+                    {/* Trạng thái */}
+                    <div className="flex flex-wrap items-center gap-2 py-[10px] last:border-b-0 last:pb-0">
+                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
+                            Trạng thái:
+                        </span>
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <button
+                                type="button"
+                                onClick={() => { setStatus("ALL"); setPage(1); }}
+                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                    status === "ALL"
+                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                }`}
+                            >
+                                Tất cả
+                            </button>
+                            {Object.entries(inventoryStatusLabels).map(([value, label]) => {
+                                const isActive = status === value;
+                                return (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => { setStatus(value as any); setPage(1); }}
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                            isActive
+                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Table and Details Card */}
+            <div className="grid gap-4 grid-cols-1">
                 <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
                     {resource.loading ? <InventoryLoading /> : null}
                     {!resource.loading && resource.error ? (
@@ -184,16 +212,15 @@ export function InventoryLocationPage() {
                     !resource.error &&
                     locations.length > 0 ? (
                         <div className="overflow-x-auto">
-                            <table className="min-w-[920px] w-full text-left text-sm">
-                                <thead className="bg-neutral-50 text-xs text-gray-600">
+                            <table className="min-w-[920px] w-full text-left text-sm border-separate border-spacing-0">
+                                <thead className="bg-white text-[13px] font-[950] text-[#172317]">
                                     <tr>
-                                        <th className="px-4 py-3">Mã kệ</th>
-                                        <th className="px-4 py-3">Tên vị trí</th>
-                                        <th className="px-4 py-3">Loại vị trí</th>
-                                        {/* <th className="px-4 py-3">Chi nhánh</th> */}
-                                        <th className="px-4 py-3">Vị trí cha</th>
-                                        <th className="px-4 py-3">Trạng thái</th>
-                                        <th className="px-4 py-3 text-right">Thao tác</th>
+                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px]">Mã kệ</th>
+                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Tên vị trí</th>
+                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Loại vị trí</th>
+                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Vị trí cha</th>
+                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Trạng thái</th>
+                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -201,21 +228,20 @@ export function InventoryLocationPage() {
                                         <tr
                                             key={item.id}
                                             onClick={() => setSelected(item)}
-                                            className="cursor-pointer hover:bg-neutral-50"
+                                            className={`cursor-pointer hover:bg-neutral-50 transition-all ${selected?.id === item.id ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]" : ""}`}
                                         >
                                             <Cell strong>{item.code}</Cell>
                                             <Cell>{item.name}</Cell>
                                             <Cell><LocationTypeBadge type={item.type} /></Cell>
-                                            {/* <Cell>#{item.branchId}</Cell> */}
                                             <Cell>{item.parentLocationId ? `#${item.parentLocationId}` : "-"}</Cell>
                                             <Cell><InventoryStatusBadge status={item.status} /></Cell>
-                                            <Cell>
+                                            <td className="border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px]" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex justify-end gap-1">
                                                     <IconButton label="Xem chi tiết" onClick={() => setSelected(item)}><Eye size={16} /></IconButton>
                                                     <IconButton label="Chỉnh sửa vị trí" onClick={() => { setEditing(item); setShowForm(true); }}><Pencil size={16} /></IconButton>
                                                     <IconButton label="Thay đổi trạng thái" onClick={() => void changeStatus(item)}><ToggleLeft size={17} /></IconButton>
                                                 </div>
-                                            </Cell>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -234,19 +260,29 @@ export function InventoryLocationPage() {
                     ) : null}
                 </section>
 
-                <div className="hidden min-h-0 min-[1800px]:block [&>aside]:h-full">
-                    {selected ? (
-                        <DetailPanel title="Chi tiết vị trí" onClose={() => setSelected(null)}>
-                            <dl className="grid gap-4 text-sm">
-                                <Detail label="Mã kệ" value={selected.code} />
-                                <Detail label="Tên vị trí" value={selected.name} />
-                                <Detail label="Loại vị trí" value={locationTypeLabels[selected.type]} />
-                                {/* <Detail label="Chi nhánh" value={`#${selected.branchId}`} /> */}
-                                <Detail label="Trạng thái" value={inventoryStatusLabels[selected.status]} />
-                            </dl>
-                        </DetailPanel>
-                    ) : null}
-                </div>
+                {selected ? (
+                    <div
+                        className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-5"
+                        onClick={() => setSelected(null)}
+                        role="presentation"
+                    >
+                        <div
+                            aria-modal="true"
+                            className="w-full max-w-xl max-h-[85vh] overflow-y-auto"
+                            onClick={(event) => event.stopPropagation()}
+                            role="dialog"
+                        >
+                            <DetailPanel title="Chi tiết vị trí" onClose={() => setSelected(null)}>
+                                <dl className="grid gap-4 text-sm">
+                                    <Detail label="Mã kệ" value={selected.code} />
+                                    <Detail label="Tên vị trí" value={selected.name} />
+                                    <Detail label="Loại vị trí" value={locationTypeLabels[selected.type]} />
+                                    <Detail label="Trạng thái" value={inventoryStatusLabels[selected.status]} />
+                                </dl>
+                            </DetailPanel>
+                        </div>
+                    </div>
+                ) : null}
             </div>
 
             {showForm ? (
@@ -267,7 +303,7 @@ export function InventoryLocationPage() {
 }
 
 function Cell({ children, strong = false }: { children: React.ReactNode; strong?: boolean }) {
-    return <td className={`border-t border-pos-border px-4 py-4 ${strong ? "font-bold" : ""}`}>{children}</td>;
+    return <td className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 first:pl-[18px] ${strong ? "font-black text-[#172317]" : ""}`}>{children}</td>;
 }
 
 function IconButton({ label, children, onClick }: { label: string; children: React.ReactNode; onClick(): void }) {

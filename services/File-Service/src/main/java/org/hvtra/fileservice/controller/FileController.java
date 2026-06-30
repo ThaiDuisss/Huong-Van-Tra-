@@ -128,7 +128,7 @@ public class FileController {
         return ApiResponse.<Integer>builder().data(fileService.attachFile(fileAttach, userId)).build();
     }
 
-    /**
+    /**2d
      * Lấy userId từ header do API Gateway hoặc authentication filter truyền xuống.
      *
      * File service không tự đăng nhập user.

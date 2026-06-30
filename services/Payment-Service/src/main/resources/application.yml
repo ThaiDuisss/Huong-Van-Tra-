@@ -73,3 +73,7 @@ kafka-consumer-config:
   max-partition-fetch-bytes-default: 1048576
   max-partition-fetch-bytes-boost-factor: 1
   poll-timeout-ms: 150
+
+app:
+  outbox:
+    max-retry: 5

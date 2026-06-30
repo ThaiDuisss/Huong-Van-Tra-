@@ -18,7 +18,7 @@ export const inventoryStatusLabels: Record<InventoryStatus, string> = {
 };
 
 export const inventoryItemTypeLabels: Record<InventoryItemType, string> = {
-    PRODUCT_VARIANT: "Biến thể sản phẩm",
+    PRODUCT_VARIANT: "Mặt hàng",
     INGREDIENT: "Nguyên liệu",
     PACKAGING: "Bao bì",
     COMBO: "Combo"

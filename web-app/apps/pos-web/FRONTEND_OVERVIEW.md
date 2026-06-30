@@ -10,7 +10,7 @@ không gian làm việc:
 
 - **POS bán hàng:** tìm sản phẩm, tạo giỏ hàng, chọn khách hàng và khuyến mãi,
   tính tiền, chọn phương thức thanh toán.
-- **System Management:** quản lý danh mục, sản phẩm, biến thể, bảng giá, BOM và
+- **System Management:** quản lý danh mục, sản phẩm, Mặt hàng, bảng giá, BOM và
   lệnh sản xuất.
 
 Ứng dụng được thiết kế desktop-first, chiếm toàn bộ viewport và có hai layout
@@ -95,9 +95,9 @@ src/main.tsx
 | `/system/categories` | Danh sách danh mục |
 | `/system/products` | Danh sách sản phẩm |
 | `/system/products/:id` | Chi tiết sản phẩm |
-| `/system/products/:productId/variants` | Biến thể theo sản phẩm |
-| `/system/product-variants` | Danh sách biến thể |
-| `/system/product-variants/:id` | Chi tiết biến thể |
+| `/system/products/:productId/variants` | Mặt hàng theo sản phẩm |
+| `/system/product-variants` | Danh sách Mặt hàng |
+| `/system/product-variants/:id` | Chi tiết Mặt hàng |
 | `/system/price-lists` | Danh sách bảng giá |
 | `/system/price-lists/:id` | Chi tiết bảng giá |
 | `/system/manufacturing/boms` | Danh sách BOM |
@@ -123,7 +123,7 @@ apps/pos-web/
 │   │   └── shared/         User menu, profile, workspace switcher
 │   ├── features/
 │   │   ├── sales/          Miền bán hàng
-│   │   ├── product/        Danh mục, sản phẩm, biến thể và bảng giá
+│   │   ├── product/        Danh mục, sản phẩm, Mặt hàng và bảng giá
 │   │   └── manufacturing/  Miền BOM và sản xuất
 │   ├── routes/             Hằng số và metadata route
 │   ├── style/              Theme và global style
@@ -196,11 +196,11 @@ Các phân hệ:
 - **Categories:** tìm kiếm, lọc trạng thái, xem chi tiết, tạo/sửa và đổi trạng
   thái danh mục.
 - **Products:** lọc theo danh mục, quản lý thông tin nhóm sản phẩm và mở trang
-  chi tiết có danh sách biến thể.
+  chi tiết có danh sách Mặt hàng.
 - **Product Variants:** quản lý SKU, giá bán, giá vốn, chính sách tồn kho và
   vòng đời độc lập với sản phẩm.
 - **Price Lists:** quản lý hiệu lực theo chi nhánh và danh sách mức giá cho
-  từng biến thể.
+  từng Mặt hàng.
 
 Các service API tương ứng là `category.api.ts`, `product.api.ts`,
 `productVariant.api.ts` và `priceList.api.ts`; tất cả dùng `apiClient` hiện có.

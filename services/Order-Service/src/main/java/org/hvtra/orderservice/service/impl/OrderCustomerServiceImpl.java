@@ -28,6 +28,25 @@ public class OrderCustomerServiceImpl implements OrderCustomerService {
     }
 
     @Override
+    @CircuitBreaker(name = "customerService", fallbackMethod = "getCustomerByIdFallback")
+    @Retry(name = "customerService")
+    public CustomerResponse getCustomerById(UUID customerId) {
+        log.info("Lấy snapshot khách hàng từ Customer-Service, customerId={}", customerId);
+
+        return customerClient.getCustomerById(customerId);
+    }
+
+    public CustomerResponse getCustomerByIdFallback(UUID customerId, Throwable ex) {
+        log.error(
+                "Customer-Service lỗi khi lấy snapshot khách hàng customerId={}. Đơn hàng vẫn được tạo nếu customer không bắt buộc. Lỗi: {}",
+                customerId,
+                ex.getMessage()
+        );
+
+        return null;
+    }
+
+    @Override
     @CircuitBreaker(name = "customerService", fallbackMethod = "updateCustomerPurchaseFallback")
     @Retry(name = "customerService")
     public CustomerPurchaseResponse updateCustomerPurchase(UUID orderId) {

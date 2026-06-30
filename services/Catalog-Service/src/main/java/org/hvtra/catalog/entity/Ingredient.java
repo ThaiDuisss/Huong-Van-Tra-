@@ -18,11 +18,8 @@ public class Ingredient extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "base_unit_id", nullable = false)
-    private Unit baseUnit;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private Status status = Status.ACTIVE;
 }
+

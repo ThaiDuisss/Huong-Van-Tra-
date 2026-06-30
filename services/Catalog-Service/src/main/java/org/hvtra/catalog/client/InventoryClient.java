@@ -19,7 +19,7 @@ public interface InventoryClient {
     record CreateInventoryItemRequest(
             UUID referenceId,
             String itemType,
-            UUID baseUnitId,
+            UUID unitId,
             String status,
             Integer reorderPoint
     ) {

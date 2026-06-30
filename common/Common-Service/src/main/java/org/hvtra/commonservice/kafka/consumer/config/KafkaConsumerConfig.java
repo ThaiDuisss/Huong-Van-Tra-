@@ -29,6 +29,10 @@ import java.util.Map;
         name = "enabled",
         havingValue = "true"
 )
+@ConditionalOnProperty(prefix = "kafka-consumer-config",
+        name = "enabled",
+        havingValue = "true"
+)
 @Configuration
 @Slf4j
 public class KafkaConsumerConfig <K , V> implements KafkaListenerConfigurer {

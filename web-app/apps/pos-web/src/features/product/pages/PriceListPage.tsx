@@ -170,7 +170,7 @@ export function PriceListPage() {
                                 {item.items.map((priceItem) => (
                                     <div key={priceItem.id} className="flex justify-between border-b border-pos-border pb-1.5 last:border-0">
                                         <div>
-                                            <span className="font-semibold">{priceItem.productVariant?.variantName || "Biến thể"}</span>
+                                            <span className="font-semibold">{priceItem.productVariant?.variantName || "Mặt hàng"}</span>
                                             <span className="text-gray-500 block text-[10px]">{priceItem.productVariant?.sku}</span>
                                         </div>
                                         <span className="font-bold text-hvt-green-900">{formatCurrency(priceItem.sellingPrice)}</span>
@@ -206,7 +206,7 @@ export function PriceListPage() {
                     ? [
                           {
                               name: "productVariantId",
-                              label: "ID biến thể đầu tiên",
+                              label: "ID Mặt hàng đầu tiên",
                               required: true
                           },
                           {

@@ -53,4 +53,50 @@ public class IngredientController {
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable("id") UUID id) {
+        service.delete(id);
+    }
+
+    @GetMapping("/export")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> exportIngredients(
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "status", required = false) Status status) {
+        byte[] excelBytes = service.exportToExcel(search, status);
+        org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
+
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+        String timestamp = java.time.LocalDateTime.now().format(formatter);
+        String rawFilename = "Danh_sach_nguyen_lieu_" + timestamp + ".xlsx";
+        String encodedFilename = "";
+        try {
+            encodedFilename = java.net.URLEncoder.encode(rawFilename, java.nio.charset.StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+        } catch (Exception ignored) {
+        }
+
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(resource);
+    }
+
+    @PostMapping("/import")
+    @ResponseStatus(HttpStatus.OK)
+    public void importIngredients(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        service.importFromExcel(file);
+    }
+
+    @GetMapping("/import/template")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> downloadTemplate() {
+        byte[] excelBytes = service.getImportTemplate();
+        org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_nguyen_lieu.xlsx\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(resource);
+    }
 }
