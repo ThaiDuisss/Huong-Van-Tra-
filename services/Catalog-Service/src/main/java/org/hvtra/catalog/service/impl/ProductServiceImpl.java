@@ -1,6 +1,7 @@
 package org.hvtra.catalog.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
+import org.hvtra.catalog.client.FileClient;
 import org.hvtra.catalog.dto.request.ProductRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
@@ -31,16 +32,18 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final ProductMapper mapper;
     private final BusinessSequenceRepository businessSequenceRepository;
+    private final FileClient fileClient;
 
     public ProductServiceImpl(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
             ProductMapper mapper,
-            BusinessSequenceRepository businessSequenceRepository) {
+            BusinessSequenceRepository businessSequenceRepository, FileClient fileClient) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.mapper = mapper;
         this.businessSequenceRepository = businessSequenceRepository;
+        this.fileClient = fileClient;
     }
 
     @Override
@@ -91,9 +94,15 @@ public class ProductServiceImpl implements ProductService {
             }
         }
         product.setProductCode(code);
+
         
         updateProductFields(product, request);
-        return mapper.toResponse(productRepository.save(product));
+        Product savedProduct = productRepository.save(product);
+        fileClient.attachFile(FileClient.FileAttach.builder()
+                        .refId(savedProduct.getId())
+                        .fieldId(request.fieldId())
+                .build());
+        return mapper.toResponse(savedProduct);
     }
 
     @Override

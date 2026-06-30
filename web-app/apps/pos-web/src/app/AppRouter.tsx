@@ -127,7 +127,7 @@ export function AppRouter() {
                     element={<ProductionOrderListPage />}
                 />
                 <Route
-                    path="manufacturing/raw-materials"
+                    path="manufacturing/ingredients"
                     element={<RawMaterialListPage />}
                 />
             </Route>

@@ -96,6 +96,28 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         ]
     },
     {
+        label: "Sản xuất",
+        icon: Package,
+        children: [
+            {
+                label: "Nguyên liệu",
+                to: routePaths.ingredient,
+                icon: Layers3
+            },
+            {
+                label: "Danh sách BOM",
+                to: routePaths.bomList,
+                icon: Layers3
+            },
+            {
+                label: "Đơn hàng sản xuất",
+                to: routePaths.productionOrders,
+                icon: Layers3
+            }
+
+        ]
+    },
+    {
         label: "Kho",
         icon: Boxes,
         children: [
