@@ -16,7 +16,7 @@ export const inventoryBalanceApi = {
     },
     view(query: InventoryBalanceQuery = {}) {
         return apiClient.get<PageResponse<InventoryBalanceViewResponse>>(
-            "/inventory/inventory-balances/view",
+            "/inventory/inventory-balances/store",
             { query }
         );
     },

@@ -10,7 +10,6 @@ import org.hvtra.catalog.enums.Status;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Table(name = "product_variants", uniqueConstraints = @UniqueConstraint(columnNames = "sku"))
@@ -34,11 +33,14 @@ public class ProductVariant extends BaseEntity {
     @Column(name = "cost_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal costPrice;
 
-    @Column(name = "pack_quantity", nullable = false)
-    private Integer packQuantity ;
-
-    @Column(name = "base_unit_id", nullable = false, columnDefinition = "CHAR(36)")
-    private UUID baseUnitId;
+    /**
+     * Đơn vị bán thương mại của biến thể này.
+     * Ví dụ: "Hộp 100g", "Gói 250g", "Cốc".
+     * Thông thường là Unit có type = PACKAGING.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "unit_id", nullable = false)
+    private Unit unit;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "inventory_policy", nullable = false, length = 50)
@@ -56,3 +58,4 @@ public class ProductVariant extends BaseEntity {
         barcode.setProductVariant(this);
     }
 }
+

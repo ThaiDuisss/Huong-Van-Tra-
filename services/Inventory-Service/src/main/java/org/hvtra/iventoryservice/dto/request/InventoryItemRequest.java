@@ -9,10 +9,9 @@ import java.util.UUID;
 public record InventoryItemRequest(
         @NotNull UUID referenceId,
         @NotNull InventoryItemType itemType,
-        @NotNull UUID baseUnitId,
+        @NotNull UUID unitId,
         @NotNull InventoryStatus status,
         @NotNull Integer reorderPoint
 
 ) {
 }
-

@@ -12,6 +12,7 @@ import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -83,8 +84,6 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
     @Override
     public PageResponse<InventoryBalanceViewResponse> findAllView(
-            UUID branchId,
-            UUID locationId,
             String sku,
             String productCode,
             String productName,
@@ -121,19 +120,13 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         final List<UUID> finalMatchingVariantIds = matchingVariantIds;
         Specification<InventoryBalance> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
-            if (branchId != null) {
-                predicates.add(cb.equal(root.get("location").get("branchId"), branchId));
-            }
-            if (locationId != null) {
-                predicates.add(cb.equal(root.get("location").get("id"), locationId));
-            }
             if (hasCatalogFilters && finalMatchingVariantIds != null) {
                 predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
 
-        org.springframework.data.domain.Page<InventoryBalance> balancePage = repository.findAll(specification, pageable);
+        Page<InventoryBalance> balancePage = repository.findAll(specification, pageable);
         if (balancePage.isEmpty()) {
             return new PageResponse<>(
                     java.util.Collections.emptyList(),

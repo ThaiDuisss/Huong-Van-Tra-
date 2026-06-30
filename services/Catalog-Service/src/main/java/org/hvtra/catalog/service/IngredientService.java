@@ -14,5 +14,9 @@ public interface IngredientService {
     IngredientResponse create(IngredientRequest request);
     IngredientResponse update(UUID id, IngredientRequest request);
     IngredientResponse updateStatus(UUID id, Status status);
+    void delete(UUID id);
+    byte[] exportToExcel(String search, Status status);
+    byte[] getImportTemplate();
+    void importFromExcel(org.springframework.web.multipart.MultipartFile file);
 }
 

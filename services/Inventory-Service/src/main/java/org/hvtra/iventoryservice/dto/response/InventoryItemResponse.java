@@ -9,7 +9,7 @@ public record InventoryItemResponse(
         UUID id,
         UUID referenceId,
         InventoryItemType itemType,
-        UUID baseUnitId,
+        UUID unitId,
         InventoryStatus status,
         Integer reorderPoint
 ) {

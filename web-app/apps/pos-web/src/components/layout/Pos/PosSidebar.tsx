@@ -9,7 +9,6 @@ import {
   LogOut,
   Settings,
   ShoppingBag,
-  Warehouse
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -21,11 +20,6 @@ const navItems = [
     label: "POS",
     icon: BriefcaseBusiness,
     to: routePaths.posSales
-  },
-  {
-    label: "Tồn kho hiện tại",
-    icon: Warehouse,
-    to: routePaths.inventoryBalances
   },
   {
     label: "Đơn hàng",

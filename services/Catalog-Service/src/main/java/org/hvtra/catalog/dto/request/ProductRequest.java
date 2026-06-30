@@ -13,7 +13,8 @@ public record ProductRequest(
         @NotBlank @Size(max = 255) String name,
         String description,
         @Size(max = 500) String imageUrl,
-        @NotNull Status status
+        @NotNull Status status,
+        UUID fieldId
 ) {
 }
 

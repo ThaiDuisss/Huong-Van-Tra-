@@ -8,8 +8,6 @@ public record IngredientResponse(
         UUID id,
         String ingredientCode,
         String name,
-        UnitResponse baseUnit,
         Status status
 ) {
 }
-

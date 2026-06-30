@@ -4,15 +4,17 @@ interface SearchBoxProps {
     value: string;
     placeholder: string;
     onChange(value: string): void;
+    className?: string;
 }
 
 export function SearchBox({
     value,
     placeholder,
-    onChange
+    onChange,
+    className = "xl:max-w-[420px]"
 }: SearchBoxProps) {
     return (
-        <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl border border-pos-border bg-white px-4 text-sm shadow-sm focus-within:border-hvt-green-700 sm:min-w-[280px] xl:max-w-[420px]">
+        <label className={`flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl border border-pos-border bg-white px-4 text-sm shadow-sm focus-within:border-hvt-green-700 sm:min-w-[280px] ${className}`}>
             <Search
                 size={18}
                 className="text-gray-500"
