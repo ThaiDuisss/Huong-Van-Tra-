@@ -317,18 +317,50 @@ function Detail({ label, value }: { label: string; value: string }) {
 function LocationForm({ item, locations, error, onClose, onSubmit }: { item: InventoryLocationResponse | null; locations: InventoryLocationResponse[]; error: string; onClose(): void; onSubmit(input: InventoryLocationRequest): void }) {
     return (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/35 p-5">
-            <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); onSubmit({ branchId: String(data.get("branchId") || ""), parentLocationId: data.get("parentLocationId") ? String(data.get("parentLocationId")) : null, code: String(data.get("code") ?? "").trim(), name: String(data.get("name") ?? "").trim(), type: data.get("type") as InventoryLocationType, status: data.get("status") as InventoryStatus }); }} className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-pos-panel">
-                <header className="mb-5 flex items-center justify-between"><h2 className="text-2xl font-bold">{item ? "Chỉnh sửa vị trí" : "Tạo vị trí"}</h2><button type="button" onClick={onClose} aria-label="Đóng"><X /></button></header>
+            <form
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    const data = new FormData(event.currentTarget);
+                    onSubmit({
+                        branchId: String(data.get("branchId") || ""),
+                        parentLocationId: data.get("parentLocationId") ? String(data.get("parentLocationId")) : null,
+                        name: String(data.get("name") ?? "").trim(),
+                        type: data.get("type") as InventoryLocationType,
+                        status: data.get("status") as InventoryStatus
+                    });
+                }}
+                className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-pos-panel"
+            >
+                <header className="mb-5 flex items-center justify-between">
+                    <h2 className="text-2xl font-bold">{item ? "Chỉnh sửa vị trí" : "Tạo vị trí"}</h2>
+                    <button type="button" onClick={onClose} aria-label="Đóng"><X /></button>
+                </header>
+
+                {/* Hiển thị mã kệ hiện tại khi chỉnh sửa */}
+                {item ? (
+                    <div className="mb-4 flex items-center gap-2 rounded-xl bg-neutral-50 px-4 py-3 text-sm border border-neutral-200">
+                        <span className="font-semibold text-gray-500">Mã kệ:</span>
+                        <span className="font-black text-[#07883a] tracking-wide">{item.code}</span>
+                        <span className="ml-auto text-xs text-gray-400 italic">Mã được hệ thống tự tạo, không thể chỉnh sửa</span>
+                    </div>
+                ) : (
+                    <div className="mb-4 flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm border border-blue-100">
+                        <span className="text-blue-600 font-semibold">✦ Mã kệ sẽ được hệ thống tự động tạo khi lưu</span>
+                    </div>
+                )}
+
                 <div className="grid gap-4 sm:grid-cols-2">
                     {/* <FormInput name="branchId" label="Mã chi nhánh" type="number" value={String(item?.branchId ?? "")} /> */}
                     <label className="grid gap-2 text-sm font-bold">Vị trí cha<select name="parentLocationId" defaultValue={String(item?.parentLocationId ?? "")} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal"><option value="">Không có</option>{locations.filter((location) => location.id !== item?.id).map((location) => <option key={location.id} value={location.id}>{location.code} - {location.name}</option>)}</select></label>
-                    <FormInput name="code" label="Mã kệ" value={item?.code ?? ""} />
                     <FormInput name="name" label="Tên vị trí" value={item?.name ?? ""} />
-                    <label className="grid gap-2 text-sm font-bold">Loại vị trí<select name="type" defaultValue={item?.type ?? "SHELF"} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal">{Object.entries(locationTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                    <label className="grid gap-2 text-sm font-bold">Loại vị trí<select name="type" defaultValue={item?.type ?? "WAREHOUSE"} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal">{Object.entries(locationTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                     <label className="grid gap-2 text-sm font-bold">Trạng thái<select name="status" defaultValue={item?.status ?? "ACTIVE"} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal">{Object.entries(inventoryStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 </div>
                 {error ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p> : null}
-                <footer className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="h-11 rounded-xl border border-pos-border px-5 font-bold">Hủy</button><button type="submit" className="h-11 rounded-xl bg-hvt-green-900 px-5 font-bold text-white">Lưu</button></footer>
+                <footer className="mt-6 flex justify-end gap-3">
+                    <button type="button" onClick={onClose} className="h-11 rounded-xl border border-pos-border px-5 font-bold">Hủy</button>
+                    <button type="submit" className="h-11 rounded-xl bg-hvt-green-900 px-5 font-bold text-white">Lưu</button>
+                </footer>
             </form>
         </div>
     );

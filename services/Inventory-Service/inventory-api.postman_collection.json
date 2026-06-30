@@ -457,6 +457,175 @@
             },
             "url": "{{baseUrl}}/api/inventory/inventory-locations/{{locationId}}/status"
           }
+        },
+        {
+          "name": "13b - Get default warehouse location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Get default warehouse returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().type).to.eql('WAREHOUSE');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/default-warehouse?branchId={{branchId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Store Shelves",
+      "item": [
+        {
+          "name": "13c - Create store shelf",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create store shelf returns 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.expect(body.type).to.eql('SHELF');",
+                  "pm.collectionVariables.set('shelfId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Shelf POS Test {{$timestamp}}\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/store"
+          }
+        },
+        {
+          "name": "13d - Get store shelf list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Shelf list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().content).to.be.an('array');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/store?status=ACTIVE&page=0&size=20"
+          }
+        },
+        {
+          "name": "13e - Get store shelf detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Shelf detail returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(String(pm.response.json().id)).to.eql(pm.collectionVariables.get('shelfId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/store/{{shelfId}}"
+          }
+        },
+        {
+          "name": "13f - Update store shelf",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Update shelf returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().name).to.eql('Shelf POS Test Updated');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Shelf POS Test Updated\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/store/{{shelfId}}"
+          }
+        },
+        {
+          "name": "13g - Change store shelf status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Change shelf status returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().status).to.eql('INACTIVE');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-locations/store/{{shelfId}}/status"
+          }
         }
       ]
     },
@@ -678,6 +847,74 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/inventory/inventory-items/{{inventoryItemId}}/balances?page=0&size=20"
+          }
+        },
+        {
+          "name": "22 - Get inventory balances view for store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Store balances view returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json().content).to.be.an('array');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-balances/store?sku=&productCode=&productName=&page=0&size=20"
+          }
+        },
+        {
+          "name": "23 - Get warehouse balances for POS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('POS search returns 200', () => pm.response.to.have.status(200));",
+                  "pm.expect(pm.response.json()).to.be.an('array');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/inventory-balances/search-view-pos?sku=&productName="
+          }
+        },
+        {
+          "name": "24 - Bulk update location of balances",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Bulk update location returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": "{{baseUrl}}/api/inventory/inventory-balances/location"
           }
         }
       ]

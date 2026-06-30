@@ -20,4 +20,7 @@ public interface InventoryBalanceRepository
             """)
     Optional<InventoryBalance> findForUpdate(
             @Param("itemId") UUID itemId, @Param("locationId") UUID locationId);
+
+    Optional<InventoryBalance> findByInventoryItemIdAndLocationId(UUID itemId, UUID locationId);
 }
+

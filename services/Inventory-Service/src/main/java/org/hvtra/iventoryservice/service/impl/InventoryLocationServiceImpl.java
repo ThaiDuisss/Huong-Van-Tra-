@@ -56,8 +56,9 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     @Override
     @Transactional
     public InventoryLocationResponse create(InventoryLocationRequest request) {
-        validateCode(request, null);
         InventoryLocation location = new InventoryLocation();
+        String code = generateCode(request.type());
+        location.setCode(code);
         mapper.update(location, request, resolveParent(request, null));
         return mapper.toResponse(repository.save(location));
     }
@@ -65,7 +66,6 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     @Override
     @Transactional
     public InventoryLocationResponse update(UUID id, InventoryLocationRequest request) {
-        validateCode(request, id);
         InventoryLocation location = get(id);
         mapper.update(location, request, resolveParent(request, id));
         return mapper.toResponse(repository.save(location));
@@ -77,6 +77,25 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
         InventoryLocation location = get(id);
         location.setStatus(status);
         return mapper.toResponse(repository.save(location));
+    }
+
+    /**
+     * Sinh mã vị trí tự động dựa theo loại.
+     * Cấu trúc: {PREFIX}-{8 ký tự hex ngẫu nhiên viết hoa}
+     * Ví dụ: KHO-A3F9B2C1, KC-7E2D401F, HL-C5080BEE, KE-4D12A8F0
+     */
+    private String generateCode(InventoryLocationType type) {
+        String prefix = switch (type) {
+            case WAREHOUSE -> "KHO";
+            case STORAGE   -> "KC";
+            case DAMAGED   -> "HL";
+            case SHELF     -> "KE";
+        };
+        String suffix = UUID.randomUUID().toString()
+                .replace("-", "")
+                .substring(0, 8)
+                .toUpperCase();
+        return prefix + "-" + suffix;
     }
 
     private InventoryLocation resolveParent(InventoryLocationRequest request, UUID locationId) {
@@ -96,14 +115,6 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
             }
         }
         return parent;
-    }
-
-    private void validateCode(InventoryLocationRequest request, UUID id) {
-        String code = request.code().trim();
-//        boolean exists = id == null
-//                ? repository.existsByBranchIdAndCode(request.branchId(), code)
-//                : repository.existsByBranchIdAndCodeAndIdNot(request.branchId(), code, id);
-//        if (exists) throw new BadRequestException("Location code already exists in branch: " + code);
     }
 
     private InventoryLocation get(UUID id) {

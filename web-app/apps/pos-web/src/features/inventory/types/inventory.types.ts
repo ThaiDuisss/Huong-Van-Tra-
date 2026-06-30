@@ -11,7 +11,8 @@ export type InventoryItemType =
 export type InventoryLocationType =
     | "WAREHOUSE"
     | "STORAGE"
-    | "DAMAGED";
+    | "DAMAGED"
+    | "SHELF";
 
 export type InventoryStatus = "ACTIVE" | "INACTIVE";
 
@@ -52,7 +53,6 @@ export interface InventoryLocationResponse {
 export interface InventoryLocationRequest {
     branchId: EntityId;
     parentLocationId: EntityId | null;
-    code: string;
     name: string;
     type: InventoryLocationType;
     status: InventoryStatus;
@@ -128,6 +128,20 @@ export interface InventoryLocationQuery extends QueryParams {
     type?: InventoryLocationType;
     status?: InventoryStatus;
 }
+
+/** Request gửi từ màn hình Quản lý kệ – chỉ tên và trạng thái */
+export interface StoreShelfRequest {
+    name: string;
+    status: InventoryStatus;
+}
+
+/** Query params cho API /store */
+export interface StoreShelfQuery extends QueryParams {
+    page?: number;
+    size?: number;
+    status?: InventoryStatus;
+}
+
 
 export interface InventoryItemQuery extends QueryParams {
     page?: number;

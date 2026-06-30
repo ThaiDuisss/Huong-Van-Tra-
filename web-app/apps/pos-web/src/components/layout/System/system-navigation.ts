@@ -6,6 +6,7 @@ import {
     History,
     Home,
     Layers3,
+    MapPinned,
     Package,
     Plane,
     Ruler,
@@ -126,11 +127,11 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 icon: Warehouse,
                 to: routePaths.inventoryBalances
             },
-            // {
-            //     label: "Quản lý kệ hàng",
-            //     to: routePaths.inventoryLocations,
-            //     icon: MapPinned
-            // },
+            {
+                label: "Quản lý kệ",
+                to: routePaths.inventoryShelves,
+                icon: MapPinned
+            },
             {
                 label: "Lịch sử biến động",
                 to: routePaths.inventoryTransactions,
@@ -138,6 +139,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             }
         ]
     },
+
     {
         label: "Khách hàng",
         icon: User,

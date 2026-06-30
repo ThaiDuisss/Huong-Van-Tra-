@@ -46,7 +46,8 @@ export function InventoryBalancePage() {
 
     // Store & Catalog states
     const [activeStoreId, setActiveStoreId] = useState<string | null>(null);
-    const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
+    const [activeLocationId, setActiveLocationId] = useState<string | null>("");
+    const [defaultWarehouseId, setDefaultWarehouseId] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
 
     const [locations, setLocations] = useState<InventoryLocationResponse[]>([]);
@@ -78,8 +79,8 @@ export function InventoryBalancePage() {
     const [selectedRow, setSelectedRow] = useState<JoinedRow | null>(null);
     const [activeModal, setActiveModal] = useState<"stock-in" | "adjustment" | null>(null);
 
-    // Dashboard Metrics state
-    const [dashboardMetrics, setDashboardMetrics] = useState({
+    // Dashboard Metrics state (reserved for future KPI display)
+    const [_dashboardMetrics, setDashboardMetrics] = useState({
         totalSku: 0,
         totalStock: 0,
         lowStock: 0,
@@ -120,23 +121,19 @@ export function InventoryBalancePage() {
                 try {
                     const defaultWarehouse = await inventoryLocationApi.defaultWarehouse(resolvedBranchId);
                     if (defaultWarehouse) {
-                        setActiveLocationId(String(defaultWarehouse.id));
+                        setDefaultWarehouseId(String(defaultWarehouse.id));
                     } else {
                         // Fallback: search locally
                         const warehouseLoc = locs.find(l => l.type === "WAREHOUSE" && String(l.branchId) === resolvedBranchId);
                         if (warehouseLoc) {
-                            setActiveLocationId(String(warehouseLoc.id));
-                        } else if (locs.length > 0) {
-                            setActiveLocationId(String(locs[0].id));
+                            setDefaultWarehouseId(String(warehouseLoc.id));
                         }
                     }
                 } catch (err) {
                     console.error("Failed to fetch default warehouse from backend, falling back to client-side resolution", err);
                     const warehouseLoc = locs.find(l => l.type === "WAREHOUSE" && String(l.branchId) === resolvedBranchId);
                     if (warehouseLoc) {
-                        setActiveLocationId(String(warehouseLoc.id));
-                    } else if (locs.length > 0) {
-                        setActiveLocationId(String(locs[0].id));
+                        setDefaultWarehouseId(String(warehouseLoc.id));
                     }
                 }
             } catch (err) {
@@ -387,24 +384,6 @@ export function InventoryBalancePage() {
                     </button>
                 </div>
             </header>
-
-            {/* Dashboard KPI Metrics Grid */}
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-                {[
-                    { label: "Tổng số mặt hàng", value: dashboardMetrics.totalSku, color: "text-blue-600 bg-blue-50" },
-                    { label: "Tổng lượng tồn", value: formatQuantity(dashboardMetrics.totalStock), color: "text-emerald-600 bg-emerald-50" },
-                    { label: "Sắp hết hàng", value: dashboardMetrics.lowStock, color: "text-amber-600 bg-amber-50" },
-                    { label: "Hết hàng", value: dashboardMetrics.outOfStock, color: "text-rose-600 bg-rose-50" },
-                    { label: "Tổng giá trị", value: new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(dashboardMetrics.totalValue), color: "text-indigo-600 bg-indigo-50" }
-                ].map((kpi, idx) => (
-                    <div key={idx} className="flex flex-col gap-1 rounded-2xl border border-neutral-100 bg-white p-4 shadow-pos-card">
-                        <span className="text-[13px] font-[900] text-[#536078]">{kpi.label}</span>
-                        <span className={`self-start px-2.5 py-1 rounded-lg text-lg font-black ${kpi.color}`}>
-                            {kpi.value}
-                        </span>
-                    </div>
-                ))}
-            </div>
 
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">

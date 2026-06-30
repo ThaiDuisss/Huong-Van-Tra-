@@ -13,6 +13,7 @@ import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
+import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagementPage";
 import { CategoryListPage } from "../features/product/pages/CategoryListPage";
 import { UnitListPage } from "../features/product/pages/UnitListPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
@@ -111,6 +112,10 @@ export function AppRouter() {
                 <Route
                     path="inventory/locations"
                     element={<InventoryLocationPage />}
+                />
+                <Route
+                    path="inventory/shelves"
+                    element={<ShelfManagementPage />}
                 />
                 <Route
                     path="inventory/transactions"
