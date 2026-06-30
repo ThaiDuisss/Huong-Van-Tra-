@@ -13,6 +13,9 @@ import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
+import { DiscountCodeListPage } from "../features/marketing/pages/DiscountCodeListPage";
+import { DiscountProgramDetailPage } from "../features/marketing/pages/DiscountProgramDetailPage";
+import { DiscountProgramListPage } from "../features/marketing/pages/DiscountProgramListPage";
 import { CategoryListPage } from "../features/product/pages/CategoryListPage";
 import { UnitListPage } from "../features/product/pages/UnitListPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
@@ -127,6 +130,30 @@ export function AppRouter() {
                 <Route
                     path="customers/groups"
                     element={<CustomerListPage />}
+                />
+                <Route
+                    path="marketing/events"
+                    element={<DiscountProgramListPage />}
+                />
+                <Route
+                    path="marketing/discount-programs"
+                    element={<DiscountProgramListPage />}
+                />
+                <Route
+                    path="marketing/discount-programs/:programId"
+                    element={<DiscountProgramDetailPage />}
+                />
+                <Route
+                    path="marketing/discount-codes"
+                    element={<DiscountCodeListPage />}
+                />
+                <Route
+                    path="marketing/discount-history"
+                    element={<DiscountProgramListPage />}
+                />
+                <Route
+                    path="marketing/discount-rules"
+                    element={<DiscountProgramListPage />}
                 />
                 <Route
                     path="manufacturing/boms"
