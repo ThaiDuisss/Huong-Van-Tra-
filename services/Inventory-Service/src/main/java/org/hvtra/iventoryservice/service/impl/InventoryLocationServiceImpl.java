@@ -35,14 +35,22 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     @Override
     public PageResponse<InventoryLocationResponse> findAll(
             UUID branchId,
+            String query,
             InventoryLocationType type,
             InventoryStatus status,
             Pageable pageable) {
-        Specification<InventoryLocation> specification = (root, query, cb) -> {
+        Specification<InventoryLocation> specification = (root, rootQuery, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (branchId != null) predicates.add(cb.equal(root.get("branchId"), branchId));
             if (type != null) predicates.add(cb.equal(root.get("type"), type));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
+            if (query != null && !query.isBlank()) {
+                String pattern = "%" + query.trim().toLowerCase() + "%";
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("name")), pattern),
+                    cb.like(cb.lower(root.get("code")), pattern)
+                ));
+            }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         return PageResponse.from(repository.findAll(specification, pageable).map(mapper::toResponse));
@@ -129,8 +137,15 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
                 InventoryLocationType.WAREHOUSE,
                 InventoryStatus.ACTIVE
         )
+        .or(() -> repository.findFirstByTypeAndStatus(
+                InventoryLocationType.WAREHOUSE,
+                InventoryStatus.ACTIVE
+        ))
+        .or(() -> repository.findFirstByType(
+                InventoryLocationType.WAREHOUSE
+        ))
         .orElseThrow(() -> new ResourceNotFoundException(
-                "No active WAREHOUSE location found for branch", branchId));
+                "No WAREHOUSE location found at all", null));
         return mapper.toResponse(location);
     }
 }

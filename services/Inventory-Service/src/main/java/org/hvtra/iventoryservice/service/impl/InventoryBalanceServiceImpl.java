@@ -119,9 +119,21 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         }
 
         // 2. Resolve default warehouse
-        org.hvtra.iventoryservice.entity.InventoryLocation defaultWarehouse = locationRepository
-                .findFirstByTypeAndStatus(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE, org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE)
-                .orElse(null);
+        // 2. Resolve default warehouse
+        final org.hvtra.iventoryservice.entity.InventoryLocation defaultWarehouse;
+        org.hvtra.iventoryservice.entity.InventoryLocation tempWarehouse = null;
+        if (branchId != null) {
+            tempWarehouse = locationRepository
+                    .findFirstByBranchIdAndTypeAndStatus(branchId, org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE, org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE)
+                    .orElse(null);
+        }
+        if (tempWarehouse == null) {
+            tempWarehouse = locationRepository
+                    .findFirstByTypeAndStatus(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE, org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE)
+                    .or(() -> locationRepository.findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE))
+                    .orElse(null);
+        }
+        defaultWarehouse = tempWarehouse;
 
         // 3. Query local InventoryBalances with filters
         final List<UUID> finalMatchingVariantIds = matchingVariantIds;

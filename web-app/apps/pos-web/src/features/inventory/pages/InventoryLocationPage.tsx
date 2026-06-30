@@ -35,6 +35,7 @@ export function InventoryLocationPage() {
     const [branchId, _setBranchId] = useState("");
     const [type, setType] = useState<"ALL" | InventoryLocationType>("ALL");
     const [status, setStatus] = useState<"ALL" | InventoryStatus>("ALL");
+    const [query, setQuery] = useState("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [selected, setSelected] =
@@ -51,9 +52,10 @@ export function InventoryLocationPage() {
                 size: pageSize,
                 branchId: branchId ? branchId : undefined,
                 type: type === "ALL" ? undefined : type,
-                status: status === "ALL" ? undefined : status
+                status: status === "ALL" ? undefined : status,
+                query: query.trim() || undefined
             }),
-        [branchId, page, pageSize, status, type]
+        [branchId, page, pageSize, status, type, query]
     );
     const resource = useInventoryPage(load);
     const locations = resource.data?.content ?? [];
@@ -116,80 +118,42 @@ export function InventoryLocationPage() {
 
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                <div className="flex flex-col">
-                    {/* Loại vị trí */}
-                    <div className="flex flex-wrap items-center gap-2 py-[10px] border-b border-[#f3f5f7]">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
-                            Loại vị trí:
+                <div className="grid grid-cols-8 gap-3 items-center">
+                    {/* Search: 50% */}
+                    <div className="relative col-span-4">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         </span>
-                        <div className="flex flex-wrap gap-2 items-center">
-                            <button
-                                type="button"
-                                onClick={() => { setType("ALL"); setPage(1); }}
-                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                    type === "ALL"
-                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                }`}
-                            >
-                                Tất cả
-                            </button>
-                            {Object.entries(locationTypeLabels).map(([value, label]) => {
-                                const isActive = type === value;
-                                return (
-                                    <button
-                                        key={value}
-                                        type="button"
-                                        onClick={() => { setType(value as any); setPage(1); }}
-                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                            isActive
-                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                        }`}
-                                    >
-                                        {label}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <input
+                            type="text"
+                            placeholder="Tìm theo tên vị trí, mã kệ..."
+                            value={query}
+                            onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
+                        />
                     </div>
-
-                    {/* Trạng thái */}
-                    <div className="flex flex-wrap items-center gap-2 py-[10px] last:border-b-0 last:pb-0">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
-                            Trạng thái:
-                        </span>
-                        <div className="flex flex-wrap gap-2 items-center">
-                            <button
-                                type="button"
-                                onClick={() => { setStatus("ALL"); setPage(1); }}
-                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                    status === "ALL"
-                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                }`}
-                            >
-                                Tất cả
-                            </button>
-                            {Object.entries(inventoryStatusLabels).map(([value, label]) => {
-                                const isActive = status === value;
-                                return (
-                                    <button
-                                        key={value}
-                                        type="button"
-                                        onClick={() => { setStatus(value as any); setPage(1); }}
-                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                            isActive
-                                                ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                                : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                        }`}
-                                    >
-                                        {label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
+                    {/* Filter 1: Loại vị trí - 1/8 (12.5%) */}
+                    <select
+                        value={type}
+                        onChange={(e) => { setType(e.target.value as any); setPage(1); }}
+                        className="col-span-1 min-w-0 h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer truncate"
+                    >
+                        <option value="ALL">Loại vị trí</option>
+                        {Object.entries(locationTypeLabels).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                        ))}
+                    </select>
+                    {/* Filter 2: Trạng thái - 1/8 (12.5%) */}
+                    <select
+                        value={status}
+                        onChange={(e) => { setStatus(e.target.value as any); setPage(1); }}
+                        className="col-span-1 min-w-0 h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer truncate"
+                    >
+                        <option value="ALL">Trạng thái</option>
+                        {Object.entries(inventoryStatusLabels).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 

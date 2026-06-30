@@ -1,4 +1,4 @@
-import { Eye, Pencil, Plus, ToggleLeft, X } from "lucide-react";
+import { Eye, Pencil, Plus, ToggleLeft, X, Search } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
@@ -27,6 +27,7 @@ import { inventoryStatusLabels } from "../utils/inventory-labels";
 
 export function ShelfManagementPage() {
     const [status, setStatus] = useState<"ALL" | InventoryStatus>("ALL");
+    const [query, setQuery] = useState("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [selected, setSelected] = useState<InventoryLocationResponse | null>(null);
@@ -40,9 +41,10 @@ export function ShelfManagementPage() {
             storeShelfApi.list({
                 page: page - 1,
                 size: pageSize,
-                status: status === "ALL" ? undefined : status
+                status: status === "ALL" ? undefined : status,
+                query: query.trim() || undefined
             }),
-        [page, pageSize, status]
+        [page, pageSize, status, query]
     );
 
     const resource = useInventoryPage(load);
@@ -105,27 +107,39 @@ export function ShelfManagementPage() {
 
             {/* ── Bộ lọc ─────────────────────────────────────────────────────── */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                <div className="flex flex-col">
-                    {/* Trạng thái */}
-                    <div className="flex flex-wrap items-center gap-2 py-[10px]">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
-                            Trạng thái:
-                        </span>
-                        <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex items-center">
+                    {/* Search: 50% */}
+                    <div className="relative w-1/2">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Tìm theo tên kệ, mã kệ..."
+                            value={query}
+                            onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
+                        />
+                    </div>
+                </div>
+
+                {/* Trạng thái chips (giữ nguyên như cũ) */}
+                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#f3f5f7] mt-3">
+                    <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                        Trạng thái:
+                    </span>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <FilterChip
+                            label="Tất cả"
+                            active={status === "ALL"}
+                            onClick={() => { setStatus("ALL"); setPage(1); }}
+                        />
+                        {Object.entries(inventoryStatusLabels).map(([value, label]) => (
                             <FilterChip
-                                label="Tất cả"
-                                active={status === "ALL"}
-                                onClick={() => { setStatus("ALL"); setPage(1); }}
+                                key={value}
+                                label={label}
+                                active={status === value}
+                                onClick={() => { setStatus(value as InventoryStatus); setPage(1); }}
                             />
-                            {Object.entries(inventoryStatusLabels).map(([value, label]) => (
-                                <FilterChip
-                                    key={value}
-                                    label={label}
-                                    active={status === value}
-                                    onClick={() => { setStatus(value as InventoryStatus); setPage(1); }}
-                                />
-                            ))}
-                        </div>
+                        ))}
                     </div>
                 </div>
             </div>

@@ -127,6 +127,7 @@ export interface InventoryLocationQuery extends QueryParams {
     branchId?: EntityId;
     type?: InventoryLocationType;
     status?: InventoryStatus;
+    query?: string;
 }
 
 /** Request gửi từ màn hình Quản lý kệ – chỉ tên và trạng thái */
@@ -140,6 +141,7 @@ export interface StoreShelfQuery extends QueryParams {
     page?: number;
     size?: number;
     status?: InventoryStatus;
+    query?: string;
 }
 
 
@@ -207,6 +209,7 @@ export interface InventoryTransactionQuery extends QueryParams {
 }
 
 export interface StoreStockInRequest {
+    shelfId: EntityId;
     referenceType: InventoryReferenceType;
     referenceId: EntityId | null;
     lines: Array<{
@@ -216,6 +219,7 @@ export interface StoreStockInRequest {
 }
 
 export interface StoreStockAdjustmentRequest {
+    shelfId: EntityId;
     referenceType: InventoryReferenceType;
     referenceId: EntityId | null;
     lines: Array<{
@@ -232,3 +236,12 @@ export interface StoreStockOutRequest {
         quantity: number;
     }>;
 }
+
+export interface StoreTransferRequest {
+    fromShelfId: EntityId;
+    toShelfId: EntityId;
+    inventoryItemId: EntityId;
+    quantity: number;
+    note?: string;
+}
+

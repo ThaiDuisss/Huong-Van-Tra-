@@ -8,7 +8,8 @@ import type {
     StockInRequest,
     StoreStockAdjustmentRequest,
     StoreStockInRequest,
-    StoreStockOutRequest
+    StoreStockOutRequest,
+    StoreTransferRequest
 } from "../types/inventory.types";
 
 export const inventoryTransactionApi = {
@@ -52,5 +53,11 @@ export const inventoryTransactionApi = {
             InventoryTransactionResponse,
             StoreStockOutRequest
         >("/inventory/inventory-transactions/store/stock-out", input);
+    },
+    storeTransfer(input: StoreTransferRequest) {
+        return apiClient.post<
+            InventoryTransactionResponse,
+            StoreTransferRequest
+        >("/inventory/inventory-transactions/store/transfer", input);
     }
 };

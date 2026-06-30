@@ -37,9 +37,10 @@ public class StoreShelfController {
 
     @GetMapping
     public PageResponse<InventoryLocationResponse> findAll(
+            @RequestParam(name = "query", required = false) String query,
             @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "code") Pageable pageable) {
-        return service.findAll(status, pageable);
+        return service.findAll(query, status, pageable);
     }
 
     @GetMapping("/{id}")

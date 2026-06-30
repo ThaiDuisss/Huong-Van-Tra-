@@ -241,50 +241,80 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
                 {searchPlaceholder ? (
                     <div className="border-b border-[#f3f5f7] pb-3">
-                        <div className="w-full">
-                            <SearchBox
-                                value={query}
-                                placeholder={searchPlaceholder}
-                                onChange={onQueryChange}
-                                className="w-full"
-                            />
-                        </div>
+                        {(() => {
+                            const topFilter = activeFilters.find(f => f.label === "Danh mục" || f.label === "Sản phẩm");
+                            return (
+                                <div className="flex items-center gap-3 justify-between">
+                                    <div className="relative w-1/2 shrink-0">
+                                        <SearchBox
+                                            value={query}
+                                            placeholder={searchPlaceholder}
+                                            onChange={onQueryChange}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                    {topFilter && (
+                                        <div className="w-[12.5%] shrink-0 flex justify-end">
+                                            <select
+                                                value={topFilter.value}
+                                                onChange={(e) => topFilter.onChange(e.target.value)}
+                                                className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                                            >
+                                                <option value="ALL">{topFilter.label}</option>
+                                                {topFilter.options
+                                                    .filter(opt => opt.value !== "ALL")
+                                                    .map((opt) => (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.label}
+                                                        </option>
+                                                    ))
+                                                }
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </div>
                 ) : null}
 
-                {activeFilters.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-[10px] pt-3">
-                        {activeFilters.map((filter, index) => (
-                            <div
-                                key={filter.label + "-" + index}
-                                className="flex flex-wrap items-center gap-2"
-                            >
-                                <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
-                                    {filter.label}:
-                                </span>
-                                <div className="flex flex-wrap gap-2 items-center">
-                                    {filter.options.map((opt) => {
-                                        const isActive = filter.value === opt.value;
-                                        return (
-                                            <button
-                                                key={opt.value}
-                                                onClick={() => filter.onChange(opt.value)}
-                                                type="button"
-                                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                                    isActive
-                                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                                }`}
-                                            >
-                                                {opt.label}
-                                            </button>
-                                        );
-                                    })}
+                {(() => {
+                    const remainingFilters = activeFilters.filter(f => f.label !== "Danh mục" && f.label !== "Sản phẩm");
+                    if (remainingFilters.length === 0) return null;
+                    return (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-[10px] pt-3">
+                            {remainingFilters.map((filter, index) => (
+                                <div
+                                    key={filter.label + "-" + index}
+                                    className="flex flex-wrap items-center gap-2"
+                                >
+                                    <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                                        {filter.label}:
+                                    </span>
+                                    <div className="flex flex-wrap gap-2 items-center">
+                                        {filter.options.map((opt) => {
+                                            const isActive = filter.value === opt.value;
+                                            return (
+                                                <button
+                                                    key={opt.value}
+                                                    onClick={() => filter.onChange(opt.value)}
+                                                    type="button"
+                                                    className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                                        isActive
+                                                            ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                            : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                                    }`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : null}
+                            ))}
+                        </div>
+                    );
+                })()}
             </div>
 
             <div className="grid gap-4 grid-cols-1">

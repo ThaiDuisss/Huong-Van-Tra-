@@ -39,18 +39,26 @@ public class StoreShelfServiceImpl implements StoreShelfService {
 
     @Override
     public PageResponse<InventoryLocationResponse> findAll(
+            String query,
             InventoryStatus status,
             Pageable pageable) {
 
         InventoryLocation warehouse = resolveWarehouse();
 
-        Specification<InventoryLocation> spec = (root, query, cb) -> {
+        Specification<InventoryLocation> spec = (root, rootQuery, cb) -> {
             var predicates = new ArrayList<Predicate>();
             // Chỉ lấy kệ (SHELF) thuộc kho đầu tiên
             predicates.add(cb.equal(root.get("type"), InventoryLocationType.SHELF));
             predicates.add(cb.equal(root.get("parentLocation"), warehouse));
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (query != null && !query.isBlank()) {
+                String pattern = "%" + query.trim().toLowerCase() + "%";
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("name")), pattern),
+                    cb.like(cb.lower(root.get("code")), pattern)
+                ));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };

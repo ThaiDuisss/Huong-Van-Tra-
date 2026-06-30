@@ -80,23 +80,44 @@ export function InventoryTransactionPage() {
             />
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                {/* Search Bar at the top of the card */}
-                <div className="border-b border-[#f3f5f7] pb-3">
-                    <div className="relative w-full">
+                <div className="grid grid-cols-8 gap-3 items-center">
+                    {/* Search: 50% */}
+                    <div className="relative col-span-4">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         <input
                             type="text"
-                            placeholder="Tìm theo mã giao dịch, mã tham chiếu, mã người tạo..."
+                            placeholder="Tìm theo mã giao dịch, mã tham chiếu..."
                             value={transactionCode}
                             onChange={(e) => resetPage(setTransactionCode, e.target.value)}
                             className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
                         />
                     </div>
+                    {/* Filter: Từ ngày - 1/8 (12.5%) */}
+                    <div className="flex items-center gap-1.5 col-span-1 min-w-0">
+                        <span className="text-xs font-bold text-[#536078] shrink-0">Từ:</span>
+                        <input
+                            type="date"
+                            value={fromDate}
+                            onChange={(e) => resetPage(setFromDate, e.target.value)}
+                            className="h-10 w-full min-w-0 rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                        />
+                    </div>
+                    {/* Filter: Đến ngày - 1/8 (12.5%) */}
+                    <div className="flex items-center gap-1.5 col-span-1 min-w-0">
+                        <span className="text-xs font-bold text-[#536078] shrink-0">Đến:</span>
+                        <input
+                            type="date"
+                            value={toDate}
+                            onChange={(e) => resetPage(setToDate, e.target.value)}
+                            className="h-10 w-full min-w-0 rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                        />
+                    </div>
                 </div>
 
-                <div className="flex flex-col">
+                {/* Filters chips (giữ nguyên như cũ) */}
+                <div className="flex flex-col gap-2 pt-3 border-t border-[#f3f5f7] mt-3">
                     {/* Loại giao dịch */}
-                    <div className="flex flex-wrap items-center gap-2 py-[10px] border-b border-[#f3f5f7]">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
                             Loại giao dịch:
                         </span>
@@ -133,7 +154,7 @@ export function InventoryTransactionPage() {
                     </div>
 
                     {/* Loại tham chiếu */}
-                    <div className="flex flex-wrap items-center gap-2 py-[10px] border-b border-[#f3f5f7]">
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                         <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
                             Loại tham chiếu:
                         </span>
@@ -167,32 +188,6 @@ export function InventoryTransactionPage() {
                                 );
                             })}
                         </div>
-                    </div>
-
-                    {/* Từ ngày */}
-                    <div className="flex items-center gap-2 py-[10px] border-b border-[#f3f5f7]">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
-                            Từ ngày:
-                        </span>
-                        <input
-                            type="date"
-                            value={fromDate}
-                            onChange={(e) => resetPage(setFromDate, e.target.value)}
-                            className="h-[30px] px-3 rounded-lg border border-[#dfe6ee] text-[13px] font-semibold text-[#172317] outline-none focus:border-[#07883a] bg-white w-48"
-                        />
-                    </div>
-
-                    {/* Đến ngày */}
-                    <div className="flex items-center gap-2 py-[10px] last:border-b-0 last:pb-0">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
-                            Đến ngày:
-                        </span>
-                        <input
-                            type="date"
-                            value={toDate}
-                            onChange={(e) => resetPage(setToDate, e.target.value)}
-                            className="h-[30px] px-3 rounded-lg border border-[#dfe6ee] text-[13px] font-semibold text-[#172317] outline-none focus:border-[#07883a] bg-white w-48"
-                        />
                     </div>
                 </div>
             </div>

@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public interface InventoryLocationService {
     PageResponse<InventoryLocationResponse> findAll(
-            UUID branchId, InventoryLocationType type, InventoryStatus status, Pageable pageable);
+            UUID branchId, String query, InventoryLocationType type, InventoryStatus status, Pageable pageable);
     InventoryLocationResponse findById(UUID id);
     InventoryLocationResponse create(InventoryLocationRequest request);
     InventoryLocationResponse update(UUID id, InventoryLocationRequest request);
