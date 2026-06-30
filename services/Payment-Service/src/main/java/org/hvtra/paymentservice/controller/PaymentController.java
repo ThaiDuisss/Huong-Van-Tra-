@@ -2,7 +2,7 @@ package org.hvtra.paymentservice.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.paymentservice.dto.request.CashPaymentRequest;
+import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.response.CashPaymentResponse;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
 import org.hvtra.paymentservice.service.PaymentService;
@@ -22,7 +22,7 @@ public class PaymentController {
     @PostMapping("/cash")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Thanh toán bằng tiền mặt")
-    public CashPaymentResponse payByCash(@Valid @RequestBody CashPaymentRequest request) {
+    public CashPaymentResponse payByCash(@Valid @RequestBody CheckoutRequest request) {
         return paymentService.payByCash(request);
     }
 
@@ -35,7 +35,8 @@ public class PaymentController {
     @PostMapping("/webhooks/sepay")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Webhook Sepay")
-    public CashPaymentResponse handleSepayWebhook(@Valid @RequestBody CashPaymentRequest request) {
-        return paymentService.payByCash(request);
+    public CashPaymentResponse handleSepayWebhook(@Valid @RequestBody CheckoutRequest request) {
+//        return paymentService.payByCash(request);
+        return null;
     }
 }

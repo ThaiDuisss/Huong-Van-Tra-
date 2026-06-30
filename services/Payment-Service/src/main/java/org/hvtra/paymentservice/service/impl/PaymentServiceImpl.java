@@ -5,9 +5,9 @@ import org.hvtra.paymentservice.client.OrderClient;
 import org.hvtra.paymentservice.domain.entity.Payments;
 import org.hvtra.paymentservice.domain.entity.PaymentTransaction;
 import org.hvtra.paymentservice.domain.enums.PaymentMethod;
+import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.paymentservice.dto.response.OrderPaymentInfoResponse;
-import org.hvtra.paymentservice.dto.request.CashPaymentRequest;
 import org.hvtra.paymentservice.dto.response.CashPaymentResponse;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
 import org.hvtra.paymentservice.repository.PaymentRepository;
@@ -37,7 +37,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public CashPaymentResponse payByCash(CashPaymentRequest request) {
+    public CashPaymentResponse payByCash(CheckoutRequest request) {
         OrderPaymentInfoResponse orderInfo = orderClient.getPaymentInfo(request.getOrderId());
 
         if (orderInfo == null) {
@@ -63,50 +63,51 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal changeAmount = receivedAmount.subtract(amountRequired);
         String paymentCode = generatePaymentCode();
 
-        Payments payment = Payments.builder()
-                .paymentCode(paymentCode)
-                .orderId(request.getOrderId())
-                .amountRequired(amountRequired)
-                .amountPaid(amountRequired)
-                .amountRefunded(BigDecimal.ZERO)
-                .status(STATUS_PAID)
-                .completedAt(Instant.now())
-                .build();
-
-        PaymentTransaction transaction = PaymentTransaction.builder()
-                .method(PaymentMethod.CASH)
-                .amount(amountRequired)
-                .receivedAmount(receivedAmount)
-                .changeAmount(changeAmount)
-                .status(TRANSACTION_SUCCESS)
-                .provider(METHOD_CASH)
-                .externalTransactionId(null)
-                .paidAt(Instant.now())
-                .build();
-
-        payment.addTransaction(transaction);
-
-        Payments savedPayment = paymentRepository.save(payment);
-
-        MarkOrderPaidRequest markPaidRequest = MarkOrderPaidRequest.builder()
-                .paidAmount(amountRequired)
-                .paymentCode(paymentCode)
-                .changedBy(request.getCreatedBy())
-                .build();
-
-        orderClient.markOrderPaid(request.getOrderId(), markPaidRequest);
-
-        return CashPaymentResponse.builder()
-                .paymentId(savedPayment.getId())
-                .paymentCode(savedPayment.getPaymentCode())
-                .orderId(savedPayment.getOrderId())
-                .amountRequired(savedPayment.getAmountRequired())
-                .amountPaid(savedPayment.getAmountPaid())
-                .receivedAmount(receivedAmount)
-                .changeAmount(changeAmount)
-                .status(savedPayment.getStatus())
-                .method(METHOD_CASH)
-                .build();
+//        Payments payment = Payments.builder()
+//                .paymentCode(paymentCode)
+//                .orderId(request.getOrderId())
+//                .amountRequired(amountRequired)
+//                .amountPaid(amountRequired)
+//                .amountRefunded(BigDecimal.ZERO)
+//                .status(STATUS_PAID)
+//                .completedAt(Instant.now())
+//                .build();
+//
+//        PaymentTransaction transaction = PaymentTransaction.builder()
+//                .method(PaymentMethod.CASH)
+//                .amount(amountRequired)
+//                .receivedAmount(receivedAmount)
+//                .changeAmount(changeAmount)
+//                .status(TRANSACTION_SUCCESS)
+//                .provider(METHOD_CASH)
+//                .externalTransactionId(null)
+//                .paidAt(Instant.now())
+//                .build();
+//
+//        payment.addTransaction(transaction);
+//
+//        Payments savedPayment = paymentRepository.save(payment);
+//
+//        MarkOrderPaidRequest markPaidRequest = MarkOrderPaidRequest.builder()
+//                .paidAmount(amountRequired)
+//                .paymentCode(paymentCode)
+//                .changedBy(request.getCreatedBy())
+//                .build();
+//
+//        orderClient.markOrderPaid(request.getOrderId(), markPaidRequest);
+//
+//        return CashPaymentResponse.builder()
+//                .paymentId(savedPayment.getId())
+//                .paymentCode(savedPayment.getPaymentCode())
+//                .orderId(savedPayment.getOrderId())
+//                .amountRequired(savedPayment.getAmountRequired())
+//                .amountPaid(savedPayment.getAmountPaid())
+//                .receivedAmount(receivedAmount)
+//                .changeAmount(changeAmount)
+//                .status(savedPayment.getStatus())
+//                .method(METHOD_CASH)
+//                .build();
+        return null;
     }
 
     @Override
@@ -119,26 +120,27 @@ public class PaymentServiceImpl implements PaymentService {
             return null;
         }
 
-        PaymentTransaction transaction = payment.getTransactions().stream()
-                .max(Comparator.comparing(
-                        PaymentTransaction::getPaidAt,
-                        Comparator.nullsLast(Comparator.naturalOrder())
-                ))
-                .orElse(null);
-        PaymentMethod method = transaction == null ? null : transaction.getMethod();
-
-        return OrderPaymentMethodResponse.builder()
-                .paymentId(payment.getId())
-                .paymentCode(payment.getPaymentCode())
-                .orderId(payment.getOrderId())
-                .amountRequired(payment.getAmountRequired())
-                .amountPaid(payment.getAmountPaid())
-                .receivedAmount(transaction == null ? payment.getAmountPaid() : transaction.getReceivedAmount())
-                .changeAmount(transaction == null ? BigDecimal.ZERO : defaultZero(transaction.getChangeAmount()))
-                .status(payment.getStatus())
-                .method(method == null ? null : method.name())
-                .methodLabel(toPaymentMethodLabel(method))
-                .build();
+//        PaymentTransaction transaction = payment.getTransactions().stream()
+//                .max(Comparator.comparing(
+//                        PaymentTransaction::getPaidAt,
+//                        Comparator.nullsLast(Comparator.naturalOrder())
+//                ))
+//                .orElse(null);
+//        PaymentMethod method = transaction == null ? null : transaction.getMethod();
+//
+//        return OrderPaymentMethodResponse.builder()
+//                .paymentId(payment.getId())
+//                .paymentCode(payment.getPaymentCode())
+//                .orderId(payment.getOrderId())
+//                .amountRequired(payment.getAmountRequired())
+//                .amountPaid(payment.getAmountPaid())
+//                .receivedAmount(transaction == null ? payment.getAmountPaid() : transaction.getReceivedAmount())
+//                .changeAmount(transaction == null ? BigDecimal.ZERO : defaultZero(transaction.getChangeAmount()))
+//                .status(payment.getStatus())
+//                .method(method == null ? null : method.name())
+//                .methodLabel(toPaymentMethodLabel(method))
+//                .build();
+        return null;
     }
 
     private String generatePaymentCode() {

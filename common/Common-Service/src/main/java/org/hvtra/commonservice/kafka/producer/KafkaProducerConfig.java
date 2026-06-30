@@ -18,6 +18,10 @@ import java.util.Map;
         name = "enabled",
         havingValue = "true"
 )
+@ConditionalOnProperty(prefix = "kafka-producer-config",
+        name = "enabled",
+        havingValue = "true"
+)
 @Configuration
 @RequiredArgsConstructor
 public class KafkaProducerConfig<K , V >{
