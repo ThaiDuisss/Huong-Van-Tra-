@@ -2,13 +2,9 @@ import {
     ChevronLeft,
     ChevronRight,
     Eye,
-    History,
     MoreHorizontal,
     Pencil,
     Search,
-    Send,
-    ShoppingCart,
-    StickyNote,
     Trash2
 } from "lucide-react";
 import {
@@ -32,10 +28,9 @@ interface Props {
     customers: CustomerResponse[];
     result: PageResponse<CustomerResponse> | null;
     loading: boolean;
-    loadingMore: boolean;
     selectedIds: Set<string>;
     onSelectedIdsChange: (selectedIds: Set<string>) => void;
-    onLoadMore: () => void;
+    onPageChange: (page: number) => void;
     onCustomerClick: (customer: CustomerResponse) => void;
     onCustomerEdit: (customer: CustomerResponse) => void;
     onCustomerDelete: (customer: CustomerResponse) => void;
@@ -45,10 +40,9 @@ export function CustomerTable({
     customers,
     result,
     loading,
-    loadingMore,
     selectedIds,
     onSelectedIdsChange,
-    onLoadMore,
+    onPageChange,
     onCustomerClick,
     onCustomerEdit,
     onCustomerDelete
@@ -63,6 +57,10 @@ export function CustomerTable({
     const totalCustomers = result?.totalElements ?? customers.length;
     const currentPage = (result?.page ?? 0) + 1;
     const totalPages = Math.max(result?.totalPages ?? 1, 1);
+    const pageSize = result?.size ?? customers.length;
+    const visibleStart = totalCustomers > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+    const visibleEnd = Math.min(currentPage * pageSize, totalCustomers);
+    const pageNumbers = visiblePageNumbers(currentPage, totalPages);
     const showLoadingState = loading && customers.length === 0;
     const showEmptyState = !loading && customers.length === 0;
 
@@ -151,33 +149,60 @@ export function CustomerTable({
             </div>
             <footer className="flex min-h-[54px] items-center justify-between gap-4 border-t border-[#e4ece8] bg-white px-4 py-2 text-xs font-extrabold text-[#657282] max-md:flex-col max-md:items-start">
                 <span>
-                    Hiển thị {customers.length.toLocaleString("vi-VN")} trên tổng {totalCustomers.toLocaleString("vi-VN")} khách hàng
+                    Hiển thị {visibleStart.toLocaleString("vi-VN")}-{visibleEnd.toLocaleString("vi-VN")} trên tổng {totalCustomers.toLocaleString("vi-VN")} khách hàng
                     {selectedVisibleCount > 0 &&
                         ` · Đã chọn ${selectedVisibleCount}`}
                 </span>
                 <div className="flex items-center gap-1">
-                    <PageButton ariaLabel="Trang trước" disabled={currentPage <= 1}>
+                    <PageButton
+                        ariaLabel="Trang trước"
+                        disabled={loading || currentPage <= 1}
+                        onClick={() => onPageChange(currentPage - 2)}
+                    >
                         <ChevronLeft size={15} aria-hidden="true" />
                     </PageButton>
-                    <PageButton active>{currentPage}</PageButton>
-                    {currentPage < totalPages && (
-                        <PageButton disabled={loadingMore} onClick={onLoadMore}>
-                            {currentPage + 1}
-                        </PageButton>
+                    {pageNumbers.map((page, index) =>
+                        page === "gap" ? (
+                            <span className="px-1 text-[#8a96a3]" key={`gap-${index}`}>...</span>
+                        ) : (
+                            <PageButton
+                                active={page === currentPage}
+                                disabled={loading}
+                                key={page}
+                                onClick={page === currentPage ? undefined : () => onPageChange(page - 1)}
+                            >
+                                {page}
+                            </PageButton>
+                        )
                     )}
-                    {currentPage + 1 < totalPages && (
-                        <>
-                            <span className="px-1 text-[#8a96a3]">...</span>
-                            <PageButton disabled>{totalPages}</PageButton>
-                        </>
-                    )}
-                    <PageButton ariaLabel="Trang sau" disabled={loadingMore || currentPage >= totalPages} onClick={onLoadMore}>
+                    <PageButton
+                        ariaLabel="Trang sau"
+                        disabled={loading || currentPage >= totalPages}
+                        onClick={() => onPageChange(currentPage)}
+                    >
                         <ChevronRight size={15} aria-hidden="true" />
                     </PageButton>
                 </div>
             </footer>
         </section>
     );
+}
+
+function visiblePageNumbers(currentPage: number, totalPages: number) {
+    if (totalPages <= 5) {
+        return Array.from({ length: totalPages }, (_item, index) => index + 1);
+    }
+
+    const pages: Array<number | "gap"> = [1];
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    if (start > 2) pages.push("gap");
+    for (let page = start; page <= end; page += 1) pages.push(page);
+    if (end < totalPages - 1) pages.push("gap");
+    pages.push(totalPages);
+
+    return pages;
 }
 
 function CustomerTableLoadingRows() {
@@ -376,7 +401,7 @@ function CustomerActionMenu({
         const rect = menuButtonRef.current?.getBoundingClientRect();
         if (!rect) return;
         const menuWidth = 192;
-        const menuHeight = 250;
+        const menuHeight = 132;
         const gap = 4;
         const spaceBelow = window.innerHeight - rect.bottom;
         const top =
@@ -420,11 +445,7 @@ function CustomerActionMenu({
                         style={menuPosition}
                     >
                         <ActionItem icon={Eye} label="Xem chi tiết" onClick={() => runAction(onOpen)} />
-                        <ActionItem icon={ShoppingCart} label="Tạo đơn nhanh" onClick={() => runAction(onOpen)} />
-                        <ActionItem icon={History} label="Xem lịch sử mua" onClick={() => runAction(onOpen)} />
                         <ActionItem icon={Pencil} label="Sửa thông tin" onClick={() => runAction(onEdit)} />
-                        <ActionItem icon={StickyNote} label="Thêm ghi chú" onClick={() => runAction(onOpen)} />
-                        <ActionItem icon={Send} label="Gửi ưu đãi" onClick={() => runAction(onOpen)} />
                         <ActionItem danger icon={Trash2} label="Xóa khách hàng" onClick={() => runAction(onDelete)} />
                     </div>,
                     document.body

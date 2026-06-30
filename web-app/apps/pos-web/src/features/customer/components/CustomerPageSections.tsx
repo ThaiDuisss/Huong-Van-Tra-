@@ -31,53 +31,70 @@ import {
 import type { CustomerPrimaryTab } from "../types/customer-list.types";
 import type {
     CustomerSort,
+    CustomerStatus,
     CustomerTierCountResponse
 } from "../types/customer.types";
 
+export type CustomerRecentPurchaseFilter =
+    | "all"
+    | "today"
+    | "7-days"
+    | "30-days"
+    | "over-30-days"
+    | "never";
+
+export type CustomerHeaderFilterState = {
+    status: CustomerStatus | "";
+    minTotalSpent: string;
+    maxTotalSpent: string;
+    createdFrom: string;
+    createdTo: string;
+    recentPurchase: CustomerRecentPurchaseFilter;
+};
+
 interface HeaderProps {
+    appliedFilterCount: number;
+    filters: CustomerHeaderFilterState;
     loading: boolean;
     searchDraft: string;
+    onFiltersChange: (filters: CustomerHeaderFilterState) => void;
     onSearchDraftChange: (value: string) => void;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
     onCreate: () => void;
 }
 
 export function CustomerPageHeader({
+    appliedFilterCount,
+    filters,
     loading,
     searchDraft,
+    onFiltersChange,
     onSearchDraftChange,
     onSubmit,
     onCreate
 }: HeaderProps) {
     const [filterOpen, setFilterOpen] = useState(false);
-    const [appliedFilterCount, setAppliedFilterCount] = useState(0);
-    const [filterDraft, setFilterDraft] = useState<CustomerFilterDialogState>(
-        EMPTY_FILTER_DIALOG_STATE
-    );
+    const [filterDraft, setFilterDraft] =
+        useState<CustomerHeaderFilterState>(filters);
 
-    function updateFilterDraft(updates: Partial<CustomerFilterDialogState>) {
+    function updateFilterDraft(updates: Partial<CustomerHeaderFilterState>) {
         setFilterDraft((current) => ({ ...current, ...updates }));
     }
 
-    function toggleStatus(status: string) {
-        setFilterDraft((current) => {
-            const selected = current.statuses.includes(status);
-            return {
-                ...current,
-                statuses: selected
-                    ? current.statuses.filter((item) => item !== status)
-                    : [...current.statuses, status]
-            };
-        });
+    function toggleStatus(status: CustomerStatus) {
+        setFilterDraft((current) => ({
+            ...current,
+            status: current.status === status ? "" : status
+        }));
     }
 
     function clearFilters() {
         setFilterDraft(EMPTY_FILTER_DIALOG_STATE);
-        setAppliedFilterCount(0);
+        onFiltersChange(EMPTY_FILTER_DIALOG_STATE);
     }
 
     function applyFilters() {
-        setAppliedFilterCount(countActiveFilters(filterDraft));
+        onFiltersChange(filterDraft);
         setFilterOpen(false);
     }
 
@@ -106,7 +123,10 @@ export function CustomerPageHeader({
                 <button
                     aria-expanded={filterOpen}
                     className={`${CUSTOMER_SECONDARY_ACTION_CLASS} relative`}
-                    onClick={() => setFilterOpen((open) => !open)}
+                    onClick={() => {
+                        setFilterDraft(filters);
+                        setFilterOpen((open) => !open);
+                    }}
                     type="button"
                 >
                     <Filter size={17} aria-hidden="true" />
@@ -117,11 +137,21 @@ export function CustomerPageHeader({
                         </span>
                     )}
                 </button>
-                <button className={CUSTOMER_SECONDARY_ACTION_CLASS} type="button">
+                <button
+                    className={CUSTOMER_SECONDARY_ACTION_CLASS}
+                    disabled
+                    title="Chưa có API nhập dữ liệu"
+                    type="button"
+                >
                     <FileInput size={17} aria-hidden="true" />
                     Nhập dữ liệu
                 </button>
-                <button className={CUSTOMER_SECONDARY_ACTION_CLASS} type="button">
+                <button
+                    className={CUSTOMER_SECONDARY_ACTION_CLASS}
+                    disabled
+                    title="Chưa có API xuất dữ liệu"
+                    type="button"
+                >
                     <FileOutput size={17} aria-hidden="true" />
                     Xuất dữ liệu
                 </button>
@@ -150,51 +180,31 @@ export function CustomerPageHeader({
     );
 }
 
-type CustomerFilterDialogState = {
-    statuses: string[];
-    totalSpentFrom: string;
-    totalSpentTo: string;
-    createdFrom: string;
-    createdTo: string;
-    recentPurchase: string;
-    completedOrdersFrom: string;
-    completedOrdersTo: string;
-    contactInfo: string;
-};
-
-const EMPTY_FILTER_DIALOG_STATE: CustomerFilterDialogState = {
-    statuses: [],
-    totalSpentFrom: "",
-    totalSpentTo: "",
+const EMPTY_FILTER_DIALOG_STATE: CustomerHeaderFilterState = {
+    status: "",
+    minTotalSpent: "",
+    maxTotalSpent: "",
     createdFrom: "",
     createdTo: "",
-    recentPurchase: "all",
-    completedOrdersFrom: "",
-    completedOrdersTo: "",
-    contactInfo: "all"
+    recentPurchase: "all"
 };
 
-const CUSTOMER_STATUS_FILTERS = [
-    "Hoạt động",
-    "Đã khóa",
-    "Ngừng giao dịch"
+const CUSTOMER_STATUS_FILTERS: Array<{ value: CustomerStatus; label: string }> = [
+    { value: "ACTIVE", label: "Hoạt động" },
+    { value: "SUSPENDED", label: "Đã khóa" },
+    { value: "INACTIVE", label: "Ngừng giao dịch" }
 ];
 
-const RECENT_PURCHASE_OPTIONS = [
+const RECENT_PURCHASE_OPTIONS: Array<{
+    value: CustomerRecentPurchaseFilter;
+    label: string;
+}> = [
     { value: "all", label: "Tất cả" },
     { value: "today", label: "Hôm nay" },
     { value: "7-days", label: "7 ngày gần đây" },
     { value: "30-days", label: "30 ngày gần đây" },
     { value: "over-30-days", label: "Hơn 30 ngày chưa mua" },
     { value: "never", label: "Chưa từng mua" }
-];
-
-const CONTACT_INFO_OPTIONS = [
-    { value: "all", label: "Tất cả" },
-    { value: "has-phone", label: "Có số điện thoại" },
-    { value: "no-phone", label: "Chưa có số điện thoại" },
-    { value: "has-email", label: "Có email" },
-    { value: "no-email", label: "Chưa có email" }
 ];
 
 function CustomerFilterPopover({
@@ -205,12 +215,12 @@ function CustomerFilterPopover({
     onStatusToggle,
     onUpdate
 }: {
-    draft: CustomerFilterDialogState;
+    draft: CustomerHeaderFilterState;
     onApply: () => void;
     onCancel: () => void;
     onClear: () => void;
-    onStatusToggle: (status: string) => void;
-    onUpdate: (updates: Partial<CustomerFilterDialogState>) => void;
+    onStatusToggle: (status: CustomerStatus) => void;
+    onUpdate: (updates: Partial<CustomerHeaderFilterState>) => void;
 }) {
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[#172317]/10 p-5">
@@ -229,11 +239,11 @@ function CustomerFilterPopover({
                 </div>
 
                 <div className="grid gap-7 p-6 md:grid-cols-2">
-                    <div className="grid gap-5 md:grid-rows-3">
+                    <div className="grid gap-5 md:grid-rows-2">
                         <FilterField label="Trạng thái">
                             <div className="flex flex-wrap gap-2.5">
                                 {CUSTOMER_STATUS_FILTERS.map((status) => {
-                                    const active = draft.statuses.includes(status);
+                                    const active = draft.status === status.value;
                                     return (
                                         <button
                                             aria-pressed={active}
@@ -242,11 +252,11 @@ function CustomerFilterPopover({
                                                     ? "border-[#159734] bg-[#eaf8ee] text-[#116f28]"
                                                     : "border-[#dce5e1] bg-white text-[#536171] hover:border-[#b8cac1]"
                                             }`}
-                                            key={status}
-                                            onClick={() => onStatusToggle(status)}
+                                            key={status.value}
+                                            onClick={() => onStatusToggle(status.value)}
                                             type="button"
                                         >
-                                            {status}
+                                            {status.label}
                                         </button>
                                     );
                                 })}
@@ -259,17 +269,31 @@ function CustomerFilterPopover({
                                     inputMode="numeric"
                                     placeholder="Từ"
                                     suffix="VND"
-                                    value={draft.totalSpentFrom}
-                                    onChange={(value) => onUpdate({ totalSpentFrom: value })}
+                                    value={draft.minTotalSpent}
+                                    onChange={(value) => onUpdate({ minTotalSpent: value })}
                                 />
                                 <FilterInput
                                     inputMode="numeric"
                                     placeholder="Đến"
                                     suffix="VND"
-                                    value={draft.totalSpentTo}
-                                    onChange={(value) => onUpdate({ totalSpentTo: value })}
+                                    value={draft.maxTotalSpent}
+                                    onChange={(value) => onUpdate({ maxTotalSpent: value })}
                                 />
                             </div>
+                        </FilterField>
+                    </div>
+
+                    <div className="grid gap-5 md:grid-rows-2">
+                        <FilterField label="Lần mua gần nhất">
+                            <FilterSelect
+                                value={draft.recentPurchase}
+                                options={RECENT_PURCHASE_OPTIONS}
+                                onChange={(value) =>
+                                    onUpdate({
+                                        recentPurchase: value as CustomerRecentPurchaseFilter
+                                    })
+                                }
+                            />
                         </FilterField>
 
                         <FilterField label="Ngày tạo khách hàng">
@@ -287,41 +311,6 @@ function CustomerFilterPopover({
                                     onChange={(value) => onUpdate({ createdTo: value })}
                                 />
                             </div>
-                        </FilterField>
-                    </div>
-
-                    <div className="grid gap-5 md:grid-rows-3">
-                        <FilterField label="Lần mua gần nhất">
-                            <FilterSelect
-                                value={draft.recentPurchase}
-                                options={RECENT_PURCHASE_OPTIONS}
-                                onChange={(value) => onUpdate({ recentPurchase: value })}
-                            />
-                        </FilterField>
-
-                        <FilterField label="Số đơn hoàn tất">
-                            <div className="grid grid-cols-2 gap-3">
-                                <FilterInput
-                                    inputMode="numeric"
-                                    placeholder="Từ"
-                                    value={draft.completedOrdersFrom}
-                                    onChange={(value) => onUpdate({ completedOrdersFrom: value })}
-                                />
-                                <FilterInput
-                                    inputMode="numeric"
-                                    placeholder="Đến"
-                                    value={draft.completedOrdersTo}
-                                    onChange={(value) => onUpdate({ completedOrdersTo: value })}
-                                />
-                            </div>
-                        </FilterField>
-
-                        <FilterField label="Thông tin liên hệ">
-                            <FilterSelect
-                                value={draft.contactInfo}
-                                options={CONTACT_INFO_OPTIONS}
-                                onChange={(value) => onUpdate({ contactInfo: value })}
-                            />
                         </FilterField>
                     </div>
                 </div>
@@ -427,31 +416,28 @@ function FilterSelect({
     );
 }
 
-function countActiveFilters(draft: CustomerFilterDialogState) {
-    return [
-        draft.statuses.length > 0,
-        Boolean(draft.totalSpentFrom || draft.totalSpentTo),
-        Boolean(draft.createdFrom || draft.createdTo),
-        draft.recentPurchase !== "all",
-        Boolean(draft.completedOrdersFrom || draft.completedOrdersTo),
-        draft.contactInfo !== "all"
-    ].filter(Boolean).length;
-}
-
 const CUSTOMER_SECONDARY_ACTION_CLASS =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#273a2b] shadow-sm transition-colors hover:bg-[#f7fbf8]";
+    "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#273a2b] shadow-sm transition-colors hover:bg-[#f7fbf8] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
 const CUSTOMER_PRIMARY_ACTION_CLASS =
     "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d] disabled:cursor-not-allowed disabled:opacity-70";
 
 const TIER_CHIPS = [
-    { code: "ALL", name: "Tất cả", customerCount: 0 },
-    { code: "UNASSIGNED", name: "Chưa phân hạng", customerCount: 0 }
+    { id: null, code: "ALL", name: "Tất cả", colorCode: null, customerCount: 0 },
+    { id: null, code: "UNASSIGNED", name: "Chưa phân hạng", colorCode: null, customerCount: 0 }
 ];
 
 export function CustomerTierChips({
-    counts
+    activeTierId,
+    counts,
+    onSortChange,
+    onTierChange,
+    sort
 }: {
+    activeTierId: string | null;
     counts: CustomerTierCountResponse[];
+    onSortChange: (sort: CustomerSort) => void;
+    onTierChange: (tierId: string | null) => void;
+    sort: CustomerSort;
 }) {
     const chips = counts.length ? counts : TIER_CHIPS;
 
@@ -462,28 +448,55 @@ export function CustomerTierChips({
                     aria-label="Lọc theo hạng khách hàng"
                     className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
                 >
-                    {chips.map((chip) => (
-                        <button
-                            aria-pressed={chip.code === "ALL"}
-                            className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-extrabold transition-colors ${
-                                chip.code === "ALL"
-                                    ? "border-[#159734] bg-[#eaf8ee] text-[#116f28] shadow-[0_1px_2px_rgba(21,151,52,0.08)]"
-                                    : "border-[#dce5e1] bg-white text-[#536171] hover:border-[#b8cac1] hover:text-[#172317]"
-                            }`}
-                            key={chip.code}
-                            type="button"
-                        >
-                            <span>{chip.name}</span>
-                            <span className={chip.code === "ALL" ? "text-[#159734]" : "text-[#8a96a3]"}>
-                                {chip.customerCount.toLocaleString("vi-VN")}
-                            </span>
-                        </button>
-                    ))}
+                    {chips.map((chip) => {
+                        const disabled = chip.code === "UNASSIGNED" && !chip.id;
+                        const active =
+                            chip.code === "ALL"
+                                ? !activeTierId
+                                : activeTierId === chip.id;
+                        return (
+                            <button
+                                aria-disabled={disabled}
+                                aria-pressed={active}
+                                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-extrabold transition-colors ${
+                                    active
+                                        ? "border-[#159734] bg-[#eaf8ee] text-[#116f28] shadow-[0_1px_2px_rgba(21,151,52,0.08)]"
+                                        : "border-[#dce5e1] bg-white text-[#536171] hover:border-[#b8cac1] hover:text-[#172317]"
+                                } ${disabled ? "cursor-not-allowed opacity-50 hover:border-[#dce5e1] hover:text-[#536171]" : ""}`}
+                                disabled={disabled}
+                                key={`${chip.code}-${chip.id ?? "none"}`}
+                                onClick={() => onTierChange(chip.code === "ALL" ? null : chip.id)}
+                                title={disabled ? "Backend chưa hỗ trợ lọc khách chưa phân hạng" : undefined}
+                                type="button"
+                            >
+                                <span>{chip.name}</span>
+                                <span className={active ? "text-[#159734]" : "text-[#8a96a3]"}>
+                                    {chip.customerCount.toLocaleString("vi-VN")}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </nav>
-                <button className={CUSTOMER_SECONDARY_ACTION_CLASS} type="button">
+                <label className={`${CUSTOMER_SECONDARY_ACTION_CLASS} relative pr-9`}>
                     <ArrowUpDown size={17} aria-hidden="true" />
-                    Sắp xếp
-                </button>
+                    <select
+                        aria-label="Sắp xếp danh sách khách hàng"
+                        className="h-full appearance-none bg-transparent pr-1 text-sm font-bold outline-none"
+                        onChange={(event) => onSortChange(event.currentTarget.value as CustomerSort)}
+                        value={sort}
+                    >
+                        {CUSTOMER_SORT_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                    <ChevronDown
+                        aria-hidden="true"
+                        className="pointer-events-none absolute right-3 text-[#8a96a3]"
+                        size={15}
+                    />
+                </label>
             </div>
         </section>
     );

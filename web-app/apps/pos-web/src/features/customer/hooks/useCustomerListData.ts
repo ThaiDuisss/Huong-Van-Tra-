@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { customerApi } from "../services/customer.api";
 import type {
@@ -18,7 +18,6 @@ export function useCustomerListData(queryString: string) {
     const [result, setResult] =
         useState<PageResponse<CustomerResponse> | null>(null);
     const [loading, setLoading] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState("");
     const [reloadKey, setReloadKey] = useState(0);
 
@@ -55,8 +54,9 @@ export function useCustomerListData(queryString: string) {
                 setError("");
             }
         });
+        const params = new URLSearchParams(queryString);
         void customerApi
-            .list(toCustomerQuery(new URLSearchParams(queryString), 0, 10, tiers))
+            .list(toCustomerQuery(params, getPageParam(params), getSizeParam(params), tiers))
             .then((response) => {
                 if (active) setResult(response);
             })
@@ -74,40 +74,24 @@ export function useCustomerListData(queryString: string) {
         };
     }, [queryString, reloadKey, tiers]);
 
-    const loadMore = useCallback(async () => {
-        if (!result || result.last || loadingMore) return;
-        setLoadingMore(true);
-        setError("");
-        try {
-            const next = await customerApi.list(
-                toCustomerQuery(
-                    new URLSearchParams(queryString),
-                    result.page + 1,
-                    result.size,
-                    tiers
-                )
-            );
-            setResult({
-                ...next,
-                content: [...result.content, ...next.content]
-            });
-        } catch (loadError) {
-            setError(customerErrorMessage(loadError));
-        } finally {
-            setLoadingMore(false);
-        }
-    }, [loadingMore, queryString, result, tiers]);
-
     return {
         tiers,
         tierCounts,
         result,
         customers: result?.content ?? [],
         loading,
-        loadingMore,
         error,
         setError,
-        loadMore,
         reload: () => setReloadKey((value) => value + 1)
     };
+}
+
+function getPageParam(params: URLSearchParams) {
+    const page = Number(params.get("page"));
+    return Number.isInteger(page) && page >= 0 ? page : 0;
+}
+
+function getSizeParam(params: URLSearchParams) {
+    const size = Number(params.get("size"));
+    return Number.isInteger(size) && size > 0 ? size : 10;
 }

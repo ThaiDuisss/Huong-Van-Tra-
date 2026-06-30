@@ -77,6 +77,8 @@ export interface CustomerQuery extends QueryParams {
     lastPurchaseFrom?: string;
     lastPurchaseTo?: string;
     includeNeverPurchased?: boolean;
+    minTotalSpent?: number;
+    maxTotalSpent?: number;
     hasPurchased?: boolean;
     birthMonth?: number;
     birthYear?: number;
