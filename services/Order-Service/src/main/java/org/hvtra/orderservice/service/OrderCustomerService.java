@@ -10,5 +10,7 @@ public interface OrderCustomerService {
 
     List<CustomerResponse> getCustomers(String q);
 
+    CustomerResponse getCustomerById(UUID customerId);
+
     CustomerPurchaseResponse updateCustomerPurchase(UUID orderId);
 }

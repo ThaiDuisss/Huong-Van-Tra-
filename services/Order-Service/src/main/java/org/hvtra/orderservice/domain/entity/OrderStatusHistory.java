@@ -21,9 +21,11 @@ public class OrderStatusHistory extends BaseEntity {
     @JoinColumn(name = "order_id", nullable = false, columnDefinition = "BINARY(16)")
     private Order order;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "from_status", length = 50)
     private OrderStatus fromStatus;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "to_status", nullable = false, length = 50)
     private OrderStatus toStatus;
 

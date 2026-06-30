@@ -41,6 +41,42 @@ public class Order extends BaseEntity {
     @Column(name = "order_type", nullable = false, length = 50)
     private String orderType;
 
+    @Column(name = "customer_name_snapshot")
+    private String customerNameSnapshot;
+
+    @Column(name = "customer_phone_snapshot", length = 30)
+    private String customerPhoneSnapshot;
+
+    @Column(name = "customer_email_snapshot")
+    private String customerEmailSnapshot;
+
+    @Column(name = "branch_name_snapshot")
+    private String branchNameSnapshot;
+
+    @Column(name = "terminal_name_snapshot")
+    private String terminalNameSnapshot;
+
+    @Column(name = "shift_code_snapshot", length = 100)
+    private String shiftCodeSnapshot;
+
+    @Column(name = "cashier_id", columnDefinition = "BINARY(16)")
+    private UUID cashierId;
+
+    @Column(name = "cashier_name_snapshot")
+    private String cashierNameSnapshot;
+
+    @Column(name = "recipient_name_snapshot")
+    private String recipientNameSnapshot;
+
+    @Column(name = "recipient_phone_snapshot", length = 30)
+    private String recipientPhoneSnapshot;
+
+    @Column(name = "shipping_address_snapshot", length = 500)
+    private String shippingAddressSnapshot;
+
+    @Column(name = "shipping_provider_snapshot")
+    private String shippingProviderSnapshot;
+
     @Column(name = "status", nullable = false, length = 50)
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
