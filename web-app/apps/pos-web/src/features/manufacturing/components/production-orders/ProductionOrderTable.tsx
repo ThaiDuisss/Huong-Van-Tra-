@@ -19,11 +19,11 @@ export function ProductionOrderTable({
     onToggleCheck
 }: ProductionOrderTableProps) {
     return (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[280px]">
             <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                <thead className="bg-neutral-50 text-xs font-bold text-pos-muted">
+                <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900">
                     <tr>
-                        <th className="w-12 px-4 py-3"> </th>
+                        <th className="w-12 px-4 py-3 first:pl-[18px]"> </th>
                         <th className="px-4 py-3">Mã LSX</th>
                         <th className="px-4 py-3">Thành phẩm</th>
                         <th className="px-4 py-3">BOM</th>
@@ -33,24 +33,26 @@ export function ProductionOrderTable({
                         <th className="px-4 py-3">Ngày dự kiến</th>
                         <th className="px-4 py-3">Trạng thái</th>
                         <th className="px-4 py-3">Người phụ trách</th>
-                        <th className="px-4 py-3 text-right">Thao tác</th>
+                        <th className="px-4 py-3 text-right pr-[18px]">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {items.map((item) => {
+                    {items.map((item, idx) => {
                         const active = item.id === selectedOrderId;
+                        const isEven = idx % 2 === 1;
+                        const rowBgClass = active
+                            ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
+                            : isEven
+                                ? "bg-[#f2faf1]/50"
+                                : "bg-white";
 
                         return (
                             <tr
                                 key={item.id}
                                 onClick={() => onRowClick(item)}
-                                className={`cursor-pointer ${
-                                    active
-                                        ? "bg-hvt-green-50/70"
-                                        : "hover:bg-neutral-50"
-                                }`}
+                                className={`cursor-pointer border-b border-pos-border hover:bg-neutral-50 transition-all ${rowBgClass}`}
                             >
-                                <td className="border-b border-pos-border px-4 py-4">
+                                <td className="border-b border-pos-border px-4 py-4 first:pl-[18px]">
                                     <input
                                         type="checkbox"
                                         checked={checkedIds.includes(item.id)}
@@ -95,10 +97,10 @@ export function ProductionOrderTable({
                                 <td className="border-b border-pos-border px-4 py-4">
                                     {item.owner}
                                 </td>
-                                <td className="border-b border-pos-border px-4 py-4 text-right">
+                                <td className="border-b border-pos-border px-4 py-4 text-right pr-[18px]">
                                     <button
                                         type="button"
-                                        className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100"
+                                        className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 ml-auto"
                                         onClick={(event) => event.stopPropagation()}
                                         aria-label={`Mở thao tác ${item.code}`}
                                     >

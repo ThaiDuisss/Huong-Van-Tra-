@@ -1,4 +1,4 @@
-import { Eye, Pencil, Plus, ToggleLeft, X, Search } from "lucide-react";
+import { Eye, Pencil, Plus, ToggleLeft, X, Search, MoreHorizontal } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
@@ -35,6 +35,7 @@ export function ShelfManagementPage() {
     const [showForm, setShowForm] = useState(false);
     const [actionError, setActionError] = useState("");
     const [toast, setToast] = useState("");
+    const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
     const load = useCallback(
         () =>
@@ -155,9 +156,9 @@ export function ShelfManagementPage() {
                         <InventoryEmpty />
                     ) : null}
                     {!resource.loading && !resource.error && shelves.length > 0 ? (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto min-h-[280px]">
                             <table className="min-w-[720px] w-full text-left text-sm border-separate border-spacing-0">
-                                <thead className="bg-white text-[13px] font-[950] text-[#172317]">
+                                <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900">
                                     <tr>
                                         <Th first>Mã kệ</Th>
                                         <Th>Tên kệ</Th>
@@ -166,47 +167,75 @@ export function ShelfManagementPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {shelves.map((item) => (
-                                        <tr
-                                            key={item.id}
-                                            onClick={() => setSelected(item)}
-                                            className={`cursor-pointer hover:bg-neutral-50 transition-all ${selected?.id === item.id
-                                                    ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
-                                                    : ""
-                                                }`}
-                                        >
-                                            <Cell strong first>{item.code}</Cell>
-                                            <Cell>{item.name}</Cell>
-                                            <Cell>
-                                                <InventoryStatusBadge status={item.status} />
-                                            </Cell>
-                                            <td
-                                                className="border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px]"
-                                                onClick={(e) => e.stopPropagation()}
+                                    {shelves.map((item, idx) => {
+                                        const isSelected = selected?.id === item.id;
+                                        const isEven = idx % 2 === 1;
+                                        const rowBgClass = isSelected
+                                            ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
+                                            : isEven
+                                                ? "bg-[#f2faf1]/50"
+                                                : "bg-white";
+
+                                        return (
+                                            <tr
+                                                key={item.id}
+                                                onClick={() => setSelected(item)}
+                                                className={`cursor-pointer hover:bg-neutral-50 transition-all ${rowBgClass}`}
                                             >
-                                                <div className="flex justify-end gap-1">
-                                                    <IconButton
-                                                        label="Xem chi tiết"
-                                                        onClick={() => setSelected(item)}
-                                                    >
-                                                        <Eye size={16} />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        label="Chỉnh sửa kệ"
-                                                        onClick={() => { setEditing(item); setShowForm(true); }}
-                                                    >
-                                                        <Pencil size={16} />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        label="Thay đổi trạng thái"
-                                                        onClick={() => void changeStatus(item)}
-                                                    >
-                                                        <ToggleLeft size={17} />
-                                                    </IconButton>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                <Cell strong first>{item.code}</Cell>
+                                                <Cell>{item.name}</Cell>
+                                                <Cell>
+                                                    <InventoryStatusBadge status={item.status} />
+                                                </Cell>
+                                                <td
+                                                    className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px] relative ${activeActionMenuId === String(item.id) ? "z-30" : "z-20"}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <div className="flex justify-end relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveActionMenuId(activeActionMenuId === String(item.id) ? null : String(item.id))}
+                                                            className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 text-gray-500 hover:text-gray-700 cursor-pointer"
+                                                        >
+                                                            <MoreHorizontal size={16} />
+                                                        </button>
+
+                                                        {activeActionMenuId === String(item.id) && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-30" onClick={() => setActiveActionMenuId(null)} />
+                                                                <div className={`absolute right-0 ${idx >= 2 && idx >= shelves.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setSelected(item); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Eye size={14} />
+                                                                        Xem chi tiết
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setEditing(item); setShowForm(true); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Pencil size={14} />
+                                                                        Chỉnh sửa kệ
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { void changeStatus(item); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <ToggleLeft size={14} />
+                                                                        Đổi trạng thái
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -343,27 +372,6 @@ function Cell({
     );
 }
 
-function IconButton({
-    label,
-    children,
-    onClick
-}: {
-    label: string;
-    children: React.ReactNode;
-    onClick(): void;
-}) {
-    return (
-        <button
-            type="button"
-            aria-label={label}
-            title={label}
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100"
-        >
-            {children}
-        </button>
-    );
-}
 
 function Detail({ label, value }: { label: string; value: string }) {
     return (

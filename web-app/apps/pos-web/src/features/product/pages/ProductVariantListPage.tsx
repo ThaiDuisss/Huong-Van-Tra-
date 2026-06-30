@@ -286,28 +286,28 @@ export function ProductVariantListPage() {
                         }
                 }
                 columns={[
-                    { key: "sku", label: "SKU" },
-                    { key: "product", label: "Sản phẩm" },
+                    // { key: "sku", label: "SKU" },
+                    // { key: "product", label: "Sản phẩm" },
                     { key: "variant", label: "Tên Mặt hàng" },
                     { key: "selling", label: "Giá bán" },
                     // { key: "cost", label: "Giá vốn" },
-                    { key: "inventory", label: "Tồn kho" },
+                    // { key: "inventory", label: "Tồn kho" },
                     { key: "status", label: "Trạng thái" }
                 ]}
                 renderCells={(item) => (
                     <>
-                        <TableCell className="font-bold text-gray-500">
+                        {/* <TableCell className="font-bold text-gray-500">
                             {item.sku}
-                        </TableCell>
-                        <TableCell>{item.productName}</TableCell>
+                        </TableCell> */}
+                        {/* <TableCell>{item.productName}</TableCell> */}
                         <TableCell>{item.variantName}</TableCell>
                         <TableCell>{formatCurrency(item.sellingPrice)}</TableCell>
                         {/* <TableCell>{formatCurrency(item.costPrice)}</TableCell> */}
-                        <TableCell>
+                        {/* <TableCell>
                             {item.inventoryPolicy === "TRACK_STOCK"
                                 ? "Theo dõi tồn"
                                 : "Không theo dõi"}
-                        </TableCell>
+                        </TableCell> */}
                         <TableCell>
                             <CatalogStatusBadge status={item.status} />
                         </TableCell>

@@ -1,4 +1,4 @@
-import { Eye, Pencil, Plus, ToggleLeft, X } from "lucide-react";
+import { Eye, Pencil, Plus, ToggleLeft, X, MoreHorizontal } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
@@ -43,6 +43,7 @@ export function InventoryLocationPage() {
     const [editing, setEditing] =
         useState<InventoryLocationResponse | null>(null);
     const [showForm, setShowForm] = useState(false);
+    const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
     const [actionError, setActionError] = useState("");
     const [toast, setToast] = useState("");
     const load = useCallback(
@@ -175,9 +176,9 @@ export function InventoryLocationPage() {
                     {!resource.loading &&
                     !resource.error &&
                     locations.length > 0 ? (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto min-h-[280px]">
                             <table className="min-w-[920px] w-full text-left text-sm border-separate border-spacing-0">
-                                <thead className="bg-white text-[13px] font-[950] text-[#172317]">
+                                <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900">
                                     <tr>
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px]">Mã kệ</th>
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Tên vị trí</th>
@@ -188,26 +189,72 @@ export function InventoryLocationPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {locations.map((item) => (
-                                        <tr
-                                            key={item.id}
-                                            onClick={() => setSelected(item)}
-                                            className={`cursor-pointer hover:bg-neutral-50 transition-all ${selected?.id === item.id ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]" : ""}`}
-                                        >
-                                            <Cell strong>{item.code}</Cell>
-                                            <Cell>{item.name}</Cell>
-                                            <Cell><LocationTypeBadge type={item.type} /></Cell>
-                                            <Cell>{item.parentLocationId ? `#${item.parentLocationId}` : "-"}</Cell>
-                                            <Cell><InventoryStatusBadge status={item.status} /></Cell>
-                                            <td className="border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px]" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex justify-end gap-1">
-                                                    <IconButton label="Xem chi tiết" onClick={() => setSelected(item)}><Eye size={16} /></IconButton>
-                                                    <IconButton label="Chỉnh sửa vị trí" onClick={() => { setEditing(item); setShowForm(true); }}><Pencil size={16} /></IconButton>
-                                                    <IconButton label="Thay đổi trạng thái" onClick={() => void changeStatus(item)}><ToggleLeft size={17} /></IconButton>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {locations.map((item, idx) => {
+                                        const isSelected = selected?.id === item.id;
+                                        const isEven = idx % 2 === 1;
+                                        const rowBgClass = isSelected
+                                            ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
+                                            : isEven
+                                                ? "bg-[#f2faf1]/50"
+                                                : "bg-white";
+
+                                        return (
+                                            <tr
+                                                key={item.id}
+                                                onClick={() => setSelected(item)}
+                                                className={`cursor-pointer hover:bg-neutral-50 transition-all ${rowBgClass}`}
+                                            >
+                                                <Cell strong>{item.code}</Cell>
+                                                <Cell>{item.name}</Cell>
+                                                <Cell><LocationTypeBadge type={item.type} /></Cell>
+                                                <Cell>{item.parentLocationId ? `#${item.parentLocationId}` : "-"}</Cell>
+                                                <Cell><InventoryStatusBadge status={item.status} /></Cell>
+                                                <td className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px] relative ${activeActionMenuId === String(item.id) ? "z-30" : "z-20"}`} onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex justify-end relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveActionMenuId(activeActionMenuId === String(item.id) ? null : String(item.id))}
+                                                            className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 text-gray-500 hover:text-gray-700 cursor-pointer"
+                                                        >
+                                                            <MoreHorizontal size={16} />
+                                                        </button>
+
+                                                        {activeActionMenuId === String(item.id) && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-30" onClick={() => setActiveActionMenuId(null)} />
+                                                                <div className={`absolute right-0 ${idx >= 2 && idx >= locations.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setSelected(item); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Eye size={14} />
+                                                                        Xem chi tiết
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setEditing(item); setShowForm(true); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Pencil size={14} />
+                                                                        Chỉnh sửa vị trí
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { void changeStatus(item); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <ToggleLeft size={14} />
+                                                                        Đổi trạng thái
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -270,9 +317,7 @@ function Cell({ children, strong = false }: { children: React.ReactNode; strong?
     return <td className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 first:pl-[18px] ${strong ? "font-black text-[#172317]" : ""}`}>{children}</td>;
 }
 
-function IconButton({ label, children, onClick }: { label: string; children: React.ReactNode; onClick(): void }) {
-    return <button type="button" aria-label={label} title={label} onClick={(event) => { event.stopPropagation(); onClick(); }} className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100">{children}</button>;
-}
+
 
 function Detail({ label, value }: { label: string; value: string }) {
     return <div className="border-b border-pos-border pb-3"><dt className="text-xs font-bold uppercase text-gray-500">{label}</dt><dd className="mt-1 font-semibold">{value}</dd></div>;

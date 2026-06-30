@@ -233,7 +233,7 @@ export function ProductListPage() {
                 { key: "image", label: "Ảnh" },
                 { key: "name", label: "Tên sản phẩm" },
                 { key: "category", label: "Danh mục" },
-                { key: "variants", label: "Số Mặt hàng" },
+                // { key: "variants", label: "Số Mặt hàng" },
                 { key: "status", label: "Trạng thái" }
             ]}
             renderCells={(item) => (
@@ -256,7 +256,7 @@ export function ProductListPage() {
                         <span className="text-gray-500 block text-[10px] font-normal">{item.productCode}</span>
                     </TableCell>
                     <TableCell>{item.category.name}</TableCell>
-                    <TableCell>{item.totalVariants}</TableCell>
+                    {/* <TableCell>{item.totalVariants}</TableCell> */}
                     <TableCell>
                         <CatalogStatusBadge status={item.status} />
                     </TableCell>

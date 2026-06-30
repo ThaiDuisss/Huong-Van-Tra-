@@ -83,7 +83,7 @@ export function InventoryBalancePage() {
 
     // Drawer / Panel state
     const [selectedRow, setSelectedRow] = useState<JoinedRow | null>(null);
-    const [activeModal, setActiveModal] = useState<"stock-in" | "adjustment" | "transfer" | null>(null);
+    const [activeModal, setActiveModal] = useState<"stock-in" | "adjustment" | null>(null);
 
     // Dashboard Metrics state (reserved for future KPI display)
     const [_dashboardMetrics, setDashboardMetrics] = useState({
@@ -206,55 +206,6 @@ export function InventoryBalancePage() {
     useEffect(() => {
         loadBalances();
     }, [loadBalances]);
-
-    // Fetch dashboard metrics over the entire warehouse location
-    useEffect(() => {
-        async function fetchDashboardMetrics() {
-            if (!activeStoreId) return;
-            try {
-                const res = await inventoryBalanceApi.view({
-                    page: 0,
-                    size: 1000,
-                    branchId: activeStoreId as any,
-                    locationId: activeLocationId ? (activeLocationId as any) : undefined
-                });
-                const items = res.content ?? [];
-                
-                const totalSku = items.length;
-                let totalStock = 0;
-                let lowStock = 0;
-                let outOfStock = 0;
-                let totalValue = 0;
-                
-                items.forEach(item => {
-                    const qoh = item.quantityOnHand || 0;
-                    const avail = item.availableQuantity || 0;
-                    const rop = item.reorderPoint !== undefined ? item.reorderPoint : 10;
-                    const cost = item.cost_price || 0;
-                    
-                    totalStock += qoh;
-                    totalValue += qoh * cost;
-                    
-                    if (avail <= 0) {
-                        outOfStock += 1;
-                    } else if (avail <= rop) {
-                        lowStock += 1;
-                    }
-                });
-                
-                setDashboardMetrics({
-                    totalSku,
-                    totalStock,
-                    lowStock,
-                    outOfStock,
-                    totalValue
-                });
-            } catch (err) {
-                console.error("Error fetching dashboard metrics:", err);
-            }
-        }
-        fetchDashboardMetrics();
-    }, [activeStoreId, activeLocationId, balances]);
 
     // Reset page to 1 when filters change
     useEffect(() => {
@@ -506,13 +457,13 @@ export function InventoryBalancePage() {
             {/* Main Data Grid */}
             <div className="grid gap-4 grid-cols-1">
                 <section className="flex flex-col min-h-[580px] min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
-                    <div className="flex-1 overflow-x-auto">
+                    <div className="flex-1 overflow-x-auto min-h-[280px]">
                         {loadingBalances ? <InventoryLoading /> : null}
                         {!loadingBalances && error ? <InventoryError message={error} onRetry={loadBalances} /> : null}
                         {!loadingBalances && !error && filteredRows.length === 0 ? <InventoryEmpty /> : null}
                         {!loadingBalances && !error && filteredRows.length > 0 ? (
                             <table className="table-layout-fixed w-full text-left text-sm border-separate border-spacing-0">
-                                <thead className="bg-white text-[13px] font-[950] text-[#172317] sticky top-0 z-10">
+                                <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900 sticky top-0 z-10">
                                     <tr>
                                         {schemaColumns.map(col => {
                                             if (!columnVisibility[col]) return null;
@@ -538,62 +489,94 @@ export function InventoryBalancePage() {
                                                 </th>
                                             );
                                         })}
-                                        <th className="h-[52px] align-middle px-4 py-0 text-right border-b border-[#edf0f4] sticky right-0 bg-white pr-[18px]" style={{ width: "100px" }}>
+                                        <th className="h-[52px] align-middle px-4 py-0 text-right border-b border-[#edf0f4] sticky right-0 bg-[#eaf7ec] pr-[18px]" style={{ width: "100px" }}>
                                             Thao tác
                                         </th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredRows.map((row) => (
-                                        <tr
-                                            key={row.id}
-                                            onClick={() => setSelectedRow(row)}
-                                            className={`hover:bg-neutral-50 cursor-pointer transition-all ${selectedRow?.id === row.id ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]" : ""}`}
-                                        >
-                                            {schemaColumns.map(col => {
-                                                if (!columnVisibility[col]) return null;
-                                                const val = row[col];
-                                                return (
-                                                    <td key={col} className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] max-w-[300px] truncate first:pl-[18px]">
-                                                        {col === "Ảnh sản phẩm" ? (
-                                                            val ? (
-                                                                <img src={val} alt="" className="size-10 rounded-lg object-cover border border-pos-border" />
+                                    {filteredRows.map((row, idx) => {
+                                        const isSelected = selectedRow?.id === row.id;
+                                        const isEven = idx % 2 === 1;
+                                        const rowBgClass = isSelected
+                                            ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
+                                            : isEven
+                                                ? "bg-[#f2faf1]/50"
+                                                : "bg-white";
+
+                                        const stickyBgClass = isSelected
+                                            ? "bg-[#f0fbef]"
+                                            : isEven
+                                                ? "bg-[#f7fcf6]"
+                                                : "bg-white";
+
+                                        return (
+                                            <tr
+                                                key={row.id}
+                                                onClick={() => setSelectedRow(row)}
+                                                className={`hover:bg-neutral-50 cursor-pointer transition-all ${rowBgClass}`}
+                                            >
+                                                {schemaColumns.map(col => {
+                                                    if (!columnVisibility[col]) return null;
+                                                    const val = row[col];
+                                                    return (
+                                                        <td key={col} className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] max-w-[300px] truncate first:pl-[18px]">
+                                                            {col === "Ảnh sản phẩm" ? (
+                                                                val ? (
+                                                                    <img src={val} alt="" className="size-10 rounded-lg object-cover border border-pos-border" />
+                                                                ) : (
+                                                                    <span className="grid size-10 place-items-center rounded-lg bg-neutral-100 text-gray-400">
+                                                                        -
+                                                                    </span>
+                                                                )
+                                                            ) : col === "Ngày cập nhật" ? (
+                                                                formatInventoryDate(val)
+                                                            ) : typeof val === "number" ? (
+                                                                formatQuantity(val)
                                                             ) : (
-                                                                <span className="grid size-10 place-items-center rounded-lg bg-neutral-100 text-gray-400">
-                                                                    -
-                                                                </span>
-                                                            )
-                                                        ) : col === "Ngày cập nhật" ? (
-                                                            formatInventoryDate(val)
-                                                        ) : typeof val === "number" ? (
-                                                            formatQuantity(val)
-                                                        ) : (
-                                                            String(val ?? "-")
+                                                                String(val ?? "-")
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className={`h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right sticky right-0 pr-[18px] ${activeActionMenuId === row.id ? "z-30" : "z-20"} ${stickyBgClass}`} onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex justify-end relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveActionMenuId(activeActionMenuId === row.id ? null : row.id)}
+                                                            className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 text-gray-500 hover:text-gray-700 cursor-pointer"
+                                                        >
+                                                            <MoreHorizontal size={16} />
+                                                        </button>
+
+                                                        {activeActionMenuId === row.id && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-30" onClick={() => setActiveActionMenuId(null)} />
+                                                                <div className={`absolute right-0 ${idx >= 2 && idx >= filteredRows.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setSelectedRow(row); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Eye size={14} />
+                                                                        Xem chi tiết
+                                                                    </button>
+                                                                    <Link
+                                                                        to={`${routePaths.inventoryTransactions}?inventoryItemId=${row.inventoryItemId}`}
+                                                                        onClick={() => setActiveActionMenuId(null)}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <History size={14} />
+                                                                        Lịch sử biến động
+                                                                    </Link>
+                                                                </div>
+                                                            </>
                                                         )}
-                                                    </td>
-                                                );
-                                            })}
-                                            <td className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right sticky right-0 bg-white pr-[18px]" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex justify-end gap-1">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSelectedRow(row)}
-                                                        title="Xem chi tiết"
-                                                        className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100"
-                                                    >
-                                                        <Eye size={16} />
-                                                    </button>
-                                                    <Link
-                                                        to={`${routePaths.inventoryTransactions}?inventoryItemId=${row.inventoryItemId}`}
-                                                        title="Xem lịch sử biến động"
-                                                        className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100"
-                                                    >
-                                                        <History size={16} />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         ) : null}
