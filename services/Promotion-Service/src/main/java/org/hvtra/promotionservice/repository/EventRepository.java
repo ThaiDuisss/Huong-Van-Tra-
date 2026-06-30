@@ -1,6 +1,7 @@
 package org.hvtra.promotionservice.repository;
 
 import org.hvtra.promotionservice.entity.Event;
+import org.hvtra.promotionservice.enums.event.EventStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,5 +14,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     Optional<Event> findByIdAndIsDeletedFalse(UUID id);
 
     Page<Event> findAllByIsDeletedFalse(Pageable pageable);
+
+    Page<Event> findAllByStatusAndIsDeletedFalse(EventStatus status, Pageable pageable);
 
 }

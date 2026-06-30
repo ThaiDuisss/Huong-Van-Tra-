@@ -15,6 +15,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.promotionservice.enums.condition.ConditionOperator;
 import org.hvtra.promotionservice.enums.condition.ConditionType;
@@ -42,6 +44,7 @@ public class PromotionCondition extends BaseEntity {
     @Column(name = "operator", nullable = false, length = 30)
     ConditionOperator operator;
 
-    @Column(name = "condition_value", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "condition_value", nullable = false, columnDefinition = "JSON")
     String conditionValue;
 }
