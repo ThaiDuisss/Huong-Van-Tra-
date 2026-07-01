@@ -9,6 +9,7 @@ import type {
 } from "../types/sale.types";
 
 interface PosCheckoutInput {
+    orderId: string | null;
     cartItems: SaleCartItem[];
     orderType: SaleOrderType;
     paymentMethod: SalePaymentMethod;
@@ -51,12 +52,16 @@ function getCustomerId(value: string | null) {
 export function getPosCheckoutValidationMessage(
     input: Pick<
         PosCheckoutInput,
-        "cartItems" | "orderType" | "paymentMethod" | "cashReceived" | "totals"
+        "orderId" | "cartItems" | "orderType" | "paymentMethod" | "cashReceived" | "totals"
         | "subtotalOverride" | "subtotalOverrideNote"
     >
 ) {
     if (input.cartItems.length === 0) {
         return "Giỏ hàng đang rỗng.";
+    }
+
+    if (input.orderId === null) {
+        return "Chưa có sản phẩm trong đơn.";
     }
 
     if (input.orderType !== "QUICK_SALE") {
@@ -81,6 +86,10 @@ export function getPosCheckoutValidationMessage(
 }
 
 async function checkoutPosOrder(input: PosCheckoutInput) {
+    if (input.orderId === null) {
+        throw new Error("Chưa có sản phẩm trong đơn.");
+    }
+
     const manualAdjustment =
         input.subtotalOverride === null
             ? undefined
@@ -103,6 +112,7 @@ async function checkoutPosOrder(input: PosCheckoutInput) {
     try {
         return await posOrderApi.checkout({
             customerId: getCustomerId(input.selectedCustomerId),
+            orderId: input.orderId,
             orderType: input.orderType,
             originalAmount: input.originalSubtotal,
             discountAmount: input.totals.discountAmount,

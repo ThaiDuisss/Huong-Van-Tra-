@@ -28,6 +28,9 @@ public interface CatalogClient {
     @PostMapping("/api/catalog/product-variants/batch")
     List<VariantResponse> getVariantsBatch(@RequestBody List<UUID> ids);
 
+    @PostMapping("/internal/catalog/product-variants/by-products")
+    List<ProductVariantProductRefResponse> getVariantRefsByProductIds(@RequestBody List<UUID> productIds);
+
     @PostMapping("/api/catalog/categories/batch")
     List<CategoryResponse> getCategoriesBatch(@RequestBody List<UUID> ids);
 
@@ -67,6 +70,11 @@ public interface CatalogClient {
             String status,
             String productStatus,
             boolean sellable
+    ) {}
+
+    record ProductVariantProductRefResponse(
+            UUID id,
+            UUID productId
     ) {}
 
     record CategoryResponse(

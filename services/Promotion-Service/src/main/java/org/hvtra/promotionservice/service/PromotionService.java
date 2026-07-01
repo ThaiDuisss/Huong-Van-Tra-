@@ -12,9 +12,13 @@ public interface PromotionService {
 
     PromotionResponse createPromotion(PromotionCreateRequest request);
 
+    PromotionResponse createPromotionByEvent(UUID eventId, PromotionCreateRequest request);
+
     PromotionResponse getPromotionById(UUID promotionId);
 
     PageResponse<PromotionResponse> getAllPromotions(int page, int size);
+
+    PageResponse<PromotionResponse> getPromotionsByEvent(UUID eventId, int page, int size);
 
     PromotionResponse updatePromotion(UUID promotionId, PromotionUpdateRequest request);
 
@@ -22,4 +26,13 @@ public interface PromotionService {
 
     void deletePromotion(UUID promotionId);
 
+    PromotionResponse activatePromotion(UUID promotionId);
+
+    PromotionResponse pausePromotion(UUID promotionId);
+
+    PromotionResponse cancelPromotion(UUID promotionId);
+
+    PromotionResponse expirePromotion(UUID promotionId);
+
+    PromotionResponse duplicatePromotion(UUID promotionId);
 }

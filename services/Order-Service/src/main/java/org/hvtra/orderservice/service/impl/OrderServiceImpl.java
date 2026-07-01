@@ -7,7 +7,9 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import feign.FeignException;
 import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
@@ -15,8 +17,11 @@ import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
+import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
+import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.CustomerResponse;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
@@ -27,10 +32,13 @@ import org.hvtra.orderservice.dto.response.OrderStatusHistoryResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
+import org.hvtra.commonservice.exception.FeignClientException;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
+import org.hvtra.orderservice.exception.InventoryReservationFailedException;
 import org.hvtra.orderservice.exception.OrderAlreadyPaidException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
+import org.hvtra.orderservice.exception.OutOfStockException;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.OrderService;
@@ -65,10 +73,12 @@ public class OrderServiceImpl implements OrderService {
     private static final String DEFAULT_ORDER_TYPE = "POS";
     private static final String SORT_BUSINESS_STATUS = "businessStatus";
     private static final String SORT_INVOICE_PAYMENT = "invoicePayment";
+    private static final long DRAFT_TTL_MINUTES = 15;
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final CatalogClient catalogClient;
+    private final InventoryClient inventoryClient;
     private final PaymentClient paymentClient;
     private final OrderCustomerServiceImpl orderCustomerServiceImpl;
 
@@ -198,6 +208,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         OrderStatus oldStatus = order.getStatus();
+        confirmReservation(order.getId());
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.COMPLETED);
         order.setPaidAmount(order.getFinalAmount());
@@ -214,6 +225,129 @@ public class OrderServiceImpl implements OrderService {
 
         orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
 
+        return toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse addDraftItem(AddDraftOrderItemRequest request) {
+        Instant expiresAt = nextDraftExpiresAt();
+        Order order = request.getOrderId() == null
+                ? createDraftOrder(request, expiresAt)
+                : getEditableDraftOrder(request.getOrderId());
+        order.setExpiresAt(expiresAt);
+
+        var variant = catalogClient.getProductVariantPosView(request.getProductVariantId());
+        log.info("variant: {}", variant);
+        BigDecimal addQuantity = defaultPositive(request.getQuantity());
+        OrderItem item = findDraftItem(order, variant.variantId(), request.getBomVersionId());
+        BigDecimal oldQuantity = item == null ? BigDecimal.ZERO : defaultZero(item.getQuantity());
+        BigDecimal targetQuantity = oldQuantity.add(addQuantity);
+        log.info("varient{} {}", variant.variantId(), request.getProductVariantId());
+        applyReservation(order, variant.variantId(), targetQuantity, request.getInventoryLocationId());
+
+        if (item == null) {
+            item = OrderItem.builder()
+                    .productVariantId(variant.variantId())
+                    .skuSnapshot(variant.sku())
+                    .productNameSnapshot(variant.productName())
+                    .variantNameSnapshot(variant.variantName())
+                    .quantity(targetQuantity)
+                    .originalUnitPrice(defaultZero(variant.sellingPrice()))
+                    .actualUnitPrice(defaultZero(variant.sellingPrice()))
+                    .discountAmount(defaultZero(request.getDiscountAmount()))
+                    .bomVersionId(request.getBomVersionId())
+                    .build();
+            recalculateLine(item);
+            order.addItem(item);
+        } else {
+            item.setQuantity(targetQuantity);
+            recalculateLine(item);
+        }
+
+        recalculateOrderTotals(order);
+        return toResponse(orderRepository.save(order));
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse updateDraftItemQuantity(UUID orderId, UUID itemId, UpdateDraftOrderItemQuantityRequest request) {
+        Order order = getEditableDraftOrder(orderId);
+        OrderItem item = getOrderItem(order, itemId);
+        BigDecimal targetQuantity = defaultZero(request.getQuantity());
+        order.setExpiresAt(nextDraftExpiresAt());
+
+        if (targetQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return removeDraftItem(orderId, itemId);
+        }
+
+        applyReservation(order, item.getProductVariantId(), targetQuantity, null);
+        item.setQuantity(targetQuantity);
+        recalculateLine(item);
+        recalculateOrderTotals(order);
+        return toResponse(orderRepository.save(order));
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse removeDraftItem(UUID orderId, UUID itemId) {
+        Order order = getEditableDraftOrder(orderId);
+        OrderItem item = getOrderItem(order, itemId);
+
+        releaseItemReservation(order.getId(), item.getProductVariantId(), null);
+        order.getItems().remove(item);
+        order.setExpiresAt(nextDraftExpiresAt());
+        recalculateOrderTotals(order);
+        return toResponse(orderRepository.save(order));
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse cancelDraftOrder(UUID orderId) {
+        Order order = getExistingOrder(orderId);
+        if (OrderStatus.CANCELLED == order.getStatus() || OrderStatus.EXPIRED == order.getStatus()) {
+            return toResponse(order);
+        }
+        if (OrderStatus.DRAFT != order.getStatus()) {
+            throw new InvalidOrderStatusException("Chỉ hóa đơn nháp mới được hủy bằng API này");
+        }
+
+        releaseOrderReservation(order.getId());
+        OrderStatus oldStatus = order.getStatus();
+        order.setStatus(OrderStatus.CANCELLED);
+        Order savedOrder = orderRepository.save(order);
+        saveStatusHistory(savedOrder, oldStatus, OrderStatus.CANCELLED, "Hủy hóa đơn nháp POS", null);
+        return toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse checkoutDraftOrder(UUID orderId, CheckoutDraftOrderRequest request) {
+        Order order = getEditableDraftOrder(orderId);
+        if (order.getItems() == null || order.getItems().isEmpty()) {
+            throw new InvalidOrderStatusException("Chưa có sản phẩm trong đơn");
+        }
+
+        recalculateOrderTotals(order);
+        BigDecimal paidAmount = defaultZero(request.getPaidAmount());
+        if (paidAmount.compareTo(order.getFinalAmount()) < 0) {
+            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
+        }
+
+        confirmReservation(order.getId());
+        OrderStatus oldStatus = order.getStatus();
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setStatus(OrderStatus.COMPLETED);
+        order.setPaidAmount(order.getFinalAmount());
+        order.setDebtAmount(BigDecimal.ZERO);
+        Order savedOrder = orderRepository.save(order);
+        saveStatusHistory(
+                savedOrder,
+                oldStatus,
+                OrderStatus.COMPLETED,
+                "Thanh toán POS trực tiếp, mã thanh toán: " + request.getPaymentCode(),
+                request.getChangedBy());
+        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
         return toResponse(savedOrder);
     }
 
@@ -388,6 +522,193 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng: " + orderId));
     }
 
+    private Order createDraftOrder(AddDraftOrderItemRequest request, Instant expiresAt) {
+        CustomerResponse customerSnapshot = loadCustomerSnapshot(request.getCustomerId());
+        Order order = Order.builder()
+                .orderCode(generateOrderCode())
+                .tenantId(request.getTenantId())
+                .branchId(request.getBranchId())
+                .terminalId(request.getTerminalId())
+                .shiftId(request.getShiftId())
+                .customerId(request.getCustomerId())
+                .customerNameSnapshot(firstNonBlank(
+                        customerSnapshot == null ? null : customerSnapshot.getFullName(),
+                        request.getCustomerNameSnapshot()))
+                .customerPhoneSnapshot(firstNonBlank(
+                        customerSnapshot == null ? null : customerSnapshot.getPhone(),
+                        request.getCustomerPhoneSnapshot()))
+                .customerEmailSnapshot(customerSnapshot == null ? null : customerSnapshot.getEmail())
+                .branchNameSnapshot(request.getBranchNameSnapshot())
+                .terminalNameSnapshot(request.getTerminalNameSnapshot())
+                .shiftCodeSnapshot(request.getShiftCodeSnapshot())
+                .cashierId(request.getCashierId())
+                .cashierNameSnapshot(request.getCashierNameSnapshot())
+                .orderType(DEFAULT_ORDER_TYPE)
+                .status(OrderStatus.DRAFT)
+                .paymentStatus(PaymentStatus.WAITING_PAYMENT)
+                .originalAmount(BigDecimal.ZERO)
+                .discountAmount(BigDecimal.ZERO)
+                .shippingFee(BigDecimal.ZERO)
+                .finalAmount(BigDecimal.ZERO)
+                .paidAmount(BigDecimal.ZERO)
+                .debtAmount(BigDecimal.ZERO)
+                .expiresAt(expiresAt)
+                .build();
+        Order savedOrder = orderRepository.saveAndFlush(order);
+        saveStatusHistory(savedOrder, null, OrderStatus.DRAFT, "Tạo hóa đơn nháp POS", request.getCashierId());
+        return savedOrder;
+    }
+
+    private Order getEditableDraftOrder(UUID orderId) {
+        Order order = getExistingOrder(orderId);
+        if (OrderStatus.DRAFT != order.getStatus()) {
+            throw new InvalidOrderStatusException("ORDER_NOT_DRAFT");
+        }
+        if (order.getExpiresAt() != null && order.getExpiresAt().isBefore(Instant.now())) {
+            throw new InvalidOrderStatusException("ORDER_EXPIRED");
+        }
+        return order;
+    }
+
+    private OrderItem findDraftItem(Order order, UUID productVariantId, UUID bomVersionId) {
+        if (order.getItems() == null) {
+            return null;
+        }
+        return order.getItems().stream()
+                .filter(item -> item.getProductVariantId().equals(productVariantId))
+                .filter(item -> bomVersionMatches(item.getBomVersionId(), bomVersionId))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private OrderItem getOrderItem(Order order, UUID itemId) {
+        return order.getItems().stream()
+                .filter(item -> item.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy dòng hàng: " + itemId));
+    }
+
+    private boolean bomVersionMatches(UUID current, UUID requested) {
+        return current == null ? requested == null : current.equals(requested);
+    }
+
+    private Instant nextDraftExpiresAt() {
+        return Instant.now().plusSeconds(DRAFT_TTL_MINUTES * 60);
+    }
+
+    private BigDecimal defaultPositive(BigDecimal value) {
+        BigDecimal normalized = defaultZero(value);
+        if (normalized.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidOrderStatusException("Số lượng phải lớn hơn 0");
+        }
+        return normalized;
+    }
+
+    private void recalculateLine(OrderItem item) {
+        BigDecimal quantity = defaultZero(item.getQuantity());
+        BigDecimal unitPrice = defaultZero(item.getActualUnitPrice());
+        BigDecimal discountAmount = defaultZero(item.getDiscountAmount());
+        BigDecimal lineTotal = unitPrice.multiply(quantity).subtract(discountAmount);
+        item.setLineTotal(lineTotal.max(BigDecimal.ZERO));
+    }
+
+    private void recalculateOrderTotals(Order order) {
+        BigDecimal originalAmount = order.getItems() == null
+                ? BigDecimal.ZERO
+                : order.getItems().stream()
+                        .peek(this::recalculateLine)
+                        .map(item -> defaultZero(item.getLineTotal()))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal discountAmount = defaultZero(order.getDiscountAmount());
+        BigDecimal shippingFee = defaultZero(order.getShippingFee());
+        BigDecimal finalAmount = originalAmount.subtract(discountAmount).add(shippingFee).max(BigDecimal.ZERO);
+
+        order.setOriginalAmount(originalAmount);
+        order.setDiscountAmount(discountAmount);
+        order.setShippingFee(shippingFee);
+        order.setFinalAmount(finalAmount);
+        if (PaymentStatus.PAID != order.getPaymentStatus()) {
+            order.setPaidAmount(BigDecimal.ZERO);
+            order.setDebtAmount(finalAmount);
+        }
+    }
+
+    private void applyReservation(Order order, UUID productVariantId, BigDecimal targetQuantity, UUID locationId) {
+        try {
+            inventoryClient.applyReservation(InventoryClient.ApplyInventoryReservationRequest.builder()
+                    .orderId(order.getId())
+                    .branchId(order.getBranchId())
+                    .productVariantId(productVariantId)
+                    .locationId(locationId)
+                    .targetQuantity(targetQuantity)
+                    .expiresAt(order.getExpiresAt())
+                    .build());
+        } catch (FeignException.Conflict ex) {
+            throw new OutOfStockException("Không đủ tồn kho");
+        } catch (FeignException.NotFound ex) {
+            throw new InventoryReservationFailedException("Không tìm thấy tồn kho để giữ chỗ");
+        } catch (FeignClientException ex) {
+            if (isOutOfStock(ex)) {
+                throw new OutOfStockException("Không đủ tồn kho");
+            }
+            if (ex.getStatus() == 404) {
+                throw new InventoryReservationFailedException("Không tìm thấy tồn kho để giữ chỗ");
+            }
+            throw new InventoryReservationFailedException("Không thể giữ chỗ tồn kho: " + ex.getMessage());
+        } catch (FeignException ex) {
+            throw new InventoryReservationFailedException("Không thể giữ chỗ tồn kho: " + ex.getMessage());
+        }
+    }
+
+    private void releaseItemReservation(UUID orderId, UUID productVariantId, UUID locationId) {
+        try {
+            inventoryClient.releaseItem(InventoryClient.ReleaseInventoryReservationItemRequest.builder()
+                    .orderId(orderId)
+                    .productVariantId(productVariantId)
+                    .locationId(locationId)
+                    .build());
+        } catch (FeignClientException ex) {
+            throw new InventoryReservationFailedException("Không thể nhả giữ chỗ tồn kho: " + ex.getMessage());
+        } catch (FeignException ex) {
+            throw new InventoryReservationFailedException("Không thể nhả giữ chỗ tồn kho: " + ex.getMessage());
+        }
+    }
+
+    private void releaseOrderReservation(UUID orderId) {
+        try {
+            inventoryClient.releaseOrder(InventoryClient.ReleaseInventoryReservationOrderRequest.builder()
+                    .orderId(orderId)
+                    .build());
+        } catch (FeignClientException ex) {
+            throw new InventoryReservationFailedException("Không thể nhả giữ chỗ tồn kho của đơn: " + ex.getMessage());
+        } catch (FeignException ex) {
+            throw new InventoryReservationFailedException("Không thể nhả giữ chỗ tồn kho của đơn: " + ex.getMessage());
+        }
+    }
+
+    private void confirmReservation(UUID orderId) {
+        try {
+            inventoryClient.confirmOrder(InventoryClient.ConfirmInventoryReservationOrderRequest.builder()
+                    .orderId(orderId)
+                    .build());
+        } catch (FeignException.Conflict ex) {
+            throw new OutOfStockException("Không đủ tồn kho để xác nhận đơn");
+        } catch (FeignClientException ex) {
+            if (isOutOfStock(ex)) {
+                throw new OutOfStockException("Không đủ tồn kho để xác nhận đơn");
+            }
+            throw new InventoryReservationFailedException("Không thể xác nhận giữ chỗ tồn kho: " + ex.getMessage());
+        } catch (FeignException ex) {
+            throw new InventoryReservationFailedException("Không thể xác nhận giữ chỗ tồn kho: " + ex.getMessage());
+        }
+    }
+
+    private boolean isOutOfStock(FeignClientException ex) {
+        return ex.getStatus() == 409
+                || (ex.getMessage() != null && ex.getMessage().contains("OUT_OF_STOCK"))
+                || (ex.getResponseBody() != null && ex.getResponseBody().contains("OUT_OF_STOCK"));
+    }
+
     private void saveStatusHistory(
             Order order,
             OrderStatus fromStatus,
@@ -555,6 +876,7 @@ public class OrderServiceImpl implements OrderService {
                 .paidAmount(order.getPaidAmount())
                 .debtAmount(order.getDebtAmount())
                 .changeAmount(changeAmount)
+                .expiresAt(order.getExpiresAt())
                 .items(order.getItems().stream().map(this::toItemResponse).toList())
                 .customerName(order.getCustomerNameSnapshot())
                 .customerPhone(order.getCustomerPhoneSnapshot())
