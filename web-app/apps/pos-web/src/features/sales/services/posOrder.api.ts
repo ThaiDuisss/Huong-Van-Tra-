@@ -13,6 +13,7 @@ export interface CreatePosOrderInput {
 }
 
 export interface CheckoutPosOrderInput extends CreatePosOrderInput {
+    orderId: string;
     originalAmount: number;
     finalAmount: number;
     manualAdjustment?: PosManualAdjustmentInput;
@@ -43,16 +44,23 @@ interface CreatePosOrderRequestBody {
     items: PosOrderItemRequest[];
 }
 
-interface CheckoutPosOrderRequestBody extends CreatePosOrderRequestBody {
-    originalAmount: number;
-    finalAmount: number;
-    manualAdjustment?: PosManualAdjustmentInput;
-    payment: {
-        method: string;
-        amount: number;
-        receivedAmount?: number;
-        changeAmount?: number;
-    };
+interface AddDraftOrderItemRequestBody {
+    orderId?: string;
+    customerId?: string;
+    orderType: string;
+    productVariantId: string;
+    quantity: number;
+    discountAmount: number;
+    inventoryLocationId?: string;
+}
+
+interface UpdateDraftOrderItemQuantityRequestBody {
+    quantity: number;
+}
+
+interface CheckoutDraftOrderRequestBody {
+    paidAmount: number;
+    paymentMethod: string;
 }
 
 export interface PosCheckoutPaymentResponse {
@@ -73,6 +81,29 @@ export interface PosCheckoutPaymentResponse {
 export interface PosOrderDto {
     id: string;
     orderCode: string;
+    status?: string;
+    paymentStatus?: string;
+    expiresAt?: string;
+    originalAmount?: number;
+    discountAmount?: number;
+    finalAmount?: number;
+    paidAmount?: number;
+    debtAmount?: number;
+    items?: PosOrderItemDto[];
+}
+
+export interface PosOrderItemDto {
+    id: string;
+    productVariantId: string;
+    skuSnapshot?: string;
+    sku?: string;
+    productNameSnapshot?: string;
+    productName?: string;
+    variantNameSnapshot?: string;
+    quantity: number;
+    actualUnitPrice?: number;
+    unitPrice?: number;
+    lineTotal?: number;
 }
 
 export interface PosCheckoutResponse extends PosOrderDto {
@@ -108,6 +139,10 @@ function getProductVariantId(item: SaleCartItem) {
     return productVariantId;
 }
 
+function getCustomerId(value: string | null) {
+    return value && uuidPattern.test(value) ? value : undefined;
+}
+
 export const posOrderApi = {
     create(input: CreatePosOrderInput) {
         return apiClient.post<PosOrderDto, CreatePosOrderRequestBody>("/orders", {
@@ -123,29 +158,58 @@ export const posOrderApi = {
         });
     },
 
+    addDraftItem(input: {
+        orderId: string | null;
+        customerId: string | null;
+        orderType: SaleOrderType;
+        productVariantId: string;
+        inventoryLocationId?: string | null;
+    }) {
+        if (!uuidPattern.test(input.productVariantId)) {
+            throw new Error("Không xác định được productVariantId dạng UUID.");
+        }
+
+        return apiClient.post<PosOrderDto, AddDraftOrderItemRequestBody>(
+            "/orders/pos/draft/items",
+            {
+                orderId: input.orderId ?? undefined,
+                customerId: getCustomerId(input.customerId),
+                orderType: orderTypeMap[input.orderType],
+                productVariantId: input.productVariantId,
+                quantity: 1,
+                discountAmount: 0,
+                inventoryLocationId: input.inventoryLocationId ?? undefined
+            }
+        );
+    },
+
+    updateDraftItemQuantity(orderId: string, itemId: string, quantity: number) {
+        return apiClient.put<PosOrderDto, UpdateDraftOrderItemQuantityRequestBody>(
+            `/orders/pos/draft/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}`,
+            { quantity }
+        );
+    },
+
+    removeDraftItem(orderId: string, itemId: string) {
+        return apiClient.delete<PosOrderDto>(
+            `/orders/pos/draft/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}`
+        );
+    },
+
+    cancelDraftOrder(orderId: string) {
+        return apiClient.post<PosOrderDto, Record<string, never>>(
+            `/orders/pos/draft/${encodeURIComponent(orderId)}/cancel`,
+            {}
+        );
+    },
+
     checkout(input: CheckoutPosOrderInput) {
         return apiClient.post<
             PosCheckoutResponse,
-            CheckoutPosOrderRequestBody
-        >("/orders/pos/checkout", {
-            customerId: input.customerId ?? undefined,
-            orderType: orderTypeMap[input.orderType],
-            originalAmount: input.originalAmount,
-            discountAmount: input.discountAmount,
-            shippingFee: 0,
-            finalAmount: input.finalAmount,
-            manualAdjustment: input.manualAdjustment,
-            payment: {
-                method: paymentMethodMap[input.paymentMethod],
-                amount: input.paymentAmount,
-                receivedAmount: input.receivedAmount,
-                changeAmount: input.changeAmount
-            },
-            items: input.items.map((item) => ({
-                productVariantId: getProductVariantId(item),
-                quantity: item.quantity,
-                discountAmount: 0
-            }))
+            CheckoutDraftOrderRequestBody
+        >(`/orders/pos/${encodeURIComponent(input.orderId)}/checkout`, {
+            paidAmount: input.paymentAmount,
+            paymentMethod: paymentMethodMap[input.paymentMethod]
         });
     }
 };

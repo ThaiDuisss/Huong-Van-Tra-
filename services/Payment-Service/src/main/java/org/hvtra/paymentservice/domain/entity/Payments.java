@@ -42,6 +42,9 @@ public class Payments extends BaseEntity {
     @Column(name = "method", nullable = false, length = 30)
     PaymentMethod method;
 
+    @Column(name = "saga_id", columnDefinition = "BINARY(16)", nullable = true)
+    private UUID saga_id;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "provider", length = 30)
     PaymentProvider provider;
