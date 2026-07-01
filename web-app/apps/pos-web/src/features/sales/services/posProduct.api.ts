@@ -1,7 +1,5 @@
 import { apiClient } from "../../../api/api-client";
-import { posInventoryApi } from "./posInventory.api";
 import type { SaleProductPreview } from "../types/sale.types";
-import type { PosInventoryBalance } from "./posInventory.api";
 
 const fallbackImageUrl =
     "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=360&q=80";
@@ -17,6 +15,9 @@ interface PosVariantResponse {
     sellingPrice?: number | string | null;
     selling_price?: number | string | null;
     imageUrl?: string | null;
+    availableQuantity?: number | string | null;
+    quantityOnHand?: number | string | null;
+    quantityReserved?: number | string | null;
 }
 
 function toNumber(value: number | string | null | undefined) {
@@ -38,58 +39,11 @@ function mapPosVariantToSaleProduct(
         variant: variant.variantName,
         price: toNumber(variant.sellingPrice ?? variant.selling_price),
         imageUrl: variant.imageUrl ?? fallbackImageUrl,
-        availableQuantity: null,
-        quantityOnHand: null,
-        quantityReserved: null
+        inventoryLocationId: null,
+        availableQuantity: toNumber(variant.availableQuantity),
+        quantityOnHand: toNumber(variant.quantityOnHand),
+        quantityReserved: toNumber(variant.quantityReserved)
     };
-}
-
-function mergeInventory(
-    products: SaleProductPreview[],
-    inventories: PosInventoryBalance[]
-) {
-    return products.map((product) => {
-        const matchedInventories = inventories.filter((item) => {
-            if (
-                item.variantId &&
-                product.productVariantId &&
-                item.variantId === product.productVariantId
-            ) {
-                return true;
-            }
-
-            return Boolean(item.sku && item.sku === product.sku);
-        });
-
-        if (matchedInventories.length === 0) {
-            return product;
-        }
-
-        const stock = matchedInventories.reduce(
-            (total, item) => ({
-                availableQuantity:
-                    total.availableQuantity +
-                    Number(item.availableQuantity ?? 0),
-                quantityOnHand:
-                    total.quantityOnHand + Number(item.quantityOnHand ?? 0),
-                quantityReserved:
-                    total.quantityReserved +
-                    Number(item.quantityReserved ?? 0)
-            }),
-            {
-                availableQuantity: 0,
-                quantityOnHand: 0,
-                quantityReserved: 0
-            }
-        );
-
-        return {
-            ...product,
-            availableQuantity: stock.availableQuantity,
-            quantityOnHand: stock.quantityOnHand,
-            quantityReserved: stock.quantityReserved
-        };
-    });
 }
 
 function uniqueProducts(products: SaleProductPreview[]) {
@@ -128,18 +82,7 @@ export const posProductApi = {
             variants.map(mapPosVariantToSaleProduct)
         );
 
-        const inventoryResults = await Promise.allSettled(
-            products.map((product) =>
-                posInventoryApi.searchInventoryForPos({
-                    sku: product.sku
-                })
-            )
-        );
-        const inventories = inventoryResults.flatMap((result) =>
-            result.status === "fulfilled" ? result.value : []
-        );
-
-        return mergeInventory(products, inventories);
+        return products;
     },
 
     async getPosView(variantId: string) {

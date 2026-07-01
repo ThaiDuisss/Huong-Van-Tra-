@@ -6,32 +6,23 @@ import App from "./App";
 
 async function bootstrap(): Promise<void> {
   try {
-    const authenticated =
-      await keycloak.init({
-        onLoad: "login-required",
-        flow: "standard",
-        pkceMethod: "S256",
-        checkLoginIframe: true
-      });
+    await keycloak.init({
+      onLoad: "login-required",
+      flow: "standard",
+      pkceMethod: "S256",
 
-    if (!authenticated) {
-      await keycloak.login();
+      // Quan trọng: tắt iframe check để tránh lỗi:
+      // Timeout when waiting for 3rd party check iframe message
+      checkLoginIframe: false,
+    });
 
-      return;
-    }
-
-    createRoot(
-      document.getElementById("root")!
-    ).render(
+    createRoot(document.getElementById("root")!).render(
       <StrictMode>
         <App />
       </StrictMode>
     );
   } catch (error) {
-    console.error(
-      "Không thể khởi tạo Keycloak",
-      error
-    );
+    console.error("Không thể khởi tạo Keycloak", error);
 
     document.body.innerHTML = `
       <main>

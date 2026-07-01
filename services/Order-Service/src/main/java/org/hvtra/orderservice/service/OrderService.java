@@ -2,8 +2,11 @@ package org.hvtra.orderservice.service;
 
 
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
+import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
+import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
+import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
@@ -45,4 +48,9 @@ public interface OrderService {
     OrderStatsResponse getOrderStats(LocalDate fromDate, LocalDate toDate);
     OrderResponse updateOrderStatus(UUID orderId, UpdateOrderStatusRequest request);
     OrderResponse cancelOrder(UUID orderId, CancelOrderRequest request);
+    OrderResponse addDraftItem(AddDraftOrderItemRequest request);
+    OrderResponse updateDraftItemQuantity(UUID orderId, UUID itemId, UpdateDraftOrderItemQuantityRequest request);
+    OrderResponse removeDraftItem(UUID orderId, UUID itemId);
+    OrderResponse cancelDraftOrder(UUID orderId);
+    OrderResponse checkoutDraftOrder(UUID orderId, CheckoutDraftOrderRequest request);
 }

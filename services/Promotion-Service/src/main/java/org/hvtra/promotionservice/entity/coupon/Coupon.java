@@ -20,8 +20,12 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.promotionservice.entity.Promotion;
+import org.hvtra.promotionservice.enums.benefit.BenefitType;
+import org.hvtra.promotionservice.enums.coupon.CouponIssueReason;
+import org.hvtra.promotionservice.enums.coupon.CouponScope;
 import org.hvtra.promotionservice.enums.coupon.CouponStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,12 +46,30 @@ public class Coupon extends BaseEntity {
     @JoinColumn(name = "promotion_id", nullable = false)
     Promotion promotion;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scope", nullable = false, length = 30)
+    CouponScope scope;
+
     @JdbcTypeCode(SqlTypes.BINARY)
     @Column(name = "customer_id", columnDefinition = "BINARY(16)")
     UUID customerId;
 
     @Column(name = "code", nullable = false, unique = true, length = 100)
     String code;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "issue_reason", length = 50)
+    CouponIssueReason issueReason;
+
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "source_order_id", columnDefinition = "BINARY(16)")
+    UUID sourceOrderId;
+
+    @Column(name = "issued_at")
+    LocalDateTime issuedAt;
+
+    @Column(name = "claimed_at")
+    LocalDateTime claimedAt;
 
     @Builder.Default
     @Column(name = "usage_limit", nullable = false)
@@ -63,10 +85,22 @@ public class Coupon extends BaseEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    CouponStatus status = CouponStatus.ACTIVE;
+    CouponStatus status = CouponStatus.DRAFT;
 
     @Builder.Default
     @OneToMany(mappedBy = "coupon")
     List<CouponUsage> usages = new ArrayList<>();
 
+    @Column(name = "snapshot_promotion_name", length = 255)
+    String snapshotPromotionName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "snapshot_benefit_type", length = 50)
+    BenefitType snapshotBenefitType;
+
+    @Column(name = "snapshot_discount_value", precision = 14, scale = 2)
+    BigDecimal snapshotDiscountValue;
+
+    @Column(name = "snapshot_max_discount", precision = 14, scale = 2)
+    BigDecimal snapshotMaxDiscount;
 }

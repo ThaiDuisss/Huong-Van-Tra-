@@ -12,15 +12,21 @@ import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-@Schema(description = "Request cập nhật trạng thái khuyến mãi")
+@Schema(description = "Request cập nhật trạng thái promotion")
 public class PromotionStatusUpdateRequest {
 
     @Schema(
-            description = "Trạng thái mới",
-            example = "DRAFT",
-            allowableValues = {"DRAFT", "ACTIVE", "INACTIVE", "EXPIRED", "CANCELLED"}
+            description = "Trạng thái mới của promotion",
+            example = "ACTIVE",
+            allowableValues = {
+                    "DRAFT",
+                    "SCHEDULED",
+                    "ACTIVE",
+                    "INACTIVE",
+                    "EXPIRED",
+                    "CANCELLED"
+            }
     )
-    @NotNull(message = "Event status is required")
+    @NotNull(message = "Promotion status is required")
     PromotionStatus status;
-
 }

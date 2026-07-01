@@ -22,5 +22,5 @@ public interface ProductVariantService {
     java.util.List<UUID> searchVariantIds(String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId);
     java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName);
     org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse getPosView(UUID variantId);
+    java.util.List<org.hvtra.catalog.dto.response.ProductVariantProductRefResponse> findRefsByProductIds(java.util.List<UUID> productIds);
 }
-
