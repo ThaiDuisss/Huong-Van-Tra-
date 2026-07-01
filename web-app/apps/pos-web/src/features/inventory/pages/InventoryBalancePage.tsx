@@ -276,7 +276,7 @@ export function InventoryBalancePage() {
 
     // 5. Hardcoded columns for the grid (omitting "Đơn vị", "Giá bán", and "Giá nhập")
     const schemaColumns = useMemo(() => {
-        return ["Ảnh sản phẩm", "SKU", "Tên sản phẩm", "Danh mục", "Kệ", "Có thể bán", "Ngày cập nhật"];
+        return ["Kệ","Ảnh sản phẩm", "Tên sản phẩm",  "Có thể bán"];
     }, []);
 
     // Set initial visibility mapping if empty
