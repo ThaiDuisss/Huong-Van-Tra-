@@ -43,8 +43,10 @@ public class InventoryBalanceController {
             @RequestParam(name = "categoryCode", required = false) String categoryCode,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "unitId", required = false) UUID unitId,
+            @RequestParam(name = "locationId", required = false) UUID locationId,
+            @RequestParam(name = "branchId", required = false) UUID branchId,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
-        return service.findAllView(sku, productCode, productName, categoryCode, categoryId, unitId, pageable);
+        return service.findAllView(sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, pageable);
     }
 
     @Tag(
@@ -57,4 +59,10 @@ public class InventoryBalanceController {
             @RequestParam(name = "productName", required = false) String productName) {
         return service.findWarehouseBalances(sku, productName);
     }
+
+    @PutMapping("/location")
+    public void bulkUpdateLocation() {
+        service.bulkUpdateLocation();
+    }
 }
+

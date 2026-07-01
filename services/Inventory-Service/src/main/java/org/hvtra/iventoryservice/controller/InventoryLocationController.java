@@ -27,10 +27,11 @@ public class InventoryLocationController {
     @GetMapping
     public PageResponse<InventoryLocationResponse> findAll(
             @RequestParam(name = "branchId", required = false) UUID branchId,
+            @RequestParam(name = "query", required = false) String query,
             @RequestParam(name = "type", required = false) InventoryLocationType type,
             @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "code") Pageable pageable) {
-        return service.findAll(branchId, type, status, pageable);
+        return service.findAll(branchId, query, type, status, pageable);
     }
 
     @GetMapping("/{id}")
