@@ -7,6 +7,7 @@ import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -25,6 +26,8 @@ public class Order extends BaseEntity {
 
     @Column(name = "tenant_id", columnDefinition = "BINARY(16)")
     private UUID tenantId;
+
+
 
     @Column(name = "branch_id", columnDefinition = "BINARY(16)")
     private UUID branchId;
@@ -102,6 +105,9 @@ public class Order extends BaseEntity {
 
     @Column(name = "debt_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal debtAmount;
+
+    @Column(name = "expires_at")
+    private Instant expiresAt;
 
     @Builder.Default
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)

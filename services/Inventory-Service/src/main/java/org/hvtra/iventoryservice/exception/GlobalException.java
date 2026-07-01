@@ -31,6 +31,14 @@ public class GlobalException extends BaseGlobalExceptionHandler {
                 .body(new ErrorResponse("BAD_REQUEST", exception.getMessage(), 400));
     }
 
+    @ExceptionHandler(OutOfStockException.class)
+    public ResponseEntity<ErrorResponse> handleOutOfStock(
+            OutOfStockException exception, HttpServletRequest request) {
+        log.warn("Out of stock at {}: {}", request.getRequestURI(), exception.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("OUT_OF_STOCK", exception.getMessage(), 409));
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(
             MethodArgumentTypeMismatchException exception, HttpServletRequest request) {

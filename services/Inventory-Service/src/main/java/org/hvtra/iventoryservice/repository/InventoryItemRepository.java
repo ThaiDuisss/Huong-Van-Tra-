@@ -18,6 +18,8 @@ public interface InventoryItemRepository
     boolean existsByReferenceIdAndItemTypeAndIdNot(
             UUID referenceId, InventoryItemType itemType, UUID id);
 
+    Optional<InventoryItem> findByReferenceIdAndItemType(UUID referenceId, InventoryItemType itemType);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from InventoryItem i where i.id = :id")
     Optional<InventoryItem> findByIdForUpdate(@Param("id") UUID id);

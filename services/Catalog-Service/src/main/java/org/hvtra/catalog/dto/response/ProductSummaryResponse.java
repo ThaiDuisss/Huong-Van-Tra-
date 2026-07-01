@@ -2,6 +2,7 @@ package org.hvtra.catalog.dto.response;
 
 import org.hvtra.catalog.enums.Status;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public record ProductSummaryResponse(
@@ -11,7 +12,10 @@ public record ProductSummaryResponse(
         CategoryResponse category,
         String imageUrl,
         Status status,
-        int totalVariants
+        int totalVariants,
+        BigDecimal availableQuantity,
+        BigDecimal reservedQuantity,
+        String stockStatus,
+        Boolean stockAvailable
 ) {
 }
-

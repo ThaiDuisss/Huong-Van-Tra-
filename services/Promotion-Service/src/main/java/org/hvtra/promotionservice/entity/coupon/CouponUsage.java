@@ -19,6 +19,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.promotionservice.enums.coupon.CouponUsageStatus;
+import org.hvtra.promotionservice.enums.promotion.PromotionChannel;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -44,7 +45,7 @@ public class CouponUsage extends BaseEntity {
     UUID orderId;
 
     @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "customer_id", columnDefinition = "BINARY(16)", nullable = false)
+    @Column(name = "customer_id", columnDefinition = "BINARY(16)")
     UUID customerId;
 
     @Builder.Default
@@ -71,4 +72,15 @@ public class CouponUsage extends BaseEntity {
     @Column(name = "released_at")
     LocalDateTime releasedAt;
 
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "branch_id", columnDefinition = "BINARY(16)")
+    UUID branchId;
+
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "cashier_id", columnDefinition = "BINARY(16)")
+    UUID cashierId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "channel", length = 30)
+    PromotionChannel channel;
 }

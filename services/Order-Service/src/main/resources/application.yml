@@ -154,4 +154,5 @@ management:
 clients:
   payment-service:
     url: http://localhost:8087
-
+  inventory-service:
+    url: ${INVENTORY_SERVICE_URL:http://localhost:8084}

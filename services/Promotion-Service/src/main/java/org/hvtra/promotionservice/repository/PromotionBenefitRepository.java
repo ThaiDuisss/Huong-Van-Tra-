@@ -1,11 +1,28 @@
 package org.hvtra.promotionservice.repository;
 
 import org.hvtra.promotionservice.entity.PromotionBenefit;
+import org.hvtra.promotionservice.enums.benefit.BenefitType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Optional;
 import java.util.UUID;
 
-public interface PromotionBenefitRepository
-        extends JpaRepository<PromotionBenefit, UUID> {
+public interface PromotionBenefitRepository extends JpaRepository<PromotionBenefit, UUID> {
 
+    Optional<PromotionBenefit> findByIdAndPromotionIdAndIsDeletedFalse(
+            UUID id,
+            UUID promotionId
+    );
+
+    Page<PromotionBenefit> findAllByPromotionIdAndIsDeletedFalse(
+            UUID promotionId,
+            Pageable pageable
+    );
+
+    boolean existsByPromotionIdAndBenefitTypeAndIsDeletedFalse(
+            UUID promotionId,
+            BenefitType benefitType
+    );
 }
