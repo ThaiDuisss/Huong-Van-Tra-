@@ -3,7 +3,8 @@ import {
     Eye,
     Pencil,
     Plus,
-    ToggleLeft
+    ToggleLeft,
+    MoreHorizontal
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
@@ -16,7 +17,7 @@ import { ApiErrorState, ApiLoadingState } from "./ApiState";
 import { CatalogStatusBadge } from "./CatalogStatusBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { FormDialog } from "./FormDialog";
-import { IconAction } from "./IconAction";
+
 
 // Re-export helper components for backward compatibility
 export { TableCell } from "./TableCell";
@@ -131,6 +132,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     const [toast, setToast] = useState("");
     const [actionError, setActionError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
     const activeFilters: CatalogFilter[] = [];
 
@@ -241,50 +243,80 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
                 {searchPlaceholder ? (
                     <div className="border-b border-[#f3f5f7] pb-3">
-                        <div className="w-full">
-                            <SearchBox
-                                value={query}
-                                placeholder={searchPlaceholder}
-                                onChange={onQueryChange}
-                                className="w-full"
-                            />
-                        </div>
+                        {(() => {
+                            const topFilter = activeFilters.find(f => f.label === "Danh mục" || f.label === "Sản phẩm");
+                            return (
+                                <div className="flex items-center gap-3 justify-between">
+                                    <div className="relative w-1/2 shrink-0">
+                                        <SearchBox
+                                            value={query}
+                                            placeholder={searchPlaceholder}
+                                            onChange={onQueryChange}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                    {topFilter && (
+                                        <div className="w-[12.5%] shrink-0 flex justify-end">
+                                            <select
+                                                value={topFilter.value}
+                                                onChange={(e) => topFilter.onChange(e.target.value)}
+                                                className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                                            >
+                                                <option value="ALL">{topFilter.label}</option>
+                                                {topFilter.options
+                                                    .filter(opt => opt.value !== "ALL")
+                                                    .map((opt) => (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.label}
+                                                        </option>
+                                                    ))
+                                                }
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </div>
                 ) : null}
 
-                {activeFilters.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-[10px] pt-3">
-                        {activeFilters.map((filter, index) => (
-                            <div
-                                key={filter.label + "-" + index}
-                                className="flex flex-wrap items-center gap-2"
-                            >
-                                <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
-                                    {filter.label}:
-                                </span>
-                                <div className="flex flex-wrap gap-2 items-center">
-                                    {filter.options.map((opt) => {
-                                        const isActive = filter.value === opt.value;
-                                        return (
-                                            <button
-                                                key={opt.value}
-                                                onClick={() => filter.onChange(opt.value)}
-                                                type="button"
-                                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                                    isActive
-                                                        ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                                        : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                                }`}
-                                            >
-                                                {opt.label}
-                                            </button>
-                                        );
-                                    })}
+                {(() => {
+                    const remainingFilters = activeFilters.filter(f => f.label !== "Danh mục" && f.label !== "Sản phẩm");
+                    if (remainingFilters.length === 0) return null;
+                    return (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-[10px] pt-3">
+                            {remainingFilters.map((filter, index) => (
+                                <div
+                                    key={filter.label + "-" + index}
+                                    className="flex flex-wrap items-center gap-2"
+                                >
+                                    <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
+                                        {filter.label}:
+                                    </span>
+                                    <div className="flex flex-wrap gap-2 items-center">
+                                        {filter.options.map((opt) => {
+                                            const isActive = filter.value === opt.value;
+                                            return (
+                                                <button
+                                                    key={opt.value}
+                                                    onClick={() => filter.onChange(opt.value)}
+                                                    type="button"
+                                                    className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                                        isActive
+                                                            ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
+                                                            : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
+                                                    }`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : null}
+                            ))}
+                        </div>
+                    );
+                })()}
             </div>
 
             <div className="grid gap-4 grid-cols-1">
@@ -314,9 +346,9 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                             </div>
                         ) : null}
                         {!loading && !error && items.length > 0 ? (
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto min-h-[280px]">
                                 <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-                                    <thead className="bg-white text-[13px] font-[950] text-[#172317]">
+                                    <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900">
                                         <tr>
                                             {columns.map((column) => (
                                                 <th
@@ -332,72 +364,90 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {items.map((item) => (
-                                            <tr
-                                                key={item.id}
-                                                onClick={() =>
-                                                    setSelectedItem(item)
-                                                }
-                                                className={`cursor-pointer hover:bg-neutral-50 transition-all ${
-                                                    selectedItem?.id === item.id
-                                                        ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
-                                                        : ""
-                                                }`}
-                                            >
-                                                {renderCells(item)}
-                                                <td className="border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px]">
-                                                    <div className="flex justify-end gap-1">
-                                                        {detailPath ? (
-                                                            <Link
-                                                                to={detailPath(
-                                                                    item
-                                                                )}
-                                                                className="grid size-8 place-items-center rounded-lg hover:bg-white"
-                                                                aria-label="Xem chi tiết"
+                                        {items.map((item, idx) => {
+                                            const isSelected = selectedItem?.id === item.id;
+                                            const isEven = idx % 2 === 1;
+                                            const rowBgClass = isSelected
+                                                ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
+                                                : isEven
+                                                    ? "bg-[#f2faf1]/50"
+                                                    : "bg-white";
+
+                                            return (
+                                                <tr
+                                                    key={item.id}
+                                                    onClick={() => setSelectedItem(item)}
+                                                    className={`cursor-pointer hover:bg-neutral-50 transition-all ${rowBgClass}`}
+                                                >
+                                                    {renderCells(item)}
+                                                    <td className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px] relative ${activeActionMenuId === String(item.id) ? "z-30" : "z-20"}`} onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex justify-end relative">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setActiveActionMenuId(activeActionMenuId === String(item.id) ? null : String(item.id))}
+                                                                className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 text-gray-500 hover:text-gray-700 cursor-pointer"
                                                             >
-                                                                <Eye size={16} />
-                                                            </Link>
-                                                        ) : (
-                                                            <IconAction
-                                                                label="Xem chi tiết"
-                                                                onClick={() =>
-                                                                    setSelectedItem(
-                                                                        item
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Eye size={16} />
-                                                            </IconAction>
-                                                        )}
-                                                        <IconAction
-                                                            label="Chỉnh sửa"
-                                                            onClick={() => {
-                                                                setEditingItem(item);
-                                                                setActionError("");
-                                                                setShowForm(true);
-                                                            }}
-                                                        >
-                                                            <Pencil size={16} />
-                                                        </IconAction>
-                                                        {onChangeStatus ? (
-                                                            <IconAction
-                                                                label="Đổi trạng thái"
-                                                                onClick={() => {
-                                                                    setActionError("");
-                                                                    setStatusTarget(
-                                                                        item
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <ToggleLeft
-                                                                    size={17}
-                                                                />
-                                                            </IconAction>
-                                                        ) : null}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                                <MoreHorizontal size={16} />
+                                                            </button>
+
+                                                            {activeActionMenuId === String(item.id) && (
+                                                                <>
+                                                                    <div className="fixed inset-0 z-30" onClick={() => setActiveActionMenuId(null)} />
+                                                                    <div className={`absolute right-0 ${idx >= 2 && idx >= items.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
+                                                                        {detailPath ? (
+                                                                            <Link
+                                                                                to={detailPath(item)}
+                                                                                onClick={() => setActiveActionMenuId(null)}
+                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                            >
+                                                                                <Eye size={14} />
+                                                                                Xem chi tiết
+                                                                            </Link>
+                                                                        ) : (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => { setSelectedItem(item); setActiveActionMenuId(null); }}
+                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                            >
+                                                                                <Eye size={14} />
+                                                                                Xem chi tiết
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setEditingItem(item);
+                                                                                setActionError("");
+                                                                                setShowForm(true);
+                                                                                setActiveActionMenuId(null);
+                                                                            }}
+                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                        >
+                                                                            <Pencil size={14} />
+                                                                            Chỉnh sửa
+                                                                        </button>
+                                                                        {onChangeStatus && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setActionError("");
+                                                                                    setStatusTarget(item);
+                                                                                    setActiveActionMenuId(null);
+                                                                                }}
+                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                            >
+                                                                                <ToggleLeft size={14} />
+                                                                                Đổi trạng thái
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

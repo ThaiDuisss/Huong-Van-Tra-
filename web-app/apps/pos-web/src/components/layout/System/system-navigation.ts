@@ -1,11 +1,14 @@
 import {
     BarChart3,
+    BadgePercent,
     Boxes,
+    CalendarDays,
     FileText,
     FolderTree,
     History,
     Home,
     Layers3,
+    MapPinned,
     Package,
     Plane,
     Ruler,
@@ -126,11 +129,11 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 icon: Warehouse,
                 to: routePaths.inventoryBalances
             },
-            // {
-            //     label: "Quản lý kệ hàng",
-            //     to: routePaths.inventoryLocations,
-            //     icon: MapPinned
-            // },
+            {
+                label: "Quản lý kệ",
+                to: routePaths.inventoryShelves,
+                icon: MapPinned
+            },
             {
                 label: "Lịch sử biến động",
                 to: routePaths.inventoryTransactions,
@@ -138,6 +141,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             }
         ]
     },
+
     {
         label: "Khách hàng",
         icon: User,
@@ -156,7 +160,34 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     },
     {
         label: "Marketing",
-        icon: Plane
+        icon: Plane,
+        children: [
+            {
+                label: "Sự kiện",
+                to: routePaths.marketingEvents,
+                icon: CalendarDays
+            },
+            {
+                label: "Chương trình giảm giá",
+                to: routePaths.discountPrograms,
+                icon: BadgePercent
+            },
+            {
+                label: "Mã giảm giá",
+                to: routePaths.discountCodes,
+                icon: BadgePercent
+            },
+            {
+                label: "Lịch sử giảm giá",
+                to: routePaths.discountHistory,
+                icon: History
+            },
+            {
+                label: "Các quy tắc giảm giá",
+                to: routePaths.discountRules,
+                icon: FileText
+            }
+        ]
     },
     {
         label: "Báo cáo",

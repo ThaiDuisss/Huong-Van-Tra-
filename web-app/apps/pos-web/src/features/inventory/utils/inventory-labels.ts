@@ -9,7 +9,8 @@ import type {
 export const locationTypeLabels: Record<InventoryLocationType, string> = {
     WAREHOUSE: "Cửa hàng",
     STORAGE: "Kho chứa",
-    DAMAGED: "Khu hàng lỗi"
+    DAMAGED: "Khu hàng lỗi",
+    SHELF: "Kệ hàng"
 };
 
 export const inventoryStatusLabels: Record<InventoryStatus, string> = {
