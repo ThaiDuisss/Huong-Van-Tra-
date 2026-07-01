@@ -7,12 +7,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
+import org.hvtra.customer.dto.request.ChangeTierStatusRequest;
 import org.hvtra.customer.dto.request.CustomerTierRequest;
 import org.hvtra.customer.dto.response.CustomerTierCountResponse;
 import org.hvtra.customer.dto.response.CustomerTierResponse;
 import org.hvtra.customer.service.CustomerTierService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -64,5 +66,13 @@ public class CustomerTierController {
             @Parameter(description = "ID hạng khách hàng") @PathVariable(ApiParam.ID) UUID id,
             @Valid @RequestBody CustomerTierRequest request) {
         return customerTierService.update(id, request);
+    }
+
+    @PatchMapping(ApiPath.TIER_STATUS)
+    @Operation(summary = "Đổi trạng thái hạng khách hàng")
+    public void changeStatus(
+            @Parameter(description = "ID hạng khách hàng") @PathVariable(ApiParam.ID) UUID id,
+            @Valid @RequestBody ChangeTierStatusRequest request) {
+        customerTierService.changeTierStatus(id, request);
     }
 }

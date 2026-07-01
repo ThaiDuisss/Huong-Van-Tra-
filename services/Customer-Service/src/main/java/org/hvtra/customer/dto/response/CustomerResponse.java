@@ -6,6 +6,7 @@ import org.hvtra.customer.model.enums.CustomerType;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record CustomerResponse(
@@ -20,8 +21,9 @@ public record CustomerResponse(
         String tierCode,
         String tierName,
         String tierColor,
-        LocalDate lastPurchaseDate,
+        LocalDateTime lastPurchaseDate,
         BigDecimal totalSpent,
+        Integer totalOrderCount,
         CustomerStatus status,
         Instant createdAt
 ) {

@@ -8,7 +8,10 @@ import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
 import org.hvtra.customer.dto.response.*;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerAddress;
+import org.hvtra.customer.model.entity.CustomerPurchaseTransaction;
 import org.hvtra.customer.model.entity.CustomerTier;
+import org.hvtra.customer.model.entity.CustomerTierAssignment;
+import org.hvtra.customer.model.entity.CustomerTierYearlyMetric;
 import org.hvtra.customer.model.entity.LoyaltyAccount;
 import org.hvtra.customer.model.entity.LoyaltyTransaction;
 import org.springframework.stereotype.Component;
@@ -19,7 +22,7 @@ import java.math.BigDecimal;
 public class CustomerMapper {
     public CustomerTierResponse toResponse(CustomerTier tier) {
         return new CustomerTierResponse(tier.getId(), tier.getCode(), tier.getName(),
-                tier.getMinSpending(), tier.getMinOrderCount(), tier.getStatus(), tier.getColorCode());
+                tier.getMinSpending(), tier.getMinOrderCount(), tier.getDiscountRate(), tier.getStatus(), tier.getColorCode());
     }
 
     public CustomerResponse toResponse(Customer customer) {
@@ -38,6 +41,7 @@ public class CustomerMapper {
                 tier == null ? null : tier.getColorCode(),
                 customer.getLastPurchaseDate(),
                 customer.getTotalSpent(),
+                customer.getTotalOrderCount(),
                 customer.getStatus(),
                 customer.getCreatedAt());
     }
@@ -61,11 +65,53 @@ public class CustomerMapper {
                 transaction.getReferenceId());
     }
 
+    public CustomerTierYearlyMetricResponse toResponse(CustomerTierYearlyMetric metric) {
+        return new CustomerTierYearlyMetricResponse(
+                metric.getId(),
+                metric.getCustomerId(),
+                metric.getTierYear(),
+                metric.getTotalSpent(),
+                metric.getTotalOrderCount(),
+                metric.getQualifiedTier() == null ? null : toResponse(metric.getQualifiedTier()),
+                metric.getCalculatedAt()
+        );
+    }
+
+    public CustomerTierAssignmentResponse toResponse(CustomerTierAssignment assignment) {
+        return new CustomerTierAssignmentResponse(
+                assignment.getId(),
+                assignment.getCustomer().getId(),
+                toResponse(assignment.getTier()),
+                assignment.getQualificationYear(),
+                assignment.getAssignmentReason(),
+                assignment.getEffectiveFrom(),
+                assignment.getEffectiveUntil(),
+                assignment.getStatus(),
+                assignment.getNote()
+        );
+    }
+
+    public CustomerPurchaseTransactionResponse toResponse(CustomerPurchaseTransaction transaction) {
+        return new CustomerPurchaseTransactionResponse(
+                transaction.getId(),
+                transaction.getCustomerId(),
+                transaction.getOrderId(),
+                transaction.getReferenceId(),
+                transaction.getTransactionType(),
+                transaction.getAmount(),
+                transaction.getOrderCountDelta(),
+                transaction.getOccurredAt(),
+                transaction.getReason(),
+                transaction.getMetadata()
+        );
+    }
+
     public void update(CustomerTier tier, CustomerTierRequest request) {
         tier.setCode(request.code());
         tier.setName(request.name());
         tier.setMinSpending(defaultMoney(request.minSpending()));
         tier.setMinOrderCount(defaultCount(request.minOrderCount()));
+        tier.setDiscountRate(defaultMoney(request.discountRate()));
         tier.setStatus(request.status());
     }
 
@@ -79,6 +125,7 @@ public class CustomerMapper {
         customer.setTier(tier);
         customer.setLastPurchaseDate(request.lastPurchaseDate());
         customer.setTotalSpent(defaultMoney(request.totalSpent()));
+        customer.setTotalOrderCount(defaultCount(request.totalOrderCount()));
         customer.setStatus(request.status());
     }
 

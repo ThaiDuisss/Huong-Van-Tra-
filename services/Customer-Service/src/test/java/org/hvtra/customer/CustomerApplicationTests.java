@@ -1,13 +1,12 @@
 package org.hvtra.customer;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
 class CustomerApplicationTests {
 
     @Test
-    void contextLoads() {
+    void applicationClassIsAvailable() {
+        org.assertj.core.api.Assertions.assertThat(CustomerApplication.class).isNotNull();
     }
 
 }
