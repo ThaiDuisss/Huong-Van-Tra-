@@ -24,9 +24,7 @@ import org.hvtra.customer.model.enums.LoyaltyTransactionType;
 import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.repository.LoyaltyTransactionRepository;
-import org.hvtra.customer.service.CustomerService;
-import org.hvtra.customer.service.LoyaltyAccountService;
-import org.hvtra.customer.service.LoyaltyPointRuleService;
+import org.hvtra.customer.service.*;
 import org.hvtra.customer.specification.CustomerSpecification;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -35,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -48,6 +46,8 @@ public class CustomerServiceImpl implements CustomerService {
     private final LoyaltyPointRuleService loyaltyPointRuleService;
     private final LoyaltyTransactionRepository loyaltyTransactionRepository;
     private final OrderGateway orderGateway;
+    private final TierQualificationService  tierQualificationService;
+    private final TierAssignmentService  tierAssignmentService;
 
     // Tìm kiếm khách hàng theo bộ lọc.
     @Override
@@ -76,13 +76,17 @@ public class CustomerServiceImpl implements CustomerService {
         CustomerRequest normalizedRequest = normalizeCreateRequest(request);
         ensureUniqueFields(normalizedRequest, null);
         Customer customer = new Customer();
-        customerMapper.update(customer, normalizedRequest, findTier(normalizedRequest.tierId()));
-        CustomerResponse response = customerMapper.toResponse(customerRepository.save(customer));
 
-        LoyaltyAccountRequest loyaltyAccountRequest = new LoyaltyAccountRequest(response.id(), 0);
+        CustomerTier initialTier = tierQualificationService.resolveQualifiedTier(BigDecimal.ZERO, 0);
+        customerMapper.update(customer, normalizedRequest, initialTier);
+
+        Customer savedCustomer = customerRepository.save(customer);
+        tierAssignmentService.assignInitialTier(savedCustomer, initialTier, LocalDateTime.now());
+
+        LoyaltyAccountRequest loyaltyAccountRequest = new LoyaltyAccountRequest(savedCustomer.getId(), 0);
         loyaltyAccountService.create(loyaltyAccountRequest);
 
-        return response;
+        return customerMapper.toResponse(savedCustomer);
     }
 
     // Cập nhật khách hàng sau khi chuẩn hóa và kiểm tra tính duy nhất
@@ -142,8 +146,9 @@ public class CustomerServiceImpl implements CustomerService {
         BigDecimal currentTotalSpent = defaultMoney(customer.getTotalSpent());
         BigDecimal newTotalSpent = currentTotalSpent.add(res.finalAmount());
 
-        customer.setLastPurchaseDate(LocalDate.now());
+        customer.setLastPurchaseDate(java.time.LocalDateTime.now());
         customer.setTotalSpent(newTotalSpent);
+        customer.setTotalOrderCount(Math.max((customer.getTotalOrderCount() == null ? 0 : customer.getTotalOrderCount()) + 1, 0));
         customerTierRepository
                 .findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(
                         newTotalSpent,
@@ -227,6 +232,7 @@ public class CustomerServiceImpl implements CustomerService {
                 request.creditLimit(),
                 request.lastPurchaseDate(),
                 request.totalSpent(),
+                request.totalOrderCount(),
                 request.status() != null ? request.status() : CustomerStatus.ACTIVE
         );
     }
@@ -244,6 +250,7 @@ public class CustomerServiceImpl implements CustomerService {
                 request.creditLimit(),
                 request.lastPurchaseDate(),
                 request.totalSpent(),
+                request.totalOrderCount(),
                 request.status() != null ? request.status() : customer.getStatus()
         );
     }

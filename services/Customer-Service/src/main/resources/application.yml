@@ -116,3 +116,49 @@ management:
           retryevents,
           bulkheads,
           bulkheadevents
+ 
+
+kafka-config:
+  enabled: true
+  bootstrap-servers: http://100.122.52.101:9092
+  num-of-partitions: 3
+  replication-factor: 3
+
+kafka-producer-config:
+  enabled: true
+  key-serializer-class: org.apache.kafka.common.serialization.StringSerializer
+  value-serializer-class: org.apache.kafka.common.serialization.JsonSerializer
+  compression-type: snappy
+  acks: all
+  batch-size: 16384
+  batch-size-boost-factor: 100
+  linger-ms: 5
+  request-timeout-ms: 60000
+  retry-count: 5
+
+kafka-consumer-config:
+  key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  value-deserializer: org.apache.kafka.common.serialization.JsonDeserializer
+  auto-offset-reset: earliest
+  batch-listener: true
+  auto-startup: true
+  concurrency-level: 3
+  session-timeout-ms: 10000
+  heartbeat-interval-ms: 3000
+  max-poll-interval-ms: 300000
+  max-poll-records: 500
+  max-partition-fetch-bytes-default: 1048576
+  max-partition-fetch-bytes-boost-factor: 1
+  poll-timeout-ms: 150
+
+loyalty:
+  tier:
+    grace-period-months: 1
+    yearly-review:
+      month: 2
+      day: 1
+      cron: "0 0 1 1 2 *"
+    events:
+      order-completed-topic: order.completed
+      order-partially-refunded-topic: order.partially-refunded
+      order-fully-refunded-topic: order.fully-refunded
