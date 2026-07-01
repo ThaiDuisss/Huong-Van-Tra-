@@ -36,6 +36,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
                 p.imageUrl,
                 null,
                 null,
+                null,
                 null
             )
             from ProductVariant v

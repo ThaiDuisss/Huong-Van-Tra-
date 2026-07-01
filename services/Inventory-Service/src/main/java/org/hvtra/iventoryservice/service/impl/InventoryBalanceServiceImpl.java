@@ -314,7 +314,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             }
 
             UUID itemId = balance.getInventoryItem().getId();
-            java.util.Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
+                java.util.Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
 
             if (existingBalanceOpt.isPresent()) {
                 // If a balance already exists at the target location, merge the quantities and delete the old record
