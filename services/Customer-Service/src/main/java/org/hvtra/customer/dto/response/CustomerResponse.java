@@ -1,6 +1,7 @@
 package org.hvtra.customer.dto.response;
 
 import org.hvtra.customer.model.enums.CustomerStatus;
+import org.hvtra.customer.model.enums.CustomerType;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,6 +15,7 @@ public record CustomerResponse(
         String phone,
         String email,
         LocalDate dateOfBirth,
+        CustomerType customerType,
         UUID tierId,
         String tierCode,
         String tierName,

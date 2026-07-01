@@ -30,6 +30,9 @@ public class CustomerTier extends BaseEntity {
     @Column(name = "min_spending", nullable = false, precision = 15, scale = 2)
     private BigDecimal minSpending = BigDecimal.ZERO;
 
+    @Column(name = "min_order_count", nullable = false)
+    private Integer minOrderCount = 0;
+
     @Column(name = "discount_rate", nullable = false, precision = 5, scale = 2)
     private BigDecimal discountRate = BigDecimal.ZERO;
 

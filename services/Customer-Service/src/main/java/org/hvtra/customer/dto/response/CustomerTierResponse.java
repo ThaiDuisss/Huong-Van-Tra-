@@ -10,6 +10,7 @@ public record CustomerTierResponse(
         String code,
         String name,
         BigDecimal minSpending,
+        Integer minOrderCount,
         BigDecimal discountRate,
         CustomerTierStatus status,
         String colorCode

@@ -8,15 +8,13 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.customer.model.enums.CustomerStatus;
+import org.hvtra.customer.model.enums.CustomerType;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 
 @Getter
@@ -39,6 +37,10 @@ public class Customer extends BaseEntity {
 
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
+
+    @Column(name = "customer_type", nullable = false, length = 30)
+    @Enumerated(EnumType.STRING)
+    private CustomerType customerType = CustomerType.INDIVIDUAL;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tier_id")

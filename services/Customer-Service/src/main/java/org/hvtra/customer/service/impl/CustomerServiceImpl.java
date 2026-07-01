@@ -18,6 +18,7 @@ import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.entity.LoyaltyPointRule;
 import org.hvtra.customer.model.enums.CustomerStatus;
 import org.hvtra.customer.model.enums.CustomerTierStatus;
+import org.hvtra.customer.model.enums.CustomerType;
 import org.hvtra.customer.model.enums.LoyaltyReferenceType;
 import org.hvtra.customer.model.enums.LoyaltyTransactionType;
 import org.hvtra.customer.repository.CustomerRepository;
@@ -219,6 +220,7 @@ public class CustomerServiceImpl implements CustomerService {
                 request.phone(),
                 request.email(),
                 request.dateOfBirth(),
+                request.customerType() != null ? request.customerType() : CustomerType.INDIVIDUAL,
                 request.tierId(),
                 request.creditLimit(),
                 request.lastPurchaseDate(),
@@ -235,6 +237,7 @@ public class CustomerServiceImpl implements CustomerService {
                 request.phone(),
                 request.email(),
                 request.dateOfBirth(),
+                request.customerType() != null ? request.customerType() : customer.getCustomerType(),
                 request.tierId(),
                 request.creditLimit(),
                 request.lastPurchaseDate(),

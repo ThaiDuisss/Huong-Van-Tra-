@@ -19,7 +19,7 @@ import java.math.BigDecimal;
 public class CustomerMapper {
     public CustomerTierResponse toResponse(CustomerTier tier) {
         return new CustomerTierResponse(tier.getId(), tier.getCode(), tier.getName(),
-                tier.getMinSpending(), tier.getDiscountRate(), tier.getStatus(), tier.getColorCode());
+                tier.getMinSpending(), tier.getMinOrderCount(), tier.getDiscountRate(), tier.getStatus(), tier.getColorCode());
     }
 
     public CustomerResponse toResponse(Customer customer) {
@@ -31,6 +31,7 @@ public class CustomerMapper {
                 customer.getPhone(),
                 customer.getEmail(),
                 customer.getDateOfBirth(),
+                customer.getCustomerType(),
                 tier == null ? null : tier.getId(),
                 tier == null ? null : tier.getCode(),
                 tier == null ? null : tier.getName(),
@@ -65,6 +66,7 @@ public class CustomerMapper {
         tier.setCode(request.code());
         tier.setName(request.name());
         tier.setMinSpending(defaultMoney(request.minSpending()));
+        tier.setMinOrderCount(defaultCount(request.minOrderCount()));
         tier.setDiscountRate(defaultMoney(request.discountRate()));
         tier.setStatus(request.status());
     }
@@ -75,6 +77,7 @@ public class CustomerMapper {
         customer.setPhone(request.phone());
         customer.setEmail(request.email());
         customer.setDateOfBirth(request.dateOfBirth());
+        customer.setCustomerType(request.customerType());
         customer.setTier(tier);
         customer.setCreditLimit(defaultMoney(request.creditLimit()));
         customer.setLastPurchaseDate(request.lastPurchaseDate());
@@ -108,5 +111,9 @@ public class CustomerMapper {
 
     private BigDecimal defaultMoney(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private int defaultCount(Integer value) {
+        return value == null ? 0 : value;
     }
 }
