@@ -63,6 +63,9 @@ export function SystemTopbar() {
     } else if (pathname === "/system/customers/groups") {
         section = "Khách hàng";
         page = "Nhóm khách hàng";
+    } else if (pathname === "/system/customers/tiers") {
+        section = "Khách hàng";
+        page = "Hạng khách hàng";
     } else if (pathname === "/system/customers") {
         section = "Khách hàng";
         page = "Danh sách khách hàng";
@@ -123,3 +126,4 @@ export function SystemTopbar() {
         </header>
     );
 }
+

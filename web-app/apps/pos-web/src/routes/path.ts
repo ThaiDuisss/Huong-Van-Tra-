@@ -24,7 +24,9 @@ export const routePaths = {
     inventoryTransactions: "/system/inventory/transactions",
     customers: "/system/customers",
     customerGroups: "/system/customers/groups",
+    customerTiers: "/system/customers/tiers",
     bomList: "/system/manufacturing/boms",
     productionOrders:
         "/system/manufacturing/production-orders"
 } as const;
+

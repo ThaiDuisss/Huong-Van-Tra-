@@ -14,6 +14,7 @@ import {
     Settings,
     ShoppingCart,
     User,
+    BadgePercent,
     Users,
     WalletCards
 } from "lucide-react";
@@ -130,6 +131,11 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 label: "Nhóm khách hàng",
                 to: routePaths.customerGroups,
                 icon: Users
+            },
+            {
+                label: "Hạng khách hàng",
+                to: routePaths.customerTiers,
+                icon: BadgePercent
             }
         ]
     },
@@ -146,3 +152,4 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Settings
     }
 ];
+
