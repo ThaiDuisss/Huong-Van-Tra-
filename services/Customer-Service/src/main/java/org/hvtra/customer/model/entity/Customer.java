@@ -16,6 +16,7 @@ import org.hvtra.customer.model.enums.CustomerType;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -47,12 +48,42 @@ public class Customer extends BaseEntity {
     private CustomerTier tier;
 
     @Column(name = "last_purchase_date")
-    private LocalDate lastPurchaseDate;
+    private LocalDateTime lastPurchaseDate;
 
     @Column(name = "total_spent", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalSpent = BigDecimal.ZERO;
 
+    @Column(name = "total_order_count", nullable = false)
+    private Integer totalOrderCount = 0;
+
     @Column(name = "status", nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     private CustomerStatus status = CustomerStatus.ACTIVE;
+
+    public void changeTier(CustomerTier tier) {
+        this.tier = tier;
+    }
+
+    public void addPurchase(BigDecimal amount, LocalDateTime occurredAt) {
+        this.totalSpent = nonNegative(defaultMoney(this.totalSpent).add(defaultMoney(amount)));
+        this.totalOrderCount = Math.max(defaultCount(this.totalOrderCount) + 1, 0);
+        this.lastPurchaseDate = occurredAt;
+    }
+
+    public void applyPurchaseDelta(BigDecimal amount, int orderCountDelta) {
+        this.totalSpent = nonNegative(defaultMoney(this.totalSpent).add(defaultMoney(amount)));
+        this.totalOrderCount = Math.max(defaultCount(this.totalOrderCount) + orderCountDelta, 0);
+    }
+
+    private BigDecimal defaultMoney(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private int defaultCount(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    private BigDecimal nonNegative(BigDecimal value) {
+        return value.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : value;
+    }
 }

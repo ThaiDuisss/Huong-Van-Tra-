@@ -49,4 +49,34 @@ public class CustomerTierAssignment extends BaseEntity {
 
     @Column(name = "note", length = 500)
     private String note;
+
+    public static CustomerTierAssignment active(Customer customer, CustomerTier tier, Integer qualificationYear,
+                                                CustomerTierAssignmentReason reason, LocalDateTime effectiveFrom,
+                                                LocalDateTime effectiveUntil, String note) {
+        CustomerTierAssignment assignment = new CustomerTierAssignment();
+        assignment.setCustomer(customer);
+        assignment.setTier(tier);
+        assignment.setQualificationYear(qualificationYear);
+        assignment.setAssignmentReason(reason);
+        assignment.setEffectiveFrom(effectiveFrom);
+        assignment.setEffectiveUntil(effectiveUntil);
+        assignment.setStatus(CustomerTierAssignmentStatus.ACTIVE);
+        assignment.setNote(note);
+        return assignment;
+    }
+
+    public void replace(LocalDateTime effectiveUntil) {
+        this.status = CustomerTierAssignmentStatus.REPLACED;
+        this.effectiveUntil = effectiveUntil;
+    }
+
+    public void expire(LocalDateTime effectiveUntil) {
+        this.status = CustomerTierAssignmentStatus.EXPIRED;
+        this.effectiveUntil = effectiveUntil;
+    }
+
+    public void cancel(String note) {
+        this.status = CustomerTierAssignmentStatus.CANCELLED;
+        this.note = note;
+    }
 }

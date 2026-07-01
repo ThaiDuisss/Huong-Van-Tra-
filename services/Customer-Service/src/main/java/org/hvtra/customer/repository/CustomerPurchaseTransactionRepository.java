@@ -1,6 +1,9 @@
 package org.hvtra.customer.repository;
 
 import org.hvtra.customer.model.entity.CustomerPurchaseTransaction;
+import org.hvtra.customer.model.enums.CustomerPurchaseTransactionType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
@@ -13,6 +16,10 @@ public interface CustomerPurchaseTransactionRepository extends JpaRepository<Cus
 
     List<CustomerPurchaseTransaction> findAllByCustomerIdAndIsDeletedFalse(UUID customerId);
 
+    List<CustomerPurchaseTransaction> findByCustomerIdOrderByOccurredAtDesc(UUID customerId);
+
+    Page<CustomerPurchaseTransaction> findByCustomerId(UUID customerId, Pageable pageable);
+
     List<CustomerPurchaseTransaction> findAllByCustomerIdAndOccurredAtBetweenAndIsDeletedFalse(
             UUID customerId,
             LocalDateTime from,
@@ -21,7 +28,11 @@ public interface CustomerPurchaseTransactionRepository extends JpaRepository<Cus
 
     Optional<CustomerPurchaseTransaction> findByIdAndIsDeletedFalse(UUID id);
 
-    Optional<CustomerPurchaseTransaction> findBySourceEventIdAndIsDeletedFalse(String sourceEventId);
+    boolean existsByTransactionTypeAndReferenceId(CustomerPurchaseTransactionType transactionType, UUID referenceId);
 
-    boolean existsBySourceEventIdAndIsDeletedFalse(String sourceEventId);
+    List<CustomerPurchaseTransaction> findByCustomerIdAndOccurredAtBetween(
+            UUID customerId,
+            LocalDateTime from,
+            LocalDateTime to
+    );
 }
