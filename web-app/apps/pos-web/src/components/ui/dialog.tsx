@@ -5,7 +5,6 @@ import {
     type ReactNode,
     useContext,
     useEffect,
-    useRef
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -44,46 +43,50 @@ export function DialogContent({
     className?: string;
 }) {
     const context = useDialogContext();
-    const dialogRef = useRef<HTMLDialogElement>(null);
 
     useEffect(() => {
-        const dialog = dialogRef.current;
-        if (!dialog) return;
+        if (!context.open) return;
 
-        if (context.open && !dialog.open) dialog.showModal();
-        if (!context.open && dialog.open) dialog.close();
-    }, [context.open]);
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                context.onOpenChange(false);
+            }
+        }
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [context]);
 
     if (!context.open) return null;
 
     return createPortal(
-        <dialog
-            aria-modal="true"
-            className={cn(
-                "m-auto max-h-[90vh] w-[min(960px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[#dce5e1] bg-white p-0 text-[#172317] shadow-[0_24px_60px_rgba(24,39,28,0.18)] backdrop:bg-[#172317]/10",
-                className
-            )}
-            onCancel={(event) => {
-                event.preventDefault();
-                context.onOpenChange(false);
-            }}
+        <div
+            className="fixed inset-0 z-50 grid place-items-center bg-[#172317]/10 p-4"
             onClick={(event) => {
                 if (event.target === event.currentTarget) {
                     context.onOpenChange(false);
                 }
             }}
-            ref={dialogRef}
         >
-            <div className="relative">{children}</div>
-            <button
-                aria-label="Đóng"
-                className="absolute right-5 top-4 grid size-8 place-items-center rounded-lg text-[#697684] transition-colors hover:bg-[#f1f5f3] hover:text-[#172317] focus:outline-none focus:ring-2 focus:ring-[#159734]/30"
-                onClick={() => context.onOpenChange(false)}
-                type="button"
+            <div
+                aria-modal="true"
+                className={cn(
+                    "relative max-h-[90vh] w-[min(960px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[#dce5e1] bg-white p-0 text-[#172317] shadow-[0_24px_60px_rgba(24,39,28,0.18)]",
+                    className
+                )}
+                role="dialog"
             >
-                <X aria-hidden="true" size={18} />
-            </button>
-        </dialog>,
+                <div className="relative">{children}</div>
+                <button
+                    aria-label="Đóng"
+                    className="absolute right-5 top-4 grid size-8 place-items-center rounded-lg text-[#697684] transition-colors hover:bg-[#f1f5f3] hover:text-[#172317] focus:outline-none focus:ring-2 focus:ring-[#159734]/30"
+                    onClick={() => context.onOpenChange(false)}
+                    type="button"
+                >
+                    <X aria-hidden="true" size={18} />
+                </button>
+            </div>
+        </div>,
         document.body
     );
 }

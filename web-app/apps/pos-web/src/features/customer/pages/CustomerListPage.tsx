@@ -149,90 +149,88 @@ export function CustomerListPage() {
     }
 
     return (
-        <section className="h-full min-h-0 bg-[#f6f8fb]">
-            <main className="flex h-full min-h-0 flex-col gap-4 p-5 text-[#172317] max-xl:p-4 max-md:p-3">
-                <CustomerPageHeader
-                    appliedFilterCount={appliedFilterCount}
-                    filters={headerFilters}
-                    loading={loading}
-                    searchDraft={searchDraft}
-                    onFiltersChange={applyHeaderFilters}
-                    onCreate={() => setShowCreateDialog(true)}
-                    onSearchDraftChange={setSearchDraft}
-                    onSubmit={submitSearch}
-                />
+        <section className="flex h-full min-h-0 flex-col gap-4 text-[#172317]">
+            <CustomerPageHeader
+                appliedFilterCount={appliedFilterCount}
+                filters={headerFilters}
+                loading={loading}
+                searchDraft={searchDraft}
+                onFiltersChange={applyHeaderFilters}
+                onCreate={() => setShowCreateDialog(true)}
+                onSearchDraftChange={setSearchDraft}
+                onSubmit={submitSearch}
+            />
 
-                <CustomerTierChips
-                    activeTierId={activeTierId}
-                    counts={tierCounts}
-                    sort={sort}
-                    onSortChange={changeSort}
-                    onTierChange={changeTierFilter}
-                />
+            <CustomerTierChips
+                activeTierId={activeTierId}
+                counts={tierCounts}
+                sort={sort}
+                onSortChange={changeSort}
+                onTierChange={changeTierFilter}
+            />
 
-                <CustomerTable
-                    customers={customers}
-                    key={queryString}
-                    loading={loading}
-                    result={result}
-                    selectedIds={selectedCustomerIds}
-                    onSelectedIdsChange={setSelectedCustomerIds}
-                    onCustomerClick={(customer) => void openCustomerDetail(customer)}
-                    onCustomerDelete={setDeletingCustomer}
-                    onCustomerEdit={setEditingCustomer}
-                    onPageChange={changePage}
-                />
+            <CustomerTable
+                customers={customers}
+                key={queryString}
+                loading={loading}
+                result={result}
+                selectedIds={selectedCustomerIds}
+                onSelectedIdsChange={setSelectedCustomerIds}
+                onCustomerClick={(customer) => void openCustomerDetail(customer)}
+                onCustomerDelete={setDeletingCustomer}
+                onCustomerEdit={setEditingCustomer}
+                onPageChange={changePage}
+            />
 
-                <Dialog onOpenChange={setShowCreateDialog} open={showCreateDialog}>
-                    {showCreateDialog && (
-                        <CustomerCreateDialog
-                            tiers={tiers}
-                            onCancel={() => setShowCreateDialog(false)}
-                            onSaved={async () => {
-                                setShowCreateDialog(false);
-                                await reload();
-                            }}
-                        />
-                    )}
-                </Dialog>
+            <Dialog onOpenChange={setShowCreateDialog} open={showCreateDialog}>
+                {showCreateDialog && (
+                    <CustomerCreateDialog
+                        tiers={tiers}
+                        onCancel={() => setShowCreateDialog(false)}
+                        onSaved={async () => {
+                            setShowCreateDialog(false);
+                            await reload();
+                        }}
+                    />
+                )}
+            </Dialog>
 
-                <Dialog
-                    onOpenChange={(open) => {
-                        if (!open) setEditingCustomer(null);
-                    }}
-                    open={editingCustomer !== null}
-                >
-                    {editingCustomer && (
-                        <CustomerCreateDialog
-                            customer={editingCustomer}
-                            tiers={tiers}
-                            onCancel={() => setEditingCustomer(null)}
-                            onSaved={async () => {
-                                setEditingCustomer(null);
-                                await reload();
-                            }}
-                        />
-                    )}
-                </Dialog>
+            <Dialog
+                onOpenChange={(open) => {
+                    if (!open) setEditingCustomer(null);
+                }}
+                open={editingCustomer !== null}
+            >
+                {editingCustomer && (
+                    <CustomerCreateDialog
+                        customer={editingCustomer}
+                        tiers={tiers}
+                        onCancel={() => setEditingCustomer(null)}
+                        onSaved={async () => {
+                            setEditingCustomer(null);
+                            await reload();
+                        }}
+                    />
+                )}
+            </Dialog>
 
-                <Dialog
-                    onOpenChange={(open) => {
-                        if (!open) setDeletingCustomer(null);
-                    }}
-                    open={deletingCustomer !== null}
-                >
-                    {deletingCustomer && (
-                        <CustomerDeleteDialog
-                            customer={deletingCustomer}
-                            onCancel={() => setDeletingCustomer(null)}
-                            onDeleted={async () => {
-                                setDeletingCustomer(null);
-                                await reload();
-                            }}
-                        />
-                    )}
-                </Dialog>
-            </main>
+            <Dialog
+                onOpenChange={(open) => {
+                    if (!open) setDeletingCustomer(null);
+                }}
+                open={deletingCustomer !== null}
+            >
+                {deletingCustomer && (
+                    <CustomerDeleteDialog
+                        customer={deletingCustomer}
+                        onCancel={() => setDeletingCustomer(null)}
+                        onDeleted={async () => {
+                            setDeletingCustomer(null);
+                            await reload();
+                        }}
+                    />
+                )}
+            </Dialog>
             <CustomerDetailDrawer
                 customer={selectedCustomer}
                 error={detailError}

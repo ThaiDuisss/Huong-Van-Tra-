@@ -166,6 +166,11 @@ export function CustomerDetailDrawer({
                                     label="Ngày sinh"
                                     value={formatDate(customer.dateOfBirth)}
                                 />
+                                <InfoRow
+                                    icon={UserRound}
+                                    label="Loại khách"
+                                    value={customerTypeLabel(customer.customerType)}
+                                />
                             </div>
                         </section>
 
@@ -279,4 +284,8 @@ function formatCurrency(value: number) {
 function formatDate(value: string | null) {
     if (!value) return "Chưa cập nhật";
     return new Intl.DateTimeFormat("vi-VN").format(new Date(value));
+}
+
+function customerTypeLabel(value: CustomerResponse["customerType"]) {
+    return value === "BUSINESS" ? "Doanh nghiệp" : "Cá nhân";
 }

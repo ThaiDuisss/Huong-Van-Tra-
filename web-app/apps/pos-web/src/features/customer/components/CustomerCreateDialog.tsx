@@ -9,6 +9,13 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "../../../components/ui/select";
+import {
     CUSTOMER_BUTTON_BASE,
     CUSTOMER_COMPACT_BUTTON,
     CUSTOMER_FIELD_CLASS_NAME
@@ -18,7 +25,8 @@ import type {
     CreateCustomerRequest,
     CustomerResponse,
     CustomerStatus,
-    CustomerTierResponse
+    CustomerTierResponse,
+    CustomerType
 } from "../types/customer.types";
 import { customerErrorMessage } from "../utils/customer-list.utils";
 
@@ -34,6 +42,7 @@ interface CustomerFormDraft {
     phone: string;
     email: string;
     dateOfBirth: string;
+    customerType: CustomerType;
     tierId: string;
     creditLimit: string;
     status: CustomerStatus;
@@ -44,6 +53,7 @@ const EMPTY_DRAFT: CustomerFormDraft = {
     phone: "",
     email: "",
     dateOfBirth: "",
+    customerType: "INDIVIDUAL",
     tierId: "",
     creditLimit: "0",
     status: "ACTIVE"
@@ -62,6 +72,7 @@ export function CustomerCreateDialog({
                   phone: customer.phone,
                   email: customer.email ?? "",
                   dateOfBirth: customer.dateOfBirth ?? "",
+                  customerType: customer.customerType ?? "INDIVIDUAL",
                   tierId: customer.tierId ?? "",
                   creditLimit: String(customer.creditLimit),
                   status: customer.status
@@ -89,6 +100,7 @@ export function CustomerCreateDialog({
             phone: draft.phone.trim(),
             email: draft.email.trim() || null,
             dateOfBirth: draft.dateOfBirth || null,
+            customerType: draft.customerType,
             tierId: draft.tierId || null,
             creditLimit: draft.creditLimit ? Number(draft.creditLimit) : 0,
             lastPurchaseDate: customer?.lastPurchaseDate ?? null,
@@ -178,23 +190,44 @@ export function CustomerCreateDialog({
                         />
                     </FormField>
 
-                    <FormField label="Hạng thành viên">
-                        <select
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            onChange={(event) =>
-                                update("tierId", event.target.value)
+                    <FormField label="Loại khách hàng">
+                        <Select
+                            className="w-full"
+                            onValueChange={(value) =>
+                                update("customerType", value as CustomerType)
                             }
+                            value={draft.customerType}
+                        >
+                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="INDIVIDUAL">Cá nhân</SelectItem>
+                                <SelectItem value="BUSINESS">Doanh nghiệp</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </FormField>
+
+                    <FormField label="Hạng thành viên">
+                        <Select
+                            className="w-full"
+                            onValueChange={(value) => update("tierId", value)}
                             value={draft.tierId}
                         >
-                            <option value="">Chưa xếp hạng</option>
-                            {tiers
-                                .filter((tier) => tier.status === "ACTIVE")
-                                .map((tier) => (
-                                    <option key={tier.id} value={tier.id}>
-                                        {tier.name}
-                                    </option>
-                                ))}
-                        </select>
+                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">Chưa xếp hạng</SelectItem>
+                                {tiers
+                                    .filter((tier) => tier.status === "ACTIVE")
+                                    .map((tier) => (
+                                        <SelectItem key={tier.id} value={tier.id}>
+                                            {tier.name}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
                     </FormField>
 
                     <FormField label="Hạn mức tín dụng">
@@ -211,20 +244,22 @@ export function CustomerCreateDialog({
                     </FormField>
 
                     <FormField label="Trạng thái">
-                        <select
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            onChange={(event) =>
-                                update(
-                                    "status",
-                                    event.target.value as CustomerStatus
-                                )
+                        <Select
+                            className="w-full"
+                            onValueChange={(value) =>
+                                update("status", value as CustomerStatus)
                             }
                             value={draft.status}
                         >
-                            <option value="ACTIVE">Hoạt động</option>
-                            <option value="INACTIVE">Không hoạt động</option>
-                            <option value="SUSPENDED">Tạm khóa</option>
-                        </select>
+                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                                <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                                <SelectItem value="SUSPENDED">Tạm khóa</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </FormField>
 
                     {error && (

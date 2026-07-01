@@ -1,7 +1,6 @@
 import {
     AlertCircle,
     ArrowUpDown,
-    ChevronDown,
     FileInput,
     FileOutput,
     Filter,
@@ -18,6 +17,13 @@ import {
     useState
 } from "react";
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "../../../components/ui/select";
 import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
 import {
     CUSTOMER_BUTTON_BASE,
@@ -395,24 +401,18 @@ function FilterSelect({
     value: string;
 }) {
     return (
-        <span className="relative flex h-11 items-center rounded-lg border border-[#dce5e1] bg-white">
-            <select
-                className="h-full w-full appearance-none bg-transparent px-3 pr-9 text-sm font-semibold text-[#172317] outline-none"
-                onChange={(event) => onChange(event.currentTarget.value)}
-                value={value}
-            >
+        <Select className="w-full" onValueChange={onChange} value={value}>
+            <SelectTrigger className="h-11 w-full rounded-lg px-3 text-[#172317]">
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
                 {options.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <SelectItem key={option.value} value={option.value}>
                         {option.label}
-                    </option>
+                    </SelectItem>
                 ))}
-            </select>
-            <ChevronDown
-                aria-hidden="true"
-                className="pointer-events-none absolute right-3 text-[#8a96a3]"
-                size={15}
-            />
-        </span>
+            </SelectContent>
+        </Select>
     );
 }
 
@@ -477,26 +477,25 @@ export function CustomerTierChips({
                         );
                     })}
                 </nav>
-                <label className={`${CUSTOMER_SECONDARY_ACTION_CLASS} relative pr-9`}>
-                    <ArrowUpDown size={17} aria-hidden="true" />
-                    <select
+                <Select
+                    onValueChange={(value) => onSortChange(value as CustomerSort)}
+                    value={sort}
+                >
+                    <SelectTrigger
                         aria-label="Sắp xếp danh sách khách hàng"
-                        className="h-full appearance-none bg-transparent pr-1 text-sm font-bold outline-none"
-                        onChange={(event) => onSortChange(event.currentTarget.value as CustomerSort)}
-                        value={sort}
+                        className={`${CUSTOMER_SECONDARY_ACTION_CLASS} h-11 min-w-[210px]`}
                     >
+                        <ArrowUpDown size={17} aria-hidden="true" />
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="w-56">
                         {CUSTOMER_SORT_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
+                            <SelectItem key={option.value} value={option.value}>
                                 {option.label}
-                            </option>
+                            </SelectItem>
                         ))}
-                    </select>
-                    <ChevronDown
-                        aria-hidden="true"
-                        className="pointer-events-none absolute right-3 text-[#8a96a3]"
-                        size={15}
-                    />
-                </label>
+                    </SelectContent>
+                </Select>
             </div>
         </section>
     );
@@ -628,26 +627,25 @@ export function CustomerListToolbar({
                 >
                     {bulkSelection ? "Bỏ chọn" : "Chọn nhiều"}
                 </button>
-                <label className="relative flex h-8 items-center rounded-lg border border-[#dce5e1] bg-white text-xs font-extrabold text-[#4c5a67] hover:bg-[#f7fbf8]">
-                    <span className="pl-3">Sắp xếp:</span>
-                    <select
+                <Select
+                    onValueChange={(value) => onSortChange(value as CustomerSort)}
+                    value={sort || CUSTOMER_DEFAULT_SORT_BY_TAB[activeTab]}
+                >
+                    <SelectTrigger
                         aria-label="Sắp xếp danh sách khách hàng"
-                        className="h-full appearance-none bg-transparent py-0 pl-1.5 pr-8 font-extrabold outline-none"
-                        onChange={(event) => onSortChange(event.target.value as CustomerSort)}
-                        value={sort || CUSTOMER_DEFAULT_SORT_BY_TAB[activeTab]}
+                        className="h-8 min-w-[210px] rounded-lg px-2.5 text-xs font-extrabold text-[#4c5a67]"
                     >
+                        <span className="text-[#697684]">Sắp xếp:</span>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="w-56">
                         {CUSTOMER_SORT_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
+                            <SelectItem key={option.value} value={option.value}>
                                 {option.label}
-                            </option>
+                            </SelectItem>
                         ))}
-                    </select>
-                    <ChevronDown
-                        aria-hidden="true"
-                        className="pointer-events-none absolute right-2.5"
-                        size={14}
-                    />
-                </label>
+                    </SelectContent>
+                </Select>
             </div>
         </div>
     );

@@ -1,6 +1,7 @@
 import type { QueryParams } from "@hvt/api-client";
 
 export type CustomerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
+export type CustomerType = "INDIVIDUAL" | "BUSINESS";
 export type CustomerSort =
     | "lastPurchaseDesc"
     | "lastPurchaseAsc"
@@ -16,6 +17,7 @@ export interface CustomerResponse {
     phone: string;
     email: string | null;
     dateOfBirth: string | null;
+    customerType: CustomerType;
     tierId: string | null;
     tierCode: string | null;
     tierName: string | null;
@@ -33,6 +35,7 @@ export interface CreateCustomerRequest {
     phone: string;
     email?: string | null;
     dateOfBirth?: string | null;
+    customerType?: CustomerType | null;
     tierId?: string | null;
     creditLimit?: number | null;
     lastPurchaseDate?: string | null;
@@ -45,6 +48,7 @@ export interface CustomerTierResponse {
     code: string;
     name: string;
     minSpending: number;
+    minOrderCount: number;
     discountRate: number;
     status: "ACTIVE" | "INACTIVE";
     colorCode: string;

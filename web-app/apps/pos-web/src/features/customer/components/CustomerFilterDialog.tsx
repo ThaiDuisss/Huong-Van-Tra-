@@ -8,6 +8,13 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "../../../components/ui/select";
+import {
     CUSTOMER_BUTTON_BASE,
     CUSTOMER_COMPACT_BUTTON,
     CUSTOMER_FIELD_CLASS_NAME
@@ -55,23 +62,26 @@ export function CustomerFilterDialog({
                 <div className="grid max-h-[65vh] grid-cols-3 overflow-y-auto p-2 max-lg:grid-cols-1">
                     <FilterGroup title="Thông tin khách hàng">
                         <FilterField label="Trạng thái">
-                            <select
-                                className={CUSTOMER_FIELD_CLASS_NAME}
-                                onChange={(event) =>
+                            <Select
+                                className="w-full"
+                                onValueChange={(value) =>
                                     onChange({
                                         ...draft,
-                                        status: event.target.value as
-                                            | CustomerStatus
-                                            | ""
+                                        status: value as CustomerStatus | ""
                                     })
                                 }
                                 value={draft.status}
                             >
-                                <option value="">Tất cả trạng thái</option>
-                                <option value="ACTIVE">Hoạt động</option>
-                                <option value="INACTIVE">Không hoạt động</option>
-                                <option value="SUSPENDED">Tạm khóa</option>
-                            </select>
+                                <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">Tất cả trạng thái</SelectItem>
+                                    <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                                    <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                                    <SelectItem value="SUSPENDED">Tạm khóa</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </FilterField>
                         <FilterField label="Hạng thành viên">
                             <TierChecks
@@ -98,29 +108,34 @@ export function CustomerFilterDialog({
                         </FilterField>
                         <div className="grid grid-cols-2 gap-3">
                             <FilterField label="Tháng sinh">
-                                <select
-                                    className={CUSTOMER_FIELD_CLASS_NAME}
-                                    onChange={(event) =>
+                                <Select
+                                    className="w-full"
+                                    onValueChange={(value) =>
                                         onChange({
                                             ...draft,
-                                            birthMonth: event.target.value
+                                            birthMonth: value
                                         })
                                     }
                                     value={draft.birthMonth}
                                 >
-                                    <option value="">Tất cả tháng</option>
-                                    {Array.from(
-                                        { length: 12 },
-                                        (_, index) => (
-                                            <option
-                                                key={index + 1}
-                                                value={index + 1}
-                                            >
-                                                Tháng {index + 1}
-                                            </option>
-                                        )
-                                    )}
-                                </select>
+                                    <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="">Tất cả tháng</SelectItem>
+                                        {Array.from(
+                                            { length: 12 },
+                                            (_, index) => (
+                                                <SelectItem
+                                                    key={index + 1}
+                                                    value={String(index + 1)}
+                                                >
+                                                    Tháng {index + 1}
+                                                </SelectItem>
+                                            )
+                                        )}
+                                    </SelectContent>
+                                </Select>
                             </FilterField>
                             <FilterField label="Năm sinh">
                                 <input
@@ -173,25 +188,30 @@ export function CustomerFilterDialog({
                             )}
                         </FilterField>
                         <FilterField label="Chưa từng mua hàng">
-                            <select
-                                className={CUSTOMER_FIELD_CLASS_NAME}
-                                onChange={(event) =>
+                            <Select
+                                className="w-full"
+                                onValueChange={(value) =>
                                     onChange({
                                         ...draft,
-                                        hasPurchased: event.target
-                                            .value as CustomerFilterDraft["hasPurchased"]
+                                        hasPurchased:
+                                            value as CustomerFilterDraft["hasPurchased"]
                                     })
                                 }
                                 value={draft.hasPurchased}
                             >
-                                <option value="">Không giới hạn</option>
-                                <option value="false">
-                                    Chỉ khách chưa từng mua
-                                </option>
-                                <option value="true">
-                                    Chỉ khách đã từng mua
-                                </option>
-                            </select>
+                                <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">Không giới hạn</SelectItem>
+                                    <SelectItem value="false">
+                                        Chỉ khách chưa từng mua
+                                    </SelectItem>
+                                    <SelectItem value="true">
+                                        Chỉ khách đã từng mua
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
                         </FilterField>
                     </FilterGroup>
                 </div>
