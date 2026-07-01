@@ -5,7 +5,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerAddressRequest;
@@ -30,20 +29,22 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @RequestMapping(ApiPath.CUSTOMER_ADDRESSES)
 @Tag(name = "Customer Addresses", description = "CRUD địa chỉ khách hàng")
-@Slf4j
 public class CustomerAddressController {
+
     private final CustomerAddressService customerAddressService;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách địa chỉ khách hàng")
     public List<CustomerAddressResponse> getAll(
-            @Parameter(description = "Lọc theo ID khách hàng") @RequestParam(name = ApiParam.CUSTOMER_ID, required = false) UUID customerId) {
+            @Parameter(description = "Lọc theo ID khách hàng")
+            @RequestParam(name = ApiParam.CUSTOMER_ID, required = false) UUID customerId) {
         return customerAddressService.getAll(customerId);
     }
 
     @GetMapping(ApiPath.ID)
     @Operation(summary = "Lấy chi tiết địa chỉ khách hàng")
-    public CustomerAddressResponse getById(@Parameter(description = "ID địa chỉ") @PathVariable(ApiParam.ID) UUID id) {
+    public CustomerAddressResponse getById(
+            @Parameter(description = "ID địa chỉ") @PathVariable(ApiParam.ID) UUID id) {
         return customerAddressService.getById(id);
     }
 
@@ -56,15 +57,17 @@ public class CustomerAddressController {
 
     @PutMapping(ApiPath.ID)
     @Operation(summary = "Cập nhật địa chỉ khách hàng")
-    public CustomerAddressResponse update(@Parameter(description = "ID địa chỉ") @PathVariable(ApiParam.ID) UUID id,
-                                          @Valid @RequestBody CustomerAddressRequest request) {
+    public CustomerAddressResponse update(
+            @Parameter(description = "ID địa chỉ") @PathVariable(ApiParam.ID) UUID id,
+            @Valid @RequestBody CustomerAddressRequest request) {
         return customerAddressService.update(id, request);
     }
 
     @DeleteMapping(ApiPath.ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Xóa mềm địa chỉ khách hàng")
-    public void delete(@Parameter(description = "ID địa chỉ") @PathVariable(ApiParam.ID) UUID id) {
+    public void delete(
+            @Parameter(description = "ID địa chỉ") @PathVariable(ApiParam.ID) UUID id) {
         customerAddressService.delete(id);
     }
 }

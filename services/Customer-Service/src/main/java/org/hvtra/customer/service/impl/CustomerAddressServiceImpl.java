@@ -69,6 +69,9 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
         customerAddressRepository.save(address);
     }
 
+
+    //======================================= Helper classes =======================================
+
     private void clearOtherDefaults(CustomerAddress address) {
         if (Boolean.TRUE.equals(address.getIsDefault())) {
             customerAddressRepository.clearDefaultForCustomer(address.getCustomer().getId(), address.getId());

@@ -46,9 +46,6 @@ public class Customer extends BaseEntity {
     @JoinColumn(name = "tier_id")
     private CustomerTier tier;
 
-    @Column(name = "credit_limit", nullable = false, precision = 15, scale = 2)
-    private BigDecimal creditLimit = BigDecimal.ZERO;
-
     @Column(name = "last_purchase_date")
     private LocalDate lastPurchaseDate;
 

@@ -101,6 +101,8 @@ public class CustomerTierServiceImpl implements CustomerTierService {
         customerTierRepository.save(tier);
     }
 
+    //======================================= Helper classes =======================================
+
     private CustomerTier findTier(UUID id) {
         return customerTierRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> notFound(Message.CUSTOMER_TIER_NOT_FOUND));

@@ -15,7 +15,6 @@ import {
     Settings,
     ShoppingCart,
     User,
-    BadgePercent,
     Users,
     WalletCards,
     Warehouse

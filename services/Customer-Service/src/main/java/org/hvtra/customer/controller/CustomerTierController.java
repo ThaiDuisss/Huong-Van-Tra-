@@ -12,7 +12,6 @@ import org.hvtra.customer.dto.response.CustomerTierCountResponse;
 import org.hvtra.customer.dto.response.CustomerTierResponse;
 import org.hvtra.customer.service.CustomerTierService;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,6 +29,7 @@ import java.util.UUID;
 @RequestMapping(ApiPath.CUSTOMER_TIERS)
 @Tag(name = "Customer Tiers", description = "CRUD hạng khách hàng")
 public class CustomerTierController {
+
     private final CustomerTierService customerTierService;
 
     @GetMapping
@@ -46,7 +46,8 @@ public class CustomerTierController {
 
     @GetMapping(ApiPath.ID)
     @Operation(summary = "Lấy chi tiết hạng khách hàng")
-    public CustomerTierResponse getById(@Parameter(description = "ID hạng khách hàng") @PathVariable(ApiParam.ID) UUID id) {
+    public CustomerTierResponse getById(
+            @Parameter(description = "ID hạng khách hàng") @PathVariable(ApiParam.ID) UUID id) {
         return customerTierService.getById(id);
     }
 
@@ -58,16 +59,10 @@ public class CustomerTierController {
     }
 
     @PutMapping(ApiPath.ID)
-    @Operation(summary = "Cập nhật hạng khách hàng")
-    public CustomerTierResponse update(@Parameter(description = "ID hạng khách hàng") @PathVariable(ApiParam.ID) UUID id,
-                                       @Valid @RequestBody CustomerTierRequest request) {
+    @Operation(summary = "Cập nhật hạng khách hàng (kể cả đổi status = INACTIVE để vô hiệu hóa)")
+    public CustomerTierResponse update(
+            @Parameter(description = "ID hạng khách hàng") @PathVariable(ApiParam.ID) UUID id,
+            @Valid @RequestBody CustomerTierRequest request) {
         return customerTierService.update(id, request);
-    }
-
-    @DeleteMapping(ApiPath.ID)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Xóa mềm hạng khách hàng")
-    public void delete(@Parameter(description = "ID hạng khách hàng") @PathVariable(ApiParam.ID) UUID id) {
-        customerTierService.delete(id);
     }
 }

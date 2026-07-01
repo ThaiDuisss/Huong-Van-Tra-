@@ -19,7 +19,7 @@ import java.math.BigDecimal;
 public class CustomerMapper {
     public CustomerTierResponse toResponse(CustomerTier tier) {
         return new CustomerTierResponse(tier.getId(), tier.getCode(), tier.getName(),
-                tier.getMinSpending(), tier.getMinOrderCount(), tier.getDiscountRate(), tier.getStatus(), tier.getColorCode());
+                tier.getMinSpending(), tier.getMinOrderCount(), tier.getStatus(), tier.getColorCode());
     }
 
     public CustomerResponse toResponse(Customer customer) {
@@ -36,7 +36,6 @@ public class CustomerMapper {
                 tier == null ? null : tier.getCode(),
                 tier == null ? null : tier.getName(),
                 tier == null ? null : tier.getColorCode(),
-                customer.getCreditLimit(),
                 customer.getLastPurchaseDate(),
                 customer.getTotalSpent(),
                 customer.getStatus(),
@@ -67,7 +66,6 @@ public class CustomerMapper {
         tier.setName(request.name());
         tier.setMinSpending(defaultMoney(request.minSpending()));
         tier.setMinOrderCount(defaultCount(request.minOrderCount()));
-        tier.setDiscountRate(defaultMoney(request.discountRate()));
         tier.setStatus(request.status());
     }
 
@@ -79,7 +77,6 @@ public class CustomerMapper {
         customer.setDateOfBirth(request.dateOfBirth());
         customer.setCustomerType(request.customerType());
         customer.setTier(tier);
-        customer.setCreditLimit(defaultMoney(request.creditLimit()));
         customer.setLastPurchaseDate(request.lastPurchaseDate());
         customer.setTotalSpent(defaultMoney(request.totalSpent()));
         customer.setStatus(request.status());

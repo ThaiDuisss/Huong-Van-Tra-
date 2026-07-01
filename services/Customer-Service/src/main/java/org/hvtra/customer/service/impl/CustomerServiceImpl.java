@@ -163,6 +163,8 @@ public class CustomerServiceImpl implements CustomerService {
         customerRepository.save(customer);
     }
 
+    //======================================= Helper classes =======================================
+
     // Tìm khách hàng chưa bị xóa hoặc ném lỗi nếu không tồn tại.
     private Customer findCustomer(UUID id) {
         return customerRepository.findByIdAndIsDeletedFalse(id)

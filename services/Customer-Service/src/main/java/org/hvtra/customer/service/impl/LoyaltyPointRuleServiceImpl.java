@@ -77,6 +77,8 @@ public class LoyaltyPointRuleServiceImpl implements LoyaltyPointRuleService {
         loyaltyPointRuleRepository.save(rule);
     }
 
+    //======================================= Helper classes =======================================
+
     private LoyaltyPointRule findRule(UUID id) {
         return loyaltyPointRuleRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> notFound(Message.LOYALTY_POINT_RULE_NOT_FOUND));

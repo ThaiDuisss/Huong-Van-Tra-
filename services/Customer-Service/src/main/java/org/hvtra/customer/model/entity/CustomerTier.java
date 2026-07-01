@@ -33,9 +33,6 @@ public class CustomerTier extends BaseEntity {
     @Column(name = "min_order_count", nullable = false)
     private Integer minOrderCount = 0;
 
-    @Column(name = "discount_rate", nullable = false, precision = 5, scale = 2)
-    private BigDecimal discountRate = BigDecimal.ZERO;
-
     @Column(name = "status", nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     private CustomerTierStatus status = CustomerTierStatus.ACTIVE;

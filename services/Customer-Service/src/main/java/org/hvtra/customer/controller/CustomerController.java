@@ -7,7 +7,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.infrastructure.client.OrderClient;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
@@ -31,8 +30,8 @@ import java.util.UUID;
 @RequestMapping(ApiPath.CUSTOMER_BASE)
 @Tag(name = "Customers", description = "CRUD khách hàng")
 public class CustomerController {
+
     private final CustomerService customerService;
-    private final OrderClient orderClient;
 
     @GetMapping
     @Operation(
@@ -48,30 +47,6 @@ public class CustomerController {
             @Parameter(description = "Kiểu sắp xếp của màn hình danh sách khách hàng")
             @RequestParam(name = "sort", required = false, defaultValue = "lastPurchaseDesc") String sort) {
         return customerService.findAll(filter, toPageable(page, size, sort));
-    }
-
-    private Pageable toPageable(Integer page, Integer size, String sortValue) {
-        Sort sort = customerSort(sortValue);
-        if (page == null && size == null) {
-            return Pageable.unpaged(sort);
-        }
-        return PageRequest.of(
-                page == null ? 0 : page,
-                size == null ? 20 : size,
-                sort
-        );
-    }
-
-    private Sort customerSort(String value) {
-        Sort.Order primary = switch (value) {
-            case "lastPurchaseAsc" -> Sort.Order.asc("lastPurchaseDate");
-            case "createdDesc" -> Sort.Order.desc("createdAt");
-            case "createdAsc" -> Sort.Order.asc("createdAt");
-            case "nameAsc" -> Sort.Order.asc("fullName");
-            case "nameDesc" -> Sort.Order.desc("fullName");
-            default -> Sort.Order.desc("lastPurchaseDate");
-        };
-        return Sort.by(primary, Sort.Order.asc("fullName"));
     }
 
     @GetMapping(ApiPath.ID)
@@ -113,5 +88,31 @@ public class CustomerController {
         customerService.delete(id);
     }
 
+    // =========================================================================
+    // Helpers
+    // =========================================================================
 
+    private Pageable toPageable(Integer page, Integer size, String sortValue) {
+        Sort sort = customerSort(sortValue);
+        if (page == null && size == null) {
+            return Pageable.unpaged(sort);
+        }
+        return PageRequest.of(
+                page == null ? 0 : page,
+                size == null ? 20 : size,
+                sort
+        );
+    }
+
+    private Sort customerSort(String value) {
+        Sort.Order primary = switch (value) {
+            case "lastPurchaseAsc" -> Sort.Order.asc("lastPurchaseDate");
+            case "createdDesc"     -> Sort.Order.desc("createdAt");
+            case "createdAsc"      -> Sort.Order.asc("createdAt");
+            case "nameAsc"         -> Sort.Order.asc("fullName");
+            case "nameDesc"        -> Sort.Order.desc("fullName");
+            default                -> Sort.Order.desc("lastPurchaseDate");
+        };
+        return Sort.by(primary, Sort.Order.asc("fullName"));
+    }
 }

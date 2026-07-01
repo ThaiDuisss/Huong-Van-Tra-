@@ -20,7 +20,6 @@ public record CustomerResponse(
         String tierCode,
         String tierName,
         String tierColor,
-        BigDecimal creditLimit,
         LocalDate lastPurchaseDate,
         BigDecimal totalSpent,
         CustomerStatus status,
