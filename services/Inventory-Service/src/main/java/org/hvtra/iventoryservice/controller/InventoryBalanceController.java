@@ -2,12 +2,14 @@ package org.hvtra.iventoryservice.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
+import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
-
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -33,18 +35,18 @@ public class InventoryBalanceController {
         return service.findById(id);
     }
 
-    @GetMapping("/view")
-    public PageResponse<org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse> findAllView(
-            @RequestParam(name = "branchId", required = false) UUID branchId,
-            @RequestParam(name = "locationId", required = false) UUID locationId,
+    @GetMapping("/store")
+    public PageResponse<InventoryBalanceViewResponse> findAllView(
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productCode", required = false) String productCode,
             @RequestParam(name = "productName", required = false) String productName,
             @RequestParam(name = "categoryCode", required = false) String categoryCode,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "unitId", required = false) UUID unitId,
+            @RequestParam(name = "locationId", required = false) UUID locationId,
+            @RequestParam(name = "branchId", required = false) UUID branchId,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
-        return service.findAllView(branchId, locationId, sku, productCode, productName, categoryCode, categoryId, unitId, pageable);
+        return service.findAllView(sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, pageable);
     }
 
     @Tag(
@@ -52,9 +54,15 @@ public class InventoryBalanceController {
             description = "Output: Id, locationId, inventoryItemId, variantId, itemType, quantityOnHand, quantityReserved, availableQuantity, status"
     )
     @GetMapping("/search-view-pos")
-    public java.util.List<org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse> findWarehouseBalances(
+    public List<InventoryBalanceWarehouseResponse> findWarehouseBalances(
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productName", required = false) String productName) {
         return service.findWarehouseBalances(sku, productName);
     }
+
+    @PutMapping("/location")
+    public void bulkUpdateLocation() {
+        service.bulkUpdateLocation();
+    }
 }
+

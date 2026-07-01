@@ -8,6 +8,7 @@ import { SaleWorkspace } from "../components/workspace/SaleWorkspace";
 import { mockDiscounts } from "../mock/discounts.mock";
 import { posCustomerApi } from "../services/posCustomer.api";
 import { completePosCheckout } from "../services/posCheckout.service";
+import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
 import { posProductApi } from "../services/posProduct.api";
 import {
     calculateDiscountAmount,
@@ -56,6 +57,42 @@ function logApiError(error: unknown) {
     console.error("POS API error", error);
 }
 
+function toNumber(value: number | string | null | undefined) {
+    const numberValue = Number(value ?? 0);
+
+    return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function orderToCartItemsById(order: PosOrderDto): Record<string, SaleCartItem> {
+    const items = order.items ?? [];
+
+    return Object.fromEntries(
+        items.map((item) => {
+            const productVariantId = item.productVariantId;
+            const quantity = toNumber(item.quantity);
+            const unitPrice = toNumber(item.actualUnitPrice ?? item.unitPrice);
+
+            return [
+                productVariantId,
+                {
+                    itemId: item.id,
+                    productId: productVariantId,
+                    productVariantId,
+                    name:
+                        item.productNameSnapshot ??
+                        item.productName ??
+                        "Sản phẩm",
+                    sku: item.skuSnapshot ?? item.sku ?? "",
+                    variant: item.variantNameSnapshot ?? "",
+                    quantity,
+                    unitPrice,
+                    inventoryLocationId: null
+                }
+            ];
+        })
+    );
+}
+
 export function PosSalePage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<
@@ -69,6 +106,7 @@ export function PosSalePage() {
     const [cartItemsById, setCartItemsById] = useState<
         Record<string, SaleCartItem>
     >(initialCartItems);
+    const [draftOrder, setDraftOrder] = useState<PosOrderDto | null>(null);
     const [note, setNote] = useState("");
     const [orderType, setOrderType] =
         useState<SaleOrderType>("QUICK_SALE");
@@ -173,6 +211,7 @@ export function PosSalePage() {
 
         try {
             const checkout = await completePosCheckout({
+                orderId: draftOrder?.id ?? null,
                 cartItems,
                 orderType,
                 paymentMethod,
@@ -185,6 +224,7 @@ export function PosSalePage() {
             });
 
             setCartItemsById({});
+            setDraftOrder(null);
             setNote("");
             setSelectedDiscountId("none");
             setSubtotalOverride(null);
@@ -246,29 +286,9 @@ export function PosSalePage() {
         }));
     }
 
-    function upsertCartItem(product: SaleProductPreview) {
-        setCheckoutError("");
-        setCheckoutSuccess("");
-        setCartItemsById((currentItems) => {
-            const currentItem = currentItems[product.id];
-            const nextQuantity = (currentItem?.quantity ?? 0) + 1;
-
-            return {
-                ...currentItems,
-                [product.id]: {
-                    productId: product.id,
-                    productVariantId: product.productVariantId,
-                    name: product.name,
-                    sku: product.sku,
-                    variant: product.variant,
-                    quantity: nextQuantity,
-                    unitPrice: product.price,
-                    availableQuantity: product.availableQuantity,
-                    quantityOnHand: product.quantityOnHand,
-                    quantityReserved: product.quantityReserved
-                }
-            };
-        });
+    function applyDraftOrder(order: PosOrderDto) {
+        setDraftOrder(order);
+        setCartItemsById(orderToCartItemsById(order));
     }
 
     async function addProduct(product: SaleProductPreview) {
@@ -279,11 +299,9 @@ export function PosSalePage() {
         }
 
         if (!variantId) {
-            setCheckoutError("Không xác định được mã biến thể sản phẩm.");
+            setCheckoutError("Không xác định được mã Mặt hàng.");
             return false;
         }
-
-        const currentQuantity = cartItemsById[product.id]?.quantity ?? 0;
 
         if (
             product.availableQuantity !== null &&
@@ -293,24 +311,19 @@ export function PosSalePage() {
             return false;
         }
 
-        if (
-            product.availableQuantity !== null &&
-            currentQuantity + 1 > product.availableQuantity
-        ) {
-            setCheckoutError("Số lượng vượt quá tồn kho khả dụng");
-            return false;
-        }
-
         setAddingProductId(product.id);
 
         try {
-            const snapshot = await posProductApi.getPosView(variantId);
-            upsertCartItem({
-                ...snapshot,
-                availableQuantity: product.availableQuantity,
-                quantityOnHand: product.quantityOnHand,
-                quantityReserved: product.quantityReserved
+            const order = await posOrderApi.addDraftItem({
+                orderId: draftOrder?.id ?? null,
+                customerId: selectedCustomerId,
+                orderType,
+                productVariantId: variantId,
+                inventoryLocationId: product.inventoryLocationId
             });
+            applyDraftOrder(order);
+            setCheckoutError("");
+            setCheckoutSuccess("");
             return true;
         } catch (error) {
             logApiError(error);
@@ -350,67 +363,57 @@ export function PosSalePage() {
         setSearchLoading(false);
     }
 
-    function incrementProduct(productId: string) {
-        setCartItemsById((currentItems) => {
-            const currentItem = currentItems[productId];
+    async function updateCartItemQuantity(productId: string, quantity: number) {
+        const currentItem = cartItemsById[productId];
 
-            if (!currentItem) {
-                return currentItems;
-            }
+        if (!draftOrder?.id || !currentItem?.itemId) {
+            setCheckoutError("Hóa đơn nháp chưa sẵn sàng.");
+            return;
+        }
 
-            if (
-                currentItem.availableQuantity !== null &&
-                currentItem.availableQuantity !== undefined &&
-                currentItem.quantity + 1 > currentItem.availableQuantity
-            ) {
-                setCheckoutError("Số lượng vượt quá tồn kho khả dụng");
-                return currentItems;
-            }
-
+        try {
+            const order =
+                quantity <= 0
+                    ? await posOrderApi.removeDraftItem(
+                        draftOrder.id,
+                        currentItem.itemId
+                    )
+                    : await posOrderApi.updateDraftItemQuantity(
+                        draftOrder.id,
+                        currentItem.itemId,
+                        quantity
+                    );
+            applyDraftOrder(order);
             setCheckoutError("");
+            setCheckoutSuccess("");
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(getErrorMessage(error));
+        }
+    }
 
-            return {
-                ...currentItems,
-                [productId]: {
-                    ...currentItem,
-                    quantity: currentItem.quantity + 1
-                }
-            };
-        });
+    function incrementProduct(productId: string) {
+        const currentItem = cartItemsById[productId];
+
+        if (!currentItem) {
+            return;
+        }
+
+        void updateCartItemQuantity(productId, currentItem.quantity + 1);
     }
 
     function decrementProduct(productId: string) {
-        setCartItemsById((currentItems) => {
-            const currentItem = currentItems[productId];
+        const currentItem = cartItemsById[productId];
 
-            if (!currentItem) {
-                return currentItems;
-            }
+        if (!currentItem) {
+            return;
+        }
 
-            if (currentItem.quantity <= 1) {
-                const nextItems = { ...currentItems };
-                delete nextItems[productId];
-
-                return nextItems;
-            }
-
-            return {
-                ...currentItems,
-                [productId]: {
-                    ...currentItem,
-                    quantity: currentItem.quantity - 1
-                }
-            };
-        });
+        void updateCartItemQuantity(productId, currentItem.quantity - 1);
     }
 
     function removeProduct(productId: string) {
-        setCartItemsById((currentItems) => {
-            const nextItems = { ...currentItems };
-            delete nextItems[productId];
-
-            return nextItems;
-        });
+        void updateCartItemQuantity(productId, 0);
     }
 
     function changePaymentMethod(method: SalePaymentMethod) {
@@ -418,6 +421,27 @@ export function PosSalePage() {
 
         if (method === "BANK_TRANSFER") {
             setBankTransferStatus("WAITING");
+        }
+    }
+
+    async function closeCurrentInvoice() {
+        setCheckoutError("");
+        setCheckoutSuccess("");
+
+        try {
+            if (draftOrder?.id && draftOrder.status === "DRAFT") {
+                await posOrderApi.cancelDraftOrder(draftOrder.id);
+            }
+            setDraftOrder(null);
+            setCartItemsById({});
+            setNote("");
+            setCashReceived(0);
+            setSelectedDiscountId("none");
+            setSubtotalOverride(null);
+            setSubtotalOverrideNote("");
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(getErrorMessage(error));
         }
     }
 
@@ -483,6 +507,9 @@ export function PosSalePage() {
                 onProductIncrement={incrementProduct}
                 onProductDecrement={decrementProduct}
                 onProductRemove={removeProduct}
+                onInvoiceClose={() => {
+                    void closeCurrentInvoice();
+                }}
                 onNoteChange={setNote}
                 onOrderTypeChange={setOrderType}
             />

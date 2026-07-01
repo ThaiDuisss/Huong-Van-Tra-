@@ -9,7 +9,8 @@ import type {
 export const locationTypeLabels: Record<InventoryLocationType, string> = {
     WAREHOUSE: "Cửa hàng",
     STORAGE: "Kho chứa",
-    DAMAGED: "Khu hàng lỗi"
+    DAMAGED: "Khu hàng lỗi",
+    SHELF: "Kệ hàng"
 };
 
 export const inventoryStatusLabels: Record<InventoryStatus, string> = {
@@ -18,7 +19,7 @@ export const inventoryStatusLabels: Record<InventoryStatus, string> = {
 };
 
 export const inventoryItemTypeLabels: Record<InventoryItemType, string> = {
-    PRODUCT_VARIANT: "Biến thể sản phẩm",
+    PRODUCT_VARIANT: "Mặt hàng",
     INGREDIENT: "Nguyên liệu",
     PACKAGING: "Bao bì",
     COMBO: "Combo"

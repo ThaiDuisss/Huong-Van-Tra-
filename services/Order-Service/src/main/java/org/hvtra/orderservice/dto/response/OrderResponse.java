@@ -6,6 +6,7 @@ import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +37,7 @@ public class OrderResponse {
     private BigDecimal paidAmount;
     private BigDecimal debtAmount;
     private BigDecimal changeAmount;
+    private Instant expiresAt;
 
     private List<OrderItemResponse> items;
 

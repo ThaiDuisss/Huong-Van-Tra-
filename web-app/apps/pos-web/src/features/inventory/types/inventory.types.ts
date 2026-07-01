@@ -11,7 +11,8 @@ export type InventoryItemType =
 export type InventoryLocationType =
     | "WAREHOUSE"
     | "STORAGE"
-    | "DAMAGED";
+    | "DAMAGED"
+    | "SHELF";
 
 export type InventoryStatus = "ACTIVE" | "INACTIVE";
 
@@ -52,7 +53,6 @@ export interface InventoryLocationResponse {
 export interface InventoryLocationRequest {
     branchId: EntityId;
     parentLocationId: EntityId | null;
-    code: string;
     name: string;
     type: InventoryLocationType;
     status: InventoryStatus;
@@ -62,7 +62,7 @@ export interface InventoryItemResponse {
     id: EntityId;
     referenceId: EntityId;
     itemType: InventoryItemType;
-    baseUnitId: EntityId;
+    unitId: EntityId;
     status: InventoryStatus;
 }
 
@@ -127,7 +127,23 @@ export interface InventoryLocationQuery extends QueryParams {
     branchId?: EntityId;
     type?: InventoryLocationType;
     status?: InventoryStatus;
+    query?: string;
 }
+
+/** Request gửi từ màn hình Quản lý kệ – chỉ tên và trạng thái */
+export interface StoreShelfRequest {
+    name: string;
+    status: InventoryStatus;
+}
+
+/** Query params cho API /store */
+export interface StoreShelfQuery extends QueryParams {
+    page?: number;
+    size?: number;
+    status?: InventoryStatus;
+    query?: string;
+}
+
 
 export interface InventoryItemQuery extends QueryParams {
     page?: number;
@@ -193,6 +209,7 @@ export interface InventoryTransactionQuery extends QueryParams {
 }
 
 export interface StoreStockInRequest {
+    shelfId: EntityId;
     referenceType: InventoryReferenceType;
     referenceId: EntityId | null;
     lines: Array<{
@@ -202,6 +219,7 @@ export interface StoreStockInRequest {
 }
 
 export interface StoreStockAdjustmentRequest {
+    shelfId: EntityId;
     referenceType: InventoryReferenceType;
     referenceId: EntityId | null;
     lines: Array<{
@@ -218,3 +236,12 @@ export interface StoreStockOutRequest {
         quantity: number;
     }>;
 }
+
+export interface StoreTransferRequest {
+    fromShelfId: EntityId;
+    toShelfId: EntityId;
+    inventoryItemId: EntityId;
+    quantity: number;
+    note?: string;
+}
+

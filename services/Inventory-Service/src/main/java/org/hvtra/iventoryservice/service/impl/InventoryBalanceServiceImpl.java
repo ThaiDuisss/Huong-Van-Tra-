@@ -12,6 +12,7 @@ import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -83,14 +84,14 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
     @Override
     public PageResponse<InventoryBalanceViewResponse> findAllView(
-            UUID branchId,
-            UUID locationId,
             String sku,
             String productCode,
             String productName,
             String categoryCode,
             UUID categoryId,
             UUID unitId,
+            UUID locationId,
+            UUID branchId,
             Pageable pageable
     ) {
         // 1. Resolve variant IDs if catalog filters are active
@@ -117,23 +118,49 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             }
         }
 
-        // 2. Query local InventoryBalances with filters
+        // 2. Resolve default warehouse
+        // 2. Resolve default warehouse
+        final org.hvtra.iventoryservice.entity.InventoryLocation defaultWarehouse;
+        org.hvtra.iventoryservice.entity.InventoryLocation tempWarehouse = null;
+        if (branchId != null) {
+            tempWarehouse = locationRepository
+                    .findFirstByBranchIdAndTypeAndStatus(branchId, org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE, org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE)
+                    .orElse(null);
+        }
+        if (tempWarehouse == null) {
+            tempWarehouse = locationRepository
+                    .findFirstByTypeAndStatus(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE, org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE)
+                    .or(() -> locationRepository.findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE))
+                    .orElse(null);
+        }
+        defaultWarehouse = tempWarehouse;
+
+        // 3. Query local InventoryBalances with filters
         final List<UUID> finalMatchingVariantIds = matchingVariantIds;
         Specification<InventoryBalance> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
-            if (branchId != null) {
-                predicates.add(cb.equal(root.get("location").get("branchId"), branchId));
-            }
-            if (locationId != null) {
-                predicates.add(cb.equal(root.get("location").get("id"), locationId));
-            }
             if (hasCatalogFilters && finalMatchingVariantIds != null) {
                 predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
             }
+
+            // Always only display balances on locations where type = SHELF
+            predicates.add(cb.equal(root.get("location").get("type"), org.hvtra.iventoryservice.enums.InventoryLocationType.SHELF));
+
+            if (locationId != null) {
+                predicates.add(cb.equal(root.get("location").get("id"), locationId));
+            } else if (defaultWarehouse != null) {
+                // Only show shelves that belong to the default warehouse
+                predicates.add(cb.equal(root.get("location").get("parentLocation").get("id"), defaultWarehouse.getId()));
+            }
+
+            if (branchId != null) {
+                predicates.add(cb.equal(root.get("location").get("branchId"), branchId));
+            }
+
             return cb.and(predicates.toArray(Predicate[]::new));
         };
 
-        org.springframework.data.domain.Page<InventoryBalance> balancePage = repository.findAll(specification, pageable);
+        Page<InventoryBalance> balancePage = repository.findAll(specification, pageable);
         if (balancePage.isEmpty()) {
             return new PageResponse<>(
                     java.util.Collections.emptyList(),
@@ -271,4 +298,38 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 ))
                 .toList();
     }
+
+    @Override
+    @Transactional
+    public void bulkUpdateLocation() {
+        org.hvtra.iventoryservice.entity.InventoryLocation newLocation = locationRepository.findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType.SHELF)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vị trí lưu trữ nào có loại SHELF", null));
+
+        List<InventoryBalance> balancesToUpdate = repository.findAll();
+
+        for (InventoryBalance balance : balancesToUpdate) {
+            // Skip if already in the new location
+            if (balance.getLocation().getId().equals(newLocation.getId())) {
+                continue;
+            }
+
+            UUID itemId = balance.getInventoryItem().getId();
+            java.util.Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
+
+            if (existingBalanceOpt.isPresent()) {
+                // If a balance already exists at the target location, merge the quantities and delete the old record
+                InventoryBalance existingBalance = existingBalanceOpt.get();
+                existingBalance.setQuantityOnHand(existingBalance.getQuantityOnHand().add(balance.getQuantityOnHand()));
+                existingBalance.setQuantityReserved(existingBalance.getQuantityReserved().add(balance.getQuantityReserved()));
+                repository.save(existingBalance);
+                repository.delete(balance);
+            } else {
+                // Otherwise, safely change the location reference
+                balance.setLocation(newLocation);
+                repository.save(balance);
+            }
+        }
+    }
 }
+
+

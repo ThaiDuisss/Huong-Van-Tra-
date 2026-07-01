@@ -423,13 +423,12 @@ export function ExcelImportModal({
                     )}
                 </div>
 
-                {/* Footer */}
                 <footer className="flex justify-end gap-3 border-t border-neutral-100 px-6 py-4 bg-neutral-50">
                     {!importing && !importResult ? (
                         <>
                             <button
                                 onClick={onClose}
-                                className="h-10 rounded-xl px-5 text-sm font-bold text-neutral-500 hover:bg-neutral-100"
+                                className="h-11 rounded-lg px-5 text-sm font-black text-neutral-500 hover:bg-neutral-100 transition-all cursor-pointer"
                             >
                                 Hủy
                             </button>
@@ -441,7 +440,7 @@ export function ExcelImportModal({
                                         setParsedRows([]);
                                         setTotalRecords(0);
                                     }}
-                                    className="h-10 rounded-xl px-5 text-sm font-bold border border-pos-border text-gray-700 bg-white hover:bg-neutral-50"
+                                    className="h-11 rounded-lg px-5 text-sm font-black border border-[#dfe6ee] text-[#172317] bg-white hover:bg-neutral-50 transition-all cursor-pointer"
                                 >
                                     Chọn file khác
                                 </button>
@@ -449,10 +448,10 @@ export function ExcelImportModal({
                             <button
                                 onClick={handleStartImport}
                                 disabled={!file || validCount === 0}
-                                className={`h-10 rounded-xl px-5 text-sm font-bold text-white shadow-sm transition-all ${
+                                className={`h-11 rounded-lg px-5 text-sm font-black text-white transition-all ${
                                     !file || validCount === 0
                                         ? "bg-neutral-200 cursor-not-allowed"
-                                        : "bg-hvt-green-600 hover:bg-hvt-green-700"
+                                        : "border-0 bg-[#07883a] shadow-[0_6px_16px_rgba(7,136,58,0.18)] hover:opacity-90 cursor-pointer"
                                 }`}
                             >
                                 Nhập dữ liệu
@@ -462,7 +461,7 @@ export function ExcelImportModal({
                         importResult && (
                             <button
                                 onClick={onClose}
-                                className="h-10 rounded-xl bg-hvt-green-600 hover:bg-hvt-green-700 px-6 text-sm font-bold text-white shadow-sm"
+                                className="h-11 rounded-lg border-0 bg-[#07883a] px-6 text-sm font-black text-white shadow-[0_6px_16px_rgba(7,136,58,0.18)] hover:opacity-90 transition-all cursor-pointer"
                             >
                                 Hoàn tất
                             </button>

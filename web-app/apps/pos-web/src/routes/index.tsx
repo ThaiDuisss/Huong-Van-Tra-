@@ -43,12 +43,6 @@ export const appRoutes = {
     inventoryBalances: {
         path: routePaths.inventoryBalances
     },
-    inventoryStockIn: {
-        path: routePaths.inventoryStockIn
-    },
-    inventoryAdjustment: {
-        path: routePaths.inventoryAdjustment
-    },
     inventoryTransactions: {
         path: routePaths.inventoryTransactions
     },

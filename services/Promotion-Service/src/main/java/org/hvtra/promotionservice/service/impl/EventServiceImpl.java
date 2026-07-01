@@ -5,18 +5,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.exception.ResourceNotFoundException;
 import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
-import org.hvtra.promotionservice.dto.request.event.EventStatusUpdateRequest;
 import org.hvtra.promotionservice.dto.request.event.EventUpdateRequest;
 import org.hvtra.promotionservice.dto.response.EventResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.entity.Event;
+import org.hvtra.promotionservice.enums.event.EventStatus;
 import org.hvtra.promotionservice.mapper.EventMapper;
 import org.hvtra.promotionservice.repository.EventRepository;
 import org.hvtra.promotionservice.service.EventService;
+import org.hvtra.promotionservice.util.PageUtils;
+import org.hvtra.promotionservice.validation.validator.EventValidator;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,25 +31,26 @@ public class EventServiceImpl implements EventService {
 
     EventRepository eventRepository;
     EventMapper eventMapper;
+    EventValidator eventValidator;
 
     @Override
     @Transactional
     public EventResponse createEvent(EventCreateRequest request) {
-
         Event event = eventMapper.toEntity(request);
 
-        event = eventRepository.save(event);
+        if (event.getStatus() == null) {
+            event.setStatus(EventStatus.DRAFT);
+        }
 
-        return eventMapper.toResponse(event);
+        Event savedEvent = eventRepository.save(event);
+
+        return eventMapper.toResponse(savedEvent);
     }
 
     @Override
     @Transactional(readOnly = true)
     public EventResponse getEventById(UUID eventId) {
-        Event event = eventRepository.findByIdAndIsDeletedFalse(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        EVENT_NOT_FOUND_WITH_ID.formatted(eventId)
-                ));
+        Event event = getExistingEvent(eventId);
 
         return eventMapper.toResponse(event);
     }
@@ -57,13 +58,10 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<EventResponse> getAllEvents(int page, int size) {
-        Pageable pageable = PageRequest.of(
-                page,
-                size,
-                Sort.by(Sort.Direction.DESC, "createdAt")
-        );
+        Pageable pageable = PageUtils.createPageable(page, size);
 
-        Page<EventResponse> eventPage = eventRepository.findAllByIsDeletedFalse(pageable)
+        Page<EventResponse> eventPage = eventRepository
+                .findAllByIsDeletedFalse(pageable)
                 .map(eventMapper::toResponse);
 
         return PageResponse.from(eventPage);
@@ -72,10 +70,9 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventResponse updateEvent(UUID eventId, EventUpdateRequest request) {
-        Event event = eventRepository.findByIdAndIsDeletedFalse(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        EVENT_NOT_FOUND_WITH_ID.formatted(eventId)
-                ));
+        Event event = getExistingEvent(eventId);
+
+        eventValidator.validateBeforeUpdate(event);
 
         eventMapper.updateEntityFromRequest(request, event);
 
@@ -86,29 +83,90 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public EventResponse updateEventStatus(UUID eventId, EventStatusUpdateRequest request) {
-        Event event = eventRepository.findByIdAndIsDeletedFalse(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        EVENT_NOT_FOUND_WITH_ID.formatted(eventId)
-                ));
+    public void deleteEvent(UUID eventId) {
+        Event event = getExistingEvent(eventId);
 
-        event.setStatus(request.getStatus());
+        eventValidator.validateBeforeDelete(event);
+
+        event.setIsDeleted(true);
+
+        eventRepository.save(event);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse scheduleEvent(UUID eventId) {
+        return changeStatus(eventId, EventStatus.SCHEDULED);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse activateEvent(UUID eventId) {
+        return changeStatus(eventId, EventStatus.ACTIVE);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse pauseEvent(UUID eventId) {
+        return changeStatus(eventId, EventStatus.PAUSED);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse resumeEvent(UUID eventId) {
+        Event event = getExistingEvent(eventId);
+
+        EventStatus targetStatus = eventValidator.resolveResumeTargetStatus(event);
+
+        eventValidator.validateStatusTransition(event, targetStatus);
+
+        return updateStatus(event, targetStatus);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse cancelEvent(UUID eventId) {
+        return changeStatus(eventId, EventStatus.CANCELLED);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse endEvent(UUID eventId) {
+        return changeStatus(eventId, EventStatus.ENDED);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<EventResponse> getActiveEvents(int page, int size) {
+        Pageable pageable = PageUtils.createPageable(page, size);
+
+        Page<EventResponse> eventPage = eventRepository
+                .findAllByStatusAndIsDeletedFalse(EventStatus.ACTIVE, pageable)
+                .map(eventMapper::toResponse);
+
+        return PageResponse.from(eventPage);
+    }
+
+    private EventResponse changeStatus(UUID eventId, EventStatus targetStatus) {
+        Event event = getExistingEvent(eventId);
+
+        eventValidator.validateStatusTransition(event, targetStatus);
+
+        return updateStatus(event, targetStatus);
+    }
+
+    private EventResponse updateStatus(Event event, EventStatus targetStatus) {
+        event.setStatus(targetStatus);
 
         Event updatedEvent = eventRepository.save(event);
 
         return eventMapper.toResponse(updatedEvent);
     }
 
-    @Override
-    @Transactional
-    public void deleteEvent(UUID eventId) {
-        Event event = eventRepository.findByIdAndIsDeletedFalse(eventId)
+    private Event getExistingEvent(UUID eventId) {
+        return eventRepository.findByIdAndIsDeletedFalse(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         EVENT_NOT_FOUND_WITH_ID.formatted(eventId)
                 ));
-
-        event.setIsDeleted(true);
-
-        eventRepository.save(event);
     }
 }

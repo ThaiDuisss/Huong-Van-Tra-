@@ -7,69 +7,31 @@ import {
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
+import { systemNavigationItems } from "./system-navigation";
+
+/**
+ * Duyệt qua systemNavigationItems để tìm section + page label
+ * khớp với pathname hiện tại (so sánh prefix để hỗ trợ dynamic routes).
+ */
+function resolveBreadcrumb(pathname: string): { section: string; page: string } {
+    for (const item of systemNavigationItems) {
+        if (!item.children) continue;
+
+        for (const child of item.children) {
+            // Khớp chính xác hoặc khớp prefix (cho dynamic routes như /system/products/:id)
+            if (pathname === child.to || pathname.startsWith(child.to + "/")) {
+                return { section: item.label, page: child.label };
+            }
+        }
+    }
+
+    // Fallback mặc định
+    return { section: "Hệ thống", page: "Tổng quan" };
+}
 
 export function SystemTopbar() {
     const location = useLocation();
-    const pathname = location.pathname;
-
-    let section = "Hệ thống";
-    let page = "Tổng quan";
-
-    if (pathname.includes("/system/orders/invoices/")) {
-        section = "Đơn hàng";
-        page = "Chi tiết hóa đơn";
-    } else if (pathname === "/system/orders/invoices") {
-        section = "Đơn hàng";
-        page = "Hóa đơn";
-    } else if (pathname === "/system/orders/returns") {
-        section = "Đơn hàng";
-        page = "Hoàn hàng";
-    } else if (pathname === "/system/orders/refunds") {
-        section = "Đơn hàng";
-        page = "Hoàn tiền";
-    } else if (pathname === "/system/orders") {
-        section = "Đơn hàng";
-        page = "Tất cả đơn hàng";
-    } else if (pathname.includes("/system/products/") && pathname.includes("/variants")) {
-        section = "Sản phẩm";
-        page = "Biến thể của sản phẩm";
-    } else if (pathname.includes("/system/products/")) {
-        section = "Sản phẩm";
-        page = "Chi tiết sản phẩm";
-    } else if (pathname === "/system/products") {
-        section = "Sản phẩm";
-        page = "Sản phẩm";
-    } else if (pathname === "/system/categories") {
-        section = "Sản phẩm";
-        page = "Danh mục sản phẩm";
-    } else if (pathname.includes("/system/product-variants/")) {
-        section = "Sản phẩm";
-        page = "Chi tiết biến thể";
-    } else if (pathname === "/system/product-variants") {
-        section = "Sản phẩm";
-        page = "Biến thể sản phẩm";
-    } else if (pathname === "/system/inventory/locations") {
-        section = "Kho";
-        page = "Quản lý kệ hàng";
-    } else if (pathname === "/system/inventory/stock-in") {
-        section = "Kho";
-        page = "Nhập hàng lên kệ";
-    } else if (pathname === "/system/inventory/adjustment") {
-        section = "Kho";
-        page = "Điều chỉnh tồn kho";
-    } else if (pathname === "/system/inventory/transactions") {
-        section = "Kho";
-        page = "Lịch sử biến động";
-    } else if (pathname === "/system/customers/groups") {
-        section = "Khách hàng";
-        page = "Nhóm khách hàng";
-    } else if (pathname === "/system/customers/tiers") {
-        section = "Khách hàng";
-        page = "Hạng khách hàng";
-    } else if (pathname === "/system/customers") {
-        section = "Khách hàng";
-        page = "Danh sách khách hàng";
-    }
+    const { section, page } = resolveBreadcrumb(location.pathname);
 
     return (
         <header className="flex h-[58px] shrink-0 items-center gap-4 border-b border-[#e8eef0] bg-white px-4 text-[#172317] sm:px-5">
@@ -89,14 +51,15 @@ export function SystemTopbar() {
                 </span>
             </nav>
 
-            <div className="ml-auto flex items-center gap-2">                <button
-                type="button"
-                className="relative grid size-9 place-items-center rounded-lg border border-[#e8eef0] bg-white text-[#53678f]"
-                aria-label="Thông báo"
-            >
-                <Bell size={17} aria-hidden="true" />
-                <span className="absolute right-1.5 top-1.5 size-3 rounded-full border-2 border-white bg-red-500" />
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+                <button
+                    type="button"
+                    className="relative grid size-9 place-items-center rounded-lg border border-[#e8eef0] bg-white text-[#53678f]"
+                    aria-label="Thông báo"
+                >
+                    <Bell size={17} aria-hidden="true" />
+                    <span className="absolute right-1.5 top-1.5 size-3 rounded-full border-2 border-white bg-red-500" />
+                </button>
                 <button
                     type="button"
                     className="grid size-9 place-items-center rounded-lg border border-[#e8eef0] bg-white text-[#53678f]"
@@ -126,4 +89,3 @@ export function SystemTopbar() {
         </header>
     );
 }
-

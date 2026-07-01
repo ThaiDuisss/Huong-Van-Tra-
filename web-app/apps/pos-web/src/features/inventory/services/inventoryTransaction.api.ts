@@ -8,13 +8,21 @@ import type {
     StockInRequest,
     StoreStockAdjustmentRequest,
     StoreStockInRequest,
-    StoreStockOutRequest
+    StoreStockOutRequest,
+    StoreTransferRequest
 } from "../types/inventory.types";
 
 export const inventoryTransactionApi = {
     list(query: InventoryTransactionQuery = {}) {
         return apiClient.get<PageResponse<InventoryTransactionResponse>>(
             "/inventory/inventory-transactions",
+            { query }
+        );
+    },
+    /** Biến động kho dành cho Cửa hàng: chỉ SHELF thuộc WAREHOUSE đầu tiên */
+    storeList(query: InventoryTransactionQuery = {}) {
+        return apiClient.get<PageResponse<InventoryTransactionResponse>>(
+            "/inventory/inventory-transactions/store",
             { query }
         );
     },
@@ -52,5 +60,11 @@ export const inventoryTransactionApi = {
             InventoryTransactionResponse,
             StoreStockOutRequest
         >("/inventory/inventory-transactions/store/stock-out", input);
+    },
+    storeTransfer(input: StoreTransferRequest) {
+        return apiClient.post<
+            InventoryTransactionResponse,
+            StoreTransferRequest
+        >("/inventory/inventory-transactions/store/transfer", input);
     }
 };

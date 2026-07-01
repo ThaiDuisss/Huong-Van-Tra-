@@ -7,6 +7,7 @@ import org.hvtra.iventoryservice.dto.request.StockInRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockOutRequest;
+import org.hvtra.iventoryservice.dto.request.StoreTransferRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.enums.InventoryReferenceType;
@@ -57,6 +58,35 @@ public class InventoryTransactionController {
                 pageable);
     }
 
+    /**
+     * API mới: Trả về biến động kho của Cửa hàng (chỉ SHELF thuộc WAREHOUSE đầu tiên).
+     * Không ảnh hưởng đến API cũ ở trên.
+     */
+    @GetMapping("/store")
+    public PageResponse<InventoryTransactionResponse> findAllForStore(
+            @RequestParam(name = "transactionCode", required = false) String transactionCode,
+            @RequestParam(name = "type", required = false) InventoryTransactionType type,
+            @RequestParam(name = "fromDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
+            @RequestParam(name = "toDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate,
+            @RequestParam(name = "createdBy", required = false) String createdBy,
+            @RequestParam(name = "referenceType", required = false)
+            InventoryReferenceType referenceType,
+            @RequestParam(name = "referenceId", required = false) String referenceId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
+            Pageable pageable) {
+        return service.findAllForStore(
+                transactionCode,
+                type,
+                fromDate,
+                toDate,
+                createdBy,
+                referenceType,
+                referenceId,
+                pageable);
+    }
+
     @GetMapping("/{id}")
     public InventoryTransactionResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
@@ -98,5 +128,12 @@ public class InventoryTransactionController {
     public InventoryTransactionResponse storeStockOut(
             @Valid @RequestBody StoreStockOutRequest request) {
         return service.storeStockOut(request);
+    }
+
+    @PostMapping("/store/transfer")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InventoryTransactionResponse storeTransfer(
+            @Valid @RequestBody StoreTransferRequest request) {
+        return service.storeTransfer(request);
     }
 }

@@ -8,6 +8,8 @@ import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 @Component
 public class ProductMapper {
     private final CategoryMapper categoryMapper;
@@ -30,6 +32,17 @@ public class ProductMapper {
     }
 
     public ProductSummaryResponse toSummaryResponse(Product product) {
+        return toSummaryResponse(product, BigDecimal.ZERO, BigDecimal.ZERO, "OUT_OF_STOCK");
+    }
+
+    public ProductSummaryResponse toSummaryResponse(
+            Product product,
+            BigDecimal availableQuantity,
+            BigDecimal reservedQuantity,
+            String stockStatus) {
+        BigDecimal safeAvailable = availableQuantity != null ? availableQuantity : BigDecimal.ZERO;
+        BigDecimal safeReserved = reservedQuantity != null ? reservedQuantity : BigDecimal.ZERO;
+        String safeStatus = stockStatus != null && !stockStatus.isBlank() ? stockStatus : "OUT_OF_STOCK";
         return new ProductSummaryResponse(
                 product.getId(),
                 product.getProductCode(),
@@ -37,7 +50,11 @@ public class ProductMapper {
                 categoryMapper.toResponse(product.getCategory()),
                 product.getImageUrl(),
                 product.getStatus(),
-                product.getVariants().size()
+                product.getVariants().size(),
+                safeAvailable,
+                safeReserved,
+                safeStatus,
+                safeAvailable.compareTo(BigDecimal.ZERO) > 0
         );
     }
 
@@ -52,8 +69,7 @@ public class ProductMapper {
                 variant.getVariantName(),
                 variant.getSellingPrice(),
                 variant.getCostPrice(),
-                variant.getPackQuantity(),
-                variant.getBaseUnitId(),
+                variant.getUnit() != null ? variant.getUnit().getId() : null,
                 variant.getInventoryPolicy(),
                 variant.getStatus(),
                 product.getStatus(),
@@ -75,8 +91,7 @@ public class ProductMapper {
         return new ProductResponse.VariantSummaryResponse(
                 variant.getId(), product.getId(), product.getName(), product.getProductCode(), variant.getSku(),
                 variant.getVariantName(), variant.getSellingPrice(), variant.getCostPrice(),
-                variant.getPackQuantity(),
-                variant.getBaseUnitId(),
+                variant.getUnit() != null ? variant.getUnit().getId() : null,
                 variant.getInventoryPolicy(), variant.getStatus(), product.getStatus(), isSellable(variant)
         );
     }

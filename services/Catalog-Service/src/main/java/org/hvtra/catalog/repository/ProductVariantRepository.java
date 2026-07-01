@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +18,13 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     java.util.List<ProductVariant> findByProductId(UUID productId);
 
     @Query("""
+            select v from ProductVariant v
+            join fetch v.product p
+            where p.id in :productIds
+            """)
+    java.util.List<ProductVariant> findByProductIds(@Param("productIds") Collection<UUID> productIds);
+
+    @Query("""
             select new org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse(
                 p.id,
                 v.id,
@@ -25,7 +33,10 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
                 v.variantName,
                 c.name,
                 v.sellingPrice,
-                p.imageUrl
+                p.imageUrl,
+                null,
+                null,
+                null
             )
             from ProductVariant v
             join v.product p

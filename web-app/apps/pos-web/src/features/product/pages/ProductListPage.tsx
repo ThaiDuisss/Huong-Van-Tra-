@@ -65,14 +65,8 @@ export function ProductListPage() {
     ) {
         const description = getString(values, "description");
         
-        let imageUrl = editingItem?.imageUrl ?? null;
-        const imageFile = values.imageFile;
-
-        if (imageFile instanceof File && imageFile.size > 0) {
-            imageUrl = URL.createObjectURL(imageFile);
-        } else if (imageFile === "") {
-            imageUrl = null;
-        }
+        const imageUrl = getString(values, "imageFile") || null;
+        const fieldId = getString(values, "imageFileId") || null;
 
         const input = {
             categoryId: getString(values, "categoryId"),
@@ -80,7 +74,8 @@ export function ProductListPage() {
             name: getString(values, "name"),
             description,
             imageUrl: imageUrl,
-            status: getString(values, "status") as CatalogStatus
+            status: getString(values, "status") as CatalogStatus,
+            fieldId: fieldId
         };
 
         if (editingItem) {
@@ -168,7 +163,7 @@ export function ProductListPage() {
         <>
             <CatalogResourceManagement
                 title="Sản phẩm"
-                description="Quản lý thông tin nhóm sản phẩm và các biến thể trực thuộc."
+                description="Quản lý thông tin nhóm sản phẩm và các Mặt hàng trực thuộc."
                 createLabel="Tạo sản phẩm"
                 searchPlaceholder="Tìm tên sản phẩm..."
                 totalItemsLabel="Tổng số sản phẩm"
@@ -188,13 +183,35 @@ export function ProductListPage() {
             loading={resource.loading}
             error={resource.error}
             query={state.query}
-            status={state.status}
+            filters={[
+                {
+                    label: "Trạng thái",
+                    value: state.status,
+                    options: [
+                        { label: "Tất cả", value: "ALL" },
+                        { label: "Đang hoạt động", value: "ACTIVE" },
+                        { label: "Ngừng hoạt động", value: "INACTIVE" }
+                    ],
+                    onChange: (val) => state.setStatus(val as any)
+                },
+                {
+                    label: "Danh mục",
+                    value: state.secondaryValue,
+                    options: [
+                        { label: "Tất cả", value: "ALL" },
+                        ...categories.map((category) => ({
+                            label: category.name,
+                            value: String(category.id)
+                        }))
+                    ],
+                    onChange: state.setSecondaryValue
+                }
+            ]}
             page={(resource.data?.page ?? 0) + 1}
             pageCount={resource.data?.totalPages ?? 1}
             totalItems={resource.data?.totalElements ?? 0}
             pageSize={state.pageSize}
             onQueryChange={state.setQuery}
-            onStatusChange={state.setStatus}
             onPageChange={state.setPage}
             onPageSizeChange={state.setPageSize}
             onRefresh={resource.refresh}
@@ -212,20 +229,11 @@ export function ProductListPage() {
                 imageFile: item.imageUrl ?? "",
                 status: item.status
             })}
-            secondaryFilter={{
-                label: "Danh mục",
-                value: state.secondaryValue,
-                options: categories.map((category) => ({
-                    label: category.name,
-                    value: String(category.id)
-                })),
-                onChange: state.setSecondaryValue
-            }}
             columns={[
                 { key: "image", label: "Ảnh" },
                 { key: "name", label: "Tên sản phẩm" },
                 { key: "category", label: "Danh mục" },
-                { key: "variants", label: "Số biến thể" },
+                // { key: "variants", label: "Số Mặt hàng" },
                 { key: "status", label: "Trạng thái" }
             ]}
             renderCells={(item) => (
@@ -248,7 +256,7 @@ export function ProductListPage() {
                         <span className="text-gray-500 block text-[10px] font-normal">{item.productCode}</span>
                     </TableCell>
                     <TableCell>{item.category.name}</TableCell>
-                    <TableCell>{item.totalVariants}</TableCell>
+                    {/* <TableCell>{item.totalVariants}</TableCell> */}
                     <TableCell>
                         <CatalogStatusBadge status={item.status} />
                     </TableCell>
@@ -279,7 +287,8 @@ export function ProductListPage() {
                 {
                     name: "imageFile",
                     label: "Hình ảnh sản phẩm",
-                    type: "file"
+                    type: "file",
+                    purpose: "PRODUCT_IMAGE"
                 },
                 {
                     name: "status",
@@ -343,7 +352,7 @@ function ProductDetailContent({ productId }: { productId: string | number }) {
             {product.variants && product.variants.length > 0 ? (
                 <div className="border-t border-pos-border pt-4">
                     <h3 className="text-sm font-bold text-gray-700 mb-2">
-                        Danh sách biến thể ({product.variants.length})
+                        Danh sách Mặt hàng ({product.variants.length})
                     </h3>
                     <div className="grid gap-2 text-xs">
                         {product.variants.map((variant) => (

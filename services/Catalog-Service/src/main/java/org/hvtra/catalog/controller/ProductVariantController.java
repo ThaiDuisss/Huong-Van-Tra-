@@ -2,6 +2,7 @@ package org.hvtra.catalog.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/catalog/product-variants")
 public class ProductVariantController {
@@ -69,6 +71,7 @@ public class ProductVariantController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productName", required = false) String productName) {
+        log.info("value {}", service.searchVariants(keyword, sku, productName));
         return service.searchVariants(keyword, sku, productName);
     }
 

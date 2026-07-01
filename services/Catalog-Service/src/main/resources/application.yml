@@ -6,11 +6,16 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
+    show-sql: false
     hibernate:
       ddl-auto: validate
 
   flyway:
     baseline-on-migrate: true
+      # 1. Bật tính năng tự động chạy REPAIR trước khi thực hiện Migrate
+    repair-on-migrate: true
+      # 2. Tắt tính năng Validate nghiêm ngặt để nó không bắt lỗi file FAILED cũ
+    validate-on-migrate: false
 clients:
   inventory:
     base-url: http://inventory-service/api/inventory

@@ -11,7 +11,6 @@ import java.util.UUID;
 public record InventoryLocationRequest(
 //        @NotNull UUID branchId,
         UUID parentLocationId,
-        @NotBlank @Size(max = 100) String code,
         @NotBlank @Size(max = 255) String name,
         @NotNull InventoryLocationType type,
         @NotNull InventoryStatus status

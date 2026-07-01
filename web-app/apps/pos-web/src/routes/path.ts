@@ -9,6 +9,7 @@ export const routePaths = {
     returns: "/system/orders/returns",
     refunds: "/system/orders/refunds",
     categories: "/system/categories",
+    units: "/system/units",
     products: "/system/products",
     productDetail: "/system/products/:id",
     productVariants: "/system/product-variants",
@@ -18,15 +19,23 @@ export const routePaths = {
     priceLists: "/system/price-lists",
     priceListDetail: "/system/price-lists/:id",
     inventoryLocations: "/system/inventory/locations",
-    inventoryBalances: "/pos/inventory",
-    inventoryStockIn: "/system/inventory/stock-in",
-    inventoryAdjustment: "/system/inventory/adjustment",
+    inventoryBalances: "/system/inventory/balances",
     inventoryTransactions: "/system/inventory/transactions",
+    inventoryShelves: "/system/inventory/shelves",
+
     customers: "/system/customers",
     customerGroups: "/system/customers/groups",
+    marketingEvents: "/system/marketing/events",
+    discountPrograms: "/system/marketing/discount-programs",
+    discountProgramDetail:
+        "/system/marketing/discount-programs/:programId",
+    discountCodes: "/system/marketing/discount-codes",
+    discountHistory: "/system/marketing/discount-history",
+    discountRules: "/system/marketing/discount-rules",
     customerTiers: "/system/customers/tiers",
     bomList: "/system/manufacturing/boms",
     productionOrders:
-        "/system/manufacturing/production-orders"
-} as const;
+        "/system/manufacturing/production-orders",
+    ingredient: '/system/manufacturing/ingredients',
 
+} as const;

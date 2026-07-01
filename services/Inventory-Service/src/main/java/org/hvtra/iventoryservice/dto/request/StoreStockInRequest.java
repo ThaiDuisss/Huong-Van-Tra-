@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record StoreStockInRequest(
+        @NotNull UUID shelfId,
         @NotNull InventoryReferenceType referenceType,
         String referenceId,
         @NotEmpty List<@Valid LineRequest> lines

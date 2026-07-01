@@ -37,6 +37,15 @@ public class ProductController {
         return service.findAll(name, categoryId, status, pageable);
     }
 
+    @GetMapping("/search")
+    public PageResponse<ProductSummaryResponse> search(
+            @RequestParam(name = "name", required = false) String name,
+            @RequestParam(name = "categoryId", required = false) UUID categoryId,
+            @RequestParam(name = "status", required = false) Status status,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        return service.findAll(name, categoryId, status, pageable);
+    }
+
     @GetMapping("/{id}")
     public ProductResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
