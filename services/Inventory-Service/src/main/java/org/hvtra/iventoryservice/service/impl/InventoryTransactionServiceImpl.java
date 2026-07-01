@@ -6,6 +6,7 @@ import org.hvtra.iventoryservice.dto.request.StockInRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
 import org.hvtra.iventoryservice.dto.request.StoreStockOutRequest;
+import org.hvtra.iventoryservice.dto.request.StoreTransferRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.entity.*;
@@ -172,6 +173,58 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         return mapper.toResponse(transaction);
     }
 
+    @Override
+    public PageResponse<InventoryTransactionResponse> findAllForStore(
+            String transactionCode,
+            InventoryTransactionType type,
+            LocalDateTime fromDate,
+            LocalDateTime toDate,
+            String createdBy,
+            InventoryReferenceType referenceType,
+            String referenceId,
+            Pageable pageable) {
+        if (fromDate != null && toDate != null && toDate.isBefore(fromDate)) {
+            throw new BadRequestException("toDate must be greater than or equal to fromDate");
+        }
+
+        // Lấy danh sách ID transaction thuộc kệ SHELF của WAREHOUSE đầu tiên
+        java.util.List<UUID> storeTransactionIds = transactionRepository.findStoreTransactionIds();
+
+        Specification<InventoryTransaction> specification = (root, query, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+
+            // Chỉ lấy các transaction thuộc store (SHELF → parent WAREHOUSE đầu tiên)
+            if (!storeTransactionIds.isEmpty()) {
+                predicates.add(root.get("id").in(storeTransactionIds));
+            } else {
+                // Không có transaction nào thỏa điều kiện → trả về rỗng
+                predicates.add(cb.disjunction());
+            }
+
+            if (transactionCode != null && !transactionCode.isBlank()) {
+                String searchTrim = transactionCode.trim().toLowerCase();
+                var searchPredicates = new ArrayList<Predicate>();
+                searchPredicates.add(cb.like(cb.lower(root.get("transactionCode")), "%" + searchTrim + "%"));
+                searchPredicates.add(cb.like(cb.lower(root.get("referenceId")), "%" + searchTrim + "%"));
+                try {
+                    searchPredicates.add(cb.equal(root.get("createdBy"), java.util.UUID.fromString(searchTrim)));
+                } catch (IllegalArgumentException e) {
+                    // Ignored: not a valid UUID
+                }
+                predicates.add(cb.or(searchPredicates.toArray(Predicate[]::new)));
+            }
+            if (type != null) predicates.add(cb.equal(root.get("type"), type));
+            if (fromDate != null) predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), fromDate));
+            if (toDate != null) predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), toDate));
+            if (createdBy != null) predicates.add(cb.equal(root.get("createdBy"), createdBy));
+            if (referenceType != null) predicates.add(cb.equal(root.get("referenceType"), referenceType));
+            if (referenceId != null) predicates.add(cb.equal(root.get("referenceId"), referenceId));
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return PageResponse.from(
+                transactionRepository.findAll(specification, pageable).map(mapper::toResponse));
+    }
+
     private InventoryTransaction createTransaction(
             InventoryTransactionType type,
             UUID branchId,
@@ -263,6 +316,26 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         }
     }
 
+    /**
+     * Resolve và validate một kệ (SHELF) đang ACTIVE.
+     * Dùng cho StoreStockIn, StoreAdjust, StoreTransfer.
+     */
+    private InventoryLocation resolveShelfLocation(UUID shelfId) {
+        InventoryLocation loc = locationRepository.findById(shelfId)
+                .orElseThrow(() -> new ResourceNotFoundException("Kệ", shelfId));
+        if (loc.getType() != InventoryLocationType.SHELF) {
+            throw new BadRequestException("Vị trí " + shelfId + " không phải là Kệ (SHELF)");
+        }
+        if (loc.getStatus() != InventoryStatus.ACTIVE) {
+            throw new BadRequestException("Kệ " + shelfId + " hiện không hoạt động (INACTIVE)");
+        }
+        return loc;
+    }
+
+    /**
+     * Resolve kho WAREHOUSE đầu tiên đang ACTIVE.
+     * Vẫn dùng cho storeStockOut (xuất hàng POS).
+     */
     private InventoryLocation resolveWarehouseLocation() {
         return locationRepository.findFirstByTypeAndStatus(
                         InventoryLocationType.WAREHOUSE,
@@ -275,22 +348,23 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     @Override
     @Transactional
     public InventoryTransactionResponse storeStockIn(StoreStockInRequest request) {
-        InventoryLocation location = resolveWarehouseLocation();
+        InventoryLocation shelf = resolveShelfLocation(request.shelfId());
 
         validateDistinctStoreStockInLines(request.lines());
 
         InventoryTransaction transaction = createTransaction(
                 InventoryTransactionType.STOCK_IN,
-                location.getBranchId(),
+                shelf.getBranchId(),
                 null,
                 request.referenceType(),
                 request.referenceId());
 
         for (StoreStockInRequest.LineRequest requestLine : request.lines()) {
             InventoryItem item = activeItemForUpdate(requestLine.inventoryItemId());
+            // SELECT FOR UPDATE – đảm bảo không race condition
             InventoryBalance balance = balanceRepository
-                    .findForUpdate(item.getId(), location.getId())
-                    .orElseGet(() -> newBalance(item, location));
+                    .findForUpdate(item.getId(), shelf.getId())
+                    .orElseGet(() -> newBalance(item, shelf));
 
             BigDecimal before = balance.getQuantityOnHand();
             BigDecimal after = before.add(requestLine.quantity());
@@ -298,7 +372,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             balance.setQuantityOnHand(after);
             balanceRepository.save(balance);
             transaction.addLine(createLine(
-                    item, location, requestLine.quantity(), before, after));
+                    item, shelf, requestLine.quantity(), before, after));
         }
         return mapper.toResponse(transactionRepository.saveAndFlush(transaction));
     }
@@ -306,24 +380,25 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     @Override
     @Transactional
     public InventoryTransactionResponse storeAdjust(StoreStockAdjustmentRequest request) {
-        InventoryLocation location = resolveWarehouseLocation();
+        InventoryLocation shelf = resolveShelfLocation(request.shelfId());
 
         validateDistinctStoreAdjustmentLines(request.lines());
 
         InventoryTransaction transaction = createTransaction(
                 InventoryTransactionType.ADJUSTMENT,
-                location.getBranchId(),
+                shelf.getBranchId(),
                 null,
                 request.referenceType(),
                 request.referenceId());
 
         for (StoreStockAdjustmentRequest.LineRequest requestLine : request.lines()) {
             InventoryItem item = activeItemForUpdate(requestLine.inventoryItemId());
+            // SELECT FOR UPDATE – đảm bảo không race condition
             InventoryBalance balance = balanceRepository
-                    .findForUpdate(item.getId(), location.getId())
+                    .findForUpdate(item.getId(), shelf.getId())
                     .orElseThrow(() -> new BadRequestException(
                             "Inventory balance does not exist for item "
-                                    + item.getId() + " at location " + location.getId()));
+                                    + item.getId() + " at shelf " + shelf.getId()));
 
             BigDecimal before = balance.getQuantityOnHand();
             BigDecimal after = requestLine.actualQuantity();
@@ -331,8 +406,78 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             BigDecimal difference = after.subtract(before);
             balance.setQuantityOnHand(after);
             balanceRepository.save(balance);
-            transaction.addLine(createLine(item, location, difference, before, after));
+            transaction.addLine(createLine(item, shelf, difference, before, after));
         }
+        return mapper.toResponse(transactionRepository.saveAndFlush(transaction));
+    }
+
+    @Override
+    @Transactional
+    public InventoryTransactionResponse storeTransfer(StoreTransferRequest request) {
+        // Validate kệ nguồn ≠ kệ đích
+        if (request.fromShelfId().equals(request.toShelfId())) {
+            throw new BadRequestException("Kệ nguồn và kệ đích phải khác nhau");
+        }
+
+        InventoryLocation fromShelf = resolveShelfLocation(request.fromShelfId());
+        InventoryLocation toShelf   = resolveShelfLocation(request.toShelfId());
+        InventoryItem item          = activeItemForUpdate(request.inventoryItemId());
+
+        // SELECT FOR UPDATE trên cả hai kệ (thứ tự theo UUID để tránh deadlock)
+        UUID first  = request.fromShelfId().compareTo(request.toShelfId()) < 0
+                ? request.fromShelfId() : request.toShelfId();
+        UUID second = first.equals(request.fromShelfId())
+                ? request.toShelfId() : request.fromShelfId();
+
+        // Acquire locks theo thứ tự nhất quán
+        balanceRepository.findForUpdate(item.getId(), first);
+        balanceRepository.findForUpdate(item.getId(), second);
+
+        // Re-read with lock đã được acquired ở trên
+        InventoryBalance fromBalance = balanceRepository
+                .findForUpdate(item.getId(), fromShelf.getId())
+                .orElseThrow(() -> new BadRequestException(
+                        "Không có tồn kho của sản phẩm " + item.getId()
+                                + " tại kệ nguồn " + fromShelf.getId()));
+
+        // Validate số lượng đủ để chuyển
+        BigDecimal available = fromBalance.getQuantityOnHand();
+        if (available.compareTo(request.quantity()) < 0) {
+            throw new BadRequestException(
+                    "Số lượng tồn kho tại kệ nguồn ("
+                            + available + ") không đủ để chuyển " + request.quantity());
+        }
+
+        // Cập nhật kệ nguồn (giữ record dù về 0)
+        BigDecimal fromBefore = fromBalance.getQuantityOnHand();
+        BigDecimal fromAfter  = fromBefore.subtract(request.quantity());
+        fromBalance.setQuantityOnHand(fromAfter);
+        balanceRepository.save(fromBalance);
+
+        // Cập nhật kệ đích (tạo mới nếu chưa có)
+        InventoryBalance toBalance = balanceRepository
+                .findForUpdate(item.getId(), toShelf.getId())
+                .orElseGet(() -> newBalance(item, toShelf));
+        BigDecimal toBefore = toBalance.getQuantityOnHand();
+        BigDecimal toAfter  = toBefore.add(request.quantity());
+        toBalance.setQuantityOnHand(toAfter);
+        balanceRepository.save(toBalance);
+
+        // Tạo 1 transaction TRANSFER với 2 lines
+        InventoryTransaction transaction = createTransaction(
+                InventoryTransactionType.TRANSFER,
+                fromShelf.getBranchId(),
+                null,
+                InventoryReferenceType.STOCK_TRANSFER,
+                request.note());
+
+        // Line 1: trừ từ kệ nguồn (quantity âm)
+        transaction.addLine(createLine(
+                item, fromShelf, request.quantity().negate(), fromBefore, fromAfter));
+        // Line 2: cộng vào kệ đích (quantity dương)
+        transaction.addLine(createLine(
+                item, toShelf, request.quantity(), toBefore, toAfter));
+
         return mapper.toResponse(transactionRepository.saveAndFlush(transaction));
     }
 

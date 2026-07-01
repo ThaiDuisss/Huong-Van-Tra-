@@ -4,13 +4,14 @@ import { Link } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { inventoryBalanceApi } from "../services/inventoryBalance.api";
-import { inventoryLocationApi } from "../services/inventoryLocation.api";
+import { storeShelfApi } from "../services/storeShelf.api";
 import { inventoryItemApi } from "../services/inventoryItem.api";
 import { productVariantApi } from "../../product/services/productVariant.api";
 import type { ProductVariant } from "../../product/types/product.types";
 import type {
     EntityId,
     InventoryItemResponse,
+    InventoryLocationResponse,
     InventoryReferenceType,
     InventoryTransactionResponse,
     InventoryItemType
@@ -31,10 +32,9 @@ interface StoreInventoryFormProps {
     mode: "stock-in" | "adjustment";
     onSuccess(): void;
     onSubmit(input: {
-        branchId?: EntityId;
+        shelfId: EntityId;
         referenceType: InventoryReferenceType;
         referenceId: EntityId | null;
-        locationId?: EntityId;
         lines: {
             item: InventoryItemResponse;
             quantity: string;
@@ -48,15 +48,14 @@ export function StoreInventoryForm({
     onSubmit
 }: StoreInventoryFormProps) {
     const adjustment = mode === "adjustment";
-    const [branchId, setBranchId] = useState("");
-    const [locationId, setLocationId] = useState("");
+    const [shelfId, setShelfId] = useState("");
     const [referenceId, setReferenceId] = useState("");
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<InventoryTransactionResponse | null>(null);
 
-    // Locations and Variants Metadata
-    const [locations, setLocations] = useState<any[]>([]);
+    // Shelves and Variants Metadata
+    const [shelves, setShelves] = useState<InventoryLocationResponse[]>([]);
     const [inventoryItems, setInventoryItems] = useState<InventoryItemResponse[]>([]);
     const [variantsMap, setVariantsMap] = useState<Record<string, ProductVariant>>({});
     
@@ -66,19 +65,18 @@ export function StoreInventoryForm({
     const [itemType, setItemType] = useState<"ALL" | InventoryItemType>("ALL");
     const [lines, setLines] = useState<TransactionLine[]>([]);
 
-    // 1. Load active locations and products metadata
+    // 1. Load active shelves of current store and products metadata
     useEffect(() => {
         async function loadMetadata() {
             try {
-                const locRes = await inventoryLocationApi.list({ page: 0, size: 200, status: "ACTIVE" });
-                const activeLocs = locRes.content ?? [];
-                setLocations(activeLocs);
+                // Load SHELF locations via store shelf API (already filters to type=SHELF of first warehouse)
+                const shelfRes = await storeShelfApi.list({ page: 0, size: 200, status: "ACTIVE" });
+                const activeShelves = shelfRes.content ?? [];
+                setShelves(activeShelves);
 
-                // Auto-select location
-                if (activeLocs.length > 0) {
-                    const defaultLoc = activeLocs.find(l => l.type === "WAREHOUSE") || activeLocs[0];
-                    setLocationId(String(defaultLoc.id));
-                    setBranchId(String(defaultLoc.branchId));
+                // Auto-select first active shelf
+                if (activeShelves.length > 0) {
+                    setShelfId(String(activeShelves[0].id));
                 }
 
                 // Fetch inventory items
@@ -123,8 +121,8 @@ export function StoreInventoryForm({
 
     // Add selected item to grid
     const handleAddItem = async () => {
-        if (!selectedItem || !locationId) {
-            setError("Vui lòng chọn vị trí và hàng hóa.");
+        if (!selectedItem || !shelfId) {
+            setError("Vui lòng chọn kệ và hàng hóa.");
             return;
         }
 
@@ -134,13 +132,12 @@ export function StoreInventoryForm({
         }
 
         try {
-            // Fetch current quantity to display as beforeQuantity
+            // Fetch current quantity at the selected shelf
             const balances = await inventoryBalanceApi.list({
                 page: 0,
                 size: 1,
                 inventoryItemId: selectedItem.id,
-                locationId: locationId,
-                branchId: branchId ? branchId : undefined
+                locationId: shelfId,
             });
             const beforeQuantity = balances.content[0]?.quantityOnHand ?? 0;
 
@@ -196,6 +193,10 @@ export function StoreInventoryForm({
     // Submit transaction
     const handleSubmit = async () => {
         if (submitting) return;
+        if (!shelfId) {
+            setError("Vui lòng chọn kệ.");
+            return;
+        }
         if (lines.length === 0) {
             setError("Vui lòng nhập đầy đủ thông tin bắt buộc.");
             return;
@@ -221,19 +222,19 @@ export function StoreInventoryForm({
             return;
         }
 
+        const selectedShelf = shelves.find(s => String(s.id) === shelfId);
         const confirmMsg = adjustment
-            ? "Bạn có chắc chắn muốn điều chỉnh tồn kho cho cửa hàng này?"
-            : "Bạn có chắc chắn muốn nhập hàng từ kho tổng về cửa hàng?";
+            ? `Bạn có chắc chắn muốn điều chỉnh tồn kho tại kệ "${selectedShelf?.name}"?`
+            : `Bạn có chắc chắn muốn nhập hàng vào kệ "${selectedShelf?.name}"?`;
         if (!window.confirm(confirmMsg)) return;
 
         setSubmitting(true);
         setError("");
         try {
             const res = await onSubmit({
-                branchId,
+                shelfId,
                 referenceType: adjustment ? "STOCK_COUNT" : "STOCK_TRANSFER",
                 referenceId: referenceId || null,
-                locationId: locationId || undefined,
                 lines: lines.map(line => ({
                     item: line.item,
                     quantity: line.changeQuantity
@@ -254,12 +255,27 @@ export function StoreInventoryForm({
         <section className="grid gap-5">
             <section className="grid gap-5 rounded-2xl bg-white p-5 shadow-pos-card">
                 <div className="col-span-full rounded-xl bg-neutral-50 p-4 border border-pos-border flex flex-col gap-2 text-sm">
-                    <div>
-                        <span className="font-bold text-gray-500">Cửa hàng/Kho: </span>
-                        <span className="font-semibold text-gray-800">
-                            {locations.find(l => String(l.id) === locationId)?.name || "Mặc định (Kho cửa hàng đầu tiên)"}
-                        </span>
+                    {/* Shelf selector */}
+                    <div className="flex flex-col gap-1.5 max-w-xs">
+                        <label className="text-sm font-bold text-gray-700">
+                            Kệ hàng <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={shelfId}
+                            onChange={(e) => {
+                                setShelfId(e.currentTarget.value);
+                                setLines([]); // Reset lines when shelf changes
+                                setError("");
+                            }}
+                            className="h-10 rounded-xl border border-pos-border bg-white px-3 font-normal outline-none focus:border-hvt-green-700"
+                        >
+                            <option value="">-- Chọn kệ --</option>
+                            {shelves.map(s => (
+                                <option key={s.id} value={String(s.id)}>{s.name}</option>
+                            ))}
+                        </select>
                     </div>
+
                     {adjustment ? (
                         <div className="flex flex-col gap-1.5 mt-1 max-w-xs">
                             <label className="text-sm font-bold text-gray-700">
@@ -427,7 +443,7 @@ export function StoreInventoryForm({
                         <strong>
                             {adjustment
                                 ? "Điều chỉnh tồn kho thành công"
-                                : "Nhập hàng từ kho tổng thành công"}
+                                : "Nhập hàng vào kệ thành công"}
                         </strong>
                         <p className="mt-1">Mã giao dịch: {result.transactionCode}</p>
                         <Link
