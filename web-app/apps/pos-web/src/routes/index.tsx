@@ -52,6 +52,9 @@ export const appRoutes = {
     customerGroups: {
         path: routePaths.customerGroups
     },
+    customerTiers: {
+        path: routePaths.customerTiers
+    },
     manufacturingBoms: {
         path: routePaths.bomList
     },
@@ -60,3 +63,4 @@ export const appRoutes = {
     }
     
 } as const;
+

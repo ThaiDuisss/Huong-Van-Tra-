@@ -6,6 +6,7 @@ import { BomListPage } from "../features/manufacturing/pages/BomListPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
+import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
@@ -154,6 +155,10 @@ export function AppRouter() {
                 <Route
                     path="marketing/discount-rules"
                     element={<DiscountProgramListPage />}
+                />
+                <Route
+                    path="customers/tiers"
+                    element={<CustomerTierManagementPage />}
                 />
                 <Route
                     path="manufacturing/boms"

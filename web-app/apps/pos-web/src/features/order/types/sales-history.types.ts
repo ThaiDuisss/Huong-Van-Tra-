@@ -103,6 +103,7 @@ export interface SalesOrderDetail {
     cashierName?: string | null;
     customerName?: string | null;
     customerPhone?: string | null;
+    totalItems?: number | string | null;
     paymentMethod?: SalesPaymentMethod | null;
     paymentMethodLabel?: string | null;
     status?: SalesOrderStatus | null;

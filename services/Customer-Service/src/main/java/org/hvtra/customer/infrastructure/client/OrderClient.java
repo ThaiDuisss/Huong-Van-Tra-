@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @FeignClient(
@@ -18,9 +19,11 @@ public interface OrderClient {
 
     record OrderResponse(
             UUID id,
+            String orderCode,
             UUID customerId,
             BigDecimal originalAmount,
-            BigDecimal finalAmount
+            BigDecimal finalAmount,
+            LocalDateTime soldAt
     ) {
     }
 }

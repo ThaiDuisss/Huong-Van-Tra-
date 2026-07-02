@@ -1,12 +1,10 @@
 import {
+    ChevronLeft,
+    ChevronRight,
     Eye,
-    History,
-    LoaderCircle,
     MoreHorizontal,
     Pencil,
-    Send,
-    ShoppingCart,
-    StickyNote,
+    Search,
     Trash2
 } from "lucide-react";
 import {
@@ -17,11 +15,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import {
-    CUSTOMER_BUTTON_BASE,
-    CUSTOMER_OUTLINE_BUTTON
-} from "../constants/customer-list.constants";
-import type { CustomerPrimaryTab } from "../types/customer-list.types";
 import type {
     CustomerResponse,
     PageResponse
@@ -32,178 +25,226 @@ import {
 } from "../utils/customer-list.utils";
 
 interface Props {
-    activeTab: CustomerPrimaryTab;
-    bulkSelection: boolean;
     customers: CustomerResponse[];
     result: PageResponse<CustomerResponse> | null;
     loading: boolean;
-    loadingMore: boolean;
-    selectedIds: Set<string>;
-    onSelectedIdsChange: (selectedIds: Set<string>) => void;
-    onLoadMore: () => void;
+    onPageChange: (page: number) => void;
     onCustomerClick: (customer: CustomerResponse) => void;
     onCustomerEdit: (customer: CustomerResponse) => void;
     onCustomerDelete: (customer: CustomerResponse) => void;
 }
 
 export function CustomerTable({
-    activeTab,
-    bulkSelection,
     customers,
     result,
     loading,
-    loadingMore,
-    selectedIds,
-    onSelectedIdsChange,
-    onLoadMore,
+    onPageChange,
     onCustomerClick,
     onCustomerEdit,
     onCustomerDelete
 }: Props) {
-    const selectedVisibleCount = customers.filter((customer) =>
-        selectedIds.has(customer.id)
-    ).length;
-    const allVisibleSelected =
-        customers.length > 0 && selectedVisibleCount === customers.length;
-    const someVisibleSelected =
-        selectedVisibleCount > 0 && !allVisibleSelected;
-
-    function toggleCustomer(customerId: string) {
-        const next = new Set(selectedIds);
-        if (next.has(customerId)) next.delete(customerId);
-        else next.add(customerId);
-        onSelectedIdsChange(next);
-    }
-
-    function toggleAllVisible() {
-        const next = new Set(selectedIds);
-        customers.forEach((customer) => {
-            if (allVisibleSelected) next.delete(customer.id);
-            else next.add(customer.id);
-        });
-        onSelectedIdsChange(next);
-    }
+    const totalCustomers = result?.totalElements ?? customers.length;
+    const currentPage = (result?.page ?? 0) + 1;
+    const totalPages = Math.max(result?.totalPages ?? 1, 1);
+    const pageSize = result?.size ?? customers.length;
+    const visibleStart = totalCustomers > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+    const visibleEnd = Math.min(currentPage * pageSize, totalCustomers);
+    const pageNumbers = visiblePageNumbers(currentPage, totalPages);
+    const showLoadingState = loading && customers.length === 0;
+    const showEmptyState = !loading && customers.length === 0;
 
     return (
-        <section className="grid min-h-[330px] flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-white">
+        <section className="grid min-h-[330px] flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[#dce5e1] bg-white shadow-[0_12px_32px_rgba(31,53,43,0.06)]">
             <div className="hidden min-h-0 overflow-auto md:block">
-                <table className="w-full min-w-[860px] border-separate border-spacing-0 text-[13px] text-[#233025]">
+                <table className="w-full min-w-[880px] border-separate border-spacing-0 text-[13px] text-[#233025]">
                     <thead>
                         <tr>
-                            {bulkSelection && (
-                                <TableHead className="w-10 text-center">
-                                    <input
-                                        aria-label="Chọn tất cả khách hàng"
-                                        checked={allVisibleSelected}
-                                        className="size-4 accent-[#159734]"
-                                        disabled={!customers.length}
-                                        onChange={toggleAllVisible}
-                                        ref={(element) => {
-                                            if (element) {
-                                                element.indeterminate =
-                                                    someVisibleSelected;
-                                            }
-                                        }}
-                                        type="checkbox"
-                                    />
+                            {tableHeaders().map((header, index) => (
+                                <TableHead
+                                    className={index === 0 ? "pl-6" : ""}
+                                    key={header}
+                                >
+                                    {header}
                                 </TableHead>
-                            )}
-                            {tableHeaders(activeTab).map((header) => (
-                                <TableHead key={header}>{header}</TableHead>
                             ))}
                             <TableHead className="w-10">
                                 <span className="sr-only">Thao tác</span>
                             </TableHead>
                         </tr>
                     </thead>
-                    <tbody className={loading ? "opacity-60" : ""}>
-                        {customers.map((customer) => (
-                            <CustomerTableRow
-                                activeTab={activeTab}
-                                bulkSelection={bulkSelection}
-                                customer={customer}
-                                isSelected={selectedIds.has(customer.id)}
-                                key={customer.id}
-                                onClick={() => onCustomerClick(customer)}
-                                onDelete={() => onCustomerDelete(customer)}
-                                onEdit={() => onCustomerEdit(customer)}
-                                onToggle={() => toggleCustomer(customer.id)}
-                            />
-                        ))}
+                    <tbody className={loading && customers.length > 0 ? "opacity-60" : ""}>
+                        {showLoadingState && <CustomerTableLoadingRows />}
+                        {showEmptyState && <CustomerTableEmptyRow />}
+                        {!showLoadingState &&
+                            !showEmptyState &&
+                            customers.map((customer, index) => (
+                                <CustomerTableRow
+                                    customer={customer}
+                                    rowIndex={index}
+                                    key={customer.id}
+                                    onClick={() => onCustomerClick(customer)}
+                                    onDelete={() => onCustomerDelete(customer)}
+                                    onEdit={() => onCustomerEdit(customer)}
+                                />
+                            ))}
                     </tbody>
                 </table>
             </div>
             <div className="grid gap-2 overflow-auto p-2 md:hidden">
-                {customers.map((customer) => (
-                    <MobileCustomerCard
-                        bulkSelection={bulkSelection}
-                        customer={customer}
-                        isSelected={selectedIds.has(customer.id)}
-                        key={customer.id}
-                        onClick={() => onCustomerClick(customer)}
-                        onDelete={() => onCustomerDelete(customer)}
-                        onEdit={() => onCustomerEdit(customer)}
-                        onToggle={() => toggleCustomer(customer.id)}
-                    />
-                ))}
+                {showLoadingState && <CustomerMobileLoadingState />}
+                {showEmptyState && <CustomerTableEmptyState />}
+                {!showLoadingState &&
+                    !showEmptyState &&
+                    customers.map((customer) => (
+                        <MobileCustomerCard
+                            customer={customer}
+                            key={customer.id}
+                            onClick={() => onCustomerClick(customer)}
+                            onDelete={() => onCustomerDelete(customer)}
+                            onEdit={() => onCustomerEdit(customer)}
+                        />
+                    ))}
             </div>
-            <footer className="flex min-h-[48px] items-center justify-between gap-4 border-t border-[#e4ece8] px-3 py-2 text-xs font-extrabold text-[#657282]">
+            <footer className="flex min-h-[54px] items-center justify-between gap-4 border-t border-[#e4ece8] bg-white px-4 py-2 text-xs font-extrabold text-[#657282] max-md:flex-col max-md:items-start">
                 <span>
-                    {result?.last
-                        ? `Đã hiển thị tất cả ${result?.totalElements ?? 0} khách hàng`
-                        : `Đã hiển thị ${customers.length} / ${result?.totalElements ?? 0} khách hàng`}
-                    {selectedVisibleCount > 0 &&
-                        ` · Đã chọn ${selectedVisibleCount}`}
+                    Hiển thị {visibleStart.toLocaleString("vi-VN")}-{visibleEnd.toLocaleString("vi-VN")} trên tổng {totalCustomers.toLocaleString("vi-VN")} khách hàng
                 </span>
-                {result && !result.last && (
-                    <button
-                        className={`${CUSTOMER_BUTTON_BASE} ${CUSTOMER_OUTLINE_BUTTON} h-8 px-2.5 text-xs`}
-                        disabled={loading || loadingMore}
-                        onClick={onLoadMore}
-                        type="button"
+                <div className="flex items-center gap-1">
+                    <PageButton
+                        ariaLabel="Trang trước"
+                        disabled={loading || currentPage <= 1}
+                        onClick={() => onPageChange(currentPage - 2)}
                     >
-                        {loadingMore && (
-                            <LoaderCircle
-                                className="animate-spin"
-                                size={15}
-                                aria-hidden="true"
-                            />
-                        )}
-                        {loadingMore
-                            ? "Đang tải..."
-                            : `Tải thêm ${Math.min(
-                                result.size,
-                                result.totalElements - customers.length
-                            )} khách hàng`}
-                    </button>
-                )}
+                        <ChevronLeft size={15} aria-hidden="true" />
+                    </PageButton>
+                    {pageNumbers.map((page, index) =>
+                        page === "gap" ? (
+                            <span className="px-1 text-[#8a96a3]" key={`gap-${index}`}>...</span>
+                        ) : (
+                            <PageButton
+                                active={page === currentPage}
+                                disabled={loading}
+                                key={page}
+                                onClick={page === currentPage ? undefined : () => onPageChange(page - 1)}
+                            >
+                                {page}
+                            </PageButton>
+                        )
+                    )}
+                    <PageButton
+                        ariaLabel="Trang sau"
+                        disabled={loading || currentPage >= totalPages}
+                        onClick={() => onPageChange(currentPage)}
+                    >
+                        <ChevronRight size={15} aria-hidden="true" />
+                    </PageButton>
+                </div>
             </footer>
         </section>
     );
 }
 
+function visiblePageNumbers(currentPage: number, totalPages: number) {
+    if (totalPages <= 5) {
+        return Array.from({ length: totalPages }, (_item, index) => index + 1);
+    }
+
+    const pages: Array<number | "gap"> = [1];
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    if (start > 2) pages.push("gap");
+    for (let page = start; page <= end; page += 1) pages.push(page);
+    if (end < totalPages - 1) pages.push("gap");
+    pages.push(totalPages);
+
+    return pages;
+}
+
+function CustomerTableLoadingRows() {
+    return (
+        <>
+            {Array.from({ length: 8 }, (_, index) => (
+                <tr key={index}>
+                    {Array.from({ length: 6 }, (_cell, cellIndex) => (
+                        <TableCell
+                            className={cellIndex === 0 ? "pl-6" : ""}
+                            key={cellIndex}
+                        >
+                            <span
+                                className={`block h-4 animate-pulse rounded bg-[#edf3f0] ${
+                                    cellIndex === 0
+                                        ? "w-36"
+                                        : cellIndex === 1
+                                            ? "w-28"
+                                            : "w-24"
+                                }`}
+                            />
+                        </TableCell>
+                    ))}
+                </tr>
+            ))}
+        </>
+    );
+}
+
+function CustomerMobileLoadingState() {
+    return (
+        <>
+            {Array.from({ length: 4 }, (_, index) => (
+                <div
+                    className="h-[128px] animate-pulse rounded-lg border border-[#e1e8e5] bg-[#f4f7f5]"
+                    key={index}
+                />
+            ))}
+        </>
+    );
+}
+
+function CustomerTableEmptyRow() {
+    return (
+        <tr>
+            <td colSpan={6}>
+                <CustomerTableEmptyState />
+            </td>
+        </tr>
+    );
+}
+
+function CustomerTableEmptyState() {
+    return (
+        <div className="grid min-h-[320px] place-items-center bg-white p-8 text-center">
+            <div className="max-w-[360px]">
+                <div className="mx-auto grid size-12 place-items-center rounded-full bg-[#eef6f1] text-[#159734]">
+                    <Search size={20} aria-hidden="true" />
+                </div>
+                <h2 className="mt-4 text-sm font-black text-[#172317]">
+                    Chưa có khách hàng phù hợp
+                </h2>
+                <p className="mt-1.5 text-sm font-semibold text-[#697684]">
+                    Thử thay đổi từ khóa tìm kiếm hoặc điều kiện lọc để xem thêm dữ liệu.
+                </p>
+            </div>
+        </div>
+    );
+}
+
 function CustomerTableRow({
-    activeTab,
-    bulkSelection,
     customer,
-    isSelected,
+    rowIndex,
     onClick,
     onDelete,
-    onEdit,
-    onToggle
+    onEdit
 }: {
-    activeTab: CustomerPrimaryTab;
-    bulkSelection: boolean;
     customer: CustomerResponse;
-    isSelected: boolean;
+    rowIndex: number;
     onClick: () => void;
     onDelete: () => void;
     onEdit: () => void;
-    onToggle: () => void;
 }) {
     return (
         <tr
-            className={`group cursor-pointer ${isSelected ? "[&>td]:bg-[#f0faf2]" : ""}`}
+            className={`group cursor-pointer ${rowIndex % 2 === 1 ? "[&>td]:bg-[#f3f7f4]" : ""}`}
             onClick={onClick}
             onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -214,25 +255,10 @@ function CustomerTableRow({
             role="button"
             tabIndex={0}
         >
-            {bulkSelection && (
-                <TableCell className="w-10 text-center">
-                    <input
-                        aria-label={`Chọn ${customer.fullName}`}
-                        checked={isSelected}
-                        className="size-4 accent-[#159734]"
-                        onChange={(event) => {
-                            event.stopPropagation();
-                            onToggle();
-                        }}
-                        onClick={(event) => event.stopPropagation()}
-                        type="checkbox"
-                    />
-                </TableCell>
-            )}
-            <TableCell>
+            <TableCell className="pl-6">
                 <CustomerIdentity customer={customer} />
             </TableCell>
-            {rowCells(activeTab, customer).map((cell, index) => (
+            {rowCells(customer).map((cell, index) => (
                 <TableCell
                     className={cell.strong ? "font-black text-[#172317]" : ""}
                     key={`${customer.id}-${index}`}
@@ -309,7 +335,7 @@ function CustomerActionMenu({
         const rect = menuButtonRef.current?.getBoundingClientRect();
         if (!rect) return;
         const menuWidth = 192;
-        const menuHeight = 250;
+        const menuHeight = 132;
         const gap = 4;
         const spaceBelow = window.innerHeight - rect.bottom;
         const top =
@@ -353,11 +379,7 @@ function CustomerActionMenu({
                         style={menuPosition}
                     >
                         <ActionItem icon={Eye} label="Xem chi tiết" onClick={() => runAction(onOpen)} />
-                        <ActionItem icon={ShoppingCart} label="Tạo đơn nhanh" onClick={() => runAction(onOpen)} />
-                        <ActionItem icon={History} label="Xem lịch sử mua" onClick={() => runAction(onOpen)} />
                         <ActionItem icon={Pencil} label="Sửa thông tin" onClick={() => runAction(onEdit)} />
-                        <ActionItem icon={StickyNote} label="Thêm ghi chú" onClick={() => runAction(onOpen)} />
-                        <ActionItem icon={Send} label="Gửi ưu đãi" onClick={() => runAction(onOpen)} />
                         <ActionItem danger icon={Trash2} label="Xóa khách hàng" onClick={() => runAction(onDelete)} />
                     </div>,
                     document.body
@@ -367,46 +389,30 @@ function CustomerActionMenu({
 }
 
 function MobileCustomerCard({
-    bulkSelection,
     customer,
-    isSelected,
     onClick,
     onDelete,
-    onEdit,
-    onToggle
+    onEdit
 }: {
-    bulkSelection: boolean;
     customer: CustomerResponse;
-    isSelected: boolean;
     onClick: () => void;
     onDelete: () => void;
     onEdit: () => void;
-    onToggle: () => void;
 }) {
     return (
         <article className="rounded-lg border border-[#e1e8e5] bg-white p-3">
             <div className="flex items-start gap-3">
-                {bulkSelection && (
-                    <input
-                        aria-label={`Chọn ${customer.fullName}`}
-                        checked={isSelected}
-                        className="mt-2 size-4 accent-[#159734]"
-                        onChange={onToggle}
-                        type="checkbox"
-                    />
-                )}
                 <button
-                    className="flex min-w-0 flex-1 items-start gap-3 bg-transparent p-0 text-left"
+                    className="min-w-0 flex-1 bg-transparent p-0 text-left"
                     onClick={onClick}
                     type="button"
                 >
-                    <CustomerAvatar customer={customer} />
                     <span className="min-w-0">
                         <strong className="block truncate text-sm font-black text-[#172317]">
                             {customer.fullName}
                         </strong>
                         <span className="mt-0.5 block text-xs font-semibold text-[#697684]">
-                            {customer.customerCode} · {customer.phone}
+                            {customer.phone}
                         </span>
                     </span>
                 </button>
@@ -419,10 +425,9 @@ function MobileCustomerCard({
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
                 <TierBadge customer={customer} />
-                <InsightBadge>{getPrimaryInsight(customer)}</InsightBadge>
+                <StatusBadge status={customer.status} />
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <MiniStat label="Chi tiêu" value={formatCurrency(customer.totalSpent)} />
+            <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
                 <MiniStat label="Mua gần nhất" value={lastPurchaseLabel(customer)} />
             </div>
         </article>
@@ -431,25 +436,9 @@ function MobileCustomerCard({
 
 function CustomerIdentity({ customer }: { customer: CustomerResponse }) {
     return (
-        <div className="flex min-w-[220px] items-center gap-3">
-            <CustomerAvatar customer={customer} />
-            <div className="min-w-0">
-                <div className="truncate font-black text-[#172317]">
-                    {customer.fullName}
-                </div>
-                <div className="text-xs font-semibold text-[#697684]">
-                    {customer.customerCode}
-                </div>
-            </div>
+        <div className="min-w-[180px] truncate font-black text-[#172317]">
+            {customer.fullName}
         </div>
-    );
-}
-
-function CustomerAvatar({ customer }: { customer: CustomerResponse }) {
-    return (
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#eef6f1] text-sm font-black text-[#159734]">
-            {customer.fullName.trim().charAt(0).toUpperCase()}
-        </span>
     );
 }
 
@@ -464,92 +453,22 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     );
 }
 
-function tableHeaders(activeTab: CustomerPrimaryTab) {
-    if (activeTab === "care") {
-        return [
-            "Khách hàng",
-            "Lý do cần chăm sóc",
-            "Hạng TV",
-            "Tổng chi tiêu",
-            "Lần mua gần nhất"
-        ];
-    }
-    if (activeTab === "loyal") {
-        return [
-            "Khách hàng",
-            "Hạng TV",
-            "Tổng chi tiêu",
-            "Số đơn",
-            "Tần suất mua"
-        ];
-    }
-    if (activeTab === "new") {
-        return [
-            "Khách hàng",
-            "Ngày tạo",
-            "Đơn đầu tiên",
-            "Trạng thái quay lại",
-            "Tổng chi tiêu"
-        ];
-    }
-    if (activeTab === "inactive") {
-        return [
-            "Khách hàng",
-            "Hạng trước đó",
-            "Tổng chi tiêu",
-            "Không mua",
-            "Lần mua gần nhất"
-        ];
-    }
+function tableHeaders() {
     return [
         "Khách hàng",
         "Liên hệ",
-        "Hạng TV",
-        "Tổng chi tiêu",
-        "Số đơn",
-        "Lần mua gần nhất"
+        "Hạng khách hàng",
+        "Lần mua gần nhất",
+        "Trạng thái"
     ];
 }
 
-function rowCells(activeTab: CustomerPrimaryTab, customer: CustomerResponse) {
-    if (activeTab === "care") {
-        return [
-            { content: <InsightBadge>{getPrimaryInsight(customer)}</InsightBadge> },
-            { content: <TierBadge customer={customer} /> },
-            { content: formatCurrency(customer.totalSpent), strong: true },
-            { content: lastPurchaseLabel(customer) }
-        ];
-    }
-    if (activeTab === "loyal") {
-        return [
-            { content: <TierBadge customer={customer} /> },
-            { content: formatCurrency(customer.totalSpent), strong: true },
-            { content: estimateOrderCount(customer), strong: true },
-            { content: purchaseFrequency(customer) }
-        ];
-    }
-    if (activeTab === "new") {
-        return [
-            { content: formatDate(customer.createdAt) },
-            { content: customer.lastPurchaseDate ? "Đã có" : "Chưa có" },
-            { content: estimateOrderCount(customer) > 1 ? "Đã quay lại" : "Chưa quay lại" },
-            { content: formatCurrency(customer.totalSpent), strong: true }
-        ];
-    }
-    if (activeTab === "inactive") {
-        return [
-            { content: customer.tierName || "Chưa có hạng" },
-            { content: formatCurrency(customer.totalSpent), strong: true },
-            { content: `${daysSince(customer.lastPurchaseDate) ?? 0} ngày` },
-            { content: lastPurchaseLabel(customer) }
-        ];
-    }
+function rowCells(customer: CustomerResponse) {
     return [
         { content: customer.phone, strong: true },
         { content: <TierBadge customer={customer} /> },
-        { content: formatCurrency(customer.totalSpent), strong: true },
-        { content: estimateOrderCount(customer), strong: true },
-        { content: lastPurchaseLabel(customer) }
+        { content: lastPurchaseLabel(customer) },
+        { content: <StatusBadge status={customer.status} /> }
     ];
 }
 
@@ -564,11 +483,46 @@ function TierBadge({ customer }: { customer: CustomerResponse }) {
     );
 }
 
-function InsightBadge({ children }: { children: ReactNode }) {
+function StatusBadge({ status }: { status: CustomerResponse["status"] }) {
+    const locked = status === "SUSPENDED" || status === "INACTIVE";
     return (
-        <span className="inline-flex h-[24px] items-center rounded-md bg-[#f1f5f3] px-2 text-[11px] font-black text-[#596879]">
-            {children}
+        <span
+            className={`inline-flex h-[24px] items-center rounded-full px-2 text-[11px] font-black ${locked
+                ? "bg-[#fff0ed] text-[#c4422e]"
+                : "bg-[#e9f8ed] text-[#159734]"
+                }`}
+        >
+            {locked ? "Đã khóa" : "Hoạt động"}
         </span>
+    );
+}
+
+function PageButton({
+    active = false,
+    ariaLabel,
+    children,
+    disabled = false,
+    onClick
+}: {
+    active?: boolean;
+    ariaLabel?: string;
+    children: ReactNode;
+    disabled?: boolean;
+    onClick?: () => void;
+}) {
+    return (
+        <button
+            aria-label={ariaLabel}
+            className={`grid size-8 place-items-center rounded-lg border text-xs font-black transition-colors ${active
+                ? "border-[#159734] bg-[#159734] text-white"
+                : "border-[#dce5e1] bg-white text-[#536171] hover:bg-[#f7fbf8]"
+                } disabled:cursor-not-allowed disabled:opacity-45`}
+            disabled={disabled}
+            onClick={onClick}
+            type="button"
+        >
+            {children}
+        </button>
     );
 }
 
@@ -585,9 +539,8 @@ function ActionItem({
 }) {
     return (
         <button
-            className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[#f3f7f4] ${
-                danger ? "text-[#c4422e]" : "text-[#334336]"
-            }`}
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[#f3f7f4] ${danger ? "text-[#c4422e]" : "text-[#334336]"
+                }`}
             onClick={onClick}
             role="menuitem"
             type="button"
@@ -626,73 +579,8 @@ function TableCell({
     );
 }
 
-function formatCurrency(value: number) {
-    return new Intl.NumberFormat("vi-VN", {
-        style: "currency",
-        currency: "VND",
-        maximumFractionDigits: 0
-    }).format(value);
-}
-
-function estimateOrderCount(customer: CustomerResponse) {
-    if (!customer.totalSpent) return 0;
-    return Math.max(1, Math.round(customer.totalSpent / 85_000));
-}
-
-function getPrimaryInsight(customer: CustomerResponse) {
-    return getCustomerInsights(customer)[0];
-}
-
-function getCustomerInsights(customer: CustomerResponse) {
-    const insights: string[] = [];
-    const days = daysSince(customer.lastPurchaseDate);
-    if (["DIAMOND", "PLATINUM", "GOLD"].includes(customer.tierCode ?? "")) {
-        insights.push("VIP");
-    }
-    if (customer.totalSpent >= 1_000_000) insights.push("Chi tiêu cao");
-    if (days !== null && days >= 90) insights.push("90 ngày+");
-    else if (days !== null && days >= 60) insights.push("60 ngày chưa mua");
-    else if (days !== null && days >= 30) insights.push("30 ngày chưa mua");
-    if (!customer.lastPurchaseDate) insights.push("Chưa từng mua");
-    if (isBirthdayThisWeek(customer.dateOfBirth)) insights.push("Sinh nhật tuần này");
-    if (estimateOrderCount(customer) === 1) insights.push("Mới mua 1 lần");
-    return insights.length ? insights : ["Đang hoạt động"];
-}
-
-function purchaseFrequency(customer: CustomerResponse) {
-    const orders = estimateOrderCount(customer);
-    const inactiveDays = daysSince(customer.lastPurchaseDate);
-    if (orders >= 12 && inactiveDays !== null && inactiveDays <= 30) return "Rất thường xuyên";
-    if (orders >= 6 && inactiveDays !== null && inactiveDays <= 45) return "Thường xuyên";
-    if (orders >= 2) return "Thỉnh thoảng";
-    return "Ít mua";
-}
-
 function lastPurchaseLabel(customer: CustomerResponse) {
     return customer.lastPurchaseDate
         ? formatCustomerRelativeDate(customer.lastPurchaseDate)
         : "Chưa từng mua";
-}
-
-function formatDate(value: string) {
-    return new Intl.DateTimeFormat("vi-VN").format(new Date(value));
-}
-
-function daysSince(value: string | null) {
-    if (!value) return null;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const date = new Date(`${value}T00:00:00`);
-    return Math.round((today.getTime() - date.getTime()) / 86_400_000);
-}
-
-function isBirthdayThisWeek(value: string | null) {
-    if (!value) return false;
-    const today = new Date();
-    const birthday = new Date(value);
-    birthday.setFullYear(today.getFullYear());
-    const diff = Math.round(
-        (birthday.getTime() - today.getTime()) / 86_400_000
-    );
-    return diff >= 0 && diff <= 7;
 }
