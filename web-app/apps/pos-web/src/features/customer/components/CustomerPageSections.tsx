@@ -4,7 +4,6 @@ import {
     FileInput,
     FileOutput,
     Filter,
-    LoaderCircle,
     Plus,
     RefreshCw,
     Search,
@@ -59,55 +58,15 @@ export type CustomerHeaderFilterState = {
 };
 
 interface HeaderProps {
-    appliedFilterCount: number;
-    filters: CustomerHeaderFilterState;
-    loading: boolean;
-    searchDraft: string;
-    onFiltersChange: (filters: CustomerHeaderFilterState) => void;
-    onSearchDraftChange: (value: string) => void;
-    onSubmit: (event: FormEvent<HTMLFormElement>) => void;
     onCreate: () => void;
 }
 
 export function CustomerPageHeader({
-    appliedFilterCount,
-    filters,
-    loading,
-    searchDraft,
-    onFiltersChange,
-    onSearchDraftChange,
-    onSubmit,
     onCreate
 }: HeaderProps) {
-    const [filterOpen, setFilterOpen] = useState(false);
-    const [filterDraft, setFilterDraft] =
-        useState<CustomerHeaderFilterState>(filters);
-
-    function updateFilterDraft(updates: Partial<CustomerHeaderFilterState>) {
-        setFilterDraft((current) => ({ ...current, ...updates }));
-    }
-
-    function toggleStatus(status: CustomerStatus) {
-        setFilterDraft((current) => ({
-            ...current,
-            status: current.status === status ? "" : status
-        }));
-    }
-
-    function clearFilters() {
-        setFilterDraft(EMPTY_FILTER_DIALOG_STATE);
-        onFiltersChange(EMPTY_FILTER_DIALOG_STATE);
-    }
-
-    function applyFilters() {
-        onFiltersChange(filterDraft);
-        setFilterOpen(false);
-    }
-
     return (
-        <form
+        <section
             className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-            onSubmit={onSubmit}
         >
             <div className="grid min-w-[240px] gap-1">
                 <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
@@ -119,30 +78,6 @@ export function CustomerPageHeader({
             </div>
 
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2.5">
-                <div className="w-full min-w-[240px] md:w-[360px]">
-                    <SearchBox
-                        value={searchDraft}
-                        placeholder="Tìm tên, SĐT..."
-                        onChange={onSearchDraftChange}
-                    />
-                </div>
-                <button
-                    aria-expanded={filterOpen}
-                    className={`${CUSTOMER_SECONDARY_ACTION_CLASS} relative`}
-                    onClick={() => {
-                        setFilterDraft(filters);
-                        setFilterOpen((open) => !open);
-                    }}
-                    type="button"
-                >
-                    <Filter size={17} aria-hidden="true" />
-                    Bộ lọc
-                    {appliedFilterCount > 0 && (
-                        <span className="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-[#159734] px-1.5 text-[10px] font-black leading-5 text-white shadow-sm">
-                            {appliedFilterCount}
-                        </span>
-                    )}
-                </button>
                 <button
                     className={CUSTOMER_SECONDARY_ACTION_CLASS}
                     disabled
@@ -163,26 +98,15 @@ export function CustomerPageHeader({
                 </button>
                 <button
                     className={CUSTOMER_PRIMARY_ACTION_CLASS}
-                    disabled={loading}
                     onClick={onCreate}
                     type="button"
                 >
-                    {loading ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
+                    <Plus size={17} aria-hidden="true" />
                     <span className="max-md:hidden">Thêm khách hàng</span>
                     <span className="hidden max-md:inline">Thêm</span>
                 </button>
             </div>
-            {filterOpen && (
-                <CustomerFilterPopover
-                    draft={filterDraft}
-                    onApply={applyFilters}
-                    onCancel={() => setFilterOpen(false)}
-                    onClear={clearFilters}
-                    onStatusToggle={toggleStatus}
-                    onUpdate={updateFilterDraft}
-                />
-            )}
-        </form>
+        </section>
     );
 }
 
@@ -426,24 +350,60 @@ const TIER_CHIPS = [
 ];
 
 export function CustomerTierChips({
+    appliedFilterCount,
     activeTierId,
     counts,
+    filters,
     onSortChange,
+    onFiltersChange,
+    onSearchDraftChange,
+    onSubmit,
     onTierChange,
+    searchDraft,
     sort
 }: {
+    appliedFilterCount: number;
     activeTierId: string | null;
     counts: CustomerTierCountResponse[];
+    filters: CustomerHeaderFilterState;
     onSortChange: (sort: CustomerSort) => void;
+    onFiltersChange: (filters: CustomerHeaderFilterState) => void;
+    onSearchDraftChange: (value: string) => void;
+    onSubmit: (event: FormEvent<HTMLFormElement>) => void;
     onTierChange: (tierId: string | null) => void;
+    searchDraft: string;
     sort: CustomerSort;
 }) {
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [filterDraft, setFilterDraft] =
+        useState<CustomerHeaderFilterState>(filters);
     const chips = (counts.length ? counts : TIER_CHIPS).filter(
         (chip) => chip.code !== "UNASSIGNED"
     );
 
+    function updateFilterDraft(updates: Partial<CustomerHeaderFilterState>) {
+        setFilterDraft((current) => ({ ...current, ...updates }));
+    }
+
+    function toggleStatus(status: CustomerStatus) {
+        setFilterDraft((current) => ({
+            ...current,
+            status: current.status === status ? "" : status
+        }));
+    }
+
+    function clearFilters() {
+        setFilterDraft(EMPTY_FILTER_DIALOG_STATE);
+        onFiltersChange(EMPTY_FILTER_DIALOG_STATE);
+    }
+
+    function applyFilters() {
+        onFiltersChange(filterDraft);
+        setFilterOpen(false);
+    }
+
     return (
-        <section className="rounded-2xl bg-white p-3 shadow-pos-card">
+        <form className="rounded-2xl bg-white p-3 shadow-pos-card" onSubmit={onSubmit}>
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <nav
                     aria-label="Lọc theo hạng khách hàng"
@@ -474,27 +434,63 @@ export function CustomerTierChips({
                         );
                     })}
                 </nav>
-                <Select
-                    onValueChange={(value) => onSortChange(value as CustomerSort)}
-                    value={sort}
-                >
-                    <SelectTrigger
-                        aria-label="Sắp xếp danh sách khách hàng"
-                        className={`${CUSTOMER_SECONDARY_ACTION_CLASS} h-11 min-w-[210px]`}
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-2.5">
+                    <div className="w-full min-w-[240px] md:w-[320px]">
+                        <SearchBox
+                            value={searchDraft}
+                            placeholder="Tìm tên, SĐT..."
+                            onChange={onSearchDraftChange}
+                        />
+                    </div>
+                    <button
+                        aria-expanded={filterOpen}
+                        className={`${CUSTOMER_SECONDARY_ACTION_CLASS} relative`}
+                        onClick={() => {
+                            setFilterDraft(filters);
+                            setFilterOpen((open) => !open);
+                        }}
+                        type="button"
                     >
-                        <ArrowUpDown size={17} aria-hidden="true" />
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="w-56">
-                        {CUSTOMER_SORT_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                        <Filter size={17} aria-hidden="true" />
+                        Bộ lọc
+                        {appliedFilterCount > 0 && (
+                            <span className="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-[#159734] px-1.5 text-[10px] font-black leading-5 text-white shadow-sm">
+                                {appliedFilterCount}
+                            </span>
+                        )}
+                    </button>
+                    <Select
+                        onValueChange={(value) => onSortChange(value as CustomerSort)}
+                        value={sort}
+                    >
+                        <SelectTrigger
+                            aria-label="Sắp xếp danh sách khách hàng"
+                            className={`${CUSTOMER_SECONDARY_ACTION_CLASS} h-11 min-w-[210px]`}
+                        >
+                            <ArrowUpDown size={17} aria-hidden="true" />
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="w-56">
+                            {CUSTOMER_SORT_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
-        </section>
+            {filterOpen && (
+                <CustomerFilterPopover
+                    draft={filterDraft}
+                    onApply={applyFilters}
+                    onCancel={() => setFilterOpen(false)}
+                    onClear={clearFilters}
+                    onStatusToggle={toggleStatus}
+                    onUpdate={updateFilterDraft}
+                />
+            )}
+        </form>
     );
 }
 

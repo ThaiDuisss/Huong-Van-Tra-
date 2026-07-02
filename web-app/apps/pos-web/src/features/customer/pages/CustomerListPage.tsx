@@ -147,21 +147,20 @@ export function CustomerListPage() {
     return (
         <section className="flex h-full min-h-0 flex-col gap-4 text-[#172317]">
             <CustomerPageHeader
-                appliedFilterCount={appliedFilterCount}
-                filters={headerFilters}
-                loading={loading}
-                searchDraft={searchDraft}
-                onFiltersChange={applyHeaderFilters}
                 onCreate={() => setShowCreateDialog(true)}
-                onSearchDraftChange={setSearchDraft}
-                onSubmit={submitSearch}
             />
 
             <CustomerTierChips
+                appliedFilterCount={appliedFilterCount}
                 activeTierId={activeTierId}
                 counts={tierCounts}
+                filters={headerFilters}
+                searchDraft={searchDraft}
                 sort={sort}
                 onSortChange={changeSort}
+                onFiltersChange={applyHeaderFilters}
+                onSearchDraftChange={setSearchDraft}
+                onSubmit={submitSearch}
                 onTierChange={changeTierFilter}
             />
 
