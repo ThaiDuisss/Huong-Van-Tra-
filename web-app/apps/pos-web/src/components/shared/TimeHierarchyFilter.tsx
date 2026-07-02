@@ -2,23 +2,24 @@ import { useMemo, useState } from "react";
 import { CalendarDays, ChevronRight, Funnel } from "lucide-react";
 
 import { CalendarMonthPicker } from "./CalendarMonthPicker";
+import {
+    formatLegacyDate,
+    getDaysInMonth,
+    getQuarterFromMonth,
+    getTimeNodeLabel,
+    legacyDateToIsoDate,
+    type TimeNode
+} from "./TimeHierarchyFilter.utils";
 import styles from "./TimeHierarchyFilter.module.css";
 
 interface TimeHierarchyFilterProps {
     activeDate?: string;
-    activeRange?: TimeRange | null;
     enableCalendar?: boolean;
-    selectedYear?: number | null;
-    onClearRange?: () => void;
-    onRangeChange?: (range: TimeRange) => void;
+    selectedNode?: TimeNode | null;
+    title?: string;
+    onClear?: () => void;
+    onSelect?: (node: TimeNode) => void;
     onYearChange?: (year: number) => void;
-}
-
-export interface TimeRange {
-    fromDate: string;
-    label: string;
-    selectedDate?: string | null;
-    toDate: string;
 }
 
 interface MonthNode {
@@ -32,8 +33,8 @@ interface QuarterNode {
 }
 
 interface YearNode {
-    year: number;
     quarters: QuarterNode[];
+    year: number;
 }
 
 interface ActiveOpenPath {
@@ -42,44 +43,8 @@ interface ActiveOpenPath {
     year: number;
 }
 
-interface SelectedNode {
-    date?: string;
-    month?: number;
-    quarter?: number;
-    type: "year" | "quarter" | "month" | "day";
-    year: number;
-}
-
 const visibleYearCount = 5;
 const monthsPerQuarter = 3;
-
-function padDatePart(value: number) {
-    return String(value).padStart(2, "0");
-}
-
-function toIsoDate(year: number, month: number, day: number) {
-    return `${year}-${padDatePart(month)}-${padDatePart(day)}`;
-}
-
-function formatDisplayDate(isoDate: string) {
-    const [year, month, day] = isoDate.split("-");
-
-    return `${day}/${month}/${year}`;
-}
-
-function formatLegacyDate(day: number, month: number, year: number) {
-    return `${padDatePart(day)}/${padDatePart(month)}/${year}`;
-}
-
-function legacyDateToIsoDate(date: string) {
-    const [day, month, year] = date.split("/");
-
-    return `${year}-${month}-${day}`;
-}
-
-function getDaysInMonth(year: number, month: number) {
-    return new Date(year, month, 0).getDate();
-}
 
 function buildTimeTree(today: Date): YearNode[] {
     const currentYear = today.getFullYear();
@@ -92,7 +57,6 @@ function buildTimeTree(today: Date): YearNode[] {
         const quarterCount = Math.ceil(maxMonth / monthsPerQuarter);
 
         return {
-            year,
             quarters: Array.from({ length: quarterCount }, (_, quarterIndex) => {
                 const quarter = quarterIndex + 1;
                 const quarterStartMonth = quarterIndex * monthsPerQuarter + 1;
@@ -102,7 +66,6 @@ function buildTimeTree(today: Date): YearNode[] {
                 );
 
                 return {
-                    quarter,
                     months: Array.from(
                         { length: quarterEndMonth - quarterStartMonth + 1 },
                         (_, monthIndex) => {
@@ -125,21 +88,32 @@ function buildTimeTree(today: Date): YearNode[] {
                                 month
                             };
                         }
-                    ).reverse()
+                    ).reverse(),
+                    quarter
                 };
-            }).reverse()
+            }).reverse(),
+            year
         };
     });
 }
 
+function getNodeIds(year: number, quarter?: number, month?: number) {
+    const quarterId = quarter ? `${year}-${quarter}` : null;
+
+    return {
+        monthId: quarterId && month ? `${quarterId}-${month}` : null,
+        quarterId
+    };
+}
+
 export function TimeHierarchyFilter({
     activeDate,
-    activeRange,
     enableCalendar = false,
-    onClearRange,
-    onRangeChange,
-    selectedYear,
-    onYearChange
+    onClear,
+    onSelect,
+    onYearChange,
+    selectedNode,
+    title = "Thời gian"
 }: TimeHierarchyFilterProps) {
     const [openYears, setOpenYears] = useState<Set<number>>(new Set());
     const [openQuarters, setOpenQuarters] = useState<Set<string>>(new Set());
@@ -152,101 +126,51 @@ export function TimeHierarchyFilter({
     const today = useMemo(() => new Date(), []);
     const timeTree = useMemo(() => buildTimeTree(today), [today]);
     const fallbackDate =
-        activeRange || enableCalendar
+        selectedNode || enableCalendar
             ? null
             : formatLegacyDate(
                   today.getDate(),
                   today.getMonth() + 1,
                   today.getFullYear()
               );
-    const selectedDate = activeDate ?? activeRange?.selectedDate ?? fallbackDate;
-    const selectedNode = useMemo<SelectedNode | null>(() => {
-        if (!activeRange) {
+    const selectedDate =
+        activeDate ?? (selectedNode?.type === "day" ? selectedNode.date : null);
+    const selectedLabel = selectedNode ? getTimeNodeLabel(selectedNode) : null;
+    const activeOpenPath = useMemo<ActiveOpenPath | null>(() => {
+        if (!selectedNode) {
             return null;
         }
 
-        const dateToSelect = activeRange.selectedDate ?? activeRange.fromDate;
-        const [year, month] = dateToSelect.split("-").map(Number);
-
-        if (!year || !month) {
-            return null;
-        }
-
-        const quarter = Math.ceil(month / monthsPerQuarter);
-
-        if (activeRange.selectedDate) {
+        if (selectedNode.type === "year") {
             return {
-                date: activeRange.selectedDate,
-                month,
-                quarter,
-                type: "day",
-                year
+                monthId: null,
+                quarterId: null,
+                year: selectedNode.year
             };
         }
 
-        if (activeRange.label.startsWith("Tháng")) {
-            return { month, quarter, type: "month", year };
-        }
-
-        if (activeRange.label.startsWith("Quý")) {
-            return { quarter, type: "quarter", year };
-        }
-
-        return { type: "year", year };
-    }, [activeRange]);
-    const activeOpenPath = useMemo<ActiveOpenPath | null>(() => {
-        const dateToOpen = selectedDate ?? activeRange?.fromDate;
-
-        if (!activeRange || !dateToOpen) {
-            return null;
-        }
-
-        const [year, month] = dateToOpen.split("-").map(Number);
-
-        if (!year || !month) {
-            return null;
-        }
-
-        const quarter = Math.ceil(month / monthsPerQuarter);
-        const quarterId = `${year}-${quarter}`;
-        const monthId = `${quarterId}-${month}`;
-        const shouldOpenQuarter =
-            Boolean(selectedDate) ||
-            activeRange.label.startsWith("Quý") ||
-            activeRange.label.startsWith("Tháng");
-        const shouldOpenMonth =
-            Boolean(selectedDate) || activeRange.label.startsWith("Tháng");
+        const quarter = selectedNode.quarter;
+        const month =
+            selectedNode.type === "month" || selectedNode.type === "day"
+                ? selectedNode.month
+                : undefined;
+        const { monthId, quarterId } = getNodeIds(
+            selectedNode.year,
+            quarter,
+            month
+        );
 
         return {
-            monthId: shouldOpenMonth ? monthId : null,
-            quarterId: shouldOpenQuarter ? quarterId : null,
-            year
+            monthId:
+                selectedNode.type === "month" || selectedNode.type === "day"
+                    ? monthId
+                    : null,
+            quarterId,
+            year: selectedNode.year
         };
-    }, [activeRange, selectedDate]);
+    }, [selectedNode]);
 
-    const selectYear = (year: number) => {
-        setClosedYears((current) => {
-            if (!current.has(year)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.delete(year);
-            return next;
-        });
-        onRangeChange?.({
-            fromDate: toIsoDate(year, 1, 1),
-            label: `${year}`,
-            selectedDate: null,
-            toDate: toIsoDate(year, 12, 31)
-        });
-    };
-
-    const selectQuarter = (year: number, quarter: number) => {
-        const startMonth = (quarter - 1) * monthsPerQuarter + 1;
-        const endMonth = startMonth + monthsPerQuarter - 1;
-        const quarterId = `${year}-${quarter}`;
-
+    const openSelectedYear = (year: number) => {
         setClosedYears((current) => {
             if (!current.has(year)) {
                 return current;
@@ -265,58 +189,23 @@ export function TimeHierarchyFilter({
             next.add(year);
             return next;
         });
-        setClosedQuarters((current) => {
-            if (!current.has(quarterId)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.delete(quarterId);
-            return next;
-        });
-
-        onRangeChange?.({
-            fromDate: toIsoDate(year, startMonth, 1),
-            label: `Quý ${quarter}/${year}`,
-            selectedDate: null,
-            toDate: toIsoDate(year, endMonth, getDaysInMonth(year, endMonth))
-        });
     };
 
-    const selectMonth = (year: number, month: number) => {
-        const quarter = Math.ceil(month / monthsPerQuarter);
-        const quarterId = `${year}-${quarter}`;
-        const monthId = `${quarterId}-${month}`;
+    const openSelectedQuarter = (year: number, quarter: number) => {
+        const { quarterId } = getNodeIds(year, quarter);
 
-        setClosedYears((current) => {
-            if (!current.has(year)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.delete(year);
-            return next;
-        });
+        openSelectedYear(year);
         setClosedQuarters((current) => {
-            if (!current.has(quarterId)) {
+            if (!quarterId || !current.has(quarterId)) {
                 return current;
             }
 
             const next = new Set(current);
             next.delete(quarterId);
-            return next;
-        });
-        setOpenYears((current) => {
-            if (current.has(year)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.add(year);
             return next;
         });
         setOpenQuarters((current) => {
-            if (current.has(quarterId)) {
+            if (!quarterId || current.has(quarterId)) {
                 return current;
             }
 
@@ -324,77 +213,23 @@ export function TimeHierarchyFilter({
             next.add(quarterId);
             return next;
         });
-        setClosedMonths((current) => {
-            if (!current.has(monthId)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.delete(monthId);
-            return next;
-        });
-
-        onRangeChange?.({
-            fromDate: toIsoDate(year, month, 1),
-            label: `Tháng ${month}/${year}`,
-            selectedDate: null,
-            toDate: toIsoDate(year, month, getDaysInMonth(year, month))
-        });
     };
 
-    const selectDate = (isoDate: string) => {
-        const [year, month] = isoDate.split("-").map(Number);
-        const quarter = Math.ceil(month / monthsPerQuarter);
-        const quarterId = `${year}-${quarter}`;
-        const monthId = `${quarterId}-${month}`;
+    const openSelectedMonth = (year: number, quarter: number, month: number) => {
+        const { monthId } = getNodeIds(year, quarter, month);
 
-        setClosedYears((current) => {
-            if (!current.has(year)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.delete(year);
-            return next;
-        });
-        setClosedQuarters((current) => {
-            if (!current.has(quarterId)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.delete(quarterId);
-            return next;
-        });
+        openSelectedQuarter(year, quarter);
         setClosedMonths((current) => {
-            if (!current.has(monthId)) {
+            if (!monthId || !current.has(monthId)) {
                 return current;
             }
 
             const next = new Set(current);
             next.delete(monthId);
-            return next;
-        });
-        setOpenYears((current) => {
-            if (current.has(year)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.add(year);
-            return next;
-        });
-        setOpenQuarters((current) => {
-            if (current.has(quarterId)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.add(quarterId);
             return next;
         });
         setOpenMonths((current) => {
-            if (current.has(monthId)) {
+            if (!monthId || current.has(monthId)) {
                 return current;
             }
 
@@ -402,12 +237,36 @@ export function TimeHierarchyFilter({
             next.add(monthId);
             return next;
         });
+    };
 
-        onRangeChange?.({
-            fromDate: isoDate,
-            label: formatDisplayDate(isoDate),
-            selectedDate: isoDate,
-            toDate: isoDate
+    const selectYear = (year: number) => {
+        openSelectedYear(year);
+        onSelect?.({ type: "year", year });
+    };
+
+    const selectQuarter = (year: number, quarter: number) => {
+        openSelectedQuarter(year, quarter);
+        onSelect?.({ quarter, type: "quarter", year });
+    };
+
+    const selectMonth = (year: number, month: number) => {
+        const quarter = getQuarterFromMonth(month);
+
+        openSelectedMonth(year, quarter, month);
+        onSelect?.({ month, quarter, type: "month", year });
+    };
+
+    const selectDate = (isoDate: string) => {
+        const [year, month] = isoDate.split("-").map(Number);
+        const quarter = getQuarterFromMonth(month);
+
+        openSelectedMonth(year, quarter, month);
+        onSelect?.({
+            date: isoDate,
+            month,
+            quarter,
+            type: "day",
+            year
         });
     };
 
@@ -424,10 +283,6 @@ export function TimeHierarchyFilter({
                 return next;
             });
             setClosedYears((current) => {
-                if (current.has(year)) {
-                    return current;
-                }
-
                 const next = new Set(current);
                 next.add(year);
                 return next;
@@ -435,20 +290,7 @@ export function TimeHierarchyFilter({
             return;
         }
 
-        setOpenYears((current) => {
-            const next = new Set(current);
-            next.add(year);
-            return next;
-        });
-        setClosedYears((current) => {
-            if (!current.has(year)) {
-                return current;
-            }
-
-            const next = new Set(current);
-            next.delete(year);
-            return next;
-        });
+        openSelectedYear(year);
     };
 
     const toggleQuarter = (id: string) => {
@@ -463,10 +305,6 @@ export function TimeHierarchyFilter({
                 return next;
             });
             setClosedQuarters((current) => {
-                if (current.has(id)) {
-                    return current;
-                }
-
                 const next = new Set(current);
                 next.add(id);
                 return next;
@@ -480,10 +318,6 @@ export function TimeHierarchyFilter({
             return next;
         });
         setClosedQuarters((current) => {
-            if (!current.has(id)) {
-                return current;
-            }
-
             const next = new Set(current);
             next.delete(id);
             return next;
@@ -502,10 +336,6 @@ export function TimeHierarchyFilter({
                 return next;
             });
             setClosedMonths((current) => {
-                if (current.has(id)) {
-                    return current;
-                }
-
                 const next = new Set(current);
                 next.add(id);
                 return next;
@@ -519,10 +349,6 @@ export function TimeHierarchyFilter({
             return next;
         });
         setClosedMonths((current) => {
-            if (!current.has(id)) {
-                return current;
-            }
-
             const next = new Set(current);
             next.delete(id);
             return next;
@@ -533,18 +359,16 @@ export function TimeHierarchyFilter({
         <aside className={styles.timeline} aria-label="Bộ lọc thời gian">
             <div className={styles.header}>
                 <div>
-                    <span>Thời gian</span>
-                    {activeRange ? (
-                        <strong>{activeRange.label}</strong>
-                    ) : null}
+                    <span>{title}</span>
+                    {selectedLabel ? <strong>{selectedLabel}</strong> : null}
                 </div>
                 <Funnel size={20} strokeWidth={1.8} aria-hidden="true" />
             </div>
 
-            {activeRange ? (
+            {selectedNode ? (
                 <button
                     className={styles.clearButton}
-                    onClick={onClearRange}
+                    onClick={onClear}
                     type="button"
                 >
                     Clear
@@ -564,16 +388,12 @@ export function TimeHierarchyFilter({
                     return (
                         <div key={yearNode.year}>
                             <div
+                                aria-expanded={yearOpen}
                                 className={`${styles.item} ${
                                     yearOpen ? styles.open : ""
                                 } ${
-                                    yearSelected ||
-                                    (!selectedNode &&
-                                        selectedYear === yearNode.year)
-                                        ? styles.activeItem
-                                        : ""
+                                    yearSelected ? styles.activeItem : ""
                                 }`}
-                                aria-expanded={yearOpen}
                             >
                                 <button
                                     aria-label={`${
@@ -618,6 +438,7 @@ export function TimeHierarchyFilter({
                                       return (
                                           <div key={quarterId}>
                                               <div
+                                                  aria-expanded={quarterOpen}
                                                   className={`${styles.item} ${styles.quarter} ${
                                                       quarterOpen
                                                           ? styles.open
@@ -627,7 +448,6 @@ export function TimeHierarchyFilter({
                                                           ? styles.activeItem
                                                           : ""
                                                   }`}
-                                                  aria-expanded={quarterOpen}
                                               >
                                                   <button
                                                       aria-label={`${
@@ -697,6 +517,9 @@ export function TimeHierarchyFilter({
                                                                     }
                                                                 >
                                                                     <div
+                                                                        aria-expanded={
+                                                                            monthOpen
+                                                                        }
                                                                         className={`${styles.item} ${styles.month} ${
                                                                             monthOpen
                                                                                 ? styles.open
@@ -706,9 +529,6 @@ export function TimeHierarchyFilter({
                                                                                 ? styles.activeItem
                                                                                 : ""
                                                                         }`}
-                                                                        aria-expanded={
-                                                                            monthOpen
-                                                                        }
                                                                     >
                                                                         <button
                                                                             aria-label={`${
@@ -765,40 +585,44 @@ export function TimeHierarchyFilter({
 
                                                                     {monthOpen &&
                                                                     enableCalendar ? (
-                                                                              <CalendarMonthPicker
-                                                                                  month={
-                                                                                      monthNode.month
-                                                                                  }
-                                                                                  selectedDate={
-                                                                                      selectedDate
-                                                                                  }
-                                                                                  year={
-                                                                                      yearNode.year
-                                                                                  }
-                                                                                  onSelectDate={
-                                                                                      selectDate
-                                                                                  }
-                                                                              />
-                                                                          ) : null}
+                                                                        <CalendarMonthPicker
+                                                                            month={
+                                                                                monthNode.month
+                                                                            }
+                                                                            selectedDate={
+                                                                                selectedDate
+                                                                            }
+                                                                            year={
+                                                                                yearNode.year
+                                                                            }
+                                                                            onSelectDate={
+                                                                                selectDate
+                                                                            }
+                                                                        />
+                                                                    ) : null}
 
                                                                     {monthOpen &&
                                                                     !enableCalendar
                                                                         ? monthNode.dates.map(
-                                                                          (
+                                                                              (
                                                                                   date
                                                                               ) => {
                                                                                   const isoDate =
                                                                                       legacyDateToIsoDate(
                                                                                           date
                                                                                       );
+                                                                                  const daySelected =
+                                                                                      selectedNode?.type ===
+                                                                                          "day" &&
+                                                                                      selectedNode.date ===
+                                                                                          isoDate;
 
                                                                                   return (
                                                                                       <button
                                                                                           className={`${styles.item} ${styles.date} ${styles.dateRail} ${
                                                                                               date ===
-                                                                                                  selectedDate ||
-                                                                                              isoDate ===
-                                                                                                  selectedNode?.date
+                                                                                                  fallbackDate ||
+                                                                                              daySelected
                                                                                                   ? styles.activeDate
                                                                                                   : ""
                                                                                           }`}

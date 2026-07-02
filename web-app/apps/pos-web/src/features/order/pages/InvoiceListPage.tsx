@@ -9,7 +9,11 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
-import type { TimeRange } from "../../../components/shared/TimeHierarchyFilter";
+import {
+    buildTodayTimeNode,
+    getDateRangeFromTimeNode,
+    type TimeNode
+} from "../../../components/shared/TimeHierarchyFilter.utils";
 import { InvoiceDetailPanel } from "../components/InvoiceDetailPanel";
 import { PaymentStatusBadge } from "../components/PaymentStatusBadge";
 import { getOrderById, getOrders, getOrderStats } from "../services/order.api";
@@ -96,36 +100,11 @@ function getPageNumbers(totalPages: number, currentPage: number) {
     return Array.from({ length }, (_, index) => start + index);
 }
 
-function formatLocalDate(date: Date) {
-    const pad = (value: number) => value.toString().padStart(2, "0");
-
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-        date.getDate()
-    )}`;
-}
-
-function formatTimeRangeLabel(isoDate: string) {
-    const [year, month, day] = isoDate.split("-");
-
-    return `${day}/${month}/${year}`;
-}
-
-function buildTodayTimeRange(): TimeRange {
-    const today = formatLocalDate(new Date());
-
-    return {
-        fromDate: today,
-        label: formatTimeRangeLabel(today),
-        selectedDate: today,
-        toDate: today
-    };
-}
-
 export function InvoiceListPage() {
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
-    const [timeRange, setTimeRange] = useState<TimeRange | null>(
-        buildTodayTimeRange
+    const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(
+        buildTodayTimeNode
     );
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterPaymentStatus, setFilterPaymentStatus] =
@@ -149,6 +128,7 @@ export function InvoiceListPage() {
     const activePaymentTab = INVOICE_PAYMENT_TABS.find(
         (tab) => tab.key === filterPaymentStatus
     );
+    const timeRange = getDateRangeFromTimeNode(selectedTimeNode);
 
     useEffect(() => {
         let ignore = false;
@@ -296,13 +276,13 @@ export function InvoiceListPage() {
         setCurrentPage(0);
     };
 
-    const selectTimeRange = (range: TimeRange) => {
-        setTimeRange(range);
+    const selectTimeNode = (node: TimeNode) => {
+        setSelectedTimeNode(node);
         setCurrentPage(0);
     };
 
     const clearTimeRange = () => {
-        setTimeRange(null);
+        setSelectedTimeNode(null);
         setCurrentPage(0);
     };
 
@@ -341,17 +321,14 @@ export function InvoiceListPage() {
         >
             <TimeSidebar
                 activeDate={timeRange?.selectedDate ?? undefined}
-                activeRange={timeRange}
                 collapsed={isTimeCollapsed}
                 enableCalendar
-                onClearRange={clearTimeRange}
-                onRangeChange={selectTimeRange}
+                onClear={clearTimeRange}
+                onSelect={selectTimeNode}
                 onToggleCollapse={() =>
                     setIsTimeCollapsed((collapsed) => !collapsed)
                 }
-                selectedYear={
-                    timeRange ? Number(timeRange.fromDate.slice(0, 4)) : null
-                }
+                selectedNode={selectedTimeNode}
             />
 
             <div className={styles.content}>
