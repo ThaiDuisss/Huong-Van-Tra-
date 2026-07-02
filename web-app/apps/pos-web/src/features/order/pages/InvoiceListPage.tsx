@@ -1,5 +1,4 @@
 import {
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
     FileSpreadsheet,
@@ -10,6 +9,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
+import type { TimeRange } from "../../../components/shared/TimeHierarchyFilter";
 import { InvoiceDetailPanel } from "../components/InvoiceDetailPanel";
 import { PaymentStatusBadge } from "../components/PaymentStatusBadge";
 import { getOrderById, getOrders, getOrderStats } from "../services/order.api";
@@ -96,9 +96,37 @@ function getPageNumbers(totalPages: number, currentPage: number) {
     return Array.from({ length }, (_, index) => start + index);
 }
 
+function formatLocalDate(date: Date) {
+    const pad = (value: number) => value.toString().padStart(2, "0");
+
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+        date.getDate()
+    )}`;
+}
+
+function formatTimeRangeLabel(isoDate: string) {
+    const [year, month, day] = isoDate.split("-");
+
+    return `${day}/${month}/${year}`;
+}
+
+function buildTodayTimeRange(): TimeRange {
+    const today = formatLocalDate(new Date());
+
+    return {
+        fromDate: today,
+        label: formatTimeRangeLabel(today),
+        selectedDate: today,
+        toDate: today
+    };
+}
+
 export function InvoiceListPage() {
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [timeRange, setTimeRange] = useState<TimeRange | null>(
+        buildTodayTimeRange
+    );
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterPaymentStatus, setFilterPaymentStatus] =
         useState<InvoicePaymentTabKey>("ALL");
@@ -129,8 +157,10 @@ export function InvoiceListPage() {
             setListError(null);
 
             getOrders({
+                fromDate: timeRange?.fromDate,
                 keyword: debouncedKeyword,
                 paymentStatus: activePaymentTab?.paymentStatus ?? undefined,
+                toDate: timeRange?.toDate,
                 sort: "invoicePayment",
                 page: currentPage,
                 size: PAGE_SIZE
@@ -161,12 +191,21 @@ export function InvoiceListPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [activePaymentTab?.paymentStatus, currentPage, debouncedKeyword]);
+    }, [
+        activePaymentTab?.paymentStatus,
+        currentPage,
+        debouncedKeyword,
+        timeRange?.fromDate,
+        timeRange?.toDate
+    ]);
 
     useEffect(() => {
         let ignore = false;
 
-        getOrderStats()
+        getOrderStats({
+            fromDate: timeRange?.fromDate,
+            toDate: timeRange?.toDate
+        })
             .then((response) => {
                 if (!ignore) {
                     setStats(response ?? {});
@@ -181,7 +220,7 @@ export function InvoiceListPage() {
         return () => {
             ignore = true;
         };
-    }, []);
+    }, [timeRange?.fromDate, timeRange?.toDate]);
 
     useEffect(() => {
         if (!selectedOrderId) {
@@ -257,6 +296,16 @@ export function InvoiceListPage() {
         setCurrentPage(0);
     };
 
+    const selectTimeRange = (range: TimeRange) => {
+        setTimeRange(range);
+        setCurrentPage(0);
+    };
+
+    const clearTimeRange = () => {
+        setTimeRange(null);
+        setCurrentPage(0);
+    };
+
     const selectInvoice = (order: OrderSummaryResponse, rowIndex: number) => {
         setSelectedSummary(order);
         setSelectedOrderId(order.id);
@@ -291,9 +340,17 @@ export function InvoiceListPage() {
                 }`}
         >
             <TimeSidebar
+                activeDate={timeRange?.selectedDate ?? undefined}
+                activeRange={timeRange}
                 collapsed={isTimeCollapsed}
+                enableCalendar
+                onClearRange={clearTimeRange}
+                onRangeChange={selectTimeRange}
                 onToggleCollapse={() =>
                     setIsTimeCollapsed((collapsed) => !collapsed)
+                }
+                selectedYear={
+                    timeRange ? Number(timeRange.fromDate.slice(0, 4)) : null
                 }
             />
 
@@ -333,7 +390,6 @@ export function InvoiceListPage() {
                         >
                             <FileSpreadsheet size={18} aria-hidden="true" />
                             Xuất file
-                            <ChevronDown size={16} aria-hidden="true" />
                         </button>
                     </div>
                 </div>

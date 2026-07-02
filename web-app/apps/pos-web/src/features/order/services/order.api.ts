@@ -27,6 +27,12 @@ export function getOrders(params: OrderQueryParams = {}) {
     });
 }
 
+export function exportOrders(params: OrderQueryParams = {}) {
+    return apiClient.download("/orders/export", {
+        query: compactQuery(params)
+    });
+}
+
 export function getOrderById(orderId: string) {
     return apiClient.get<OrderDetailResponse>(
         `/orders/${encodeURIComponent(orderId)}`
@@ -60,6 +66,7 @@ export function cancelOrder(orderId: string, body: CancelOrderRequest) {
 
 export const orderApi = {
     getOrders,
+    exportOrders,
     getOrderById,
     getOrderStats,
     updateOrderStatus,

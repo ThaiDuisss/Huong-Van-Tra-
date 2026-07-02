@@ -605,7 +605,7 @@
 }
 
 .detailModal {
-  width: min(768px, calc(100vw - 32px));
+  width: min(900px, calc(100vw - 32px));
   max-height: min(760px, calc(100vh - 48px));
 }
 

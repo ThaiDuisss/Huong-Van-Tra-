@@ -11,23 +11,56 @@
 
 .header {
   display: flex;
-  height: 52px;
+  min-height: 52px;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #edf0f4;
-  padding: 0 16px;
+  padding: 10px 16px;
   color: #172317;
   font-size: 16px;
   font-weight: 900;
 }
 
-.list {
+.header div {
   display: grid;
+  gap: 3px;
+}
+
+.header strong {
+  color: #07883a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.clearButton {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-bottom: 1px solid #edf0f4;
+  background: #ffffff;
+  color: #07883a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.clearButton:hover {
+  background: #eaf7ef;
+}
+
+.list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   gap: 8px;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 12px;
+  overflow-x: hidden;
+  padding: 16px 12px 24px;
   color: #172317;
   font-size: 15px;
 }
@@ -35,32 +68,89 @@
 .item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: nowrap;
+  gap: 4px;
   min-height: 32px;
+  min-width: 0;
+  width: 100%;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: inherit;
   font-weight: 700;
   text-align: left;
+  white-space: nowrap;
 }
 
-.item svg {
+.item button {
+  font-family: inherit;
+}
+
+.chevronButton {
+  display: grid;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.chevronButton:hover {
+  background: #eaf7ef;
+}
+
+.chevronButton svg,
+.itemLabel svg {
+  flex-shrink: 0;
+}
+
+.chevronButton svg {
   transition: transform 160ms ease;
 }
 
-.open svg {
+.open .chevronButton svg {
   transform: rotate(90deg);
 }
 
+.itemLabel {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  padding: 0 6px 0 0;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.itemLabel:hover {
+  color: #07883a;
+}
+
 .quarter {
-  padding-left: 22px;
+  padding-left: 16px;
 }
 
 .month {
-  padding-left: 48px;
+  padding-left: 32px;
   color: #3e4d42;
   font-weight: 500;
+}
+
+.month svg:last-child {
+  margin-left: auto;
+  color: #07883a;
 }
 
 .date {
@@ -92,4 +182,54 @@
   border-radius: 999px;
   background: currentColor;
   content: "";
+}
+
+.calendarPanel {
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  gap: 6px;
+  margin: 4px 0 6px;
+  border: 1px solid #dcebe2;
+  border-radius: 10px;
+  background: #ffffff;
+  overflow: visible;
+  padding: 8px;
+}
+
+.dayGrid {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dayButton {
+  display: flex;
+  width: 100%;
+  height: 26px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #172317;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dayButton:hover {
+  background: #eaf7ef;
+}
+
+.todayDay {
+  border-color: #008f3a;
+}
+
+.selectedDay,
+.selectedDay:hover {
+  border-color: #008f3a;
+  background: #eaf7ef;
+  color: #008f3a;
 }

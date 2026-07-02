@@ -1,19 +1,30 @@
 import { CalendarDays, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-import { TimeHierarchyFilter } from "./TimeHierarchyFilter";
+import {
+    TimeHierarchyFilter,
+    type TimeRange
+} from "./TimeHierarchyFilter";
 import styles from "./TimeSidebar.module.css";
 
 interface TimeSidebarProps {
     activeDate?: string;
+    activeRange?: TimeRange | null;
     collapsed: boolean;
+    enableCalendar?: boolean;
     selectedYear?: number | null;
+    onClearRange?: () => void;
+    onRangeChange?: (range: TimeRange) => void;
     onToggleCollapse: () => void;
     onYearChange?: (year: number) => void;
 }
 
 export function TimeSidebar({
     activeDate,
+    activeRange,
     collapsed,
+    enableCalendar = false,
+    onClearRange,
+    onRangeChange,
     selectedYear,
     onToggleCollapse,
     onYearChange
@@ -42,6 +53,10 @@ export function TimeSidebar({
                     </button>
                     <TimeHierarchyFilter
                         activeDate={activeDate}
+                        activeRange={activeRange}
+                        enableCalendar={enableCalendar}
+                        onClearRange={onClearRange}
+                        onRangeChange={onRangeChange}
                         selectedYear={selectedYear}
                         onYearChange={onYearChange}
                     />

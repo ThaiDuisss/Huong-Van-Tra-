@@ -1,5 +1,4 @@
 import {
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
     FileSpreadsheet,
@@ -11,9 +10,11 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
+import type { TimeRange } from "../../../components/shared/TimeHierarchyFilter";
 import { OrderDetailPanel } from "../components/OrderDetailPanel";
 import { OrderStatusBadge } from "../components/OrderStatusBadge";
 import {
+    exportOrders,
     getOrderById,
     getOrders,
     getOrderStats
@@ -54,6 +55,8 @@ const ORDER_STATUS_TABS: {
     key: OrderStatusTabKey;
     label: string;
     status: string | null;
+    paymentStatus?: string | null;
+    emptyResult?: boolean;
     countKey: keyof OrderStatsResponse;
 }[] = [
     { key: "ALL", label: "Tất cả", status: null, countKey: "total" },
@@ -66,13 +69,14 @@ const ORDER_STATUS_TABS: {
     {
         key: "PROCESSING",
         label: "Xử lý",
-        status: "PROCESSING",
+        status: "PAYMENT_CONFIRMED",
         countKey: "processing"
     },
     {
         key: "SHIPPING",
         label: "Giao",
-        status: "SHIPPING",
+        status: null,
+        emptyResult: true,
         countKey: "shipping"
     },
     {
@@ -84,8 +88,8 @@ const ORDER_STATUS_TABS: {
     {
         key: "RETURN_REFUND",
         label: "Hoàn tiền",
-        // TODO: khi backend hỗ trợ nhiều status/lần, truyền RETURNED và REFUNDED cùng lúc.
-        status: "RETURNED",
+        status: null,
+        paymentStatus: "REFUNDED",
         countKey: "returnedOrRefunded"
     }
 ];
@@ -125,9 +129,45 @@ function getPageNumbers(totalPages: number, currentPage: number) {
     return Array.from({ length }, (_, index) => start + index);
 }
 
+function formatExportTimestamp(date: Date) {
+    const pad = (value: number) => value.toString().padStart(2, "0");
+
+    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(
+        date.getDate()
+    )}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function formatLocalDate(date: Date) {
+    const pad = (value: number) => value.toString().padStart(2, "0");
+
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+        date.getDate()
+    )}`;
+}
+
+function formatTimeRangeLabel(isoDate: string) {
+    const [year, month, day] = isoDate.split("-");
+
+    return `${day}/${month}/${year}`;
+}
+
+function buildTodayTimeRange(): TimeRange {
+    const today = formatLocalDate(new Date());
+
+    return {
+        fromDate: today,
+        label: formatTimeRangeLabel(today),
+        selectedDate: today,
+        toDate: today
+    };
+}
+
 export function OrderListPage() {
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [timeRange, setTimeRange] = useState<TimeRange | null>(
+        buildTodayTimeRange
+    );
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterStatus, setFilterStatus] =
         useState<OrderStatusTabKey>("ALL");
@@ -142,6 +182,7 @@ export function OrderListPage() {
     const [ordersPage, setOrdersPage] = useState(emptyPage);
     const [stats, setStats] = useState<OrderStatsResponse>({});
     const [isOrdersLoading, setIsOrdersLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [ordersError, setOrdersError] = useState<string | null>(null);
     const [isDetailLoading, setIsDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
@@ -156,10 +197,18 @@ export function OrderListPage() {
             setIsOrdersLoading(true);
             setOrdersError(null);
 
+            if (activeStatusTab?.emptyResult) {
+                setOrdersPage(emptyPage);
+                setIsOrdersLoading(false);
+                return;
+            }
+
             getOrders({
+                fromDate: timeRange?.fromDate,
                 keyword: debouncedKeyword,
                 status: activeStatusTab?.status ?? undefined,
-                sort: "businessStatus",
+                paymentStatus: activeStatusTab?.paymentStatus ?? undefined,
+                toDate: timeRange?.toDate,
                 page: currentPage,
                 size: PAGE_SIZE
             })
@@ -189,12 +238,23 @@ export function OrderListPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [activeStatusTab?.status, currentPage, debouncedKeyword]);
+    }, [
+        activeStatusTab?.paymentStatus,
+        activeStatusTab?.emptyResult,
+        activeStatusTab?.status,
+        currentPage,
+        debouncedKeyword,
+        timeRange?.fromDate,
+        timeRange?.toDate
+    ]);
 
     useEffect(() => {
         let ignore = false;
 
-        getOrderStats()
+        getOrderStats({
+            fromDate: timeRange?.fromDate,
+            toDate: timeRange?.toDate
+        })
             .then((response) => {
                 if (!ignore) {
                     setStats(response ?? {});
@@ -209,7 +269,7 @@ export function OrderListPage() {
         return () => {
             ignore = true;
         };
-    }, []);
+    }, [timeRange?.fromDate, timeRange?.toDate]);
 
     useEffect(() => {
         if (!activeOrderId) {
@@ -255,6 +315,16 @@ export function OrderListPage() {
         setCurrentPage(0);
     };
 
+    const selectTimeRange = (range: TimeRange) => {
+        setTimeRange(range);
+        setCurrentPage(0);
+    };
+
+    const clearTimeRange = () => {
+        setTimeRange(null);
+        setCurrentPage(0);
+    };
+
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
         setCurrentPage(0);
@@ -294,9 +364,41 @@ export function OrderListPage() {
         window.alert("Chức năng nhập file đang được phát triển");
     };
 
-    const handleExportFile = () => {
-        console.log("TODO: Xuất file đơn hàng");
-        window.alert("Chức năng xuất file đang được phát triển");
+    const handleExportFile = async () => {
+        if (isExporting) {
+            return;
+        }
+
+        if (activeStatusTab?.emptyResult) {
+            window.alert("Không có dữ liệu phù hợp để xuất file.");
+            return;
+        }
+
+        setIsExporting(true);
+        try {
+            const blob = await exportOrders({
+                fromDate: timeRange?.fromDate,
+                keyword: debouncedKeyword,
+                status: activeStatusTab?.status ?? undefined,
+                paymentStatus: activeStatusTab?.paymentStatus ?? undefined,
+                toDate: timeRange?.toDate
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `tat-ca-don-hang-${formatExportTimestamp(
+                new Date()
+            )}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("Lỗi xuất file đơn hàng", error);
+            window.alert("Không thể xuất file đơn hàng. Vui lòng thử lại.");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     const fromRecord =
@@ -320,9 +422,17 @@ export function OrderListPage() {
             }`}
         >
             <TimeSidebar
+                activeDate={timeRange?.selectedDate ?? undefined}
+                activeRange={timeRange}
                 collapsed={isTimeCollapsed}
+                enableCalendar
+                onClearRange={clearTimeRange}
+                onRangeChange={selectTimeRange}
                 onToggleCollapse={() =>
                     setIsTimeCollapsed((collapsed) => !collapsed)
+                }
+                selectedYear={
+                    timeRange ? Number(timeRange.fromDate.slice(0, 4)) : null
                 }
             />
 
@@ -359,13 +469,14 @@ export function OrderListPage() {
                             Nhập file
                         </button>
                         <button
+                            aria-busy={isExporting}
                             className={styles.secondaryButton}
+                            disabled={isExporting}
                             onClick={handleExportFile}
                             type="button"
                         >
                             <FileSpreadsheet size={18} aria-hidden="true" />
                             Xuất file
-                            <ChevronDown size={16} aria-hidden="true" />
                         </button>
                     </div>
                 </div>
