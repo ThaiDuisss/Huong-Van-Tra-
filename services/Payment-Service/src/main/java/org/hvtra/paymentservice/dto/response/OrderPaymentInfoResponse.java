@@ -10,10 +10,8 @@ public class OrderPaymentInfoResponse {
 
     private UUID orderId;
     private String orderCode;
-    private String status;
-    private String paymentStatus;
-
+    private UUID customerId;
+    private UUID sagaId;
     private BigDecimal finalAmount;
-    private BigDecimal paidAmount;
-    private BigDecimal debtAmount;
+    private String paymentStatus;
 }

@@ -26,6 +26,7 @@ interface SaleWorkspaceProps {
     onProductIncrement(productId: string): void;
     onProductDecrement(productId: string): void;
     onProductRemove(productId: string): void;
+    onInvoiceClose(): void;
     onNoteChange(value: string): void;
     onOrderTypeChange(value: SaleOrderType): void;
 }
@@ -45,6 +46,7 @@ export function SaleWorkspace({
     onProductIncrement,
     onProductDecrement,
     onProductRemove,
+    onInvoiceClose,
     onNoteChange,
     onOrderTypeChange
 }: SaleWorkspaceProps) {
@@ -63,7 +65,7 @@ export function SaleWorkspace({
                     onAdd={onProductAdd}
                 />
 
-                <InvoiceTabs />
+                <InvoiceTabs onCloseActive={onInvoiceClose} />
             </div>
 
             <CartList

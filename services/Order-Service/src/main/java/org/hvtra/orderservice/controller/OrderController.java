@@ -6,8 +6,11 @@ import lombok.*;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
+import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
+import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
@@ -38,6 +41,44 @@ public class OrderController {
     @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse createOrder(@Valid @RequestBody CreateOrderRequest request) {
         return orderService.createOrder(request);
+    }
+
+    @Operation(summary = "them san pham vao hoa don nhap POS")
+    @PostMapping("/pos/draft/items")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderResponse addDraftItem(@Valid @RequestBody AddDraftOrderItemRequest request) {
+        return orderService.addDraftItem(request);
+    }
+
+    @Operation(summary = "cap nhat so luong san pham trong hoa don nhap POS")
+    @PutMapping("/pos/draft/" + UUID_PATH + "/items/{itemId}")
+    public OrderResponse updateDraftItemQuantity(
+            @PathVariable UUID orderId,
+            @PathVariable UUID itemId,
+            @Valid @RequestBody UpdateDraftOrderItemQuantityRequest request
+    ) {
+        return orderService.updateDraftItemQuantity(orderId, itemId, request);
+    }
+
+    @Operation(summary = "xoa san pham khoi hoa don nhap POS")
+    @DeleteMapping("/pos/draft/" + UUID_PATH + "/items/{itemId}")
+    public OrderResponse removeDraftItem(@PathVariable UUID orderId, @PathVariable UUID itemId) {
+        return orderService.removeDraftItem(orderId, itemId);
+    }
+
+    @Operation(summary = "huy hoa don nhap POS")
+    @PostMapping("/pos/draft/" + UUID_PATH + "/cancel")
+    public OrderResponse cancelDraftOrder(@PathVariable UUID orderId) {
+        return orderService.cancelDraftOrder(orderId);
+    }
+
+    @Operation(summary = "thanh toan hoa don nhap POS da ton tai")
+    @PostMapping("/pos/" + UUID_PATH + "/checkout")
+    public OrderResponse checkoutDraftOrder(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody CheckoutDraftOrderRequest request
+    ) {
+        return orderService.checkoutDraftOrder(orderId, request);
     }
 
     @Operation(summary = "lay chi tiet don hang")

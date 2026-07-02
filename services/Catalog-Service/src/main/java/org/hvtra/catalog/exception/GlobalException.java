@@ -31,6 +31,14 @@ public class GlobalException extends BaseGlobalExceptionHandler {
                 .body(new ErrorResponse("BAD_REQUEST", exception.getMessage(), 400));
     }
 
+    @ExceptionHandler(InventoryServiceUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleInventoryUnavailable(
+            InventoryServiceUnavailableException exception, HttpServletRequest request) {
+        log.warn("Inventory service unavailable at {}: {}", request.getRequestURI(), exception.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ErrorResponse("INVENTORY_SERVICE_UNAVAILABLE", exception.getMessage(), 503));
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(
             MethodArgumentTypeMismatchException exception, HttpServletRequest request) {

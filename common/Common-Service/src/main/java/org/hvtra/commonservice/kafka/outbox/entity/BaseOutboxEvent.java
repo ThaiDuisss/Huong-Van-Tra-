@@ -29,6 +29,9 @@ public abstract class BaseOutboxEvent extends BaseEntity {
     @Column(name = "event_key", nullable = false, columnDefinition = "Binary(16)")
     private UUID eventKey;
 
+    @Column(name = "correlation_id", length = 150)
+    String correlationId;
+
     @Column(name = "payload", nullable = false, columnDefinition = "JSON")
     private String payload;
 

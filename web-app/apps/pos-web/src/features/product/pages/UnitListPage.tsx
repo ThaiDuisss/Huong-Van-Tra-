@@ -105,24 +105,24 @@ export function UnitListPage() {
             }}
             columns={[
                 { key: "name", label: "Tên đơn vị" },
-                { key: "symbol", label: "Ký hiệu" },
+                // { key: "symbol", label: "Ký hiệu" },
                 { key: "type", label: "Phân loại" },
-                { key: "baseUnitId", label: "Đơn vị gốc" },
-                { key: "precisionScale", label: "Độ chính xác" },
+                // { key: "baseUnitId", label: "Đơn vị gốc" },
+                // { key: "precisionScale", label: "Độ chính xác" },
                 { key: "status", label: "Trạng thái" }
             ]}
             renderCells={(item) => {
-                const baseUnit = allUnits.find((u) => u.id === item.baseUnitId);
+                // const baseUnit = allUnits.find((u) => u.id === item.baseUnitId);
                 return (
                     <>
                         <TableCell className="font-bold text-gray-700">
                             {item.name}
                         </TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-gray-100 text-gray-700 font-mono text-sm font-semibold">
                                 {item.symbol}
                             </span>
-                        </TableCell>
+                        </TableCell> */}
                         <TableCell>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                 item.type === "PACKAGING"
@@ -132,7 +132,7 @@ export function UnitListPage() {
                                 {item.type === "PACKAGING" ? "Đóng gói" : "Gốc"}
                             </span>
                         </TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                             {item.baseUnitId ? (
                                 <span className="text-gray-600 text-xs font-mono" title={String(item.baseUnitId)}>
                                     {baseUnit ? `${baseUnit.name} (${baseUnit.symbol})` : String(item.baseUnitId)}
@@ -140,12 +140,12 @@ export function UnitListPage() {
                             ) : (
                                 <span className="text-gray-400 italic">Gốc</span>
                             )}
-                        </TableCell>
-                        <TableCell>
+                        </TableCell> */}
+                        {/* <TableCell>
                             <span className="text-gray-600">
                                 {item.precisionScale} chữ số thập phân
                             </span>
-                        </TableCell>
+                        </TableCell> */}
                         <TableCell>
                             <CatalogStatusBadge status={item.status} />
                         </TableCell>

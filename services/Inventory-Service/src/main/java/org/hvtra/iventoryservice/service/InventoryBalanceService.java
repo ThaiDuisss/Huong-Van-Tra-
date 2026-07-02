@@ -20,10 +20,13 @@ public interface InventoryBalanceService {
             String categoryCode,
             UUID categoryId,
             UUID unitId,
+            UUID locationId,
+            UUID branchId,
             Pageable pageable
     );
     java.util.List<InventoryBalanceWarehouseResponse> findWarehouseBalances(
             String sku,
             String productName
     );
+    void bulkUpdateLocation();
 }

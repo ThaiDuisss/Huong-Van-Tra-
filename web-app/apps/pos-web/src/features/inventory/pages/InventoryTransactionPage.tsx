@@ -1,4 +1,4 @@
-import { Eye, Search } from "lucide-react";
+import { Eye, Search, MoreHorizontal } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
@@ -37,9 +37,10 @@ export function InventoryTransactionPage() {
     const [pageSize, setPageSize] = useState(10);
     const [selected, setSelected] =
         useState<InventoryTransactionResponse | null>(null);
+    const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
     const load = useCallback(
         () =>
-            inventoryTransactionApi.list({
+            inventoryTransactionApi.storeList({
                 page: page - 1,
                 size: pageSize,
                 transactionCode: transactionCode || undefined,
@@ -80,23 +81,47 @@ export function InventoryTransactionPage() {
             />
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                {/* Search Bar at the top of the card */}
-                <div className="border-b border-[#f3f5f7] pb-3">
-                    <div className="relative w-full">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Search */}
+                    <div className="relative w-full sm:w-[320px] md:w-[400px]">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         <input
                             type="text"
-                            placeholder="Tìm theo mã giao dịch, mã tham chiếu, mã người tạo..."
+                            placeholder="Tìm theo mã giao dịch, mã tham chiếu..."
                             value={transactionCode}
                             onChange={(e) => resetPage(setTransactionCode, e.target.value)}
                             className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
                         />
                     </div>
+                    {/* Time Filters Group */}
+                    <div className="flex items-center gap-3">
+                        {/* Filter: Từ ngày */}
+                        <div className="flex items-center gap-1.5 min-w-[150px]">
+                            <span className="text-xs font-bold text-[#536078] shrink-0">Từ:</span>
+                            <input
+                                type="date"
+                                value={fromDate}
+                                onChange={(e) => resetPage(setFromDate, e.target.value)}
+                                className="h-10 w-full rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                            />
+                        </div>
+                        {/* Filter: Đến ngày */}
+                        <div className="flex items-center gap-1.5 min-w-[150px]">
+                            <span className="text-xs font-bold text-[#536078] shrink-0">Đến:</span>
+                            <input
+                                type="date"
+                                value={toDate}
+                                onChange={(e) => resetPage(setToDate, e.target.value)}
+                                className="h-10 w-full rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                            />
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex flex-col">
+                {/* Filters chips (giữ nguyên như cũ) */}
+                <div className="flex flex-col gap-2 pt-3 border-t border-[#f3f5f7] mt-3">
                     {/* Loại giao dịch */}
-                    <div className="flex flex-wrap items-center gap-2 py-[10px] border-b border-[#f3f5f7]">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
                             Loại giao dịch:
                         </span>
@@ -133,7 +158,7 @@ export function InventoryTransactionPage() {
                     </div>
 
                     {/* Loại tham chiếu */}
-                    <div className="flex flex-wrap items-center gap-2 py-[10px] border-b border-[#f3f5f7]">
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                         <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
                             Loại tham chiếu:
                         </span>
@@ -168,32 +193,6 @@ export function InventoryTransactionPage() {
                             })}
                         </div>
                     </div>
-
-                    {/* Từ ngày */}
-                    <div className="flex items-center gap-2 py-[10px] border-b border-[#f3f5f7]">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
-                            Từ ngày:
-                        </span>
-                        <input
-                            type="date"
-                            value={fromDate}
-                            onChange={(e) => resetPage(setFromDate, e.target.value)}
-                            className="h-[30px] px-3 rounded-lg border border-[#dfe6ee] text-[13px] font-semibold text-[#172317] outline-none focus:border-[#07883a] bg-white w-48"
-                        />
-                    </div>
-
-                    {/* Đến ngày */}
-                    <div className="flex items-center gap-2 py-[10px] last:border-b-0 last:pb-0">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
-                            Đến ngày:
-                        </span>
-                        <input
-                            type="date"
-                            value={toDate}
-                            onChange={(e) => resetPage(setToDate, e.target.value)}
-                            className="h-[30px] px-3 rounded-lg border border-[#dfe6ee] text-[13px] font-semibold text-[#172317] outline-none focus:border-[#07883a] bg-white w-48"
-                        />
-                    </div>
                 </div>
             </div>
 
@@ -203,46 +202,73 @@ export function InventoryTransactionPage() {
                     {!resource.loading && resource.error ? <InventoryError message={resource.error} onRetry={resource.refresh} /> : null}
                     {!resource.loading && !resource.error && transactions.length === 0 ? <InventoryEmpty /> : null}
                     {!resource.loading && !resource.error && transactions.length > 0 ? (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto min-h-[280px]">
                             <table className="min-w-[960px] w-full text-left text-sm border-separate border-spacing-0">
-                                <thead className="bg-white text-[13px] font-[950] text-[#172317] border-b border-[#edf0f4]">
+                                <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900 border-b border-[#edf0f4]">
                                     <tr>
-                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px]">Mã giao dịch</th>
+                                        {/* <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px]">Mã giao dịch</th> */}
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Loại</th>
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Loại tham chiếu</th>
-                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Mã tham chiếu</th>
-                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Chi nhánh</th>
-                                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Người tạo</th>
+                                        {/* <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Mã tham chiếu</th> */}
+                                        {/* <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Chi nhánh</th> */}
+                                        {/* <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Người tạo</th> */}
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Thời gian tạo</th>
                                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {transactions.map((item) => (
-                                        <tr
-                                            key={item.id}
-                                            onClick={() => setSelected(item)}
-                                            className={`cursor-pointer hover:bg-neutral-50 transition-all ${selected?.id === item.id ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]" : ""}`}
-                                        >
-                                            <Cell strong>{item.transactionCode}</Cell>
-                                            <Cell><TransactionTypeBadge type={item.type} /></Cell>
-                                            <Cell>{referenceTypeLabels[item.referenceType]}</Cell>
-                                            <Cell>{item.referenceId ? `#${item.referenceId}` : "-"}</Cell>
-                                            <Cell>#{item.branchId}</Cell>
-                                            <Cell>#{item.createdBy}</Cell>
-                                            <Cell>{formatInventoryDate(item.createdAt)}</Cell>
-                                            <td className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]" onClick={(e) => e.stopPropagation()}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelected(item)}
-                                                    title="Xem chi tiết"
-                                                    className="ml-auto grid size-8 place-items-center rounded-lg hover:bg-neutral-100"
-                                                >
-                                                    <Eye size={16} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {transactions.map((item, idx) => {
+                                        const isSelected = selected?.id === item.id;
+                                        const isEven = idx % 2 === 1;
+                                        const rowBgClass = isSelected
+                                            ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
+                                            : isEven
+                                                ? "bg-[#f2faf1]/50"
+                                                : "bg-white";
+
+                                        return (
+                                            <tr
+                                                key={item.id}
+                                                onClick={() => setSelected(item)}
+                                                className={`cursor-pointer hover:bg-neutral-50 transition-all ${rowBgClass}`}
+                                            >
+                                                {/* <Cell strong>{item.transactionCode}</Cell> */}
+                                                <Cell><TransactionTypeBadge type={item.type} /></Cell>
+                                                <Cell>{referenceTypeLabels[item.referenceType]}</Cell>
+                                                {/* <Cell>{item.referenceId ? `#${item.referenceId}` : "-"}</Cell> */}
+                                                {/* <Cell>#{item.branchId}</Cell> */}
+                                                {/* <Cell>#{item.createdBy}</Cell> */}
+                                                <Cell>{formatInventoryDate(item.createdAt)}</Cell>
+                                                <td className={`h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px] relative ${activeActionMenuId === String(item.id) ? "z-30" : "z-20"}`} onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex justify-end relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveActionMenuId(activeActionMenuId === String(item.id) ? null : String(item.id))}
+                                                            className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 text-gray-500 hover:text-gray-700 cursor-pointer"
+                                                        >
+                                                            <MoreHorizontal size={16} />
+                                                        </button>
+
+                                                        {activeActionMenuId === String(item.id) && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-30" onClick={() => setActiveActionMenuId(null)} />
+                                                                <div className={`absolute right-0 ${idx >= 2 && idx >= transactions.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-36 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setSelected(item); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Eye size={14} />
+                                                                        Xem chi tiết
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
