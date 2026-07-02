@@ -11,9 +11,12 @@ import org.hvtra.paymentservice.domain.enums.PaymentProvider;
 import org.hvtra.paymentservice.domain.enums.PaymentStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
+import org.hvtra.paymentservice.dto.event.PaymentEventPayload;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
 import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
+import org.hvtra.paymentservice.outbox.entity.OutboxEvent;
+import org.hvtra.paymentservice.outbox.event.PaymentEventType;
 import org.hvtra.paymentservice.outbox.factory.PaymentOutboxEventFactory;
 import org.hvtra.paymentservice.outbox.repository.OutboxEventRepository;
 import org.hvtra.paymentservice.repository.PaymentAttemptRepository;
@@ -25,8 +28,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -40,7 +45,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final SepayQrCodeGenerator sepayQrCodeGenerator;
     private final SepayProperties sepayProperties;
-    private final OutboxEventRepository paymentOutboxRepository;
+    private final OutboxEventRepository outboxEventRepository;
     private final PaymentOutboxEventFactory paymentOutboxEventFactory;
 
     @Override
@@ -98,14 +103,14 @@ public class PaymentServiceImpl implements PaymentService {
                 .paidAt(now)
                 .build();
 
-        paymentTransactionRepository.save(transaction);
+        transaction = paymentTransactionRepository.save(transaction);
 
-        /*
-         * TODO:
-         * Ghi PaymentPaidEvent vào payment_outbox tại đây.
-         * Order-Service consume event để update order.paymentStatus = PAID.
-         * Không gọi Feign ngược sang Order-Service mark paid.
-         */
+        savePaymentOutboxEvent(
+                savedPayment,
+                PaymentEventType.PAYMENT_SUCCEEDED,
+                stableEventKey(PaymentEventType.PAYMENT_SUCCEEDED, savedPayment.getId().toString()),
+                toEventPayload(savedPayment, null, transaction, null)
+        );
 
         return PaymentCheckoutResponse.builder()
                 .paymentId(savedPayment.getId())
@@ -203,12 +208,12 @@ public class PaymentServiceImpl implements PaymentService {
 
         PaymentAttempt savedAttempt = paymentAttemptRepository.save(attempt);
 
-        /*
-         * TODO:
-         * Có thể ghi PaymentWaitingPaymentEvent vào outbox tại đây.
-         * Event này không bắt buộc bằng PaymentPaidEvent,
-         * nhưng có ích nếu Order-Service muốn đồng bộ trạng thái WAITING_PAYMENT.
-         */
+        savePaymentOutboxEvent(
+                savedPayment,
+                PaymentEventType.PAYMENT_WAITING_PAYMENT,
+                stableEventKey(PaymentEventType.PAYMENT_WAITING_PAYMENT, savedAttempt.getId().toString()),
+                toEventPayload(savedPayment, savedAttempt, null, null)
+        );
 
         return toBankTransferResponse(savedPayment, savedAttempt);
     }
@@ -361,5 +366,63 @@ public class PaymentServiceImpl implements PaymentService {
             case CASH -> "Tiền mặt";
             case BANK_TRANSFER -> "Chuyển khoản";
         };
+    }
+    private void savePaymentOutboxEvent(
+            Payment payment,
+            String eventType,
+            UUID eventKey,
+            PaymentEventPayload payload
+    ) {
+        Map<String, Object> headers = Map.of(
+                "sourceService", "Payment-Service",
+                "sagaId", payment.getSagaId().toString(),
+                "orderId", payment.getOrderId().toString()
+        );
+
+        OutboxEvent event = paymentOutboxEventFactory.create(
+                "Payment",
+                payment.getId(),
+                eventType,
+                eventKey,
+                payload,
+                headers
+        );
+
+        event.setCorrelationId(payment.getSagaId().toString());
+
+        outboxEventRepository.save(event);
+    }
+
+    private PaymentEventPayload toEventPayload(
+            Payment payment,
+            PaymentAttempt attempt,
+            PaymentTransaction transaction,
+            String reason
+    ) {
+        return new PaymentEventPayload(
+                payment.getId(),
+                attempt == null ? null : attempt.getId(),
+                transaction == null ? null : transaction.getId(),
+                payment.getPaymentCode(),
+                payment.getOrderId(),
+                payment.getOrderCode(),
+                payment.getCustomerId(),
+                payment.getSagaId(),
+                payment.getMethod().name(),
+                payment.getProvider().name(),
+                payment.getStatus().name(),
+                payment.getAmountRequired(),
+                payment.getAmountPaid(),
+                payment.getCurrency(),
+                transaction == null ? payment.getCompletedAt() : transaction.getPaidAt(),
+                payment.getExpiresAt(),
+                reason
+        );
+    }
+
+    private UUID stableEventKey(String eventType, String uniqueBusinessKey) {
+        return UUID.nameUUIDFromBytes(
+                (eventType + ":" + uniqueBusinessKey).getBytes(StandardCharsets.UTF_8)
+        );
     }
 }
