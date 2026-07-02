@@ -11,15 +11,9 @@ import org.hvtra.paymentservice.domain.enums.PaymentProvider;
 import org.hvtra.paymentservice.domain.enums.PaymentStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
-import org.hvtra.paymentservice.dto.event.PaymentEventPayload;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
 import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
-import org.hvtra.paymentservice.outbox.entity.OutboxEvent;
-import org.hvtra.paymentservice.outbox.event.PaymentEventType;
-import org.hvtra.paymentservice.outbox.factory.PaymentOutboxEventFactory;
-import org.hvtra.paymentservice.outbox.repository.OutboxEventRepository;
-import org.hvtra.paymentservice.outbox.service.PaymentOutboxPublisher;
 import org.hvtra.paymentservice.repository.PaymentAttemptRepository;
 import org.hvtra.paymentservice.repository.PaymentRepository;
 import org.hvtra.paymentservice.repository.PaymentTransactionRepository;
@@ -29,10 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -46,7 +38,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final SepayQrCodeGenerator sepayQrCodeGenerator;
     private final SepayProperties sepayProperties;
-    private final PaymentOutboxPublisher paymentOutboxPublisher;
+
     @Override
     @Transactional
     public PaymentCheckoutResponse checkout(CheckoutRequest request) {
@@ -58,9 +50,13 @@ public class PaymentServiceImpl implements PaymentService {
         };
     }
 
+    /**
+     * CASH là luồng đồng bộ: Order-Service gọi Feign sang đây, nhận response PAID rồi tự cập nhật Order.
+     * Vì vậy không publish PAYMENT_SUCCEEDED ở đây để tránh Order nhận trùng trạng thái qua 2 đường.
+     */
     private PaymentCheckoutResponse payByCash(CheckoutRequest request) {
-        BigDecimal amountRequired = request.getFinalAmount();
-        BigDecimal receivedAmount = request.getReceivedAmount();
+        BigDecimal amountRequired = normalizeMoney(request.getFinalAmount());
+        BigDecimal receivedAmount = normalizeMoney(request.getReceivedAmount());
 
         Payment existingPayment = paymentRepository
                 .findByOrderIdAndIsDeletedFalse(request.getOrderId())
@@ -77,6 +73,7 @@ public class PaymentServiceImpl implements PaymentService {
                 ? createBasePayment(request, PaymentMethod.CASH, PaymentProvider.INTERNAL)
                 : existingPayment;
 
+        payment.setPaymentCode(resolvePaymentCode(payment, PaymentMethod.CASH));
         payment.setMethod(PaymentMethod.CASH);
         payment.setProvider(PaymentProvider.INTERNAL);
         payment.setStatus(PaymentStatus.PAID);
@@ -84,8 +81,9 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setAmountPaid(amountRequired);
         payment.setAmountRefunded(defaultZero(payment.getAmountRefunded()));
         payment.setCurrency(CURRENCY_VND);
-        payment.setCompletedAt(now);
         payment.setExpiresAt(null);
+        payment.setCompletedAt(now);
+        payment.setCancelledAt(null);
         payment.setFailureReason(null);
         payment.setReviewReason(null);
 
@@ -102,10 +100,11 @@ public class PaymentServiceImpl implements PaymentService {
                 .paidAt(now)
                 .build();
 
-        paymentTransactionRepository.save(transaction);
+        PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
 
         return PaymentCheckoutResponse.builder()
                 .paymentId(savedPayment.getId())
+                .attemptId(savedTransaction.getAttempt() == null ? null : savedTransaction.getAttempt().getId())
                 .paymentCode(savedPayment.getPaymentCode())
                 .orderId(savedPayment.getOrderId())
                 .orderCode(savedPayment.getOrderCode())
@@ -120,8 +119,13 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
     }
 
+    /**
+     * BANK_TRANSFER là luồng bất đồng bộ: trả QR ngay cho Order/FE, còn kết quả thật sẽ được SePay webhook xác nhận.
+     * Order-Service nên dùng response này để set paymentStatus = WAITING_PAYMENT.
+     * Khi webhook success, Payment-Service mới ghi outbox để bắn event sang Order-Service.
+     */
     private PaymentCheckoutResponse createBankTransferCheckout(CheckoutRequest request) {
-        BigDecimal amountRequired = request.getFinalAmount();
+        BigDecimal amountRequired = normalizeMoney(request.getFinalAmount());
         LocalDateTime now = LocalDateTime.now();
 
         Payment existingPayment = paymentRepository
@@ -143,6 +147,7 @@ public class PaymentServiceImpl implements PaymentService {
                     existingPayment.getMethod() == PaymentMethod.BANK_TRANSFER
                             && existingPayment.getStatus() == PaymentStatus.WAITING_PAYMENT
                             && latestAttempt != null
+                            && latestAttempt.getStatus() == PaymentAttemptStatus.WAITING
                             && !isExpired(latestAttempt.getExpiresAt(), now)
                             && sameAmount(latestAttempt.getAmountExpected(), amountRequired);
 
@@ -155,9 +160,7 @@ public class PaymentServiceImpl implements PaymentService {
                 ? createBasePayment(request, PaymentMethod.BANK_TRANSFER, PaymentProvider.SEPAY)
                 : existingPayment;
 
-        if (payment.getPaymentCode() == null || payment.getPaymentCode().isBlank()) {
-            payment.setPaymentCode(generateSepayPaymentCode());
-        }
+        payment.setPaymentCode(resolvePaymentCode(payment, PaymentMethod.BANK_TRANSFER));
 
         LocalDateTime expiresAt = now.plusMinutes(sepayProperties.getPaymentTimeoutMinutes());
 
@@ -170,6 +173,7 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setCurrency(CURRENCY_VND);
         payment.setExpiresAt(expiresAt);
         payment.setCompletedAt(null);
+        payment.setCancelledAt(null);
         payment.setFailureReason(null);
         payment.setReviewReason(null);
 
@@ -187,7 +191,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .attemptNo(nextAttemptNo)
                 .method(PaymentMethod.BANK_TRANSFER)
                 .provider(PaymentProvider.SEPAY)
-                .status(PaymentAttemptStatus.CREATED)
+                .status(PaymentAttemptStatus.WAITING)
                 .amountExpected(amountRequired)
                 .currency(CURRENCY_VND)
                 .transferContent(transferContent)
@@ -217,7 +221,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .method(method)
                 .provider(provider)
                 .status(PaymentStatus.PENDING)
-                .amountRequired(request.getFinalAmount())
+                .amountRequired(normalizeMoney(request.getFinalAmount()))
                 .amountPaid(BigDecimal.ZERO)
                 .amountRefunded(BigDecimal.ZERO)
                 .currency(CURRENCY_VND)
@@ -285,6 +289,10 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("customerId không được để trống");
         }
 
+        if (request.getSagaId() == null) {
+            throw new IllegalArgumentException("sagaId không được để trống");
+        }
+
         if (request.getFinalAmount() == null
                 || request.getFinalAmount().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Số tiền thanh toán không hợp lệ");
@@ -321,7 +329,14 @@ public class PaymentServiceImpl implements PaymentService {
             return false;
         }
 
-        return currentAmount.compareTo(requestAmount) == 0;
+        return normalizeMoney(currentAmount).compareTo(normalizeMoney(requestAmount)) == 0;
+    }
+
+    private String resolvePaymentCode(Payment payment, PaymentMethod method) {
+        if (payment.getPaymentCode() != null && !payment.getPaymentCode().isBlank()) {
+            return payment.getPaymentCode();
+        }
+        return generatePaymentCode(method);
     }
 
     private String generatePaymentCode(PaymentMethod method) {
@@ -338,6 +353,13 @@ public class PaymentServiceImpl implements PaymentService {
                 .format(DateTimeFormatter.ofPattern("yyMMddHHmmssSSS"));
     }
 
+    private BigDecimal normalizeMoney(BigDecimal value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        return value.setScale(0, java.math.RoundingMode.HALF_UP);
+    }
+
     private BigDecimal defaultZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
@@ -352,5 +374,4 @@ public class PaymentServiceImpl implements PaymentService {
             case BANK_TRANSFER -> "Chuyển khoản";
         };
     }
-
 }

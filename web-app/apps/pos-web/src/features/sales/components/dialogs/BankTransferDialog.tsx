@@ -10,12 +10,16 @@ import {
 } from "lucide-react";
 
 import { formatCurrency } from "../../services/money";
+import type { PosCheckoutPaymentResult } from "../../services/posCheckout.service";
 import { type PaymentStatusValue } from "./PaymentStatus";
 
 interface BankTransferDialogProps {
   amount: number;
+  referenceCode?: string;
   status: PaymentStatusValue;
-  referenceCode: string;
+  payment: PosCheckoutPaymentResult | null;
+  loading?: boolean;
+  error?: string;
   onClose(): void;
   onCancel(): void;
   onConfirmReceived(): void;
@@ -43,15 +47,30 @@ function createSepayQrUrl(amount: number, referenceCode: string) {
 
 export function BankTransferDialog({
   amount,
+  referenceCode: fallbackReferenceCode,
   status,
-  referenceCode,
+  payment,
+  loading = false,
+  error = "",
   onClose,
   onCancel,
   onConfirmReceived,
   onRefreshStatus
 }: BankTransferDialogProps) {
   const received = status === "RECEIVED";
-  const qrImageUrl = createSepayQrUrl(amount, referenceCode);
+  const referenceCode =
+    payment?.transferContent ??
+    payment?.paymentCode ??
+    fallbackReferenceCode ??
+    "HVTRA-POS";
+  const qrImageUrl =
+    payment?.qrUrl ??
+    createSepayQrUrl(payment?.amountRequired ?? amount, referenceCode);
+  const bankName = payment?.bankCode ?? bankInformation.bankName;
+  const accountName = payment?.bankAccountName ?? bankInformation.accountName;
+  const accountNumber =
+    payment?.bankAccountNumber ?? bankInformation.accountNumber;
+  const payableAmount = payment?.amountRequired ?? amount;
 
   return (
     <section
@@ -86,11 +105,17 @@ export function BankTransferDialog({
             <strong className="text-[22px] font-black">SePay</strong>
           </div>
 
-          <img
-            className="aspect-square w-[174px] rounded-lg border border-[#d8eadc] bg-white object-contain p-2"
-            src={qrImageUrl}
-            alt={`QR thanh toán SePay ${referenceCode}`}
-          />
+          {qrImageUrl ? (
+            <img
+              className="aspect-square w-[174px] rounded-lg border border-[#d8eadc] bg-white object-contain p-2"
+              src={qrImageUrl}
+              alt={`QR thanh toán SePay ${referenceCode}`}
+            />
+          ) : (
+            <div className="grid aspect-square w-[174px] place-items-center rounded-lg border border-dashed border-[#d8eadc] bg-[#f7fff9] p-4 text-center text-[12px] font-bold text-[#5f6b7a]">
+              {loading ? "Đang tạo mã QR..." : "Chưa có mã QR"}
+            </div>
+          )}
 
           <p className="max-w-[190px] text-center text-[11px] font-medium leading-snug text-[#5f6b7a]">
             Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử hỗ trợ VietQR.
@@ -106,21 +131,31 @@ export function BankTransferDialog({
             }`}
           >
             <CheckCircle2 size={15} aria-hidden="true" />
-            {received ? "Đã nhận đủ thanh toán" : "Đang chờ thanh toán"}
+            {received
+              ? "Đã nhận đủ thanh toán"
+              : loading
+                ? "Đang tạo thanh toán"
+                : "Đang chờ thanh toán"}
           </div>
+
+          {error ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-bold text-red-700">
+              {error}
+            </p>
+          ) : null}
 
           <InfoRow
             icon={<Landmark size={15} aria-hidden="true" />}
             label="Ngân hàng"
-            value={bankInformation.bankName}
+            value={bankName}
           />
           <InfoRow
             label="Chủ tài khoản"
-            value={bankInformation.accountName}
+            value={accountName}
           />
           <InfoRow
             label="Số tài khoản"
-            value={bankInformation.accountNumber}
+            value={accountNumber}
             copyable
           />
           <InfoRow
@@ -134,7 +169,7 @@ export function BankTransferDialog({
               Số tiền thanh toán
             </p>
             <strong className="mt-1 block text-[26px] font-black text-[#159734]">
-              {formatCurrency(amount)}
+              {formatCurrency(payableAmount)}
             </strong>
           </div>
 
@@ -142,6 +177,7 @@ export function BankTransferDialog({
           <button
             type="button"
             onClick={onRefreshStatus}
+            disabled={loading}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d8eadc] text-[12px] font-bold text-[#159734] hover:bg-[#f4faf5]"
           >
             <RefreshCw size={15} aria-hidden="true" />
@@ -150,6 +186,7 @@ export function BankTransferDialog({
           <button
             type="button"
             onClick={onConfirmReceived}
+            disabled={loading}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d8eadc] text-[12px] font-bold text-[#159734] hover:bg-[#f4faf5]"
           >
             <Bell size={15} aria-hidden="true" />
@@ -168,6 +205,7 @@ export function BankTransferDialog({
           <button
             type="button"
             onClick={onConfirmReceived}
+            disabled={loading}
             className="h-10 rounded-lg bg-[#159734] text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(21,151,52,0.22)]"
           >
             Đã nhận đủ tiền
