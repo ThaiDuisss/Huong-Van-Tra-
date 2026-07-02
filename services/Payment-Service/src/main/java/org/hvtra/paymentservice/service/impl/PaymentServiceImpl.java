@@ -2,11 +2,8 @@ package org.hvtra.paymentservice.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.hvtra.paymentservice.client.OrderClient;
-import org.hvtra.paymentservice.domain.entity.Payments;
-import org.hvtra.paymentservice.domain.entity.PaymentTransaction;
 import org.hvtra.paymentservice.domain.enums.PaymentMethod;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
-import org.hvtra.paymentservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.paymentservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.paymentservice.dto.response.CashPaymentResponse;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
@@ -16,10 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
 import java.util.UUID;
 
 @Service
