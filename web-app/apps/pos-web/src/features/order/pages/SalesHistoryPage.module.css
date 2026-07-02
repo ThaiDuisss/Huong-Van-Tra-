@@ -1,8 +1,18 @@
 .page {
-  display: grid;
-  gap: 14px;
-  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--font-sans);
   color: #172317;
+}
+
+.page button,
+.page input,
+.page select {
+  font-family: inherit;
 }
 
 .header {
@@ -12,29 +22,27 @@
   gap: 16px;
 }
 
-.breadcrumbs {
+.headerActions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 12px;
-  color: #536078;
-  font-size: 13px;
-  font-weight: 850;
 }
 
-.breadcrumbs span:last-child {
-  color: #159734;
+.hiddenFileInput {
+  display: none;
 }
 
 .header h1 {
   margin: 0;
-  color: #07883a;
-  font-size: 32px;
+  color: #172317;
+  font-size: 30px;
   font-weight: 950;
 }
 
 .header p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #536078;
   font-size: 14px;
   font-weight: 650;
@@ -160,51 +168,101 @@
   animation: pulse 1.1s linear infinite;
 }
 
-.filtersPanel,
-.tablePanel {
-  border: 1px solid #edf0f4;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 16px 38px rgb(31 53 43 / 0.05);
+.salesWorkspace {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
 }
 
 .filtersPanel {
   display: grid;
+  flex: 0 0 auto;
+  gap: 10px;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 12px 16px;
+}
+
+.searchBox {
+  display: flex;
+  flex: 0 0 520px;
+  width: 520px;
+  max-width: 100%;
+  height: 44px;
+  align-items: center;
   gap: 12px;
-  padding: 14px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #536078;
+  padding: 0 15px;
+}
+
+.searchBox input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.searchBox input::placeholder {
+  color: #8a94a6;
+  font-weight: 500;
+}
+
+.filterTopRow,
+.filterBottomRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  width: 100%;
+  min-width: 0;
 }
 
 .filterRow {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .filterLabel {
+  flex: 0 0 auto;
   color: #536078;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .chipGroup {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .filterChip {
   display: inline-flex;
-  height: 32px;
+  height: 28px;
   align-items: center;
   gap: 5px;
   border: 1px solid #dfe6ee;
   border-radius: 999px;
   background: #ffffff;
   color: #536078;
-  padding: 0 12px;
-  font-size: 12px;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  font-size: 13px;
   font-weight: 850;
+  white-space: nowrap;
 }
 
 .filterChip span {
@@ -218,45 +276,30 @@
   color: #ffffff;
 }
 
-.tablePanel {
-  min-height: 330px;
+.tableCard {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
-}
-
-.tableHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid #edf0f4;
-  padding: 13px 16px;
-}
-
-.tableHeader strong {
-  font-size: 14px;
-  font-weight: 950;
-}
-
-.tableHeader span {
-  color: #536078;
-  font-size: 13px;
-  font-weight: 800;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .tableWrap {
-  overflow-x: auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .salesTable {
   width: 100%;
-  min-width: 1080px;
+  min-width: 920px;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .salesTable th,
 .salesTable td {
-  height: 56px;
+  height: 52px;
   border-bottom: 1px solid #edf0f4;
   padding: 0 12px;
   text-align: left;
@@ -264,17 +307,40 @@
 }
 
 .salesTable th {
-  color: #536078;
-  font-size: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom-color: #d7f0df;
+  background: #f3f7f4;
+  color: #172317;
+  font-size: 13px;
   font-weight: 950;
+}
+
+.salesTable th:last-child,
+.salesTable td:last-child {
+  width: 96px;
+  padding-right: 16px;
+  padding-left: 16px;
+  text-align: center;
 }
 
 .salesTable tbody tr {
   cursor: pointer;
+  transition: background-color 0.16s ease;
 }
 
-.salesTable tbody tr:hover {
-  background: #f8fbf8;
+.zebraFirstRow {
+  background: #ffffff;
+}
+
+.zebraSecondRow {
+  background: #f3f7f4;
+}
+
+.zebraFirstRow:hover,
+.zebraSecondRow:hover {
+  background: #ecfdf3;
 }
 
 .invoiceLink {
@@ -332,32 +398,120 @@
 
 .tableActions {
   display: flex;
-  gap: 7px;
+  position: relative;
+  align-items: center;
+  justify-content: center;
 }
 
-.tableActions button,
+.rowActionButton,
 .iconButton {
-  display: grid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 34px;
   height: 34px;
-  place-items: center;
-  border: 1px solid #dfe6ee;
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: #ffffff;
+  background: transparent;
   color: #536078;
 }
 
-.tableActions button:hover,
+.rowActionButton {
+  margin: 0 auto;
+}
+
+.rowActionButton:hover,
 .iconButton:hover {
-  border-color: #07883a;
-  color: #07883a;
+  border-color: #dfe6ee;
+  background: #f8faf9;
+  color: #172317;
+}
+
+.actionMenu {
+  position: absolute;
+  top: 42px;
+  right: 12px;
+  z-index: 15;
+  display: grid;
+  width: 132px;
+  gap: 2px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 6px;
+  box-shadow: 0 16px 34px rgb(31 53 43 / 0.14);
+}
+
+.actionMenu button {
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #172317;
+  padding: 0 10px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.actionMenu button:hover {
+  background: #f4f7f5;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #edf0f4;
+  padding: 12px 18px;
+  color: #536078;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pageTools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pageButton {
+  display: grid;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #172317;
+  font-weight: 700;
+}
+
+.pageButton:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.pageButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.activePage {
+  background: #07883a;
+  color: #ffffff;
+}
+
+.activePage:hover:not(:disabled) {
+  background: #07883a;
 }
 
 .emptyState {
-  display: grid;
-  min-height: 330px;
-  place-items: center;
-  align-content: center;
+  display: flex;
+  min-height: 360px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
   gap: 8px;
   color: #159734;
   text-align: center;
@@ -378,6 +532,8 @@
 .tableSkeleton {
   display: grid;
   gap: 10px;
+  min-height: 360px;
+  align-content: center;
   padding: 16px;
 }
 
@@ -394,17 +550,22 @@
   inset: 0;
   z-index: 60;
   display: flex;
-  justify-content: flex-end;
-  background: rgb(15 23 42 / 0.34);
+  align-items: center;
+  justify-content: center;
+  background: rgb(15 23 42 / 0.5);
+  padding: 24px;
 }
 
 .detailDrawer {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(460px, 100vw);
-  height: 100%;
+  width: min(600px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
   background: #ffffff;
-  box-shadow: -18px 0 44px rgb(15 23 42 / 0.16);
+  box-shadow: 0 24px 64px rgb(15 23 42 / 0.22);
 }
 
 .drawerHeader {
@@ -413,37 +574,32 @@
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid #edf0f4;
-  padding: 18px;
-}
-
-.drawerHeader span {
-  color: #536078;
-  font-size: 12px;
-  font-weight: 850;
+  padding: 14px 16px;
 }
 
 .drawerHeader h2 {
-  margin: 4px 0 0;
-  color: #07883a;
-  font-size: 22px;
+  margin: 0;
+  color: #172317;
+  font-size: 17px;
   font-weight: 950;
 }
 
 .drawerBody {
   min-height: 0;
   overflow-y: auto;
-  padding: 18px;
+  padding: 14px 16px;
 }
 
 .detailSection {
   border-bottom: 1px solid #edf0f4;
-  padding-bottom: 16px;
-  margin-bottom: 16px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
 }
 
 .detailSection h3 {
   margin: 0 0 12px;
-  font-size: 14px;
+  color: #172317;
+  font-size: 13px;
   font-weight: 950;
 }
 
@@ -465,7 +621,7 @@
 .totalBox span {
   color: #536078;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .infoGrid dd,
@@ -473,7 +629,8 @@
   margin: 0;
   text-align: right;
   font-size: 13px;
-  font-weight: 950;
+  font-weight: 900;
+  color: #172317;
 }
 
 .itemList {
@@ -485,8 +642,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
-  border: 1px solid #edf0f4;
   border-radius: 8px;
+  background: #f8faf9;
   padding: 10px;
 }
 
@@ -507,9 +664,31 @@
   font-weight: 700;
 }
 
-.itemRow b {
-  align-self: center;
+.itemAmount {
+  display: grid;
+  justify-items: end;
+  align-self: start;
+  gap: 5px;
+  text-align: right;
+}
+
+.itemAmount b {
+  color: #172317;
   font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.itemAmount span {
+  display: inline-flex;
+  margin-top: 0;
+  border-radius: 6px;
+  background: #e9f8ed;
+  color: #07883a;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 950;
+  white-space: nowrap;
 }
 
 .totalBox {
@@ -517,8 +696,15 @@
   gap: 11px;
   border: 1px solid #d8eadc;
   border-radius: 10px;
-  background: #f8fbf8;
+  background: rgb(240 251 239 / 0.45);
   padding: 14px;
+}
+
+.totalBox h3 {
+  margin: 0 0 1px;
+  color: #172317;
+  font-size: 13px;
+  font-weight: 950;
 }
 
 .totalBox .finalRow {
@@ -538,7 +724,7 @@
   justify-content: flex-end;
   gap: 10px;
   border-top: 1px solid #edf0f4;
-  padding: 14px 18px;
+  padding: 14px 16px;
 }
 
 @keyframes pulse {
@@ -563,20 +749,29 @@
     flex-direction: column;
   }
 
+  .headerActions {
+    justify-content: flex-start;
+  }
+
   .header h1 {
     font-size: 27px;
   }
 
-  .summaryGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .filtersPanel {
+    align-items: stretch;
+    padding: 12px 14px;
   }
 
-  .metricCard {
-    min-height: 104px;
+  .searchBox {
+    flex-basis: auto;
+    width: 100%;
   }
 
-  .metricCard strong {
-    font-size: 19px;
+  .filterTopRow,
+  .filterBottomRow {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 13px;
   }
 
   .filterRow {
@@ -594,14 +789,12 @@
   }
 
   .drawerBackdrop {
-    align-items: flex-end;
-    justify-content: stretch;
+    padding: 12px;
   }
 
   .detailDrawer {
     width: 100%;
-    height: min(88vh, 760px);
-    border-radius: 12px 12px 0 0;
+    max-height: calc(100vh - 24px);
   }
 
   .drawerFooter {
@@ -610,11 +803,5 @@
 
   .drawerFooter button {
     width: 100%;
-  }
-}
-
-@media (max-width: 480px) {
-  .summaryGrid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }

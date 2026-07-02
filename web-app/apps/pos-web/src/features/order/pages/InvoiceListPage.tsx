@@ -4,13 +4,12 @@ import {
     ChevronRight,
     FileSpreadsheet,
     MoreHorizontal,
-    Search
+    Search,
+    Upload
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { DateQuickFilter } from "../../../components/shared/DateQuickFilter";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
-import type { DateFilterKey } from "../../../components/shared/dateFilters";
 import { InvoiceDetailPanel } from "../components/InvoiceDetailPanel";
 import { PaymentStatusBadge } from "../components/PaymentStatusBadge";
 import { getOrderById, getOrders, getOrderStats } from "../services/order.api";
@@ -21,12 +20,10 @@ import type {
     OrderSummaryResponse
 } from "../types/order.types";
 import {
-    buildDateRangeFilter,
     buildInvoiceCode,
     formatCurrency,
-    formatDateTime,
+    formatDateOnly,
     getCustomerName,
-    getOrderCode,
     getPaymentStatusText
 } from "../utils/order-formatters";
 import styles from "./InvoiceListPage.module.css";
@@ -49,20 +46,20 @@ const INVOICE_PAYMENT_TABS: {
     paymentStatus: string | null;
     countKey: keyof OrderStatsResponse;
 }[] = [
-    { key: "ALL", label: "Tất cả", paymentStatus: null, countKey: "total" },
-    {
-        key: "UNPAID",
-        label: "Chưa thanh toán",
-        paymentStatus: "UNPAID",
-        countKey: "unpaidInvoices"
-    },
-    {
-        key: "PAID",
-        label: "Đã thanh toán",
-        paymentStatus: "PAID",
-        countKey: "paidInvoices"
-    }
-];
+        { key: "ALL", label: "Tất cả", paymentStatus: null, countKey: "total" },
+        {
+            key: "UNPAID",
+            label: "Chưa thanh toán",
+            paymentStatus: "UNPAID",
+            countKey: "unpaidInvoices"
+        },
+        {
+            key: "PAID",
+            label: "Đã thanh toán",
+            paymentStatus: "PAID",
+            countKey: "paidInvoices"
+        }
+    ];
 
 function getErrorMessage(error: unknown) {
     if (
@@ -100,11 +97,11 @@ function getPageNumbers(totalPages: number, currentPage: number) {
 }
 
 export function InvoiceListPage() {
+    const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterPaymentStatus, setFilterPaymentStatus] =
         useState<InvoicePaymentTabKey>("ALL");
-    const [dateFilter, setDateFilter] = useState<DateFilterKey>("ALL");
     const [isTimeCollapsed, setIsTimeCollapsed] = useState(true);
     const [currentPage, setCurrentPage] = useState(0);
     const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -121,10 +118,6 @@ export function InvoiceListPage() {
     const [isDetailLoading, setIsDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
 
-    const dateRange = useMemo(
-        () => buildDateRangeFilter(dateFilter),
-        [dateFilter]
-    );
     const activePaymentTab = INVOICE_PAYMENT_TABS.find(
         (tab) => tab.key === filterPaymentStatus
     );
@@ -138,7 +131,6 @@ export function InvoiceListPage() {
             getOrders({
                 keyword: debouncedKeyword,
                 paymentStatus: activePaymentTab?.paymentStatus ?? undefined,
-                ...dateRange,
                 sort: "invoicePayment",
                 page: currentPage,
                 size: PAGE_SIZE
@@ -169,17 +161,12 @@ export function InvoiceListPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [
-        activePaymentTab?.paymentStatus,
-        currentPage,
-        dateRange,
-        debouncedKeyword
-    ]);
+    }, [activePaymentTab?.paymentStatus, currentPage, debouncedKeyword]);
 
     useEffect(() => {
         let ignore = false;
 
-        getOrderStats(dateRange)
+        getOrderStats()
             .then((response) => {
                 if (!ignore) {
                     setStats(response ?? {});
@@ -194,7 +181,7 @@ export function InvoiceListPage() {
         return () => {
             ignore = true;
         };
-    }, [dateRange]);
+    }, []);
 
     useEffect(() => {
         if (!selectedOrderId) {
@@ -247,13 +234,26 @@ export function InvoiceListPage() {
         setOpenActionCode(null);
     };
 
-    const selectPaymentFilter = (status: InvoicePaymentTabKey) => {
-        setFilterPaymentStatus(status);
-        setCurrentPage(0);
+    const handleClickImport = () => {
+        importInputRef.current?.click();
     };
 
-    const selectDateFilter = (status: DateFilterKey) => {
-        setDateFilter(status);
+    const handleImportFile = (file?: File) => {
+        if (!file) {
+            return;
+        }
+
+        console.log("TODO: Nhập file hóa đơn", file);
+        window.alert("Chức năng nhập file đang được phát triển");
+    };
+
+    const handleExportFile = () => {
+        console.log("TODO: Xuất file hóa đơn");
+        window.alert("Chức năng xuất file đang được phát triển");
+    };
+
+    const selectPaymentFilter = (status: InvoicePaymentTabKey) => {
+        setFilterPaymentStatus(status);
         setCurrentPage(0);
     };
 
@@ -279,17 +279,16 @@ export function InvoiceListPage() {
     );
     const isInvoiceDetailOpen = Boolean(
         selectedOrderId ||
-            selectedSummary ||
-            selectedDetail ||
-            isDetailLoading ||
-            detailError
+        selectedSummary ||
+        selectedDetail ||
+        isDetailLoading ||
+        detailError
     );
 
     return (
         <section
-            className={`${styles.page} ${
-                isTimeCollapsed ? styles.pageTimeCollapsed : ""
-            }`}
+            className={`${styles.page} ${isTimeCollapsed ? styles.pageTimeCollapsed : ""
+                }`}
         >
             <TimeSidebar
                 collapsed={isTimeCollapsed}
@@ -301,11 +300,6 @@ export function InvoiceListPage() {
             <div className={styles.content}>
                 <div className={styles.header}>
                     <div className={styles.title}>
-                        <div className={styles.breadcrumbs}>
-                            <span>Đơn hàng</span>
-                            <ChevronRight size={16} aria-hidden="true" />
-                            <span>Hóa đơn</span>
-                        </div>
                         <h1>Hóa đơn</h1>
                         <p>
                             Quản lý và theo dõi tất cả hóa đơn bán trà, phụ
@@ -314,19 +308,29 @@ export function InvoiceListPage() {
                     </div>
 
                     <div className={styles.actions}>
-                        <label className={styles.searchBox}>
-                            <Search size={20} aria-hidden="true" />
-                            <input
-                                aria-label="Tìm kiếm hóa đơn"
-                                onChange={(event) => {
-                                    setSearchTerm(event.target.value);
-                                    setCurrentPage(0);
-                                }}
-                                placeholder="Tìm mã HĐ, mã ĐH, khách hàng, SĐT..."
-                                value={searchTerm}
-                            />
-                        </label>
-                        <button className={styles.secondaryButton} type="button">
+                        <input
+                            ref={importInputRef}
+                            accept=".xlsx,.xls,.csv"
+                            className={styles.hiddenFileInput}
+                            onChange={(event) => {
+                                handleImportFile(event.target.files?.[0]);
+                                event.target.value = "";
+                            }}
+                            type="file"
+                        />
+                        <button
+                            className={styles.secondaryButton}
+                            onClick={handleClickImport}
+                            type="button"
+                        >
+                            <Upload size={18} aria-hidden="true" />
+                            Nhập file
+                        </button>
+                        <button
+                            className={styles.secondaryButton}
+                            onClick={handleExportFile}
+                            type="button"
+                        >
                             <FileSpreadsheet size={18} aria-hidden="true" />
                             Xuất file
                             <ChevronDown size={16} aria-hidden="true" />
@@ -336,8 +340,27 @@ export function InvoiceListPage() {
 
                 <div className={`${styles.body} ${styles.bodyExpanded}`}>
                     <div className={styles.tablePanel}>
-                        <div className={styles.summary}>
-                            <div className={styles.filterStack}>
+                        <div className={styles.filterRows}>
+                            <div className={styles.filterToolbar}>
+                                <label className={styles.searchBox}>
+                                    <Search size={20} aria-hidden="true" />
+                                    <input
+                                        aria-label="Tìm kiếm hóa đơn"
+                                        onChange={(event) => {
+                                            setSearchTerm(event.target.value);
+                                            setCurrentPage(0);
+                                        }}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Escape") {
+                                                setSearchTerm("");
+                                                setCurrentPage(0);
+                                            }
+                                        }}
+                                        placeholder="Tìm mã HĐ, mã ĐH, khách hàng, SĐT..."
+                                        value={searchTerm}
+                                    />
+                                </label>
+
                                 <div className={styles.filterGroup}>
                                     <span className={styles.filterLabel}>
                                         Thanh toán:
@@ -345,12 +368,11 @@ export function InvoiceListPage() {
                                     <div className={styles.paymentFilters}>
                                         {INVOICE_PAYMENT_TABS.map((filter) => (
                                             <button
-                                                className={`${styles.paymentChip} ${
-                                                    filterPaymentStatus ===
-                                                    filter.key
+                                                className={`${styles.paymentChip} ${filterPaymentStatus ===
+                                                        filter.key
                                                         ? styles.activePaymentChip
                                                         : ""
-                                                }`}
+                                                    }`}
                                                 key={filter.key}
                                                 onClick={() =>
                                                     selectPaymentFilter(
@@ -368,24 +390,27 @@ export function InvoiceListPage() {
                                         ))}
                                     </div>
                                 </div>
-
-                                <DateQuickFilter
-                                    value={dateFilter}
-                                    onChange={selectDateFilter}
-                                />
                             </div>
                         </div>
 
-                        <div className={styles.tableWrap}>
-                            <table className={styles.invoiceTable}>
+                        <div className={styles.tableCard}>
+                            <div className={styles.tableWrap}>
+                                <table className={styles.invoiceTable}>
+                                <colgroup>
+                                    <col style={{ width: "28%" }} />
+                                    <col style={{ width: "30%" }} />
+                                    <col style={{ width: "17%" }} />
+                                    <col style={{ width: "15%" }} />
+                                    <col style={{ width: "12%" }} />
+                                    <col style={{ width: "10%" }} />
+                                </colgroup>
                                 <thead>
                                     <tr>
-                                        <th>Mã HĐ</th>
+                                        <th>Mã hóa đơn</th>
                                         <th>Thanh toán</th>
                                         <th>Tổng tiền</th>
                                         <th>Khách hàng</th>
                                         <th>Ngày</th>
-                                        <th>Mã ĐH</th>
                                         <th>Thao tác</th>
                                     </tr>
                                 </thead>
@@ -394,7 +419,7 @@ export function InvoiceListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>Đang tải hóa đơn</strong>
                                                 <span>
@@ -409,7 +434,7 @@ export function InvoiceListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>
                                                     Không tải được danh sách hóa đơn
@@ -421,163 +446,169 @@ export function InvoiceListPage() {
 
                                     {!isListLoading && !listError
                                         ? visibleInvoices.map((order, index) => {
-                                              const absoluteIndex =
-                                                  invoicePage.number *
-                                                      invoicePage.size +
-                                                  index;
-                                              const invoiceCode =
-                                                  buildInvoiceCode(
-                                                      order,
-                                                      absoluteIndex
-                                                  );
-
-                                              return (
-                                                  <tr
-                                                      className={
-                                                          selectedOrderId ===
-                                                          order.id
-                                                              ? styles.activeRow
-                                                              : ""
-                                                      }
-                                                      key={order.id}
-                                                      onClick={() =>
-                                                          selectInvoice(
-                                                              order,
-                                                              absoluteIndex
-                                                          )
-                                                      }
-                                                  >
-                                                      <td>
-                                                          <button
-                                                              className={
-                                                                  styles.invoiceLink
-                                                              }
-                                                              type="button"
-                                                          >
-                                                              {invoiceCode}
-                                                          </button>
-                                                      </td>
-                                                      <td>
-                                                          <PaymentStatusBadge
-                                                              status={
-                                                                  order.paymentStatus
-                                                              }
-                                                              label={getPaymentStatusText(
-                                                                  order
-                                                              )}
-                                                          />
-                                                      </td>
-                                                      <td>
-                                                          <strong>
-                                                              {formatCurrency(
-                                                                  order.finalAmount
-                                                              )}
-                                                          </strong>
-                                                      </td>
-                                                      <td>
-                                                          <strong>
-                                                              {getCustomerName(
-                                                                  order
-                                                              )}
-                                                          </strong>
-                                                      </td>
-                                                      <td>
-                                                          {formatDateTime(
-                                                              order.createdAt
-                                                          )}
-                                                      </td>
-                                                      <td>
-                                                          {getOrderCode(order)}
-                                                      </td>
-                                                      <td
-                                                          className={
-                                                              styles.actionCell
-                                                          }
-                                                      >
-                                                          <button
-                                                              aria-expanded={
-                                                                  openActionCode ===
-                                                                  order.id
-                                                              }
-                                                              aria-label={`Mở thao tác cho hóa đơn ${invoiceCode}`}
-                                                              className={
-                                                                  styles.rowActionButton
-                                                              }
-                                                              onClick={(
-                                                                  event
-                                                              ) => {
-                                                                  event.stopPropagation();
-                                                                  setOpenActionCode(
-                                                                      (
-                                                                          current
-                                                                      ) =>
-                                                                          current ===
-                                                                          order.id
-                                                                              ? null
-                                                                              : order.id
-                                                                  );
-                                                              }}
-                                                              type="button"
-                                                          >
-                                                              <MoreHorizontal
-                                                                  size={17}
-                                                                  aria-hidden="true"
-                                                              />
-                                                          </button>
-                                                          {openActionCode ===
-                                                          order.id ? (
-                                                              <div
-                                                                  className={
-                                                                      styles.actionMenu
-                                                                  }
-                                                              >
-                                                                  {[
-                                                                      "Xem chi tiết",
-                                                                      "In hóa đơn",
-                                                                      "Tải PDF",
-                                                                      "Gửi hóa đơn",
-                                                                      "Hoàn tiền"
-                                                                  ].map(
-                                                                      (
-                                                                          action
-                                                                      ) => (
-                                                                          <button
-                                                                              key={
-                                                                                  action
-                                                                              }
-                                                                              onClick={(
-                                                                                  event
-                                                                              ) => {
-                                                                                  event.stopPropagation();
-                                                                                  handleAction(
-                                                                                      action,
-                                                                                      order,
-                                                                                      absoluteIndex
-                                                                                  );
-                                                                              }}
-                                                                              type="button"
-                                                                          >
-                                                                              {
-                                                                                  action
-                                                                              }
-                                                                          </button>
-                                                                      )
-                                                                  )}
-                                                              </div>
-                                                          ) : null}
-                                                      </td>
-                                                  </tr>
-                                              );
-                                          })
+                                            const absoluteIndex =
+                                                invoicePage.number *
+                                                invoicePage.size +
+                                                index;
+                                            const invoiceCode =
+                                                buildInvoiceCode(
+                                                    order,
+                                                    absoluteIndex
+                                                );
+                                            return (
+                                                <tr
+                                                    className={`${
+                                                        index % 2 === 0
+                                                            ? styles.zebraFirstRow
+                                                            : styles.zebraSecondRow
+                                                    } ${
+                                                        selectedOrderId ===
+                                                        order.id
+                                                            ? styles.activeRow
+                                                            : ""
+                                                    }`}
+                                                    key={order.id}
+                                                    onClick={() =>
+                                                        selectInvoice(
+                                                            order,
+                                                            absoluteIndex
+                                                        )
+                                                    }
+                                                >
+                                                    <td>
+                                                        <button
+                                                            className={
+                                                                styles.invoiceLink
+                                                            }
+                                                            type="button"
+                                                        >
+                                                            {invoiceCode}
+                                                        </button>
+                                                    </td>
+                                                    <td>
+                                                        <PaymentStatusBadge
+                                                            status={
+                                                                order.paymentStatus
+                                                            }
+                                                            label={getPaymentStatusText(
+                                                                order
+                                                            )}
+                                                        />
+                                                    </td>
+                                                    <td>
+                                                        <strong>
+                                                            {formatCurrency(
+                                                                order.finalAmount
+                                                            )}
+                                                        </strong>
+                                                    </td>
+                                                    <td>
+                                                        <strong>
+                                                            {getCustomerName(
+                                                                order
+                                                            )}
+                                                        </strong>
+                                                    </td>
+                                                    <td>
+                                                        {formatDateOnly(
+                                                            order.createdAt
+                                                        )}
+                                                    </td>
+                                                    <td
+                                                        className={
+                                                            styles.actionCell
+                                                        }
+                                                    >
+                                                        <div
+                                                            className={
+                                                                styles.actionButtonWrap
+                                                            }
+                                                        >
+                                                            <button
+                                                                aria-expanded={
+                                                                    openActionCode ===
+                                                                    order.id
+                                                                }
+                                                                aria-label={`Mở thao tác cho hóa đơn ${invoiceCode}`}
+                                                                className={
+                                                                    styles.rowActionButton
+                                                                }
+                                                                onClick={(
+                                                                    event
+                                                                ) => {
+                                                                    event.stopPropagation();
+                                                                    setOpenActionCode(
+                                                                        (
+                                                                            current
+                                                                        ) =>
+                                                                            current ===
+                                                                            order.id
+                                                                                ? null
+                                                                                : order.id
+                                                                    );
+                                                                }}
+                                                                type="button"
+                                                            >
+                                                                <MoreHorizontal
+                                                                    size={17}
+                                                                    aria-hidden="true"
+                                                                />
+                                                            </button>
+                                                        </div>
+                                                        {openActionCode ===
+                                                            order.id ? (
+                                                            <div
+                                                                className={
+                                                                    styles.actionMenu
+                                                                }
+                                                            >
+                                                                {[
+                                                                    "Xem chi tiết",
+                                                                    "In hóa đơn",
+                                                                    "Tải PDF",
+                                                                    "Gửi hóa đơn",
+                                                                    "Hoàn tiền"
+                                                                ].map(
+                                                                    (
+                                                                        action
+                                                                    ) => (
+                                                                        <button
+                                                                            key={
+                                                                                action
+                                                                            }
+                                                                            onClick={(
+                                                                                event
+                                                                            ) => {
+                                                                                event.stopPropagation();
+                                                                                handleAction(
+                                                                                    action,
+                                                                                    order,
+                                                                                    absoluteIndex
+                                                                                );
+                                                                            }}
+                                                                            type="button"
+                                                                        >
+                                                                            {
+                                                                                action
+                                                                            }
+                                                                        </button>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        ) : null}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                         : null}
 
                                     {!isListLoading &&
-                                    !listError &&
-                                    visibleInvoices.length === 0 ? (
+                                        !listError &&
+                                        visibleInvoices.length === 0 ? (
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={7}
+                                                colSpan={6}
                                             >
                                                 <strong>
                                                     Không tìm thấy hóa đơn phù hợp
@@ -589,66 +620,65 @@ export function InvoiceListPage() {
                                         </tr>
                                     ) : null}
                                 </tbody>
-                            </table>
-                        </div>
+                                </table>
+                            </div>
 
-                        <div className={styles.pagination}>
-                            <span>
-                                Hiển thị{" "}
-                                <strong>
-                                    {fromRecord} - {toRecord}
-                                </strong>{" "}
-                                trong {totalElements} dòng
-                            </span>
-                            <div className={styles.pageTools}>
-                                <span>Trang</span>
-                                <button
-                                    className={styles.pageButton}
-                                    disabled={currentPage === 0}
-                                    onClick={() =>
-                                        setCurrentPage((page) =>
-                                            Math.max(0, page - 1)
+                            <div className={styles.pagination}>
+                                <span>
+                                    Hiển thị{" "}
+                                    <strong>
+                                        {fromRecord} - {toRecord}
+                                    </strong>{" "}
+                                    trong {totalElements} dòng
+                                </span>
+                                <div className={styles.pageTools}>
+                                    <button
+                                        className={styles.pageButton}
+                                        disabled={currentPage === 0}
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.max(0, page - 1)
+                                            )
+                                        }
+                                        type="button"
+                                    >
+                                        <ChevronLeft
+                                            size={15}
+                                            aria-hidden="true"
+                                        />
+                                    </button>
+                                    {getPageNumbers(totalPages, currentPage).map(
+                                        (page) => (
+                                            <button
+                                                className={`${styles.pageButton} ${page === currentPage
+                                                        ? styles.activePage
+                                                        : ""
+                                                    }`}
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                type="button"
+                                            >
+                                                {page + 1}
+                                            </button>
                                         )
-                                    }
-                                    type="button"
-                                >
-                                    <ChevronLeft
-                                        size={15}
-                                        aria-hidden="true"
-                                    />
-                                </button>
-                                {getPageNumbers(totalPages, currentPage).map(
-                                    (page) => (
-                                        <button
-                                            className={`${styles.pageButton} ${
-                                                page === currentPage
-                                                    ? styles.activePage
-                                                    : ""
-                                            }`}
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            type="button"
-                                        >
-                                            {page + 1}
-                                        </button>
-                                    )
-                                )}
-                                {totalPages > 5 ? <span>...</span> : null}
-                                <button
-                                    className={styles.pageButton}
-                                    disabled={currentPage >= totalPages - 1}
-                                    onClick={() =>
-                                        setCurrentPage((page) =>
-                                            Math.min(totalPages - 1, page + 1)
-                                        )
-                                    }
-                                    type="button"
-                                >
-                                    <ChevronRight
-                                        size={15}
-                                        aria-hidden="true"
-                                    />
-                                </button>
+                                    )}
+                                    {totalPages > 5 ? <span>...</span> : null}
+                                    <button
+                                        className={styles.pageButton}
+                                        disabled={currentPage >= totalPages - 1}
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.min(totalPages - 1, page + 1)
+                                            )
+                                        }
+                                        type="button"
+                                    >
+                                        <ChevronRight
+                                            size={15}
+                                            aria-hidden="true"
+                                        />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

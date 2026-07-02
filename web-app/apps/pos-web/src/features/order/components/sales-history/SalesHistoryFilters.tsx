@@ -1,3 +1,5 @@
+import { Search } from "lucide-react";
+
 import {
     SALES_PAYMENT_METHOD_OPTIONS,
     SALES_STATUS_FILTER_OPTIONS
@@ -10,12 +12,17 @@ import type {
 import styles from "../../pages/SalesHistoryPage.module.css";
 
 interface SalesHistoryFiltersProps {
+    searchValue: string;
     value: SalesHistoryFilterValues;
+    paymentCounts: Partial<Record<SalesHistoryPaymentFilter, number>>;
+    statusCounts: Partial<Record<SalesHistoryStatusFilter, number>>;
+    onSearchChange: (value: string) => void;
     onChange: (value: SalesHistoryFilterValues) => void;
 }
 
 interface FilterChipProps<T extends string> {
     active: boolean;
+    count?: number;
     label: string;
     value: T;
     onSelect: (value: T) => void;
@@ -23,6 +30,7 @@ interface FilterChipProps<T extends string> {
 
 function FilterChip<T extends string>({
     active,
+    count,
     label,
     value,
     onSelect
@@ -36,12 +44,17 @@ function FilterChip<T extends string>({
             type="button"
         >
             {label}
+            <span>{count ?? 0}</span>
         </button>
     );
 }
 
 export function SalesHistoryFilters({
+    searchValue,
     value,
+    paymentCounts,
+    statusCounts,
+    onSearchChange,
     onChange
 }: SalesHistoryFiltersProps) {
     return (
@@ -49,45 +62,68 @@ export function SalesHistoryFilters({
             className={styles.filtersPanel}
             aria-label="Bộ lọc lịch sử bán hàng"
         >
-            <div className={styles.filterRow}>
-                <span className={styles.filterLabel}>Trạng thái:</span>
-                <div className={styles.chipGroup}>
-                    {SALES_STATUS_FILTER_OPTIONS.map((option) => (
-                        <FilterChip<SalesHistoryStatusFilter>
-                            active={value.status === option.key}
-                            key={option.key}
-                            label={option.label}
-                            onSelect={(status) =>
-                                onChange({
-                                    ...value,
-                                    status
-                                })
+            <div className={styles.filterTopRow}>
+                <label className={styles.searchBox}>
+                    <Search size={19} aria-hidden="true" />
+                    <input
+                        aria-label="Tìm kiếm hóa đơn bán hàng hôm nay"
+                        onChange={(event) =>
+                            onSearchChange(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                                onSearchChange("");
                             }
-                            value={option.key}
-                        />
-                    ))}
+                        }}
+                        placeholder="Tìm mã đơn, khách hàng, SĐT..."
+                        value={searchValue}
+                    />
+                </label>
+
+                <div className={styles.filterRow}>
+                    <span className={styles.filterLabel}>Trạng thái:</span>
+                    <div className={styles.chipGroup}>
+                        {SALES_STATUS_FILTER_OPTIONS.map((option) => (
+                            <FilterChip<SalesHistoryStatusFilter>
+                                active={value.status === option.key}
+                                count={statusCounts[option.key]}
+                                key={option.key}
+                                label={option.label}
+                                onSelect={(status) =>
+                                    onChange({
+                                        ...value,
+                                        status
+                                    })
+                                }
+                                value={option.key}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            <div className={styles.filterRow}>
-                <span className={styles.filterLabel}>
-                    Phương thức thanh toán:
-                </span>
-                <div className={styles.chipGroup}>
-                    {SALES_PAYMENT_METHOD_OPTIONS.map((option) => (
-                        <FilterChip<SalesHistoryPaymentFilter>
-                            active={value.paymentMethod === option.key}
-                            key={option.key}
-                            label={option.label}
-                            onSelect={(paymentMethod) =>
-                                onChange({
-                                    ...value,
-                                    paymentMethod
-                                })
-                            }
-                            value={option.key}
-                        />
-                    ))}
+            <div className={styles.filterBottomRow}>
+                <div className={styles.filterRow}>
+                    <span className={styles.filterLabel}>
+                        Phương thức thanh toán:
+                    </span>
+                    <div className={styles.chipGroup}>
+                        {SALES_PAYMENT_METHOD_OPTIONS.map((option) => (
+                            <FilterChip<SalesHistoryPaymentFilter>
+                                active={value.paymentMethod === option.key}
+                                count={paymentCounts[option.key]}
+                                key={option.key}
+                                label={option.label}
+                                onSelect={(paymentMethod) =>
+                                    onChange({
+                                        ...value,
+                                        paymentMethod
+                                    })
+                                }
+                                value={option.key}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
         </section>
