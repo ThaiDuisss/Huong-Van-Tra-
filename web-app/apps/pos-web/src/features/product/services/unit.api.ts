@@ -15,7 +15,7 @@ export const unitApi = {
     },
     /** Fetch all units as a flat array (used by dropdowns / inventory filters) */
     listAll() {
-        return apiClient.get<Unit[]>("/catalog/units/all");
+        return apiClient.get<Unit[]>("/catalog/units");
     },
     detail(id: string) {
         return apiClient.get<Unit>(`/catalog/units/${encodeURIComponent(id)}`);

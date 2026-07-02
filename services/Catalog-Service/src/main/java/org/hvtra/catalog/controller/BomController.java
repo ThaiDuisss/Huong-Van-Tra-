@@ -26,10 +26,12 @@ public class BomController {
     @GetMapping
     public PageResponse<BomResponse> findAll(
             @RequestParam(name = "productVariantId", required = false) UUID productVariantId,
+            @RequestParam(name = "productId", required = false) UUID productId,
+            @RequestParam(name = "search", required = false) String search,
             @RequestParam(name = "version", required = false) Integer version,
             @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
-        return service.findAll(productVariantId, version, status, pageable);
+        return service.findAll(productVariantId, productId, search, version, status, pageable);
     }
 
     @GetMapping("/{id}")

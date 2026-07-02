@@ -109,8 +109,8 @@ export function ShelfManagementPage() {
             {/* ── Bộ lọc ─────────────────────────────────────────────────────── */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
                 <div className="flex items-center">
-                    {/* Search: 50% */}
-                    <div className="relative w-1/2">
+                    {/* Search: chiếm phần còn lại */}
+                    <div className="relative flex-1">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         <input
                             type="text"

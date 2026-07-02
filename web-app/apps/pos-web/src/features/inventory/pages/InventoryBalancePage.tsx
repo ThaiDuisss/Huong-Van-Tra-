@@ -216,9 +216,7 @@ export function InventoryBalancePage() {
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
         return (balances as unknown as InventoryBalanceViewResponse[]).map((bal) => {
-            const rop = bal.reorderPoint !== undefined ? bal.reorderPoint : 10;
-            const isOutOfStock = bal.availableQuantity <= 0;
-            const isLowStock = bal.availableQuantity > 0 && bal.availableQuantity <= rop;
+
 
             const baseRow: JoinedRow = {
                 id: String(bal.inventoryBalanceId),
@@ -238,8 +236,8 @@ export function InventoryBalancePage() {
                 "Giá nhập": bal.cost_price,
                 "Giá bán": bal.selling_price,
                 "Ngày cập nhật": bal.updatedAt,
-                isOutOfStock,
-                isLowStock
+                // "Hết hàng": isOutOfStock,
+                // "Gần hết hàng": isLowStock
             };
             return baseRow;
         });
@@ -276,7 +274,7 @@ export function InventoryBalancePage() {
 
     // 5. Hardcoded columns for the grid (omitting "Đơn vị", "Giá bán", and "Giá nhập")
     const schemaColumns = useMemo(() => {
-        return ["Ảnh sản phẩm", "SKU", "Tên sản phẩm", "Danh mục", "Kệ", "Có thể bán", "Ngày cập nhật"];
+        return ["Kệ","Ảnh sản phẩm", "Tên sản phẩm",  "Có thể bán"];
     }, []);
 
     // Set initial visibility mapping if empty
@@ -366,9 +364,9 @@ export function InventoryBalancePage() {
 
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                <div className="grid grid-cols-8 gap-3 items-center">
-                    {/* Search: 50% */}
-                    <div className="relative col-span-4">
+                <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+                    {/* Search */}
+                    <div className="relative flex-1">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         <input
                             type="text"
@@ -378,50 +376,53 @@ export function InventoryBalancePage() {
                             className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
                         />
                     </div>
-                    {/* Dropdown 1: Kệ hàng - 1/8 (12.5%) */}
-                    <select
-                        value={activeLocationId ?? ""}
-                        onChange={(e) => { setActiveLocationId(e.target.value); setPage(1); }}
-                        className="col-span-1 min-w-0 h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer truncate"
-                    >
-                        <option value="">Kệ hàng</option>
-                        {defaultShelves.map((shelf) => (
-                            <option key={shelf.id} value={String(shelf.id)}>{shelf.name}</option>
-                        ))}
-                    </select>
-                    {/* Dropdown 2: Đơn vị tính - 1/8 (12.5%) */}
-                    <select
-                        value={filterUnitId}
-                        onChange={(e) => { setFilterUnitId(e.target.value); setPage(1); }}
-                        className="col-span-1 min-w-0 h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer truncate"
-                    >
-                        <option value="">Đơn vị tính</option>
-                        {units.map((u) => (
-                            <option key={u.id} value={String(u.id)}>{u.name}</option>
-                        ))}
-                    </select>
-                    {/* Dropdown 3: Sản phẩm - 1/8 (12.5%) */}
-                    <select
-                        value={filterProductId}
-                        onChange={(e) => { setFilterProductId(e.target.value); setPage(1); }}
-                        className="col-span-1 min-w-0 h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer truncate"
-                    >
-                        <option value="">Sản phẩm</option>
-                        {products.map((p) => (
-                            <option key={p.id} value={String(p.id)}>{p.name}</option>
-                        ))}
-                    </select>
-                    {/* Dropdown 4: Danh mục - 1/8 (12.5%) */}
-                    <select
-                        value={filterCategoryId}
-                        onChange={(e) => { setFilterCategoryId(e.target.value); setPage(1); }}
-                        className="col-span-1 min-w-0 h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer truncate"
-                    >
-                        <option value="">Danh mục</option>
-                        {categories.map((c) => (
-                            <option key={c.id} value={String(c.id)}>{c.name}</option>
-                        ))}
-                    </select>
+                    
+                    <div className="flex flex-wrap gap-3 items-center">
+                        {/* Dropdown 1: Kệ hàng */}
+                        <select
+                            value={activeLocationId ?? ""}
+                            onChange={(e) => { setActiveLocationId(e.target.value); setPage(1); }}
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] max-w-[200px] truncate"
+                        >
+                            <option value="">Kệ hàng</option>
+                            {defaultShelves.map((shelf) => (
+                                <option key={shelf.id} value={String(shelf.id)}>{shelf.name}</option>
+                            ))}
+                        </select>
+                        {/* Dropdown 2: Đơn vị tính */}
+                        <select
+                            value={filterUnitId}
+                            onChange={(e) => { setFilterUnitId(e.target.value); setPage(1); }}
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] max-w-[200px] truncate"
+                        >
+                            <option value="">Đơn vị tính</option>
+                            {units.map((u) => (
+                                <option key={u.id} value={String(u.id)}>{u.name}</option>
+                            ))}
+                        </select>
+                        {/* Dropdown 3: Sản phẩm */}
+                        <select
+                            value={filterProductId}
+                            onChange={(e) => { setFilterProductId(e.target.value); setPage(1); }}
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] max-w-[200px] truncate"
+                        >
+                            <option value="">Sản phẩm</option>
+                            {products.map((p) => (
+                                <option key={p.id} value={String(p.id)}>{p.name}</option>
+                            ))}
+                        </select>
+                        {/* Dropdown 4: Danh mục */}
+                        <select
+                            value={filterCategoryId}
+                            onChange={(e) => { setFilterCategoryId(e.target.value); setPage(1); }}
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] max-w-[200px] truncate"
+                        >
+                            <option value="">Danh mục</option>
+                            {categories.map((c) => (
+                                <option key={c.id} value={String(c.id)}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 {/* Status chips (giữ nguyên như cũ) */}

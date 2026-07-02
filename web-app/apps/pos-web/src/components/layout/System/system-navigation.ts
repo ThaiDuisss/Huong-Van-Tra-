@@ -107,15 +107,15 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 icon: Layers3
             },
             {
-                label: "Danh sách BOM",
+                label: "Danh sách công thức",
                 to: routePaths.bomList,
                 icon: Layers3
             },
-            {
-                label: "Đơn hàng sản xuất",
-                to: routePaths.productionOrders,
-                icon: Layers3
-            }
+            // {
+            //     label: "Đơn hàng sản xuất",
+            //     to: routePaths.productionOrders,
+            //     icon: Layers3
+            // }
 
         ]
     },

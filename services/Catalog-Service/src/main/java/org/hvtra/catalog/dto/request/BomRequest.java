@@ -11,8 +11,12 @@ import java.util.UUID;
 
 public record BomRequest(
         @NotNull UUID productVariantId,
-        @NotNull @Min(1) Integer version,
+        @Size(max = 255) String name,
+        @Size(max = 100) String bomCode,
+        boolean isDefault,
+        Integer version,
         @NotNull Status status,
+        @Size(max = 1000) String description,
         LocalDateTime effectiveFrom,
         LocalDateTime effectiveTo,
         @NotEmpty List<@Valid ItemRequest> items

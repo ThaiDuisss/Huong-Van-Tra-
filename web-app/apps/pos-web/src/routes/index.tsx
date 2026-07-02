@@ -58,6 +58,9 @@ export const appRoutes = {
     manufacturingBoms: {
         path: routePaths.bomList
     },
+    manufacturingBomDetail: {
+        path: routePaths.bomDetail
+    },
     productionOrders: {
         path: routePaths.productionOrders
     }

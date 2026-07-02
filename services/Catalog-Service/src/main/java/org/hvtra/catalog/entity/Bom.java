@@ -12,7 +12,13 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "boms", uniqueConstraints = @UniqueConstraint(columnNames = {"product_variant_id", "version"}))
+@Table(
+        name = "boms",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"product_variant_id", "version"}),
+                @UniqueConstraint(name = "uq_boms_bom_code", columnNames = {"bom_code"})
+        }
+)
 @AttributeOverrides({
         @AttributeOverride(name = "version", column = @Column(name = "version_audit"))
 })
@@ -20,8 +26,24 @@ import java.util.UUID;
 @Setter
 public class Bom extends BaseEntity {
 
-    @Column(name = "product_variant_id", nullable = false, columnDefinition = "CHAR(36)")
+    @Column(name = "product_variant_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID productVariantId;
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "bom_code", unique = true, length = 100)
+    private String bomCode;
+
+    @Column(name = "is_default", nullable = false)
+    private boolean isDefault = false;
+
+    @Column(name = "description", length = 1000)
+    private String description;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_variant_id", insertable = false, updatable = false)
+    private ProductVariant productVariant;
 
     @Column(name = "version", nullable = false)
     private Integer bomVersion;
