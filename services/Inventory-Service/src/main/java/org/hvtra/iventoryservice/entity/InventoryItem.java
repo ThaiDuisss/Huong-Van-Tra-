@@ -26,7 +26,7 @@ public class InventoryItem extends BaseEntity {
     private InventoryItemType itemType;
 
     /**
-     * ID đơn vị lưu kho thực tế của nguyên liệu / biến thể tại kho này.
+     * ID đơn vị lưu kho thực tế của nguyên liệu / Mặt hàng tại kho này.
      * Ví dụ: lưu kho bằng Kg, Gram, Thùng...
      */
     @Column(name = "unit_id", nullable = false, columnDefinition = "BINARY(16)")
