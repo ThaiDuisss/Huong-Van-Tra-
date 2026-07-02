@@ -1,3 +1,9 @@
+import type { CatalogStatus } from "../../product/types/product.types";
+
+// ============================================================
+// Types for API
+// ============================================================
+
 export type BomStatus =
     | "ACTIVE"
     | "PENDING_APPROVAL"
@@ -5,17 +11,81 @@ export type BomStatus =
     | "NEEDS_UPDATE"
     | "INACTIVE";
 
-export type BomProductType =
-    | "PACKAGED_TEA"
-    | "GIFT_SET"
-    | "ACCESSORY";
+export interface BomItemResponse {
+    id: string;
+    ingredient: {
+        id: string;
+        ingredientCode: string;
+        name: string;
+        status: CatalogStatus;
+    };
+    quantity: number;
+    unit: {
+        id: string;
+        name: string;
+        symbol: string;
+        precisionScale: number;
+        type: "BASE" | "PACKAGING";
+        baseUnitId: string | null;
+        conversionRate: number;
+        status: CatalogStatus;
+    };
+    wasteRate: number;
+}
 
-export type BomUpdatedRange =
-    | "ALL"
-    | "TODAY"
-    | "LAST_7_DAYS"
-    | "LAST_30_DAYS"
-    | "CUSTOM";
+export interface BomResponse {
+    id: string;
+    productVariantId: string;
+    variantSku: string;
+    variantName: string;
+    productName: string;
+    name: string;
+    bomCode: string;
+    isDefault: boolean;
+    version: number;
+    status: BomStatus;
+    description: string | null;
+    effectiveFrom: string | null;
+    effectiveTo: string | null;
+    createdAt: string;
+    updatedAt: string;
+    items: BomItemResponse[];
+}
+
+export interface BomItemInput {
+    ingredientId: string;
+    quantity: number;
+    unitId: string;
+    wasteRate: number;
+}
+
+export interface BomInput {
+    productVariantId: string;
+    name: string | null;
+    bomCode: string | null;
+    isDefault: boolean;
+    version: number | null;
+    status: BomStatus;
+    description: string | null;
+    items: BomItemInput[];
+}
+
+export interface BomQuery {
+    page?: number;
+    size?: number;
+    search?: string;
+    productId?: string;
+    productVariantId?: string;
+    status?: BomStatus;
+}
+
+// ============================================================
+// Backward compatibility for mock data and shared components
+// ============================================================
+
+export type BomProductType = "PACKAGED_TEA" | "GIFT_SET" | "ACCESSORY";
+
+export type BomUpdatedRange = "ALL" | "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS" | "CUSTOM";
 
 export interface BomComponent {
     id: string;

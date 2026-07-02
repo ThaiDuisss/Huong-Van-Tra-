@@ -34,6 +34,7 @@ export const routePaths = {
     discountRules: "/system/marketing/discount-rules",
     customerTiers: "/system/customers/tiers",
     bomList: "/system/manufacturing/boms",
+    bomDetail: "/system/manufacturing/boms/:id",
     productionOrders:
         "/system/manufacturing/production-orders",
     ingredient: '/system/manufacturing/ingredients',

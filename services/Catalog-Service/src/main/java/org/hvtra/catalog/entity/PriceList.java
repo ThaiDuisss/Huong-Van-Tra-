@@ -17,7 +17,7 @@ import java.util.UUID;
 @Setter
 public class PriceList extends BaseEntity {
 
-    @Column(name = "branch_id", nullable = false, columnDefinition = "CHAR(36)")
+    @Column(name = "branch_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID branchId;
 
     @Column(nullable = false)

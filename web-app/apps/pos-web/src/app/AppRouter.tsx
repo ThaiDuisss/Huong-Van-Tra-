@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
 import { BomListPage } from "../features/manufacturing/pages/BomListPage";
+import { BomDetailPage } from "../features/manufacturing/pages/BomDetailPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
@@ -168,6 +169,10 @@ export function AppRouter() {
                 <Route
                     path="manufacturing/boms"
                     element={<BomListPage />}
+                />
+                <Route
+                    path="manufacturing/boms/:id"
+                    element={<BomDetailPage />}
                 />
                 <Route
                     path="manufacturing/production-orders"
