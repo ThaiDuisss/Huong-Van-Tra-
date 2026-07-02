@@ -6,6 +6,13 @@
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
+  font-family: var(--font-sans);
+}
+
+.page button,
+.page input,
+.page select {
+  font-family: inherit;
 }
 
 .pageTimeCollapsed {
@@ -42,7 +49,7 @@
   margin: 0;
   color: #172317;
   font-size: 30px;
-  font-weight: 950;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -50,7 +57,7 @@
   margin: 6px 0 0;
   color: #536078;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .headerActions {
@@ -59,6 +66,10 @@
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.hiddenFileInput {
+  display: none;
 }
 
 .searchBox {
@@ -82,6 +93,7 @@
   outline: 0;
   color: #172317;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .primaryButton,
@@ -93,7 +105,7 @@
   height: 44px;
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .primaryButton {
@@ -119,13 +131,12 @@
 
 .tablePanel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  height: 100%;
+  align-self: start;
+  gap: 16px;
+  grid-template-rows: auto auto;
+  max-height: 100%;
   min-height: 0;
-  overflow: hidden;
-  border: 1px solid #edf0f4;
-  border-radius: 12px;
-  background: #ffffff;
+  font-family: inherit;
 }
 
 .workspace {
@@ -143,7 +154,17 @@
 
 .filterRows {
   display: block;
-  border-bottom: 1px solid #edf0f4;
+  overflow: hidden;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.tableCard {
+  overflow: hidden;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .filterToolbar {
@@ -168,7 +189,7 @@
   flex: 0 0 auto;
   color: #536078;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -190,14 +211,14 @@
   flex: 0 0 auto;
   padding: 0 10px;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .filterChip span {
   margin-left: 4px;
   font-size: 12px;
-  font-weight: 950;
+  font-weight: 700;
 }
 
 .activeFilterChip {
@@ -215,6 +236,8 @@
   width: 100%;
   min-width: 720px;
   border-collapse: collapse;
+  color: #334155;
+  font-family: inherit;
   font-size: 14px;
   table-layout: fixed;
 }
@@ -232,10 +255,10 @@
   top: 0;
   z-index: 2;
   border-bottom-color: #d7f0df;
-  background: #eaf8ef;
-  color: #172317;
+  background: #f3f7f4;
+  color: #0f172a;
   font-size: 13px;
-  font-weight: 950;
+  font-weight: 800;
 }
 
 .orderTable th:first-child,
@@ -253,14 +276,54 @@
   text-align: center;
 }
 
+.orderTable td:nth-child(3) strong {
+  color: #334155;
+  font-weight: 700;
+}
+
+.orderTable td:nth-child(4) {
+  color: #475569;
+  font-weight: 500;
+}
+
+.orderTable button,
+.orderTable strong,
+.orderTable span {
+  font-family: inherit;
+}
+
+.statusCell,
+.statusCell * {
+  font-family: inherit;
+}
+
+.statusCell > span {
+  font-weight: 700;
+}
+
+/* Zebra striping for table rows */
+.zebraFirstRow {
+  background: #ffffff;
+  transition: background-color 0.16s ease;
+}
+
+.zebraSecondRow {
+  background: #f3f7f4;
+  transition: background-color 0.16s ease;
+}
+
+.zebraFirstRow:hover,
+.zebraSecondRow:hover {
+  background: #ecfdf3;
+}
+
 .activeRow {
-  background: #f0fbef;
   box-shadow: inset 4px 0 0 #07883a;
 }
 
 .code {
-  color: #172317;
-  font-weight: 950;
+  color: #0f172a;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -402,29 +465,35 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
-  padding: 0 18px;
+  border-top: 1px solid #edf0f4;
+  padding: 12px 18px;
+  font-family: inherit;
   color: #536078;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .pages {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .pageButton {
   display: grid;
   place-items: center;
+  width: 32px;
   min-width: 32px;
   height: 32px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: #172317;
-  font-weight: 900;
+  font-weight: 700;
+}
+
+.pageButton:hover:not(:disabled) {
+  background: #f1f5f9;
 }
 
 .pageButton:disabled {
@@ -435,6 +504,10 @@
 .activePage {
   background: #07883a;
   color: #ffffff;
+}
+
+.activePage:hover:not(:disabled) {
+  background: #07883a;
 }
 
 .detailPanel {
@@ -532,7 +605,7 @@
 }
 
 .detailModal {
-  width: min(520px, calc(100vw - 32px));
+  width: min(768px, calc(100vw - 32px));
   max-height: min(760px, calc(100vh - 48px));
 }
 

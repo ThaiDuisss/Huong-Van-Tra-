@@ -6,6 +6,13 @@
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
+  font-family: var(--font-sans);
+}
+
+.page button,
+.page input,
+.page select {
+  font-family: inherit;
 }
 
 .pageTimeCollapsed {
@@ -59,6 +66,10 @@
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.hiddenFileInput {
+  display: none;
 }
 
 .searchBox {
@@ -127,7 +138,6 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.tablePanel,
 .detailPanel {
   min-height: 0;
   overflow: hidden;
@@ -138,16 +148,29 @@
 
 .tablePanel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  height: 100%;
+  align-self: start;
+  gap: 16px;
+  grid-template-rows: auto auto;
+  max-height: 100%;
+  min-height: 0;
 }
 
 .filterRows {
   display: grid;
-  border-bottom: 1px solid #edf0f4;
+  overflow: hidden;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
   color: #536078;
   font-size: 13px;
   font-weight: 800;
+}
+
+.tableCard {
+  overflow: hidden;
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .filterToolbar {
@@ -237,7 +260,7 @@
   top: 0;
   z-index: 2;
   border-bottom-color: #d7f0df;
-  background: #eaf8ef;
+  background: #f3f7f4;
   color: #172317;
   font-size: 13px;
   font-weight: 950;
@@ -246,13 +269,23 @@
 .invoiceTable tbody tr {
   cursor: pointer;
 }
+/* Zebra striping for table rows */
+.zebraFirstRow {
+  background: #ffffff;
+  transition: background-color 0.16s ease;
+}
 
-.invoiceTable tbody tr:hover {
-  background: #f8fbf8;
+.zebraSecondRow {
+  background: #f3f7f4;
+  transition: background-color 0.16s ease;
+}
+
+.zebraFirstRow:hover,
+.zebraSecondRow:hover {
+  background: #ecfdf3;
 }
 
 .activeRow {
-  background: #f0fbef;
   box-shadow: inset 4px 0 0 #07883a;
 }
 
@@ -534,7 +567,7 @@
 }
 
 .detailModal {
-  width: min(520px, calc(100vw - 32px));
+  width: min(768px, calc(100vw - 32px));
   max-height: min(760px, calc(100vh - 48px));
 }
 

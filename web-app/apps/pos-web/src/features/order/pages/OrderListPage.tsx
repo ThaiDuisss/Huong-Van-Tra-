@@ -5,9 +5,10 @@ import {
     FileSpreadsheet,
     MoreHorizontal,
     Plus,
-    Search
+    Search,
+    Upload
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import { OrderDetailPanel } from "../components/OrderDetailPanel";
@@ -125,6 +126,7 @@ function getPageNumbers(totalPages: number, currentPage: number) {
 }
 
 export function OrderListPage() {
+    const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterStatus, setFilterStatus] =
@@ -279,6 +281,24 @@ export function OrderListPage() {
         setOpenActionCode(null);
     };
 
+    const handleClickImport = () => {
+        importInputRef.current?.click();
+    };
+
+    const handleImportFile = (file?: File) => {
+        if (!file) {
+            return;
+        }
+
+        console.log("TODO: Nhập file đơn hàng", file);
+        window.alert("Chức năng nhập file đang được phát triển");
+    };
+
+    const handleExportFile = () => {
+        console.log("TODO: Xuất file đơn hàng");
+        window.alert("Chức năng xuất file đang được phát triển");
+    };
+
     const fromRecord =
         totalElements > 0 ? ordersPage.number * ordersPage.size + 1 : 0;
     const toRecord = Math.min(
@@ -316,11 +336,33 @@ export function OrderListPage() {
                     </div>
 
                     <div className={styles.headerActions}>
+                        <input
+                            ref={importInputRef}
+                            accept=".xlsx,.xls,.csv"
+                            className={styles.hiddenFileInput}
+                            onChange={(event) => {
+                                handleImportFile(event.target.files?.[0]);
+                                event.target.value = "";
+                            }}
+                            type="file"
+                        />
                         <button className={styles.primaryButton} type="button">
                             <Plus size={18} aria-hidden="true" />
                             Đặt hàng
                         </button>
-                        <button className={styles.secondaryButton} type="button">
+                        <button
+                            className={styles.secondaryButton}
+                            onClick={handleClickImport}
+                            type="button"
+                        >
+                            <Upload size={18} aria-hidden="true" />
+                            Nhập file
+                        </button>
+                        <button
+                            className={styles.secondaryButton}
+                            onClick={handleExportFile}
+                            type="button"
+                        >
                             <FileSpreadsheet size={18} aria-hidden="true" />
                             Xuất file
                             <ChevronDown size={16} aria-hidden="true" />
@@ -385,8 +427,9 @@ export function OrderListPage() {
                             </div>
                         </div>
 
-                        <div className={styles.tableWrap}>
-                            <table className={styles.orderTable}>
+                        <div className={styles.tableCard}>
+                            <div className={styles.tableWrap}>
+                                <table className={styles.orderTable}>
                                 <colgroup>
                                     <col style={{ width: "22%" }} />
                                     <col style={{ width: "40%" }} />
@@ -434,13 +477,17 @@ export function OrderListPage() {
                                     ) : null}
 
                                     {!isOrdersLoading && !ordersError
-                                        ? visibleOrders.map((order) => (
+                                        ? visibleOrders.map((order, index) => (
                                               <tr
-                                                  className={
+                                                  className={`${
+                                                      index % 2 === 0
+                                                          ? styles.zebraFirstRow
+                                                          : styles.zebraSecondRow
+                                                  } ${
                                                       activeOrderId === order.id
                                                           ? styles.activeRow
                                                           : ""
-                                                  }
+                                                  }`}
                                                   key={order.id}
                                                   onClick={() =>
                                                       selectOrder(order)
@@ -575,56 +622,57 @@ export function OrderListPage() {
                                         </tr>
                                     ) : null}
                                 </tbody>
-                            </table>
-                        </div>
+                                </table>
+                            </div>
 
-                        <div className={styles.pagination}>
-                            <span>
-                                Hiển thị {fromRecord} - {toRecord} trong{" "}
-                                {totalElements} đơn hàng
-                            </span>
-                            <div className={styles.pages}>
-                                <button
-                                    className={styles.pageButton}
-                                    disabled={currentPage === 0}
-                                    onClick={() =>
-                                        setCurrentPage((page) =>
-                                            Math.max(0, page - 1)
+                            <div className={styles.pagination}>
+                                <span>
+                                    Hiển thị {fromRecord} - {toRecord} trong{" "}
+                                    {totalElements} đơn hàng
+                                </span>
+                                <div className={styles.pages}>
+                                    <button
+                                        className={styles.pageButton}
+                                        disabled={currentPage === 0}
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.max(0, page - 1)
+                                            )
+                                        }
+                                        type="button"
+                                    >
+                                        <ChevronLeft size={18} aria-hidden="true" />
+                                    </button>
+                                    {getPageNumbers(totalPages, currentPage).map(
+                                        (page) => (
+                                            <button
+                                                className={`${styles.pageButton} ${
+                                                    page === currentPage
+                                                        ? styles.activePage
+                                                        : ""
+                                                }`}
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                type="button"
+                                            >
+                                                {page + 1}
+                                            </button>
                                         )
-                                    }
-                                    type="button"
-                                >
-                                    <ChevronLeft size={18} aria-hidden="true" />
-                                </button>
-                                {getPageNumbers(totalPages, currentPage).map(
-                                    (page) => (
-                                        <button
-                                            className={`${styles.pageButton} ${
-                                                page === currentPage
-                                                    ? styles.activePage
-                                                    : ""
-                                            }`}
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            type="button"
-                                        >
-                                            {page + 1}
-                                        </button>
-                                    )
-                                )}
-                                {totalPages > 5 ? <span>...</span> : null}
-                                <button
-                                    className={styles.pageButton}
-                                    disabled={currentPage >= totalPages - 1}
-                                    onClick={() =>
-                                        setCurrentPage((page) =>
-                                            Math.min(totalPages - 1, page + 1)
-                                        )
-                                    }
-                                    type="button"
-                                >
-                                    <ChevronRight size={18} aria-hidden="true" />
-                                </button>
+                                    )}
+                                    {totalPages > 5 ? <span>...</span> : null}
+                                    <button
+                                        className={styles.pageButton}
+                                        disabled={currentPage >= totalPages - 1}
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.min(totalPages - 1, page + 1)
+                                            )
+                                        }
+                                        type="button"
+                                    >
+                                        <ChevronRight size={18} aria-hidden="true" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

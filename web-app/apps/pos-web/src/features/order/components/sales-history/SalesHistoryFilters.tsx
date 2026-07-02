@@ -14,12 +14,15 @@ import styles from "../../pages/SalesHistoryPage.module.css";
 interface SalesHistoryFiltersProps {
     searchValue: string;
     value: SalesHistoryFilterValues;
+    paymentCounts: Partial<Record<SalesHistoryPaymentFilter, number>>;
+    statusCounts: Partial<Record<SalesHistoryStatusFilter, number>>;
     onSearchChange: (value: string) => void;
     onChange: (value: SalesHistoryFilterValues) => void;
 }
 
 interface FilterChipProps<T extends string> {
     active: boolean;
+    count?: number;
     label: string;
     value: T;
     onSelect: (value: T) => void;
@@ -27,6 +30,7 @@ interface FilterChipProps<T extends string> {
 
 function FilterChip<T extends string>({
     active,
+    count,
     label,
     value,
     onSelect
@@ -40,6 +44,7 @@ function FilterChip<T extends string>({
             type="button"
         >
             {label}
+            <span>{count ?? 0}</span>
         </button>
     );
 }
@@ -47,6 +52,8 @@ function FilterChip<T extends string>({
 export function SalesHistoryFilters({
     searchValue,
     value,
+    paymentCounts,
+    statusCounts,
     onSearchChange,
     onChange
 }: SalesHistoryFiltersProps) {
@@ -79,6 +86,7 @@ export function SalesHistoryFilters({
                         {SALES_STATUS_FILTER_OPTIONS.map((option) => (
                             <FilterChip<SalesHistoryStatusFilter>
                                 active={value.status === option.key}
+                                count={statusCounts[option.key]}
                                 key={option.key}
                                 label={option.label}
                                 onSelect={(status) =>
@@ -103,6 +111,7 @@ export function SalesHistoryFilters({
                         {SALES_PAYMENT_METHOD_OPTIONS.map((option) => (
                             <FilterChip<SalesHistoryPaymentFilter>
                                 active={value.paymentMethod === option.key}
+                                count={paymentCounts[option.key]}
                                 key={option.key}
                                 label={option.label}
                                 onSelect={(paymentMethod) =>
