@@ -19,6 +19,7 @@ import org.hvtra.paymentservice.outbox.entity.OutboxEvent;
 import org.hvtra.paymentservice.outbox.event.PaymentEventType;
 import org.hvtra.paymentservice.outbox.factory.PaymentOutboxEventFactory;
 import org.hvtra.paymentservice.outbox.repository.OutboxEventRepository;
+import org.hvtra.paymentservice.outbox.service.PaymentOutboxPublisher;
 import org.hvtra.paymentservice.repository.PaymentAttemptRepository;
 import org.hvtra.paymentservice.repository.PaymentRepository;
 import org.hvtra.paymentservice.repository.PaymentTransactionRepository;
@@ -45,9 +46,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final SepayQrCodeGenerator sepayQrCodeGenerator;
     private final SepayProperties sepayProperties;
-    private final OutboxEventRepository outboxEventRepository;
-    private final PaymentOutboxEventFactory paymentOutboxEventFactory;
-
+    private final PaymentOutboxPublisher paymentOutboxPublisher;
     @Override
     @Transactional
     public PaymentCheckoutResponse checkout(CheckoutRequest request) {
@@ -103,14 +102,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .paidAt(now)
                 .build();
 
-        transaction = paymentTransactionRepository.save(transaction);
-
-        savePaymentOutboxEvent(
-                savedPayment,
-                PaymentEventType.PAYMENT_SUCCEEDED,
-                stableEventKey(PaymentEventType.PAYMENT_SUCCEEDED, savedPayment.getId().toString()),
-                toEventPayload(savedPayment, null, transaction, null)
-        );
+        paymentTransactionRepository.save(transaction);
 
         return PaymentCheckoutResponse.builder()
                 .paymentId(savedPayment.getId())
@@ -207,13 +199,6 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         PaymentAttempt savedAttempt = paymentAttemptRepository.save(attempt);
-
-        savePaymentOutboxEvent(
-                savedPayment,
-                PaymentEventType.PAYMENT_WAITING_PAYMENT,
-                stableEventKey(PaymentEventType.PAYMENT_WAITING_PAYMENT, savedAttempt.getId().toString()),
-                toEventPayload(savedPayment, savedAttempt, null, null)
-        );
 
         return toBankTransferResponse(savedPayment, savedAttempt);
     }
@@ -367,62 +352,5 @@ public class PaymentServiceImpl implements PaymentService {
             case BANK_TRANSFER -> "Chuyển khoản";
         };
     }
-    private void savePaymentOutboxEvent(
-            Payment payment,
-            String eventType,
-            UUID eventKey,
-            PaymentEventPayload payload
-    ) {
-        Map<String, Object> headers = Map.of(
-                "sourceService", "Payment-Service",
-                "sagaId", payment.getSagaId().toString(),
-                "orderId", payment.getOrderId().toString()
-        );
 
-        OutboxEvent event = paymentOutboxEventFactory.create(
-                "Payment",
-                payment.getId(),
-                eventType,
-                eventKey,
-                payload,
-                headers
-        );
-
-        event.setCorrelationId(payment.getSagaId().toString());
-
-        outboxEventRepository.save(event);
-    }
-
-    private PaymentEventPayload toEventPayload(
-            Payment payment,
-            PaymentAttempt attempt,
-            PaymentTransaction transaction,
-            String reason
-    ) {
-        return new PaymentEventPayload(
-                payment.getId(),
-                attempt == null ? null : attempt.getId(),
-                transaction == null ? null : transaction.getId(),
-                payment.getPaymentCode(),
-                payment.getOrderId(),
-                payment.getOrderCode(),
-                payment.getCustomerId(),
-                payment.getSagaId(),
-                payment.getMethod().name(),
-                payment.getProvider().name(),
-                payment.getStatus().name(),
-                payment.getAmountRequired(),
-                payment.getAmountPaid(),
-                payment.getCurrency(),
-                transaction == null ? payment.getCompletedAt() : transaction.getPaidAt(),
-                payment.getExpiresAt(),
-                reason
-        );
-    }
-
-    private UUID stableEventKey(String eventType, String uniqueBusinessKey) {
-        return UUID.nameUUIDFromBytes(
-                (eventType + ":" + uniqueBusinessKey).getBytes(StandardCharsets.UTF_8)
-        );
-    }
 }
