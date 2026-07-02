@@ -88,6 +88,12 @@ public class Order extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private PaymentStatus paymentStatus;
 
+    @Column(name = "payment_method", length = 50)
+    private String paymentMethod;
+
+    @Column(name = "payment_code", length = 100)
+    private String paymentCode;
+
     @Column(name = "original_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal originalAmount;
 

@@ -23,6 +23,29 @@ interface PosCheckoutInput {
 
 interface PosCheckoutResult {
     orderCode: string;
+    payment: PosCheckoutPaymentResult | null;
+}
+
+export interface PosCheckoutPaymentResult {
+    paymentId?: string;
+    attemptId?: string;
+    paymentCode?: string;
+    orderId?: string;
+    orderCode?: string;
+    amountRequired: number;
+    amountPaid: number;
+    receivedAmount?: number;
+    changeAmount?: number;
+    status: string;
+    method: string;
+    methodLabel?: string;
+    provider?: string;
+    transferContent?: string;
+    qrUrl?: string;
+    bankCode?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+    expiresAt?: string;
 }
 
 const unsupportedPaymentMessages: Partial<Record<SalePaymentMethod, string>> = {
@@ -47,6 +70,36 @@ function getErrorMessage(error: unknown) {
 
 function getCustomerId(value: string | null) {
     return value && uuidPattern.test(value) ? value : null;
+}
+
+function toPaymentResult(
+    payment: Awaited<ReturnType<typeof checkoutPosOrder>>["payment"]
+): PosCheckoutPaymentResult | null {
+    if (!payment) {
+        return null;
+    }
+
+    return {
+        paymentId: payment.paymentId,
+        attemptId: payment.attemptId,
+        paymentCode: payment.paymentCode,
+        orderId: payment.orderId,
+        orderCode: payment.orderCode,
+        amountRequired: payment.amountRequired,
+        amountPaid: payment.amountPaid,
+        receivedAmount: payment.receivedAmount,
+        changeAmount: payment.changeAmount,
+        status: payment.status,
+        method: payment.method,
+        methodLabel: payment.methodLabel,
+        provider: payment.provider,
+        transferContent: payment.transferContent ?? payment.qrContent,
+        qrUrl: payment.qrUrl ?? payment.qrCodeUrl,
+        bankCode: payment.bankCode,
+        bankAccountNumber: payment.bankAccountNumber,
+        bankAccountName: payment.bankAccountName,
+        expiresAt: payment.expiresAt
+    };
 }
 
 export function getPosCheckoutValidationMessage(
@@ -146,6 +199,7 @@ export async function completePosCheckout(
     const order = await checkoutPosOrder(input);
 
     return {
-        orderCode: order.orderCode
+        orderCode: order.orderCode,
+        payment: toPaymentResult(order.payment)
     };
 }

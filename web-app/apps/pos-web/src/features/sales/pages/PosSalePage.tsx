@@ -7,7 +7,10 @@ import type { PaymentStatusValue } from "../components/dialogs/PaymentStatus";
 import { SaleWorkspace } from "../components/workspace/SaleWorkspace";
 import { mockDiscounts } from "../mock/discounts.mock";
 import { posCustomerApi } from "../services/posCustomer.api";
-import { completePosCheckout } from "../services/posCheckout.service";
+import {
+    completePosCheckout,
+    type PosCheckoutPaymentResult
+} from "../services/posCheckout.service";
 import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
 import { posProductApi } from "../services/posProduct.api";
 import {
@@ -121,6 +124,8 @@ export function PosSalePage() {
         useState<SalePaymentMethod>("CASH");
     const [bankTransferStatus, setBankTransferStatus] =
         useState<PaymentStatusValue>("WAITING");
+    const [bankTransferPayment, setBankTransferPayment] =
+        useState<PosCheckoutPaymentResult | null>(null);
     const [customers, setCustomers] = useState<SaleCustomer[]>([]);
     const [customersLoading, setCustomersLoading] = useState(false);
     const [customersLoaded, setCustomersLoaded] = useState(false);
@@ -204,7 +209,38 @@ export function PosSalePage() {
             };
     const changeAmount = Math.max(0, cashReceived - totals.total);
 
+    function resetCurrentSale() {
+        setCartItemsById({});
+        setDraftOrder(null);
+        setNote("");
+        setSelectedDiscountId("none");
+        setSubtotalOverride(null);
+        setSubtotalOverrideNote("");
+        setCashReceived(0);
+        setBankTransferStatus("WAITING");
+        setBankTransferPayment(null);
+        clearCustomer();
+    }
+
+    function prepareBankTransferPayment() {
+        if (checkoutLoading) {
+            return;
+        }
+
+        setCheckoutError("");
+        setCheckoutSuccess("");
+        setBankTransferStatus("WAITING");
+        setBankTransferPayment(null);
+    }
+
     async function completePayment() {
+        if (paymentMethod === "BANK_TRANSFER") {
+            if (bankTransferStatus !== "RECEIVED") {
+                setCheckoutError("Vui lòng xác nhận đã nhận chuyển khoản.");
+                return;
+            }
+        }
+
         setCheckoutLoading(true);
         setCheckoutError("");
         setCheckoutSuccess("");
@@ -223,15 +259,7 @@ export function PosSalePage() {
                 selectedCustomerId
             });
 
-            setCartItemsById({});
-            setDraftOrder(null);
-            setNote("");
-            setSelectedDiscountId("none");
-            setSubtotalOverride(null);
-            setSubtotalOverrideNote("");
-            setCashReceived(0);
-            setBankTransferStatus("WAITING");
-            clearCustomer();
+            resetCurrentSale();
             setCheckoutSuccess(
                 checkout.orderCode
                     ? `Thanh toán thành công đơn ${checkout.orderCode}.`
@@ -289,6 +317,8 @@ export function PosSalePage() {
     function applyDraftOrder(order: PosOrderDto) {
         setDraftOrder(order);
         setCartItemsById(orderToCartItemsById(order));
+        setBankTransferPayment(null);
+        setBankTransferStatus("WAITING");
     }
 
     async function addProduct(product: SaleProductPreview) {
@@ -420,7 +450,10 @@ export function PosSalePage() {
         setPaymentMethod(method);
 
         if (method === "BANK_TRANSFER") {
-            setBankTransferStatus("WAITING");
+            if (paymentMethod !== "BANK_TRANSFER") {
+                setBankTransferStatus("WAITING");
+                setBankTransferPayment(null);
+            }
         }
     }
 
@@ -439,6 +472,8 @@ export function PosSalePage() {
             setSelectedDiscountId("none");
             setSubtotalOverride(null);
             setSubtotalOverrideNote("");
+            setBankTransferPayment(null);
+            setBankTransferStatus("WAITING");
         } catch (error) {
             logApiError(error);
             setCheckoutError(getErrorMessage(error));
@@ -457,7 +492,11 @@ export function PosSalePage() {
                     changeAmount={changeAmount}
                     orderType={orderType}
                     paymentMethod={paymentMethod}
+                    bankTransferReferenceCode={
+                        draftOrder?.orderCode ?? draftOrder?.id
+                    }
                     bankTransferStatus={bankTransferStatus}
+                    bankTransferPayment={bankTransferPayment}
                     checkoutLoading={checkoutLoading}
                     checkoutError={checkoutError}
                     checkoutSuccess={checkoutSuccess}
@@ -488,6 +527,9 @@ export function PosSalePage() {
                     onBankTransferRefresh={() =>
                         setBankTransferStatus("WAITING")
                     }
+                    onBankTransferStart={() => {
+                        prepareBankTransferPayment();
+                    }}
                     onCompletePayment={completePayment}
                 />
             }

@@ -16,22 +16,24 @@ export function MarketingSelectField({
     onChange
 }: MarketingSelectFieldProps) {
     return (
-        <label className={styles.selectWrap}>
-            <span className="sr-only">{label}</span>
-            <select
-                className={styles.select}
-                value={value}
-                onChange={(event) =>
-                    onChange(event.currentTarget.value)
-                }
-            >
-                {options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                        {option.label}
-                    </option>
-                ))}
-            </select>
-            <ChevronDown size={16} aria-hidden="true" />
+        <label className={styles.filterField}>
+            <span className={styles.filterFieldLabel}>{label}</span>
+            <span className={styles.selectWrap}>
+                <select
+                    className={styles.select}
+                    value={value}
+                    onChange={(event) =>
+                        onChange(event.currentTarget.value)
+                    }
+                >
+                    {options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {option.label}
+                        </option>
+                    ))}
+                </select>
+                <ChevronDown size={16} aria-hidden="true" />
+            </span>
         </label>
     );
 }

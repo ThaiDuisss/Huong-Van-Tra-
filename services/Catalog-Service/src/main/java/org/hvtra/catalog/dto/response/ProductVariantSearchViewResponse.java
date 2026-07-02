@@ -13,6 +13,7 @@ public record ProductVariantSearchViewResponse(
         String categoryName,
         @JsonProperty("selling_price") BigDecimal sellingPrice,
         String imageUrl,
+        UUID inventoryLocationId,
         BigDecimal availableQuantity,
         BigDecimal reservedQuantity,
         String stockStatus

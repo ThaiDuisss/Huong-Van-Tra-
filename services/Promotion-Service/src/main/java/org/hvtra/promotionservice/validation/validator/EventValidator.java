@@ -18,6 +18,7 @@ public class EventValidator {
             case SCHEDULED -> validateCanSchedule(event, currentStatus);
             case ACTIVE -> validateCanActivate(event, currentStatus);
             case PAUSED -> validateCanPause(currentStatus);
+            case EXPIRED -> validateCanExpire(event, currentStatus);
             case ENDED -> validateCanEnd(currentStatus);
             case CANCELLED -> validateCanCancel(currentStatus);
         }
@@ -35,7 +36,7 @@ public class EventValidator {
         LocalDateTime now = LocalDateTime.now();
 
         if (event.getEndAt() != null && !event.getEndAt().isAfter(now)) {
-            throw new BusinessException("Expired event cannot be resumed");
+            throw new BusinessException("Expired event cannot be resumed. Please extend event first");
         }
 
         if (event.getStartAt() != null && event.getStartAt().isAfter(now)) {
@@ -58,8 +59,12 @@ public class EventValidator {
             throw new BusinessException("Ended event cannot be updated");
         }
 
+        if (status == EventStatus.EXPIRED) {
+            throw new BusinessException("Expired event cannot be updated. Please extend event first");
+        }
+
         if (status == EventStatus.ACTIVE) {
-            throw new BusinessException("Active event cannot be updated. Please pause, cancel or end it first");
+            throw new BusinessException("Active event cannot be updated. Please pause, cancel, end or extend it first");
         }
     }
 
@@ -76,12 +81,52 @@ public class EventValidator {
             throw new BusinessException("Paused event cannot be deleted. Please cancel or end it first");
         }
 
+        if (status == EventStatus.EXPIRED) {
+            throw new BusinessException("Expired event cannot be deleted. Please end it first");
+        }
+
         if (status == EventStatus.ENDED) {
             throw new BusinessException("Ended event cannot be deleted");
         }
 
         if (status == EventStatus.CANCELLED) {
             throw new BusinessException("Cancelled event cannot be deleted");
+        }
+    }
+
+    public void validateCanExtend(Event event, LocalDateTime newEndAt) {
+        validateEventNotNull(event);
+
+        EventStatus status = event.getStatus();
+
+        if (status == EventStatus.DRAFT) {
+            throw new BusinessException("Draft event does not need to be extended. Please update event time instead");
+        }
+
+        if (status == EventStatus.ENDED) {
+            throw new BusinessException("Ended event cannot be extended");
+        }
+
+        if (status == EventStatus.CANCELLED) {
+            throw new BusinessException("Cancelled event cannot be extended");
+        }
+
+        if (newEndAt == null) {
+            throw new BusinessException("New end time is required");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (!newEndAt.isAfter(now)) {
+            throw new BusinessException("New end time must be in the future");
+        }
+
+        if (event.getStartAt() != null && !newEndAt.isAfter(event.getStartAt())) {
+            throw new BusinessException("New end time must be after start time");
+        }
+
+        if (event.getEndAt() != null && !newEndAt.isAfter(event.getEndAt())) {
+            throw new BusinessException("New end time must be after current end time");
         }
     }
 
@@ -142,8 +187,9 @@ public class EventValidator {
     private void validateCanActivate(Event event, EventStatus currentStatus) {
         if (currentStatus != EventStatus.DRAFT
                 && currentStatus != EventStatus.SCHEDULED
-                && currentStatus != EventStatus.PAUSED) {
-            throw new BusinessException("Only DRAFT, SCHEDULED or PAUSED event can be activated");
+                && currentStatus != EventStatus.PAUSED
+                && currentStatus != EventStatus.EXPIRED) {
+            throw new BusinessException("Only DRAFT, SCHEDULED, PAUSED or EXPIRED event can be activated");
         }
 
         validateStartAndEndTime(event);
@@ -151,7 +197,7 @@ public class EventValidator {
         LocalDateTime now = LocalDateTime.now();
 
         if (event.getEndAt() != null && !event.getEndAt().isAfter(now)) {
-            throw new BusinessException("Expired event cannot be activated");
+            throw new BusinessException("Expired event cannot be activated. Please extend event first");
         }
 
         if (event.getStartAt() != null && event.getStartAt().isAfter(now)) {
@@ -165,9 +211,29 @@ public class EventValidator {
         }
     }
 
+    private void validateCanExpire(Event event, EventStatus currentStatus) {
+        if (currentStatus != EventStatus.SCHEDULED
+                && currentStatus != EventStatus.ACTIVE
+                && currentStatus != EventStatus.PAUSED) {
+            throw new BusinessException("Only SCHEDULED, ACTIVE or PAUSED event can be expired");
+        }
+
+        if (event.getEndAt() == null) {
+            throw new BusinessException("End time is required to expire event");
+        }
+
+        if (event.getEndAt().isAfter(LocalDateTime.now())) {
+            throw new BusinessException("Event has not reached end time yet");
+        }
+
+        validateStartAndEndTime(event);
+    }
+
     private void validateCanEnd(EventStatus currentStatus) {
-        if (currentStatus != EventStatus.ACTIVE && currentStatus != EventStatus.PAUSED) {
-            throw new BusinessException("Only ACTIVE or PAUSED event can be ended");
+        if (currentStatus != EventStatus.ACTIVE
+                && currentStatus != EventStatus.PAUSED
+                && currentStatus != EventStatus.EXPIRED) {
+            throw new BusinessException("Only ACTIVE, PAUSED or EXPIRED event can be ended");
         }
     }
 

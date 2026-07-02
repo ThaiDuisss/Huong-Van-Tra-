@@ -3,6 +3,7 @@ package org.hvtra.catalog.service.impl;
 import feign.FeignException;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.PageResponse;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 public class ProductVariantServiceImpl implements ProductVariantService {
@@ -555,31 +557,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         };
 
         List<ProductVariant> variants = repository.findAll(spec);
-        Map<UUID, InventoryClient.StockBatchResponse> stockMap = loadStockMap(variants.stream()
-                .map(variant -> variant.getProduct().getId())
+        Map<UUID, InventoryClient.StockVariantBatchResponse> stockMap = loadVariantStockMap(variants.stream()
+                .map(ProductVariant::getId)
                 .distinct()
                 .toList());
 
         return variants.stream()
-                .map(v -> new org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse(
-                        v.getProduct().getId(),
-                        v.getId(),
-                        v.getSku(),
-                        v.getProduct().getName(),
-                        v.getVariantName(),
-                        v.getProduct().getCategory() != null ? v.getProduct().getCategory().getName() : null,
-                        v.getSellingPrice(),
-                        v.getProduct().getImageUrl(),
-                        stockMap.get(v.getProduct().getId()) != null
-                                ? stockMap.get(v.getProduct().getId()).availableQuantity()
-                                : BigDecimal.ZERO,
-                        stockMap.get(v.getProduct().getId()) != null
-                                ? stockMap.get(v.getProduct().getId()).reservedQuantity()
-                                : BigDecimal.ZERO,
-                        stockMap.get(v.getProduct().getId()) != null
-                                ? stockMap.get(v.getProduct().getId()).stockStatus()
-                                : "OUT_OF_STOCK"
-                ))
+                .map(v -> toPosSearchView(v, stockMap.get(v.getId())))
                 .toList();
     }
 
@@ -587,7 +571,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     public org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse getPosView(UUID variantId) {
         org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse response = repository.findPosViewByVariantId(variantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product variant", variantId));
-        InventoryClient.StockBatchResponse stock = loadStockMap(List.of(response.productId())).get(response.productId());
+        InventoryClient.StockVariantBatchResponse stock = loadVariantStockMap(List.of(response.variantId()))
+                .get(response.variantId());
         return new org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse(
                 response.productId(),
                 response.variantId(),
@@ -597,6 +582,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 response.categoryName(),
                 response.sellingPrice(),
                 response.imageUrl(),
+                stock != null ? stock.inventoryLocationId() : null,
                 stock != null ? stock.availableQuantity() : BigDecimal.ZERO,
                 stock != null ? stock.reservedQuantity() : BigDecimal.ZERO,
                 stock != null ? stock.stockStatus() : "OUT_OF_STOCK"
@@ -635,5 +621,42 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         } catch (FeignClientException | FeignException exception) {
             throw new InventoryServiceUnavailableException("Inventory service is temporarily unavailable", exception);
         }
+    }
+
+    private Map<UUID, InventoryClient.StockVariantBatchResponse> loadVariantStockMap(List<UUID> variantIds) {
+        if (variantIds == null || variantIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        try {
+            Map<UUID, InventoryClient.StockVariantBatchResponse> a   = inventoryClient.getStocksByVariantIds(new InventoryClient.StockVariantBatchRequest(variantIds)).stream()
+                    .collect(Collectors.toMap(
+                            InventoryClient.StockVariantBatchResponse::variantId,
+                            Function.identity(),
+                            (left, ignored) -> left));
+            log.info("Loaded {} variant stocks", a);
+
+            return a;
+        } catch (FeignClientException | FeignException exception) {
+            throw new InventoryServiceUnavailableException("Inventory service is temporarily unavailable", exception);
+        }
+    }
+
+    private org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse toPosSearchView(
+            ProductVariant variant,
+            InventoryClient.StockVariantBatchResponse stock) {
+        return new org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse(
+                variant.getProduct().getId(),
+                variant.getId(),
+                variant.getSku(),
+                variant.getProduct().getName(),
+                variant.getVariantName(),
+                variant.getProduct().getCategory() != null ? variant.getProduct().getCategory().getName() : null,
+                variant.getSellingPrice(),
+                variant.getProduct().getImageUrl(),
+                stock != null ? stock.inventoryLocationId() : null,
+                stock != null ? stock.availableQuantity() : BigDecimal.ZERO,
+                stock != null ? stock.reservedQuantity() : BigDecimal.ZERO,
+                stock != null ? stock.stockStatus() : "OUT_OF_STOCK"
+        );
     }
 }
