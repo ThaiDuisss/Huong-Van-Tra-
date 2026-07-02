@@ -1,8 +1,10 @@
 package org.hvtra.paymentservice.dto.request;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+import org.hvtra.paymentservice.domain.enums.PaymentMethod;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -18,7 +20,18 @@ public class CheckoutRequest {
     private BigDecimal receivedAmount;
 
     @NotNull(message = "Payment method not null")
-    private String paymentMethod;
+    private PaymentMethod paymentMethod;
 
-    private UUID createdBy;
+    @AssertTrue(message = "receivedAmount bắt buộc khi paymentMethod là CASH")
+    public boolean isValidReceivedAmountByMethod() {
+        if (paymentMethod == null) {
+            return true;
+        }
+
+        if (paymentMethod == PaymentMethod.CASH) {
+            return receivedAmount != null && receivedAmount.compareTo(BigDecimal.ZERO) > 0;
+        }
+
+        return true;
+    }
 }
