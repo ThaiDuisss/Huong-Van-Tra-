@@ -9,7 +9,6 @@ export interface CustomerTierMock {
     colorCode: string;
     minSpending: number;
     minOrderCount: number;
-    discountRate: number;
     customerCount: number;
     status: CustomerTierStatus;
 }
@@ -65,15 +64,6 @@ export function TierCard({ tier, onEdit }: TierCardProps) {
                             Ít nhất {tier.minOrderCount.toLocaleString("vi-VN")} đơn
                         </span>
                     </div>
-                </section>
-
-                <section className="mt-4 grid gap-2.5">
-                    <h3 className="text-sm font-black text-slate-800">
-                        Quyền lợi
-                    </h3>
-                    <span className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 ring-1 ring-emerald-100">
-                        Giảm trực tiếp {tier.discountRate}%
-                    </span>
                 </section>
 
                 <footer className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">

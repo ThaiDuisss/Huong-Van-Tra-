@@ -1,5 +1,5 @@
 import { AlertCircle } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 
 import {
     DialogContent,
@@ -9,14 +9,18 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 import type {
-    CustomerTierMock,
+    CustomerTierRequest,
+    CustomerTierResponse,
     CustomerTierStatus
-} from "./TierCard";
+} from "../types/customer.types";
 
-export type CustomerTierFormValues = Omit<CustomerTierMock, "id" | "customerCount">;
+export type CustomerTierFormValues = CustomerTierRequest;
+export type CustomerTierDialogValue = CustomerTierResponse & {
+    customerCount?: number;
+};
 
 interface CustomerTierDialogProps {
-    tier?: CustomerTierMock | null;
+    tier?: CustomerTierDialogValue | null;
     onCancel: () => void;
     onSubmit: (values: CustomerTierFormValues) => void;
 }
@@ -28,7 +32,6 @@ interface FormState {
     status: CustomerTierStatus;
     minSpending: string;
     minOrderCount: string;
-    discountRate: string;
 }
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -39,8 +42,7 @@ const DEFAULT_FORM_STATE: FormState = {
     colorCode: "#159734",
     status: "ACTIVE",
     minSpending: "0",
-    minOrderCount: "0",
-    discountRate: "0"
+    minOrderCount: "0"
 };
 
 export function CustomerTierDialog({
@@ -55,11 +57,6 @@ export function CustomerTierDialog({
         () => toPreviewTier(form, tier?.customerCount ?? 0),
         [form, tier?.customerCount]
     );
-
-    useEffect(() => {
-        setForm(toFormState(tier));
-        setErrors({});
-    }, [tier]);
 
     function updateField<Key extends keyof FormState>(
         key: Key,
@@ -87,8 +84,7 @@ export function CustomerTierDialog({
             colorCode: form.colorCode,
             status: form.status,
             minSpending: Number(form.minSpending),
-            minOrderCount: Number(form.minOrderCount),
-            discountRate: Number(form.discountRate)
+            minOrderCount: Number(form.minOrderCount)
         });
     }
 
@@ -152,15 +148,6 @@ export function CustomerTierDialog({
                                 placeholder="0"
                                 type="number"
                                 value={form.minOrderCount}
-                            />
-                            <TextField
-                                error={errors.discountRate}
-                                inputMode="numeric"
-                                label="Mức giảm giá (%)"
-                                onChange={(value) => updateField("discountRate", value)}
-                                placeholder="0"
-                                type="number"
-                                value={form.discountRate}
                             />
                         </div>
                     </div>
@@ -300,7 +287,7 @@ function FieldError({ message }: { message: string }) {
     );
 }
 
-function PreviewTierCard({ tier }: { tier: CustomerTierMock }) {
+function PreviewTierCard({ tier }: { tier: CustomerTierDialogValue }) {
     return (
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <h3 className="text-sm font-black text-slate-800">
@@ -321,7 +308,7 @@ function PreviewTierCard({ tier }: { tier: CustomerTierMock }) {
                         </h4>
                     </div>
                     <span className="text-sm font-bold text-slate-600">
-                        Từ {formatCurrency(tier.minSpending)} · Ít nhất {tier.minOrderCount.toLocaleString("vi-VN")} đơn · Giảm {tier.discountRate}%
+                        Từ {formatCurrency(tier.minSpending)} · Ít nhất {tier.minOrderCount.toLocaleString("vi-VN")} đơn
                     </span>
                 </div>
             </article>
@@ -337,7 +324,7 @@ const STATUS_OPTIONS: Array<{
     { label: "Ngừng áp dụng", value: "INACTIVE" }
 ];
 
-function toFormState(tier?: CustomerTierMock | null): FormState {
+function toFormState(tier?: CustomerTierDialogValue | null): FormState {
     if (!tier) return DEFAULT_FORM_STATE;
 
     return {
@@ -346,12 +333,14 @@ function toFormState(tier?: CustomerTierMock | null): FormState {
         colorCode: tier.colorCode,
         status: tier.status,
         minSpending: String(tier.minSpending),
-        minOrderCount: String(tier.minOrderCount),
-        discountRate: String(tier.discountRate)
+        minOrderCount: String(tier.minOrderCount)
     };
 }
 
-function toPreviewTier(form: FormState, customerCount: number): CustomerTierMock {
+function toPreviewTier(
+    form: FormState,
+    customerCount: number
+): CustomerTierDialogValue {
     return {
         id: "preview",
         name: form.name.trim(),
@@ -360,7 +349,6 @@ function toPreviewTier(form: FormState, customerCount: number): CustomerTierMock
         status: form.status,
         minSpending: Number(form.minSpending) || 0,
         minOrderCount: Number(form.minOrderCount) || 0,
-        discountRate: Number(form.discountRate) || 0,
         customerCount
     };
 }
@@ -369,7 +357,6 @@ function validateForm(form: FormState): FormErrors {
     const errors: FormErrors = {};
     const minSpending = Number(form.minSpending);
     const minOrderCount = Number(form.minOrderCount);
-    const discountRate = Number(form.discountRate);
 
     if (!form.name.trim()) {
         errors.name = "Tên hạng là bắt buộc.";
@@ -385,13 +372,6 @@ function validateForm(form: FormState): FormErrors {
         minOrderCount < 0
     ) {
         errors.minOrderCount = "Số đơn tối thiểu phải là số nguyên lớn hơn hoặc bằng 0.";
-    }
-    if (
-        !Number.isFinite(discountRate) ||
-        discountRate < 0 ||
-        discountRate > 100
-    ) {
-        errors.discountRate = "Mức giảm giá phải nằm trong khoảng 0 đến 100.";
     }
 
     return errors;

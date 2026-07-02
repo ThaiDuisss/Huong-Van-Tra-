@@ -1,12 +1,14 @@
 import {
     ArrowDownUp,
+    LoaderCircle,
     Pencil,
     Plus,
+    Power,
+    PowerOff,
     SearchX,
-    Trash2,
     UsersRound
 } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Dialog } from "../../../components/ui/dialog";
 import {
@@ -21,104 +23,17 @@ import {
     CustomerTierDialog,
     type CustomerTierFormValues
 } from "../components/CustomerTierDialog";
+import { customerApi } from "../services/customer.api";
 import type {
     CustomerTierCountResponse,
-    CustomerTierResponse
+    CustomerTierResponse,
+    CustomerTierStatus
 } from "../types/customer.types";
+import { customerErrorMessage } from "../utils/customer-list.utils";
 
-type CustomerTierStatus = CustomerTierResponse["status"];
 type CustomerTierView = CustomerTierResponse & {
     customerCount: number;
 };
-
-const MOCK_CUSTOMER_TIERS: CustomerTierResponse[] = [
-    {
-        id: "8f8df478-a15a-4985-b3c8-02c6f1a973d2",
-        code: "SILVER",
-        name: "Silver",
-        minSpending: 2_000_000,
-        minOrderCount: 5,
-        discountRate: 2,
-        status: "ACTIVE",
-        colorCode: "#A7A7A7"
-    },
-    {
-        id: "a6d3eb4e-9f19-45f7-94b0-74f0388bf6c9",
-        code: "GOLD",
-        name: "Gold",
-        minSpending: 5_000_000,
-        minOrderCount: 12,
-        discountRate: 5,
-        status: "ACTIVE",
-        colorCode: "#D4A72C"
-    },
-    {
-        id: "36c5065a-99bc-4a21-b22b-c1bfe65ebce5",
-        code: "PLATINUM",
-        name: "Platinum",
-        minSpending: 12_000_000,
-        minOrderCount: 24,
-        discountRate: 8,
-        status: "ACTIVE",
-        colorCode: "#7B8FA1"
-    },
-    {
-        id: "b7f7b358-b56f-43a9-9c93-43124c9f005a",
-        code: "DIAMOND",
-        name: "Diamond",
-        minSpending: 25_000_000,
-        minOrderCount: 40,
-        discountRate: 12,
-        status: "INACTIVE",
-        colorCode: "#6B7280"
-    }
-];
-
-const MOCK_CUSTOMER_TIER_COUNTS: CustomerTierCountResponse[] = [
-    {
-        id: null,
-        code: "ALL",
-        name: "Tất cả",
-        colorCode: null,
-        customerCount: 215
-    },
-    {
-        id: "8f8df478-a15a-4985-b3c8-02c6f1a973d2",
-        code: "SILVER",
-        name: "Silver",
-        colorCode: "#A7A7A7",
-        customerCount: 124
-    },
-    {
-        id: "a6d3eb4e-9f19-45f7-94b0-74f0388bf6c9",
-        code: "GOLD",
-        name: "Gold",
-        colorCode: "#D4A72C",
-        customerCount: 68
-    },
-    {
-        id: "36c5065a-99bc-4a21-b22b-c1bfe65ebce5",
-        code: "PLATINUM",
-        name: "Platinum",
-        colorCode: "#7B8FA1",
-        customerCount: 19
-    },
-    {
-        id: "b7f7b358-b56f-43a9-9c93-43124c9f005a",
-        code: "DIAMOND",
-        name: "Diamond",
-        colorCode: "#6B7280",
-        customerCount: 4
-    },
-    {
-        id: null,
-        code: "UNASSIGNED",
-        name: "Chưa phân hạng",
-        colorCode: null,
-        customerCount: 37
-    }
-];
-
 type TierTabStatus = CustomerTierStatus | "ALL";
 type TierSort = "spendingDesc" | "spendingAsc" | "customersDesc";
 
@@ -143,15 +58,20 @@ const TIER_SORT_OPTIONS: Array<{ label: string; value: TierSort }> = [
 ];
 
 export function CustomerTierManagementPage() {
-    const [tiers, setTiers] = useState(MOCK_CUSTOMER_TIERS);
-    const [tierCountResponses, setTierCountResponses] = useState(
-        MOCK_CUSTOMER_TIER_COUNTS
-    );
+    const [tiers, setTiers] = useState<CustomerTierResponse[]>([]);
+    const [tierCountResponses, setTierCountResponses] = useState<
+        CustomerTierCountResponse[]
+    >([]);
     const [activeStatus, setActiveStatus] = useState<TierTabStatus>("ALL");
     const [query, setQuery] = useState("");
     const [sort, setSort] = useState<TierSort>("spendingDesc");
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingTier, setEditingTier] = useState<CustomerTierView | null>(null);
+    const [statusChangingTier, setStatusChangingTier] =
+        useState<CustomerTierView | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
 
     const tierViews = useMemo(
         () => mergeCustomerTierCounts(tiers, tierCountResponses),
@@ -166,6 +86,27 @@ export function CustomerTierManagementPage() {
         [activeStatus, query, sort, tierViews]
     );
 
+    useEffect(() => {
+        void loadTiers();
+    }, []);
+
+    async function loadTiers() {
+        setLoading(true);
+        setError("");
+        try {
+            const [tierResponse, countResponse] = await Promise.all([
+                customerApi.tiers(),
+                customerApi.tierCounts()
+            ]);
+            setTiers(tierResponse);
+            setTierCountResponses(countResponse);
+        } catch (loadError) {
+            setError(customerErrorMessage(loadError));
+        } finally {
+            setLoading(false);
+        }
+    }
+
     function openCreateDialog() {
         setEditingTier(null);
         setDialogOpen(true);
@@ -177,63 +118,44 @@ export function CustomerTierManagementPage() {
     }
 
     function closeDialog() {
+        if (saving) return;
         setDialogOpen(false);
         setEditingTier(null);
     }
 
-    function saveTier(values: CustomerTierFormValues) {
-        if (editingTier) {
-            setTiers((current) =>
-                current.map((tier) =>
-                    tier.id === editingTier.id
-                        ? {
-                            ...tier,
-                            code: values.code,
-                            name: values.name,
-                            colorCode: values.colorCode,
-                            minSpending: values.minSpending,
-                            minOrderCount: values.minOrderCount,
-                            discountRate: values.discountRate,
-                            status: values.status
-                        }
-                        : tier
-                )
-            );
-        } else {
-            const tierId = createTierId(values.code);
-            setTiers((current) => [
-                ...current,
-                {
-                    id: tierId,
-                    code: values.code,
-                    name: values.name,
-                    minSpending: values.minSpending,
-                    minOrderCount: values.minOrderCount,
-                    discountRate: values.discountRate,
-                    status: values.status,
-                    colorCode: values.colorCode
-                }
-            ]);
-            setTierCountResponses((current) => [
-                ...current,
-                {
-                    id: tierId,
-                    code: values.code,
-                    name: values.name,
-                    colorCode: values.colorCode,
-                    customerCount: 0
-                }
-            ]);
-        }
+    async function saveTier(values: CustomerTierFormValues) {
+        setSaving(true);
+        setError("");
+        try {
+            if (editingTier) {
+                await customerApi.updateTier(editingTier.id, values);
+            } else {
+                await customerApi.createTier(values);
+            }
 
-        closeDialog();
+            setDialogOpen(false);
+            setEditingTier(null);
+            await loadTiers();
+        } catch (saveError) {
+            setError(customerErrorMessage(saveError));
+        } finally {
+            setSaving(false);
+        }
     }
 
-    function deleteTier(tierId: string) {
-        setTiers((current) => current.filter((tier) => tier.id !== tierId));
-        setTierCountResponses((current) =>
-            current.filter((item) => item.id !== tierId)
-        );
+    async function changeTierStatus(tier: CustomerTierView) {
+        const nextStatus: CustomerTierStatus =
+            tier.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+        setStatusChangingTier(tier);
+        setError("");
+        try {
+            await customerApi.changeTierStatus(tier.id, { status: nextStatus });
+            await loadTiers();
+        } catch (changeError) {
+            setError(customerErrorMessage(changeError));
+        } finally {
+            setStatusChangingTier(null);
+        }
     }
 
     return (
@@ -267,6 +189,12 @@ export function CustomerTierManagementPage() {
                     </button>
                 </div>
             </header>
+
+            {error ? (
+                <div className="rounded-xl border border-[#f1c8c1] bg-[#fff5f3] px-4 py-3 text-sm font-bold text-[#a43a2a]">
+                    {error}
+                </div>
+            ) : null}
 
             <section className="rounded-2xl bg-white p-3 shadow-pos-card">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -322,11 +250,14 @@ export function CustomerTierManagementPage() {
                 </div>
             </section>
 
-            {visibleTiers.length > 0 ? (
+            {loading ? (
+                <LoadingState />
+            ) : visibleTiers.length > 0 ? (
                 <CustomerTierTable
+                    statusChangingTierId={statusChangingTier?.id ?? null}
                     tiers={visibleTiers}
-                    onDelete={deleteTier}
                     onEdit={openEditDialog}
+                    onStatusChange={changeTierStatus}
                 />
             ) : (
                 <CustomerTierEmptyState onCreate={openCreateDialog} />
@@ -337,7 +268,7 @@ export function CustomerTierManagementPage() {
                     Nguyên tắc xét hạng
                 </h2>
                 <p className="mt-1.5 text-sm font-semibold leading-6 text-emerald-900/80">
-                    Khách hàng chỉ được nâng lên một hạng khi đạt đồng thời mức chi tiêu tích lũy và số đơn hàng tối thiểu của hạng đó trong kỳ xét hạng.
+                    Khách hàng chỉ được nâng lên một hạng khi đạt đồng thời mức chi tiêu tích lũy và số đơn hàng tối thiểu của hạng đó trong kỳ xét hạng. Tier đã có lịch sử assignment có thể bị backend chặn đổi ngưỡng để bảo toàn dữ liệu.
                 </p>
             </aside>
 
@@ -352,7 +283,7 @@ export function CustomerTierManagementPage() {
                     <CustomerTierDialog
                         tier={editingTier}
                         onCancel={closeDialog}
-                        onSubmit={saveTier}
+                        onSubmit={(values) => void saveTier(values)}
                     />
                 ) : null}
             </Dialog>
@@ -361,18 +292,20 @@ export function CustomerTierManagementPage() {
 }
 
 function CustomerTierTable({
+    statusChangingTierId,
     tiers,
-    onDelete,
-    onEdit
+    onEdit,
+    onStatusChange
 }: {
+    statusChangingTierId: string | null;
     tiers: CustomerTierView[];
-    onDelete: (tierId: string) => void;
     onEdit: (tier: CustomerTierView) => void;
+    onStatusChange: (tier: CustomerTierView) => void;
 }) {
     return (
         <section className="overflow-hidden rounded-xl border border-[#dce5e1] bg-white shadow-[0_12px_32px_rgba(31,53,43,0.06)]">
             <div className="overflow-auto">
-                <table className="w-full min-w-[980px] border-separate border-spacing-0 text-[13px] text-[#233025]">
+                <table className="w-full min-w-[1080px] border-separate border-spacing-0 text-[13px] text-[#233025]">
                     <thead>
                         <tr>
                             <TableHead>Mã hạng</TableHead>
@@ -381,7 +314,7 @@ function CustomerTierTable({
                             <TableHead>Số đơn tối thiểu</TableHead>
                             <TableHead>Số khách hàng</TableHead>
                             <TableHead>Trạng thái</TableHead>
-                            <TableHead className="w-[132px] text-right">Thao tác</TableHead>
+                            <TableHead className="w-[160px] text-right">Thao tác</TableHead>
                         </tr>
                     </thead>
                     <tbody>
@@ -433,11 +366,26 @@ function CustomerTierTable({
                                             <Pencil size={15} aria-hidden="true" />
                                         </IconButton>
                                         <IconButton
-                                            danger
-                                            label={`Xóa ${tier.name}`}
-                                            onClick={() => onDelete(tier.id)}
+                                            danger={tier.status === "ACTIVE"}
+                                            disabled={statusChangingTierId === tier.id}
+                                            label={
+                                                tier.status === "ACTIVE"
+                                                    ? `Ngừng áp dụng ${tier.name}`
+                                                    : `Áp dụng lại ${tier.name}`
+                                            }
+                                            onClick={() => onStatusChange(tier)}
                                         >
-                                            <Trash2 size={15} aria-hidden="true" />
+                                            {statusChangingTierId === tier.id ? (
+                                                <LoaderCircle
+                                                    className="animate-spin"
+                                                    size={15}
+                                                    aria-hidden="true"
+                                                />
+                                            ) : tier.status === "ACTIVE" ? (
+                                                <PowerOff size={15} aria-hidden="true" />
+                                            ) : (
+                                                <Power size={15} aria-hidden="true" />
+                                            )}
                                         </IconButton>
                                     </div>
                                 </TableCell>
@@ -446,6 +394,21 @@ function CustomerTierTable({
                     </tbody>
                 </table>
             </div>
+        </section>
+    );
+}
+
+function LoadingState() {
+    return (
+        <section className="grid min-h-[320px] place-items-center rounded-2xl border border-[#dce5e1] bg-white p-8 text-center shadow-sm">
+            <span className="inline-flex items-center gap-2 text-sm font-black text-[#657282]">
+                <LoaderCircle
+                    className="animate-spin text-[#159734]"
+                    size={20}
+                    aria-hidden="true"
+                />
+                Đang tải hạng khách hàng...
+            </span>
         </section>
     );
 }
@@ -497,12 +460,12 @@ function filterCustomerTiers(
 function sortCustomerTiers(tiers: CustomerTierView[], sort: TierSort) {
     return [...tiers].sort((first, second) => {
         if (sort === "spendingAsc") {
-            return first.minSpending - second.minSpending;
+            return normalizeNumber(first.minSpending) - normalizeNumber(second.minSpending);
         }
         if (sort === "customersDesc") {
-            return second.customerCount - first.customerCount;
+            return normalizeNumber(second.customerCount) - normalizeNumber(first.customerCount);
         }
-        return second.minSpending - first.minSpending;
+        return normalizeNumber(second.minSpending) - normalizeNumber(first.minSpending);
     });
 }
 
@@ -520,7 +483,11 @@ function mergeCustomerTierCounts(
 
     return tiers.map((tier) => ({
         ...tier,
-        customerCount: countByTierId.get(tier.id) ?? 0
+        colorCode: tier.colorCode || "#159734",
+        minOrderCount: normalizeNumber(tier.minOrderCount),
+        minSpending: normalizeNumber(tier.minSpending),
+        status: tier.status ?? "ACTIVE",
+        customerCount: normalizeNumber(countByTierId.get(tier.id))
     }));
 }
 
@@ -537,11 +504,6 @@ function getTierStatusCounts(tiers: CustomerTierView[]) {
             INACTIVE: 0
         }
     );
-}
-
-function createTierId(code: string) {
-    const normalizedCode = code.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    return `${normalizedCode || "tier"}-${Date.now()}`;
 }
 
 function StatusBadge({ status }: { status: CustomerTierStatus }) {
@@ -563,22 +525,25 @@ function StatusBadge({ status }: { status: CustomerTierStatus }) {
 function IconButton({
     children,
     danger = false,
+    disabled = false,
     label,
     onClick
 }: {
     children: ReactNode;
     danger?: boolean;
+    disabled?: boolean;
     label: string;
     onClick: () => void;
 }) {
     return (
         <button
             aria-label={label}
-            className={`grid size-8 place-items-center rounded-lg border transition-colors ${
+            className={`grid size-8 place-items-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                 danger
                     ? "border-[#efc9c2] bg-white text-[#c4422e] hover:bg-[#fff5f3]"
                     : "border-[#dce5e1] bg-white text-[#536171] hover:bg-[#f7fbf8] hover:text-[#172317]"
             }`}
+            disabled={disabled}
             onClick={onClick}
             type="button"
         >
@@ -613,7 +578,11 @@ function TableCell({
     );
 }
 
-function formatCurrency(value: number) {
-    return `${value.toLocaleString("vi-VN")}đ`;
+function normalizeNumber(value: unknown) {
+    const numberValue = Number(value ?? 0);
+    return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
+function formatCurrency(value: number) {
+    return `${normalizeNumber(value).toLocaleString("vi-VN")}đ`;
+}
