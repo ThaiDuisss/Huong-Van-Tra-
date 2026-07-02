@@ -15,7 +15,6 @@ import {
     Settings,
     ShoppingCart,
     User,
-    Users,
     WalletCards,
     Warehouse
 } from "lucide-react";
@@ -150,11 +149,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 label: "Danh sách khách hàng",
                 to: routePaths.customers,
                 icon: User
-            },
-            {
-                label: "Nhóm khách hàng",
-                to: routePaths.customerGroups,
-                icon: Users
             },
             {
                 label: "Hạng khách hàng",

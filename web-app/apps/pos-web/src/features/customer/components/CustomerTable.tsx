@@ -28,8 +28,6 @@ interface Props {
     customers: CustomerResponse[];
     result: PageResponse<CustomerResponse> | null;
     loading: boolean;
-    selectedIds: Set<string>;
-    onSelectedIdsChange: (selectedIds: Set<string>) => void;
     onPageChange: (page: number) => void;
     onCustomerClick: (customer: CustomerResponse) => void;
     onCustomerEdit: (customer: CustomerResponse) => void;
@@ -40,20 +38,11 @@ export function CustomerTable({
     customers,
     result,
     loading,
-    selectedIds,
-    onSelectedIdsChange,
     onPageChange,
     onCustomerClick,
     onCustomerEdit,
     onCustomerDelete
 }: Props) {
-    const selectedVisibleCount = customers.filter((customer) =>
-        selectedIds.has(customer.id)
-    ).length;
-    const allVisibleSelected =
-        customers.length > 0 && selectedVisibleCount === customers.length;
-    const someVisibleSelected =
-        selectedVisibleCount > 0 && !allVisibleSelected;
     const totalCustomers = result?.totalElements ?? customers.length;
     const currentPage = (result?.page ?? 0) + 1;
     const totalPages = Math.max(result?.totalPages ?? 1, 1);
@@ -64,46 +53,19 @@ export function CustomerTable({
     const showLoadingState = loading && customers.length === 0;
     const showEmptyState = !loading && customers.length === 0;
 
-    function toggleCustomer(customerId: string) {
-        const next = new Set(selectedIds);
-        if (next.has(customerId)) next.delete(customerId);
-        else next.add(customerId);
-        onSelectedIdsChange(next);
-    }
-
-    function toggleAllVisible() {
-        const next = new Set(selectedIds);
-        customers.forEach((customer) => {
-            if (allVisibleSelected) next.delete(customer.id);
-            else next.add(customer.id);
-        });
-        onSelectedIdsChange(next);
-    }
-
     return (
         <section className="grid min-h-[330px] flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[#dce5e1] bg-white shadow-[0_12px_32px_rgba(31,53,43,0.06)]">
             <div className="hidden min-h-0 overflow-auto md:block">
-                <table className="w-full min-w-[1040px] border-separate border-spacing-0 text-[13px] text-[#233025]">
+                <table className="w-full min-w-[880px] border-separate border-spacing-0 text-[13px] text-[#233025]">
                     <thead>
                         <tr>
-                            <TableHead className="w-11 text-center">
-                                <input
-                                    aria-label="Chọn tất cả khách hàng"
-                                    checked={allVisibleSelected}
-                                    className="size-4 accent-[#159734]"
-                                    disabled={!customers.length}
-                                    onChange={toggleAllVisible}
-                                    ref={(element) => {
-                                        if (element) {
-                                            element.indeterminate =
-                                                someVisibleSelected;
-                                        }
-                                    }}
-                                    type="checkbox"
-                                />
-                            </TableHead>
-                            {tableHeaders().map((header) => (
-                                <TableHead key={header}>{header}</TableHead>
+                            {tableHeaders().map((header, index) => (
+                                <TableHead
+                                    className={index === 0 ? "pl-6" : ""}
+                                    key={header}
+                                >
+                                    {header}
+                                </TableHead>
                             ))}
                             <TableHead className="w-10">
                                 <span className="sr-only">Thao tác</span>
@@ -119,12 +81,10 @@ export function CustomerTable({
                                 <CustomerTableRow
                                     customer={customer}
                                     rowIndex={index}
-                                    isSelected={selectedIds.has(customer.id)}
                                     key={customer.id}
                                     onClick={() => onCustomerClick(customer)}
                                     onDelete={() => onCustomerDelete(customer)}
                                     onEdit={() => onCustomerEdit(customer)}
-                                    onToggle={() => toggleCustomer(customer.id)}
                                 />
                             ))}
                     </tbody>
@@ -138,20 +98,16 @@ export function CustomerTable({
                     customers.map((customer) => (
                         <MobileCustomerCard
                             customer={customer}
-                            isSelected={selectedIds.has(customer.id)}
                             key={customer.id}
                             onClick={() => onCustomerClick(customer)}
                             onDelete={() => onCustomerDelete(customer)}
                             onEdit={() => onCustomerEdit(customer)}
-                            onToggle={() => toggleCustomer(customer.id)}
                         />
                     ))}
             </div>
             <footer className="flex min-h-[54px] items-center justify-between gap-4 border-t border-[#e4ece8] bg-white px-4 py-2 text-xs font-extrabold text-[#657282] max-md:flex-col max-md:items-start">
                 <span>
                     Hiển thị {visibleStart.toLocaleString("vi-VN")}-{visibleEnd.toLocaleString("vi-VN")} trên tổng {totalCustomers.toLocaleString("vi-VN")} khách hàng
-                    {selectedVisibleCount > 0 &&
-                        ` · Đã chọn ${selectedVisibleCount}`}
                 </span>
                 <div className="flex items-center gap-1">
                     <PageButton
@@ -210,20 +166,18 @@ function CustomerTableLoadingRows() {
         <>
             {Array.from({ length: 8 }, (_, index) => (
                 <tr key={index}>
-                    {Array.from({ length: 8 }, (_cell, cellIndex) => (
+                    {Array.from({ length: 6 }, (_cell, cellIndex) => (
                         <TableCell
-                            className={cellIndex === 0 ? "w-11 text-center" : ""}
+                            className={cellIndex === 0 ? "pl-6" : ""}
                             key={cellIndex}
                         >
                             <span
                                 className={`block h-4 animate-pulse rounded bg-[#edf3f0] ${
                                     cellIndex === 0
-                                        ? "mx-auto size-4"
+                                        ? "w-36"
                                         : cellIndex === 1
                                             ? "w-28"
-                                            : cellIndex === 2
-                                                ? "w-36"
-                                                : "w-24"
+                                            : "w-24"
                                 }`}
                             />
                         </TableCell>
@@ -250,7 +204,7 @@ function CustomerMobileLoadingState() {
 function CustomerTableEmptyRow() {
     return (
         <tr>
-            <td colSpan={8}>
+            <td colSpan={6}>
                 <CustomerTableEmptyState />
             </td>
         </tr>
@@ -278,23 +232,19 @@ function CustomerTableEmptyState() {
 function CustomerTableRow({
     customer,
     rowIndex,
-    isSelected,
     onClick,
     onDelete,
-    onEdit,
-    onToggle
+    onEdit
 }: {
     customer: CustomerResponse;
     rowIndex: number;
-    isSelected: boolean;
     onClick: () => void;
     onDelete: () => void;
     onEdit: () => void;
-    onToggle: () => void;
 }) {
     return (
         <tr
-            className={`group cursor-pointer ${rowIndex % 2 === 1 ? "[&>td]:bg-[#f3f7f4]" : ""} ${isSelected ? "[&>td]:bg-[#e8f7ec]" : ""}`}
+            className={`group cursor-pointer ${rowIndex % 2 === 1 ? "[&>td]:bg-[#f3f7f4]" : ""}`}
             onClick={onClick}
             onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -305,23 +255,7 @@ function CustomerTableRow({
             role="button"
             tabIndex={0}
         >
-            <TableCell className="w-11 text-center">
-                <input
-                    aria-label={`Chọn ${customer.fullName}`}
-                    checked={isSelected}
-                    className="size-4 accent-[#159734]"
-                    onChange={(event) => {
-                        event.stopPropagation();
-                        onToggle();
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                    type="checkbox"
-                />
-            </TableCell>
-            <TableCell className="font-black text-[#172317]">
-                {customer.customerCode}
-            </TableCell>
-            <TableCell>
+            <TableCell className="pl-6">
                 <CustomerIdentity customer={customer} />
             </TableCell>
             {rowCells(customer).map((cell, index) => (
@@ -456,29 +390,18 @@ function CustomerActionMenu({
 
 function MobileCustomerCard({
     customer,
-    isSelected,
     onClick,
     onDelete,
-    onEdit,
-    onToggle
+    onEdit
 }: {
     customer: CustomerResponse;
-    isSelected: boolean;
     onClick: () => void;
     onDelete: () => void;
     onEdit: () => void;
-    onToggle: () => void;
 }) {
     return (
         <article className="rounded-lg border border-[#e1e8e5] bg-white p-3">
             <div className="flex items-start gap-3">
-                <input
-                    aria-label={`Chọn ${customer.fullName}`}
-                    checked={isSelected}
-                    className="mt-2 size-4 accent-[#159734]"
-                    onChange={onToggle}
-                    type="checkbox"
-                />
                 <button
                     className="min-w-0 flex-1 bg-transparent p-0 text-left"
                     onClick={onClick}
@@ -488,9 +411,6 @@ function MobileCustomerCard({
                         <strong className="block truncate text-sm font-black text-[#172317]">
                             {customer.fullName}
                         </strong>
-                        <span className="mt-0.5 block text-xs font-semibold text-[#697684]">
-                            Mã khách hàng: {customer.customerCode}
-                        </span>
                         <span className="mt-0.5 block text-xs font-semibold text-[#697684]">
                             {customer.phone}
                         </span>
@@ -535,7 +455,6 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function tableHeaders() {
     return [
-        "Mã khách hàng",
         "Khách hàng",
         "Liên hệ",
         "Hạng khách hàng",

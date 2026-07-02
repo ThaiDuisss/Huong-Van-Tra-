@@ -44,7 +44,6 @@ interface CustomerFormDraft {
     dateOfBirth: string;
     customerType: CustomerType;
     tierId: string;
-    creditLimit: string;
     status: CustomerStatus;
 }
 
@@ -55,7 +54,6 @@ const EMPTY_DRAFT: CustomerFormDraft = {
     dateOfBirth: "",
     customerType: "INDIVIDUAL",
     tierId: "",
-    creditLimit: "0",
     status: "ACTIVE"
 };
 
@@ -74,7 +72,6 @@ export function CustomerCreateDialog({
                   dateOfBirth: customer.dateOfBirth ?? "",
                   customerType: customer.customerType ?? "INDIVIDUAL",
                   tierId: customer.tierId ?? "",
-                  creditLimit: String(customer.creditLimit),
                   status: customer.status
               }
             : EMPTY_DRAFT
@@ -102,7 +99,6 @@ export function CustomerCreateDialog({
             dateOfBirth: draft.dateOfBirth || null,
             customerType: draft.customerType,
             tierId: draft.tierId || null,
-            creditLimit: draft.creditLimit ? Number(draft.creditLimit) : 0,
             lastPurchaseDate: customer?.lastPurchaseDate ?? null,
             totalSpent: customer?.totalSpent ?? 0,
             status: draft.status
@@ -228,19 +224,6 @@ export function CustomerCreateDialog({
                                     ))}
                             </SelectContent>
                         </Select>
-                    </FormField>
-
-                    <FormField label="Hạn mức tín dụng">
-                        <input
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            min="0"
-                            onChange={(event) =>
-                                update("creditLimit", event.target.value)
-                            }
-                            step="1000"
-                            type="number"
-                            value={draft.creditLimit}
-                        />
                     </FormField>
 
                     <FormField label="Trạng thái">

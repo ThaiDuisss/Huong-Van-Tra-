@@ -31,9 +31,6 @@ const EMPTY_HEADER_FILTERS: CustomerHeaderFilterState = {
 export function CustomerListPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchDraft, setSearchDraft] = useState(searchParams.get("q") ?? "");
-    const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(
-        () => new Set()
-    );
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [editingCustomer, setEditingCustomer] =
         useState<CustomerResponse | null>(null);
@@ -144,7 +141,6 @@ export function CustomerListPage() {
         const next = new URLSearchParams(searchParams);
         if (page <= 0) next.delete("page");
         else next.set("page", String(page));
-        setSelectedCustomerIds(new Set());
         setSearchParams(next);
     }
 
@@ -174,8 +170,6 @@ export function CustomerListPage() {
                 key={queryString}
                 loading={loading}
                 result={result}
-                selectedIds={selectedCustomerIds}
-                onSelectedIdsChange={setSelectedCustomerIds}
                 onCustomerClick={(customer) => void openCustomerDetail(customer)}
                 onCustomerDelete={setDeletingCustomer}
                 onCustomerEdit={setEditingCustomer}

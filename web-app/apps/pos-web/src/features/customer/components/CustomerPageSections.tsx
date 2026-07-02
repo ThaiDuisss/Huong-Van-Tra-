@@ -122,7 +122,7 @@ export function CustomerPageHeader({
                 <div className="w-full min-w-[240px] md:w-[360px]">
                     <SearchBox
                         value={searchDraft}
-                        placeholder="Tìm tên, SĐT, mã khách hàng..."
+                        placeholder="Tìm tên, SĐT..."
                         onChange={onSearchDraftChange}
                     />
                 </div>
@@ -422,8 +422,7 @@ const CUSTOMER_PRIMARY_ACTION_CLASS =
     "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d] disabled:cursor-not-allowed disabled:opacity-70";
 
 const TIER_CHIPS = [
-    { id: null, code: "ALL", name: "Tất cả", colorCode: null, customerCount: 0 },
-    { id: null, code: "UNASSIGNED", name: "Chưa phân hạng", colorCode: null, customerCount: 0 }
+    { id: null, code: "ALL", name: "Tất cả", colorCode: null, customerCount: 0 }
 ];
 
 export function CustomerTierChips({
@@ -439,7 +438,9 @@ export function CustomerTierChips({
     onTierChange: (tierId: string | null) => void;
     sort: CustomerSort;
 }) {
-    const chips = counts.length ? counts : TIER_CHIPS;
+    const chips = (counts.length ? counts : TIER_CHIPS).filter(
+        (chip) => chip.code !== "UNASSIGNED"
+    );
 
     return (
         <section className="rounded-2xl bg-white p-3 shadow-pos-card">
@@ -449,24 +450,20 @@ export function CustomerTierChips({
                     className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
                 >
                     {chips.map((chip) => {
-                        const disabled = chip.code === "UNASSIGNED" && !chip.id;
                         const active =
                             chip.code === "ALL"
                                 ? !activeTierId
                                 : activeTierId === chip.id;
                         return (
                             <button
-                                aria-disabled={disabled}
                                 aria-pressed={active}
                                 className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-extrabold transition-colors ${
                                     active
                                         ? "border-[#159734] bg-[#eaf8ee] text-[#116f28] shadow-[0_1px_2px_rgba(21,151,52,0.08)]"
                                         : "border-[#dce5e1] bg-white text-[#536171] hover:border-[#b8cac1] hover:text-[#172317]"
-                                } ${disabled ? "cursor-not-allowed opacity-50 hover:border-[#dce5e1] hover:text-[#536171]" : ""}`}
-                                disabled={disabled}
+                                }`}
                                 key={`${chip.code}-${chip.id ?? "none"}`}
                                 onClick={() => onTierChange(chip.code === "ALL" ? null : chip.id)}
-                                title={disabled ? "Backend chưa hỗ trợ lọc khách chưa phân hạng" : undefined}
                                 type="button"
                             >
                                 <span>{chip.name}</span>
