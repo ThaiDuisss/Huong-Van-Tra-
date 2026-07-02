@@ -33,6 +33,7 @@ export const routePaths = {
     discountHistory: "/system/marketing/discount-history",
     discountRules: "/system/marketing/discount-rules",
     bomList: "/system/manufacturing/boms",
+    bomDetail: "/system/manufacturing/boms/:id",
     productionOrders:
         "/system/manufacturing/production-orders",
     ingredient: '/system/manufacturing/ingredients',

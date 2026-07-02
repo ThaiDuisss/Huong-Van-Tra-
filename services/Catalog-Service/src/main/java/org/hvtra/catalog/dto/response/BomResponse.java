@@ -10,10 +10,19 @@ import java.util.UUID;
 public record BomResponse(
         UUID id,
         UUID productVariantId,
+        String variantSku,
+        String variantName,
+        String productName,
+        String name,
+        String bomCode,
+        boolean isDefault,
         Integer version,
         Status status,
+        String description,
         LocalDateTime effectiveFrom,
         LocalDateTime effectiveTo,
+        java.time.Instant createdAt,
+        java.time.Instant updatedAt,
         List<ItemResponse> items
 ) {
     public record ItemResponse(

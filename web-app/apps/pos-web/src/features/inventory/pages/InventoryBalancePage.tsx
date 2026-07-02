@@ -216,9 +216,7 @@ export function InventoryBalancePage() {
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
         return (balances as unknown as InventoryBalanceViewResponse[]).map((bal) => {
-            const rop = bal.reorderPoint !== undefined ? bal.reorderPoint : 10;
-            const isOutOfStock = bal.availableQuantity <= 0;
-            const isLowStock = bal.availableQuantity > 0 && bal.availableQuantity <= rop;
+
 
             const baseRow: JoinedRow = {
                 id: String(bal.inventoryBalanceId),
@@ -238,8 +236,8 @@ export function InventoryBalancePage() {
                 "Giá nhập": bal.cost_price,
                 "Giá bán": bal.selling_price,
                 "Ngày cập nhật": bal.updatedAt,
-                isOutOfStock,
-                isLowStock
+                // "Hết hàng": isOutOfStock,
+                // "Gần hết hàng": isLowStock
             };
             return baseRow;
         });
