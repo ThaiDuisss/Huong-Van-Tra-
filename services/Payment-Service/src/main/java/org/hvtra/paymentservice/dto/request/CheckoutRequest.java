@@ -23,34 +23,25 @@ public class CheckoutRequest {
     @NotNull(message = "customerId không được null")
     private UUID customerId;
 
+    @NotNull(message = "sagaId không được null")
     private UUID sagaId;
-
-    @NotNull(message = "finalAmount không được null")
-    @DecimalMin(value = "0.00", inclusive = false, message = "finalAmount phải lớn hơn 0")
-    private BigDecimal finalAmount;
 
     @NotNull(message = "paymentMethod không được null")
     private PaymentMethod paymentMethod;
 
+    private BigDecimal goodsAmount;
+    private BigDecimal discountAmount;
+    private BigDecimal deliveryFee;
+
+    @NotNull(message = "finalAmount không được null")
+    @DecimalMin(value = "0.01", message = "finalAmount phải lớn hơn 0")
+    private BigDecimal finalAmount;
+
     /**
-     * Chỉ bắt buộc khi paymentMethod = CASH.
-     * BANK_TRANSFER không cần truyền receivedAmount.
+     * Chỉ dùng cho CASH.
      */
     private BigDecimal receivedAmount;
 
-    @AssertTrue(message = "receivedAmount bắt buộc và phải đủ tiền khi paymentMethod là CASH")
-    @JsonIgnore
-    public boolean isValidReceivedAmountByMethod() {
-        if (paymentMethod == null) {
-            return true;
-        }
-
-        if (paymentMethod != PaymentMethod.CASH) {
-            return true;
-        }
-
-        return receivedAmount != null
-                && finalAmount != null
-                && receivedAmount.compareTo(finalAmount) >= 0;
-    }
+    private Boolean deliveryRequired;
+    private UUID deliveryId;
 }

@@ -14,6 +14,8 @@ import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
 import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
+import org.hvtra.paymentservice.outbox.factory.PaymentOutboxEventFactory;
+import org.hvtra.paymentservice.outbox.repository.OutboxEventRepository;
 import org.hvtra.paymentservice.repository.PaymentAttemptRepository;
 import org.hvtra.paymentservice.repository.PaymentRepository;
 import org.hvtra.paymentservice.repository.PaymentTransactionRepository;
@@ -38,6 +40,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final SepayQrCodeGenerator sepayQrCodeGenerator;
     private final SepayProperties sepayProperties;
+    private final OutboxEventRepository paymentOutboxRepository;
+    private final PaymentOutboxEventFactory paymentOutboxEventFactory;
 
     @Override
     @Transactional

@@ -11,15 +11,35 @@ import java.math.BigDecimal;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SepayWebhookRequest {
     private Long id;
+
     private String gateway;
+
+    /**
+     * Format SePay: yyyy-MM-dd HH:mm:ss
+     */
     private String transactionDate;
+
     private String accountNumber;
+
     private String subAccount;
+
+    /**
+     * Mã thanh toán SePay extract từ nội dung chuyển khoản.
+     */
     private String code;
+
     private String content;
+
+    /**
+     * in / out
+     */
     private String transferType;
-    private String description;
+
     private BigDecimal transferAmount;
+
     private BigDecimal accumulated;
+
     private String referenceCode;
+
+    private String description;
 }

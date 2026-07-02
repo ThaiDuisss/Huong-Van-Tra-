@@ -15,4 +15,5 @@ public class SepayProperties {
     private String storeName;
     private String qrTemplate = "compact";
     private int paymentTimeoutMinutes = 15;
+    private String secret;
 }
