@@ -119,9 +119,9 @@ export function InventoryLocationPage() {
 
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                <div className="grid grid-cols-8 gap-3 items-center">
-                    {/* Search: 50% */}
-                    <div className="relative col-span-4">
+                <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+                    {/* Search */}
+                    <div className="relative flex-1">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         </span>
@@ -133,28 +133,31 @@ export function InventoryLocationPage() {
                             className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
                         />
                     </div>
-                    {/* Filter 1: Loại vị trí - 1/8 (12.5%) */}
-                    <select
-                        value={type}
-                        onChange={(e) => { setType(e.target.value as any); setPage(1); }}
-                        className="col-span-1 min-w-0 h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer truncate"
-                    >
-                        <option value="ALL">Loại vị trí</option>
-                        {Object.entries(locationTypeLabels).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
-                    {/* Filter 2: Trạng thái - 1/8 (12.5%) */}
-                    <select
-                        value={status}
-                        onChange={(e) => { setStatus(e.target.value as any); setPage(1); }}
-                        className="col-span-1 min-w-0 h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer truncate"
-                    >
-                        <option value="ALL">Trạng thái</option>
-                        {Object.entries(inventoryStatusLabels).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
+                    
+                    <div className="flex flex-wrap gap-3 items-center">
+                        {/* Filter 1: Loại vị trí */}
+                        <select
+                            value={type}
+                            onChange={(e) => { setType(e.target.value as any); setPage(1); }}
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] truncate"
+                        >
+                            <option value="ALL">Loại vị trí</option>
+                            {Object.entries(locationTypeLabels).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                        {/* Filter 2: Trạng thái */}
+                        <select
+                            value={status}
+                            onChange={(e) => { setStatus(e.target.value as any); setPage(1); }}
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] truncate"
+                        >
+                            <option value="ALL">Trạng thái</option>
+                            {Object.entries(inventoryStatusLabels).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
             </div>
 

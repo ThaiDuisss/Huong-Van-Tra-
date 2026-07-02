@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface ProductVariantService {
     PageResponse<ProductResponse.VariantSummaryResponse> findAll(
-            String sku, String variantName, String barcode, UUID productId, Status status, Pageable pageable);
+            String keyword, String sku, String variantName, String barcode, UUID productId, Status status, Pageable pageable);
     ProductResponse.VariantResponse findById(UUID id);
     ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request);
     ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request);

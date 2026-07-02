@@ -32,13 +32,14 @@ public class ProductVariantController {
 
     @GetMapping
     public PageResponse<ProductResponse.VariantSummaryResponse> findAll(
+            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "variantName", required = false) String variantName,
             @RequestParam(name = "barcode", required = false) String barcode,
             @RequestParam(name = "productId", required = false) UUID productId,
             @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "sku") Pageable pageable) {
-        return service.findAll(sku, variantName, barcode, productId, status, pageable);
+        return service.findAll(keyword, sku, variantName, barcode, productId, status, pageable);
     }
 
     @GetMapping("/{id}")

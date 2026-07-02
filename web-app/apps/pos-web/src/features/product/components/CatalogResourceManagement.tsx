@@ -247,7 +247,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                             const topFilter = activeFilters.find(f => f.label === "Danh mục" || f.label === "Sản phẩm");
                             return (
                                 <div className="flex items-center gap-3 justify-between">
-                                    <div className="relative w-1/2 shrink-0">
+                                    <div className="relative flex-1">
                                         <SearchBox
                                             value={query}
                                             placeholder={searchPlaceholder}
@@ -256,7 +256,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                         />
                                     </div>
                                     {topFilter && (
-                                        <div className="w-[12.5%] shrink-0 flex justify-end">
+                                        <div className="min-w-[180px] shrink-0">
                                             <select
                                                 value={topFilter.value}
                                                 onChange={(e) => topFilter.onChange(e.target.value)}

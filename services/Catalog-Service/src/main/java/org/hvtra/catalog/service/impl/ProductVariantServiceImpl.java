@@ -65,6 +65,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     @Override
     public PageResponse<ProductResponse.VariantSummaryResponse> findAll(
+            String keyword,
             String sku,
             String variantName,
             String barcode,
@@ -73,6 +74,14 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             Pageable pageable) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            if (keyword != null && !keyword.isBlank()) {
+                String pattern = "%" + keyword.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("sku")), pattern),
+                        cb.like(cb.lower(root.get("variantName")), pattern),
+                        cb.like(cb.lower(root.get("product").get("name")), pattern)
+                ));
+            }
             if (sku != null && !sku.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("sku")), "%" + sku.toLowerCase() + "%"));
             }

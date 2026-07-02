@@ -20,8 +20,7 @@ export const productVariantApi = {
                 query: {
                     page: query.page,
                     size: query.size,
-                    sku: query.sku ?? query.keyword,
-                    variantName: query.variantName,
+                    keyword: query.sku ?? query.keyword,
                     productId: query.productId,
                     status: query.status
                 }

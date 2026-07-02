@@ -31,25 +31,24 @@ import { formatCurrency } from "../utils/product-formatters";
 export function ProductVariantListPage() {
     const { productId } = useParams();
     const state = useCatalogPageState();
-    const selectedProductId = productId ?? state.secondaryValue;
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const loadVariants = useCallback(
         () =>
             productVariantApi.list({
                 page: state.page - 1,
                 size: state.pageSize,
-                sku: state.query || undefined,
+                keyword: state.query || undefined,
                 productId:
-                    selectedProductId === "ALL"
-                        ? undefined
-                        : selectedProductId,
+                    productId && productId !== "ALL"
+                        ? productId
+                        : undefined,
                 status:
                     state.status === "ALL"
                         ? undefined
                         : state.status
             }),
         [
-            selectedProductId,
+            productId,
             state.page,
             state.pageSize,
             state.query,
@@ -94,7 +93,7 @@ export function ProductVariantListPage() {
 
     const handleExport = async () => {
         try {
-            const blob = await productVariantApi.export(selectedProductId);
+            const blob = await productVariantApi.export(productId);
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.setAttribute("href", url);
@@ -119,7 +118,7 @@ export function ProductVariantListPage() {
     };
 
     const handleImportClick = () => {
-        let currentProductId = selectedProductId;
+        let currentProductId = productId;
         if (!currentProductId || currentProductId === "ALL") {
             currentProductId = String(products[0]?.id);
         }
@@ -195,7 +194,7 @@ export function ProductVariantListPage() {
     };
 
     const handleImportExcel = async (file: File) => {
-        let currentProductId = selectedProductId;
+        let currentProductId = productId;
         if (!currentProductId || currentProductId === "ALL") {
             currentProductId = String(products[0]?.id);
         }
@@ -228,7 +227,7 @@ export function ProductVariantListPage() {
                 title="Mặt hàng"
                 description="Quản lý các mặt hàng bán được, SKU và chính sách tồn kho."
                 createLabel="Tạo Mặt hàng"
-                searchPlaceholder="Tìm theo SKU..."
+                searchPlaceholder="Tìm theo tên sản phẩm, tên mặt hàng, SKU..."
                 totalItemsLabel="Tổng số Mặt hàng"
                 extraHeaderActions={
                     <>
@@ -272,19 +271,7 @@ export function ProductVariantListPage() {
                     inventoryPolicy: item.inventoryPolicy,
                     status: item.status
                 })}
-                secondaryFilter={
-                    productId
-                        ? undefined
-                        : {
-                            label: "Sản phẩm",
-                            value: state.secondaryValue,
-                            options: products.map((product) => ({
-                                label: product.name,
-                                value: String(product.id)
-                            })),
-                            onChange: state.setSecondaryValue
-                        }
-                }
+                secondaryFilter={undefined}
                 columns={[
                     // { key: "sku", label: "SKU" },
                     // { key: "product", label: "Sản phẩm" },
