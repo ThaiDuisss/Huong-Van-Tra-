@@ -86,3 +86,4 @@ payment:
     store-name: HUONG VAN TRA
     qr-template: compact
     payment-timeout-minutes: 15
+    secret: ${SEPAY_SECRET}
