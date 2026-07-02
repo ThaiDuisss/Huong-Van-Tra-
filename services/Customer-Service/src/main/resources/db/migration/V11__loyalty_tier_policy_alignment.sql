@@ -16,11 +16,8 @@ ALTER TABLE customer_purchase_transactions
 ALTER TABLE customer_tier_assignments
     ADD COLUMN active_customer_id BINARY(16)
         GENERATED ALWAYS AS (
-            CASE
-                WHEN status = 'ACTIVE' AND is_deleted = FALSE THEN customer_id
-                ELSE NULL
-            END
-        ) STORED;
+            IF(status = 'ACTIVE' AND is_deleted = 0, customer_id, NULL)
+        ) VIRTUAL;
 
 ALTER TABLE customer_tier_assignments
-    ADD CONSTRAINT uk_cta_one_active_customer UNIQUE (active_customer_id);
+    ADD UNIQUE INDEX uk_cta_one_active_customer (active_customer_id);

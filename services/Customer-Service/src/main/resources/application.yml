@@ -119,8 +119,8 @@ management:
  
 
 kafka-config:
-  enabled: true
-  bootstrap-servers: http://100.122.52.101:9092
+  enabled: false
+  bootstrap-servers: 100.122.52.101:9092
   num-of-partitions: 3
   replication-factor: 3
 

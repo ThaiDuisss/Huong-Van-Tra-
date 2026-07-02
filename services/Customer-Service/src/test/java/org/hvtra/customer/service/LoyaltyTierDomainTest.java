@@ -147,7 +147,6 @@ class LoyaltyTierDomainTest {
         tier.setName(code);
         tier.setMinSpending(BigDecimal.valueOf(minSpending));
         tier.setMinOrderCount(minOrderCount);
-        tier.setDiscountRate(BigDecimal.ZERO);
         tier.setColorCode("#000000");
         return tier;
     }

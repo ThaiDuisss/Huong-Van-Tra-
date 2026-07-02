@@ -22,7 +22,7 @@ import java.math.BigDecimal;
 public class CustomerMapper {
     public CustomerTierResponse toResponse(CustomerTier tier) {
         return new CustomerTierResponse(tier.getId(), tier.getCode(), tier.getName(),
-                tier.getMinSpending(), tier.getMinOrderCount(), tier.getDiscountRate(), tier.getStatus(), tier.getColorCode());
+                tier.getMinSpending(), tier.getMinOrderCount(), tier.getStatus(), tier.getColorCode());
     }
 
     public CustomerResponse toResponse(Customer customer) {
@@ -111,8 +111,8 @@ public class CustomerMapper {
         tier.setName(request.name());
         tier.setMinSpending(defaultMoney(request.minSpending()));
         tier.setMinOrderCount(defaultCount(request.minOrderCount()));
-        tier.setDiscountRate(defaultMoney(request.discountRate()));
         tier.setStatus(request.status());
+        tier.setColorCode(request.colorCode());
     }
 
     public void update(Customer customer, CustomerRequest request, CustomerTier tier) {

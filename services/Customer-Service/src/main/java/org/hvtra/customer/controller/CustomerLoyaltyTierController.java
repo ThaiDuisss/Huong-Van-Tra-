@@ -70,7 +70,7 @@ public class CustomerLoyaltyTierController {
     public CustomerTierYearlyMetricResponse getMetric(
             @Parameter(description = "ID khách hàng") @PathVariable(ApiParam.CUSTOMER_ID) UUID customerId,
             @Parameter(description = "Năm xét hạng; không truyền thì lấy năm hiện tại")
-            @RequestParam(required = false) Integer year) {
+            @RequestParam(name = ApiParam.YEAR, required = false) Integer year) {
         int metricYear = year == null ? Year.now().getValue() : year;
         return mapper.toResponse(loyaltyTierService.getMetric(customerId, metricYear));
     }

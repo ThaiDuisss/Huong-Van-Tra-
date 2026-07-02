@@ -14,7 +14,7 @@ public record CustomerTierRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull @DecimalMin("0.00") BigDecimal minSpending,
         @Min(0) Integer minOrderCount,
-        @NotNull @DecimalMin("0.00") BigDecimal discountRate,
-        @NotNull CustomerTierStatus status
+        @NotNull CustomerTierStatus status,
+        @Size(max = 20) String colorCode
 ) {
 }

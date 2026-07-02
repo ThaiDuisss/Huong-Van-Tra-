@@ -12,12 +12,12 @@ import org.hvtra.customer.dto.response.PageResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.infrastructure.client.OrderClient;
 import org.hvtra.customer.infrastructure.gateway.OrderGateway;
+import org.hvtra.customer.integration.event.OrderCompletedEvent;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.entity.LoyaltyPointRule;
 import org.hvtra.customer.model.enums.CustomerStatus;
-import org.hvtra.customer.model.enums.CustomerTierStatus;
 import org.hvtra.customer.model.enums.CustomerType;
 import org.hvtra.customer.model.enums.LoyaltyReferenceType;
 import org.hvtra.customer.model.enums.LoyaltyTransactionType;
@@ -48,6 +48,7 @@ public class CustomerServiceImpl implements CustomerService {
     private final OrderGateway orderGateway;
     private final TierQualificationService  tierQualificationService;
     private final TierAssignmentService  tierAssignmentService;
+    private final LoyaltyTierService loyaltyTierService;
 
     // Tìm kiếm khách hàng theo bộ lọc.
     @Override
@@ -108,6 +109,16 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse updatePurchase(UUID orderId) {
         OrderClient.OrderResponse res = orderGateway.getOrderById(orderId);
 
+        OrderCompletedEvent event = new OrderCompletedEvent(
+                orderId,
+                res.orderCode(),
+                res.customerId(),
+                res.finalAmount(),
+                res.soldAt()
+        );
+
+        loyaltyTierService.recordPurchase(event);
+
         if (res.customerId() == null || res.finalAmount() == null || res.finalAmount().compareTo(BigDecimal.ZERO) < 0) {
             throw invalidRequest("Thông tin đơn hàng không hợp lệ");
         }
@@ -149,12 +160,18 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setLastPurchaseDate(java.time.LocalDateTime.now());
         customer.setTotalSpent(newTotalSpent);
         customer.setTotalOrderCount(Math.max((customer.getTotalOrderCount() == null ? 0 : customer.getTotalOrderCount()) + 1, 0));
-        customerTierRepository
-                .findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(
-                        newTotalSpent,
-                        CustomerTierStatus.ACTIVE
-                )
-                .ifPresent(customer::setTier);
+        /*
+         * Tạm thời không dùng luồng nâng hạng cũ trong updatePurchase.
+         * Khi Kafka/loyalty tier event flow được bật lại ổn định, việc xét hạng
+         * nên đi qua LoyaltyTierService.recordPurchase(...) để ghi metric,
+         * transaction và tier assignment nhất quán.
+         */
+//        customerTierRepository
+//                .findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(
+//                        newTotalSpent,
+//                        CustomerTierStatus.ACTIVE
+//                )
+//                .ifPresent(customer::setTier);
 
         return customerMapper.toResponse(customerRepository.save(customer));
     }
