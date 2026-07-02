@@ -2,6 +2,22 @@ import type { QueryParams } from "@hvt/api-client";
 
 export type CustomerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
 export type CustomerType = "INDIVIDUAL" | "BUSINESS";
+export type CustomerTierStatus = "ACTIVE" | "INACTIVE";
+export type CustomerTierAssignmentReason =
+    | "INITIAL_TIER"
+    | "YEARLY_QUALIFICATION"
+    | "YEARLY_REVIEW"
+    | "MANUAL_ADJUSTMENT";
+export type CustomerTierAssignmentStatus =
+    | "ACTIVE"
+    | "REPLACED"
+    | "EXPIRED"
+    | "CANCELLED";
+export type CustomerPurchaseTransactionType =
+    | "PURCHASE"
+    | "PARTIAL_REFUND"
+    | "FULL_REFUND"
+    | "ADJUSTMENT";
 export type CustomerSort =
     | "lastPurchaseDesc"
     | "lastPurchaseAsc"
@@ -22,7 +38,6 @@ export interface CustomerResponse {
     tierCode: string | null;
     tierName: string | null;
     tierColor: string | null;
-    creditLimit: number;
     lastPurchaseDate: string | null;
     totalSpent: number;
     status: CustomerStatus;
@@ -37,7 +52,6 @@ export interface CreateCustomerRequest {
     dateOfBirth?: string | null;
     customerType?: CustomerType | null;
     tierId?: string | null;
-    creditLimit?: number | null;
     lastPurchaseDate?: string | null;
     totalSpent?: number | null;
     status?: CustomerStatus | null;
@@ -49,8 +63,16 @@ export interface CustomerTierResponse {
     name: string;
     minSpending: number;
     minOrderCount: number;
-    discountRate: number;
-    status: "ACTIVE" | "INACTIVE";
+    status: CustomerTierStatus;
+    colorCode: string;
+}
+
+export interface CustomerTierRequest {
+    code: string;
+    name: string;
+    minSpending: number;
+    minOrderCount: number;
+    status: CustomerTierStatus;
     colorCode: string;
 }
 
@@ -70,6 +92,63 @@ export interface PageResponse<T> {
     totalPages: number;
     first: boolean;
     last: boolean;
+}
+
+export interface TierProgressResponse {
+    currentTier: CustomerTierResponse | null;
+    qualifiedTierForCurrentYear: CustomerTierResponse | null;
+    currentYear: number;
+    totalSpent: number;
+    totalOrderCount: number;
+    nextTier: CustomerTierResponse | null;
+    remainingSpending: number | null;
+    remainingOrderCount: number | null;
+    currentTierEffectiveUntil: string | null;
+}
+
+export interface CustomerTierAssignmentResponse {
+    id: string;
+    customerId: string;
+    tier: CustomerTierResponse | null;
+    qualificationYear: number | null;
+    assignmentReason: CustomerTierAssignmentReason;
+    effectiveFrom: string;
+    effectiveUntil: string | null;
+    status: CustomerTierAssignmentStatus;
+    note: string | null;
+}
+
+export interface CustomerTierYearlyMetricResponse {
+    id: string;
+    customerId: string;
+    tierYear: number;
+    totalSpent: number;
+    totalOrderCount: number;
+    qualifiedTier: CustomerTierResponse | null;
+    calculatedAt: string;
+}
+
+export interface CustomerPurchaseTransactionResponse {
+    id: string;
+    customerId: string;
+    orderId: string | null;
+    referenceId: string | null;
+    transactionType: CustomerPurchaseTransactionType;
+    amount: number;
+    orderCountDelta: number;
+    occurredAt: string;
+    reason: string | null;
+    metadata: string | null;
+}
+
+export interface ManualTierAdjustmentRequest {
+    tierId: string;
+    reason: string;
+    effectiveFrom?: string | null;
+}
+
+export interface ChangeTierStatusRequest {
+    status: CustomerTierStatus;
 }
 
 export interface CustomerQuery extends QueryParams {
