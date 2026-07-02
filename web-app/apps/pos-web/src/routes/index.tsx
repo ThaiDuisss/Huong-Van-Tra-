@@ -58,4 +58,5 @@ export const appRoutes = {
     productionOrders: {
         path: routePaths.productionOrders
     }
+    
 } as const;

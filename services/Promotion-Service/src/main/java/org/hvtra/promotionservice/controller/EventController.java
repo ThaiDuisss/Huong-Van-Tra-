@@ -16,20 +16,14 @@ import org.hvtra.commonservice.domain.response.ApiResponse;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.event.EventSuccessMessage;
 import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventExtendRequest;
+import org.hvtra.promotionservice.dto.request.event.EventFilterRequest;
 import org.hvtra.promotionservice.dto.request.event.EventUpdateRequest;
 import org.hvtra.promotionservice.dto.response.EventResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.service.EventService;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
@@ -78,35 +72,6 @@ public class EventController {
     ) {
         EventResponse response = eventService.getEventById(eventId);
         return ApiResponse.success(EventSuccessMessage.FETCHED, response);
-    }
-
-    @Operation(
-            summary = "Lấy danh sách sự kiện",
-            description = "Lấy danh sách các sự kiện chưa bị xóa dưới dạng phân trang."
-    )
-    @GetMapping
-    public ApiResponse<PageResponse<EventResponse>> getAllEvents(
-            @Parameter(
-                    name = PAGE,
-                    description = PAGE_DESCRIPTION,
-                    example = PAGE_EXAMPLE
-            )
-            @RequestParam(defaultValue = PAGE_DEFAULT)
-            @PositiveOrZero(message = "Page index must be greater than or equal to 0")
-            int page,
-
-            @Parameter(
-                    name = SIZE,
-                    description = SIZE_DESCRIPTION,
-                    example = SIZE_EXAMPLE
-            )
-            @RequestParam(defaultValue = SIZE_DEFAULT)
-            @Min(value = 1, message = "Page size must be greater than or equal to 1")
-            @Max(value = SIZE_MAX, message = "Page size must be less than or equal to 100")
-            int size
-    ) {
-        PageResponse<EventResponse> response = eventService.getAllEvents(page, size);
-        return ApiResponse.success(EventSuccessMessage.LIST_FETCHED, response);
     }
 
     @Operation(
@@ -297,6 +262,59 @@ public class EventController {
             int size
     ) {
         PageResponse<EventResponse> response = eventService.getActiveEvents(page, size);
+        return ApiResponse.success(EventSuccessMessage.LIST_FETCHED, response);
+    }
+
+    @Operation(
+            summary = "Gia hạn sự kiện",
+            description = "Gia hạn thời gian kết thúc của sự kiện/chương trình khuyến mãi. Nếu sự kiện đã EXPIRED thì sau khi gia hạn thành công sẽ được kích hoạt lại."
+    )
+    @PatchMapping("/{eventId}/extend")
+    public ApiResponse<EventResponse> extendEvent(
+            @Parameter(
+                    name = EVENT_ID,
+                    description = EVENT_ID_DESCRIPTION,
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = EVENT_ID_EXAMPLE,
+                    schema = @Schema(type = "string", format = "uuid")
+            )
+            @PathVariable UUID eventId,
+
+            @Valid @RequestBody EventExtendRequest request
+    ) {
+        EventResponse response = eventService.extendEvent(eventId, request);
+        return ApiResponse.updated(EventSuccessMessage.UPDATED, response);
+    }
+
+    @Operation(
+            summary = "Lấy danh sách sự kiện",
+            description = "Lấy danh sách các sự kiện dưới dạng phân trang, hỗ trợ filter theo keyword, trạng thái, loại sự kiện, đối tượng và thời gian."
+    )
+    @GetMapping
+    public ApiResponse<PageResponse<EventResponse>> getAllEvents(
+            @Valid @ModelAttribute EventFilterRequest filter,
+
+            @Parameter(
+                    name = PAGE,
+                    description = PAGE_DESCRIPTION,
+                    example = PAGE_EXAMPLE
+            )
+            @RequestParam(defaultValue = PAGE_DEFAULT)
+            @PositiveOrZero(message = "Page index must be greater than or equal to 0")
+            int page,
+
+            @Parameter(
+                    name = SIZE,
+                    description = SIZE_DESCRIPTION,
+                    example = SIZE_EXAMPLE
+            )
+            @RequestParam(defaultValue = SIZE_DEFAULT)
+            @Min(value = 1, message = "Page size must be greater than or equal to 1")
+            @Max(value = SIZE_MAX, message = "Page size must be less than or equal to 100")
+            int size
+    ) {
+        PageResponse<EventResponse> response = eventService.getEvents(filter, page, size);
         return ApiResponse.success(EventSuccessMessage.LIST_FETCHED, response);
     }
 

@@ -16,6 +16,7 @@ import { InventoryTransactionPage } from "../features/inventory/pages/InventoryT
 import { DiscountCodeListPage } from "../features/marketing/pages/DiscountCodeListPage";
 import { DiscountProgramDetailPage } from "../features/marketing/pages/DiscountProgramDetailPage";
 import { DiscountProgramListPage } from "../features/marketing/pages/DiscountProgramListPage";
+import { PromotionPage } from "../features/marketing/pages/PromotionPage";
 import { CategoryListPage } from "../features/product/pages/CategoryListPage";
 import { UnitListPage } from "../features/product/pages/UnitListPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
@@ -137,7 +138,7 @@ export function AppRouter() {
                 />
                 <Route
                     path="marketing/discount-programs"
-                    element={<DiscountProgramListPage />}
+                    element={<PromotionPage />}
                 />
                 <Route
                     path="marketing/discount-programs/:programId"

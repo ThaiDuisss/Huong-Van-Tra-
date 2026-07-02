@@ -1,6 +1,8 @@
 package org.hvtra.promotionservice.service;
 
 import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
+import org.hvtra.promotionservice.dto.request.event.EventExtendRequest;
+import org.hvtra.promotionservice.dto.request.event.EventFilterRequest;
 import org.hvtra.promotionservice.dto.request.event.EventUpdateRequest;
 import org.hvtra.promotionservice.dto.response.EventResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
@@ -13,7 +15,7 @@ public interface EventService {
 
     EventResponse getEventById(UUID eventId);
 
-    PageResponse<EventResponse> getAllEvents(int page, int size);
+    PageResponse<EventResponse> getEvents(EventFilterRequest request, int page, int size);
 
     EventResponse updateEvent(UUID eventId, EventUpdateRequest request);
 
@@ -30,6 +32,8 @@ public interface EventService {
     EventResponse cancelEvent(UUID eventId);
 
     EventResponse endEvent(UUID eventId);
+
+    EventResponse extendEvent(UUID eventId, EventExtendRequest request);
 
     PageResponse<EventResponse> getActiveEvents(int page, int size);
 }
