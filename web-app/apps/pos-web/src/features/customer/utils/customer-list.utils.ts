@@ -179,6 +179,8 @@ export function toCustomerQuery(
     copyStringParam(query, params, "createdTo");
     copyStringParam(query, params, "lastPurchaseFrom");
     copyStringParam(query, params, "lastPurchaseTo");
+    copyNumberParam(query, params, "minTotalSpent");
+    copyNumberParam(query, params, "maxTotalSpent");
     if (params.has("includeNeverPurchased")) {
         query.includeNeverPurchased =
             params.get("includeNeverPurchased") === "true";
@@ -262,6 +264,15 @@ function copyStringParam(
 ) {
     const value = params.get(key);
     if (value) query[key] = value;
+}
+
+function copyNumberParam(
+    query: CustomerQuery,
+    params: URLSearchParams,
+    key: "minTotalSpent" | "maxTotalSpent"
+) {
+    const value = Number(params.get(key));
+    if (Number.isFinite(value) && value >= 0) query[key] = value;
 }
 
 function applyCustomerViewQuery(
