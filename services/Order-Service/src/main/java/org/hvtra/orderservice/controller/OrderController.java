@@ -18,10 +18,14 @@ import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
+import org.hvtra.orderservice.service.OrderExportService;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -35,6 +39,7 @@ public class OrderController {
     private static final String UUID_PATH = "{orderId:[0-9a-fA-F\\-]{36}}";
 
     private final OrderService orderService;
+    private final OrderExportService orderExportService;
 
     @Operation(summary = "tao don hang")
     @PostMapping("/pos/checkout")
@@ -91,6 +96,32 @@ public class OrderController {
     @GetMapping("/" + UUID_PATH + "/payment-info")
     public OrderPaymentInfoResponse getPaymentInfo(@PathVariable UUID orderId) {
         return orderService.getPaymentInfo(orderId);
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportOrders(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) PaymentStatus paymentStatus,
+            @RequestParam(required = false) String orderType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "businessStatus") String sort
+    ) {
+        byte[] excelBytes = orderExportService.exportOrders(
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate,
+                sort
+        );
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=orders.xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelBytes);
     }
 
     @Operation(summary = "Api cho Payment-Service gọi sau khi thanh toán thành công để cập nhật trạng thái đơn hàng")

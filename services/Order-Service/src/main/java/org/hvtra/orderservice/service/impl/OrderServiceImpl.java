@@ -369,16 +369,17 @@ public class OrderServiceImpl implements OrderService {
                 Math.min(Math.max(size, 1), 200)
         );
 
+        Specification<Order> filters = orderSpecification(
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate
+        );
+
         return orderRepository.findAll(
-                orderSpecification(
-                        keyword,
-                        status,
-                        paymentStatus,
-                        orderType,
-                        fromDate,
-                        toDate,
-                        sort == null || sort.isBlank() ? SORT_BUSINESS_STATUS : sort
-                ),
+                withBusinessOrder(filters, normalizeOrderSort(sort)),
                 pageRequest
         ).map(this::toSummaryResponse);
     }
@@ -386,7 +387,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public OrderStatsResponse getOrderStats(LocalDate fromDate, LocalDate toDate) {
-        Specification<Order> dateRange = orderSpecification(null, null, null, null, fromDate, toDate, null);
+        Specification<Order> dateRange = orderSpecification(null, null, null, null, fromDate, toDate);
 
         return OrderStatsResponse.builder()
                 .total(orderRepository.count(dateRange))
@@ -425,7 +426,7 @@ public class OrderServiceImpl implements OrderService {
         );
 
         List<TodaySalesItemResponse> filteredItems = orderRepository.findAll(
-                        orderSpecification(null, status, paymentStatus, null, today, today, null),
+                        orderSpecification(null, status, paymentStatus, null, today, today),
                         Sort.by(Sort.Direction.DESC, "createdAt")
                 )
                 .stream()
@@ -443,7 +444,7 @@ public class OrderServiceImpl implements OrderService {
     public TodaySalesSummaryResponse getTodaySalesSummary() {
         LocalDate today = LocalDate.now(ZoneId.systemDefault());
         List<Order> todayOrders = orderRepository.findAll(
-                orderSpecification(null, null, null, null, today, today, null)
+                orderSpecification(null, null, null, null, today, today)
         );
 
         long totalOrders = todayOrders.size();
@@ -734,13 +735,11 @@ public class OrderServiceImpl implements OrderService {
             PaymentStatus paymentStatus,
             String orderType,
             LocalDate fromDate,
-            LocalDate toDate,
-            String sort
+            LocalDate toDate
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.isFalse(root.get("isDeleted")));
-            applyDefaultOrder(root, query, criteriaBuilder, sort);
 
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
@@ -756,6 +755,8 @@ public class OrderServiceImpl implements OrderService {
             if (paymentStatus != null) {
                 if (PaymentStatus.UNPAID == paymentStatus) {
                     predicates.add(root.get("paymentStatus").in(PaymentStatus.UNPAID, PaymentStatus.WAITING_PAYMENT));
+                } else if (PaymentStatus.REFUNDED == paymentStatus) {
+                    predicates.add(root.get("paymentStatus").in(PaymentStatus.REFUNDED, PaymentStatus.PARTIALLY_REFUNDED));
                 } else {
                     predicates.add(criteriaBuilder.equal(root.get("paymentStatus"), paymentStatus));
                 }
@@ -772,6 +773,26 @@ public class OrderServiceImpl implements OrderService {
 
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    private Specification<Order> withBusinessOrder(Specification<Order> filters, String sort) {
+        return (root, query, criteriaBuilder) -> {
+            Predicate predicate = filters.toPredicate(root, query, criteriaBuilder);
+            applyDefaultOrder(root, query, criteriaBuilder, sort);
+            return predicate;
+        };
+    }
+
+    private String normalizeOrderSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return SORT_BUSINESS_STATUS;
+        }
+
+        if (SORT_INVOICE_PAYMENT.equalsIgnoreCase(sort)) {
+            return SORT_INVOICE_PAYMENT;
+        }
+
+        return SORT_BUSINESS_STATUS;
     }
 
     private void applyDefaultOrder(
@@ -800,22 +821,24 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private Expression<Integer> orderStatusPriority(Root<Order> root, CriteriaBuilder criteriaBuilder) {
-        return criteriaBuilder.<OrderStatus, Integer>selectCase(root.get("status"))
-                .when(OrderStatus.PENDING_PAYMENT, 1)
-                .when(OrderStatus.PAYMENT_CONFIRMED, 2)
-                .when(OrderStatus.COMPLETED, 3)
-                .when(OrderStatus.PAYMENT_FAILED, 4)
-                .when(OrderStatus.EXPIRED, 5)
-                .when(OrderStatus.CANCELLED, 6)
-                .when(OrderStatus.DRAFT, 7)
+        return criteriaBuilder.<Integer>selectCase()
+                .when(criteriaBuilder.equal(root.get("status"), OrderStatus.PENDING_PAYMENT), 1)
+                .when(criteriaBuilder.equal(root.get("status"), OrderStatus.PAYMENT_CONFIRMED), 2)
+                .when(criteriaBuilder.equal(root.get("status"), OrderStatus.COMPLETED), 3)
+                .when(criteriaBuilder.equal(root.get("paymentStatus"), PaymentStatus.REFUNDED), 4)
+                .when(criteriaBuilder.equal(root.get("paymentStatus"), PaymentStatus.PARTIALLY_REFUNDED), 4)
+                .when(criteriaBuilder.equal(root.get("status"), OrderStatus.PAYMENT_FAILED), 5)
+                .when(criteriaBuilder.equal(root.get("status"), OrderStatus.EXPIRED), 6)
+                .when(criteriaBuilder.equal(root.get("status"), OrderStatus.CANCELLED), 7)
+                .when(criteriaBuilder.equal(root.get("status"), OrderStatus.DRAFT), 8)
                 .otherwise(99);
     }
 
     private Expression<Integer> invoicePaymentPriority(Root<Order> root, CriteriaBuilder criteriaBuilder) {
-        return criteriaBuilder.<PaymentStatus, Integer>selectCase(root.get("paymentStatus"))
-                .when(PaymentStatus.UNPAID, 1)
-                .when(PaymentStatus.WAITING_PAYMENT, 1)
-                .when(PaymentStatus.PAID, 2)
+        return criteriaBuilder.<Integer>selectCase()
+                .when(criteriaBuilder.equal(root.get("paymentStatus"), PaymentStatus.UNPAID), 1)
+                .when(criteriaBuilder.equal(root.get("paymentStatus"), PaymentStatus.WAITING_PAYMENT), 1)
+                .when(criteriaBuilder.equal(root.get("paymentStatus"), PaymentStatus.PAID), 2)
                 .otherwise(99);
     }
 
