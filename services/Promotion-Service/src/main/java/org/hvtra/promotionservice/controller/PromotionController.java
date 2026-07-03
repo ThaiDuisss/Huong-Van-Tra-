@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -11,16 +14,21 @@ import org.hvtra.commonservice.domain.response.ApiResponse;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.promotion.PromotionSuccessMessage;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionCreateRequest;
+import org.hvtra.promotionservice.dto.request.promotion.PromotionFilterRequest;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionUpdateRequest;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.dto.response.PromotionResponse;
 import org.hvtra.promotionservice.service.PromotionService;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+import static org.hvtra.promotionservice.constant.EventApiParameter.*;
+
+@Validated
 @RestController
-@RequestMapping(ApiPath.API)
+@RequestMapping(ApiPath.PROMOTION_SERVICE)
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(
@@ -35,7 +43,7 @@ public class PromotionController {
             summary = "Tạo khuyến mãi",
             description = "Tạo mới một chương trình khuyến mãi. Request cần truyền eventId."
     )
-    @PostMapping("/promotions")
+    @PostMapping
     public ApiResponse<PromotionResponse> createPromotion(
             @Valid @RequestBody PromotionCreateRequest request
     ) {
@@ -68,7 +76,7 @@ public class PromotionController {
             summary = "Lấy chi tiết khuyến mãi",
             description = "Lấy thông tin chi tiết của một chương trình khuyến mãi theo ID."
     )
-    @GetMapping("/promotions/{promotionId}")
+    @GetMapping("/{promotionId}")
     public ApiResponse<PromotionResponse> getPromotionById(
             @Parameter(
                     description = "ID của khuyến mãi cần lấy thông tin",
@@ -86,12 +94,30 @@ public class PromotionController {
             summary = "Lấy danh sách khuyến mãi",
             description = "Lấy danh sách các chương trình khuyến mãi chưa bị xóa mềm, có hỗ trợ phân trang."
     )
-    @GetMapping("/promotions")
+    @GetMapping
     public ApiResponse<PageResponse<PromotionResponse>> getAllPromotions(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @Valid @ModelAttribute PromotionFilterRequest filter,
+
+            @Parameter(
+                    name = PAGE,
+                    description = PAGE_DESCRIPTION,
+                    example = PAGE_EXAMPLE
+            )
+            @RequestParam(defaultValue = PAGE_DEFAULT)
+            @PositiveOrZero(message = "Page index must be greater than or equal to 0")
+            int page,
+
+            @Parameter(
+                    name = SIZE,
+                    description = SIZE_DESCRIPTION,
+                    example = SIZE_EXAMPLE
+            )
+            @RequestParam(defaultValue = SIZE_DEFAULT)
+            @Min(value = 1, message = "Page size must be greater than or equal to 1")
+            @Max(value = SIZE_MAX, message = "Page size must be less than or equal to 100")
+            int size
     ) {
-        PageResponse<PromotionResponse> response = promotionService.getAllPromotions(page, size);
+        PageResponse<PromotionResponse> response = promotionService.getPromotions(filter, page, size);
 
         return ApiResponse.success(PromotionSuccessMessage.LIST_FETCHED, response);
     }
@@ -109,10 +135,28 @@ public class PromotionController {
             )
             @PathVariable UUID eventId,
 
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @Valid @ModelAttribute PromotionFilterRequest filter,
+
+            @Parameter(
+                    name = PAGE,
+                    description = PAGE_DESCRIPTION,
+                    example = PAGE_EXAMPLE
+            )
+            @RequestParam(defaultValue = PAGE_DEFAULT)
+            @PositiveOrZero(message = "Page index must be greater than or equal to 0")
+            int page,
+
+            @Parameter(
+                    name = SIZE,
+                    description = SIZE_DESCRIPTION,
+                    example = SIZE_EXAMPLE
+            )
+            @RequestParam(defaultValue = SIZE_DEFAULT)
+            @Min(value = 1, message = "Page size must be greater than or equal to 1")
+            @Max(value = SIZE_MAX, message = "Page size must be less than or equal to 100")
+            int size
     ) {
-        PageResponse<PromotionResponse> response = promotionService.getPromotionsByEvent(eventId, page, size);
+        PageResponse<PromotionResponse> response = promotionService.getPromotionsByEvent(eventId, filter, page, size);
 
         return ApiResponse.success(PromotionSuccessMessage.LIST_FETCHED, response);
     }
@@ -121,7 +165,7 @@ public class PromotionController {
             summary = "Cập nhật khuyến mãi",
             description = "Cập nhật thông tin cấu hình cơ bản của khuyến mãi."
     )
-    @PutMapping("/promotions/{promotionId}")
+    @PutMapping("/{promotionId}")
     public ApiResponse<PromotionResponse> updatePromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần cập nhật",
@@ -141,7 +185,7 @@ public class PromotionController {
             summary = "Xóa khuyến mãi",
             description = "Xóa mềm một chương trình khuyến mãi."
     )
-    @DeleteMapping("/promotions/{promotionId}")
+    @DeleteMapping("/{promotionId}")
     public ApiResponse<Void> deletePromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần xóa",
@@ -159,7 +203,7 @@ public class PromotionController {
             summary = "Lên lịch khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái SCHEDULED."
     )
-    @PostMapping("/promotions/{promotionId}/schedule")
+    @PostMapping("/{promotionId}/schedule")
     public ApiResponse<PromotionResponse> schedulePromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần lên lịch",
@@ -177,7 +221,7 @@ public class PromotionController {
             summary = "Kích hoạt khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái ACTIVE."
     )
-    @PostMapping("/promotions/{promotionId}/activate")
+    @PostMapping("/{promotionId}/activate")
     public ApiResponse<PromotionResponse> activatePromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần kích hoạt",
@@ -195,7 +239,7 @@ public class PromotionController {
             summary = "Tạm dừng khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái INACTIVE."
     )
-    @PostMapping("/promotions/{promotionId}/pause")
+    @PostMapping("/{promotionId}/pause")
     public ApiResponse<PromotionResponse> pausePromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần tạm dừng",
@@ -213,7 +257,7 @@ public class PromotionController {
             summary = "Tiếp tục khuyến mãi",
             description = "Resume khuyến mãi đang INACTIVE. Nếu startAt ở tương lai thì về SCHEDULED, nếu đã tới thời gian chạy thì về ACTIVE."
     )
-    @PostMapping("/promotions/{promotionId}/resume")
+    @PostMapping("/{promotionId}/resume")
     public ApiResponse<PromotionResponse> resumePromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần tiếp tục",
@@ -231,7 +275,7 @@ public class PromotionController {
             summary = "Hủy khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái CANCELLED."
     )
-    @PostMapping("/promotions/{promotionId}/cancel")
+    @PostMapping("/{promotionId}/cancel")
     public ApiResponse<PromotionResponse> cancelPromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần hủy",
@@ -249,7 +293,7 @@ public class PromotionController {
             summary = "Đánh dấu khuyến mãi hết hạn",
             description = "Chuyển khuyến mãi sang trạng thái EXPIRED. Thường dùng cho scheduler/system."
     )
-    @PostMapping("/promotions/{promotionId}/expire")
+    @PostMapping("/{promotionId}/expire")
     public ApiResponse<PromotionResponse> expirePromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần đánh dấu hết hạn",
@@ -267,7 +311,7 @@ public class PromotionController {
             summary = "Sao chép khuyến mãi",
             description = "Tạo một bản sao mới từ khuyến mãi hiện tại. Bản sao mặc định ở trạng thái DRAFT."
     )
-    @PostMapping("/promotions/{promotionId}/duplicate")
+    @PostMapping("/{promotionId}/duplicate")
     public ApiResponse<PromotionResponse> duplicatePromotion(
             @Parameter(
                     description = "ID của khuyến mãi cần sao chép",

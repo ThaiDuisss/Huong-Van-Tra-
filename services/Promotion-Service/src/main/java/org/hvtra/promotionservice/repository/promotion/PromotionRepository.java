@@ -1,4 +1,4 @@
-package org.hvtra.promotionservice.repository;
+package org.hvtra.promotionservice.repository.promotion;
 
 import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.enums.event.EventStatus;
@@ -14,7 +14,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
+public interface PromotionRepository
+        extends JpaRepository<Promotion, UUID>,
+                PromotionRepositoryCustom {
 
     Optional<Promotion> findByIdAndIsDeletedFalse(UUID id);
 

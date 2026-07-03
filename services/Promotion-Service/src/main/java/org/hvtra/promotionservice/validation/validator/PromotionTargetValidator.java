@@ -9,7 +9,7 @@ import org.hvtra.promotionservice.dto.request.promotiontarget.PromotionTargetUpd
 import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.enums.benefit.BenefitType;
 import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
-import org.hvtra.promotionservice.repository.PromotionTargetRepository;
+import org.hvtra.promotionservice.repository.promotion.PromotionTargetRepository;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;

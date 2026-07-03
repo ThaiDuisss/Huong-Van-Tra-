@@ -13,7 +13,7 @@ import org.hvtra.promotionservice.entity.coupon.Coupon;
 import org.hvtra.promotionservice.enums.coupon.CouponScope;
 import org.hvtra.promotionservice.enums.coupon.CouponStatus;
 import org.hvtra.promotionservice.mapper.CouponMapper;
-import org.hvtra.promotionservice.repository.PromotionRepository;
+import org.hvtra.promotionservice.repository.promotion.PromotionRepository;
 import org.hvtra.promotionservice.repository.coupon.CouponRepository;
 import org.hvtra.promotionservice.service.CouponService;
 import org.hvtra.promotionservice.validation.validator.CouponValidator;

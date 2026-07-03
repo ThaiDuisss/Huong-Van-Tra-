@@ -3,8 +3,10 @@ package org.hvtra.promotionservice.service.impl;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.commonservice.exception.ResourceNotFoundException;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionCreateRequest;
+import org.hvtra.promotionservice.dto.request.promotion.PromotionFilterRequest;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionUpdateRequest;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.dto.response.PromotionResponse;
@@ -12,14 +14,13 @@ import org.hvtra.promotionservice.entity.Event;
 import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
 import org.hvtra.promotionservice.mapper.PromotionMapper;
-import org.hvtra.promotionservice.repository.PromotionRepository;
+import org.hvtra.promotionservice.repository.promotion.PromotionRepository;
 import org.hvtra.promotionservice.repository.event.EventRepository;
 import org.hvtra.promotionservice.service.PromotionService;
 import org.hvtra.promotionservice.validation.validator.PromotionValidator;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,11 +63,15 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<PromotionResponse> getAllPromotions(int page, int size) {
-        Pageable pageable = createPageable(page, size);
+    public PageResponse<PromotionResponse> getPromotions(PromotionFilterRequest request, int page, int size) {
+        PromotionFilterRequest filter = request == null ? new PromotionFilterRequest() : request;
+
+        validatePromotionFilter(filter);
+
+        Pageable pageable = PageRequest.of(page, size);
 
         Page<PromotionResponse> promotionPage = promotionRepository
-                .findAllByIsDeletedFalse(pageable)
+                .searchPromotions(filter, pageable)
                 .map(promotionMapper::toResponse);
 
         return PageResponse.from(promotionPage);
@@ -74,16 +79,13 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<PromotionResponse> getPromotionsByEvent(UUID eventId, int page, int size) {
+    public PageResponse<PromotionResponse> getPromotionsByEvent(UUID eventId, PromotionFilterRequest request, int page, int size) {
         getExistingEvent(eventId);
 
-        Pageable pageable = createPageable(page, size);
+        PromotionFilterRequest filter = request == null ? new PromotionFilterRequest() : request;
+        filter.setEventId(eventId);
 
-        Page<PromotionResponse> promotionPage = promotionRepository
-                .findAllByEventIdAndIsDeletedFalse(eventId, pageable)
-                .map(promotionMapper::toResponse);
-
-        return PageResponse.from(promotionPage);
+        return getPromotions(filter, page, size);
     }
 
     @Override
@@ -228,11 +230,24 @@ public class PromotionServiceImpl implements PromotionService {
                 ));
     }
 
-    private Pageable createPageable(int page, int size) {
-        return PageRequest.of(
-                page,
-                size,
-                Sort.by(Sort.Direction.DESC, "createdAt")
+    private void validatePromotionFilter(PromotionFilterRequest filter) {
+        validateRange(
+                filter.getStartFrom() != null
+                        && filter.getStartTo() != null
+                        && filter.getStartFrom().isAfter(filter.getStartTo()),
+                "Start from time must be before or equal to start to time"
         );
+        validateRange(
+                filter.getEndFrom() != null
+                        && filter.getEndTo() != null
+                        && filter.getEndFrom().isAfter(filter.getEndTo()),
+                "End from time must be before or equal to end to time"
+        );
+    }
+
+    private void validateRange(boolean invalid, String message) {
+        if (invalid) {
+            throw new BusinessException(message);
+        }
     }
 }

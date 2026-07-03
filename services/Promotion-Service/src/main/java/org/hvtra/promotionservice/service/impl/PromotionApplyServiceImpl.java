@@ -17,7 +17,7 @@ import org.hvtra.promotionservice.enums.benefit.BenefitType;
 import org.hvtra.promotionservice.enums.condition.ConditionType;
 import org.hvtra.promotionservice.enums.event.EventStatus;
 import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
-import org.hvtra.promotionservice.repository.PromotionRepository;
+import org.hvtra.promotionservice.repository.promotion.PromotionRepository;
 import org.hvtra.promotionservice.service.PromotionApplyService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

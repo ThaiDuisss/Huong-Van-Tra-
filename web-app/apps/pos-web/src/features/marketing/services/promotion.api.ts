@@ -1,14 +1,17 @@
 import { apiClient } from "../../../api/api-client";
 import type {
     PageResponse,
+    PromotionBenefitResponse,
+    PromotionConditionResponse,
     PromotionCreateRequest,
     PromotionQuery,
     PromotionResponse,
+    PromotionTargetResponse,
     PromotionUpdateRequest
 } from "../types/promotion.types";
 
 const PROMOTION_API_BASE = "/promotions";
-const EVENT_PROMOTION_API_BASE = "/events";
+const EVENT_PROMOTION_API_BASE = "/promotions/events";
 
 function promotionPath(id: string) {
     return `${PROMOTION_API_BASE}/${encodeURIComponent(id)}`;
@@ -31,6 +34,48 @@ export const promotionApi = {
             )}/promotions`,
             {
                 query: params
+            }
+        );
+    },
+
+    getPromotion(promotionId: string) {
+        return apiClient.get<PromotionResponse>(
+            promotionPath(promotionId)
+        );
+    },
+
+    getPromotionBenefits(promotionId: string) {
+        return apiClient.get<PageResponse<PromotionBenefitResponse>>(
+            `${promotionPath(promotionId)}/benefits`,
+            {
+                query: {
+                    page: 0,
+                    size: 100
+                }
+            }
+        );
+    },
+
+    getPromotionTargets(promotionId: string) {
+        return apiClient.get<PageResponse<PromotionTargetResponse>>(
+            `${promotionPath(promotionId)}/targets`,
+            {
+                query: {
+                    page: 0,
+                    size: 100
+                }
+            }
+        );
+    },
+
+    getPromotionConditions(promotionId: string) {
+        return apiClient.get<PageResponse<PromotionConditionResponse>>(
+            `${promotionPath(promotionId)}/conditions`,
+            {
+                query: {
+                    page: 0,
+                    size: 100
+                }
             }
         );
     },

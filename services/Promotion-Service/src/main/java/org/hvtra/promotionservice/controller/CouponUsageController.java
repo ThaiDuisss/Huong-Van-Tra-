@@ -7,6 +7,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.couponusage.CouponUsageSuccessMessage;
 import org.hvtra.promotionservice.dto.response.CouponUsageResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping(ApiPath.COUPON_USAGES)
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(
