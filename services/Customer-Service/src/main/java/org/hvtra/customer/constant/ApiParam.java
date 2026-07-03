@@ -6,6 +6,7 @@ public final class ApiParam {
     public static final String LOYALTY_ACCOUNT_ID = "loyaltyAccountId";
     public static final String PAGE = "page";
     public static final String SIZE = "size";
+    public static final String YEAR = "year";
 
     private ApiParam() {
     }

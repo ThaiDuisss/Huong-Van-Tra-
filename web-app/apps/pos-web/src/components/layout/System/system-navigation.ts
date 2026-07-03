@@ -15,7 +15,6 @@ import {
     Settings,
     ShoppingCart,
     User,
-    Users,
     WalletCards,
     Warehouse
 } from "lucide-react";
@@ -108,15 +107,15 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 icon: Layers3
             },
             {
-                label: "Danh sách BOM",
+                label: "Danh sách công thức",
                 to: routePaths.bomList,
                 icon: Layers3
             },
-            {
-                label: "Đơn hàng sản xuất",
-                to: routePaths.productionOrders,
-                icon: Layers3
-            }
+            // {
+            //     label: "Đơn hàng sản xuất",
+            //     to: routePaths.productionOrders,
+            //     icon: Layers3
+            // }
 
         ]
     },
@@ -152,9 +151,9 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 icon: User
             },
             {
-                label: "Nhóm khách hàng",
-                to: routePaths.customerGroups,
-                icon: Users
+                label: "Hạng khách hàng",
+                to: routePaths.customerTiers,
+                icon: BadgePercent
             }
         ]
     },
@@ -198,3 +197,4 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Settings
     }
 ];
+

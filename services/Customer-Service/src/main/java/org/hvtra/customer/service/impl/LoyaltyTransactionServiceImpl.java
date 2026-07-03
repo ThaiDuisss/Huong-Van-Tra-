@@ -77,6 +77,8 @@ public class LoyaltyTransactionServiceImpl implements LoyaltyTransactionService 
         loyaltyTransactionRepository.save(transaction);
     }
 
+    //======================================= Helper classes =======================================
+
     private LoyaltyTransaction findTransaction(UUID id) {
         return loyaltyTransactionRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> notFound(Message.LOYALTY_TRANSACTION_NOT_FOUND));

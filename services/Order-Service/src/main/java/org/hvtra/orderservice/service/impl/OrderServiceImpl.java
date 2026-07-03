@@ -334,10 +334,17 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
         }
 
+        String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
+        if (paymentMethod == null) {
+            throw new InvalidPaymentAmountException("Phương thức thanh toán không hợp lệ");
+        }
+
         confirmReservation(order.getId());
         OrderStatus oldStatus = order.getStatus();
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.COMPLETED);
+        order.setPaymentMethod(paymentMethod);
+        order.setPaymentCode(firstNonBlank(request.getPaymentCode(), generatePosPaymentCode(order, paymentMethod)));
         order.setPaidAmount(order.getFinalAmount());
         order.setDebtAmount(BigDecimal.ZERO);
         Order savedOrder = orderRepository.save(order);
@@ -345,7 +352,7 @@ public class OrderServiceImpl implements OrderService {
                 savedOrder,
                 oldStatus,
                 OrderStatus.COMPLETED,
-                "Thanh toán POS trực tiếp, mã thanh toán: " + request.getPaymentCode(),
+                "Thanh toán POS trực tiếp bằng " + paymentMethod + ", mã thanh toán: " + savedOrder.getPaymentCode(),
                 request.getChangedBy());
         orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
         return toResponse(savedOrder);
@@ -1121,6 +1128,9 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String resolvePaymentMethod(Order order, PaymentClient.PaymentOrderInfoResponse paymentInfo) {
+        if (order.getPaymentMethod() != null && !order.getPaymentMethod().isBlank()) {
+            return normalizePaymentMethod(order.getPaymentMethod());
+        }
         if (paymentInfo != null && paymentInfo.method() != null) {
             return normalizePaymentMethod(paymentInfo.method());
         }
@@ -1144,6 +1154,12 @@ public class OrderServiceImpl implements OrderService {
             case "COMBINED" -> "COMBINED";
             default -> normalized;
         };
+    }
+
+    private String generatePosPaymentCode(Order order, String paymentMethod) {
+        return "POS-%s-%s".formatted(
+                paymentMethod,
+                order.getOrderCode() != null ? order.getOrderCode() : order.getId());
     }
 
     private String normalizeOrderType(String orderType) {

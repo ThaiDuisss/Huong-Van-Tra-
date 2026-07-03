@@ -26,6 +26,7 @@ public class BomServiceImpl implements BomService {
     private final ProductVariantRepository productVariantRepository;
     private final IngredientRepository ingredientRepository;
     private final UnitRepository unitRepository;
+    private final BusinessSequenceRepository businessSequenceRepository;
     private final BomMapper mapper;
 
     public BomServiceImpl(
@@ -33,21 +34,41 @@ public class BomServiceImpl implements BomService {
             ProductVariantRepository productVariantRepository,
             IngredientRepository ingredientRepository,
             UnitRepository unitRepository,
+            BusinessSequenceRepository businessSequenceRepository,
             BomMapper mapper) {
         this.repository = repository;
         this.productVariantRepository = productVariantRepository;
         this.ingredientRepository = ingredientRepository;
         this.unitRepository = unitRepository;
+        this.businessSequenceRepository = businessSequenceRepository;
         this.mapper = mapper;
     }
 
     @Override
     public PageResponse<BomResponse> findAll(
-            UUID productVariantId, Integer version, Status status, Pageable pageable) {
+            UUID productVariantId, UUID productId, String search, Integer version, Status status, Pageable pageable) {
         Specification<Bom> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("productVariant", jakarta.persistence.criteria.JoinType.LEFT)
+                    .fetch("product", jakarta.persistence.criteria.JoinType.LEFT);
+            }
+
             if (productVariantId != null) {
                 predicates.add(cb.equal(root.get("productVariantId"), productVariantId));
+            }
+            if (productId != null) {
+                predicates.add(cb.equal(root.get("productVariant").get("product").get("id"), productId));
+            }
+            if (search != null && !search.isBlank()) {
+                String searchPattern = "%" + search.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("bomCode")), searchPattern),
+                        cb.like(cb.lower(root.get("name")), searchPattern),
+                        cb.like(cb.lower(root.get("productVariant").get("sku")), searchPattern),
+                        cb.like(cb.lower(root.get("productVariant").get("variantName")), searchPattern)
+                ));
             }
             if (version != null) predicates.add(cb.equal(root.get("bomVersion"), version));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
@@ -67,6 +88,14 @@ public class BomServiceImpl implements BomService {
         validate(request, null);
         Bom bom = new Bom();
         apply(bom, request);
+
+        // Auto-increment version from 1
+        Integer nextVersion = getNextVersion(bom.getProductVariantId());
+        bom.setBomVersion(nextVersion);
+
+        if (bom.getBomCode() == null || bom.getBomCode().isBlank()) {
+            bom.setBomCode(generateBomCode());
+        }
         return mapper.toResponse(repository.save(bom));
     }
 
@@ -74,9 +103,42 @@ public class BomServiceImpl implements BomService {
     @Transactional
     public BomResponse update(UUID id, BomRequest request) {
         Bom bom = get(id);
+        
+        // Keep original variant and version
+        Integer originalVersion = bom.getBomVersion();
+        UUID originalVariant = bom.getProductVariantId();
+
         validate(request, id);
         apply(bom, request);
+
+        // Enforce read-only variant and version
+        bom.setBomVersion(originalVersion);
+        bom.setProductVariantId(originalVariant);
+
+        if (bom.getBomCode() == null || bom.getBomCode().isBlank()) {
+            bom.setBomCode(generateBomCode());
+        }
         return mapper.toResponse(repository.save(bom));
+    }
+
+    private Integer getNextVersion(UUID variantId) {
+        Integer maxVersion = repository.findMaxVersionByProductVariantId(variantId);
+        return maxVersion == null ? 1 : maxVersion + 1;
+    }
+
+    @Transactional
+    public String generateBomCode() {
+        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("BOM")
+                .orElseGet(() -> {
+                    org.hvtra.catalog.entity.BusinessSequence newSeq = new org.hvtra.catalog.entity.BusinessSequence();
+                    newSeq.setSequenceKey("BOM");
+                    newSeq.setCurrentValue(0L);
+                    return businessSequenceRepository.saveAndFlush(newSeq);
+                });
+        long nextVal = seq.getCurrentValue() + 1;
+        seq.setCurrentValue(nextVal);
+        businessSequenceRepository.saveAndFlush(seq);
+        return String.format("BOM-%05d", nextVal);
     }
 
     @Override
@@ -97,10 +159,19 @@ public class BomServiceImpl implements BomService {
             throw new ResourceNotFoundException("Product variant", request.productVariantId());
         }
         bom.setProductVariantId(request.productVariantId());
+        bom.setName(request.name());
+        bom.setBomCode(request.bomCode());
+        bom.setDefault(request.isDefault());
+        bom.setDescription(request.description());
         bom.setBomVersion(request.version());
         bom.setStatus(request.status());
         bom.setEffectiveFrom(request.effectiveFrom());
         bom.setEffectiveTo(request.effectiveTo());
+
+        if (bom.isDefault()) {
+            repository.clearDefaultBomsForVariant(bom.getProductVariantId(), bom.getId() == null ? UUID.randomUUID() : bom.getId());
+        }
+
         bom.getItems().clear();
         for (BomRequest.ItemRequest itemRequest : request.items()) {
             Ingredient ingredient = ingredientRepository.findById(itemRequest.ingredientId())
@@ -121,11 +192,12 @@ public class BomServiceImpl implements BomService {
                 && request.effectiveTo().isBefore(request.effectiveFrom())) {
             throw new BadRequestException("effectiveTo must be after effectiveFrom");
         }
-        boolean versionExists = id == null
-                ? repository.existsByProductVariantIdAndBomVersion(request.productVariantId(), request.version())
-                : repository.existsByProductVariantIdAndBomVersionAndIdNot(
-                        request.productVariantId(), request.version(), id);
-        if (versionExists) throw new BadRequestException("BOM version already exists for this product variant");
+        if (request.bomCode() != null && !request.bomCode().isBlank()) {
+            boolean codeExists = id == null
+                    ? repository.existsByBomCode(request.bomCode())
+                    : repository.existsByBomCodeAndIdNot(request.bomCode(), id);
+            if (codeExists) throw new BadRequestException("BOM code already exists: " + request.bomCode());
+        }
         if (request.status() == Status.ACTIVE
                 && repository.existsByProductVariantIdAndStatusAndIdNot(
                         request.productVariantId(), Status.ACTIVE, id == null ? UUID.randomUUID() : id)) {

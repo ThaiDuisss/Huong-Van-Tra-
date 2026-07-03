@@ -10,7 +10,7 @@
 //import org.hvtra.promotionservice.entity.Promotion;
 //import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
 //import org.hvtra.promotionservice.mapper.PromotionMapper;
-//import org.hvtra.promotionservice.repository.EventRepository;
+//import org.hvtra.promotionservice.repository.event.EventRepository;
 //import org.hvtra.promotionservice.repository.PromotionRepository;
 //import org.hvtra.promotionservice.service.impl.PromotionServiceImpl;
 //import org.hvtra.promotionservice.validation.validator.PromotionValidator;

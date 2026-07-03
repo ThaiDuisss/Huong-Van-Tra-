@@ -22,13 +22,15 @@ public interface PromotionService {
 
     PromotionResponse updatePromotion(UUID promotionId, PromotionUpdateRequest request);
 
-    PromotionResponse updatePromotionStatus(UUID promotionId, PromotionStatusUpdateRequest request);
-
     void deletePromotion(UUID promotionId);
+
+    PromotionResponse schedulePromotion(UUID promotionId);
 
     PromotionResponse activatePromotion(UUID promotionId);
 
     PromotionResponse pausePromotion(UUID promotionId);
+
+    PromotionResponse resumePromotion(UUID promotionId);
 
     PromotionResponse cancelPromotion(UUID promotionId);
 

@@ -5,8 +5,6 @@ import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.dto.response.PageResponse;
 import org.springframework.data.domain.Pageable;
-
-import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface CustomerService {

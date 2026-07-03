@@ -1,211 +1,142 @@
-import { Copy, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 import { DetailPanel } from "../shared/DetailPanel";
 import { StatusBadge } from "../shared/StatusBadge";
-import type { BomListItem } from "../../types/bom.types";
+import type { BomResponse } from "../../types/bom.types";
 
 interface BomDetailPanelProps {
-    bom: BomListItem | null;
+    bom: BomResponse | null;
     onClose(): void;
+    onEdit(bom: BomResponse): void;
 }
 
 export function BomDetailPanel({
     bom,
-    onClose
+    onClose,
+    onEdit
 }: BomDetailPanelProps) {
     if (!bom) {
         return null;
     }
 
-    const components =
-        bom.components.length > 0
-            ? bom.components
-            : [
-                  {
-                      id: "empty",
-                      name: "Chưa có dữ liệu thành phần chi tiết",
-                      group: "-",
-                      quantity: 0,
-                      unit: "-",
-                      cost: 0
-                  }
-              ];
+    const items = bom.items ?? [];
 
     return (
         <DetailPanel title="Chi tiết BOM" onClose={onClose}>
             <div className="grid gap-6">
                 <section className="grid gap-4">
-                    <h3 className="font-bold text-gray-500">
-                        Thông tin thành phẩm
+                    <h3 className="font-bold text-gray-700">
+                        Thông tin chung
                     </h3>
-                    <div className="flex gap-4">
-                        <img
-                            src={bom.productImageUrl}
-                            alt={bom.productName}
-                            className="size-24 rounded-xl object-cover"
-                        />
-                        <div className="grid gap-1 text-sm">
-                            <strong className="text-base text-gray-500">
-                                {bom.productName}
-                            </strong>
-                            <span>SKU: {bom.productSku}</span>
-                            <span>Phiên bản: {bom.version}</span>
-                            <span>
-                                Ngày áp dụng:{" "}
-                                {formatDate(bom.effectiveDate)}
+                    <div className="grid gap-2 text-sm text-gray-600">
+                        <div>
+                            <span className="text-gray-400 font-medium">Mã BOM: </span>
+                            <span className="font-bold">{bom.bomCode || "-"}</span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400 font-medium">Tên BOM: </span>
+                            <span className="font-semibold">{bom.name || "-"}</span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400 font-medium">Sản phẩm: </span>
+                            <span className="font-semibold">{bom.productName || "-"}</span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400 font-medium">Mặt hàng: </span>
+                            <span className="font-semibold">{bom.variantName || "-"}</span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400 font-medium">SKU: </span>
+                            <span className="font-mono bg-neutral-100 px-1.5 py-0.5 rounded text-xs font-semibold">{bom.variantSku || "-"}</span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400 font-medium">Phiên bản: </span>
+                            <span className="font-bold bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-xs">
+                                {bom.version}
                             </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-gray-400 font-medium">Mặc định: </span>
+                            {bom.isDefault ? (
+                                <span className="bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded text-xs">
+                                    Mặc định
+                                </span>
+                            ) : (
+                                <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs">
+                                    Không
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-400 font-medium">Trạng thái: </span>
                             <StatusBadge status={bom.status} />
+                        </div>
+                        <div className="mt-2 border-t border-pos-border pt-2">
+                            <p className="text-gray-400 font-medium mb-1">Mô tả / Ghi chú:</p>
+                            <p className="text-gray-700 bg-neutral-50 p-2.5 rounded-lg border border-pos-border text-xs min-h-[50px] whitespace-pre-wrap">
+                                {bom.description || "Không có mô tả."}
+                            </p>
                         </div>
                     </div>
                 </section>
 
                 <section className="grid gap-3">
-                    <h3 className="font-bold text-gray-500">
-                        Danh sách thành phần BOM
+                    <h3 className="font-bold text-gray-700">
+                        Danh sách thành phần nguyên liệu ({items.length})
                     </h3>
-                    <div className="overflow-hidden rounded-xl border border-pos-border">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-neutral-50 text-xs text-gray-500">
-                                <tr>
-                                    <th className="p-3">Tên thành phần</th>
-                                    <th className="p-3">Nhóm</th>
-                                    <th className="p-3">Định lượng</th>
-                                    <th className="p-3">Đơn vị</th>
-                                    <th className="p-3 text-right">
-                                        Chi phí
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {components.map((component) => (
-                                    <tr key={component.id}>
-                                        <td className="border-t border-pos-border p-3">
-                                            {component.name}
-                                        </td>
-                                        <td className="border-t border-pos-border p-3">
-                                            {component.group}
-                                        </td>
-                                        <td className="border-t border-pos-border p-3">
-                                            {component.quantity}
-                                        </td>
-                                        <td className="border-t border-pos-border p-3">
-                                            {component.unit}
-                                        </td>
-                                        <td className="border-t border-pos-border p-3 text-right">
-                                            {formatVnd(
-                                                component.cost
-                                            )}
-                                        </td>
+                    {items.length > 0 ? (
+                        <div className="overflow-hidden rounded-xl border border-pos-border">
+                            <table className="w-full text-left text-xs">
+                                <thead className="bg-neutral-50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                                    <tr>
+                                        <th className="p-3">Mã nguyên liệu</th>
+                                        <th className="p-3">Tên nguyên liệu</th>
+                                        <th className="p-3 text-right">Định lượng</th>
+                                        <th className="p-3">Đơn vị</th>
+                                        <th className="p-3 text-right">Hao hụt (%)</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="flex justify-between text-lg font-bold">
-                        <span>Tổng cộng</span>
-                        <span className="text-hvt-green-900">
-                            {formatVnd(bom.totalCost)}
-                        </span>
-                    </div>
-                </section>
-
-                <section className="grid grid-cols-2 gap-3">
-                    <StatCard
-                        label="Tổng thành phần"
-                        value={`${bom.componentCount}`}
-                    />
-                    <StatCard
-                        label="Chi phí nguyên liệu"
-                        value={formatVnd(bom.materialCost)}
-                    />
-                    <StatCard
-                        label="Chi phí bao bì"
-                        value={formatVnd(bom.packagingCost)}
-                    />
-                    <StatCard
-                        label="Tổng chi phí BOM"
-                        value={formatVnd(bom.totalCost)}
-                    />
-                </section>
-
-                <section className="grid gap-3">
-                    <h3 className="font-bold text-gray-500">
-                        Lịch sử thay đổi
-                    </h3>
-                    {bom.history.length > 0 ? (
-                        bom.history.map((entry) => (
-                            <div
-                                key={entry.id}
-                                className="grid grid-cols-[1fr_auto] gap-2 border-b border-pos-border pb-2 text-sm last:border-b-0"
-                            >
-                                <div>
-                                    <p className="font-semibold">
-                                        {formatDate(entry.date)}
-                                    </p>
-                                    <p className="text-gray-500">
-                                        {entry.description}
-                                    </p>
-                                </div>
-                                <span className="text-gray-500">
-                                    {entry.actor}
-                                </span>
-                            </div>
-                        ))
+                                </thead>
+                                <tbody className="divide-y divide-pos-border">
+                                    {items.map((item) => (
+                                        <tr key={item.id} className="hover:bg-neutral-50">
+                                            <td className="p-3 font-mono text-gray-500 font-semibold">
+                                                {item.ingredient.ingredientCode}
+                                            </td>
+                                            <td className="p-3 font-medium text-gray-700">
+                                                {item.ingredient.name}
+                                            </td>
+                                            <td className="p-3 text-right font-semibold text-gray-900">
+                                                {item.quantity}
+                                            </td>
+                                            <td className="p-3 text-gray-500 font-medium">
+                                                {item.unit.symbol || item.unit.name}
+                                            </td>
+                                            <td className="p-3 text-right font-medium text-amber-600">
+                                                {item.wasteRate}%
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     ) : (
-                        <p className="text-sm text-gray-500">
-                            Chưa có lịch sử thay đổi.
+                        <p className="text-sm text-gray-500 italic">
+                            Chưa cấu hình nguyên liệu cho BOM này.
                         </p>
                     )}
                 </section>
 
-                <div className="grid grid-cols-2 gap-3 border-t border-pos-border pt-4">
+                <div className="border-t border-pos-border pt-4">
                     <button
                         type="button"
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border bg-white text-sm font-bold text-hvt-green-900"
+                        onClick={() => onEdit(bom)}
+                        className="inline-flex w-full h-11 items-center justify-center gap-2 rounded-xl bg-[#07883a] text-sm font-bold text-white hover:bg-[#067331] transition-all cursor-pointer shadow-sm"
                     >
                         <Pencil size={16} aria-hidden="true" />
                         Chỉnh sửa BOM
                     </button>
-                    <button
-                        type="button"
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-pos-border bg-white text-sm font-bold text-gray-500"
-                    >
-                        <Copy size={16} aria-hidden="true" />
-                        Nhân bản BOM
-                    </button>
                 </div>
             </div>
         </DetailPanel>
-    );
-}
-
-function StatCard({
-    label,
-    value
-}: {
-    label: string;
-    value: string;
-}) {
-    return (
-        <div className="rounded-xl border border-pos-border p-3">
-            <p className="text-xs text-gray-500">{label}</p>
-            <strong className="mt-1 block text-lg text-gray-500">
-                {value}
-            </strong>
-        </div>
-    );
-}
-
-function formatVnd(value: number) {
-    return new Intl.NumberFormat("vi-VN", {
-        style: "currency",
-        currency: "VND",
-        maximumFractionDigits: 0
-    }).format(value);
-}
-
-function formatDate(value: string) {
-    return new Intl.DateTimeFormat("vi-VN").format(
-        new Date(`${value}T00:00:00`)
     );
 }

@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.exception.ResourceNotFoundException;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionCreateRequest;
-import org.hvtra.promotionservice.dto.request.promotion.PromotionStatusUpdateRequest;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionUpdateRequest;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.dto.response.PromotionResponse;
@@ -13,8 +12,8 @@ import org.hvtra.promotionservice.entity.Event;
 import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
 import org.hvtra.promotionservice.mapper.PromotionMapper;
-import org.hvtra.promotionservice.repository.EventRepository;
 import org.hvtra.promotionservice.repository.PromotionRepository;
+import org.hvtra.promotionservice.repository.event.EventRepository;
 import org.hvtra.promotionservice.service.PromotionService;
 import org.hvtra.promotionservice.validation.validator.PromotionValidator;
 import org.springframework.data.domain.Page;
@@ -66,7 +65,8 @@ public class PromotionServiceImpl implements PromotionService {
     public PageResponse<PromotionResponse> getAllPromotions(int page, int size) {
         Pageable pageable = createPageable(page, size);
 
-        Page<PromotionResponse> promotionPage = promotionRepository.findAllByIsDeletedFalse(pageable)
+        Page<PromotionResponse> promotionPage = promotionRepository
+                .findAllByIsDeletedFalse(pageable)
                 .map(promotionMapper::toResponse);
 
         return PageResponse.from(promotionPage);
@@ -102,23 +102,6 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional
-    public PromotionResponse updatePromotionStatus(
-            UUID promotionId,
-            PromotionStatusUpdateRequest request
-    ) {
-        Promotion promotion = getExistingPromotion(promotionId);
-
-        promotionValidator.validateStatusTransition(promotion, request);
-
-        promotion.setStatus(request.getStatus());
-
-        Promotion updatedPromotion = promotionRepository.save(promotion);
-
-        return promotionMapper.toResponse(updatedPromotion);
-    }
-
-    @Override
-    @Transactional
     public void deletePromotion(UUID promotionId) {
         Promotion promotion = getExistingPromotion(promotionId);
 
@@ -131,58 +114,44 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional
+    public PromotionResponse schedulePromotion(UUID promotionId) {
+        return changeStatus(promotionId, PromotionStatus.SCHEDULED);
+    }
+
+    @Override
+    @Transactional
     public PromotionResponse activatePromotion(UUID promotionId) {
-        Promotion promotion = getExistingPromotion(promotionId);
-
-        promotionValidator.validateBeforeActivate(promotion);
-
-        promotion.setStatus(PromotionStatus.ACTIVE);
-
-        Promotion updatedPromotion = promotionRepository.save(promotion);
-
-        return promotionMapper.toResponse(updatedPromotion);
+        return changeStatus(promotionId, PromotionStatus.ACTIVE);
     }
 
     @Override
     @Transactional
     public PromotionResponse pausePromotion(UUID promotionId) {
+        return changeStatus(promotionId, PromotionStatus.INACTIVE);
+    }
+
+    @Override
+    @Transactional
+    public PromotionResponse resumePromotion(UUID promotionId) {
         Promotion promotion = getExistingPromotion(promotionId);
 
-        promotionValidator.validateBeforePause(promotion);
+        PromotionStatus targetStatus = promotionValidator.resolveResumeTargetStatus(promotion);
 
-        promotion.setStatus(PromotionStatus.INACTIVE);
+        promotionValidator.validateStatusTransition(promotion, targetStatus);
 
-        Promotion updatedPromotion = promotionRepository.save(promotion);
-
-        return promotionMapper.toResponse(updatedPromotion);
+        return updateStatus(promotion, targetStatus);
     }
 
     @Override
     @Transactional
     public PromotionResponse cancelPromotion(UUID promotionId) {
-        Promotion promotion = getExistingPromotion(promotionId);
-
-        promotionValidator.validateBeforeCancel(promotion);
-
-        promotion.setStatus(PromotionStatus.CANCELLED);
-
-        Promotion updatedPromotion = promotionRepository.save(promotion);
-
-        return promotionMapper.toResponse(updatedPromotion);
+        return changeStatus(promotionId, PromotionStatus.CANCELLED);
     }
 
     @Override
     @Transactional
     public PromotionResponse expirePromotion(UUID promotionId) {
-        Promotion promotion = getExistingPromotion(promotionId);
-
-        promotionValidator.validateBeforeExpire(promotion);
-
-        promotion.setStatus(PromotionStatus.EXPIRED);
-
-        Promotion updatedPromotion = promotionRepository.save(promotion);
-
-        return promotionMapper.toResponse(updatedPromotion);
+        return changeStatus(promotionId, PromotionStatus.EXPIRED);
     }
 
     @Override
@@ -193,6 +162,9 @@ public class PromotionServiceImpl implements PromotionService {
         promotionValidator.validateBeforeDuplicate(sourcePromotion);
 
         Promotion duplicatedPromotion = promotionMapper.duplicateFrom(sourcePromotion);
+
+        duplicatedPromotion.setStatus(PromotionStatus.DRAFT);
+        duplicatedPromotion.setIsDeleted(false);
 
         Promotion savedPromotion = promotionRepository.save(duplicatedPromotion);
 
@@ -206,7 +178,12 @@ public class PromotionServiceImpl implements PromotionService {
         promotionValidator.validatePromotionTimeWithinEvent(request, event);
 
         Promotion promotion = promotionMapper.toEntity(request);
+
         promotion.setEvent(event);
+
+        if (promotion.getStatus() == null) {
+            promotion.setStatus(PromotionStatus.DRAFT);
+        }
 
         if (promotion.getStackable() == null) {
             promotion.setStackable(false);
@@ -219,6 +196,22 @@ public class PromotionServiceImpl implements PromotionService {
         Promotion savedPromotion = promotionRepository.save(promotion);
 
         return promotionMapper.toResponse(savedPromotion);
+    }
+
+    private PromotionResponse changeStatus(UUID promotionId, PromotionStatus targetStatus) {
+        Promotion promotion = getExistingPromotion(promotionId);
+
+        promotionValidator.validateStatusTransition(promotion, targetStatus);
+
+        return updateStatus(promotion, targetStatus);
+    }
+
+    private PromotionResponse updateStatus(Promotion promotion, PromotionStatus targetStatus) {
+        promotion.setStatus(targetStatus);
+
+        Promotion updatedPromotion = promotionRepository.save(promotion);
+
+        return promotionMapper.toResponse(updatedPromotion);
     }
 
     private Promotion getExistingPromotion(UUID promotionId) {

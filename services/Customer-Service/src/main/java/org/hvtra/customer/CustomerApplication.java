@@ -4,11 +4,15 @@ import org.hvtra.commonservice.config.FeignConfig;
 import org.hvtra.commonservice.config.SwaggerConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = "org.hvtra")
+@ConfigurationPropertiesScan(basePackages = "org.hvtra.customer.config")
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
+@EnableScheduling
 @Import(SwaggerConfig.class)
 public class CustomerApplication {
 

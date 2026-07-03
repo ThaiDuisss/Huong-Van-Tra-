@@ -42,7 +42,7 @@ export function CustomerDeleteDialog({
     }
 
     return (
-        <DialogContent className="w-[min(480px,calc(100vw-32px))]">
+        <DialogContent className="w-[min(520px,calc(100vw-32px))]">
             <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                     <Trash2 className="text-[#c4422e]" size={18} />
@@ -53,15 +53,17 @@ export function CustomerDeleteDialog({
                     vẫn được giữ lại.
                 </DialogDescription>
             </DialogHeader>
-            <div className="px-5 py-4 text-sm font-semibold text-[#425047]">
-                Bạn có chắc muốn xóa{" "}
-                <strong className="font-black text-[#172317]">
-                    {customer.fullName}
-                </strong>{" "}
-                ({customer.customerCode})?
+            <div className="px-6 py-5 text-sm font-semibold text-[#425047]">
+                <div className="rounded-xl border border-[#eef2f0] bg-[#f8faf9] p-4">
+                    Bạn có chắc muốn xóa{" "}
+                    <strong className="font-black text-[#172317]">
+                        {customer.fullName}
+                    </strong>{" "}
+                    ({customer.customerCode})?
+                </div>
                 {error && (
                     <div
-                        className="mt-4 flex gap-2 rounded-lg border border-[#f1c8c1] bg-[#fff5f3] p-3 text-xs font-bold text-[#a43a2a]"
+                        className="mt-4 flex gap-2 rounded-xl border border-[#f1c8c1] bg-[#fff5f3] p-3 text-sm font-bold text-[#a43a2a]"
                         role="alert"
                     >
                         <AlertCircle size={16} className="shrink-0" />

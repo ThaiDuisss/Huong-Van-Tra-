@@ -12,20 +12,19 @@ import org.hvtra.customer.dto.response.PageResponse;
 import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.infrastructure.client.OrderClient;
 import org.hvtra.customer.infrastructure.gateway.OrderGateway;
+import org.hvtra.customer.integration.event.OrderCompletedEvent;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.entity.LoyaltyPointRule;
 import org.hvtra.customer.model.enums.CustomerStatus;
-import org.hvtra.customer.model.enums.CustomerTierStatus;
+import org.hvtra.customer.model.enums.CustomerType;
 import org.hvtra.customer.model.enums.LoyaltyReferenceType;
 import org.hvtra.customer.model.enums.LoyaltyTransactionType;
 import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.repository.LoyaltyTransactionRepository;
-import org.hvtra.customer.service.CustomerService;
-import org.hvtra.customer.service.LoyaltyAccountService;
-import org.hvtra.customer.service.LoyaltyPointRuleService;
+import org.hvtra.customer.service.*;
 import org.hvtra.customer.specification.CustomerSpecification;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -34,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -47,6 +46,9 @@ public class CustomerServiceImpl implements CustomerService {
     private final LoyaltyPointRuleService loyaltyPointRuleService;
     private final LoyaltyTransactionRepository loyaltyTransactionRepository;
     private final OrderGateway orderGateway;
+    private final TierQualificationService  tierQualificationService;
+    private final TierAssignmentService  tierAssignmentService;
+    private final LoyaltyTierService loyaltyTierService;
 
     // Tìm kiếm khách hàng theo bộ lọc.
     @Override
@@ -75,13 +77,17 @@ public class CustomerServiceImpl implements CustomerService {
         CustomerRequest normalizedRequest = normalizeCreateRequest(request);
         ensureUniqueFields(normalizedRequest, null);
         Customer customer = new Customer();
-        customerMapper.update(customer, normalizedRequest, findTier(normalizedRequest.tierId()));
-        CustomerResponse response = customerMapper.toResponse(customerRepository.save(customer));
 
-        LoyaltyAccountRequest loyaltyAccountRequest = new LoyaltyAccountRequest(response.id(), 0);
+        CustomerTier initialTier = tierQualificationService.resolveQualifiedTier(BigDecimal.ZERO, 0);
+        customerMapper.update(customer, normalizedRequest, initialTier);
+
+        Customer savedCustomer = customerRepository.save(customer);
+        tierAssignmentService.assignInitialTier(savedCustomer, initialTier, LocalDateTime.now());
+
+        LoyaltyAccountRequest loyaltyAccountRequest = new LoyaltyAccountRequest(savedCustomer.getId(), 0);
         loyaltyAccountService.create(loyaltyAccountRequest);
 
-        return response;
+        return customerMapper.toResponse(savedCustomer);
     }
 
     // Cập nhật khách hàng sau khi chuẩn hóa và kiểm tra tính duy nhất
@@ -102,6 +108,16 @@ public class CustomerServiceImpl implements CustomerService {
     @Transactional
     public CustomerResponse updatePurchase(UUID orderId) {
         OrderClient.OrderResponse res = orderGateway.getOrderById(orderId);
+
+        OrderCompletedEvent event = new OrderCompletedEvent(
+                orderId,
+                res.orderCode(),
+                res.customerId(),
+                res.finalAmount(),
+                res.soldAt()
+        );
+
+        loyaltyTierService.recordPurchase(event);
 
         if (res.customerId() == null || res.finalAmount() == null || res.finalAmount().compareTo(BigDecimal.ZERO) < 0) {
             throw invalidRequest("Thông tin đơn hàng không hợp lệ");
@@ -141,14 +157,21 @@ public class CustomerServiceImpl implements CustomerService {
         BigDecimal currentTotalSpent = defaultMoney(customer.getTotalSpent());
         BigDecimal newTotalSpent = currentTotalSpent.add(res.finalAmount());
 
-        customer.setLastPurchaseDate(LocalDate.now());
+        customer.setLastPurchaseDate(java.time.LocalDateTime.now());
         customer.setTotalSpent(newTotalSpent);
-        customerTierRepository
-                .findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(
-                        newTotalSpent,
-                        CustomerTierStatus.ACTIVE
-                )
-                .ifPresent(customer::setTier);
+        customer.setTotalOrderCount(Math.max((customer.getTotalOrderCount() == null ? 0 : customer.getTotalOrderCount()) + 1, 0));
+        /*
+         * Tạm thời không dùng luồng nâng hạng cũ trong updatePurchase.
+         * Khi Kafka/loyalty tier event flow được bật lại ổn định, việc xét hạng
+         * nên đi qua LoyaltyTierService.recordPurchase(...) để ghi metric,
+         * transaction và tier assignment nhất quán.
+         */
+//        customerTierRepository
+//                .findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(
+//                        newTotalSpent,
+//                        CustomerTierStatus.ACTIVE
+//                )
+//                .ifPresent(customer::setTier);
 
         return customerMapper.toResponse(customerRepository.save(customer));
     }
@@ -161,6 +184,8 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setIsDeleted(true);
         customerRepository.save(customer);
     }
+
+    //======================================= Helper classes =======================================
 
     // Tìm khách hàng chưa bị xóa hoặc ném lỗi nếu không tồn tại.
     private Customer findCustomer(UUID id) {
@@ -219,10 +244,12 @@ public class CustomerServiceImpl implements CustomerService {
                 request.phone(),
                 request.email(),
                 request.dateOfBirth(),
+                request.customerType() != null ? request.customerType() : CustomerType.INDIVIDUAL,
                 request.tierId(),
                 request.creditLimit(),
                 request.lastPurchaseDate(),
                 request.totalSpent(),
+                request.totalOrderCount(),
                 request.status() != null ? request.status() : CustomerStatus.ACTIVE
         );
     }
@@ -235,10 +262,12 @@ public class CustomerServiceImpl implements CustomerService {
                 request.phone(),
                 request.email(),
                 request.dateOfBirth(),
+                request.customerType() != null ? request.customerType() : customer.getCustomerType(),
                 request.tierId(),
                 request.creditLimit(),
                 request.lastPurchaseDate(),
                 request.totalSpent(),
+                request.totalOrderCount(),
                 request.status() != null ? request.status() : customer.getStatus()
         );
     }

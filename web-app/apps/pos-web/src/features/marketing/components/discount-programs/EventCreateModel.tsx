@@ -1,0 +1,375 @@
+import { ChevronDown, X } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+
+import {
+    getEventAudienceLabel,
+    getEventTypeLabel
+} from "../../utils/event-labels";
+import {
+    getFirstEventFormError,
+    hasEventFormErrors,
+    normalizeEventPayload,
+    validateEventForm,
+    type EventFormErrors
+} from "../../utils/event-form-validation";
+import { eventApi } from "../../services/event.api";
+import styles from "../discount-programs/DiscountProgramPage.module.css";
+import type {
+    EventCreateRequest,
+    EventResponse
+} from "../../types/event.types";
+
+interface EventCreateModalProps {
+    open: boolean;
+    onClose(): void;
+    onCreated(event: EventResponse): void;
+}
+
+const initialForm: EventCreateRequest = {
+    name: "",
+    description: "",
+    startAt: "",
+    endAt: "",
+    eventType: "",
+    audience: ""
+};
+
+export function EventCreateModal({
+    open,
+    onClose,
+    onCreated
+}: EventCreateModalProps) {
+    const [form, setForm] = useState<EventCreateRequest>(initialForm);
+    const [eventTypes, setEventTypes] = useState<string[]>([]);
+    const [eventAudiences, setEventAudiences] = useState<string[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<EventFormErrors>({});
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        async function loadOptions() {
+            try {
+                const [types, audiences] = await Promise.all([
+                    eventApi.eventTypes(),
+                    eventApi.eventAudiences()
+                ]);
+
+                setEventTypes(types);
+                setEventAudiences(audiences);
+                setError(null);
+                setFieldErrors({});
+
+                setForm((current) => ({
+                    ...current,
+                    eventType: current.eventType || types[0] || "",
+                    audience: current.audience || audiences[0] || ""
+                }));
+            } catch (err) {
+                console.error("Không thể tải enum event", err);
+                setError("Không thể tải dữ liệu loại sự kiện.");
+            }
+        }
+
+        void loadOptions();
+    }, [open]);
+
+    if (!open) {
+        return null;
+    }
+
+    function updateField<K extends keyof EventCreateRequest>(
+        key: K,
+        value: EventCreateRequest[K]
+    ) {
+        setForm((current) => ({
+            ...current,
+            [key]: value
+        }));
+        setFieldErrors((current) => ({
+            ...current,
+            [key]: undefined
+        }));
+    }
+
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        const validationErrors = validateEventForm(form);
+
+        if (hasEventFormErrors(validationErrors)) {
+            setFieldErrors(validationErrors);
+            setError(getFirstEventFormError(validationErrors));
+            return;
+        }
+
+        if (!form.name.trim()) {
+            setError("Tên sự kiện là bắt buộc.");
+            return;
+        }
+
+        if (!form.startAt || !form.endAt) {
+            setError("Vui lòng chọn thời gian bắt đầu và kết thúc.");
+            return;
+        }
+
+        if (new Date(form.startAt).getTime() >= new Date(form.endAt).getTime()) {
+            setError("Thời gian kết thúc phải sau thời gian bắt đầu.");
+            return;
+        }
+
+        if (!form.eventType) {
+            setError("Vui lòng chọn loại sự kiện.");
+            return;
+        }
+
+        if (!form.audience) {
+            setError("Vui lòng chọn đối tượng áp dụng.");
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+            setError(null);
+            setFieldErrors({});
+
+            const createdEvent = await eventApi.create(
+                normalizeEventPayload(form)
+            );
+
+            setForm(initialForm);
+            setFieldErrors({});
+            onCreated(createdEvent);
+            onClose();
+        } catch (err) {
+            console.error("Không thể tạo sự kiện", err);
+            setError("Không thể tạo sự kiện. Vui lòng kiểm tra dữ liệu.");
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+            <section className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+                <header className="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-[#17213a]">
+                            Tạo sự kiện khuyến mãi
+                        </h2>
+
+                        <p className="mt-1 text-sm font-medium text-[#667085]">
+                            Sự kiện dùng để nhóm các chương trình giảm giá,
+                            coupon và campaign marketing.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-lg p-2 hover:bg-[#f2f4f7]"
+                        aria-label="Đóng form"
+                    >
+                        <X size={20} aria-hidden="true" />
+                    </button>
+                </header>
+
+                {error ? (
+                    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                        {error}
+                    </div>
+                ) : null}
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <label className="block">
+                        <span className="mb-1 block text-sm font-bold text-[#344054]">
+                            Tên sự kiện
+                        </span>
+
+                        <input
+                            value={form.name}
+                            onChange={(event) =>
+                                updateField("name", event.currentTarget.value)
+                            }
+                            placeholder="Tet Holiday Campaign 2027"
+                            className="w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#009b4d]"
+                        />
+                        {fieldErrors.name ? (
+                            <span className={styles.fieldError}>
+                                {fieldErrors.name}
+                            </span>
+                        ) : null}
+                    </label>
+
+                    <label className="block">
+                        <span className="mb-1 block text-sm font-bold text-[#344054]">
+                            Mô tả
+                        </span>
+
+                        <textarea
+                            value={form.description}
+                            onChange={(event) =>
+                                updateField(
+                                    "description",
+                                    event.currentTarget.value
+                                )
+                            }
+                            placeholder="Chiến dịch khuyến mãi Tết cho toàn bộ khách hàng"
+                            rows={3}
+                            className="w-full resize-none rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#009b4d]"
+                        />
+                        {fieldErrors.description ? (
+                            <span className={styles.fieldError}>
+                                {fieldErrors.description}
+                            </span>
+                        ) : null}
+                    </label>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <label className="block">
+                            <span className="mb-1 block text-sm font-bold text-[#344054]">
+                                Thời gian bắt đầu
+                            </span>
+
+                            <input
+                                type="datetime-local"
+                                value={form.startAt}
+                                onChange={(event) =>
+                                    updateField(
+                                        "startAt",
+                                        event.currentTarget.value
+                                    )
+                                }
+                                className="w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#009b4d]"
+                            />
+                            {fieldErrors.startAt ? (
+                                <span className={styles.fieldError}>
+                                    {fieldErrors.startAt}
+                                </span>
+                            ) : null}
+                        </label>
+
+                        <label className="block">
+                            <span className="mb-1 block text-sm font-bold text-[#344054]">
+                                Thời gian kết thúc
+                            </span>
+
+                            <input
+                                type="datetime-local"
+                                value={form.endAt}
+                                onChange={(event) =>
+                                    updateField(
+                                        "endAt",
+                                        event.currentTarget.value
+                                    )
+                                }
+                                className="w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#009b4d]"
+                            />
+                            {fieldErrors.endAt ? (
+                                <span className={styles.fieldError}>
+                                    {fieldErrors.endAt}
+                                </span>
+                            ) : null}
+                        </label>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <label className="block">
+                            <span className="mb-1 block text-sm font-bold text-[#344054]">
+                                Loại sự kiện
+                            </span>
+
+                            <div className="relative">
+                                <select
+                                    value={form.eventType}
+                                    onChange={(event) =>
+                                        updateField(
+                                            "eventType",
+                                            event.currentTarget.value
+                                        )
+                                    }
+                                    className="w-full appearance-none rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 pr-11 text-sm font-semibold outline-none focus:border-[#009b4d]"
+                                >
+                                    {eventTypes.map((type) => (
+                                        <option key={type} value={type}>
+                                            {getEventTypeLabel(type)}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                <ChevronDown
+                                    size={18}
+                                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#667085]"
+                                    aria-hidden="true"
+                                />
+                            </div>
+                            {fieldErrors.eventType ? (
+                                <span className={styles.fieldError}>
+                                    {fieldErrors.eventType}
+                                </span>
+                            ) : null}
+                        </label>
+
+                        <label className="block">
+                            <span className="mb-1 block text-sm font-bold text-[#344054]">
+                                Đối tượng áp dụng
+                            </span>
+
+                            <div className="relative">
+                                <select
+                                    value={form.audience}
+                                    onChange={(event) =>
+                                        updateField(
+                                            "audience",
+                                            event.currentTarget.value
+                                        )
+                                    }
+                                    className="w-full appearance-none rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 pr-11 text-sm font-semibold outline-none focus:border-[#009b4d]"
+                                >
+                                    {eventAudiences.map((audience) => (
+                                        <option key={audience} value={audience}>
+                                            {getEventAudienceLabel(audience)}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                <ChevronDown
+                                    size={18}
+                                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#667085]"
+                                    aria-hidden="true"
+                                />
+                            </div>
+                            {fieldErrors.audience ? (
+                                <span className={styles.fieldError}>
+                                    {fieldErrors.audience}
+                                </span>
+                            ) : null}
+                        </label>
+                    </div>
+
+                    <footer className="mt-6 flex justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className={styles.secondaryButton}
+                            disabled={submitting}
+                        >
+                            Hủy
+                        </button>
+
+                        <button
+                            type="submit"
+                            className={styles.primaryButton}
+                            disabled={submitting}
+                        >
+                            {submitting ? "Đang tạo..." : "Tạo sự kiện"}
+                        </button>
+                    </footer>
+                </form>
+            </section>
+        </div>
+    );
+}

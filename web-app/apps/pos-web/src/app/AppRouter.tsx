@@ -3,9 +3,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
 import { BomListPage } from "../features/manufacturing/pages/BomListPage";
+import { BomDetailPage } from "../features/manufacturing/pages/BomDetailPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
+import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
@@ -16,7 +18,6 @@ import { InventoryTransactionPage } from "../features/inventory/pages/InventoryT
 import { DiscountCodeListPage } from "../features/marketing/pages/DiscountCodeListPage";
 import { DiscountProgramDetailPage } from "../features/marketing/pages/DiscountProgramDetailPage";
 import { DiscountProgramListPage } from "../features/marketing/pages/DiscountProgramListPage";
-import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagementPage";
 import { CategoryListPage } from "../features/product/pages/CategoryListPage";
 import { UnitListPage } from "../features/product/pages/UnitListPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
@@ -117,10 +118,6 @@ export function AppRouter() {
                     element={<InventoryLocationPage />}
                 />
                 <Route
-                    path="inventory/shelves"
-                    element={<ShelfManagementPage />}
-                />
-                <Route
                     path="inventory/transactions"
                     element={<InventoryTransactionPage />}
                 />
@@ -161,8 +158,16 @@ export function AppRouter() {
                     element={<DiscountProgramListPage />}
                 />
                 <Route
+                    path="customers/tiers"
+                    element={<CustomerTierManagementPage />}
+                />
+                <Route
                     path="manufacturing/boms"
                     element={<BomListPage />}
+                />
+                <Route
+                    path="manufacturing/boms/:id"
+                    element={<BomDetailPage />}
                 />
                 <Route
                     path="manufacturing/production-orders"

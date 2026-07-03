@@ -52,10 +52,18 @@ export const appRoutes = {
     customerGroups: {
         path: routePaths.customerGroups
     },
+    customerTiers: {
+        path: routePaths.customerTiers
+    },
     manufacturingBoms: {
         path: routePaths.bomList
+    },
+    manufacturingBomDetail: {
+        path: routePaths.bomDetail
     },
     productionOrders: {
         path: routePaths.productionOrders
     }
+    
 } as const;
+

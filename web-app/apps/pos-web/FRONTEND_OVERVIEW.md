@@ -100,7 +100,7 @@ src/main.tsx
 | `/system/product-variants/:id` | Chi tiết Mặt hàng |
 | `/system/price-lists` | Danh sách bảng giá |
 | `/system/price-lists/:id` | Chi tiết bảng giá |
-| `/system/manufacturing/boms` | Danh sách BOM |
+| `/system/manufacturing/boms` | Danh sách công thức |
 | `/system/manufacturing/production-orders` | Danh sách lệnh sản xuất |
 | URL không tồn tại | Trang 404 |
 
