@@ -15,13 +15,27 @@ public class BomMapper {
     }
 
     public BomResponse toResponse(Bom bom) {
+        String sku = bom.getProductVariant() != null ? bom.getProductVariant().getSku() : null;
+        String variantName = bom.getProductVariant() != null ? bom.getProductVariant().getVariantName() : null;
+        String productName = bom.getProductVariant() != null && bom.getProductVariant().getProduct() != null
+                ? bom.getProductVariant().getProduct().getName() : null;
+
         return new BomResponse(
                 bom.getId(),
                 bom.getProductVariantId(),
+                sku,
+                variantName,
+                productName,
+                bom.getName(),
+                bom.getBomCode(),
+                bom.isDefault(),
                 bom.getBomVersion(),
                 bom.getStatus(),
+                bom.getDescription(),
                 bom.getEffectiveFrom(),
                 bom.getEffectiveTo(),
+                bom.getCreatedAt(),
+                bom.getUpdatedAt(),
                 bom.getItems().stream().map(item -> new BomResponse.ItemResponse(
                         item.getId(),
                         ingredientMapper.toResponse(item.getIngredient()),

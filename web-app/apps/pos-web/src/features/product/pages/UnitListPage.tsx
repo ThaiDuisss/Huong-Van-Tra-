@@ -58,7 +58,7 @@ export function UnitListPage() {
     return (
         <CatalogResourceManagement
             title="Đơn vị tính"
-            description="Quản lý các đơn vị tính dùng cho sản phẩm và biến thể."
+            description="Quản lý các đơn vị tính dùng cho sản phẩm và Mặt hàng."
             createLabel="Tạo đơn vị"
             searchPlaceholder="Tìm tên hoặc ký hiệu đơn vị..."
             totalItemsLabel="Tổng số đơn vị"

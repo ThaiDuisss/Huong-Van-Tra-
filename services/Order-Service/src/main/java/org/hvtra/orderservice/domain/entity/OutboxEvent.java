@@ -1,4 +1,4 @@
-package org.hvtra.paymentservice.outbox.entity;
+package org.hvtra.orderservice.domain.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Index;

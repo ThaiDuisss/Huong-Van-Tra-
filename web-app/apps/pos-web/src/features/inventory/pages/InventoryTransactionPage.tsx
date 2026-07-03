@@ -81,9 +81,9 @@ export function InventoryTransactionPage() {
             />
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
                     {/* Search */}
-                    <div className="relative w-full sm:w-[320px] md:w-[400px]">
+                    <div className="relative flex-1">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         <input
                             type="text"

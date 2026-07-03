@@ -7,14 +7,16 @@ import org.hvtra.paymentservice.domain.entity.Payment;
 import org.hvtra.paymentservice.domain.entity.PaymentAttempt;
 import org.hvtra.paymentservice.domain.entity.PaymentTransaction;
 import org.hvtra.paymentservice.domain.entity.PaymentWebhookEvent;
-import org.hvtra.paymentservice.domain.enums.*;
-import org.hvtra.paymentservice.dto.event.PaymentEventPayload;
+import org.hvtra.paymentservice.domain.enums.PaymentAttemptStatus;
+import org.hvtra.paymentservice.domain.enums.PaymentMethod;
+import org.hvtra.paymentservice.domain.enums.PaymentProvider;
+import org.hvtra.paymentservice.domain.enums.PaymentStatus;
+import org.hvtra.paymentservice.domain.enums.PaymentTransactionStatus;
+import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
+import org.hvtra.paymentservice.domain.enums.SepayWebhookStatus;
 import org.hvtra.paymentservice.dto.request.SepayWebhookRequest;
 import org.hvtra.paymentservice.dto.response.SepayWebhookResponse;
-import org.hvtra.paymentservice.outbox.entity.OutboxEvent;
-import org.hvtra.paymentservice.outbox.event.PaymentEventType;
-import org.hvtra.paymentservice.outbox.factory.PaymentOutboxEventFactory;
-import org.hvtra.paymentservice.outbox.repository.OutboxEventRepository;
+import org.hvtra.paymentservice.outbox.service.PaymentOutboxPublisher;
 import org.hvtra.paymentservice.repository.PaymentAttemptRepository;
 import org.hvtra.paymentservice.repository.PaymentRepository;
 import org.hvtra.paymentservice.repository.PaymentTransactionRepository;
@@ -24,15 +26,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Map;
-import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,28 +38,26 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class SepayWebhookService {
 
-    private final SepayProperties properties;
     private static final String CURRENCY_VND = "VND";
     private static final String TRANSFER_IN = "in";
     private static final DateTimeFormatter SEPAY_DATE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
-     * Payment code hiện tại của bạn đang generate dạng HVTRA + yyMMddHHmmssSSS.
-     * Regex này dùng để fallback nếu SePay không fill field code.
+     * Payment code hiện tại generate dạng HVTRA + yyMMddHHmmssSSS.
+     * Dùng fallback khi SePay không truyền field code.
      */
     private static final Pattern PAYMENT_CODE_PATTERN =
             Pattern.compile("\\bHVTRA[A-Z0-9]{6,30}\\b", Pattern.CASE_INSENSITIVE);
 
+    private final SepayProperties properties;
     private final ObjectMapper objectMapper;
 
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaymentWebhookEventRepository paymentWebhookEventRepository;
-
-    private final OutboxEventRepository outboxEventRepository;
-    private final PaymentOutboxEventFactory paymentOutboxEventFactory;
+    private final PaymentOutboxPublisher paymentOutboxPublisher;
 
     @Transactional
     public SepayWebhookResponse handle(
@@ -149,6 +145,15 @@ public class SepayWebhookService {
                 .rawPayload(rawBody)
                 .build();
 
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            transaction.setStatus(PaymentTransactionStatus.DUPLICATE);
+            transaction.setReviewReason("Payment đã PAID trước đó");
+            PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
+            webhookEvent.markProcessed(payment.getId());
+            paymentWebhookEventRepository.save(webhookEvent);
+            return SepayWebhookResponse.of(true);
+        }
+
         if (paidAmount.compareTo(expectedAmount) == 0) {
             markPaymentSucceeded(payment, attempt, transaction, paidAmount, paidAt);
             webhookEvent.markProcessed(payment.getId());
@@ -158,13 +163,7 @@ public class SepayWebhookService {
             Payment savedPayment = paymentRepository.save(payment);
             paymentWebhookEventRepository.save(webhookEvent);
 
-            savePaymentOutboxEvent(
-                    savedPayment,
-                    PaymentEventType.PAYMENT_SUCCEEDED,
-                    stableEventKey(PaymentEventType.PAYMENT_SUCCEEDED, savedPayment.getId().toString()),
-                    toEventPayload(savedPayment, attempt, savedTransaction, null)
-            );
-
+            paymentOutboxPublisher.publishSucceeded(savedPayment, savedTransaction);
             return SepayWebhookResponse.of(true);
         }
 
@@ -181,13 +180,7 @@ public class SepayWebhookService {
         Payment savedPayment = paymentRepository.save(payment);
         paymentWebhookEventRepository.save(webhookEvent);
 
-        savePaymentOutboxEvent(
-                savedPayment,
-                PaymentEventType.PAYMENT_NEED_REVIEW,
-                stableEventKey(PaymentEventType.PAYMENT_NEED_REVIEW, savedTransaction.getId().toString()),
-                toEventPayload(savedPayment, attempt, savedTransaction, reason)
-        );
-
+        paymentOutboxPublisher.publishNeedReview(savedPayment, attempt, savedTransaction, reason);
         return SepayWebhookResponse.of(true);
     }
 
@@ -208,34 +201,6 @@ public class SepayWebhookService {
                     "Invalid SePay webhook authorization"
             );
         }
-    }
-
-
-    private PaymentEventPayload toEventPayload(
-            Payment payment,
-            PaymentAttempt attempt,
-            PaymentTransaction transaction,
-            String reason
-    ) {
-        return new PaymentEventPayload(
-                payment.getId(),
-                attempt == null ? null : attempt.getId(),
-                transaction == null ? null : transaction.getId(),
-                payment.getPaymentCode(),
-                payment.getOrderId(),
-                payment.getOrderCode(),
-                payment.getCustomerId(),
-                payment.getSagaId(),
-                payment.getMethod().name(),
-                payment.getProvider().name(),
-                payment.getStatus().name(),
-                payment.getAmountRequired(),
-                payment.getAmountPaid(),
-                payment.getCurrency(),
-                transaction == null ? payment.getCompletedAt() : transaction.getPaidAt(),
-                payment.getExpiresAt(),
-                reason
-        );
     }
 
     private SepayWebhookRequest parseRequest(String rawBody) {
@@ -323,7 +288,6 @@ public class SepayWebhookService {
         transaction.setReviewReason(reason);
     }
 
-
     private String resolvePaymentCode(SepayWebhookRequest request) {
         if (request == null) {
             return null;
@@ -367,37 +331,5 @@ public class SepayWebhookService {
         }
 
         return value.setScale(0, RoundingMode.HALF_UP);
-    }
-
-    private void savePaymentOutboxEvent(
-            Payment payment,
-            String eventType,
-            UUID eventKey,
-            PaymentEventPayload payload
-    ) {
-        Map<String, Object> headers = Map.of(
-                "sourceService", "Payment-Service",
-                "sagaId", payment.getSagaId().toString(),
-                "orderId", payment.getOrderId().toString()
-        );
-
-        OutboxEvent event = paymentOutboxEventFactory.create(
-                "Payment",
-                payment.getId(),
-                eventType,
-                eventKey,
-                payload,
-                headers
-        );
-
-        event.setCorrelationId(payment.getSagaId().toString());
-
-        outboxEventRepository.save(event);
-    }
-
-    private UUID stableEventKey(String eventType, String uniqueBusinessKey) {
-        return UUID.nameUUIDFromBytes(
-                (eventType + ":" + uniqueBusinessKey).getBytes(StandardCharsets.UTF_8)
-        );
     }
 }

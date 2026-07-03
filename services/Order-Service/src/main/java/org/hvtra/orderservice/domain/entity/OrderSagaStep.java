@@ -21,7 +21,6 @@ import org.hvtra.commonservice.kafka.saga.domain.BaseSagaStep;
 @Setter
 @SuperBuilder
 @NoArgsConstructor
-@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class OrderSagaStep extends BaseSagaStep {
 }

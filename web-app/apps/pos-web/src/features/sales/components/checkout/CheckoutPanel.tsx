@@ -12,6 +12,7 @@ import { ReturnMoneyAction } from "./ReturnMoneyAction";
 import { BankTransferDialog } from "../dialogs/BankTransferDialog";
 import { CombinedPaymentDialog } from "../dialogs/CombinedPaymentDialog";
 import type { PaymentStatusValue } from "../dialogs/PaymentStatus";
+import type { PosCheckoutPaymentResult } from "../../services/posCheckout.service";
 import type {
     SaleCustomer,
     SaleDiscountOption,
@@ -29,7 +30,9 @@ interface CheckoutPanelProps {
     changeAmount: number;
     orderType: SaleOrderType;
     paymentMethod: SalePaymentMethod;
+    bankTransferReferenceCode?: string;
     bankTransferStatus: PaymentStatusValue;
+    bankTransferPayment: PosCheckoutPaymentResult | null;
     checkoutLoading: boolean;
     checkoutError: string;
     checkoutSuccess: string;
@@ -48,10 +51,9 @@ interface CheckoutPanelProps {
     onBankTransferCancel(): void;
     onBankTransferConfirm(): void;
     onBankTransferRefresh(): void;
+    onBankTransferStart(): void;
     onCompletePayment(): void;
 }
-
-const bankTransferReferenceCode = "HVT-HD000015";
 
 export function CheckoutPanel({
     discounts,
@@ -62,7 +64,9 @@ export function CheckoutPanel({
     changeAmount,
     orderType,
     paymentMethod,
+    bankTransferReferenceCode,
     bankTransferStatus,
+    bankTransferPayment,
     checkoutLoading,
     checkoutError,
     checkoutSuccess,
@@ -81,6 +85,7 @@ export function CheckoutPanel({
     onBankTransferCancel,
     onBankTransferConfirm,
     onBankTransferRefresh,
+    onBankTransferStart,
     onCompletePayment
 }: CheckoutPanelProps) {
     const [bankTransferOpen, setBankTransferOpen] = useState(false);
@@ -144,6 +149,7 @@ export function CheckoutPanel({
 
                     if (value === "BANK_TRANSFER") {
                         setBankTransferOpen(true);
+                        onBankTransferStart();
                     }
 
                     if (value === "COMBINED") {
@@ -176,8 +182,11 @@ export function CheckoutPanel({
                 >
                     <BankTransferDialog
                         amount={totals.total}
-                        status={bankTransferStatus}
                         referenceCode={bankTransferReferenceCode}
+                        status={bankTransferStatus}
+                        payment={bankTransferPayment}
+                        loading={checkoutLoading && !bankTransferPayment}
+                        error={checkoutError}
                         onClose={() => setBankTransferOpen(false)}
                         onCancel={onBankTransferCancel}
                         onConfirmReceived={onBankTransferConfirm}

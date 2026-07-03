@@ -16,7 +16,7 @@ public interface CatalogClient {
     ProductVariantPosViewResponse getProductVariantPosView(@PathVariable("variantId") UUID variantId);
 
     /**
-     * Lấy BOM (Bill of Materials) đang hoạt động của một biến thể sản phẩm.
+     * Lấy BOM (Bill of Materials) đang hoạt động của một Mặt hàng.
      * Dùng để tính toán nguyên liệu cần trừ kho khi đơn hàng hoàn thành.
      *
      * TODO: Endpoint này cần được implement trong Catalog-Service (BomController).
