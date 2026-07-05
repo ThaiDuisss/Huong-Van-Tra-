@@ -9,8 +9,11 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.UUID;
 
+import org.hvtra.catalog.dto.response.LookupResponse;
+
 public interface UnitService {
     PageResponse<UnitResponse> findAll(String name, Status status, org.hvtra.catalog.enums.UnitType type, Pageable pageable);
+    PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     List<UnitResponse> findAll();
     UnitResponse create(UnitRequest request);
     UnitResponse update(UUID id, UnitRequest request);

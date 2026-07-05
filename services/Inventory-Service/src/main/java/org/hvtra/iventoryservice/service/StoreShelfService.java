@@ -14,6 +14,8 @@ import java.util.UUID;
  */
 public interface StoreShelfService {
     PageResponse<InventoryLocationResponse> findAll(String query, InventoryStatus status, Pageable pageable);
+    PageResponse<org.hvtra.iventoryservice.dto.response.LookupResponse> lookup(String search, Pageable pageable);
+
     InventoryLocationResponse findById(UUID id);
     InventoryLocationResponse create(StoreShelfRequest request);
     InventoryLocationResponse update(UUID id, StoreShelfRequest request);

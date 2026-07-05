@@ -17,6 +17,11 @@ export const unitApi = {
     listAll() {
         return apiClient.get<Unit[]>("/catalog/units");
     },
+    lookup(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/units/lookup", {
+            query: { search, page, size }
+        });
+    },
     detail(id: string) {
         return apiClient.get<Unit>(`/catalog/units/${encodeURIComponent(id)}`);
     },

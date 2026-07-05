@@ -126,7 +126,7 @@ export function SearchableDropdown({
 
             {/* Menu Dropdown */}
             {isOpen && (
-                <div className="absolute z-50 mt-1.5 w-full min-w-[220px] rounded-xl border border-pos-border bg-white shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute z-50 mt-1.5 w-full rounded-xl border border-pos-border bg-white shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                     {/* Ô Search */}
                     <div className="p-2 border-b border-pos-border bg-neutral-50/50">
                         <div className="relative">

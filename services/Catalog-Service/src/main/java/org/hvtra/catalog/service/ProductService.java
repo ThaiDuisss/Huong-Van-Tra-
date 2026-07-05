@@ -9,9 +9,12 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
 
+import org.hvtra.catalog.dto.response.LookupResponse;
+
 public interface ProductService {
     PageResponse<ProductSummaryResponse> findAll(
             String name, UUID categoryId, Status status, Pageable pageable);
+    PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     ProductResponse findById(UUID id);
     ProductResponse create(ProductRequest request);
     ProductResponse update(UUID id, ProductRequest request);

@@ -4,6 +4,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.hvtra.catalog.dto.request.UnitRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.UnitResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.enums.UnitType;
@@ -12,6 +13,7 @@ import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.UnitMapper;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.UnitService;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -50,6 +52,22 @@ public class UnitServiceImpl implements UnitService {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
+    }
+
+    @Override
+    public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
+        Page<Unit> page = repository.findByNameContainingIgnoreCase(search, pageable);
+        return new PageResponse<>(
+                page.getContent().stream()
+                        .map(u -> new LookupResponse(u.getId().toString(), u.getName()))
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
+        );
     }
 
     @Override

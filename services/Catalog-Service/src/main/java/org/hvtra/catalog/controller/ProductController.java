@@ -7,6 +7,7 @@ import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductSummaryResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductService;
 import org.hvtra.catalog.service.ProductVariantService;
@@ -44,6 +45,13 @@ public class ProductController {
             @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.findAll(name, categoryId, status, pageable);
+    }
+
+    @GetMapping("/lookup")
+    public PageResponse<LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        return service.lookup(search, pageable);
     }
 
     @GetMapping("/{id}")

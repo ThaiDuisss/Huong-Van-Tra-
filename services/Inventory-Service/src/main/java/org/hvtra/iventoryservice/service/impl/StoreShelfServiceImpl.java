@@ -33,11 +33,21 @@ public class StoreShelfServiceImpl implements StoreShelfService {
         this.mapper = mapper;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Public API
-    // ─────────────────────────────────────────────────────────────────────────
+    public PageResponse<org.hvtra.iventoryservice.dto.response.LookupResponse> lookup(String search, Pageable pageable) {
+        org.springframework.data.domain.Page<InventoryLocation> page = repository.findByNameContainingIgnoreCaseAndType(search, org.hvtra.iventoryservice.enums.InventoryLocationType.SHELF, pageable);
+        return new PageResponse<>(
+                page.getContent().stream()
+                        .map(shelf -> new org.hvtra.iventoryservice.dto.response.LookupResponse(shelf.getId().toString(), shelf.getName()))
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
+        );
+    }
 
-    @Override
     public PageResponse<InventoryLocationResponse> findAll(
             String query,
             InventoryStatus status,

@@ -6,6 +6,7 @@ import org.hvtra.catalog.client.FileClient;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.request.ProductRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductSummaryResponse;
 import org.hvtra.catalog.entity.Category;
@@ -94,6 +95,22 @@ public class ProductServiceImpl implements ProductService {
                 productPage.getTotalPages(),
                 productPage.isFirst(),
                 productPage.isLast()
+        );
+    }
+
+    @Override
+    public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
+        Page<Product> page = productRepository.findByNameContainingIgnoreCase(search, pageable);
+        return new PageResponse<>(
+                page.getContent().stream()
+                        .map(p -> new LookupResponse(p.getId().toString(), p.getName()))
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
         );
     }
 

@@ -35,6 +35,13 @@ public class StoreShelfController {
         this.service = service;
     }
 
+    @GetMapping("/lookup")
+    public PageResponse<org.hvtra.iventoryservice.dto.response.LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        return service.lookup(search, pageable);
+    }
+
     @GetMapping
     public PageResponse<InventoryLocationResponse> findAll(
             @RequestParam(name = "query", required = false) String query,

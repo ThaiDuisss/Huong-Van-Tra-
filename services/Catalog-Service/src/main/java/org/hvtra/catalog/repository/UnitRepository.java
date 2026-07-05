@@ -7,4 +7,5 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import java.util.UUID;
 
 public interface UnitRepository extends JpaRepository<Unit, UUID>, JpaSpecificationExecutor<Unit> {
+    org.springframework.data.domain.Page<Unit> findByNameContainingIgnoreCase(String name, org.springframework.data.domain.Pageable pageable);
 }

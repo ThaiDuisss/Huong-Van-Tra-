@@ -333,7 +333,7 @@ export function BomListPage() {
                             onLoadMore={handleLoadMoreCategories}
                             hasMore={categoryHasMore}
                             loading={categoryLoading}
-                            placeholder="Tất cả danh mục"
+                            placeholder="Chọn danh mục"
                         />
                         <input
                             type="number"

@@ -20,4 +20,10 @@ public interface InventoryLocationRepository
             org.hvtra.iventoryservice.enums.InventoryLocationType type,
             org.hvtra.iventoryservice.enums.InventoryStatus status
     );
+
+    org.springframework.data.domain.Page<InventoryLocation> findByNameContainingIgnoreCaseAndType(
+            String name,
+            org.hvtra.iventoryservice.enums.InventoryLocationType type,
+            org.springframework.data.domain.Pageable pageable
+    );
 }

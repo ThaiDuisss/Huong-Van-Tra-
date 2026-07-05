@@ -5,6 +5,7 @@ import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.request.UnitRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.UnitResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.enums.UnitType;
 import org.hvtra.catalog.service.UnitService;
@@ -32,6 +33,13 @@ public class UnitController {
             @RequestParam(name = "type", required = false) UnitType type,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.findAll(name, status, type, pageable);
+    }
+
+    @GetMapping("/lookup")
+    public PageResponse<LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        return service.lookup(search, pageable);
     }
 
     @PostMapping("/batch")

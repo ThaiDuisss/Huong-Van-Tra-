@@ -76,19 +76,16 @@ public interface InventoryBalanceRepository
             @Param("variantIds") java.util.Collection<UUID> variantIds,
             @Param("itemType") org.hvtra.iventoryservice.enums.InventoryItemType itemType,
             @Param("warehouseId") UUID warehouseId);
-}
 
     @Query("""
             select b from InventoryBalance b
             join fetch b.inventoryItem i
             where i.id in :inventoryItemIds
             """)
-    List<InventoryBalance> findActiveWarehouseBalancesByInventoryItemIds(
-            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds
+    java.util.List<InventoryBalance> findActiveWarehouseBalancesByInventoryItemIds(
+            @Param("inventoryItemIds") java.util.Collection<UUID> inventoryItemIds
 //            @Param("warehouseId") UUID warehouseId,
 //            @Param("locationType") InventoryLocationType locationType,
 //            @Param("locationStatus") InventoryStatus locationStatus
     );
-
-    Optional<InventoryBalance> findByInventoryItemIdAndLocationId(UUID itemId, UUID newLocation);
 }
