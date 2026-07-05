@@ -1,6 +1,6 @@
 import { apiClient } from "../../../api/api-client";
 import type { PageResult } from "../../product/types/product.types";
-import type { BomResponse, BomInput, BomQuery } from "../types/bom.types";
+import type { BomResponse, BomInput, BomQuery, LookupItem } from "../types/bom.types";
 
 export const bomApi = {
     list(query: BomQuery = {}) {
@@ -9,10 +9,15 @@ export const bomApi = {
                 page: query.page,
                 size: query.size,
                 search: query.search,
-                productId: query.productId,
-                productVariantId: query.productVariantId,
+                categoryId: query.categoryId,
+                version: query.version,
                 status: query.status
             }
+        });
+    },
+    lookupVersions(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<LookupItem>>("/catalog/boms/versions/lookup", {
+            query: { search, page, size }
         });
     },
     detail(id: string) {

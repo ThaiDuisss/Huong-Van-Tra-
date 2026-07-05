@@ -5,6 +5,7 @@ import org.hvtra.catalog.dto.request.CategoryRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.response.CategoryResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.CategoryService;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,13 @@ public class CategoryController {
             @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.findAll(name, status, pageable);
+    }
+
+    @GetMapping("/lookup")
+    public PageResponse<LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        return service.lookup(search, pageable);
     }
 
     @GetMapping("/{id}")

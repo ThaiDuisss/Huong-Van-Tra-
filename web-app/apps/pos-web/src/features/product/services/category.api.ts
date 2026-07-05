@@ -17,6 +17,11 @@ export const categoryApi = {
             }
         });
     },
+    lookup(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/categories/lookup", {
+            query: { search, page, size }
+        });
+    },
     detail(id: string) {
         return apiClient.get<Category>(
             `/catalog/categories/${encodeURIComponent(id)}`

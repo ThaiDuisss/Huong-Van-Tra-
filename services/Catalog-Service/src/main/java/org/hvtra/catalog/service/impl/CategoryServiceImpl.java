@@ -4,6 +4,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.hvtra.catalog.dto.request.CategoryRequest;
 import org.hvtra.catalog.dto.response.CategoryResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
@@ -140,6 +141,11 @@ public class CategoryServiceImpl implements CategoryService {
         return repository.findAllById(ids).stream()
                 .map(mapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
+        return PageResponse.from(repository.findLookup(search, pageable));
     }
 }
 

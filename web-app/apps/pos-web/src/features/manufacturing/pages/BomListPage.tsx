@@ -7,16 +7,17 @@ import { routePaths } from "../../../routes/path";
 import { PageHeader } from "../components/shared/PageHeader";
 import { Pagination } from "../components/shared/Pagination";
 import { SearchBox } from "../components/shared/SearchBox";
+import { SearchableDropdown } from "../components/shared/SearchableDropdown";
 import { BomTable } from "../components/bom/BomTable";
 
 import { bomApi } from "../services/bom.api";
 import { ingredientApi } from "../../product/services/ingredient.api";
 import { productVariantApi } from "../../product/services/productVariant.api";
-import { productApi } from "../../product/services/product.api";
 import { unitApi } from "../../product/services/unit.api";
+import { categoryApi } from "../../product/services/category.api";
 
-import type { BomResponse, BomItemInput, BomStatus } from "../types/bom.types";
-import type { Ingredient, ProductVariant, Unit, ProductSummary } from "../../product/types/product.types";
+import type { BomResponse, BomItemInput, BomStatus, LookupItem } from "../types/bom.types";
+import type { Ingredient, ProductVariant, Unit } from "../../product/types/product.types";
 import { usePagedApiResource } from "../../product/hooks/useApiResource";
 import { useCatalogPageState } from "../../product/hooks/useCatalogPageState";
 
@@ -27,7 +28,6 @@ export function BomListPage() {
 
     // Dropdown list resources
     const [variants, setVariants] = useState<ProductVariant[]>([]);
-    const [products, setProducts] = useState<ProductSummary[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     const [units, setUnits] = useState<Unit[]>([]);
 
@@ -49,8 +49,15 @@ export function BomListPage() {
     const [formSubmitting, setFormSubmitting] = useState(false);
 
     // Filters extra state (BOM specific filters)
-    const [filterProductId, setFilterProductId] = useState("ALL");
-    const [filterVariantId, setFilterVariantId] = useState("ALL");
+    const [filterCategoryId, setFilterCategoryId] = useState("");
+    const [filterVersion, setFilterVersion] = useState("");
+    
+    // Searchable dropdown states for Category
+    const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
+    const [categoryPage, setCategoryPage] = useState(0);
+    const [categoryHasMore, setCategoryHasMore] = useState(true);
+    const [categoryLoading, setCategoryLoading] = useState(false);
+    const [categorySearchTerm, setCategorySearchTerm] = useState("");
 
     // Load main BOMs table paged resource
     const loadBoms = useCallback(
@@ -59,8 +66,8 @@ export function BomListPage() {
                 page: pageState.page - 1,
                 size: pageState.pageSize,
                 search: pageState.query || undefined,
-                productId: filterProductId === "ALL" ? undefined : filterProductId,
-                productVariantId: filterVariantId === "ALL" ? undefined : filterVariantId,
+                categoryId: filterCategoryId || undefined,
+                version: filterVersion ? Number(filterVersion) : undefined,
                 status: pageState.status === "ALL" ? undefined : pageState.status
             }),
         [
@@ -68,13 +75,42 @@ export function BomListPage() {
             pageState.pageSize,
             pageState.query,
             pageState.status,
-            filterProductId,
-            filterVariantId
+            filterCategoryId,
+            filterVersion
         ]
     );
 
     const resource = usePagedApiResource(loadBoms);
     const boms = resource.data?.content ?? [];
+    
+    // Fetch category options with infinite scroll
+    const loadCategoryOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setCategoryLoading(true);
+            const res = await categoryApi.lookup(search, page, 20);
+            setCategoryOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setCategoryHasMore(!res.last);
+        } catch (err) {
+            console.error("Error loading categories", err);
+            setCategoryHasMore(false);
+        } finally {
+            setCategoryLoading(false);
+        }
+    }, []);
+
+    // Initial load and search change for categories
+    useEffect(() => {
+        setCategoryPage(0);
+        loadCategoryOptions(categorySearchTerm, 0);
+    }, [categorySearchTerm, loadCategoryOptions]);
+
+    const handleLoadMoreCategories = useCallback(() => {
+        if (!categoryLoading && categoryHasMore) {
+            const nextPage = categoryPage + 1;
+            setCategoryPage(nextPage);
+            loadCategoryOptions(categorySearchTerm, nextPage);
+        }
+    }, [categoryLoading, categoryHasMore, categoryPage, categorySearchTerm, loadCategoryOptions]);
 
     // Load active dropdown options once
     useEffect(() => {
@@ -82,11 +118,6 @@ export function BomListPage() {
         productVariantApi.list({ size: 1000, status: "ACTIVE" }).then((res) => {
             setVariants(res.content ?? []);
         }).catch(err => console.error("Error loading variants", err));
-
-        // Load products
-        productApi.list({ size: 1000, status: "ACTIVE" }).then((res) => {
-            setProducts(res.content ?? []);
-        }).catch(err => console.error("Error loading products", err));
 
         // Load ingredients
         ingredientApi.list({ size: 1000, status: "ACTIVE" }).then((res) => {
@@ -283,7 +314,7 @@ export function BomListPage() {
                     <div className="relative flex-1">
                         <SearchBox
                             value={pageState.query}
-                            placeholder="Tìm theo tên BOM, mã, SKU..."
+                            placeholder="Tìm theo tên BOM, mã, tên sản phẩm, mặt hàng, SKU..."
                             onChange={(value) => {
                                 pageState.setQuery(value);
                             }}
@@ -291,39 +322,30 @@ export function BomListPage() {
                         />
                     </div>
                     <div className="flex flex-wrap gap-3 items-center">
-                        <select
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[180px]"
-                            value={filterProductId}
-                            onChange={(e) => {
-                                setFilterProductId(e.target.value);
-                                setFilterVariantId("ALL");
+                        <SearchableDropdown
+                            value={filterCategoryId}
+                            onChange={(val) => {
+                                setFilterCategoryId(val);
                                 pageState.setPage(1);
                             }}
-                        >
-                            <option value="ALL">Tất cả sản phẩm</option>
-                            {products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[180px]"
-                            value={filterVariantId}
+                            options={categoryOptions}
+                            onSearch={setCategorySearchTerm}
+                            onLoadMore={handleLoadMoreCategories}
+                            hasMore={categoryHasMore}
+                            loading={categoryLoading}
+                            placeholder="Tất cả danh mục"
+                        />
+                        <input
+                            type="number"
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] min-w-[120px]"
+                            placeholder="Phiên bản..."
+                            value={filterVersion}
                             onChange={(e) => {
-                                setFilterVariantId(e.target.value);
+                                setFilterVersion(e.target.value);
                                 pageState.setPage(1);
                             }}
-                        >
-                            <option value="ALL">Tất cả Mặt hàng</option>
-                            {variants
-                                .filter((v) => filterProductId === "ALL" || String(v.productId) === filterProductId)
-                                .map((v) => (
-                                    <option key={v.id} value={v.id}>
-                                        {v.variantName}
-                                    </option>
-                                ))}
-                        </select>
+                            min="1"
+                        />
                     </div>
                 </div>
 

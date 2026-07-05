@@ -74,9 +74,14 @@ export interface BomQuery {
     page?: number;
     size?: number;
     search?: string;
-    productId?: string;
-    productVariantId?: string;
+    categoryId?: string;
+    version?: number;
     status?: BomStatus;
+}
+
+export interface LookupItem {
+    id: string;
+    name: string;
 }
 
 // ============================================================

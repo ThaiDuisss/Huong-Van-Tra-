@@ -3,6 +3,7 @@ package org.hvtra.catalog.service;
 import org.hvtra.catalog.dto.request.CategoryRequest;
 import org.hvtra.catalog.dto.response.CategoryResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
 
@@ -15,5 +16,6 @@ public interface CategoryService {
     CategoryResponse update(UUID id, CategoryRequest request);
     CategoryResponse updateStatus(UUID id, Status status);
     java.util.List<CategoryResponse> findAllByIds(java.util.List<UUID> ids);
+    PageResponse<LookupResponse> lookup(String search, Pageable pageable);
 }
 
