@@ -11,12 +11,24 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.hvtra.catalog.service.BarcodeService;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @RestController
@@ -48,12 +60,12 @@ public class ProductVariantController {
     }
 
     @PostMapping("/batch")
-    public java.util.List<ProductResponse.VariantResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+    public List<ProductResponse.VariantResponse> findByIds(@RequestBody List<UUID> ids) {
         return service.findAllByIds(ids);
     }
 
     @GetMapping("/search-ids")
-    public java.util.List<UUID> searchIds(
+    public List<UUID> searchIds(
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productCode", required = false) String productCode,
             @RequestParam(name = "productName", required = false) String productName,
@@ -68,7 +80,7 @@ public class ProductVariantController {
             description = "Output: productId, variantId, sku, productName, variantName, categoryName, sellingPrice, imageUrl"
     )
     @GetMapping("/search-view-pos")
-    public java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(
+    public List<ProductVariantSearchViewResponse> searchVariants(
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productName", required = false) String productName) {
@@ -81,7 +93,7 @@ public class ProductVariantController {
             description = "Output: productId, variantId, sku, productName, variantName, categoryName, sellingPrice, imageUrl"
     )
     @GetMapping("/{variantId}/pos-view")
-    public org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse getPosView(
+    public ProductVariantSearchViewResponse getPosView(
             @PathVariable("variantId") UUID variantId) {
         return service.getPosView(variantId);
     }
@@ -107,42 +119,42 @@ public class ProductVariantController {
     }
 
     @GetMapping("/export")
-    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> exportVariants(
+    public ResponseEntity<Resource> exportVariants(
             @RequestParam(name = "productId", required = false) UUID productId) {
         byte[] excelBytes = service.exportToExcel(productId);
-        org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
+        ByteArrayResource resource = new ByteArrayResource(excelBytes);
 
-        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-        String timestamp = java.time.LocalDateTime.now().format(formatter);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+        String timestamp = LocalDateTime.now().format(formatter);
         String rawFilename = "Danh_sach_bien_the_san_pham_" + timestamp + ".xlsx";
         String encodedFilename = "";
         try {
-            encodedFilename = java.net.URLEncoder.encode(rawFilename, java.nio.charset.StandardCharsets.UTF_8)
+            encodedFilename = URLEncoder.encode(rawFilename, StandardCharsets.UTF_8)
                     .replace("+", "%20");
         } catch (Exception ignored) {
         }
 
-        return org.springframework.http.ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
-                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
     }
 
     @PostMapping("/import")
     @ResponseStatus(HttpStatus.OK)
     public void importVariants(
-            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestParam("file") MultipartFile file,
             @RequestParam("productId") UUID productId) {
         service.importFromExcel(file, productId);
     }
 
     @GetMapping("/import/template")
-    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> downloadTemplate() {
+    public ResponseEntity<Resource> downloadTemplate() {
         byte[] excelBytes = service.getImportTemplate();
-        org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
-        return org.springframework.http.ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_bien_the.xlsx\"")
-                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        ByteArrayResource resource = new ByteArrayResource(excelBytes);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_bien_the.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
     }
 }

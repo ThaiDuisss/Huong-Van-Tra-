@@ -13,18 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import org.hvtra.iventoryservice.dto.response.LookupResponse;
 
-/**
- * REST controller cho màn hình Quản lý kệ (Store Shelf).
- *
- * Base path: /api/inventory/inventory-locations/store
- *
- * GET    /api/inventory/inventory-locations/store         – Danh sách kệ
- * GET    /api/inventory/inventory-locations/store/{id}    – Chi tiết kệ
- * POST   /api/inventory/inventory-locations/store         – Thêm kệ
- * PUT    /api/inventory/inventory-locations/store/{id}    – Sửa kệ
- * PATCH  /api/inventory/inventory-locations/store/{id}/status – Đổi trạng thái
- */
 @RestController
 @RequestMapping("/api/inventory/inventory-locations/store")
 public class StoreShelfController {
@@ -36,7 +26,7 @@ public class StoreShelfController {
     }
 
     @GetMapping("/lookup")
-    public PageResponse<org.hvtra.iventoryservice.dto.response.LookupResponse> lookup(
+    public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         return service.lookup(search, pageable);

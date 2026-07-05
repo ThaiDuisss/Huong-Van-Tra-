@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.UUID;
+import org.hvtra.iventoryservice.dto.response.LookupResponse;
+import org.springframework.data.domain.Page;
 
 @Service
 @Transactional(readOnly = true)
@@ -33,11 +35,11 @@ public class StoreShelfServiceImpl implements StoreShelfService {
         this.mapper = mapper;
     }
 
-    public PageResponse<org.hvtra.iventoryservice.dto.response.LookupResponse> lookup(String search, Pageable pageable) {
-        org.springframework.data.domain.Page<InventoryLocation> page = repository.findByNameContainingIgnoreCaseAndType(search, org.hvtra.iventoryservice.enums.InventoryLocationType.SHELF, pageable);
+    public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
+        Page<InventoryLocation> page = repository.findByNameContainingIgnoreCaseAndType(search, InventoryLocationType.SHELF, pageable);
         return new PageResponse<>(
                 page.getContent().stream()
-                        .map(shelf -> new org.hvtra.iventoryservice.dto.response.LookupResponse(shelf.getId().toString(), shelf.getName()))
+                        .map(shelf -> new LookupResponse(shelf.getId().toString(), shelf.getName()))
                         .toList(),
                 page.getNumber(),
                 page.getSize(),

@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/catalog/categories")
@@ -45,7 +46,7 @@ public class CategoryController {
     }
 
     @PostMapping("/batch")
-    public java.util.List<CategoryResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+    public List<CategoryResponse> findByIds(@RequestBody List<UUID> ids) {
         return service.findAllByIds(ids);
     }
 

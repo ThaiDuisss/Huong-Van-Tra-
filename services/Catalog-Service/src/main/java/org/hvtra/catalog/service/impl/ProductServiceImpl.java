@@ -405,9 +405,9 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public java.util.List<ProductResponse> findAllByIds(java.util.List<UUID> ids) {
+    public List<ProductResponse> findAllByIds(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
         return productRepository.findAllById(ids).stream()
                 .map(mapper::toResponse)

@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.Collections;
+import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
@@ -134,9 +136,9 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public java.util.List<CategoryResponse> findAllByIds(java.util.List<UUID> ids) {
+    public List<CategoryResponse> findAllByIds(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
         return repository.findAllById(ids).stream()
                 .map(mapper::toResponse)

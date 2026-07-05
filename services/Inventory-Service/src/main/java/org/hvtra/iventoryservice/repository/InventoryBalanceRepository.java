@@ -12,6 +12,9 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
+import java.util.List;
+import org.hvtra.iventoryservice.enums.InventoryItemType;
 
 public interface InventoryBalanceRepository
         extends JpaRepository<InventoryBalance, UUID>, JpaSpecificationExecutor<InventoryBalance> {
@@ -72,9 +75,9 @@ public interface InventoryBalanceRepository
               and b.inventoryItem.itemType = :itemType
               and b.location.id = :warehouseId
             """)
-    java.util.List<InventoryBalance> findProductVariantBalances(
-            @Param("variantIds") java.util.Collection<UUID> variantIds,
-            @Param("itemType") org.hvtra.iventoryservice.enums.InventoryItemType itemType,
+    List<InventoryBalance> findProductVariantBalances(
+            @Param("variantIds") Collection<UUID> variantIds,
+            @Param("itemType") InventoryItemType itemType,
             @Param("warehouseId") UUID warehouseId);
 
     @Query("""
@@ -82,8 +85,8 @@ public interface InventoryBalanceRepository
             join fetch b.inventoryItem i
             where i.id in :inventoryItemIds
             """)
-    java.util.List<InventoryBalance> findActiveWarehouseBalancesByInventoryItemIds(
-            @Param("inventoryItemIds") java.util.Collection<UUID> inventoryItemIds
+    List<InventoryBalance> findActiveWarehouseBalancesByInventoryItemIds(
+            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds
 //            @Param("warehouseId") UUID warehouseId,
 //            @Param("locationType") InventoryLocationType locationType,
 //            @Param("locationStatus") InventoryStatus locationStatus

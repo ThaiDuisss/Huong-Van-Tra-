@@ -10,9 +10,10 @@ import org.springframework.data.domain.Pageable;
 import org.hvtra.catalog.dto.response.LookupResponse;
 
 import java.util.UUID;
+import java.util.Optional;
 
 public interface CategoryRepository extends JpaRepository<Category, UUID>, JpaSpecificationExecutor<Category> {
-    java.util.Optional<Category> findByCategoryCode(String categoryCode);
+    Optional<Category> findByCategoryCode(String categoryCode);
     boolean existsByCategoryCode(String categoryCode);
 
     @Query("SELECT new org.hvtra.catalog.dto.response.LookupResponse(CAST(c.id AS string), c.name) FROM Category c WHERE :search IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))")

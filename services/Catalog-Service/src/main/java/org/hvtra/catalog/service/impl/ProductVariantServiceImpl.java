@@ -38,6 +38,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.Objects;
+import org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse;
+import org.hvtra.catalog.enums.InventoryPolicy;
 
 @Slf4j
 @Service
@@ -116,10 +120,10 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         normalized = normalized.replaceAll("\\p{M}", "");
         String clean = normalized.replaceAll("[^a-zA-Z0-9\\s]", "").toUpperCase().trim();
         String[] words = clean.split("\\s+");
-        String prefix = java.util.Arrays.stream(words)
+        String prefix = Arrays.stream(words)
                 .filter(w -> !w.isEmpty())
                 .map(w -> w.substring(0, 1))
-                .collect(java.util.stream.Collectors.joining());
+                .collect(Collectors.joining());
 
         if (prefix.isEmpty()) {
             prefix = "PR";
@@ -198,7 +202,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     @Override
     public byte[] exportToExcel(UUID productId) {
-        java.util.List<ProductVariant> variants;
+        List<ProductVariant> variants;
         if (productId != null) {
             variants = repository.findByProductId(productId);
         } else {
@@ -258,7 +262,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 row.createCell(5).setCellValue(unitStr);
                 
                 String policyStr = "Không theo dõi";
-                if (v.getInventoryPolicy() == org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK) {
+                if (v.getInventoryPolicy() == InventoryPolicy.TRACK_STOCK) {
                     policyStr = "Theo dõi tồn kho";
                 }
                 row.createCell(6).setCellValue(policyStr);
@@ -361,11 +365,11 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                     continue;
                 }
 
-                org.hvtra.catalog.enums.InventoryPolicy policy = org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK;
+                InventoryPolicy policy = InventoryPolicy.TRACK_STOCK;
                 if ("Theo dõi tồn kho".equalsIgnoreCase(policyStr) || "TRACK_STOCK".equalsIgnoreCase(policyStr)) {
-                    policy = org.hvtra.catalog.enums.InventoryPolicy.TRACK_STOCK;
+                    policy = InventoryPolicy.TRACK_STOCK;
                 } else if ("Không theo dõi".equalsIgnoreCase(policyStr) || "DO_NOT_TRACK".equalsIgnoreCase(policyStr)) {
-                    policy = org.hvtra.catalog.enums.InventoryPolicy.DO_NOT_TRACK;
+                    policy = InventoryPolicy.DO_NOT_TRACK;
                 }
 
                 Status status = "Ngừng hoạt động".equals(statusStr) || "INACTIVE".equalsIgnoreCase(statusStr) 
@@ -506,9 +510,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public java.util.List<ProductResponse.VariantResponse> findAllByIds(java.util.List<UUID> ids) {
+    public List<ProductResponse.VariantResponse> findAllByIds(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
         return repository.findAllById(ids).stream()
                 .map(mapper::toVariantResponse)
@@ -516,7 +520,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public java.util.List<UUID> searchVariantIds(String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId) {
+    public List<UUID> searchVariantIds(String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (sku != null && !sku.isBlank()) {
@@ -545,7 +549,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public java.util.List<org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName) {
+    public List<ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (keyword != null && !keyword.isBlank()) {
@@ -577,12 +581,12 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse getPosView(UUID variantId) {
-        org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse response = repository.findPosViewByVariantId(variantId)
+    public ProductVariantSearchViewResponse getPosView(UUID variantId) {
+        ProductVariantSearchViewResponse response = repository.findPosViewByVariantId(variantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product variant", variantId));
         InventoryClient.StockVariantBatchResponse stock = loadVariantStockMap(List.of(response.variantId()))
                 .get(response.variantId());
-        return new org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse(
+        return new ProductVariantSearchViewResponse(
                 response.productId(),
                 response.variantId(),
                 response.sku(),
@@ -604,7 +608,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             return Collections.emptyList();
         }
         List<UUID> distinctProductIds = productIds.stream()
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
         if (distinctProductIds.isEmpty()) {
@@ -650,10 +654,10 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         }
     }
 
-    private org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse toPosSearchView(
+    private ProductVariantSearchViewResponse toPosSearchView(
             ProductVariant variant,
             InventoryClient.StockVariantBatchResponse stock) {
-        return new org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse(
+        return new ProductVariantSearchViewResponse(
                 variant.getProduct().getId(),
                 variant.getId(),
                 variant.getSku(),

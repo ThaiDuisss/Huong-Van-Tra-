@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 import org.hvtra.catalog.dto.response.LookupResponse;
+import java.util.List;
 
 public interface ProductService {
     PageResponse<ProductSummaryResponse> findAll(
@@ -22,6 +23,6 @@ public interface ProductService {
     byte[] exportToExcel();
     void importFromExcel(org.springframework.web.multipart.MultipartFile file);
     byte[] getImportTemplate();
-    java.util.List<ProductResponse> findAllByIds(java.util.List<UUID> ids);
+    List<ProductResponse> findAllByIds(List<UUID> ids);
 }
 

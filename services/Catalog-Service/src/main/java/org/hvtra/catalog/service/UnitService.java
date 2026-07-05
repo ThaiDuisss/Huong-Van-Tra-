@@ -10,9 +10,10 @@ import java.util.List;
 import java.util.UUID;
 
 import org.hvtra.catalog.dto.response.LookupResponse;
+import org.hvtra.catalog.enums.UnitType;
 
 public interface UnitService {
-    PageResponse<UnitResponse> findAll(String name, Status status, org.hvtra.catalog.enums.UnitType type, Pageable pageable);
+    PageResponse<UnitResponse> findAll(String name, Status status, UnitType type, Pageable pageable);
     PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     List<UnitResponse> findAll();
     UnitResponse create(UnitRequest request);
