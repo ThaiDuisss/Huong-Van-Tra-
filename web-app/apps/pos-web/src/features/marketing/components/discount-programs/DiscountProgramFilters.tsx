@@ -1,148 +1,244 @@
 import {
     CalendarDays,
-    Funnel,
-    Search
+    Search,
+    SlidersHorizontal,
+    X
 } from "lucide-react";
+import { useState, type FormEvent } from "react";
 
 import { MarketingSelectField } from "../MarketingSelectField";
 import styles from "./DiscountProgramPage.module.css";
-import type {
-    DiscountApplicationType,
-    DiscountProgramFilters as DiscountProgramFilterState,
-    DiscountProgramStatus
-} from "../../types/discount-program.types";
-import { applicationTypeLabels } from "../../utils/discount-programs";
+import {
+    getEventAudienceLabel,
+    getEventStatusLabel,
+    getEventTypeLabel
+} from "../../utils/event-labels";
 
-interface DiscountProgramFiltersProps {
-    query: string;
-    filters: DiscountProgramFilterState;
-    eventOptions: string[];
-    onQueryChange(value: string): void;
-    onFiltersChange(value: DiscountProgramFilterState): void;
+export interface EventFilterFormState {
+    keyword: string;
+    eventType: string;
+    audience: string;
+    status: string;
+    from: string;
+    to: string;
 }
 
-const statusOptions: Array<{
-    label: string;
-    value: "ALL" | DiscountProgramStatus;
-}> = [
-    { label: "Tất cả trạng thái", value: "ALL" },
-    { label: "ACTIVE", value: "ACTIVE" },
-    { label: "SCHEDULED", value: "SCHEDULED" },
-    { label: "INACTIVE", value: "INACTIVE" }
-];
+interface DiscountProgramFiltersProps {
+    filters: EventFilterFormState;
+    eventTypes: string[];
+    eventAudiences: string[];
+    eventStatuses: string[];
+    loading?: boolean;
+    showClear?: boolean;
+    onFiltersChange(value: EventFilterFormState): void;
+    onSearch(): void;
+    onClear(): void;
+}
 
-const applicationOptions: Array<{
-    label: string;
-    value: "ALL" | DiscountApplicationType;
-}> = [
-    { label: "Tất cả cách áp dụng", value: "ALL" },
-    {
-        label: applicationTypeLabels.DISCOUNT_CODE,
-        value: "DISCOUNT_CODE"
-    },
-    {
-        label: applicationTypeLabels.FREE_SHIPPING,
-        value: "FREE_SHIPPING"
-    },
-    {
-        label: applicationTypeLabels.BUY_X_GET_Y,
-        value: "BUY_X_GET_Y"
-    },
-    { label: applicationTypeLabels.AMOUNT_OFF, value: "AMOUNT_OFF" },
-    { label: applicationTypeLabels.GIFT, value: "GIFT" }
-];
+export function getInitialEventFilters(): EventFilterFormState {
+    return {
+        keyword: "",
+        eventType: "ALL",
+        audience: "ALL",
+        status: "ALL",
+        from: "",
+        to: ""
+    };
+}
+
+export const defaultEventListFilters = getInitialEventFilters();
 
 export function DiscountProgramFilters({
-    query,
     filters,
-    eventOptions,
-    onQueryChange,
-    onFiltersChange
+    eventTypes,
+    eventAudiences,
+    eventStatuses,
+    loading = false,
+    showClear = false,
+    onFiltersChange,
+    onSearch,
+    onClear
 }: DiscountProgramFiltersProps) {
+    const [detailOpen, setDetailOpen] = useState(false);
+    const hasDetailFilters =
+        filters.eventType !== "ALL" ||
+        filters.audience !== "ALL" ||
+        filters.status !== "ALL" ||
+        filters.from.length > 0 ||
+        filters.to.length > 0;
+
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        onSearch();
+    }
+
     return (
         <section className={styles.filtersCard}>
-            <div className={styles.filters}>
-                <label className={styles.search}>
-                    <Search size={18} aria-hidden="true" />
-                    <span className="sr-only">
-                        Tìm kiếm chương trình giảm giá
-                    </span>
-                    <input
-                        className={styles.searchInput}
-                        value={query}
-                        placeholder="Tìm kiếm chương trình giảm giá..."
-                        onChange={(event) =>
-                            onQueryChange(event.currentTarget.value)
+            <form className={styles.filters} onSubmit={handleSubmit}>
+                <div className={styles.filterMainRow}>
+                    <label className={styles.search}>
+                        <Search size={18} aria-hidden="true" />
+                        <span className="sr-only">
+                            Tìm kiếm sự kiện khuyến mãi
+                        </span>
+                        <input
+                            className={styles.searchInput}
+                            value={filters.keyword}
+                            placeholder="Tìm kiếm sự kiện khuyến mãi..."
+                            onChange={(event) =>
+                                onFiltersChange({
+                                    ...filters,
+                                    keyword: event.currentTarget.value
+                                })
+                            }
+                        />
+                    </label>
+
+                    <button
+                        className={`${styles.filterToggleButton} ${
+                            detailOpen || hasDetailFilters
+                                ? styles.filterToggleButtonActive
+                                : ""
+                        }`}
+                        type="button"
+                        aria-label="Lọc chi tiết"
+                        aria-expanded={detailOpen}
+                        onClick={() =>
+                            setDetailOpen((current) => !current)
                         }
-                    />
-                </label>
+                    >
+                        <SlidersHorizontal
+                            size={18}
+                            aria-hidden="true"
+                        />
+                    </button>
 
-                <MarketingSelectField
-                    label="Sự kiện"
-                    value={filters.eventName}
-                    onChange={(eventName) =>
-                        onFiltersChange({ ...filters, eventName })
-                    }
-                    options={[
-                        { label: "Tất cả sự kiện", value: "ALL" },
-                        ...eventOptions.map((eventName) => ({
-                            label: eventName,
-                            value: eventName
-                        }))
-                    ]}
-                />
+                    <button
+                        className={styles.primaryButton}
+                        type="submit"
+                        disabled={loading}
+                    >
+                        <Search size={17} aria-hidden="true" />
+                        Tìm kiếm
+                    </button>
 
-                <MarketingSelectField
-                    label="Trạng thái"
-                    value={filters.status}
-                    onChange={(status) =>
-                        onFiltersChange({
-                            ...filters,
-                            status: status as
-                                | "ALL"
-                                | DiscountProgramStatus
-                        })
-                    }
-                    options={statusOptions}
-                />
+                    {showClear ? (
+                        <button
+                            className={styles.secondaryButton}
+                            type="button"
+                            disabled={loading}
+                            onClick={onClear}
+                        >
+                            <X size={17} aria-hidden="true" />
+                            Xóa lọc
+                        </button>
+                    ) : null}
+                </div>
 
-                <MarketingSelectField
-                    label="Cách áp dụng"
-                    value={filters.applicationType}
-                    onChange={(applicationType) =>
-                        onFiltersChange({
-                            ...filters,
-                            applicationType: applicationType as
-                                | "ALL"
-                                | DiscountApplicationType
-                        })
-                    }
-                    options={applicationOptions}
-                />
+                {detailOpen ? (
+                    <div className={styles.filterDetailPanel}>
+                        <MarketingSelectField
+                            label="Loại sự kiện"
+                            value={filters.eventType}
+                            onChange={(eventType) =>
+                                onFiltersChange({ ...filters, eventType })
+                            }
+                            options={[
+                                {
+                                    label: "Tất cả loại sự kiện",
+                                    value: "ALL"
+                                },
+                                ...eventTypes.map((eventType) => ({
+                                    label: getEventTypeLabel(eventType),
+                                    value: eventType
+                                }))
+                            ]}
+                        />
 
-                <label className={styles.dateWrap}>
-                    <CalendarDays size={17} aria-hidden="true" />
-                    <span className="sr-only">
-                        Chọn khoảng thời gian
-                    </span>
-                    <input
-                        className={styles.dateInput}
-                        value={filters.dateRange}
-                        placeholder="Chọn khoảng thời gian"
-                        onChange={(event) =>
-                            onFiltersChange({
-                                ...filters,
-                                dateRange: event.currentTarget.value
-                            })
-                        }
-                    />
-                </label>
+                        <MarketingSelectField
+                            label="Đối tượng áp dụng"
+                            value={filters.audience}
+                            onChange={(audience) =>
+                                onFiltersChange({ ...filters, audience })
+                            }
+                            options={[
+                                {
+                                    label: "Tất cả đối tượng",
+                                    value: "ALL"
+                                },
+                                ...eventAudiences.map((audience) => ({
+                                    label: getEventAudienceLabel(audience),
+                                    value: audience
+                                }))
+                            ]}
+                        />
 
-                <button className={styles.filterButton} type="button">
-                    <Funnel size={17} aria-hidden="true" />
-                    Bộ lọc
-                </button>
-            </div>
+                        <MarketingSelectField
+                            label="Trạng thái"
+                            value={filters.status}
+                            onChange={(status) =>
+                                onFiltersChange({ ...filters, status })
+                            }
+                            options={[
+                                {
+                                    label: "Tất cả trạng thái",
+                                    value: "ALL"
+                                },
+                                ...eventStatuses.map((status) => ({
+                                    label: getEventStatusLabel(status),
+                                    value: status
+                                }))
+                            ]}
+                        />
+
+                        <div className={styles.filterDateGroup}>
+                            <DateFilterField
+                                label="Từ ngày"
+                                value={filters.from}
+                                onChange={(from) =>
+                                    onFiltersChange({ ...filters, from })
+                                }
+                            />
+
+                            <DateFilterField
+                                label="Đến ngày"
+                                value={filters.to}
+                                onChange={(to) =>
+                                    onFiltersChange({ ...filters, to })
+                                }
+                            />
+                        </div>
+                    </div>
+                ) : null}
+            </form>
         </section>
+    );
+}
+
+function DateFilterField({
+    label,
+    value,
+    onChange
+}: {
+    label: string;
+    value: string;
+    onChange(value: string): void;
+}) {
+    return (
+        <label className={styles.filterField}>
+            <span className={styles.filterFieldLabel}>{label}</span>
+            <span className={styles.dateWrap}>
+                <CalendarDays size={17} aria-hidden="true" />
+                <input
+                    type="date"
+                    className={styles.dateInput}
+                    value={value}
+                    aria-label={label}
+                    onChange={(event) =>
+                        onChange(event.currentTarget.value)
+                    }
+                />
+            </span>
+        </label>
     );
 }

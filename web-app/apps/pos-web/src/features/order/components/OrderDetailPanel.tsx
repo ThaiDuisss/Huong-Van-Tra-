@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import type {
     OrderDetailResponse,
+    OrderItemResponse,
     OrderSummaryResponse
 } from "../types/order.types";
 import {
@@ -28,6 +29,49 @@ interface OrderDetailPanelProps {
     onClose?: () => void;
 }
 
+function toItemNumber(value?: number | string | null) {
+    if (value === null || value === undefined || value === "") {
+        return null;
+    }
+
+    const numericValue = typeof value === "number" ? value : Number(value);
+
+    return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function getItemUnitPrice(item: OrderItemResponse) {
+    return item.actualUnitPrice ?? item.originalUnitPrice ?? null;
+}
+
+function getItemLineTotal(item: OrderItemResponse) {
+    if (item.lineTotal !== null && item.lineTotal !== undefined) {
+        return item.lineTotal;
+    }
+
+    const quantity = toItemNumber(item.quantity);
+    const unitPrice = toItemNumber(getItemUnitPrice(item));
+
+    if (quantity === null || unitPrice === null) {
+        return null;
+    }
+
+    return quantity * unitPrice;
+}
+
+function getItemQuantityText(item: OrderItemResponse) {
+    return `x${formatQuantity(item.quantity)}`;
+}
+
+function hasValue(value?: ReactNode) {
+    if (value === null || value === undefined) {
+        return false;
+    }
+
+    const textValue = String(value).trim();
+
+    return textValue !== "" && textValue !== "--";
+}
+
 export function OrderDetailPanel({
     order,
     summary,
@@ -36,6 +80,8 @@ export function OrderDetailPanel({
     onClose
 }: OrderDetailPanelProps) {
     const displayOrder = order ?? summary;
+    const customerPhone = displayOrder?.customerPhone;
+    const staffName = displayOrder ? getStaffName(displayOrder) : "--";
 
     return (
         <aside
@@ -82,49 +128,49 @@ export function OrderDetailPanel({
                         <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
                             Thông tin đơn
                         </h3>
-                        <InfoRow label="Mã đơn hàng" value={getOrderCode(displayOrder)} />
-                        <InfoRow
-                            label="Khách hàng"
-                            value={getCustomerName(displayOrder)}
-                        />
-                        <InfoRow
-                            label="SĐT"
-                            value={displayOrder.customerPhone || "--"}
-                        />
-                        <InfoRow
-                            label="Trạng thái"
-                            value={
-                                <OrderStatusBadge
-                                    status={displayOrder.status}
-                                    label={getOrderStatusText(displayOrder)}
-                                />
-                            }
-                        />
-                        <InfoRow
-                            label="Giá trị"
-                            value={formatCurrency(displayOrder.finalAmount)}
-                        />
-                        <InfoRow
-                            label="Ngày đặt"
-                            value={formatDateTime(displayOrder.createdAt)}
-                        />
-                        <InfoRow
-                            label="Nghiệp vụ"
-                            value={getOrderTypeText(displayOrder)}
-                        />
-                        <InfoRow
-                            label="Nhân viên"
-                            value={getStaffName(displayOrder)}
-                        />
-                        <InfoRow
-                            label="Thanh toán"
-                            value={
-                                <PaymentStatusBadge
-                                    status={displayOrder.paymentStatus}
-                                    label={getPaymentStatusText(displayOrder)}
-                                />
-                            }
-                        />
+                        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                            <InfoRow label="Mã đơn hàng" value={getOrderCode(displayOrder)} />
+                            <InfoRow
+                                label="Trạng thái đơn"
+                                value={
+                                    <OrderStatusBadge
+                                        status={displayOrder.status}
+                                        label={getOrderStatusText(displayOrder)}
+                                    />
+                                }
+                            />
+                            <InfoRow
+                                label="Khách hàng"
+                                value={getCustomerName(displayOrder)}
+                            />
+                            <InfoRow
+                                label="Thanh toán"
+                                value={
+                                    <PaymentStatusBadge
+                                        status={displayOrder.paymentStatus}
+                                        label={getPaymentStatusText(displayOrder)}
+                                    />
+                                }
+                            />
+                            <InfoRow
+                                label="Giá trị"
+                                value={formatCurrency(displayOrder.finalAmount)}
+                            />
+                            <InfoRow
+                                label="Ngày đặt"
+                                value={formatDateTime(displayOrder.createdAt)}
+                            />
+                            <InfoRow
+                                label="Nghiệp vụ"
+                                value={getOrderTypeText(displayOrder)}
+                            />
+                            {hasValue(customerPhone) ? (
+                                <InfoRow label="SĐT" value={customerPhone} />
+                            ) : null}
+                            {hasValue(staffName) ? (
+                                <InfoRow label="Nhân viên" value={staffName} />
+                            ) : null}
+                        </div>
                     </section>
 
                     <section className="border-b border-[#edf0f4] px-4 py-3.5">
@@ -133,26 +179,39 @@ export function OrderDetailPanel({
                         </h3>
                         {order?.items?.length ? (
                             <ul className="m-0 grid gap-2.5 p-0">
-                                {order.items.map((item, index) => (
-                                    <li
-                                        className="list-none rounded-lg bg-[#f8faf9] px-3 py-2 text-xs text-[#172317]"
-                                        key={item.id ?? `${item.productVariantId}-${index}`}
-                                    >
-                                        <div className="flex items-start justify-between gap-3 font-black">
-                                            <span className="min-w-0 truncate">
-                                                {item.productNameSnapshot || "--"}
-                                            </span>
-                                            <span className="shrink-0">
-                                                x{formatQuantity(item.quantity)}
-                                            </span>
-                                        </div>
-                                        {item.variantNameSnapshot ? (
-                                            <div className="mt-1 truncate font-bold text-[#536078]">
-                                                {item.variantNameSnapshot}
+                                {order.items.map((item, index) => {
+                                    const unitPrice = getItemUnitPrice(item);
+                                    const lineTotal = getItemLineTotal(item);
+                                    const itemMeta = [
+                                        item.skuSnapshot,
+                                        item.variantNameSnapshot,
+                                        `Đơn giá: ${formatCurrency(unitPrice)}`
+                                    ].filter(Boolean);
+
+                                    return (
+                                        <li
+                                            className="grid list-none grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-[#edf0f4] bg-[#f8faf9] px-3 py-2.5 text-xs text-[#172317]"
+                                            key={item.id ?? `${item.productVariantId}-${index}`}
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="truncate font-black">
+                                                    {item.productNameSnapshot || "--"}
+                                                </div>
+                                                <div className="mt-1 truncate font-bold text-[#536078]">
+                                                    {itemMeta.join(" · ")}
+                                                </div>
                                             </div>
-                                        ) : null}
-                                    </li>
-                                ))}
+                                            <div className="shrink-0 self-start text-right">
+                                                <strong className="block whitespace-nowrap font-black text-[#172317]">
+                                                    {formatCurrency(lineTotal)}
+                                                </strong>
+                                                <span className="mt-1 inline-flex rounded-md bg-[#e9f8ed] px-2 py-0.5 text-[11px] font-black text-[#07883a]">
+                                                    SL: {getItemQuantityText(item)}
+                                                </span>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         ) : (
                             <p className="m-0 text-xs font-bold text-[#536078]">
@@ -206,9 +265,9 @@ function InfoRow({
     value: ReactNode;
 }) {
     return (
-        <div className="mt-2.5 grid grid-cols-[92px_minmax(0,1fr)] gap-2.5 text-xs text-[#172317]">
+        <div className="flex items-center justify-between gap-4 text-xs text-[#172317]">
             <span className="font-bold text-[#536078]">{label}</span>
-            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-black">
+            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-right font-black">
                 {value || "--"}
             </strong>
         </div>

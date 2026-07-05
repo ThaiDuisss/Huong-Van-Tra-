@@ -102,6 +102,22 @@ export function formatDateTime(value?: string | null) {
     )}`;
 }
 
+export function formatDateOnly(value?: string | null) {
+    if (!value) {
+        return "--";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return "--";
+    }
+
+    return `${pad(date.getDate())}/${pad(
+        date.getMonth() + 1
+    )}/${date.getFullYear()}`;
+}
+
 export function getOrderStatusLabel(status?: string | null) {
     if (!status) {
         return "--";

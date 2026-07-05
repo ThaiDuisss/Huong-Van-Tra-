@@ -15,6 +15,8 @@ interface PosVariantResponse {
     sellingPrice?: number | string | null;
     selling_price?: number | string | null;
     imageUrl?: string | null;
+    inventoryLocationId?: string | null;
+    locationId?: string | null;
     availableQuantity?: number | string | null;
     quantityOnHand?: number | string | null;
     quantityReserved?: number | string | null;
@@ -39,7 +41,8 @@ function mapPosVariantToSaleProduct(
         variant: variant.variantName,
         price: toNumber(variant.sellingPrice ?? variant.selling_price),
         imageUrl: variant.imageUrl ?? fallbackImageUrl,
-        inventoryLocationId: null,
+        inventoryLocationId:
+            variant.inventoryLocationId ?? variant.locationId ?? null,
         availableQuantity: toNumber(variant.availableQuantity),
         quantityOnHand: toNumber(variant.quantityOnHand),
         quantityReserved: toNumber(variant.quantityReserved)

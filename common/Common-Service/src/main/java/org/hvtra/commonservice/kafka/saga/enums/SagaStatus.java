@@ -1,10 +1,38 @@
 package org.hvtra.commonservice.kafka.saga.enums;
 
 public enum SagaStatus {
+    /**
+     * Saga vừa được tạo.
+     */
     STARTED,
-    PROCESSING,
-    WAITING_REPLY,
-    COMPENSATING,
-    COMPENSATED,
+
+    /**
+     * Saga đang chạy.
+     */
+    RUNNING,
+
+    /**
+     * Saga hoàn thành toàn bộ.
+     */
     COMPLETED,
-    FAILED}
+
+    /**
+     * Saga lỗi.
+     */
+    FAILED,
+
+    /**
+     * Đang rollback/compensate.
+     */
+    COMPENSATING,
+
+    /**
+     * Rollback/compensate xong.
+     */
+    COMPENSATED,
+
+    /**
+     * Saga bị hủy chủ động.
+     */
+    CANCELLED
+}

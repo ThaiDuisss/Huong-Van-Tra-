@@ -116,10 +116,10 @@ export const CUSTOMER_QUICK_VIEWS: Array<{
 ];
 
 export const CUSTOMER_BUTTON_BASE =
-    "inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-[13px] font-extrabold transition-colors";
+    "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-bold shadow-sm transition-colors";
 export const CUSTOMER_OUTLINE_BUTTON =
     "border border-[#bfd5c6] bg-white text-[#159734] hover:bg-[#f7fff9]";
 export const CUSTOMER_COMPACT_BUTTON =
-    "border border-[#d9e3df] bg-white text-[#273a2b] hover:bg-[#f7fbf8]";
+    "border border-[#dce5e1] bg-white text-[#273a2b] hover:bg-[#f7fbf8]";
 export const CUSTOMER_FIELD_CLASS_NAME =
-    "h-9 w-full rounded-lg border border-[#d9e3df] bg-white px-2.5 text-xs font-semibold text-[#273a2b] outline-none focus:border-[#159734] focus:ring-2 focus:ring-[#159734]/10";
+    "h-11 w-full rounded-lg border border-[#dce5e1] bg-white px-3 text-sm font-semibold text-[#273a2b] outline-none focus:border-[#159734] focus:ring-2 focus:ring-[#159734]/10";

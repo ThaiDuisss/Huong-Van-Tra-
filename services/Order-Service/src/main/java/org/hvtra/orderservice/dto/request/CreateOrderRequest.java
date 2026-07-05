@@ -17,6 +17,7 @@ public class CreateOrderRequest {
     private UUID terminalId;
     private UUID shiftId;
     private UUID customerId;
+    private UUID orderId;
 
     private String customerNameSnapshot;
     private String customerPhoneSnapshot;

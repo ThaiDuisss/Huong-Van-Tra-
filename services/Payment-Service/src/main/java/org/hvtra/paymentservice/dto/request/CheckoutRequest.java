@@ -1,8 +1,12 @@
 package org.hvtra.paymentservice.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+import org.hvtra.paymentservice.domain.enums.PaymentMethod;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -13,12 +17,31 @@ public class CheckoutRequest {
     @NotNull(message = "orderId không được null")
     private UUID orderId;
 
-    @NotNull(message = "receivedAmount không được null")
-    @DecimalMin(value = "0.00", inclusive = false, message = "receivedAmount phải lớn hơn 0")
+    @NotBlank(message = "orderCode không được trống")
+    private String orderCode;
+
+    @NotNull(message = "customerId không được null")
+    private UUID customerId;
+
+    @NotNull(message = "sagaId không được null")
+    private UUID sagaId;
+
+    @NotNull(message = "paymentMethod không được null")
+    private PaymentMethod paymentMethod;
+
+    private BigDecimal goodsAmount;
+    private BigDecimal discountAmount;
+    private BigDecimal deliveryFee;
+
+    @NotNull(message = "finalAmount không được null")
+    @DecimalMin(value = "0.01", message = "finalAmount phải lớn hơn 0")
+    private BigDecimal finalAmount;
+
+    /**
+     * Chỉ dùng cho CASH.
+     */
     private BigDecimal receivedAmount;
 
-    @NotNull(message = "Payment method not null")
-    private String paymentMethod;
-
-    private UUID createdBy;
+    private Boolean deliveryRequired;
+    private UUID deliveryId;
 }

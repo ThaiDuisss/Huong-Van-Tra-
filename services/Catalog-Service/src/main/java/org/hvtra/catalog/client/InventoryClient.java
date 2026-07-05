@@ -20,6 +20,9 @@ public interface InventoryClient {
     @PostMapping("/internal/inventory/stocks/batch")
     List<StockBatchResponse> getStocksByProductIds(@RequestBody StockBatchRequest request);
 
+    @PostMapping("/internal/inventory/stocks/variants/batch")
+    List<StockVariantBatchResponse> getStocksByVariantIds(@RequestBody StockVariantBatchRequest request);
+
     @Builder
     record CreateInventoryItemRequest(
             UUID referenceId,
@@ -41,6 +44,24 @@ public interface InventoryClient {
 
     record StockBatchResponse(
             UUID productId,
+            BigDecimal availableQuantity,
+            BigDecimal reservedQuantity,
+            String stockStatus
+    ) {
+    }
+
+    record StockVariantBatchRequest(
+            List<UUID> variantIds,
+            UUID warehouseId
+    ) {
+        public StockVariantBatchRequest(List<UUID> variantIds) {
+            this(variantIds, null);
+        }
+    }
+
+    record StockVariantBatchResponse(
+            UUID variantId,
+            UUID inventoryLocationId,
             BigDecimal availableQuantity,
             BigDecimal reservedQuantity,
             String stockStatus

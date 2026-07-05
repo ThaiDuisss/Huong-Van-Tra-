@@ -28,6 +28,39 @@ interface InvoiceDetailPanelProps {
     onClose?: () => void;
 }
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    BANK_TRANSFER: "Chuyển khoản",
+    CARD: "Thẻ",
+    CASH: "Tiền mặt",
+    DEBT: "Công nợ",
+    MOMO: "MoMo",
+    VNPAY: "VNPay"
+};
+
+function hasValue(value: unknown) {
+    if (value === null || value === undefined) {
+        return false;
+    }
+
+    const textValue = String(value).trim();
+
+    return (
+        textValue !== "" &&
+        textValue !== "--" &&
+        textValue !== "Chưa có dữ liệu"
+    );
+}
+
+function getPaymentMethodLabel(method?: string | null) {
+    if (!hasValue(method)) {
+        return "--";
+    }
+
+    const normalizedMethod = String(method).trim();
+
+    return PAYMENT_METHOD_LABELS[normalizedMethod] ?? normalizedMethod;
+}
+
 export function InvoiceDetailPanel({
     order,
     summary,
@@ -37,6 +70,21 @@ export function InvoiceDetailPanel({
     onClose
 }: InvoiceDetailPanelProps) {
     const displayOrder = order ?? summary;
+    const customerPhone = displayOrder?.customerPhone;
+    const staffName = displayOrder ? getStaffName(displayOrder) : "--";
+    const branchName = order?.branchName;
+    const paymentMethodName = order?.paymentMethodName;
+    const paymentMethod = getPaymentMethodLabel(order?.paymentMethod);
+    const shippingProvider = order?.shippingProvider;
+    const recipientName = getRecipientName(order);
+    const shippingAddress = order?.shippingAddress;
+    const recipientPhone = getRecipientPhone(order);
+    const hasShippingInfo = [
+        shippingProvider,
+        recipientName,
+        shippingAddress,
+        recipientPhone
+    ].some(hasValue);
 
     return (
         <aside
@@ -83,86 +131,113 @@ export function InvoiceDetailPanel({
                         <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
                             Thông tin chung
                         </h3>
-                        <InfoRow
-                            label="Mã hóa đơn"
-                            value={buildInvoiceCode(displayOrder, rowIndex)}
-                        />
-                        <InfoRow label="Mã đơn hàng" value={getOrderCode(displayOrder)} />
-                        <InfoRow
-                            label="Khách hàng"
-                            value={getCustomerName(displayOrder)}
-                        />
-                        <InfoRow
-                            label="SĐT"
-                            value={displayOrder.customerPhone || "--"}
-                        />
-                        <InfoRow
-                            label="Nhân viên bán"
-                            value={getStaffName(displayOrder)}
-                        />
-                        <InfoRow
-                            label="Chi nhánh"
-                            value={order?.branchName || "--"}
-                        />
-                        <InfoRow
-                            label="Ngày lập"
-                            value={formatDateTime(displayOrder.createdAt)}
-                        />
-                        <InfoRow label="Kênh bán" value={getOrderTypeText(displayOrder)} />
+                        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                            <InfoRow
+                                label="Mã hóa đơn"
+                                value={buildInvoiceCode(displayOrder, rowIndex)}
+                            />
+                            <InfoRow label="Mã đơn hàng" value={getOrderCode(displayOrder)} />
+                            <InfoRow
+                                label="Khách hàng"
+                                value={getCustomerName(displayOrder)}
+                            />
+                            <InfoRow
+                                label="Ngày lập"
+                                value={formatDateTime(displayOrder.createdAt)}
+                            />
+                            <InfoRow label="Kênh bán" value={getOrderTypeText(displayOrder)} />
+                            {hasValue(customerPhone) ? (
+                                <InfoRow label="SĐT" value={customerPhone} />
+                            ) : null}
+                            {hasValue(staffName) ? (
+                                <InfoRow label="Nhân viên bán" value={staffName} />
+                            ) : null}
+                            {hasValue(branchName) ? (
+                                <InfoRow label="Chi nhánh" value={branchName} />
+                            ) : null}
+                        </div>
                     </section>
 
                     <section className="border-b border-[#edf0f4] py-3.5">
                         <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
                             Thanh toán
                         </h3>
-                        <InfoRow
-                            label="Hình thức TT"
-                            value={order?.paymentMethodName || "Chưa có dữ liệu"}
-                        />
-                        <InfoRow
-                            label="Tổng tiền"
-                            value={formatCurrency(
-                                order?.originalAmount ?? displayOrder.finalAmount
-                            )}
-                        />
-                        <InfoRow
-                            label="Giảm giá"
-                            value={formatCurrency(order?.discountAmount)}
-                        />
-                        <InfoRow
-                            label="Khách trả"
-                            value={formatCurrency(order?.paidAmount)}
-                        />
-                        <InfoRow
-                            label="Phương thức TT"
-                            value={order?.paymentMethod || "--"}
-                        />
-                        <InfoRow
-                            label="Trạng thái"
-                            value={
-                                <PaymentStatusBadge
-                                    status={displayOrder.paymentStatus}
-                                    label={getPaymentStatusText(displayOrder)}
+                        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                            <InfoRow
+                                label="Trạng thái"
+                                value={
+                                    <PaymentStatusBadge
+                                        status={displayOrder.paymentStatus}
+                                        label={getPaymentStatusText(displayOrder)}
+                                    />
+                                }
+                            />
+                            <InfoRow
+                                label="Phương thức TT"
+                                value={paymentMethod}
+                            />
+                            <InfoRow
+                                label="Tổng tiền"
+                                value={formatCurrency(
+                                    order?.originalAmount ?? displayOrder.finalAmount
+                                )}
+                            />
+                            <InfoRow
+                                label="Giảm giá"
+                                value={formatCurrency(order?.discountAmount)}
+                            />
+                            <InfoRow
+                                label="Khách trả"
+                                value={formatCurrency(order?.paidAmount)}
+                            />
+                            {hasValue(order?.debtAmount) ? (
+                                <InfoRow
+                                    label="Công nợ"
+                                    value={formatCurrency(order?.debtAmount)}
                                 />
-                            }
-                        />
+                            ) : null}
+                            {hasValue(paymentMethodName) ? (
+                                <InfoRow
+                                    label="Hình thức TT"
+                                    value={paymentMethodName}
+                                />
+                            ) : null}
+                        </div>
                     </section>
 
-                    <section className="py-3.5">
-                        <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
-                            Giao hàng
-                        </h3>
-                        <InfoRow
-                            label="Đơn vị VC"
-                            value={order?.shippingProvider || "--"}
-                        />
-                        <InfoRow label="Người nhận" value={getRecipientName(order)} />
-                        <InfoRow
-                            label="Địa chỉ nhận"
-                            value={order?.shippingAddress || "--"}
-                        />
-                        <InfoRow label="SĐT nhận" value={getRecipientPhone(order)} />
-                    </section>
+                    {hasShippingInfo ? (
+                        <section className="py-3.5">
+                            <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
+                                Giao hàng
+                            </h3>
+                            <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                                {hasValue(shippingProvider) ? (
+                                    <InfoRow
+                                        label="Đơn vị VC"
+                                        value={shippingProvider}
+                                    />
+                                ) : null}
+                                {hasValue(recipientName) ? (
+                                    <InfoRow
+                                        label="Người nhận"
+                                        value={recipientName}
+                                    />
+                                ) : null}
+                                {hasValue(shippingAddress) ? (
+                                    <InfoRow
+                                        label="Địa chỉ nhận"
+                                        value={shippingAddress}
+                                    />
+                                ) : null}
+                                {hasValue(recipientPhone) ? (
+                                    <InfoRow
+                                        label="SĐT nhận"
+                                        value={recipientPhone}
+                                    />
+                                ) : null}
+                            </div>
+                        </section>
+                    ) : null}
                 </>
             ) : null}
         </aside>
@@ -171,9 +246,9 @@ export function InvoiceDetailPanel({
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
     return (
-        <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2.5 py-1 text-xs text-[#172317]">
+        <div className="flex items-center justify-between gap-4 text-xs text-[#172317]">
             <span className="font-bold text-[#536078]">{label}</span>
-            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-black">
+            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-right font-black">
                 {value || "--"}
             </strong>
         </div>

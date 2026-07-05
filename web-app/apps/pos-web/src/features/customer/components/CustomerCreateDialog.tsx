@@ -9,6 +9,13 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "../../../components/ui/select";
+import {
     CUSTOMER_BUTTON_BASE,
     CUSTOMER_COMPACT_BUTTON,
     CUSTOMER_FIELD_CLASS_NAME
@@ -18,7 +25,8 @@ import type {
     CreateCustomerRequest,
     CustomerResponse,
     CustomerStatus,
-    CustomerTierResponse
+    CustomerTierResponse,
+    CustomerType
 } from "../types/customer.types";
 import { customerErrorMessage } from "../utils/customer-list.utils";
 
@@ -34,8 +42,8 @@ interface CustomerFormDraft {
     phone: string;
     email: string;
     dateOfBirth: string;
+    customerType: CustomerType;
     tierId: string;
-    creditLimit: string;
     status: CustomerStatus;
 }
 
@@ -44,8 +52,8 @@ const EMPTY_DRAFT: CustomerFormDraft = {
     phone: "",
     email: "",
     dateOfBirth: "",
+    customerType: "INDIVIDUAL",
     tierId: "",
-    creditLimit: "0",
     status: "ACTIVE"
 };
 
@@ -62,8 +70,8 @@ export function CustomerCreateDialog({
                   phone: customer.phone,
                   email: customer.email ?? "",
                   dateOfBirth: customer.dateOfBirth ?? "",
+                  customerType: customer.customerType ?? "INDIVIDUAL",
                   tierId: customer.tierId ?? "",
-                  creditLimit: String(customer.creditLimit),
                   status: customer.status
               }
             : EMPTY_DRAFT
@@ -89,8 +97,8 @@ export function CustomerCreateDialog({
             phone: draft.phone.trim(),
             email: draft.email.trim() || null,
             dateOfBirth: draft.dateOfBirth || null,
+            customerType: draft.customerType,
             tierId: draft.tierId || null,
-            creditLimit: draft.creditLimit ? Number(draft.creditLimit) : 0,
             lastPurchaseDate: customer?.lastPurchaseDate ?? null,
             totalSpent: customer?.totalSpent ?? 0,
             status: draft.status
@@ -111,7 +119,7 @@ export function CustomerCreateDialog({
     }
 
     return (
-        <DialogContent className="w-[min(680px,calc(100vw-32px))]">
+        <DialogContent className="w-[min(760px,calc(100vw-32px))]">
             <DialogHeader>
                 <DialogTitle>
                     {customer ? "Chỉnh sửa khách hàng" : "Thêm khách hàng"}
@@ -124,7 +132,7 @@ export function CustomerCreateDialog({
             </DialogHeader>
 
             <form onSubmit={(event) => void submit(event)}>
-                <div className="grid max-h-[70vh] grid-cols-2 gap-x-4 gap-y-3 overflow-y-auto p-5 max-sm:grid-cols-1">
+                <div className="grid max-h-[68vh] grid-cols-2 gap-x-5 gap-y-5 overflow-y-auto p-6 max-sm:grid-cols-1">
                     <FormField label="Tên khách hàng" required>
                         <input
                             autoFocus
@@ -178,58 +186,68 @@ export function CustomerCreateDialog({
                         />
                     </FormField>
 
-                    <FormField label="Hạng thành viên">
-                        <select
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            onChange={(event) =>
-                                update("tierId", event.target.value)
+                    <FormField label="Loại khách hàng">
+                        <Select
+                            className="w-full"
+                            onValueChange={(value) =>
+                                update("customerType", value as CustomerType)
                             }
-                            value={draft.tierId}
+                            value={draft.customerType}
                         >
-                            <option value="">Chưa xếp hạng</option>
-                            {tiers
-                                .filter((tier) => tier.status === "ACTIVE")
-                                .map((tier) => (
-                                    <option key={tier.id} value={tier.id}>
-                                        {tier.name}
-                                    </option>
-                                ))}
-                        </select>
+                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="INDIVIDUAL">Cá nhân</SelectItem>
+                                <SelectItem value="BUSINESS">Doanh nghiệp</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </FormField>
 
-                    <FormField label="Hạn mức tín dụng">
-                        <input
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            min="0"
-                            onChange={(event) =>
-                                update("creditLimit", event.target.value)
-                            }
-                            step="1000"
-                            type="number"
-                            value={draft.creditLimit}
-                        />
+                    <FormField label="Hạng thành viên">
+                        <Select
+                            className="w-full"
+                            onValueChange={(value) => update("tierId", value)}
+                            value={draft.tierId}
+                        >
+                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">Chưa xếp hạng</SelectItem>
+                                {tiers
+                                    .filter((tier) => tier.status === "ACTIVE")
+                                    .map((tier) => (
+                                        <SelectItem key={tier.id} value={tier.id}>
+                                            {tier.name}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
                     </FormField>
 
                     <FormField label="Trạng thái">
-                        <select
-                            className={CUSTOMER_FIELD_CLASS_NAME}
-                            onChange={(event) =>
-                                update(
-                                    "status",
-                                    event.target.value as CustomerStatus
-                                )
+                        <Select
+                            className="w-full"
+                            onValueChange={(value) =>
+                                update("status", value as CustomerStatus)
                             }
                             value={draft.status}
                         >
-                            <option value="ACTIVE">Hoạt động</option>
-                            <option value="INACTIVE">Không hoạt động</option>
-                            <option value="SUSPENDED">Tạm khóa</option>
-                        </select>
+                            <SelectTrigger className={CUSTOMER_FIELD_CLASS_NAME}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                                <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                                <SelectItem value="SUSPENDED">Tạm khóa</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </FormField>
 
                     {error && (
                         <div
-                            className="col-span-full flex items-start gap-2 rounded-lg border border-[#f1c8c1] bg-[#fff5f3] px-3.5 py-3 text-xs font-bold text-[#a43a2a]"
+                            className="col-span-full flex items-start gap-2 rounded-xl border border-[#f1c8c1] bg-[#fff5f3] px-4 py-3 text-sm font-bold text-[#a43a2a]"
                             role="alert"
                         >
                             <AlertCircle
@@ -285,8 +303,8 @@ function FormField({
     required?: boolean;
 }) {
     return (
-        <label className="grid gap-1.5">
-            <span className="text-[11px] font-black text-[#596879]">
+        <label className="grid gap-2">
+            <span className="text-xs font-bold text-[#536171]">
                 {label}
                 {required && <span className="ml-1 text-[#c4422e]">*</span>}
             </span>

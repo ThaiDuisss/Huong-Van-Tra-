@@ -5,13 +5,12 @@ import {
     FileSpreadsheet,
     MoreHorizontal,
     Plus,
-    Search
+    Search,
+    Upload
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { DateQuickFilter } from "../../../components/shared/DateQuickFilter";
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
-import type { DateFilterKey } from "../../../components/shared/dateFilters";
 import { OrderDetailPanel } from "../components/OrderDetailPanel";
 import { OrderStatusBadge } from "../components/OrderStatusBadge";
 import {
@@ -26,12 +25,10 @@ import type {
     OrderSummaryResponse
 } from "../types/order.types";
 import {
-    buildDateRangeFilter,
     formatCurrency,
-    formatDateTime,
+    formatDateOnly,
     getOrderCode,
-    getOrderStatusText,
-    getOrderTypeText
+    getOrderStatusText
 } from "../utils/order-formatters";
 import styles from "./OrderListPage.module.css";
 
@@ -68,13 +65,13 @@ const ORDER_STATUS_TABS: {
     },
     {
         key: "PROCESSING",
-        label: "Đang xử lý",
+        label: "Xử lý",
         status: "PROCESSING",
         countKey: "processing"
     },
     {
         key: "SHIPPING",
-        label: "Đang giao",
+        label: "Giao",
         status: "SHIPPING",
         countKey: "shipping"
     },
@@ -86,7 +83,7 @@ const ORDER_STATUS_TABS: {
     },
     {
         key: "RETURN_REFUND",
-        label: "Hoàn/Hoàn tiền",
+        label: "Hoàn tiền",
         // TODO: khi backend hỗ trợ nhiều status/lần, truyền RETURNED và REFUNDED cùng lúc.
         status: "RETURNED",
         countKey: "returnedOrRefunded"
@@ -129,11 +126,11 @@ function getPageNumbers(totalPages: number, currentPage: number) {
 }
 
 export function OrderListPage() {
+    const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterStatus, setFilterStatus] =
         useState<OrderStatusTabKey>("ALL");
-    const [dateFilter, setDateFilter] = useState<DateFilterKey>("ALL");
     const [currentPage, setCurrentPage] = useState(0);
     const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
     const [activeSummary, setActiveSummary] =
@@ -149,10 +146,6 @@ export function OrderListPage() {
     const [isDetailLoading, setIsDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
 
-    const dateRange = useMemo(
-        () => buildDateRangeFilter(dateFilter),
-        [dateFilter]
-    );
     const activeStatusTab = ORDER_STATUS_TABS.find(
         (tab) => tab.key === filterStatus
     );
@@ -166,7 +159,6 @@ export function OrderListPage() {
             getOrders({
                 keyword: debouncedKeyword,
                 status: activeStatusTab?.status ?? undefined,
-                ...dateRange,
                 sort: "businessStatus",
                 page: currentPage,
                 size: PAGE_SIZE
@@ -197,12 +189,12 @@ export function OrderListPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [activeStatusTab?.status, currentPage, dateRange, debouncedKeyword]);
+    }, [activeStatusTab?.status, currentPage, debouncedKeyword]);
 
     useEffect(() => {
         let ignore = false;
 
-        getOrderStats(dateRange)
+        getOrderStats()
             .then((response) => {
                 if (!ignore) {
                     setStats(response ?? {});
@@ -217,7 +209,7 @@ export function OrderListPage() {
         return () => {
             ignore = true;
         };
-    }, [dateRange]);
+    }, []);
 
     useEffect(() => {
         if (!activeOrderId) {
@@ -263,11 +255,6 @@ export function OrderListPage() {
         setCurrentPage(0);
     };
 
-    const selectDateFilter = (filter: DateFilterKey) => {
-        setDateFilter(filter);
-        setCurrentPage(0);
-    };
-
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
         setCurrentPage(0);
@@ -292,6 +279,24 @@ export function OrderListPage() {
         }
 
         setOpenActionCode(null);
+    };
+
+    const handleClickImport = () => {
+        importInputRef.current?.click();
+    };
+
+    const handleImportFile = (file?: File) => {
+        if (!file) {
+            return;
+        }
+
+        console.log("TODO: Nhập file đơn hàng", file);
+        window.alert("Chức năng nhập file đang được phát triển");
+    };
+
+    const handleExportFile = () => {
+        console.log("TODO: Xuất file đơn hàng");
+        window.alert("Chức năng xuất file đang được phát triển");
     };
 
     const fromRecord =
@@ -324,11 +329,6 @@ export function OrderListPage() {
             <div className={styles.content}>
                 <div className={styles.header}>
                     <div className={styles.title}>
-                        <div className={styles.breadcrumbs}>
-                            <span>Đơn hàng</span>
-                            <ChevronRight size={16} aria-hidden="true" />
-                            <span>Tất cả đơn hàng</span>
-                        </div>
                         <h1>Tất cả đơn hàng</h1>
                         <p>
                             Quản lý và theo dõi tất cả đơn hàng trong hệ thống
@@ -336,27 +336,33 @@ export function OrderListPage() {
                     </div>
 
                     <div className={styles.headerActions}>
-                        <label className={styles.searchBox}>
-                            <Search size={20} aria-hidden="true" />
-                            <input
-                                aria-label="Tìm kiếm đơn hàng"
-                                onChange={(event) =>
-                                    handleSearchChange(event.target.value)
-                                }
-                                onKeyDown={(event) => {
-                                    if (event.key === "Escape") {
-                                        handleSearchChange("");
-                                    }
-                                }}
-                                placeholder="Tìm mã đơn, khách hàng, SĐT..."
-                                value={searchTerm}
-                            />
-                        </label>
+                        <input
+                            ref={importInputRef}
+                            accept=".xlsx,.xls,.csv"
+                            className={styles.hiddenFileInput}
+                            onChange={(event) => {
+                                handleImportFile(event.target.files?.[0]);
+                                event.target.value = "";
+                            }}
+                            type="file"
+                        />
                         <button className={styles.primaryButton} type="button">
                             <Plus size={18} aria-hidden="true" />
                             Đặt hàng
                         </button>
-                        <button className={styles.secondaryButton} type="button">
+                        <button
+                            className={styles.secondaryButton}
+                            onClick={handleClickImport}
+                            type="button"
+                        >
+                            <Upload size={18} aria-hidden="true" />
+                            Nhập file
+                        </button>
+                        <button
+                            className={styles.secondaryButton}
+                            onClick={handleExportFile}
+                            type="button"
+                        >
                             <FileSpreadsheet size={18} aria-hidden="true" />
                             Xuất file
                             <ChevronDown size={16} aria-hidden="true" />
@@ -369,50 +375,74 @@ export function OrderListPage() {
                 >
                     <div className={styles.tablePanel}>
                         <div className={styles.filterRows}>
-                            <div className={styles.filterGroup}>
-                                <span className={styles.filterLabel}>
-                                    Trạng thái:
-                                </span>
-                                <div className={styles.quickFilters}>
-                                    {ORDER_STATUS_TABS.map((filter) => (
-                                        <button
-                                            className={`${styles.filterChip} ${
-                                                filterStatus === filter.key
-                                                    ? styles.activeFilterChip
-                                                    : ""
-                                            }`}
-                                            key={filter.key}
-                                            onClick={() =>
-                                                selectFilterStatus(filter.key)
+                            <div className={styles.filterToolbar}>
+                                <label className={styles.searchBox}>
+                                    <Search size={20} aria-hidden="true" />
+                                    <input
+                                        aria-label="Tìm kiếm đơn hàng"
+                                        onChange={(event) =>
+                                            handleSearchChange(
+                                                event.target.value
+                                            )
+                                        }
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Escape") {
+                                                handleSearchChange("");
                                             }
-                                            type="button"
-                                        >
-                                            {filter.label}{" "}
-                                            <span>
-                                                {stats[filter.countKey] ?? 0}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                                        }}
+                                        placeholder="Tìm mã đơn, khách hàng, SĐT..."
+                                        value={searchTerm}
+                                    />
+                                </label>
 
-                            <div className={styles.filterGroup}>
-                                <DateQuickFilter
-                                    value={dateFilter}
-                                    onChange={selectDateFilter}
-                                />
+                                <div className={styles.filterGroup}>
+                                    <span className={styles.filterLabel}>
+                                        Trạng thái:
+                                    </span>
+                                    <div className={styles.quickFilters}>
+                                        {ORDER_STATUS_TABS.map((filter) => (
+                                            <button
+                                                className={`${styles.filterChip} ${
+                                                    filterStatus === filter.key
+                                                        ? styles.activeFilterChip
+                                                        : ""
+                                                }`}
+                                                key={filter.key}
+                                                onClick={() =>
+                                                    selectFilterStatus(
+                                                        filter.key
+                                                    )
+                                                }
+                                                type="button"
+                                            >
+                                                {filter.label}{" "}
+                                                <span>
+                                                    {stats[filter.countKey] ??
+                                                        0}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div className={styles.tableWrap}>
-                            <table className={styles.orderTable}>
+                        <div className={styles.tableCard}>
+                            <div className={styles.tableWrap}>
+                                <table className={styles.orderTable}>
+                                <colgroup>
+                                    <col style={{ width: "22%" }} />
+                                    <col style={{ width: "40%" }} />
+                                    <col style={{ width: "20%" }} />
+                                    <col style={{ width: "21%" }} />
+                                    <col style={{ width: "10%" }} />
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th>Mã đơn hàng</th>
                                         <th>Trạng thái</th>
                                         <th>Giá trị đơn hàng</th>
                                         <th>Ngày đặt</th>
-                                        <th>Nghiệp vụ</th>
                                         <th>Thao tác</th>
                                     </tr>
                                 </thead>
@@ -421,7 +451,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={6}
+                                                colSpan={5}
                                             >
                                                 <strong>Đang tải đơn hàng</strong>
                                                 <span>
@@ -436,7 +466,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={6}
+                                                colSpan={5}
                                             >
                                                 <strong>
                                                     Không tải được danh sách đơn hàng
@@ -447,13 +477,17 @@ export function OrderListPage() {
                                     ) : null}
 
                                     {!isOrdersLoading && !ordersError
-                                        ? visibleOrders.map((order) => (
+                                        ? visibleOrders.map((order, index) => (
                                               <tr
-                                                  className={
+                                                  className={`${
+                                                      index % 2 === 0
+                                                          ? styles.zebraFirstRow
+                                                          : styles.zebraSecondRow
+                                                  } ${
                                                       activeOrderId === order.id
                                                           ? styles.activeRow
                                                           : ""
-                                                  }
+                                                  }`}
                                                   key={order.id}
                                                   onClick={() =>
                                                       selectOrder(order)
@@ -463,12 +497,20 @@ export function OrderListPage() {
                                                       {getOrderCode(order)}
                                                   </td>
                                                   <td>
-                                                      <OrderStatusBadge
-                                                          status={order.status}
-                                                          label={getOrderStatusText(
-                                                              order
-                                                          )}
-                                                      />
+                                                      <div
+                                                          className={
+                                                              styles.statusCell
+                                                          }
+                                                      >
+                                                          <OrderStatusBadge
+                                                              status={
+                                                                  order.status
+                                                              }
+                                                              label={getOrderStatusText(
+                                                                  order
+                                                              )}
+                                                          />
+                                                      </div>
                                                   </td>
                                                   <td>
                                                       <strong>
@@ -478,44 +520,51 @@ export function OrderListPage() {
                                                       </strong>
                                                   </td>
                                                   <td>
-                                                      {formatDateTime(
+                                                      {formatDateOnly(
                                                           order.createdAt
                                                       )}
-                                                  </td>
-                                                  <td>
-                                                      {getOrderTypeText(order)}
                                                   </td>
                                                   <td
                                                       className={
                                                           styles.actionCell
                                                       }
                                                   >
-                                                      <button
-                                                          aria-expanded={
-                                                              openActionCode ===
-                                                              order.id
-                                                          }
-                                                          aria-label={`Mở thao tác cho đơn ${getOrderCode(order)}`}
+                                                      <div
                                                           className={
-                                                              styles.rowActionButton
+                                                              styles.actionButtonWrap
                                                           }
-                                                          onClick={(event) => {
-                                                              event.stopPropagation();
-                                                              setOpenActionCode(
-                                                                  (current) =>
-                                                                      current ===
-                                                                      order.id
-                                                                          ? null
-                                                                          : order.id
-                                                              );
-                                                          }}
-                                                          type="button"
                                                       >
-                                                          <MoreHorizontal
-                                                              size={18}
-                                                              aria-hidden="true"
-                                                          />
-                                                      </button>
+                                                          <button
+                                                              aria-expanded={
+                                                                  openActionCode ===
+                                                                  order.id
+                                                              }
+                                                              aria-label={`Mở thao tác cho đơn ${getOrderCode(order)}`}
+                                                              className={
+                                                                  styles.rowActionButton
+                                                              }
+                                                              onClick={(
+                                                                  event
+                                                              ) => {
+                                                                  event.stopPropagation();
+                                                                  setOpenActionCode(
+                                                                      (
+                                                                          current
+                                                                      ) =>
+                                                                          current ===
+                                                                          order.id
+                                                                              ? null
+                                                                              : order.id
+                                                                  );
+                                                              }}
+                                                              type="button"
+                                                          >
+                                                              <MoreHorizontal
+                                                                  size={18}
+                                                                  aria-hidden="true"
+                                                              />
+                                                          </button>
+                                                      </div>
                                                       {openActionCode ===
                                                       order.id ? (
                                                           <div
@@ -561,7 +610,7 @@ export function OrderListPage() {
                                         <tr>
                                             <td
                                                 className={styles.emptyCell}
-                                                colSpan={6}
+                                                colSpan={5}
                                             >
                                                 <strong>
                                                     Không tìm thấy đơn hàng phù hợp
@@ -573,56 +622,57 @@ export function OrderListPage() {
                                         </tr>
                                     ) : null}
                                 </tbody>
-                            </table>
-                        </div>
+                                </table>
+                            </div>
 
-                        <div className={styles.pagination}>
-                            <span>
-                                Hiển thị {fromRecord} - {toRecord} trong{" "}
-                                {totalElements} đơn hàng
-                            </span>
-                            <div className={styles.pages}>
-                                <button
-                                    className={styles.pageButton}
-                                    disabled={currentPage === 0}
-                                    onClick={() =>
-                                        setCurrentPage((page) =>
-                                            Math.max(0, page - 1)
+                            <div className={styles.pagination}>
+                                <span>
+                                    Hiển thị {fromRecord} - {toRecord} trong{" "}
+                                    {totalElements} đơn hàng
+                                </span>
+                                <div className={styles.pages}>
+                                    <button
+                                        className={styles.pageButton}
+                                        disabled={currentPage === 0}
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.max(0, page - 1)
+                                            )
+                                        }
+                                        type="button"
+                                    >
+                                        <ChevronLeft size={18} aria-hidden="true" />
+                                    </button>
+                                    {getPageNumbers(totalPages, currentPage).map(
+                                        (page) => (
+                                            <button
+                                                className={`${styles.pageButton} ${
+                                                    page === currentPage
+                                                        ? styles.activePage
+                                                        : ""
+                                                }`}
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                type="button"
+                                            >
+                                                {page + 1}
+                                            </button>
                                         )
-                                    }
-                                    type="button"
-                                >
-                                    <ChevronLeft size={18} aria-hidden="true" />
-                                </button>
-                                {getPageNumbers(totalPages, currentPage).map(
-                                    (page) => (
-                                        <button
-                                            className={`${styles.pageButton} ${
-                                                page === currentPage
-                                                    ? styles.activePage
-                                                    : ""
-                                            }`}
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            type="button"
-                                        >
-                                            {page + 1}
-                                        </button>
-                                    )
-                                )}
-                                {totalPages > 5 ? <span>...</span> : null}
-                                <button
-                                    className={styles.pageButton}
-                                    disabled={currentPage >= totalPages - 1}
-                                    onClick={() =>
-                                        setCurrentPage((page) =>
-                                            Math.min(totalPages - 1, page + 1)
-                                        )
-                                    }
-                                    type="button"
-                                >
-                                    <ChevronRight size={18} aria-hidden="true" />
-                                </button>
+                                    )}
+                                    {totalPages > 5 ? <span>...</span> : null}
+                                    <button
+                                        className={styles.pageButton}
+                                        disabled={currentPage >= totalPages - 1}
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.min(totalPages - 1, page + 1)
+                                            )
+                                        }
+                                        type="button"
+                                    >
+                                        <ChevronRight size={18} aria-hidden="true" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

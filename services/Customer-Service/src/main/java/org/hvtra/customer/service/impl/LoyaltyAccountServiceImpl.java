@@ -84,6 +84,9 @@ public class LoyaltyAccountServiceImpl implements LoyaltyAccountService {
         loyaltyAccountRepository.save(account);
     }
 
+
+    //======================================= Helper classes =======================================
+
     private LoyaltyAccount findAccount(UUID id) {
         return loyaltyAccountRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> notFound(Message.LOYALTY_ACCOUNT_NOT_FOUND));

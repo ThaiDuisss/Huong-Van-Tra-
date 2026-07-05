@@ -65,13 +65,23 @@ interface CheckoutDraftOrderRequestBody {
 
 export interface PosCheckoutPaymentResponse {
     paymentId?: string;
+    attemptId?: string;
     paymentCode?: string;
+    orderId?: string;
+    orderCode?: string;
     method: string;
+    methodLabel?: string;
+    provider?: string;
     status: string;
     amountRequired: number;
     amountPaid: number;
     receivedAmount?: number;
     changeAmount?: number;
+    transferContent?: string;
+    qrUrl?: string;
+    bankCode?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
     referenceCode?: string;
     qrCodeUrl?: string;
     qrContent?: string;
@@ -117,7 +127,7 @@ const orderTypeMap: Record<SaleOrderType, string> = {
 
 const paymentMethodMap: Record<SalePaymentMethod, string> = {
     CASH: "CASH",
-    BANK_TRANSFER: "QR_CODE",
+    BANK_TRANSFER: "BANK_TRANSFER",
     QR_CODE: "QR_CODE",
     E_WALLET: "E_WALLET",
     CARD: "CARD",
