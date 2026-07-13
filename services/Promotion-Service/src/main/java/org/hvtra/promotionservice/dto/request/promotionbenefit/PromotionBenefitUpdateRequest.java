@@ -21,7 +21,7 @@ import java.util.UUID;
 @Schema(description = "Request cập nhật quyền lợi/hành động giảm giá của khuyến mãi")
 public class PromotionBenefitUpdateRequest {
 
-    @Schema(description = "Loại quyền lợi khuyến mãi", example = "PERCENT_DISCOUNT")
+    @Schema(description = "Loại quyền lợi khuyến mãi", example = "PERCENT_DISCOUNT", implementation = BenefitType.class)
     @NotNull(message = "Promotion benefit type is required")
     BenefitType benefitType;
 

@@ -364,6 +364,7 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
                         ? now.minusHours(2 + index % 12)
                         : null)
                 .usageLimit(1 + index % 5)
+                .perCustomerLimit(1)
                 .usedCount(usedCount)
                 .expiresAt(couponExpiresAt(status, promotion, now, index))
                 .status(status)
@@ -483,14 +484,18 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
         }
 
         if (eventStatus == EventStatus.PAUSED) {
-            return PromotionStatus.INACTIVE;
+            return PromotionStatus.PAUSED;
         }
 
         if (eventStatus == EventStatus.EXPIRED) {
             return PromotionStatus.EXPIRED;
         }
 
-        if (eventStatus == EventStatus.ENDED || eventStatus == EventStatus.CANCELLED) {
+        if (eventStatus == EventStatus.ENDED) {
+            return PromotionStatus.ENDED;
+        }
+
+        if (eventStatus == EventStatus.CANCELLED) {
             return PromotionStatus.CANCELLED;
         }
 

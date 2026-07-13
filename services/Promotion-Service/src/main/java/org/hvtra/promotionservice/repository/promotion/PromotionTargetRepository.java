@@ -26,4 +26,11 @@ public interface PromotionTargetRepository extends JpaRepository<PromotionTarget
             PromotionTargetType targetType,
             UUID targetId
     );
+
+    boolean existsByPromotionIdAndTargetTypeAndTargetIdAndIdNotAndIsDeletedFalse(
+            UUID promotionId,
+            PromotionTargetType targetType,
+            UUID targetId,
+            UUID id
+    );
 }

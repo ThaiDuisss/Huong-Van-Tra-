@@ -6,7 +6,7 @@ CREATE TABLE events (
                         end_at DATETIME(6),
                         event_type VARCHAR(50) NOT NULL,
                         audience VARCHAR(50) NOT NULL,
-                        status VARCHAR(30) NOT NULL DEFAULT 'INACTIVE',
+                        status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
 
                         is_deleted TINYINT(1) NOT NULL DEFAULT 0,
                         created_by BINARY(16),
@@ -144,6 +144,7 @@ CREATE TABLE coupons (
                          claimed_at DATETIME(6),
                          usage_limit INT NOT NULL DEFAULT 1,
                          used_count INT NOT NULL DEFAULT 0,
+                         per_customer_limit INT NOT NULL DEFAULT 1,
                          expires_at DATETIME(6),
                          status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
 

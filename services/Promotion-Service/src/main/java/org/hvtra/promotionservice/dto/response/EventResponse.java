@@ -57,19 +57,22 @@ public class EventResponse {
 
     @Schema(
             description = "Loại sự kiện marketing",
-            example = "SEASONAL"
+            example = "SEASONAL_CAMPAIGN",
+            implementation = EventType.class
     )
     EventType eventType;
 
     @Schema(
             description = "Nhóm đối tượng người dùng mà sự kiện hướng tới",
-            example = "ALL_USERS"
+            example = "ALL_CUSTOMERS",
+            implementation = EventAudience.class
     )
     EventAudience audience;
 
     @Schema(
             description = "Trạng thái hiện tại của sự kiện",
-            example = "ACTIVE"
+            example = "ACTIVE",
+            implementation = EventStatus.class
     )
     EventStatus status;
 

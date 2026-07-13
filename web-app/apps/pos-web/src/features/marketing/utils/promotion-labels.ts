@@ -22,8 +22,9 @@ const promotionStatusLabels: Record<string, string> = {
     DRAFT: "Bản nháp",
     SCHEDULED: "Đã lên lịch",
     ACTIVE: "Đang chạy",
-    INACTIVE: "Tạm khóa",
+    PAUSED: "Tạm dừng",
     EXPIRED: "Hết hạn",
+    ENDED: "Đã kết thúc",
     CANCELLED: "Đã hủy"
 };
 

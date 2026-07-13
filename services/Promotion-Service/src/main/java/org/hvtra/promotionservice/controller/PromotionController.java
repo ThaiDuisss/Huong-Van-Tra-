@@ -237,7 +237,7 @@ public class PromotionController {
 
     @Operation(
             summary = "Tạm dừng khuyến mãi",
-            description = "Chuyển khuyến mãi sang trạng thái INACTIVE."
+            description = "Chuyển khuyến mãi sang trạng thái PAUSED."
     )
     @PostMapping("/{promotionId}/pause")
     public ApiResponse<PromotionResponse> pausePromotion(
@@ -255,7 +255,7 @@ public class PromotionController {
 
     @Operation(
             summary = "Tiếp tục khuyến mãi",
-            description = "Resume khuyến mãi đang INACTIVE. Nếu startAt ở tương lai thì về SCHEDULED, nếu đã tới thời gian chạy thì về ACTIVE."
+            description = "Resume khuyến mãi đang PAUSED. Nếu startAt ở tương lai thì về SCHEDULED, nếu đã tới thời gian chạy thì về ACTIVE."
     )
     @PostMapping("/{promotionId}/resume")
     public ApiResponse<PromotionResponse> resumePromotion(
@@ -303,6 +303,24 @@ public class PromotionController {
             @PathVariable UUID promotionId
     ) {
         PromotionResponse response = promotionService.expirePromotion(promotionId);
+
+        return ApiResponse.updated(PromotionSuccessMessage.STATUS_UPDATED, response);
+    }
+
+    @Operation(
+            summary = "Kết thúc khuyến mãi",
+            description = "Chuyển khuyến mãi sang trạng thái ENDED. Dùng khi admin chủ động đóng/kết thúc promotion."
+    )
+    @PostMapping("/{promotionId}/end")
+    public ApiResponse<PromotionResponse> endPromotion(
+            @Parameter(
+                    description = "ID của khuyến mãi cần kết thúc",
+                    required = true,
+                    example = "550e8400-e29b-41d4-a716-446655440000"
+            )
+            @PathVariable UUID promotionId
+    ) {
+        PromotionResponse response = promotionService.endPromotion(promotionId);
 
         return ApiResponse.updated(PromotionSuccessMessage.STATUS_UPDATED, response);
     }

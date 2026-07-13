@@ -41,14 +41,16 @@ public class EventUpdateRequest {
 
     @Schema(
             description = "Loại event/campaign",
-            example = "TIME_BASED"
+            example = "SEASONAL_CAMPAIGN",
+            implementation = EventType.class
     )
     @NotNull(message = "Event type is required")
     EventType eventType;
 
     @Schema(
             description = "Nhóm khách hàng áp dụng event",
-            example = "ALL_CUSTOMERS"
+            example = "ALL_CUSTOMERS",
+            implementation = EventAudience.class
     )
     @NotNull(message = "Event audience is required")
     EventAudience audience;

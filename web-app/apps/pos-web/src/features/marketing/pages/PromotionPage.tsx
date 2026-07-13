@@ -75,8 +75,9 @@ const statusClassNames: Record<string, string> = {
     DRAFT: styles.statusInactive,
     SCHEDULED: styles.statusScheduled,
     ACTIVE: styles.statusActive,
-    INACTIVE: styles.statusPaused,
+    PAUSED: styles.statusPaused,
     EXPIRED: styles.statusExpired,
+    ENDED: styles.statusUsed,
     CANCELLED: styles.statusCancelled
 };
 
@@ -276,7 +277,7 @@ export function PromotionPage() {
         action: PromotionActionType
     ) {
         if (
-            (action === "cancel" || action === "expire") &&
+            (action === "cancel" || action === "expire" || action === "end") &&
             !window.confirm(
                 `${getPromotionActionLabel(
                     action
@@ -309,6 +310,9 @@ export function PromotionPage() {
                     break;
                 case "expire":
                     await promotionApi.expirePromotion(promotion.id);
+                    break;
+                case "end":
+                    await promotionApi.endPromotion(promotion.id);
                     break;
                 case "duplicate":
                     await promotionApi.duplicatePromotion(promotion.id);
@@ -1390,6 +1394,7 @@ function getPromotionActionLabel(action: PromotionActionType) {
         resume: "Tiếp tục",
         cancel: "Hủy",
         expire: "Đánh dấu hết hạn",
+        end: "Kết thúc",
         duplicate: "Sao chép"
     };
 

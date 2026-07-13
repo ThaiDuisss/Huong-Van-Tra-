@@ -18,7 +18,7 @@ public class CouponStatusUpdateRequest {
     @Schema(
             description = "Trạng thái mới của coupon",
             example = "ACTIVE",
-            allowableValues = {"DRAFT", "SCHEDULED", "ACTIVE", "PAUSED", "EXPIRED", "CANCELLED", "ARCHIVED"}
+            implementation = CouponStatus.class
     )
     @NotNull(message = "Coupon status is required")
     CouponStatus status;

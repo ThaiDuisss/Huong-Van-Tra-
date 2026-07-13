@@ -2,8 +2,9 @@ export type PromotionStatusValue =
     | "DRAFT"
     | "SCHEDULED"
     | "ACTIVE"
-    | "INACTIVE"
+    | "PAUSED"
     | "EXPIRED"
+    | "ENDED"
     | "CANCELLED";
 
 export type PromotionTypeValue =
@@ -56,6 +57,18 @@ export interface PromotionBenefitResponse {
     aiRecommended?: boolean;
 }
 
+export interface PromotionBenefitRequest {
+    benefitType: string;
+    value: number | string;
+    maxDiscount?: number | string;
+    giftProductId?: string;
+    buyQuantity?: number;
+    getQuantity?: number;
+    reason?: string;
+    minMarginPercent?: number | string;
+    expectedMarginPercent?: number | string;
+}
+
 export interface PromotionTargetResponse {
     id: string;
     promotionId: string;
@@ -69,9 +82,26 @@ export interface PromotionTargetResponse {
     reason?: string;
 }
 
+export interface PromotionTargetRequest {
+    targetType: string;
+    targetId: string;
+    importBatchId?: string;
+    excluded?: boolean;
+    overrideBenefitType?: string;
+    overrideValue?: number | string;
+    overrideMaxDiscount?: number | string;
+    reason?: string;
+}
+
 export interface PromotionConditionResponse {
     id: string;
     promotionId: string;
+    conditionType: string;
+    operator: string;
+    conditionValue: string;
+}
+
+export interface PromotionConditionRequest {
     conditionType: string;
     operator: string;
     conditionValue: string;

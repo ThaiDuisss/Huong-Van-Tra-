@@ -13,6 +13,13 @@ import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "../../../../components/ui/select";
 import { MarketingPagination } from "../MarketingPagination";
 import styles from "./DiscountProgramPage.module.css";
 import { routePaths } from "../../../../routes/path";
@@ -20,7 +27,10 @@ import type {
     EventResponse,
     EventUpdateRequest
 } from "../../types/event.types";
-import { formatDiscountDate } from "../../utils/discount-programs";
+import {
+    formatDiscountDate,
+    formatDiscountDateParts
+} from "../../utils/discount-programs";
 import {
     getEventAudienceLabel,
     getEventStatusLabel,
@@ -182,6 +192,13 @@ export function DiscountProgramTable({
         <section className={styles.tableCard}>
             <div className={styles.tableScroll}>
                 <table className={styles.table}>
+                    <colgroup>
+                        <col className={styles.eventNameColumn} />
+                        <col className={styles.statusColumn} />
+                        <col className={styles.timeColumn} />
+                        <col className={styles.typeColumn} />
+                        <col className={styles.actionColumn} />
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>Sự kiện</th>
@@ -192,7 +209,10 @@ export function DiscountProgramTable({
                         </tr>
                     </thead>
                     <tbody>
-                        {events.map((event, index) => {
+                        {loading ? (
+                            <EventTableSkeleton />
+                        ) : (
+                            events.map((event, index) => {
                             const expanded = expandedEventId === event.id;
                             const statusActions =
                                 getAllowedEventStatusActions(event);
@@ -230,15 +250,7 @@ export function DiscountProgramTable({
                                             <StatusBadge event={event} />
                                         </td>
                                         <td>
-                                            <span className={styles.timeInline}>
-                                                {formatDiscountDate(
-                                                    event.startAt
-                                                )}{" "}
-                                                -{" "}
-                                                {formatDiscountDate(
-                                                    event.endAt
-                                                )}
-                                            </span>
+                                            <EventTimeRange event={event} />
                                         </td>
                                         <td>
                                             <span
@@ -441,7 +453,8 @@ export function DiscountProgramTable({
                                     ) : null}
                                 </Fragment>
                             );
-                        })}
+                            })
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -450,10 +463,6 @@ export function DiscountProgramTable({
                 <div className={styles.empty}>
                     Không tìm thấy sự kiện khuyến mãi phù hợp.
                 </div>
-            ) : null}
-
-            {loading ? (
-                <div className={styles.empty}>Đang tải dữ liệu...</div>
             ) : null}
 
             <MarketingPagination
@@ -468,6 +477,64 @@ export function DiscountProgramTable({
     );
 }
 
+function EventTableSkeleton() {
+    return (
+        <>
+            {Array.from({ length: 8 }, (_, index) => {
+                const zebraClass =
+                    index % 2 === 0 ? styles.rowOdd : styles.rowEven;
+
+                return (
+                    <tr
+                        key={`event-loading-${index}`}
+                        className={`${zebraClass} ${styles.loadingRow}`}
+                    >
+                        <td>
+                            <span
+                                className={`${styles.skeletonLine} ${styles.skeletonTitle}`}
+                            />
+                        </td>
+                        <td>
+                            <span
+                                className={`${styles.skeletonBlock} ${styles.skeletonStatus}`}
+                            />
+                        </td>
+                        <td>
+                            <div className={styles.skeletonTimeRange}>
+                                <div className={styles.skeletonTimePoint}>
+                                    <span
+                                        className={`${styles.skeletonLine} ${styles.skeletonDate}`}
+                                    />
+                                    <span
+                                        className={`${styles.skeletonLine} ${styles.skeletonHour}`}
+                                    />
+                                </div>
+                                <span className={styles.skeletonSeparator} />
+                                <div className={styles.skeletonTimePoint}>
+                                    <span
+                                        className={`${styles.skeletonLine} ${styles.skeletonDate}`}
+                                    />
+                                    <span
+                                        className={`${styles.skeletonLine} ${styles.skeletonHour}`}
+                                    />
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span
+                                className={`${styles.skeletonBlock} ${styles.skeletonType}`}
+                            />
+                        </td>
+                        <td className={styles.actionCell}>
+                            <span className={styles.skeletonIcon} />
+                        </td>
+                    </tr>
+                );
+            })}
+        </>
+    );
+}
+
 function StatusBadge({ event }: { event: EventResponse }) {
     return (
         <span
@@ -478,6 +545,25 @@ function StatusBadge({ event }: { event: EventResponse }) {
             <CalendarDays size={15} aria-hidden="true" />
             {getEventStatusLabel(event.status)}
         </span>
+    );
+}
+
+function EventTimeRange({ event }: { event: EventResponse }) {
+    const start = formatDiscountDateParts(event.startAt);
+    const end = formatDiscountDateParts(event.endAt);
+
+    return (
+        <div className={styles.timeRangeCell}>
+            <span className={styles.timePoint}>
+                <span className={styles.timeDate}>{start.date}</span>
+                <span className={styles.timeHour}>{start.time}</span>
+            </span>
+            <span className={styles.timeSeparator} aria-hidden="true" />
+            <span className={styles.timePoint}>
+                <span className={styles.timeDate}>{end.date}</span>
+                <span className={styles.timeHour}>{end.time}</span>
+            </span>
+        </div>
     );
 }
 
@@ -718,21 +804,30 @@ function EventEditForm({
 
                         <label className={styles.detailField}>
                             <span>Loại sự kiện</span>
-                            <select
+                            <Select
+                                className="w-full"
                                 value={form.eventType}
-                                onChange={(inputEvent) =>
+                                onValueChange={(value) =>
                                     onChange(
                                         "eventType",
-                                        inputEvent.currentTarget.value
+                                        value
                                     )
                                 }
                             >
-                                {eventTypes.map((type) => (
-                                    <option key={type} value={type}>
-                                        {getEventTypeLabel(type)}
-                                    </option>
-                                ))}
-                            </select>
+                                <SelectTrigger
+                                    aria-label="Loại sự kiện"
+                                    className="h-[42px] w-full rounded-lg border-[#cbd5e1] px-3 text-sm text-[#334155] shadow-none hover:bg-white"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="z-[90] rounded-lg border-[#d0d5dd] p-1 shadow-[0_18px_38px_rgba(15,23,42,0.16)]">
+                                    {eventTypes.map((type) => (
+                                        <SelectItem key={type} value={type}>
+                                            {getEventTypeLabel(type)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             {errors.eventType ? (
                                 <span className={styles.fieldError}>
                                     {errors.eventType}
@@ -810,21 +905,33 @@ function EventEditForm({
                     <h3>Đối tượng</h3>
                     <label className={styles.detailField}>
                         <span>Loại đối tượng</span>
-                        <select
+                        <Select
+                            className="w-full"
                             value={form.audience}
-                            onChange={(inputEvent) =>
+                            onValueChange={(value) =>
                                 onChange(
                                     "audience",
-                                    inputEvent.currentTarget.value
+                                    value
                                 )
                             }
                         >
-                            {eventAudiences.map((audience) => (
-                                <option key={audience} value={audience}>
-                                    {getEventAudienceLabel(audience)}
-                                </option>
-                            ))}
-                        </select>
+                            <SelectTrigger
+                                aria-label="Loại đối tượng"
+                                className="h-[42px] w-full rounded-lg border-[#cbd5e1] px-3 text-sm text-[#334155] shadow-none hover:bg-white"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="z-[90] rounded-lg border-[#d0d5dd] p-1 shadow-[0_18px_38px_rgba(15,23,42,0.16)]">
+                                {eventAudiences.map((audience) => (
+                                    <SelectItem
+                                        key={audience}
+                                        value={audience}
+                                    >
+                                        {getEventAudienceLabel(audience)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         {errors.audience ? (
                             <span className={styles.fieldError}>
                                 {errors.audience}

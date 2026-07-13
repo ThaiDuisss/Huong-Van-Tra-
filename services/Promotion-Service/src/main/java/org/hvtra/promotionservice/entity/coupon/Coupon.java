@@ -79,6 +79,10 @@ public class Coupon extends BaseEntity {
     @Column(name = "used_count", nullable = false)
     Integer usedCount = 0;
 
+    @Builder.Default
+    @Column(name = "per_customer_limit", nullable = false)
+    Integer perCustomerLimit = 1;
+
     @Column(name = "expires_at")
     LocalDateTime expiresAt;
 

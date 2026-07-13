@@ -1,11 +1,14 @@
 import { apiClient } from "../../../api/api-client";
 import type {
     PageResponse,
+    PromotionBenefitRequest,
     PromotionBenefitResponse,
+    PromotionConditionRequest,
     PromotionConditionResponse,
     PromotionCreateRequest,
     PromotionQuery,
     PromotionResponse,
+    PromotionTargetRequest,
     PromotionTargetResponse,
     PromotionUpdateRequest
 } from "../types/promotion.types";
@@ -56,6 +59,40 @@ export const promotionApi = {
         );
     },
 
+    createPromotionBenefit(
+        promotionId: string,
+        payload: PromotionBenefitRequest
+    ) {
+        return apiClient.post<
+            PromotionBenefitResponse,
+            PromotionBenefitRequest
+        >(`${promotionPath(promotionId)}/benefits`, payload);
+    },
+
+    updatePromotionBenefit(
+        promotionId: string,
+        benefitId: string,
+        payload: PromotionBenefitRequest
+    ) {
+        return apiClient.put<
+            PromotionBenefitResponse,
+            PromotionBenefitRequest
+        >(
+            `${promotionPath(promotionId)}/benefits/${encodeURIComponent(
+                benefitId
+            )}`,
+            payload
+        );
+    },
+
+    deletePromotionBenefit(promotionId: string, benefitId: string) {
+        return apiClient.delete<void>(
+            `${promotionPath(promotionId)}/benefits/${encodeURIComponent(
+                benefitId
+            )}`
+        );
+    },
+
     getPromotionTargets(promotionId: string) {
         return apiClient.get<PageResponse<PromotionTargetResponse>>(
             `${promotionPath(promotionId)}/targets`,
@@ -68,6 +105,40 @@ export const promotionApi = {
         );
     },
 
+    createPromotionTarget(
+        promotionId: string,
+        payload: PromotionTargetRequest
+    ) {
+        return apiClient.post<
+            PromotionTargetResponse,
+            PromotionTargetRequest
+        >(`${promotionPath(promotionId)}/targets`, payload);
+    },
+
+    updatePromotionTarget(
+        promotionId: string,
+        targetId: string,
+        payload: PromotionTargetRequest
+    ) {
+        return apiClient.put<
+            PromotionTargetResponse,
+            PromotionTargetRequest
+        >(
+            `${promotionPath(promotionId)}/targets/${encodeURIComponent(
+                targetId
+            )}`,
+            payload
+        );
+    },
+
+    deletePromotionTarget(promotionId: string, targetId: string) {
+        return apiClient.delete<void>(
+            `${promotionPath(promotionId)}/targets/${encodeURIComponent(
+                targetId
+            )}`
+        );
+    },
+
     getPromotionConditions(promotionId: string) {
         return apiClient.get<PageResponse<PromotionConditionResponse>>(
             `${promotionPath(promotionId)}/conditions`,
@@ -77,6 +148,40 @@ export const promotionApi = {
                     size: 100
                 }
             }
+        );
+    },
+
+    createPromotionCondition(
+        promotionId: string,
+        payload: PromotionConditionRequest
+    ) {
+        return apiClient.post<
+            PromotionConditionResponse,
+            PromotionConditionRequest
+        >(`${promotionPath(promotionId)}/conditions`, payload);
+    },
+
+    updatePromotionCondition(
+        promotionId: string,
+        conditionId: string,
+        payload: PromotionConditionRequest
+    ) {
+        return apiClient.put<
+            PromotionConditionResponse,
+            PromotionConditionRequest
+        >(
+            `${promotionPath(promotionId)}/conditions/${encodeURIComponent(
+                conditionId
+            )}`,
+            payload
+        );
+    },
+
+    deletePromotionCondition(promotionId: string, conditionId: string) {
+        return apiClient.delete<void>(
+            `${promotionPath(promotionId)}/conditions/${encodeURIComponent(
+                conditionId
+            )}`
         );
     },
 
@@ -138,6 +243,10 @@ export const promotionApi = {
 
     expirePromotion(promotionId: string) {
         return postPromotionAction(promotionId, "expire");
+    },
+
+    endPromotion(promotionId: string) {
+        return postPromotionAction(promotionId, "end");
     },
 
     duplicatePromotion(promotionId: string) {

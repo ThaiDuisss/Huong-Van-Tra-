@@ -65,6 +65,10 @@ public class PromotionTargetValidator {
         if (promotion.getStatus() == PromotionStatus.EXPIRED) {
             throw new BusinessException("Cannot modify targets of expired promotion");
         }
+
+        if (promotion.getStatus() == PromotionStatus.ENDED) {
+            throw new BusinessException("Cannot modify targets of ended promotion");
+        }
     }
 
     private void validateDuplicateTarget(
@@ -87,10 +91,11 @@ public class PromotionTargetValidator {
             UUID currentTargetId,
             PromotionTargetUpdateRequest request
     ) {
-        boolean exists = promotionTargetRepository.existsByPromotionIdAndTargetTypeAndTargetIdAndIsDeletedFalse(
+        boolean exists = promotionTargetRepository.existsByPromotionIdAndTargetTypeAndTargetIdAndIdNotAndIsDeletedFalse(
                 promotionId,
                 request.getTargetType(),
-                request.getTargetId()
+                request.getTargetId(),
+                currentTargetId
         );
 
         if (exists) {

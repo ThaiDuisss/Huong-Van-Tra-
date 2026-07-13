@@ -58,6 +58,10 @@ public class PromotionBenefitValidator {
         if (promotion.getStatus() == PromotionStatus.EXPIRED) {
             throw new BusinessException("Cannot modify benefits of expired promotion");
         }
+
+        if (promotion.getStatus() == PromotionStatus.ENDED) {
+            throw new BusinessException("Cannot modify benefits of ended promotion");
+        }
     }
 
     private void validateBenefitConfig(

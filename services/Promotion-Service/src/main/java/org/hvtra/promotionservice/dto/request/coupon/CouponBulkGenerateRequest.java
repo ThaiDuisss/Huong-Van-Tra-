@@ -23,7 +23,7 @@ import java.util.UUID;
 @Schema(description = "Request tạo hàng loạt mã coupon")
 public class CouponBulkGenerateRequest {
 
-    @Schema(description = "Phạm vi coupon cần tạo", example = "PUBLIC")
+    @Schema(description = "Phạm vi coupon cần tạo", example = "PUBLIC", implementation = CouponScope.class)
     @NotNull(message = "Coupon scope is required")
     CouponScope scope;
 
@@ -42,7 +42,11 @@ public class CouponBulkGenerateRequest {
     @Min(value = 1, message = "Usage limit must be greater than or equal to 1")
     Integer usageLimit;
 
-    @Schema(description = "Lý do phát hành coupon", example = "MANUAL")
+    @Schema(description = "So lan moi khach hang duoc phep su dung moi coupon", example = "1")
+    @Min(value = 1, message = "Per customer limit must be greater than or equal to 1")
+    Integer perCustomerLimit;
+
+    @Schema(description = "Lý do phát hành coupon", example = "MANUAL", implementation = CouponIssueReason.class)
     CouponIssueReason issueReason;
 
     @Schema(description = "Thời điểm hết hạn coupon", example = "2027-12-01T23:59:59")

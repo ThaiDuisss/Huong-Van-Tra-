@@ -129,7 +129,7 @@ public class PromotionServiceImpl implements PromotionService {
     @Override
     @Transactional
     public PromotionResponse pausePromotion(UUID promotionId) {
-        return changeStatus(promotionId, PromotionStatus.INACTIVE);
+        return changeStatus(promotionId, PromotionStatus.PAUSED);
     }
 
     @Override
@@ -154,6 +154,12 @@ public class PromotionServiceImpl implements PromotionService {
     @Transactional
     public PromotionResponse expirePromotion(UUID promotionId) {
         return changeStatus(promotionId, PromotionStatus.EXPIRED);
+    }
+
+    @Override
+    @Transactional
+    public PromotionResponse endPromotion(UUID promotionId) {
+        return changeStatus(promotionId, PromotionStatus.ENDED);
     }
 
     @Override

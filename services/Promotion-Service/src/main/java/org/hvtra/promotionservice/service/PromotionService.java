@@ -36,5 +36,7 @@ public interface PromotionService {
 
     PromotionResponse expirePromotion(UUID promotionId);
 
+    PromotionResponse endPromotion(UUID promotionId);
+
     PromotionResponse duplicatePromotion(UUID promotionId);
 }
