@@ -1,4 +1,4 @@
-import { Plus, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Plus, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { EventCreateModal } from "../components/discount-programs/EventCreateModel";
@@ -46,7 +46,6 @@ export function DiscountProgramListPage() {
     const [eventAudiences, setEventAudiences] = useState<string[]>([]);
     const [eventStatuses, setEventStatuses] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<PageNotice | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(
@@ -54,7 +53,6 @@ export function DiscountProgramListPage() {
     );
 
     const showSuccess = useCallback((message: string) => {
-        setError(null);
         setNotice({
             type: "success",
             message
@@ -62,7 +60,6 @@ export function DiscountProgramListPage() {
     }, []);
 
     const showError = useCallback((message: string) => {
-        setError(message);
         setNotice({
             type: "error",
             message
@@ -72,7 +69,6 @@ export function DiscountProgramListPage() {
     const loadEvents = useCallback(async () => {
         try {
             setLoading(true);
-            setError(null);
 
             const [eventsPage, types, audiences, statuses] =
                 await Promise.all([
@@ -102,6 +98,18 @@ export function DiscountProgramListPage() {
         void loadEvents();
     }, [loadEvents, refreshKey]);
 
+    useEffect(() => {
+        if (!notice) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setNotice(null);
+        }, 3500);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [notice]);
+
     const events = resource?.content ?? [];
     const pageCount = Math.max(1, resource?.totalPages ?? 1);
     const totalItems = resource?.totalElements ?? events.length;
@@ -124,7 +132,6 @@ export function DiscountProgramListPage() {
             return;
         }
 
-        setError(null);
         setNotice(null);
         setAppliedFilters({
             ...draftFilters,
@@ -137,7 +144,6 @@ export function DiscountProgramListPage() {
     function clearFilters() {
         const initialFilters = getInitialEventFilters();
 
-        setError(null);
         setNotice(null);
         setDraftFilters(initialFilters);
         setAppliedFilters(initialFilters);
@@ -161,7 +167,6 @@ export function DiscountProgramListPage() {
 
         try {
             setActionLoadingId(event.id);
-            setError(null);
 
             switch (action) {
                 case "schedule":
@@ -216,12 +221,12 @@ export function DiscountProgramListPage() {
         }
 
         if (!input.name.trim()) {
-            setError("Tên sự kiện là bắt buộc.");
+            showError("Tên sự kiện là bắt buộc.");
             return;
         }
 
         if (!input.startAt || !input.endAt) {
-            setError("Vui lòng chọn thời gian bắt đầu và kết thúc.");
+            showError("Vui lòng chọn thời gian bắt đầu và kết thúc.");
             return;
         }
 
@@ -229,15 +234,12 @@ export function DiscountProgramListPage() {
             new Date(input.startAt).getTime() >=
             new Date(input.endAt).getTime()
         ) {
-            setError(
-                "Thời gian kết thúc phải sau thời gian bắt đầu."
-            );
+            showError("Thời gian kết thúc phải sau thời gian bắt đầu.");
             return;
         }
 
         try {
             setActionLoadingId(event.id);
-            setError(null);
             await eventApi.update(event.id, normalizeEventPayload(input));
             showSuccess("Cập nhật sự kiện thành công.");
             reload();
@@ -261,7 +263,6 @@ export function DiscountProgramListPage() {
 
         try {
             setActionLoadingId(event.id);
-            setError(null);
             await eventApi.remove(event.id);
             showSuccess("Xóa sự kiện thành công.");
             reload();
@@ -322,24 +323,6 @@ export function DiscountProgramListPage() {
                 </div>
             </header>
 
-            {notice ? (
-                <div
-                    className={
-                        notice.type === "success"
-                            ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"
-                            : "rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
-                    }
-                >
-                    {notice.message}
-                </div>
-            ) : null}
-
-            {!notice && error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                    {error}
-                </div>
-            ) : null}
-
             <DiscountProgramFilters
                 filters={draftFilters}
                 eventTypes={eventTypes}
@@ -377,7 +360,43 @@ export function DiscountProgramListPage() {
                 onClose={() => setCreateOpen(false)}
                 onCreated={handleCreated}
             />
+
+            {notice ? (
+                <EventToast notice={notice} onClose={() => setNotice(null)} />
+            ) : null}
         </section>
+    );
+}
+
+function EventToast({
+    notice,
+    onClose
+}: {
+    notice: PageNotice;
+    onClose(): void;
+}) {
+    const isSuccess = notice.type === "success";
+    const Icon = isSuccess ? CheckCircle2 : AlertCircle;
+
+    return (
+        <div
+            className={`${styles.toast} ${
+                isSuccess ? styles.toastSuccess : styles.toastError
+            }`}
+            role="status"
+            aria-live="polite"
+        >
+            <Icon size={20} aria-hidden="true" />
+            <span>{notice.message}</span>
+            <button
+                type="button"
+                className={styles.toastClose}
+                onClick={onClose}
+                aria-label="Đóng thông báo"
+            >
+                <X size={16} aria-hidden="true" />
+            </button>
+        </div>
     );
 }
 

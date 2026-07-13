@@ -34,7 +34,8 @@ public class PromotionTargetResponse {
                     CATEGORY: danh mục sản phẩm.
                     BRAND: thương hiệu hoặc nhà cung cấp.
                     """,
-            example = "PRODUCT"
+            example = "PRODUCT",
+            implementation = PromotionTargetType.class
     )
     PromotionTargetType targetType;
 
@@ -47,7 +48,7 @@ public class PromotionTargetResponse {
     @Schema(description = "Có loại trừ target này khỏi khuyến mãi hay không", example = "false")
     Boolean excluded;
 
-    @Schema(description = "Loại quyền lợi override riêng cho target này", example = "PERCENT_DISCOUNT")
+    @Schema(description = "Loại quyền lợi override riêng cho target này", example = "PERCENT_DISCOUNT", implementation = BenefitType.class)
     BenefitType overrideBenefitType;
 
     @Schema(description = "Giá trị giảm override riêng cho target này", example = "15")

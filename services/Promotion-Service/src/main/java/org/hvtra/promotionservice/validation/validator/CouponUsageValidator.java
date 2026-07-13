@@ -19,6 +19,12 @@ public class CouponUsageValidator {
         }
     }
 
+    public void validateBeforeApply(CouponUsage usage) {
+        if (usage.getStatus() != CouponUsageStatus.RESERVED) {
+            throw new BusinessException("Only reserved coupon usage can be applied");
+        }
+    }
+
     public void validateBeforeCancel(CouponUsage usage) {
         if (usage.getStatus() == CouponUsageStatus.CANCELLED) {
             throw new BusinessException("Coupon usage is already cancelled");

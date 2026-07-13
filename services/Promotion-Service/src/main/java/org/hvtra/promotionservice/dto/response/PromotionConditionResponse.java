@@ -42,7 +42,8 @@ public class PromotionConditionResponse {
                     BRANCH: chi nhánh.
                     PAYMENT_METHOD: phương thức thanh toán.
                     """,
-            example = "MIN_ORDER_AMOUNT"
+            example = "MIN_ORDER_AMOUNT",
+            implementation = ConditionType.class
     )
     ConditionType conditionType;
 
@@ -58,7 +59,8 @@ public class PromotionConditionResponse {
                     IN: nằm trong danh sách.
                     NOT_IN: không nằm trong danh sách.
                     """,
-            example = "GTE"
+            example = "GTE",
+            implementation = ConditionOperator.class
     )
     ConditionOperator operator;
 

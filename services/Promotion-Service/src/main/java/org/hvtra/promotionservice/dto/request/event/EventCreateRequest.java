@@ -56,15 +56,8 @@ public class EventCreateRequest {
 
     @Schema(
             description = "Loại event/campaign",
-            example = "TIME_BASED",
-            allowableValues = {
-                    "TIME_BASED",
-                    "ORDER_AMOUNT_BASED",
-                    "ORDER_COUNT_BASED",
-                    "ITEM_QUANTITY_BASED",
-                    "LOYALTY_POINT_BASED",
-                    "MANUAL_CAMPAIGN"
-            }
+            example = "SEASONAL_CAMPAIGN",
+            implementation = EventType.class
     )
     @NotNull(message = "Event type is required")
     EventType eventType;
@@ -72,11 +65,7 @@ public class EventCreateRequest {
     @Schema(
             description = "Nhóm khách hàng áp dụng event",
             example = "ALL_CUSTOMERS",
-            allowableValues = {
-                    "ALL_CUSTOMERS",
-                    "CUSTOMER_SEGMENT",
-                    "SPECIFIC_CUSTOMERS"
-            }
+            implementation = EventAudience.class
     )
     @NotNull(message = "Event audience is required")
     EventAudience audience;

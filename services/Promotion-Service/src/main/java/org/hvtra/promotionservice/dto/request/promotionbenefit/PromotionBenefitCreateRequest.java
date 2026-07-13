@@ -24,13 +24,7 @@ public class PromotionBenefitCreateRequest {
     @Schema(
             description = "Loại quyền lợi khuyến mãi",
             example = "PERCENT_DISCOUNT",
-            allowableValues = {
-                    "PERCENT_DISCOUNT",
-                    "FIXED_DISCOUNT",
-                    "FREE_SHIPPING",
-                    "FREE_PRODUCT",
-                    "BUY_X_GET_Y"
-            }
+            implementation = BenefitType.class
     )
     @NotNull(message = "Promotion benefit type is required")
     BenefitType benefitType;

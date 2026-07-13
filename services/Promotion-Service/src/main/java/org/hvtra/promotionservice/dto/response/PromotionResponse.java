@@ -49,7 +49,8 @@ public class PromotionResponse {
                     BUY_X_GET_Y: mua X tặng Y.
                     FREE_PRODUCT: tặng sản phẩm.
                     """,
-            example = "PERCENT_DISCOUNT"
+            example = "PERCENT_DISCOUNT",
+            implementation = PromotionType.class
     )
     PromotionType type;
 
@@ -60,7 +61,8 @@ public class PromotionResponse {
                     COUPON_CODE: cần nhập mã khuyến mãi để áp dụng.
                     DIRECT_DISCOUNT: giảm trực tiếp trên đơn POS, không cần tài khoản/coupon.
                     """,
-            example = "COUPON_CODE"
+            example = "COUPON_CODE",
+            implementation = PromotionApplyMethod.class
     )
     PromotionApplyMethod applyMethod;
 
@@ -82,11 +84,13 @@ public class PromotionResponse {
                     DRAFT: mới tạo, chưa sẵn sàng áp dụng.
                     SCHEDULED: đã cấu hình xong, chờ đến thời gian bắt đầu.
                     ACTIVE: đang áp dụng được.
-                    INACTIVE: tạm khóa.
+                    PAUSED: tạm dừng thủ công.
                     EXPIRED: đã hết hạn.
+                    ENDED: đã kết thúc.
                     CANCELLED: đã bị hủy.
                     """,
-            example = "ACTIVE"
+            example = "ACTIVE",
+            implementation = PromotionStatus.class
     )
     PromotionStatus status;
 

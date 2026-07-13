@@ -7,7 +7,9 @@ CREATE TABLE events (
                         start_at DATETIME NOT NULL,
                         end_at DATETIME NOT NULL,
 
-                        status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+                        event_type VARCHAR(50) NOT NULL DEFAULT 'SEASONAL_CAMPAIGN',
+                        audience VARCHAR(50) NOT NULL DEFAULT 'ALL_CUSTOMERS',
+                        status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
 
                         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -25,9 +27,11 @@ CREATE TABLE events (
 CREATE TABLE promotions (
                             id BINARY(16) PRIMARY KEY,
 
-                            event_id BINARY(16) NULL,
+                            event_id BINARY(16) NOT NULL,
 
                             name VARCHAR(255) NOT NULL,
+                            description TEXT NULL,
+                            objective TEXT NULL,
                             type VARCHAR(50) NOT NULL,
                             apply_method VARCHAR(50) NOT NULL,
 
@@ -36,7 +40,7 @@ CREATE TABLE promotions (
 
                             is_stackable BOOLEAN NOT NULL DEFAULT FALSE,
                             priority INT NOT NULL DEFAULT 0,
-                            status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+                            status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
 
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -46,7 +50,7 @@ CREATE TABLE promotions (
 
                             CONSTRAINT fk_promotions_event
                                 FOREIGN KEY (event_id) REFERENCES events(id)
-                                    ON DELETE SET NULL,
+                                    ON DELETE RESTRICT,
 
                             INDEX idx_promotions_event_id (event_id),
                             INDEX idx_promotions_type (type),
@@ -67,7 +71,7 @@ CREATE TABLE promotion_conditions (
 
                                       condition_type VARCHAR(50) NOT NULL,
                                       operator VARCHAR(30) NOT NULL,
-                                      condition_value VARCHAR(255) NOT NULL,
+                                      condition_value JSON NOT NULL,
 
                                       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                       updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -93,6 +97,16 @@ CREATE TABLE promotion_benefits (
                                     benefit_type VARCHAR(50) NOT NULL,
                                     value DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
                                     max_discount DECIMAL(14, 2) NULL,
+                                    gift_product_id BINARY(16) NULL,
+                                    buy_quantity INT NULL,
+                                    get_quantity INT NULL,
+                                    reason TEXT NULL,
+                                    min_margin_percent DECIMAL(5, 2) NULL,
+                                    expected_margin_percent DECIMAL(5, 2) NULL,
+                                    recommended_value DECIMAL(14, 2) NULL,
+                                    recommend_reason TEXT NULL,
+                                    confidence_score DECIMAL(5, 2) NULL,
+                                    ai_recommended BOOLEAN NOT NULL DEFAULT FALSE,
 
                                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                     updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -114,6 +128,7 @@ CREATE TABLE coupons (
                          id BINARY(16) PRIMARY KEY,
 
                          promotion_id BINARY(16) NOT NULL,
+                         scope VARCHAR(30) NOT NULL DEFAULT 'PUBLIC',
 
     /*
       customer_id là ID của customer-service.
@@ -124,12 +139,21 @@ CREATE TABLE coupons (
                          customer_id BINARY(16) NULL,
 
                          code VARCHAR(100) NOT NULL,
+                         issue_reason VARCHAR(50) NULL,
+                         source_order_id BINARY(16) NULL,
+                         issued_at DATETIME NULL,
+                         claimed_at DATETIME NULL,
 
                          usage_limit INT NOT NULL DEFAULT 1,
                          used_count INT NOT NULL DEFAULT 0,
+                         per_customer_limit INT NOT NULL DEFAULT 1,
 
                          expires_at DATETIME NULL,
-                         status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+                         status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+                         snapshot_promotion_name VARCHAR(255) NULL,
+                         snapshot_benefit_type VARCHAR(50) NULL,
+                         snapshot_discount_value DECIMAL(14, 2) NULL,
+                         snapshot_max_discount DECIMAL(14, 2) NULL,
 
                          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                          updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -182,6 +206,9 @@ CREATE TABLE coupon_usages (
 
                                used_at DATETIME NULL,
                                released_at DATETIME NULL,
+                               branch_id BINARY(16) NULL,
+                               cashier_id BINARY(16) NULL,
+                               channel VARCHAR(30) NULL,
 
                                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,

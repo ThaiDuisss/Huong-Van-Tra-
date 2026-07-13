@@ -9,7 +9,7 @@ import org.hvtra.promotionservice.dto.request.promotiontarget.PromotionTargetUpd
 import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.enums.benefit.BenefitType;
 import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
-import org.hvtra.promotionservice.repository.PromotionTargetRepository;
+import org.hvtra.promotionservice.repository.promotion.PromotionTargetRepository;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -65,6 +65,10 @@ public class PromotionTargetValidator {
         if (promotion.getStatus() == PromotionStatus.EXPIRED) {
             throw new BusinessException("Cannot modify targets of expired promotion");
         }
+
+        if (promotion.getStatus() == PromotionStatus.ENDED) {
+            throw new BusinessException("Cannot modify targets of ended promotion");
+        }
     }
 
     private void validateDuplicateTarget(
@@ -87,10 +91,11 @@ public class PromotionTargetValidator {
             UUID currentTargetId,
             PromotionTargetUpdateRequest request
     ) {
-        boolean exists = promotionTargetRepository.existsByPromotionIdAndTargetTypeAndTargetIdAndIsDeletedFalse(
+        boolean exists = promotionTargetRepository.existsByPromotionIdAndTargetTypeAndTargetIdAndIdNotAndIsDeletedFalse(
                 promotionId,
                 request.getTargetType(),
-                request.getTargetId()
+                request.getTargetId(),
+                currentTargetId
         );
 
         if (exists) {

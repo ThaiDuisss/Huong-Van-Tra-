@@ -1,4 +1,4 @@
-package org.hvtra.promotionservice.repository;
+package org.hvtra.promotionservice.repository.promotion;
 
 import org.hvtra.promotionservice.entity.PromotionTarget;
 import org.hvtra.promotionservice.enums.promotion.PromotionTargetType;
@@ -25,5 +25,12 @@ public interface PromotionTargetRepository extends JpaRepository<PromotionTarget
             UUID promotionId,
             PromotionTargetType targetType,
             UUID targetId
+    );
+
+    boolean existsByPromotionIdAndTargetTypeAndTargetIdAndIdNotAndIsDeletedFalse(
+            UUID promotionId,
+            PromotionTargetType targetType,
+            UUID targetId,
+            UUID id
     );
 }

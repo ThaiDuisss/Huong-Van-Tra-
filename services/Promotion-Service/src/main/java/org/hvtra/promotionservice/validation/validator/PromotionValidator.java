@@ -71,14 +71,38 @@ public class PromotionValidator {
             throw new BusinessException("Cancelled promotion cannot be updated");
         }
 
+        if (promotion.getStatus() == PromotionStatus.ENDED) {
+            throw new BusinessException("Ended promotion cannot be updated");
+        }
+
         if (promotion.getStatus() == PromotionStatus.EXPIRED) {
             throw new BusinessException("Expired promotion cannot be updated");
+        }
+
+        if (promotion.getStatus() == PromotionStatus.ACTIVE) {
+            throw new BusinessException("Active promotion cannot be updated. Please pause, cancel, end or extend it first");
         }
     }
 
     public void validateBeforeDelete(Promotion promotion) {
         if (promotion.getStatus() == PromotionStatus.ACTIVE) {
-            throw new BusinessException("Active promotion cannot be deleted. Please pause or cancel it first");
+            throw new BusinessException("Active promotion cannot be deleted. Please pause, cancel or end it first");
+        }
+
+        if (promotion.getStatus() == PromotionStatus.PAUSED) {
+            throw new BusinessException("Paused promotion cannot be deleted. Please cancel or end it first");
+        }
+
+        if (promotion.getStatus() == PromotionStatus.EXPIRED) {
+            throw new BusinessException("Expired promotion cannot be deleted. Please end it first");
+        }
+
+        if (promotion.getStatus() == PromotionStatus.ENDED) {
+            throw new BusinessException("Ended promotion cannot be deleted");
+        }
+
+        if (promotion.getStatus() == PromotionStatus.CANCELLED) {
+            throw new BusinessException("Cancelled promotion cannot be deleted");
         }
     }
 
@@ -86,14 +110,22 @@ public class PromotionValidator {
         if (promotion.getStatus() == PromotionStatus.CANCELLED) {
             throw new BusinessException("Cancelled promotion cannot be duplicated");
         }
+
+        if (promotion.getStatus() == PromotionStatus.ENDED) {
+            throw new BusinessException("Ended promotion cannot be duplicated");
+        }
     }
 
     public PromotionStatus resolveResumeTargetStatus(Promotion promotion) {
-        if (promotion.getStatus() != PromotionStatus.INACTIVE) {
-            throw new BusinessException("Only inactive promotion can be resumed");
+        if (promotion.getStatus() != PromotionStatus.PAUSED) {
+            throw new BusinessException("Only paused promotion can be resumed");
         }
 
         LocalDateTime now = LocalDateTime.now();
+
+        if (promotion.getEndAt() != null && !promotion.getEndAt().isAfter(now)) {
+            throw new BusinessException("Expired promotion cannot be resumed. Please extend promotion first");
+        }
 
         if (promotion.getStartAt() != null && promotion.getStartAt().isAfter(now)) {
             return PromotionStatus.SCHEDULED;
@@ -109,8 +141,9 @@ public class PromotionValidator {
             case DRAFT -> validateFromDraft(promotion, targetStatus);
             case SCHEDULED -> validateFromScheduled(promotion, targetStatus);
             case ACTIVE -> validateFromActive(promotion, targetStatus);
-            case INACTIVE -> validateFromInactive(promotion, targetStatus);
+            case PAUSED -> validateFromPaused(promotion, targetStatus);
             case EXPIRED -> validateFromExpired(promotion, targetStatus);
+            case ENDED -> throw new BusinessException("Ended promotion cannot change status");
             case CANCELLED -> throw new BusinessException("Cancelled promotion cannot change status");
         }
     }
@@ -154,7 +187,7 @@ public class PromotionValidator {
     private void validateFromScheduled(Promotion promotion, PromotionStatus targetStatus) {
         switch (targetStatus) {
             case ACTIVE -> validateCanActivate(promotion);
-            case INACTIVE -> {
+            case PAUSED -> {
                 // valid: admin khóa promotion đã lên lịch
             }
             case EXPIRED -> {
@@ -163,13 +196,16 @@ public class PromotionValidator {
             case CANCELLED -> {
                 // valid
             }
+            case ENDED -> {
+                // valid
+            }
             default -> throwInvalidTransition(PromotionStatus.SCHEDULED, targetStatus);
         }
     }
 
     private void validateFromActive(Promotion promotion, PromotionStatus targetStatus) {
         switch (targetStatus) {
-            case INACTIVE -> {
+            case PAUSED -> {
                 // valid: pause/tạm khóa thủ công
             }
             case EXPIRED -> {
@@ -178,11 +214,14 @@ public class PromotionValidator {
             case CANCELLED -> {
                 // valid: hủy khẩn cấp promotion đang chạy
             }
+            case ENDED -> {
+                // valid
+            }
             default -> throwInvalidTransition(PromotionStatus.ACTIVE, targetStatus);
         }
     }
 
-    private void validateFromInactive(Promotion promotion, PromotionStatus targetStatus) {
+    private void validateFromPaused(Promotion promotion, PromotionStatus targetStatus) {
         switch (targetStatus) {
             case ACTIVE -> validateCanActivate(promotion);
             case SCHEDULED -> validateCanSchedule(promotion);
@@ -192,16 +231,18 @@ public class PromotionValidator {
             case CANCELLED -> {
                 // valid
             }
-            default -> throwInvalidTransition(PromotionStatus.INACTIVE, targetStatus);
+            case ENDED -> {
+                // valid
+            }
+            default -> throwInvalidTransition(PromotionStatus.PAUSED, targetStatus);
         }
     }
 
     private void validateFromExpired(Promotion promotion, PromotionStatus targetStatus) {
         switch (targetStatus) {
             case ACTIVE -> validateCanActivate(promotion);
-            case SCHEDULED -> validateCanSchedule(promotion);
-            case CANCELLED -> {
-                // valid: admin quyết định hủy promotion đã hết hạn
+            case ENDED -> {
+                // valid: admin closes an expired promotion
             }
             default -> throwInvalidTransition(PromotionStatus.EXPIRED, targetStatus);
         }

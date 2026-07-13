@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.promotionservice.dto.request.coupon.*;
+import org.hvtra.promotionservice.dto.request.couponusage.CouponUsageReserveRequest;
 import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.entity.coupon.Coupon;
 import org.hvtra.promotionservice.enums.coupon.CouponScope;
@@ -12,6 +13,8 @@ import org.hvtra.promotionservice.enums.coupon.CouponStatus;
 import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
 import org.hvtra.promotionservice.repository.coupon.CouponRepository;
 import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
 
 @Component
 @RequiredArgsConstructor
@@ -29,12 +32,14 @@ public class CouponValidator {
     public void validateBeforeCreate(Promotion promotion, CouponCreateRequest request) {
         validatePromotionCanHaveCoupon(promotion);
         validateScopeAndCustomer(request.getScope(), request.getCustomerId());
+        validateUsageLimits(request.getUsageLimit(), request.getPerCustomerLimit());
         validateUniqueCode(request.getCode());
     }
 
     public void validateBeforeUpdate(Coupon coupon, CouponUpdateRequest request) {
         validateCouponEditable(coupon);
         validateScopeAndCustomer(request.getScope(), request.getCustomerId());
+        validateUsageLimits(request.getUsageLimit(), request.getPerCustomerLimit());
 
         if (!coupon.getCode().equals(request.getCode())) {
             validateUniqueCode(request.getCode());
@@ -71,6 +76,10 @@ public class CouponValidator {
 
         if (promotion.getStatus() == PromotionStatus.EXPIRED) {
             throw new BusinessException("Cannot create coupon for expired promotion");
+        }
+
+        if (promotion.getStatus() == PromotionStatus.ENDED) {
+            throw new BusinessException("Cannot create coupon for ended promotion");
         }
     }
 
@@ -160,19 +169,64 @@ public class CouponValidator {
         }
     }
 
+    public void validateBeforeExpire(Coupon coupon) {
+        if (coupon.getStatus() == CouponStatus.EXPIRED) {
+            throw new BusinessException("Coupon is already expired");
+        }
+
+        if (coupon.getStatus() == CouponStatus.CANCELLED) {
+            throw new BusinessException("Cancelled coupon cannot be expired");
+        }
+
+        if (coupon.getStatus() == CouponStatus.ARCHIVED) {
+            throw new BusinessException("Archived coupon cannot be expired");
+        }
+    }
+
+    public void validateBeforeReserve(Coupon coupon, CouponUsageReserveRequest request) {
+        if (coupon.getStatus() != CouponStatus.ACTIVE) {
+            throw new BusinessException("Only active coupon can be reserved");
+        }
+
+        if (coupon.getPromotion() == null || coupon.getPromotion().getStatus() != PromotionStatus.ACTIVE) {
+            throw new BusinessException("Coupon promotion is not active");
+        }
+
+        if (coupon.getExpiresAt() != null && coupon.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException("Expired coupon cannot be reserved");
+        }
+
+        int usageLimit = coupon.getUsageLimit() == null ? 1 : coupon.getUsageLimit();
+        int usedCount = coupon.getUsedCount() == null ? 0 : coupon.getUsedCount();
+
+        if (usedCount >= usageLimit) {
+            throw new BusinessException("Coupon usage limit has been reached");
+        }
+
+        if (coupon.getScope() == CouponScope.PERSONAL && !request.getCustomerId().equals(coupon.getCustomerId())) {
+            throw new BusinessException("Personal coupon does not belong to this customer");
+        }
+    }
+
     public void validateGeneratePublic(CouponGeneratePublicRequest request) {
         if (request.getUsageLimit() != null && request.getUsageLimit() < 1) {
             throw new BusinessException("Usage limit must be greater than or equal to 1");
         }
+
+        validateUsageLimits(request.getUsageLimit(), request.getPerCustomerLimit());
     }
 
     public void validateGeneratePersonal(CouponGeneratePersonalRequest request) {
         if (request.getCustomerId() == null) {
             throw new BusinessException("Customer ID is required for personal coupon");
         }
+
+        validateUsageLimits(request.getUsageLimit(), request.getPerCustomerLimit());
     }
 
     public void validateBulkGenerate(CouponBulkGenerateRequest request) {
+        validateUsageLimits(request.getUsageLimit(), request.getPerCustomerLimit());
+
         if (request.getScope() == CouponScope.PUBLIC) {
             if (request.getQuantity() == null || request.getQuantity() < 1) {
                 throw new BusinessException("Quantity is required for public bulk generation");
@@ -183,6 +237,15 @@ public class CouponValidator {
             if (request.getCustomerIds() == null || request.getCustomerIds().isEmpty()) {
                 throw new BusinessException("Customer IDs are required for personal bulk generation");
             }
+        }
+    }
+
+    private void validateUsageLimits(Integer usageLimitValue, Integer perCustomerLimitValue) {
+        int usageLimit = usageLimitValue == null ? 1 : usageLimitValue;
+        int perCustomerLimit = perCustomerLimitValue == null ? 1 : perCustomerLimitValue;
+
+        if (perCustomerLimit > usageLimit) {
+            throw new BusinessException("Per customer limit must be less than or equal to usage limit");
         }
     }
 }

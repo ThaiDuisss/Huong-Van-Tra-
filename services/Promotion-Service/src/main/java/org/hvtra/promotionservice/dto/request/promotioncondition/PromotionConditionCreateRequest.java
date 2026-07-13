@@ -21,20 +21,7 @@ public class PromotionConditionCreateRequest {
     @Schema(
             description = "Loại điều kiện áp dụng khuyến mãi",
             example = "MIN_ORDER_AMOUNT",
-            allowableValues = {
-                    "MIN_ORDER_AMOUNT",
-                    "MAX_ORDER_AMOUNT",
-                    "MIN_ITEM_QUANTITY",
-                    "MIN_ORDER_COUNT",
-                    "MIN_TOTAL_SPENT",
-                    "MIN_LOYALTY_POINT",
-                    "FIRST_PURCHASE",
-                    "CUSTOMER_TIER",
-                    "CUSTOMER_ID",
-                    "CHANNEL",
-                    "BRANCH",
-                    "PAYMENT_METHOD"
-            }
+            implementation = ConditionType.class
     )
     @NotNull(message = "Promotion condition type is required")
     ConditionType conditionType;
@@ -42,7 +29,7 @@ public class PromotionConditionCreateRequest {
     @Schema(
             description = "Toán tử so sánh điều kiện",
             example = "GTE",
-            allowableValues = {"EQ", "NE", "GT", "GTE", "LT", "LTE", "IN", "NOT_IN"}
+            implementation = ConditionOperator.class
     )
     @NotNull(message = "Promotion condition operator is required")
     ConditionOperator operator;
