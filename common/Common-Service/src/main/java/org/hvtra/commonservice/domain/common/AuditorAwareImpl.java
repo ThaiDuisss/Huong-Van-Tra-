@@ -1,10 +1,8 @@
 package org.hvtra.commonservice.domain.common;
 
+import org.hvtra.commonservice.utils.SecurityUtils;
 import org.springframework.data.domain.AuditorAware;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -12,17 +10,11 @@ import java.util.UUID;
 public class AuditorAwareImpl implements AuditorAware<UUID> {
     @Override
     public Optional<UUID> getCurrentAuditor() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if(authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+        try {
+            return parseUuid(SecurityUtils.currentUserId());
+        } catch (AccessDeniedException ex) {
             return Optional.empty();
         }
-        Object principal = authentication.getPrincipal();
-
-        if (principal instanceof Jwt jwt) {
-            return parseUuid(jwt.getSubject());
-        }
-
-        return parseUuid(authentication.getName());
     }
 
     private Optional<UUID> parseUuid(String value) {

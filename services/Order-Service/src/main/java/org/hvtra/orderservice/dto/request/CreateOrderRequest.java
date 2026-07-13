@@ -42,6 +42,11 @@ public class CreateOrderRequest {
 
     private BigDecimal shippingFee = BigDecimal.ZERO;
 
+    private BigDecimal paidAmount;
+    private String paymentMethod;
+    private String paymentCode;
+    private UUID changedBy;
+
     @Valid
     @NotEmpty(message = "items không được rỗng")
     private List<CreateOrderItemRequest> items;

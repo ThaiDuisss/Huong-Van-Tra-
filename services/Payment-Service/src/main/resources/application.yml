@@ -39,26 +39,16 @@ eureka:
     fetch-registry: true
 
 kafka-config:
-  bootstrap-servers: http://100.122.52.101:9092/
+  enabled: true
+  bootstrap-servers: 100.122.52.101:19092
 #  schema-registry-url-key: schema.registry.url
 #  schema-registry-url: http://localhost:8081
   num-of-partitions: 3
-  replication-factor: 3
-
-kafka-producer-config:
-  key-serializer-class: org.apache.kafka.common.serialization.StringSerializer
-  value-serializer-class: io.confluent.kafka.serializers.KafkaAvroSerializer
-  compression-type: snappy
-  acks: all
-  batch-size: 16384
-  batch-size-boost-factor: 100
-  linger-ms: 5
-  request-timeout-ms: 60000
-  retry-count: 5
+  replication-factor: 1
 
 kafka-consumer-config:
   key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-  value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+  value-deserializer: org.apache.kafka.common.serialization.JsonDeserializer
   payment-consumer-group-id: payment-topic-consumer
   auto-offset-reset: earliest
 #  specific-avro-reader-key: specific.avro.reader
@@ -74,16 +64,19 @@ kafka-consumer-config:
   max-partition-fetch-bytes-boost-factor: 1
   poll-timeout-ms: 150
 
-app:
-  outbox:
-    max-retry: 5
-
 payment:
   sepay:
     bankCode: MBBank
     account-number: ${SEPAY_BANK_ACCOUNT}
     account-name: ${SEPAY_BANK_ACCOUNT_NAME}
     store-name: HUONG VAN TRA
-    qr-template: compact
+    qr-template: print
     payment-timeout-minutes: 15
     secret: ${SEPAY_SECRET}
+
+logging:
+  level:
+    org.springframework.kafka: WARN
+security:
+  internal:
+      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}

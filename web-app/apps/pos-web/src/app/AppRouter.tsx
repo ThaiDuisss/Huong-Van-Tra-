@@ -26,6 +26,7 @@ import { ProductVariantListPage } from "../features/product/pages/ProductVariant
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
+import { ProtectedRoute } from "../auth/ProtectedRoute";
 
 export function AppRouter() {
     return (
@@ -42,20 +43,31 @@ export function AppRouter() {
 
             <Route
                 path={routePaths.posSales}
-                element={<PosSalePage />}
+                element={
+                    <ProtectedRoute>
+                        <PosSalePage />
+                    </ProtectedRoute>
+                }
             />
+
             <Route
                 path={routePaths.salesHistory}
                 element={
-                    <PosShell>
-                        <SalesHistoryPage />
-                    </PosShell>
+                    <ProtectedRoute>
+                        <PosShell>
+                            <SalesHistoryPage />
+                        </PosShell>
+                    </ProtectedRoute>
                 }
             />
 
             <Route
                 path={routePaths.system}
-                element={<SystemShell />}
+                element={
+                    <ProtectedRoute>
+                        <SystemShell />
+                    </ProtectedRoute>
+                }
             >
                 <Route
                     index
@@ -183,6 +195,6 @@ export function AppRouter() {
                 path="*"
                 element={<NotFoundPage />}
             />
-        </Routes>
+        </Routes >
     );
 }

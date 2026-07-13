@@ -46,15 +46,35 @@ public class AppUsers extends BaseEntity {
     @Column(name = "full_name_snapshot", length = 255)
     private String fullNameSnapshot;
 
-    @Column(name = "email_verified")
-    private Boolean emailVerified;
+    @Builder.Default
+    @Column(
+            name = "email_verified",
+            nullable = false
+    )
+    Boolean emailVerified = false;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
-    private IdentityStatus status = IdentityStatus.ACTIVE;
+    @Column(
+            name = "status",
+            nullable = false,
+            length = 30
+    )
+    IdentityStatus status = IdentityStatus.ACTIVE;
 
     @Column(name = "last_authenticated_at")
     private Instant lastAuthenticatedAt;
 
-
+    public void syncSnapshot(
+            String username,
+            String email,
+            String fullName,
+            Boolean emailVerified
+        ) {
+            this.usernameSnapshot = username;
+            this.emailSnapshot = email;
+            this.fullNameSnapshot = fullName;
+            this.emailVerified = Boolean.TRUE.equals(emailVerified);
+            this.lastAuthenticatedAt = Instant.now();
+        }
 }

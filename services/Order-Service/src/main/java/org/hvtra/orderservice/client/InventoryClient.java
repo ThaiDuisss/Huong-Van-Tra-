@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -19,12 +18,6 @@ import java.util.UUID;
 @FeignClient(name = "inventory-service", url = "${clients.inventory-service.url:http://localhost:8084}")
 public interface InventoryClient {
 
-    /**
-     * Trừ kho nguyên liệu theo công thức BOM khi đơn hàng hoàn thành.
-     */
-    @PostMapping("/api/inventory/stock-out/by-bom")
-    void deductStockByBom(@RequestBody DeductStockByBomRequest request);
-
     @PostMapping("/api/inventory/reservations/apply")
     void applyReservation(@RequestBody ApplyInventoryReservationRequest request);
 
@@ -33,27 +26,6 @@ public interface InventoryClient {
 
     @PostMapping("/api/inventory/reservations/release-order")
     void releaseOrder(@RequestBody ReleaseInventoryReservationOrderRequest request);
-
-    @PostMapping("/api/inventory/reservations/confirm-order")
-    void confirmOrder(@RequestBody ConfirmInventoryReservationOrderRequest request);
-
-    @Builder
-    record DeductStockByBomRequest(
-            UUID orderId,
-            String referenceType,
-            UUID branchId,
-            List<BomDeductionLine> lines
-    ) {}
-
-    @Builder
-    record BomDeductionLine(
-            /** ID của InventoryItem tương ứng với nguyên liệu */
-            UUID inventoryItemId,
-            /** ID kho cần trừ */
-            UUID locationId,
-            /** Số lượng nguyên liệu cần trừ (đã nhân với tỷ lệ chuyển đổi đơn vị nếu cần) */
-            BigDecimal quantity
-    ) {}
 
     @Builder
     record ApplyInventoryReservationRequest(
@@ -75,6 +47,4 @@ public interface InventoryClient {
     @Builder
     record ReleaseInventoryReservationOrderRequest(UUID orderId) {}
 
-    @Builder
-    record ConfirmInventoryReservationOrderRequest(UUID orderId) {}
 }

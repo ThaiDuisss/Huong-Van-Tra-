@@ -1,0 +1,1116 @@
+import { useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  Loader2,
+  MapPin,
+  Package,
+  PackageCheck,
+  Pencil,
+  Phone,
+  Settings,
+  Store,
+  Truck,
+  User,
+  Wallet
+} from "lucide-react";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "../../../../components/ui/dialog";
+import { CustomerSelector } from "../checkout/CustomerCard";
+import { CompletePaymentButton } from "../checkout/CompletePaymentButton";
+import {
+  calculateDeliveryTotals,
+  getDeliverySnapshotFromState,
+  isDeliveryOptionSelectable,
+  isPhoneValid,
+  isQuoteExpired
+} from "../../services/delivery.utils";
+import type {
+  BranchLocation,
+  DeliveryCheckoutState,
+  DeliveryMode,
+  DeliveryOption,
+  ThirdPartyDeliveryProvider,
+  DeliveryUrgency,
+  DeliveryValidationErrors,
+  ManualDeliveryAddress
+} from "../../types/delivery.types";
+import type {
+  SaleCartItem,
+  SaleCustomer,
+  SaleTotals
+} from "../../types/sale.types";
+import { AddressSelectionModal } from "./AddressSelectionModal";
+import { DeliveryOptionCard } from "./DeliveryOptionCard";
+import { formatCurrency } from "../../services/money";
+
+interface DeliveryCheckoutPanelProps {
+  branchLocation?: BranchLocation | null;
+  cartItems: SaleCartItem[];
+  customers: SaleCustomer[];
+  customersLoading: boolean;
+  customersError: string;
+  selectedDiscountId: string;
+  selectedCustomer: SaleCustomer | null;
+  state: DeliveryCheckoutState;
+  totals: SaleTotals;
+  onCustomerChange(customerId: string): void;
+  onCustomerClear(): void;
+  onCustomerOpen(): void;
+  onDeliveryStateChange(nextState: DeliveryCheckoutState): void;
+  onDiscountChange(discountId: string): void;
+  onQuoteRefresh(): void;
+  onSubmit(): void;
+}
+
+export function DeliveryCheckoutPanel({
+  branchLocation,
+  cartItems,
+  customers,
+  customersLoading,
+  customersError,
+  selectedCustomer,
+  state,
+  totals,
+  onCustomerChange,
+  onCustomerClear,
+  onCustomerOpen,
+  onDeliveryStateChange,
+  onQuoteRefresh,
+  onSubmit
+}: DeliveryCheckoutPanelProps) {
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [packageOpen, setPackageOpen] = useState(false);
+  const [waitConfirmationOption, setWaitConfirmationOption] =
+    useState<DeliveryOption | null>(null);
+  const selectedAddress =
+    state.addresses.find((address) => address.id === state.selectedAddressId) ??
+    null;
+  const selectedOption = getSelectedStateDeliveryOption(state);
+  const deliveryTotals = calculateDeliveryTotals(
+    totals,
+    state.shippingFee,
+    state.depositAmount
+  );
+  const snapshot = getDeliverySnapshotFromState(state);
+  const errors = useMemo(
+    () =>
+      getDeliveryValidationErrors({
+        cartItems,
+        customer: selectedCustomer,
+        snapshot,
+        selectedOption,
+        selectedMode: state.selectedDeliveryMode,
+        urgency: state.deliveryUrgency,
+        customerAcceptedWait: state.customerAcceptedDeliveryWait,
+        requestedDeliveryAt: state.requestedDeliveryAt
+      }),
+    [
+      cartItems,
+      selectedCustomer,
+      selectedOption,
+      state.selectedDeliveryMode,
+      snapshot,
+      state.customerAcceptedDeliveryWait,
+      state.deliveryUrgency,
+      state.requestedDeliveryAt
+    ]
+  );
+  const quoteExpired = isQuoteExpired(selectedOption);
+  const disabled =
+    Object.keys(errors).length > 0 ||
+    quoteExpired ||
+    state.submitPending ||
+    state.quoteLoading;
+  const showValidation = Boolean(state.submitError);
+
+  function patchState(partial: Partial<DeliveryCheckoutState>) {
+    onDeliveryStateChange({
+      ...state,
+      ...partial
+    });
+  }
+
+  return (
+    <section className="grid h-full min-h-0 grid-cols-[minmax(330px,1fr)_minmax(330px,1fr)] gap-3">
+      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] rounded-xl bg-white shadow-pos-panel">
+        <div className="border-b border-[#edf0f4] p-4">
+          <CustomerSelector
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            loading={customersLoading}
+            error={customersError}
+            onOpen={onCustomerOpen}
+            onSelect={onCustomerChange}
+            onClear={onCustomerClear}
+          />
+        </div>
+
+        <div className="min-h-0 overflow-y-auto px-6 py-4">
+          <WaybillAddressForm
+            address={selectedAddress}
+            customer={selectedCustomer}
+            manualAddress={state.manualAddress}
+            useManualAddress={state.useManualAddress}
+            onAddressChange={() => setAddressModalOpen(true)}
+          />
+          {state.addressLoading ? (
+            <p className="mt-2 text-xs font-bold text-[#697684]">
+              Đang lấy địa chỉ gần nhất của khách hàng...
+            </p>
+          ) : null}
+          {(state.addressError || errors.address) && showValidation ? (
+            <p className="mt-2 text-xs font-bold text-red-600">
+              {state.addressError || errors.address}
+            </p>
+          ) : null}
+
+          <div className="my-5 border-t border-[#edf0f4]" />
+          <PackageInformationAccordion
+            cartItemCount={cartItems.length}
+            open={packageOpen}
+            onOpenChange={setPackageOpen}
+          />
+
+          <label className="mt-5 grid gap-1 border-b border-[#c9d2dc] pb-2 text-sm font-semibold text-[#697684]">
+            <span className="inline-flex items-center gap-2">
+              <Pencil size={17} aria-hidden="true" />
+              Ghi chú cho bưu tá
+            </span>
+            <input
+              value={state.deliveryNote}
+              maxLength={240}
+              onChange={(event) => patchState({ deliveryNote: event.currentTarget.value })}
+              className="h-9 border-0 bg-transparent text-sm font-semibold text-[#172317] outline-none"
+            />
+          </label>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-[#edf0f4] px-6 py-4">
+          <label className="inline-flex items-center gap-3 text-base font-black text-[#172317]">
+            Thu hộ tiền (COD)
+            <input
+              type="checkbox"
+              checked={state.paymentMethod === "COD"}
+              onChange={(event) =>
+                patchState({
+                  paymentMethod: event.currentTarget.checked ? "COD" : "CASH"
+                })
+              }
+              className="size-5 accent-[#1479f6]"
+            />
+          </label>
+          <strong className="text-2xl text-[#172317]">
+            {formatCurrency(deliveryTotals.codAmount)}
+          </strong>
+        </div>
+      </div>
+
+      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] rounded-xl bg-white shadow-pos-panel">
+        <DeliveryModeTabs
+          selectedMode={state.selectedDeliveryMode}
+          onSelectMode={(selectedDeliveryMode) =>
+            patchState({
+              selectedDeliveryMode,
+              deliveryModeSelectionSource: "MANUAL",
+              internalDeliveryOption:
+                selectedDeliveryMode === "INTERNAL"
+                  ? state.internalDeliveryOption
+                  : null,
+              thirdPartyQuotes:
+                selectedDeliveryMode === "THIRD_PARTY"
+                  ? state.thirdPartyQuotes
+                  : [],
+              selectedThirdPartyProvider:
+                selectedDeliveryMode === "THIRD_PARTY"
+                  ? state.selectedThirdPartyProvider
+                  : "ALL",
+              deliveryOptions: [],
+              selectedDeliveryOptionId: null,
+              selectedDeliveryQuoteId: null,
+              selectedThirdPartyQuoteId: null,
+              recommendedDeliveryOptionId: null,
+              deliverySelectionSource: "RECOMMENDED",
+              customerAcceptedDeliveryWait: false,
+              shippingFee: 0,
+              quoteError: "",
+              quoteRequestedAt: Date.now()
+            })
+          }
+        />
+
+        <div className="grid min-h-0 content-start gap-4 overflow-y-auto px-5 py-4">
+          <div className="flex items-start gap-3 rounded-lg border border-[#b8d7ff] bg-[#eef6ff] px-4 py-3 text-sm font-semibold text-[#334155]">
+            <MapPin className="mt-0.5 shrink-0 text-[#1479f6]" size={18} aria-hidden="true" />
+            <span>Nhập đầy đủ địa chỉ lấy và giao để tra cước và tạo đơn.</span>
+            <Settings className="ml-auto shrink-0 text-[#172317]" size={18} aria-hidden="true" />
+          </div>
+
+          {state.selectedDeliveryMode === "THIRD_PARTY" ? (
+            <ThirdPartyProviderSelect
+              value={state.selectedThirdPartyProvider}
+              onChange={(selectedThirdPartyProvider) =>
+                patchState({
+                  selectedThirdPartyProvider,
+                  thirdPartyQuotes: [],
+                  deliveryOptions: [],
+                  selectedDeliveryOptionId: null,
+                  selectedDeliveryQuoteId: null,
+                  selectedThirdPartyQuoteId: null,
+                  recommendedDeliveryOptionId: null,
+                  deliverySelectionSource: "RECOMMENDED",
+                  customerAcceptedDeliveryWait: false,
+                  shippingFee: 0,
+                  quoteError: "",
+                  quoteRequestedAt: Date.now()
+                })
+              }
+            />
+          ) : null}
+
+          {state.selectedDeliveryMode ? (
+            <DeliveryQuoteArea
+              addressReady={!errors.address && Boolean(snapshot)}
+              error={state.quoteError}
+              loading={state.quoteLoading}
+              mode={state.selectedDeliveryMode}
+              options={getVisibleDeliveryOptions(state)}
+              selectedOptionId={state.selectedDeliveryOptionId}
+              onRefresh={onQuoteRefresh}
+              onSelect={(optionId) => {
+                const option =
+                  getVisibleDeliveryOptions(state).find(
+                    (item) => item.optionId === optionId
+                  ) ?? null;
+
+                if (
+                  option &&
+                  state.deliveryUrgency === "ASAP" &&
+                  !option.availableNow &&
+                  option.availableLater &&
+                  !state.customerAcceptedDeliveryWait
+                ) {
+                  setWaitConfirmationOption(option);
+                  return;
+                }
+
+                patchState({
+                  selectedDeliveryOptionId: optionId,
+                  selectedDeliveryQuoteId: option?.quoteId ?? null,
+                  selectedThirdPartyQuoteId:
+                    state.selectedDeliveryMode === "THIRD_PARTY"
+                      ? option?.quoteId ?? null
+                      : null,
+                  deliverySelectionSource:
+                    optionId === state.recommendedDeliveryOptionId
+                      ? "RECOMMENDED"
+                      : "MANUAL",
+                  shippingFee: option?.shippingFee ?? 0,
+                  customerAcceptedDeliveryWait: false
+                });
+              }}
+            />
+          ) : null}
+
+          {state.selectedDeliveryMode === "INTERNAL" &&
+          state.internalDeliveryOption &&
+          !state.internalDeliveryOption.availableNow &&
+          state.internalDeliveryOption.availableLater ? (
+            <button
+              type="button"
+              onClick={() =>
+                patchState({
+                  customerAcceptedDeliveryWait: true,
+                  selectedDeliveryOptionId: state.internalDeliveryOption?.optionId ?? null,
+                  selectedDeliveryQuoteId: state.internalDeliveryOption?.quoteId ?? null,
+                  shippingFee: state.internalDeliveryOption?.shippingFee ?? 0
+                })
+              }
+              className="h-10 rounded-lg border border-[#1479f6] bg-[#eef6ff] px-3 text-sm font-black text-[#1479f6]"
+            >
+              Khách đồng ý chờ
+            </button>
+          ) : null}
+
+          {showValidation && errors.deliveryOption ? (
+            <FieldError message={errors.deliveryOption} />
+          ) : null}
+          {showValidation && errors.quote ? <FieldError message={errors.quote} /> : null}
+          {quoteExpired ? <FieldError message="Báo giá giao hàng đã hết hạn." /> : null}
+        </div>
+
+        <div className="grid gap-3 border-t border-[#edf0f4] p-4">
+          {state.submitError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700">
+              {state.submitError}
+            </p>
+          ) : null}
+          <CompletePaymentButton
+            total={deliveryTotals.grandTotal}
+            disabled={disabled}
+            label="Thanh toán"
+            loadingLabel="Đang tạo đơn..."
+            loading={state.submitPending}
+            onClick={onSubmit}
+          />
+        </div>
+      </div>
+
+      <AddressSelectionModal
+        addresses={state.addresses}
+        branchLocation={branchLocation}
+        manualAddress={state.manualAddress}
+        open={addressModalOpen}
+        reason={state.addressSuggestionReason}
+        saveAddress={state.saveAddress}
+        selectedAddressId={state.selectedAddressId}
+        setAsDefaultAddress={state.setAsDefaultAddress}
+        onManualAddressChange={(manualAddress: ManualDeliveryAddress) =>
+          patchState({
+            manualAddress,
+            useManualAddress: true,
+            selectedAddressId: null,
+            addressSuggestionReason: null,
+            deliveryOptions: [],
+            selectedDeliveryOptionId: null,
+            selectedDeliveryQuoteId: null,
+            selectedThirdPartyQuoteId: null,
+            recommendedDeliveryOptionId: null,
+            deliverySelectionSource: "RECOMMENDED",
+            customerAcceptedDeliveryWait: false,
+            internalDeliveryOption: null,
+            thirdPartyQuotes: [],
+            selectedThirdPartyProvider: "ALL",
+            shippingFee: 0,
+            quoteError: ""
+          })
+        }
+        onOpenChange={setAddressModalOpen}
+        onSaveAddressChange={(saveAddress) => patchState({ saveAddress })}
+        onSelectSaved={(addressId) =>
+          patchState({
+            selectedAddressId: addressId,
+            useManualAddress: false,
+            deliveryOptions: [],
+            selectedDeliveryOptionId: null,
+            selectedDeliveryQuoteId: null,
+            selectedThirdPartyQuoteId: null,
+            recommendedDeliveryOptionId: null,
+            deliverySelectionSource: "RECOMMENDED",
+            customerAcceptedDeliveryWait: false,
+            internalDeliveryOption: null,
+            thirdPartyQuotes: [],
+            selectedThirdPartyProvider: "ALL",
+            shippingFee: 0,
+            quoteError: ""
+          })
+        }
+        onSetAsDefaultAddressChange={(setAsDefaultAddress) =>
+          patchState({ setAsDefaultAddress })
+        }
+        onUseManualAddress={() =>
+          patchState({
+            useManualAddress: true,
+            selectedAddressId: null,
+            addressSuggestionReason: null,
+            deliveryOptions: [],
+            selectedDeliveryOptionId: null,
+            selectedDeliveryQuoteId: null,
+            selectedThirdPartyQuoteId: null,
+            recommendedDeliveryOptionId: null,
+            deliverySelectionSource: "RECOMMENDED",
+            customerAcceptedDeliveryWait: false,
+            internalDeliveryOption: null,
+            thirdPartyQuotes: [],
+            selectedThirdPartyProvider: "ALL",
+            shippingFee: 0,
+            quoteError: ""
+          })
+        }
+      />
+
+      <DeliveryWaitConfirmationModal
+        option={waitConfirmationOption}
+        onClose={() => setWaitConfirmationOption(null)}
+        onConfirm={() => {
+          if (!waitConfirmationOption) {
+            return;
+          }
+
+          patchState({
+            selectedDeliveryOptionId: waitConfirmationOption.optionId,
+            selectedDeliveryQuoteId: waitConfirmationOption.quoteId,
+            selectedThirdPartyQuoteId:
+              waitConfirmationOption.mode === "THIRD_PARTY"
+                ? waitConfirmationOption.quoteId
+                : null,
+            deliverySelectionSource:
+              waitConfirmationOption.optionId === state.recommendedDeliveryOptionId
+                ? "RECOMMENDED"
+                : "MANUAL",
+            shippingFee: waitConfirmationOption.shippingFee,
+            customerAcceptedDeliveryWait: true
+          });
+          setWaitConfirmationOption(null);
+        }}
+      />
+    </section>
+  );
+}
+
+function DeliveryModeTabs({
+  selectedMode,
+  onSelectMode
+}: {
+  selectedMode: DeliveryMode | null;
+  onSelectMode(mode: DeliveryMode): void;
+}) {
+  return (
+    <div className="grid grid-cols-2 border-b border-[#dfe5ec]">
+      <button
+        type="button"
+        onClick={() => onSelectMode("THIRD_PARTY")}
+        className={`flex h-12 items-center justify-center gap-2 rounded-t-xl border-r border-[#dfe5ec] text-sm font-black outline-none focus:ring-2 focus:ring-[#1479f6]/25 ${
+          selectedMode === "THIRD_PARTY"
+            ? "bg-white text-[#1479f6]"
+            : "bg-[#f6f8fb] text-[#697684]"
+        }`}
+      >
+        <Truck size={16} aria-hidden="true" />
+        Cổng KiotViet
+      </button>
+      <button
+        type="button"
+        onClick={() => onSelectMode("INTERNAL")}
+        className={`flex h-12 items-center justify-center gap-2 rounded-t-xl text-sm font-black outline-none focus:ring-2 focus:ring-[#1479f6]/25 ${
+          selectedMode === "INTERNAL"
+            ? "bg-white text-[#1479f6]"
+            : "bg-[#f6f8fb] text-[#697684]"
+        }`}
+      >
+        <Store size={16} aria-hidden="true" />
+        Tự giao hàng
+      </button>
+    </div>
+  );
+}
+
+function WaybillAddressForm({
+  address,
+  customer,
+  manualAddress,
+  useManualAddress,
+  onAddressChange
+}: {
+  address: BranchLocation extends never ? never : import("../../types/delivery.types").CustomerAddress | null;
+  customer: SaleCustomer | null;
+  manualAddress: ManualDeliveryAddress;
+  useManualAddress: boolean;
+  onAddressChange(): void;
+}) {
+  const recipientName = useManualAddress
+    ? manualAddress.recipientName
+    : address?.recipientName || customer?.name || "";
+  const recipientPhone = useManualAddress
+    ? manualAddress.recipientPhone
+    : address?.recipientPhone || customer?.phone || "";
+  const addressLine = useManualAddress
+    ? manualAddress.addressLine || manualAddress.fullAddress
+    : address?.addressLine || address?.fullAddress || "";
+  const area = useManualAddress
+    ? [manualAddress.districtName, manualAddress.provinceName].filter(Boolean).join(", ")
+    : [address?.districtName, address?.provinceName].filter(Boolean).join(", ");
+  const ward = useManualAddress ? manualAddress.wardName : address?.wardName || "";
+
+  return (
+    <section className="relative grid gap-4 pl-8">
+      <span className="absolute left-0 top-2 grid size-5 place-items-center rounded-full bg-[#1479f6] text-white">
+        <Phone size={12} aria-hidden="true" />
+      </span>
+      <span className="absolute left-[9px] top-8 h-16 border-l border-dashed border-[#c9d2dc]" />
+      <span className="absolute left-0 top-[84px] grid size-5 place-items-center rounded-full bg-[#1aae4b] text-white">
+        <MapPin size={12} aria-hidden="true" />
+      </span>
+
+      <button
+        type="button"
+        onClick={onAddressChange}
+        className="grid border-b border-[#c9d2dc] pb-2 text-left"
+      >
+        <span className="text-base font-bold text-[#172317]">
+          {recipientPhone || customer?.phone || "Chọn khách hàng hoặc số điện thoại"}
+        </span>
+        {!addressLine ? (
+          <span className="mt-1 text-xs font-semibold text-red-600">
+            Vui lòng thêm địa chỉ lấy hàng mới
+          </span>
+        ) : null}
+      </button>
+
+      <div className="grid grid-cols-2 gap-3">
+        <ReadonlyLine icon={<User size={14} />} value={recipientName} placeholder="Tên người nhận" />
+        <ReadonlyLine value={recipientPhone} placeholder="Số điện thoại" />
+      </div>
+      <ReadonlyLine value={addressLine} placeholder="Địa chỉ chi tiết (Số nhà, ngõ, đường)" />
+      <ReadonlyLine value={area} placeholder="Khu vực" />
+      <ReadonlyLine value={ward} placeholder="Phường/Xã" />
+
+      <button
+        type="button"
+        onClick={onAddressChange}
+        className="absolute right-0 top-0 rounded-lg px-2 py-1 text-xs font-black text-[#1479f6] hover:bg-[#eef6ff]"
+      >
+        Chọn địa chỉ
+      </button>
+    </section>
+  );
+}
+
+function ReadonlyLine({
+  icon,
+  value,
+  placeholder
+}: {
+  icon?: React.ReactNode;
+  value: string;
+  placeholder: string;
+}) {
+  return (
+    <div className="flex h-10 items-center gap-2 border-b border-[#c9d2dc] text-sm font-semibold">
+      {icon ? <span className="text-[#697684]">{icon}</span> : null}
+      <span className={value ? "text-[#172317]" : "text-[#7c8794]"}>
+        {value || placeholder}
+      </span>
+    </div>
+  );
+}
+
+function DeliveryQuoteArea({
+  addressReady,
+  error,
+  loading,
+  mode,
+  options,
+  selectedOptionId,
+  onRefresh,
+  onSelect
+}: {
+  addressReady: boolean;
+  error: string;
+  loading: boolean;
+  mode: DeliveryMode;
+  options: DeliveryOption[];
+  selectedOptionId: string | null;
+  onRefresh(): void;
+  onSelect(optionId: string): void;
+}) {
+  if (!addressReady) {
+    return (
+      <div className="grid min-h-[360px] place-items-center text-center">
+        <div className="max-w-[360px] text-sm font-semibold text-[#697684]">
+          <ProviderCloud />
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="grid gap-3">
+        {[0, 1, 2].map((item) => (
+          <span key={item} className="h-20 rounded-xl bg-[#edf0f4]" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+        {error}
+        <button type="button" onClick={onRefresh} className="h-9 rounded-lg bg-white text-[#1479f6]">
+          Thử lại
+        </button>
+      </div>
+    );
+  }
+
+  if (options.length === 0) {
+    return (
+      <div className="grid min-h-[360px] place-items-center text-center">
+        {mode === "THIRD_PARTY" ? <ProviderCloud /> : (
+          <p className="text-sm font-semibold text-[#697684]">
+            Chưa có phương án tự giao phù hợp.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2">
+      {options.map((option) => (
+        <DeliveryOptionCard
+          key={option.quoteId}
+          option={option}
+          selected={option.optionId === selectedOptionId}
+          selectable={option.availableNow || option.availableLater}
+          onSelect={onSelect}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ProviderCloud() {
+  const providers = ["GHN", "Ahamove", "Viettel Post", "GHTK", "GrabExpress", "J&T", "NinjaVan", "EMS"];
+
+  return (
+    <div className="grid gap-5">
+      <p className="rounded-lg border border-[#b8d7ff] bg-[#eef6ff] px-4 py-3 text-left text-sm font-semibold text-[#334155]">
+        Nhập đầy đủ địa chỉ lấy và giao để tra cước và tạo đơn.
+      </p>
+      <div className="grid gap-3">
+        <strong className="text-xs font-black uppercase text-[#1479f6]">
+          Đối tác vận chuyển của KiotViet
+        </strong>
+        <div className="grid grid-cols-3 gap-2 text-sm font-black text-[#334155]">
+          {providers.map((provider) => (
+            <span key={provider} className="rounded-lg border border-[#edf0f4] bg-white px-2 py-2">
+              {provider}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeliveryWaitConfirmationModal({
+  option,
+  onClose,
+  onConfirm
+}: {
+  option: DeliveryOption | null;
+  onClose(): void;
+  onConfirm(): void;
+}) {
+  const pickupTime = option?.nextAvailableAt ?? option?.estimatedPickupAt;
+
+  return (
+    <Dialog open={Boolean(option)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="w-[min(520px,calc(100vw-32px))]">
+        <DialogHeader>
+          <DialogTitle>Xác nhận khách đồng ý chờ</DialogTitle>
+          <DialogDescription>
+            Nhân viên cửa hàng chưa thể giao ngay. Thời gian lấy hàng dự kiến là{" "}
+            {pickupTime ? formatDateTime(pickupTime) : "theo báo giá"}. Khách
+            hàng đã đồng ý chờ?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 rounded-lg border border-[#d8eadc] px-4 text-sm font-black text-[#53678f]"
+          >
+            Quay lại
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white"
+          >
+            Xác nhận khách đồng ý
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ThirdPartyProviderSelect({
+  value,
+  onChange
+}: {
+  value: ThirdPartyDeliveryProvider;
+  onChange(value: ThirdPartyDeliveryProvider): void;
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-black text-[#697684]">
+      Đối tác giao hàng
+      <select
+        value={value}
+        onChange={(event) =>
+          onChange(event.currentTarget.value as ThirdPartyDeliveryProvider)
+        }
+        className="h-9 w-full min-w-0 rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-bold text-[#172317] outline-none focus:border-[#159734]"
+      >
+        <option value="ALL">Tất cả đối tác</option>
+        <option value="GHN">GHN</option>
+        <option value="AHAMOVE">Ahamove</option>
+      </select>
+    </label>
+  );
+}
+
+function PackageInformationAccordion({
+  cartItemCount,
+  open,
+  onOpenChange
+}: {
+  cartItemCount: number;
+  open: boolean;
+  onOpenChange(open: boolean): void;
+}) {
+  return (
+    <section className="grid gap-2 border-b border-pos-border pb-3">
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        className="flex items-center justify-between rounded-lg border border-[#edf0f4] bg-white px-3 py-2 text-left"
+      >
+        <span>
+          <strong className="block text-sm text-[#172317]">
+            Thông tin kiện hàng
+          </strong>
+          <span className="text-xs font-bold text-[#697684]">
+            {Math.max(1, cartItemCount)} kiện · 500g · 20 x 15 x 10cm
+          </span>
+        </span>
+        <ChevronDown
+          size={16}
+          aria-hidden="true"
+          className={open ? "rotate-180 transition-transform" : "transition-transform"}
+        />
+      </button>
+      {open ? (
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            ["Số kiện", Math.max(1, cartItemCount)],
+            ["Khối lượng", "500"],
+            ["Dài", "20"],
+            ["Rộng", "15"],
+            ["Cao", "10"]
+          ].map(([label, value]) => (
+            <label
+              key={label}
+              className="grid gap-1 text-[11px] font-bold text-[#53678f]"
+            >
+              {label}
+              <input
+                type="text"
+                value={value}
+                readOnly
+                className="h-8 rounded-lg border border-[#d8eadc] bg-white px-2 text-xs font-bold text-[#172317]"
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DeliveryOrderSummary({
+  deliveryTotals,
+  depositAmount,
+  disabled,
+  discounts,
+  loading,
+  paymentMethod,
+  selectedDiscountId,
+  submitError,
+  onDepositAmountChange,
+  onDiscountChange,
+  onPaymentMethodChange,
+  onSubmit
+}: {
+  deliveryTotals: ReturnType<typeof calculateDeliveryTotals>;
+  depositAmount: number;
+  disabled: boolean;
+  discounts: SaleDiscountOption[];
+  loading: boolean;
+  paymentMethod: string;
+  selectedDiscountId: string;
+  submitError: string;
+  onDepositAmountChange(value: number): void;
+  onDiscountChange(discountId: string): void;
+  onPaymentMethodChange(value: string): void;
+  onSubmit(): void;
+}) {
+  return (
+    <aside className="sticky top-0 grid max-h-full min-w-0 content-start gap-3 overflow-y-auto overflow-x-hidden rounded-lg border border-[#edf0f4] bg-white p-3">
+      <h2 className="truncate text-sm font-black uppercase text-[#53678f]">
+        Tổng kết đơn hàng
+      </h2>
+      <label className="grid gap-1 text-xs font-bold text-[#53678f]">
+        Khuyến mãi
+        <select
+          value={selectedDiscountId}
+          onChange={(event) => onDiscountChange(event.currentTarget.value)}
+          className="h-9 w-full min-w-0 rounded-lg border border-[#d8eadc] bg-white px-2 text-xs font-bold text-[#172317]"
+        >
+          {discounts.map((discount) => (
+            <option key={discount.id} value={discount.id}>
+              {discount.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="grid gap-1 border-b border-pos-border pb-3">
+        <SummaryRow label="Tiền hàng" value={deliveryTotals.itemTotal} />
+        <SummaryRow label="Giảm giá" value={-deliveryTotals.discountAmount} />
+        <SummaryRow label="Phí giao hàng" value={deliveryTotals.shippingFee} />
+        <SummaryRow label="Thành tiền" value={deliveryTotals.grandTotal} strong />
+      </div>
+
+      <label className="grid gap-1 text-xs font-bold text-[#53678f]">
+        Thanh toán
+        <select
+          value={paymentMethod}
+          onChange={(event) => onPaymentMethodChange(event.currentTarget.value)}
+          className="h-9 w-full min-w-0 rounded-lg border border-[#d8eadc] bg-white px-2 text-xs font-bold text-[#172317]"
+        >
+          <option value="COD">Thanh toán khi nhận hàng</option>
+          <option value="CASH">Tiền mặt</option>
+          <option value="BANK_TRANSFER">Chuyển khoản</option>
+          <option value="COMBINED">Thanh toán tổng hợp</option>
+        </select>
+      </label>
+      <label className="grid gap-1 text-xs font-bold text-[#53678f]">
+        Tiền cọc
+        <input
+          type="number"
+          min={0}
+          value={depositAmount || ""}
+          onChange={(event) =>
+            onDepositAmountChange(Number(event.currentTarget.value || 0))
+          }
+          className="h-9 w-full min-w-0 rounded-lg border border-[#d8eadc] bg-white px-2 text-xs font-bold text-[#172317]"
+        />
+      </label>
+
+      <div className="grid gap-1 border-b border-pos-border pb-3">
+        <SummaryRow label="Đã thanh toán" value={deliveryTotals.paidAmount} />
+        <SummaryRow label="Còn phải thu" value={deliveryTotals.codAmount} strong />
+        <SummaryRow label="COD" value={deliveryTotals.codAmount} />
+      </div>
+
+      {submitError ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-2 py-2 text-xs font-bold text-red-700">
+          {submitError}
+        </p>
+      ) : null}
+
+      <div className="sticky bottom-0 bg-white pt-1">
+        <CompletePaymentButton
+          total={deliveryTotals.grandTotal}
+          disabled={disabled}
+          label={depositAmount > 0 ? "Tạo đơn và thanh toán cọc" : "Tạo đơn giao hàng"}
+          loadingLabel="Đang tạo đơn..."
+          loading={loading}
+          onClick={onSubmit}
+        />
+        <div className="mt-2 flex items-center justify-center gap-2 text-[11px] font-black text-[#159734]">
+          {loading ? (
+            <Loader2 className="animate-spin" size={14} aria-hidden="true" />
+          ) : (
+            <PackageCheck size={14} aria-hidden="true" />
+          )}
+          Tạo đơn giao hàng
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  strong = false
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
+      <span className="min-w-0 truncate font-semibold text-[#697684]">{label}</span>
+      <strong className={`shrink-0 ${strong ? "text-sm text-[#159734]" : "text-[#172317]"}`}>
+        {formatCurrency(value)}
+      </strong>
+    </div>
+  );
+}
+
+function FieldError({ message }: { message: string }) {
+  return (
+    <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+      {message}
+    </p>
+  );
+}
+
+function getVisibleDeliveryOptions(state: DeliveryCheckoutState) {
+  if (state.selectedDeliveryMode === "INTERNAL") {
+    return state.internalDeliveryOption ? [state.internalDeliveryOption] : [];
+  }
+
+  if (state.selectedDeliveryMode === "THIRD_PARTY") {
+    if (state.selectedThirdPartyProvider === "ALL") {
+      return state.thirdPartyQuotes;
+    }
+
+    return state.thirdPartyQuotes.filter(
+      (quote) =>
+        normalizeProvider(quote.provider) === state.selectedThirdPartyProvider
+    );
+  }
+
+  return [];
+}
+
+function normalizeProvider(provider: string): Exclude<ThirdPartyDeliveryProvider, "ALL"> | null {
+  const normalized = provider.toUpperCase().replace(/[\s_-]/g, "");
+
+  if (normalized.includes("GHN")) {
+    return "GHN";
+  }
+
+  if (normalized.includes("AHAMOVE") || normalized.includes("AHMOVE")) {
+    return "AHAMOVE";
+  }
+
+  return null;
+}
+
+function getSelectedStateDeliveryOption(state: DeliveryCheckoutState) {
+  if (state.selectedDeliveryMode === "INTERNAL") {
+    return state.internalDeliveryOption &&
+      state.selectedDeliveryOptionId === state.internalDeliveryOption.optionId
+      ? state.internalDeliveryOption
+      : null;
+  }
+
+  if (state.selectedDeliveryMode === "THIRD_PARTY") {
+    return (
+      state.thirdPartyQuotes.find(
+        (quote) => quote.quoteId === state.selectedThirdPartyQuoteId
+      ) ?? null
+    );
+  }
+
+  return null;
+}
+
+function getDeliveryValidationErrors({
+  cartItems,
+  customer,
+  snapshot,
+  selectedOption,
+  selectedMode,
+  urgency,
+  customerAcceptedWait,
+  requestedDeliveryAt
+}: {
+  cartItems: SaleCartItem[];
+  customer: SaleCustomer | null;
+  snapshot: ReturnType<typeof getDeliverySnapshotFromState>;
+  selectedOption: DeliveryOption | null;
+  selectedMode: DeliveryMode | null;
+  urgency: DeliveryUrgency;
+  customerAcceptedWait: boolean;
+  requestedDeliveryAt: string;
+}) {
+  const errors: DeliveryValidationErrors = {};
+
+  if (cartItems.length === 0) {
+    errors.customer = "Giỏ hàng đang rỗng.";
+  }
+
+  if (!customer) {
+    errors.customer = "Vui lòng chọn khách hàng.";
+  }
+
+  if (!snapshot) {
+    errors.address = "Vui lòng chọn hoặc nhập địa chỉ giao hàng.";
+    return errors;
+  }
+
+  if (!snapshot.recipientName) {
+    errors.recipientName = "Thiếu tên người nhận.";
+  }
+
+  if (!isPhoneValid(snapshot.recipientPhone)) {
+    errors.recipientPhone = "Số điện thoại người nhận không hợp lệ.";
+  }
+
+  if (!snapshot.deliveryAddress) {
+    errors.address = "Thiếu địa chỉ giao hàng.";
+  }
+
+  if (!snapshot.deliveryProvinceCode) {
+    errors.province = "Thiếu tỉnh/thành phố.";
+  }
+
+  if (!snapshot.deliveryDistrictCode) {
+    errors.district = "Thiếu quận/huyện.";
+  }
+
+  if (!snapshot.deliveryWardCode) {
+    errors.ward = "Thiếu phường/xã.";
+  }
+
+  if (!selectedMode) {
+    errors.deliveryOption = "Vui lòng chọn hình thức vận chuyển.";
+    return errors;
+  }
+
+  if (!selectedOption?.available) {
+    errors.deliveryOption =
+      selectedMode === "INTERNAL"
+        ? "Chưa có phương án giao nội bộ hợp lệ."
+        : "Vui lòng chọn provider giao hàng.";
+  }
+
+  if (
+    selectedOption &&
+    !isDeliveryOptionSelectable(selectedOption, urgency, customerAcceptedWait)
+  ) {
+    errors.deliveryOption = "Phương thức giao hàng này chưa thể giao ngay.";
+  }
+
+  if (urgency === "SCHEDULED") {
+    const requestedAt = Date.parse(requestedDeliveryAt);
+
+    if (!requestedDeliveryAt || Number.isNaN(requestedAt)) {
+      errors.quote = "Vui lòng chọn thời gian giao hẹn giờ.";
+    } else if (requestedAt <= Date.now()) {
+      errors.quote = "Không thể chọn thời gian giao trong quá khứ.";
+    }
+  }
+
+  return errors;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}

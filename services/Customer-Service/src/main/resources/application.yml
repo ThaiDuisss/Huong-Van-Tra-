@@ -162,3 +162,7 @@ loyalty:
       order-completed-topic: order.completed
       order-partially-refunded-topic: order.partially-refunded
       order-fully-refunded-topic: order.fully-refunded
+
+security:
+  internal:
+      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}

@@ -8,8 +8,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://auth.hvtra.id.vn/realms/hvt
-          audiences: hvtra-api
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:https://auth.hvtra.id.vn/realms/hvt}
+          audiences: ${KEYCLOAK_AUDIENCE:hvtra-pos}
   cloud:
     gateway:
       server:
@@ -48,6 +48,10 @@ spring:
             uri: lb://promotion-service
             predicates:
               - Path=/api/promotions/**
+              - Path=/api/events/**
+              - Path=/api/campaigns/**
+              - Path=/api/coupons/**
+              - Path=/api/coupon-usages/**
           - id: identity-service
             uri: lb://identity-service
             predicates:
@@ -85,10 +89,9 @@ spring:
           globalcors:
             cors-configurations:
               '[/**]':
-                allowed-origins:
-                  - "http://localhost:3000"
-                  - "http://localhost:5173"
-                  - "https://talenthub.fpt.edu.vn"
+                allowed-origin-patterns:
+                  - "http://localhost:*"
+                  - "http://127.0.0.1:*"
                 allowed-methods:
                   - GET
                   - POST
@@ -154,3 +157,7 @@ springdoc:
         url: /api/employee/v3/api-docs
     enabled: true
     path: /swagger-ui.html
+
+security:
+  internal:
+      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}

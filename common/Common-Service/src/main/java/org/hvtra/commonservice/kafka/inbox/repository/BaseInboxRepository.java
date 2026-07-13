@@ -12,12 +12,12 @@ public interface BaseInboxRepository<T extends BaseInbox>
         extends JpaRepository<T, UUID> {
 
     Optional<T> findByEventIdAndConsumerGroup(
-            UUID eventId,
+            String eventId,
             String consumerGroup
     );
 
     boolean existsByEventIdAndConsumerGroup(
-            UUID eventId,
+            String eventId,
             String consumerGroup
     );
 }

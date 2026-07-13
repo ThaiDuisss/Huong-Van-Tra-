@@ -18,10 +18,9 @@ public class PaymentCreateRequest {
     @NotBlank(message = "orderCode không được trống")
     private String orderCode;
 
-    @NotNull(message = "customerId không được null")
     private UUID customerId;
 
-    @NotNull(message = "sagaId không được null")
+//    @NotNull(message = "sagaId không được null")
     private UUID sagaId;
 
     @NotNull(message = "paymentMethod không được null")

@@ -1,24 +1,6 @@
 import { createApiClient } from "@hvt/api-client";
-import {
-    createKeycloakTokenProvider
-} from "@hvt/auth";
 
-import { keycloak } from "../auth/keycloak";
-
-const tokenProvider =
-    createKeycloakTokenProvider(keycloak, {
-        minValiditySeconds: 30,
-
-        logoutRedirectUri:
-            window.location.origin,
-
-        onRefreshError(error) {
-            console.error(
-                "Keycloak refresh thất bại",
-                error
-            );
-        }
-    });
+import { tokenProvider } from "../auth/token-provider";
 
 export const apiClient = createApiClient({
     baseUrl:
@@ -27,7 +9,7 @@ export const apiClient = createApiClient({
 
     timeoutMs: 15_000,
 
-    // tokenProvider,
+    tokenProvider,
 
     defaultHeaders: {
         "X-Client-Type": "POS_WEB"
@@ -35,9 +17,10 @@ export const apiClient = createApiClient({
 
     onUnauthorized() {
         /*
-         * Không tự gọi API login backend.
-         * Chuyển người dùng sang Keycloak.
+         * Không tự redirect sang Keycloak khi một request nền bị 401.
+         * UI sẽ giữ nguyên màn hình hiện tại hoặc hiển thị nút đăng nhập
+         * qua ProtectedRoute nếu phiên thật sự hết hạn.
          */
-        return tokenProvider.login?.();
+        console.warn("Phiên đăng nhập đã hết hạn hoặc bị từ chối");
     }
 });

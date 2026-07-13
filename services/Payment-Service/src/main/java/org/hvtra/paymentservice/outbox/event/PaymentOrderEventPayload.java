@@ -2,6 +2,7 @@ package org.hvtra.paymentservice.outbox.event;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hvtra.commonservice.kafka.event.CommonEventPayload;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,8 +14,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PaymentOrderEventPayload {
+public class PaymentOrderEventPayload implements CommonEventPayload {
 
+    String eventId;
     String eventType;
     String eventKey;
 

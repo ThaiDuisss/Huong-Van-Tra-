@@ -1,5 +1,4 @@
 import {
-  Bell,
   BarChart3,
   BriefcaseBusiness,
   ChevronDown,
@@ -14,6 +13,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { HvtLogo } from "../../shared/HvtLogo";
 import { routePaths } from "../../../routes/path";
+import { PosNotificationButton } from "../../../features/notification/components/PosNotificationButton";
+import { useAuth } from "../../../auth/auth-context";
 
 const navItems = [
   {
@@ -35,10 +36,6 @@ const navItems = [
 
 const utilityItems = [
   {
-    label: "Thông báo",
-    icon: Bell
-  },
-  {
     label: "Cài đặt",
     icon: Settings
   },
@@ -51,6 +48,10 @@ const utilityItems = [
 export function PosSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { avatarUrl, displayName, logout, roleLabel, username } = useAuth();
+  const userLabel = displayName ?? username ?? "Người dùng";
+  const userInitial = userLabel.trim().charAt(0).toUpperCase() || "U";
+  const userMeta = roleLabel ?? "Nhân viên POS";
 
   return (
     <nav
@@ -145,12 +146,25 @@ export function PosSidebar() {
           className="mb-5 flex w-full items-center gap-3 text-left"
           aria-label="Chuyển sang quản lý hệ thống"
         >
-          <span className="block size-9 overflow-hidden rounded-full bg-[linear-gradient(135deg,#f4c4b1,#1f2937)]" />
+          <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#f4c4b1,#1f2937)] text-sm font-bold text-white">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt=""
+                className="size-full object-cover"
+                aria-hidden="true"
+              />
+            ) : (
+              userInitial
+            )}
+          </span>
           <span className="min-w-0 flex-1">
             <strong className="block truncate text-[13px] text-[#159734]">
-              Đỗ Xuân Thái
+              {userLabel}
             </strong>
-            <span className="text-[12px] text-[#159734]">Ca sáng</span>
+            <span className="text-[12px] text-[#159734]">
+              {userMeta}
+            </span>
           </span>
           <ChevronDown size={14} aria-hidden="true" />
         </button>
@@ -159,6 +173,9 @@ export function PosSidebar() {
           className="grid grid-cols-3 gap-2 border-t border-[#edf0f4] pt-5"
           aria-label="Tiện ích"
         >
+          <li>
+            <PosNotificationButton />
+          </li>
           {utilityItems.map((item) => {
             const Icon = item.icon;
 
@@ -169,6 +186,11 @@ export function PosSidebar() {
                   className="grid size-9 place-items-center rounded-lg text-[#159734] transition hover:bg-[#f4f5f3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hvt-green-600"
                   aria-label={item.label}
                   title={item.label}
+                  onClick={() => {
+                    if (item.label === "Đăng xuất") {
+                      void logout();
+                    }
+                  }}
                 >
                   <Icon size={21} strokeWidth={1.9} aria-hidden="true" />
                 </button>

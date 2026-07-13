@@ -14,4 +14,10 @@ public interface IdentityUserRepository
             String issuer,
             String keycloakSubject
     );
+
+    boolean existsByIssuerAndKeycloakSubject(
+            String issuer,
+            String keycloakSubject
+    );
+
 }

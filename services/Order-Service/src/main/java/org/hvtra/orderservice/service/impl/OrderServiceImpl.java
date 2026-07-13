@@ -7,40 +7,42 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import feign.FeignException;
 import org.hvtra.orderservice.client.CatalogClient;
-import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.hvtra.orderservice.domain.enums.PaymentMethod;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
 import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
 import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.request.PaymentCreateRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.CustomerResponse;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.PaymentResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderStatusHistoryResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
-import org.hvtra.commonservice.exception.FeignClientException;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
-import org.hvtra.orderservice.exception.InventoryReservationFailedException;
 import org.hvtra.orderservice.exception.OrderAlreadyPaidException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
-import org.hvtra.orderservice.exception.OutOfStockException;
+import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
+import org.hvtra.orderservice.service.OrderInventoryReservationService;
+import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -78,9 +80,11 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final CatalogClient catalogClient;
-    private final InventoryClient inventoryClient;
     private final PaymentClient paymentClient;
     private final OrderCustomerServiceImpl orderCustomerServiceImpl;
+    private final OrderOutboxPublisher orderOutboxPublisher;
+    private final OrderInventoryReservationService inventoryReservationService;
+    private final OrderPaymentSagaService orderPaymentSagaService;
 
     @Override
     @Transactional
@@ -168,7 +172,20 @@ public class OrderServiceImpl implements OrderService {
         Order savedOrder = orderRepository.save(order);
         saveStatusHistory(savedOrder, null, savedOrder.getStatus(), "Tạo đơn hàng", null);
 
-        return toResponse(savedOrder);
+        String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
+        if (paymentMethod == null) {
+            return toResponse(savedOrder);
+        }
+
+        PaymentResponse payment = checkoutPayment(
+                savedOrder,
+                paymentMethod,
+                request.getPaidAmount(),
+                request.getChangedBy()
+        );
+
+        Order paidOrder = orderRepository.save(savedOrder);
+        return toResponse(paidOrder, payment);
     }
 
     @Override
@@ -208,7 +225,6 @@ public class OrderServiceImpl implements OrderService {
         }
 
         OrderStatus oldStatus = order.getStatus();
-        confirmReservation(order.getId());
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.COMPLETED);
         order.setPaidAmount(order.getFinalAmount());
@@ -223,9 +239,184 @@ public class OrderServiceImpl implements OrderService {
                 request.getChangedBy()
         );
 
+        UUID sagaId = orderPaymentSagaService.completeManualPaymentSaga(savedOrder, request.getPaymentCode());
         orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
+        orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, request.getPaymentCode(), sagaId.toString());
 
         return toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public void handlePaymentEvent(PaymentOrderEventPayload event) {
+        if (event == null || event.getOrderId() == null || event.getOrderId().isBlank()) {
+            return;
+        }
+
+        String eventType = normalizePaymentEventType(event.getEventType());
+        if (eventType == null) {
+            return;
+        }
+
+        switch (eventType) {
+            case "PAYMENT_SUCCEEDED" -> handlePaymentSucceededEvent(event);
+            case "PAYMENT_FAILED" -> handlePaymentFailedEvent(
+                    event,
+                    OrderStatus.PAYMENT_FAILED,
+                    "Thanh toán thất bại"
+            );
+            case "PAYMENT_EXPIRED" -> handlePaymentFailedEvent(
+                    event,
+                    OrderStatus.EXPIRED,
+                    "Thanh toán hết hạn"
+            );
+            case "PAYMENT_CANCELLED" -> handlePaymentFailedEvent(
+                    event,
+                    OrderStatus.CANCELLED,
+                    "Thanh toán đã bị hủy"
+            );
+            case "PAYMENT_NEED_REVIEW" -> handlePaymentNeedReviewEvent(event);
+            case "PAYMENT_WAITING", "PAYMENT_WAITING_PAYMENT" -> handlePaymentWaitingEvent(event);
+            default -> log.debug("Bỏ qua payment event chưa được Order-Service xử lý: {}", eventType);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void handlePaymentSucceeded(PaymentOrderEventPayload event) {
+        handlePaymentEvent(event);
+    }
+
+    private void handlePaymentSucceededEvent(PaymentOrderEventPayload event) {
+        UUID orderId = UUID.fromString(event.getOrderId());
+        Order order = getExistingOrder(orderId);
+
+        if (PaymentStatus.PAID == order.getPaymentStatus()) {
+            orderPaymentSagaService.completePaymentSaga(order, event, paymentCausationId(event));
+            return;
+        }
+
+        BigDecimal amountPaid = defaultZero(event.getAmountPaid());
+        if (amountPaid.compareTo(order.getFinalAmount()) < 0) {
+            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
+        }
+
+        OrderStatus oldStatus = order.getStatus();
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setStatus(OrderStatus.COMPLETED);
+        order.setPaymentMethod(firstNonBlank(normalizePaymentMethod(event.getPaymentMethod()), order.getPaymentMethod()));
+        order.setPaymentCode(firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
+        order.setPaidAmount(order.getFinalAmount());
+        order.setDebtAmount(BigDecimal.ZERO);
+
+        Order savedOrder = orderRepository.save(order);
+        saveStatusHistory(
+                savedOrder,
+                oldStatus,
+                OrderStatus.COMPLETED,
+                "Thanh toán chuyển khoản thành công, mã thanh toán: " + savedOrder.getPaymentCode(),
+                null
+        );
+
+        UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, paymentCausationId(event));
+        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
+        orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, paymentCausationId(event), sagaId.toString());
+        orderOutboxPublisher.publishOrderPaymentSucceededNotification(
+                savedOrder,
+                event,
+                oldStatus,
+                OrderStatus.COMPLETED,
+                sagaId.toString()
+        );
+    }
+
+    private void handlePaymentFailedEvent(PaymentOrderEventPayload event, OrderStatus targetOrderStatus, String defaultReason) {
+        UUID orderId = UUID.fromString(event.getOrderId());
+        Order order = getExistingOrder(orderId);
+
+        if (PaymentStatus.PAID == order.getPaymentStatus()) {
+            return;
+        }
+
+        OrderStatus oldStatus = order.getStatus();
+        order.setPaymentStatus(PaymentStatus.FAILED);
+        order.setStatus(targetOrderStatus);
+        order.setPaymentMethod(firstNonBlank(normalizePaymentMethod(event.getPaymentMethod()), order.getPaymentMethod()));
+        order.setPaymentCode(firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
+        order.setPaidAmount(BigDecimal.ZERO);
+        order.setDebtAmount(order.getFinalAmount());
+
+        Order savedOrder = orderRepository.save(order);
+        String reason = firstNonBlank(event.getFailureReason(), defaultReason);
+        saveStatusHistory(savedOrder, oldStatus, targetOrderStatus, reason, null);
+        orderPaymentSagaService.failPaymentSaga(savedOrder, event, reason);
+
+        if (targetOrderStatus == OrderStatus.CANCELLED) {
+            orderOutboxPublisher.publishOrderCancelledNotification(
+                    savedOrder,
+                    event,
+                    oldStatus,
+                    targetOrderStatus,
+                    event.getSagaId(),
+                    reason
+            );
+        } else {
+            orderOutboxPublisher.publishOrderPaymentFailedNotification(
+                    savedOrder,
+                    event,
+                    oldStatus,
+                    targetOrderStatus,
+                    event.getSagaId(),
+                    reason
+            );
+        }
+    }
+
+    private void handlePaymentNeedReviewEvent(PaymentOrderEventPayload event) {
+        UUID orderId = UUID.fromString(event.getOrderId());
+        Order order = getExistingOrder(orderId);
+
+        if (PaymentStatus.PAID == order.getPaymentStatus()) {
+            return;
+        }
+
+        OrderStatus oldStatus = order.getStatus();
+        order.setPaymentStatus(PaymentStatus.WAITING_PAYMENT);
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        order.setPaymentMethod(firstNonBlank(normalizePaymentMethod(event.getPaymentMethod()), order.getPaymentMethod()));
+        order.setPaymentCode(firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
+        order.setPaidAmount(BigDecimal.ZERO);
+        order.setDebtAmount(order.getFinalAmount());
+
+        Order savedOrder = orderRepository.save(order);
+        String reason = firstNonBlank(event.getFailureReason(), "Thanh toán cần kiểm tra thủ công");
+        if (oldStatus != OrderStatus.PENDING_PAYMENT) {
+            saveStatusHistory(savedOrder, oldStatus, OrderStatus.PENDING_PAYMENT, reason, null);
+        }
+        orderPaymentSagaService.markPaymentNeedReview(savedOrder, event, reason);
+    }
+
+    private void handlePaymentWaitingEvent(PaymentOrderEventPayload event) {
+        UUID orderId = UUID.fromString(event.getOrderId());
+        Order order = getExistingOrder(orderId);
+
+        if (PaymentStatus.PAID == order.getPaymentStatus()) {
+            return;
+        }
+
+        OrderStatus oldStatus = order.getStatus();
+        order.setPaymentStatus(PaymentStatus.WAITING_PAYMENT);
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        order.setPaymentMethod(firstNonBlank(normalizePaymentMethod(event.getPaymentMethod()), order.getPaymentMethod()));
+        order.setPaymentCode(firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
+        order.setPaidAmount(BigDecimal.ZERO);
+        order.setDebtAmount(order.getFinalAmount());
+
+        Order savedOrder = orderRepository.save(order);
+        if (oldStatus != OrderStatus.PENDING_PAYMENT) {
+            saveStatusHistory(savedOrder, oldStatus, OrderStatus.PENDING_PAYMENT, "Đang chờ thanh toán", null);
+        }
+        orderPaymentSagaService.markPaymentWaiting(savedOrder, event, "Đang chờ payment event thành công");
     }
 
     @Override
@@ -244,7 +435,7 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal oldQuantity = item == null ? BigDecimal.ZERO : defaultZero(item.getQuantity());
         BigDecimal targetQuantity = oldQuantity.add(addQuantity);
         log.info("varient{} {}", variant.variantId(), request.getProductVariantId());
-        applyReservation(order, variant.variantId(), targetQuantity, request.getInventoryLocationId());
+        inventoryReservationService.applyReservation(order, variant.variantId(), targetQuantity, request.getInventoryLocationId());
 
         if (item == null) {
             item = OrderItem.builder()
@@ -281,7 +472,7 @@ public class OrderServiceImpl implements OrderService {
             return removeDraftItem(orderId, itemId);
         }
 
-        applyReservation(order, item.getProductVariantId(), targetQuantity, null);
+        inventoryReservationService.applyReservation(order, item.getProductVariantId(), targetQuantity, null);
         item.setQuantity(targetQuantity);
         recalculateLine(item);
         recalculateOrderTotals(order);
@@ -294,7 +485,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = getEditableDraftOrder(orderId);
         OrderItem item = getOrderItem(order, itemId);
 
-        releaseItemReservation(order.getId(), item.getProductVariantId(), null);
+        inventoryReservationService.releaseItemReservation(order.getId(), item.getProductVariantId(), null);
         order.getItems().remove(item);
         order.setExpiresAt(nextDraftExpiresAt());
         recalculateOrderTotals(order);
@@ -312,7 +503,7 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOrderStatusException("Chỉ hóa đơn nháp mới được hủy bằng API này");
         }
 
-        releaseOrderReservation(order.getId());
+        inventoryReservationService.releaseOrderReservation(order.getId());
         OrderStatus oldStatus = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
         Order savedOrder = orderRepository.save(order);
@@ -329,33 +520,24 @@ public class OrderServiceImpl implements OrderService {
         }
 
         recalculateOrderTotals(order);
-        BigDecimal paidAmount = defaultZero(request.getPaidAmount());
-        if (paidAmount.compareTo(order.getFinalAmount()) < 0) {
-            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
-        }
-
         String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
         if (paymentMethod == null) {
             throw new InvalidPaymentAmountException("Phương thức thanh toán không hợp lệ");
         }
 
-        confirmReservation(order.getId());
-        OrderStatus oldStatus = order.getStatus();
-        order.setPaymentStatus(PaymentStatus.PAID);
-        order.setStatus(OrderStatus.COMPLETED);
         order.setPaymentMethod(paymentMethod);
         order.setPaymentCode(firstNonBlank(request.getPaymentCode(), generatePosPaymentCode(order, paymentMethod)));
-        order.setPaidAmount(order.getFinalAmount());
-        order.setDebtAmount(BigDecimal.ZERO);
         Order savedOrder = orderRepository.save(order);
-        saveStatusHistory(
+
+        PaymentResponse payment = checkoutPayment(
                 savedOrder,
-                oldStatus,
-                OrderStatus.COMPLETED,
-                "Thanh toán POS trực tiếp bằng " + paymentMethod + ", mã thanh toán: " + savedOrder.getPaymentCode(),
-                request.getChangedBy());
-        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
-        return toResponse(savedOrder);
+                paymentMethod,
+                request.getPaidAmount(),
+                request.getChangedBy()
+        );
+
+        Order checkoutOrder = orderRepository.save(savedOrder);
+        return toResponse(checkoutOrder, payment);
     }
 
     @Override
@@ -623,9 +805,9 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal originalAmount = order.getItems() == null
                 ? BigDecimal.ZERO
                 : order.getItems().stream()
-                        .peek(this::recalculateLine)
-                        .map(item -> defaultZero(item.getLineTotal()))
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .peek(this::recalculateLine)
+                .map(item -> defaultZero(item.getLineTotal()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal discountAmount = defaultZero(order.getDiscountAmount());
         BigDecimal shippingFee = defaultZero(order.getShippingFee());
         BigDecimal finalAmount = originalAmount.subtract(discountAmount).add(shippingFee).max(BigDecimal.ZERO);
@@ -638,82 +820,6 @@ public class OrderServiceImpl implements OrderService {
             order.setPaidAmount(BigDecimal.ZERO);
             order.setDebtAmount(finalAmount);
         }
-    }
-
-    private void applyReservation(Order order, UUID productVariantId, BigDecimal targetQuantity, UUID locationId) {
-        try {
-            inventoryClient.applyReservation(InventoryClient.ApplyInventoryReservationRequest.builder()
-                    .orderId(order.getId())
-                    .branchId(order.getBranchId())
-                    .productVariantId(productVariantId)
-                    .locationId(locationId)
-                    .targetQuantity(targetQuantity)
-                    .expiresAt(order.getExpiresAt())
-                    .build());
-        } catch (FeignException.Conflict ex) {
-            throw new OutOfStockException("Không đủ tồn kho");
-        } catch (FeignException.NotFound ex) {
-            throw new InventoryReservationFailedException("Không tìm thấy tồn kho để giữ chỗ");
-        } catch (FeignClientException ex) {
-            if (isOutOfStock(ex)) {
-                throw new OutOfStockException("Không đủ tồn kho");
-            }
-            if (ex.getStatus() == 404) {
-                throw new InventoryReservationFailedException("Không tìm thấy tồn kho để giữ chỗ");
-            }
-            throw new InventoryReservationFailedException("Không thể giữ chỗ tồn kho: " + ex.getMessage());
-        } catch (FeignException ex) {
-            throw new InventoryReservationFailedException("Không thể giữ chỗ tồn kho: " + ex.getMessage());
-        }
-    }
-
-    private void releaseItemReservation(UUID orderId, UUID productVariantId, UUID locationId) {
-        try {
-            inventoryClient.releaseItem(InventoryClient.ReleaseInventoryReservationItemRequest.builder()
-                    .orderId(orderId)
-                    .productVariantId(productVariantId)
-                    .locationId(locationId)
-                    .build());
-        } catch (FeignClientException ex) {
-            throw new InventoryReservationFailedException("Không thể nhả giữ chỗ tồn kho: " + ex.getMessage());
-        } catch (FeignException ex) {
-            throw new InventoryReservationFailedException("Không thể nhả giữ chỗ tồn kho: " + ex.getMessage());
-        }
-    }
-
-    private void releaseOrderReservation(UUID orderId) {
-        try {
-            inventoryClient.releaseOrder(InventoryClient.ReleaseInventoryReservationOrderRequest.builder()
-                    .orderId(orderId)
-                    .build());
-        } catch (FeignClientException ex) {
-            throw new InventoryReservationFailedException("Không thể nhả giữ chỗ tồn kho của đơn: " + ex.getMessage());
-        } catch (FeignException ex) {
-            throw new InventoryReservationFailedException("Không thể nhả giữ chỗ tồn kho của đơn: " + ex.getMessage());
-        }
-    }
-
-    private void confirmReservation(UUID orderId) {
-        try {
-            inventoryClient.confirmOrder(InventoryClient.ConfirmInventoryReservationOrderRequest.builder()
-                    .orderId(orderId)
-                    .build());
-        } catch (FeignException.Conflict ex) {
-            throw new OutOfStockException("Không đủ tồn kho để xác nhận đơn");
-        } catch (FeignClientException ex) {
-            if (isOutOfStock(ex)) {
-                throw new OutOfStockException("Không đủ tồn kho để xác nhận đơn");
-            }
-            throw new InventoryReservationFailedException("Không thể xác nhận giữ chỗ tồn kho: " + ex.getMessage());
-        } catch (FeignException ex) {
-            throw new InventoryReservationFailedException("Không thể xác nhận giữ chỗ tồn kho: " + ex.getMessage());
-        }
-    }
-
-    private boolean isOutOfStock(FeignClientException ex) {
-        return ex.getStatus() == 409
-                || (ex.getMessage() != null && ex.getMessage().contains("OUT_OF_STOCK"))
-                || (ex.getResponseBody() != null && ex.getResponseBody().contains("OUT_OF_STOCK"));
     }
 
     private void saveStatusHistory(
@@ -857,6 +963,10 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
+        return toResponse(order, null);
+    }
+
+    private OrderResponse toResponse(Order order, PaymentResponse payment) {
         PaymentClient.PaymentOrderInfoResponse paymentInfo = fetchPaymentInfo(order.getId());
         BigDecimal changeAmount = paymentInfo == null ? BigDecimal.ZERO : defaultZero(paymentInfo.changeAmount());
         String paymentMethod = resolvePaymentMethod(order, paymentInfo);
@@ -875,6 +985,7 @@ public class OrderServiceImpl implements OrderService {
                 .paymentStatus(order.getPaymentStatus())
                 .paymentMethod(paymentMethod)
                 .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))
+                .payment(payment)
                 .originalAmount(order.getOriginalAmount())
                 .subTotal(order.getOriginalAmount())
                 .discountAmount(order.getDiscountAmount())
@@ -1095,6 +1206,175 @@ public class OrderServiceImpl implements OrderService {
                 || normalizedPaymentMethod.equals(normalizePaymentMethod(item.getPaymentMethod()));
     }
 
+    private PaymentResponse checkoutPayment(
+            Order order,
+            String paymentMethod,
+            BigDecimal receivedAmount,
+            UUID changedBy
+    ) {
+        PaymentMethod method = toSupportedPaymentMethod(paymentMethod);
+        if (method == PaymentMethod.CASH
+                && defaultZero(receivedAmount).compareTo(order.getFinalAmount()) < 0) {
+            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
+        }
+
+        UUID sagaId = orderPaymentSagaService.startPaymentSaga(order, method.name());
+
+        PaymentCreateRequest paymentRequest = new PaymentCreateRequest();
+        paymentRequest.setOrderId(order.getId());
+        paymentRequest.setOrderCode(order.getOrderCode());
+        paymentRequest.setCustomerId(order.getCustomerId());
+        paymentRequest.setSagaId(sagaId);
+        paymentRequest.setPaymentMethod(method);
+        paymentRequest.setGoodsAmount(order.getOriginalAmount());
+        paymentRequest.setDiscountAmount(order.getDiscountAmount());
+        paymentRequest.setDeliveryFee(order.getShippingFee());
+        paymentRequest.setFinalAmount(order.getFinalAmount());
+        paymentRequest.setReceivedAmount(method == PaymentMethod.CASH ? receivedAmount : null);
+        paymentRequest.setDeliveryRequired(false);
+
+        PaymentResponse payment = paymentClient.checkout(paymentRequest);
+        applyPaymentCheckoutResult(order, payment, changedBy, sagaId);
+        return payment;
+    }
+
+    private void applyPaymentCheckoutResult(Order order, PaymentResponse payment, UUID changedBy, UUID sagaId) {
+        if (payment == null || payment.getStatus() == null) {
+            throw new InvalidPaymentAmountException("Payment-Service không trả về kết quả thanh toán");
+        }
+
+        OrderStatus oldStatus = order.getStatus();
+        String paymentStatus = payment.getStatus().trim().toUpperCase(Locale.ROOT);
+        String paymentMethod = normalizePaymentMethod(payment.getMethod());
+
+        order.setPaymentMethod(paymentMethod);
+        order.setPaymentCode(firstNonBlank(payment.getPaymentCode(), order.getPaymentCode()));
+
+        if ("PAID".equals(paymentStatus)) {
+            order.setPaymentStatus(PaymentStatus.PAID);
+            order.setStatus(OrderStatus.COMPLETED);
+            order.setPaidAmount(order.getFinalAmount());
+            order.setDebtAmount(BigDecimal.ZERO);
+
+            saveStatusHistory(
+                    order,
+                    oldStatus,
+                    OrderStatus.COMPLETED,
+                    "Thanh toán POS trực tiếp bằng " + paymentMethod + ", mã thanh toán: " + order.getPaymentCode(),
+                    changedBy
+            );
+            orderPaymentSagaService.completePaymentSaga(order, eventFromPaymentResponse(order, payment, sagaId), order.getPaymentCode());
+            orderCustomerServiceImpl.updateCustomerPurchase(order.getId());
+            orderOutboxPublisher.publishPaymentCompletedOrchestration(order, order.getPaymentCode(), sagaId.toString());
+            return;
+        }
+
+        if ("WAITING_PAYMENT".equals(paymentStatus) || "PENDING".equals(paymentStatus)) {
+            order.setPaymentStatus(PaymentStatus.WAITING_PAYMENT);
+            order.setStatus(OrderStatus.PENDING_PAYMENT);
+            order.setPaidAmount(BigDecimal.ZERO);
+            order.setDebtAmount(order.getFinalAmount());
+
+            saveStatusHistory(
+                    order,
+                    oldStatus,
+                    OrderStatus.PENDING_PAYMENT,
+                    "Tạo yêu cầu thanh toán " + paymentMethod + ", mã thanh toán: " + order.getPaymentCode(),
+                    changedBy
+            );
+            orderPaymentSagaService.markPaymentRequested(order, sagaId, payment);
+            return;
+        }
+
+        order.setPaymentStatus(PaymentStatus.FAILED);
+        order.setStatus(OrderStatus.PAYMENT_FAILED);
+        String error = "Payment-Service trả về trạng thái không thành công: " + paymentStatus;
+        saveStatusHistory(
+                order,
+                oldStatus,
+                OrderStatus.PAYMENT_FAILED,
+                error,
+                changedBy
+        );
+        orderPaymentSagaService.failPaymentSaga(order, eventFromPaymentResponse(order, payment, sagaId), error);
+    }
+
+
+    private PaymentOrderEventPayload eventFromPaymentResponse(Order order, PaymentResponse payment, UUID sagaId) {
+        PaymentOrderEventPayload event = new PaymentOrderEventPayload();
+        event.setSagaId(sagaId == null ? null : sagaId.toString());
+        event.setOrderId(order.getId().toString());
+        event.setOrderCode(order.getOrderCode());
+        event.setPaymentId(payment.getPaymentId() == null ? null : payment.getPaymentId().toString());
+        event.setPaymentCode(firstNonBlank(payment.getPaymentCode(), order.getPaymentCode()));
+        event.setPaymentMethod(payment.getMethod());
+        event.setPaymentProvider(payment.getProvider());
+        event.setPaymentStatus(payment.getStatus());
+        event.setAmountRequired(payment.getAmountRequired());
+        event.setAmountPaid(payment.getAmountPaid());
+        event.setEventType("PAID".equalsIgnoreCase(payment.getStatus()) ? "PAYMENT_SUCCEEDED" : "PAYMENT_FAILED");
+        event.setEventKey(order.getId().toString());
+        return event;
+    }
+
+    private String paymentCausationId(PaymentOrderEventPayload event) {
+        if (event == null) {
+            return null;
+        }
+        return firstNonBlank(
+                event.getEventId(),
+                firstNonBlank(event.getEventKey(), firstNonBlank(event.getPaymentCode(), event.getPaymentId()))
+        );
+    }
+
+    private String normalizePaymentEventType(String eventType) {
+        if (eventType == null || eventType.isBlank()) {
+            return null;
+        }
+
+        String normalized = eventType.trim()
+                .toUpperCase(Locale.ROOT)
+                .replace('-', '_')
+                .replace('.', '_');
+
+        if (normalized.endsWith("PAYMENT_SUCCEEDED") || normalized.endsWith("SUCCEEDED")) {
+            return "PAYMENT_SUCCEEDED";
+        }
+        if (normalized.endsWith("PAYMENT_FAILED") || normalized.endsWith("FAILED")) {
+            return "PAYMENT_FAILED";
+        }
+        if (normalized.endsWith("PAYMENT_EXPIRED") || normalized.endsWith("EXPIRED")) {
+            return "PAYMENT_EXPIRED";
+        }
+        if (normalized.endsWith("PAYMENT_CANCELLED") || normalized.endsWith("PAYMENT_CANCELED")
+                || normalized.endsWith("CANCELLED") || normalized.endsWith("CANCELED")) {
+            return "PAYMENT_CANCELLED";
+        }
+        if (normalized.endsWith("PAYMENT_NEED_REVIEW") || normalized.endsWith("NEED_REVIEW")) {
+            return "PAYMENT_NEED_REVIEW";
+        }
+        if (normalized.endsWith("PAYMENT_WAITING_PAYMENT") || normalized.endsWith("WAITING_PAYMENT")
+                || normalized.endsWith("PAYMENT_WAITING") || normalized.endsWith("WAITING")) {
+            return "PAYMENT_WAITING";
+        }
+
+        return normalized;
+    }
+
+    private PaymentMethod toSupportedPaymentMethod(String paymentMethod) {
+        String normalized = normalizePaymentMethod(paymentMethod);
+        if (normalized == null) {
+            throw new InvalidPaymentAmountException("Phương thức thanh toán không hợp lệ");
+        }
+        return switch (normalized) {
+            case "CASH" -> PaymentMethod.CASH;
+            case "BANK_TRANSFER" -> PaymentMethod.BANK_TRANSFER;
+            default -> throw new InvalidPaymentAmountException(
+                    "Payment-Service chưa hỗ trợ phương thức thanh toán: " + normalized
+            );
+        };
+    }
+
     private PaymentClient.PaymentOrderInfoResponse fetchPaymentInfo(UUID orderId) {
         try {
             return paymentClient.getPaymentByOrderId(orderId);
@@ -1123,7 +1403,7 @@ public class OrderServiceImpl implements OrderService {
         }
         String normalized = paymentMethod.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
-            case "TRANSFER", "BANK_TRANSFER", "QR_CODE" -> "BANK_TRANSFER";
+            case "BANK", "TRANSFER", "BANK_TRANSFER", "QR_CODE" -> "BANK_TRANSFER";
             case "CASH" -> "CASH";
             case "DEBT", "CREDIT" -> "DEBT";
             case "CARD" -> "CARD";

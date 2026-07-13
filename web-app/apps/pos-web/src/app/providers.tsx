@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { BrowserRouter } from "react-router-dom";
+
+import { NotificationProvider } from "../features/notification/context/NotificationContext";
 
 interface AppProvidersProps {
     children: ReactNode;
@@ -8,5 +9,7 @@ interface AppProvidersProps {
 export function AppProviders({
     children
 }: AppProvidersProps) {
-    return <BrowserRouter>{children}</BrowserRouter>;
+    return (
+        <NotificationProvider>{children}</NotificationProvider>
+    );
 }

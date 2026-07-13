@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AddDebtAction } from "./AddDebtAction";
 import { CashReceivedInput } from "./CashReceivedInput";
@@ -33,6 +33,7 @@ interface CheckoutPanelProps {
     bankTransferReferenceCode?: string;
     bankTransferStatus: PaymentStatusValue;
     bankTransferPayment: PosCheckoutPaymentResult | null;
+    bankTransferEventMessage?: string;
     checkoutLoading: boolean;
     checkoutError: string;
     checkoutSuccess: string;
@@ -67,6 +68,7 @@ export function CheckoutPanel({
     bankTransferReferenceCode,
     bankTransferStatus,
     bankTransferPayment,
+    bankTransferEventMessage = "",
     checkoutLoading,
     checkoutError,
     checkoutSuccess,
@@ -96,8 +98,20 @@ export function CheckoutPanel({
         totals.total > 0 &&
         orderType === "QUICK_SALE" &&
         (paymentMethod !== "CASH" || cashReceived >= totals.total) &&
-        (!isBankTransfer || bankTransferStatus === "RECEIVED") &&
+        !isBankTransfer &&
         !checkoutLoading;
+
+    useEffect(() => {
+        if (bankTransferStatus === "RECEIVED") {
+            const timeoutId = window.setTimeout(() => {
+                setBankTransferOpen(false);
+            }, 0);
+
+            return () => window.clearTimeout(timeoutId);
+        }
+
+        return undefined;
+    }, [bankTransferStatus]);
 
     return (
         <section className="flex h-full min-h-0 flex-col gap-3 rounded-[20px] bg-pos-surface p-4 shadow-pos-panel">
@@ -185,6 +199,7 @@ export function CheckoutPanel({
                         referenceCode={bankTransferReferenceCode}
                         status={bankTransferStatus}
                         payment={bankTransferPayment}
+                        eventMessage={bankTransferEventMessage}
                         loading={checkoutLoading && !bankTransferPayment}
                         error={checkoutError}
                         onClose={() => setBankTransferOpen(false)}
