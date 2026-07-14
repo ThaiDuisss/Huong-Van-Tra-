@@ -53,11 +53,18 @@ export interface SaleDiscountOption {
   code: string;
   type: SaleDiscountType;
   value: number;
+  estimatedDiscount?: number;
   description: string;
   status: SalePromotionStatus;
   condition: string;
   minSubtotal: number | null;
   expiresIn: string | null;
+  promotionId?: string;
+  applyMethod?: string;
+  benefitType?: string;
+  requiresCoupon?: boolean;
+  couponId?: string;
+  couponCode?: string;
 }
 
 export interface SaleTotals {
