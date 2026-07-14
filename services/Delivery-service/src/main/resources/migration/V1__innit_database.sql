@@ -1,7 +1,6 @@
-CREATE TABLE branch_delivery_configs (
+CREATE TABLE tenant_delivery_configs (
                                          id BINARY(16) NOT NULL,
                                          tenant_id BINARY(16) NOT NULL,
-                                         branch_id BINARY(16) NOT NULL,
 
                                          internal_delivery_enabled TINYINT(1) NOT NULL DEFAULT 0,
                                          max_delivery_distance_km DECIMAL(10, 2) NULL,
@@ -30,10 +29,10 @@ CREATE TABLE branch_delivery_configs (
 
                                          PRIMARY KEY (id),
 
-                                         CONSTRAINT uk_branch_delivery_configs_tenant_branch
-                                             UNIQUE (tenant_id, branch_id),
+                                         CONSTRAINT uk_tenant_delivery_configs_tenant
+                                             UNIQUE (tenant_id),
 
-                                         INDEX idx_branch_delivery_configs_active (
+                                         INDEX idx_tenant_delivery_configs_active (
         tenant_id,
         active,
         is_deleted
@@ -140,7 +139,6 @@ CREATE TABLE shipments (
 
                            INDEX idx_shipments_planning (
         tenant_id,
-        branch_id,
         delivery_mode,
         status,
         requested_from
@@ -206,7 +204,114 @@ CREATE TABLE shipment_items (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE delivery_routes (
+                                 id BINARY(16) NOT NULL,
 
+                                 tenant_id BINARY(16) NOT NULL,
+
+                                 route_code VARCHAR(50) NOT NULL,
+
+                                 courier_employee_id BINARY(16) NULL,
+                                 courier_name_snapshot VARCHAR(255) NULL,
+
+                                 dispatch_wave VARCHAR(30) NULL,
+                                 status VARCHAR(30) NOT NULL,
+
+                                 planned_start_at DATETIME(6) NULL,
+                                 planned_end_at DATETIME(6) NULL,
+                                 actual_start_at DATETIME(6) NULL,
+                                 actual_end_at DATETIME(6) NULL,
+
+                                 total_stops INT NOT NULL DEFAULT 0,
+                                 total_distance_meter INT NOT NULL DEFAULT 0,
+                                 total_duration_second INT NOT NULL DEFAULT 0,
+                                 total_weight_gram INT NOT NULL DEFAULT 0,
+                                 total_cod_amount BIGINT NOT NULL DEFAULT 0,
+
+                                 planning_algorithm VARCHAR(50) NULL,
+
+                                 version BIGINT NOT NULL DEFAULT 0,
+
+                                 created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                                 created_by VARCHAR(255) NULL,
+                                 updated_at DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
+                                 updated_by VARCHAR(255) NULL,
+                                 is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+
+                                 PRIMARY KEY (id),
+
+                                 CONSTRAINT uk_delivery_routes_tenant_code
+                                     UNIQUE (tenant_id, route_code),
+
+                                 INDEX idx_delivery_routes_tenant_status (
+        tenant_id,
+        status,
+        planned_start_at
+    ),
+
+                                 INDEX idx_delivery_routes_courier_status (
+        courier_employee_id,
+        status
+    )
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE route_stops (
+                             id BINARY(16) NOT NULL,
+
+                             route_id BINARY(16) NOT NULL,
+                             shipment_id BINARY(16) NOT NULL,
+
+                             sequence_no INT NOT NULL,
+                             stop_type VARCHAR(30) NOT NULL DEFAULT 'DELIVERY',
+                             status VARCHAR(30) NOT NULL,
+
+                             planned_arrival_at DATETIME(6) NULL,
+                             actual_arrival_at DATETIME(6) NULL,
+                             completed_at DATETIME(6) NULL,
+
+                             estimated_distance_meter INT NULL,
+                             estimated_duration_second INT NULL,
+
+                             failure_code VARCHAR(100) NULL,
+                             failure_reason VARCHAR(1000) NULL,
+
+                             created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                             updated_at DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
+
+                             PRIMARY KEY (id),
+
+                             CONSTRAINT fk_route_stops_route
+                                 FOREIGN KEY (route_id)
+                                     REFERENCES delivery_routes(id)
+                                     ON DELETE RESTRICT
+                                     ON UPDATE RESTRICT,
+
+                             CONSTRAINT fk_route_stops_shipment
+                                 FOREIGN KEY (shipment_id)
+                                     REFERENCES shipments(id)
+                                     ON DELETE RESTRICT
+                                     ON UPDATE RESTRICT,
+
+                             CONSTRAINT uk_route_stops_sequence
+                                 UNIQUE (route_id, sequence_no),
+
+                             CONSTRAINT uk_route_stops_route_shipment
+                                 UNIQUE (route_id, shipment_id),
+
+                             INDEX idx_route_stops_shipment (
+        shipment_id
+    ),
+
+                             INDEX idx_route_stops_route_status (
+        route_id,
+        status
+    )
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE delivery_proofs (
                                  id BINARY(16) NOT NULL,
 
@@ -233,11 +338,6 @@ CREATE TABLE delivery_proofs (
                                          ON DELETE RESTRICT
                                          ON UPDATE RESTRICT,
 
-                                 CONSTRAINT fk_delivery_proofs_attempt
-                                     FOREIGN KEY (delivery_attempt_id)
-                                         REFERENCES delivery_attempts(id)
-                                         ON DELETE SET NULL
-                                         ON UPDATE RESTRICT,
 
                                  INDEX idx_delivery_proofs_shipment (
         shipment_id
@@ -320,6 +420,73 @@ CREATE TABLE carrier_shipments (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE delivery_attempts (
+                                   id BINARY(16) NOT NULL,
+                                   shipment_id BINARY(16) NOT NULL,
+
+                                   attempt_no INT NOT NULL,
+
+                                   courier_employee_id BINARY(16) NULL,
+                                   route_id BINARY(16) NULL,
+
+                                   status VARCHAR(30) NOT NULL,
+
+                                   started_at DATETIME(6) NULL,
+                                   finished_at DATETIME(6) NULL,
+
+                                   collected_cod_amount BIGINT NOT NULL DEFAULT 0,
+
+                                   failure_code VARCHAR(100) NULL,
+                                   failure_reason VARCHAR(1000) NULL,
+
+                                   receiver_name VARCHAR(255) NULL,
+                                   receiver_relationship VARCHAR(100) NULL,
+
+                                   latitude DECIMAL(10, 7) NULL,
+                                   longitude DECIMAL(10, 7) NULL,
+
+                                   note VARCHAR(1000) NULL,
+
+                                   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                                   updated_at DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
+
+                                   PRIMARY KEY (id),
+
+                                   CONSTRAINT fk_delivery_attempts_shipment
+                                       FOREIGN KEY (shipment_id)
+                                           REFERENCES shipments(id)
+                                           ON DELETE RESTRICT
+                                           ON UPDATE RESTRICT,
+
+                                   CONSTRAINT fk_delivery_attempts_route
+                                       FOREIGN KEY (route_id)
+                                           REFERENCES delivery_routes(id)
+                                           ON DELETE SET NULL
+                                           ON UPDATE RESTRICT,
+
+                                   CONSTRAINT uk_delivery_attempts_number
+                                       UNIQUE (shipment_id, attempt_no),
+
+                                   INDEX idx_delivery_attempts_route (
+        route_id
+    ),
+
+                                   INDEX idx_delivery_attempts_status (
+        status,
+        created_at
+    )
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE delivery_proofs
+    ADD CONSTRAINT fk_delivery_proofs_attempt
+        FOREIGN KEY (delivery_attempt_id)
+            REFERENCES delivery_attempts(id)
+            ON DELETE SET NULL
+            ON UPDATE RESTRICT;
+
+
 CREATE TABLE carrier_webhook_events (
                                         id BINARY(16) NOT NULL,
 
@@ -341,7 +508,9 @@ CREATE TABLE carrier_webhook_events (
 
                                         shipment_id BINARY(16) NULL,
 
+                                        received_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                                         processed_at DATETIME(6) NULL,
+                                        retry_count INT NOT NULL DEFAULT 0,
 
                                         error_message VARCHAR(2000) NULL,
 

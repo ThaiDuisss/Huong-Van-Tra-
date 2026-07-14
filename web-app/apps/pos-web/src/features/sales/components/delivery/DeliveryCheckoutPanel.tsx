@@ -6,7 +6,6 @@ import {
   Pencil,
   Phone,
   Settings,
-  Store,
   Truck,
   User
 } from "lucide-react";
@@ -42,10 +41,12 @@ import type {
 import type {
   SaleCartItem,
   SaleCustomer,
+  SaleDiscountOption,
   SaleTotals
 } from "../../types/sale.types";
 import { AddressSelectionModal } from "./AddressSelectionModal";
 import { DeliveryOptionCard } from "./DeliveryOptionCard";
+import { DeliveryPaymentSummary } from "./DeliveryPaymentSummary";
 import { formatCurrency } from "../../services/money";
 
 interface DeliveryCheckoutPanelProps {
@@ -54,12 +55,15 @@ interface DeliveryCheckoutPanelProps {
   customers: SaleCustomer[];
   customersLoading: boolean;
   customersError: string;
+  discounts: SaleDiscountOption[];
+  selectedDiscountId: string;
   selectedCustomer: SaleCustomer | null;
   state: DeliveryCheckoutState;
   totals: SaleTotals;
   onCustomerChange(customerId: string): void;
   onCustomerClear(): void;
   onCustomerOpen(): void;
+  onDiscountChange(discountId: string): void;
   onDeliveryStateChange(nextState: DeliveryCheckoutState): void;
   onQuoteRefresh(): void;
   onSubmit(): void;
@@ -71,12 +75,15 @@ export function DeliveryCheckoutPanel({
   customers,
   customersLoading,
   customersError,
+  discounts,
+  selectedDiscountId,
   selectedCustomer,
   state,
   totals,
   onCustomerChange,
   onCustomerClear,
   onCustomerOpen,
+  onDiscountChange,
   onDeliveryStateChange,
   onQuoteRefresh,
   onSubmit
@@ -134,8 +141,39 @@ export function DeliveryCheckoutPanel({
     });
   }
 
+  function changeDeliveryMode(selectedDeliveryMode: DeliveryMode) {
+    patchState({
+      selectedDeliveryMode,
+      deliveryModeSelectionSource: "MANUAL",
+      internalDeliveryOption:
+        selectedDeliveryMode === "INTERNAL" ? state.internalDeliveryOption : null,
+      thirdPartyQuotes:
+        selectedDeliveryMode === "THIRD_PARTY" ? state.thirdPartyQuotes : [],
+      selectedThirdPartyProvider:
+        selectedDeliveryMode === "THIRD_PARTY"
+          ? state.selectedThirdPartyProvider
+          : "ALL",
+      deliveryOptions: [],
+      selectedDeliveryOptionId: null,
+      selectedDeliveryQuoteId: null,
+      selectedThirdPartyQuoteId: null,
+      recommendedDeliveryOptionId: null,
+      deliverySelectionSource: "RECOMMENDED",
+      customerAcceptedDeliveryWait: false,
+      shippingFee: 0,
+      quoteError: "",
+      quoteRequestedAt: Date.now()
+    });
+  }
+
   return (
-    <section className="grid h-full min-h-0 grid-cols-[minmax(330px,1fr)_minmax(330px,1fr)] gap-3">
+    <section
+      className={`grid h-full min-h-0 gap-3 ${
+        state.selectedDeliveryMode === "THIRD_PARTY"
+          ? "grid-cols-[minmax(330px,1fr)_minmax(330px,1fr)]"
+          : "grid-cols-1"
+      }`}
+    >
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] rounded-xl bg-white shadow-pos-panel">
         <div className="border-b border-[#edf0f4] p-4">
           <CustomerSelector
@@ -147,6 +185,24 @@ export function DeliveryCheckoutPanel({
             onSelect={onCustomerChange}
             onClear={onCustomerClear}
           />
+          <label className="mt-3 flex items-center justify-between rounded-lg border border-[#dbe4ee] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#172317]">
+            <span>
+              Đơn ngoại tỉnh hoặc cần ship gấp
+              <span className="mt-0.5 block text-xs font-semibold text-[#697684]">
+                Bật để dùng đối tác vận chuyển bên thứ 3
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={state.selectedDeliveryMode === "THIRD_PARTY"}
+              onChange={(event) =>
+                changeDeliveryMode(
+                  event.currentTarget.checked ? "THIRD_PARTY" : "INTERNAL"
+                )
+              }
+              className="size-5 accent-[#1479f6]"
+            />
+          </label>
         </div>
 
         <div className="min-h-0 overflow-y-auto px-6 py-4">
@@ -175,6 +231,26 @@ export function DeliveryCheckoutPanel({
             onOpenChange={setPackageOpen}
           />
 
+          {state.selectedDeliveryMode === "INTERNAL" &&
+          state.internalDeliveryOption &&
+          !state.internalDeliveryOption.availableNow &&
+          state.internalDeliveryOption.availableLater ? (
+            <button
+              type="button"
+              onClick={() =>
+                patchState({
+                  customerAcceptedDeliveryWait: true,
+                  selectedDeliveryOptionId: state.internalDeliveryOption?.optionId ?? null,
+                  selectedDeliveryQuoteId: state.internalDeliveryOption?.quoteId ?? null,
+                  shippingFee: state.internalDeliveryOption?.shippingFee ?? 0
+                })
+              }
+              className="mt-4 h-10 rounded-lg border border-[#1479f6] bg-[#eef6ff] px-3 text-sm font-black text-[#1479f6]"
+            >
+              Khách đồng ý chờ
+            </button>
+          ) : null}
+
           <label className="mt-5 grid gap-1 border-b border-[#c9d2dc] pb-2 text-sm font-semibold text-[#697684]">
             <span className="inline-flex items-center gap-2">
               <Pencil size={17} aria-hidden="true" />
@@ -189,58 +265,69 @@ export function DeliveryCheckoutPanel({
           </label>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#edf0f4] px-6 py-4">
-          <label className="inline-flex items-center gap-3 text-base font-black text-[#172317]">
-            Thu hộ tiền (COD)
-            <input
-              type="checkbox"
-              checked={state.paymentMethod === "COD"}
-              onChange={(event) =>
-                patchState({
-                  paymentMethod: event.currentTarget.checked ? "COD" : "CASH"
-                })
-              }
-              className="size-5 accent-[#1479f6]"
-            />
-          </label>
-          <strong className="text-2xl text-[#172317]">
-            {formatCurrency(deliveryTotals.codAmount)}
-          </strong>
+        <div className="grid gap-2 border-t border-[#edf0f4] px-6 py-3">
+          <DeliveryPaymentSummary
+            discounts={discounts}
+            selectedDiscountId={selectedDiscountId}
+            totals={deliveryTotals}
+            depositAmount={state.depositAmount}
+            onDiscountChange={onDiscountChange}
+            onDepositAmountChange={(depositAmount) => patchState({ depositAmount })}
+          />
+
+          <div className="flex items-center justify-between border-t border-[#edf0f4] pt-2">
+            <label className="inline-flex items-center gap-2 text-sm font-black text-[#172317]">
+              Thu hộ tiền (COD)
+              <input
+                type="checkbox"
+                checked={state.paymentMethod === "COD"}
+                onChange={(event) =>
+                  patchState({
+                    paymentMethod: event.currentTarget.checked ? "COD" : "CASH"
+                  })
+                }
+                className="size-4 accent-[#1479f6]"
+              />
+            </label>
+            <strong className="text-xl text-[#172317]">
+              {formatCurrency(deliveryTotals.codAmount)}
+            </strong>
+          </div>
         </div>
+        {state.selectedDeliveryMode !== "THIRD_PARTY" ? (
+          <div className="grid gap-3 border-t border-[#edf0f4] px-6 py-3">
+            {state.submitError ? (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700">
+                {state.submitError}
+              </p>
+            ) : null}
+            <CompletePaymentButton
+              total={deliveryTotals.grandTotal}
+              disabled={disabled}
+              label="Thanh toán"
+              loadingLabel="Đang tạo đơn..."
+              loading={state.submitPending}
+              onClick={onSubmit}
+            />
+          </div>
+        ) : null}
       </div>
 
+      {state.selectedDeliveryMode === "THIRD_PARTY" ? (
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] rounded-xl bg-white shadow-pos-panel">
-        <DeliveryModeTabs
-          selectedMode={state.selectedDeliveryMode}
-          onSelectMode={(selectedDeliveryMode) =>
-            patchState({
-              selectedDeliveryMode,
-              deliveryModeSelectionSource: "MANUAL",
-              internalDeliveryOption:
-                selectedDeliveryMode === "INTERNAL"
-                  ? state.internalDeliveryOption
-                  : null,
-              thirdPartyQuotes:
-                selectedDeliveryMode === "THIRD_PARTY"
-                  ? state.thirdPartyQuotes
-                  : [],
-              selectedThirdPartyProvider:
-                selectedDeliveryMode === "THIRD_PARTY"
-                  ? state.selectedThirdPartyProvider
-                  : "ALL",
-              deliveryOptions: [],
-              selectedDeliveryOptionId: null,
-              selectedDeliveryQuoteId: null,
-              selectedThirdPartyQuoteId: null,
-              recommendedDeliveryOptionId: null,
-              deliverySelectionSource: "RECOMMENDED",
-              customerAcceptedDeliveryWait: false,
-              shippingFee: 0,
-              quoteError: "",
-              quoteRequestedAt: Date.now()
-            })
-          }
-        />
+        <div className="flex h-12 items-center justify-between border-b border-[#dfe5ec] px-5">
+          <strong className="inline-flex items-center gap-2 text-sm font-black text-[#1479f6]">
+            <Truck size={16} aria-hidden="true" />
+            Đối tác vận chuyển
+          </strong>
+          <button
+            type="button"
+            onClick={() => changeDeliveryMode("INTERNAL")}
+            className="text-xs font-black text-[#697684] hover:text-[#1479f6]"
+          >
+            Tắt bên thứ 3
+          </button>
+        </div>
 
         <div className="grid min-h-0 content-start gap-4 overflow-y-auto px-5 py-4">
           <div className="flex items-start gap-3 rounded-lg border border-[#b8d7ff] bg-[#eef6ff] px-4 py-3 text-sm font-semibold text-[#334155]">
@@ -322,26 +409,6 @@ export function DeliveryCheckoutPanel({
             />
           ) : null}
 
-          {state.selectedDeliveryMode === "INTERNAL" &&
-            state.internalDeliveryOption &&
-            !state.internalDeliveryOption.availableNow &&
-            state.internalDeliveryOption.availableLater ? (
-            <button
-              type="button"
-              onClick={() =>
-                patchState({
-                  customerAcceptedDeliveryWait: true,
-                  selectedDeliveryOptionId: state.internalDeliveryOption?.optionId ?? null,
-                  selectedDeliveryQuoteId: state.internalDeliveryOption?.quoteId ?? null,
-                  shippingFee: state.internalDeliveryOption?.shippingFee ?? 0
-                })
-              }
-              className="h-10 rounded-lg border border-[#1479f6] bg-[#eef6ff] px-3 text-sm font-black text-[#1479f6]"
-            >
-              Khách đồng ý chờ
-            </button>
-          ) : null}
-
           {showValidation && errors.deliveryOption ? (
             <FieldError message={errors.deliveryOption} />
           ) : null}
@@ -365,6 +432,7 @@ export function DeliveryCheckoutPanel({
           />
         </div>
       </div>
+      ) : null}
 
       <AddressSelectionModal
         addresses={state.addresses}
@@ -470,41 +538,6 @@ export function DeliveryCheckoutPanel({
         onOpenChange={setShippingSettingsOpen}
       />
     </section>
-  );
-}
-
-function DeliveryModeTabs({
-  selectedMode,
-  onSelectMode
-}: {
-  selectedMode: DeliveryMode | null;
-  onSelectMode(mode: DeliveryMode): void;
-}) {
-  return (
-    <div className="grid grid-cols-2 border-b border-[#dfe5ec]">
-      <button
-        type="button"
-        onClick={() => onSelectMode("THIRD_PARTY")}
-        className={`flex h-12 items-center justify-center gap-2 rounded-t-xl border-r border-[#dfe5ec] text-sm font-black outline-none focus:ring-2 focus:ring-[#1479f6]/25 ${selectedMode === "THIRD_PARTY"
-          ? "bg-white text-[#1479f6]"
-          : "bg-[#f6f8fb] text-[#697684]"
-          }`}
-      >
-        <Truck size={16} aria-hidden="true" />
-        Đối tác vận chuyển
-      </button>
-      <button
-        type="button"
-        onClick={() => onSelectMode("INTERNAL")}
-        className={`flex h-12 items-center justify-center gap-2 rounded-t-xl text-sm font-black outline-none focus:ring-2 focus:ring-[#1479f6]/25 ${selectedMode === "INTERNAL"
-          ? "bg-white text-[#1479f6]"
-          : "bg-[#f6f8fb] text-[#697684]"
-          }`}
-      >
-        <Store size={16} aria-hidden="true" />
-        Tự giao hàng
-      </button>
-    </div>
   );
 }
 

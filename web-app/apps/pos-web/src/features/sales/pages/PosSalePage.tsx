@@ -88,7 +88,7 @@ const initialDeliveryState: DeliveryCheckoutState = {
     saveAddress: false,
     setAsDefaultAddress: false,
     deliveryNote: "",
-    selectedDeliveryMode: "THIRD_PARTY",
+    selectedDeliveryMode: "INTERNAL",
     deliveryModeSelectionSource: "RECOMMENDED",
     recommendedDeliveryMode: null,
     deliveryModeRecommendationReason: "",
@@ -432,7 +432,7 @@ export function PosSalePage() {
             selectedAddressId: null,
             addressSuggestionReason: null,
             useManualAddress: false,
-            selectedDeliveryMode: "THIRD_PARTY",
+            selectedDeliveryMode: "INTERNAL",
             deliveryModeSelectionSource: "RECOMMENDED",
             recommendedDeliveryMode: null,
             deliveryModeRecommendationReason: "",
@@ -588,7 +588,7 @@ export function PosSalePage() {
             selectedAddressId: null,
             addressSuggestionReason: null,
             useManualAddress: false,
-            selectedDeliveryMode: "THIRD_PARTY",
+            selectedDeliveryMode: "INTERNAL",
             deliveryModeSelectionSource: "RECOMMENDED",
             recommendedDeliveryMode: null,
             deliveryModeRecommendationReason: "",
@@ -790,7 +790,7 @@ export function PosSalePage() {
                 addresses: [],
                 selectedAddressId: null,
                 addressSuggestionReason: null,
-                selectedDeliveryMode: "THIRD_PARTY",
+                selectedDeliveryMode: "INTERNAL",
                 deliveryModeSelectionSource: "RECOMMENDED",
                 recommendedDeliveryMode: null,
                 deliveryModeRecommendationReason: "",
@@ -1346,12 +1346,15 @@ export function PosSalePage() {
                         customers={customers}
                         customersLoading={customersLoading}
                         customersError={customersError}
+                        discounts={mockDiscounts}
+                        selectedDiscountId={selectedDiscount.id}
                         selectedCustomer={selectedCustomer}
                         state={deliveryState}
                         totals={totals}
                         onCustomerOpen={loadCustomers}
                         onCustomerChange={selectCustomer}
                         onCustomerClear={clearCustomer}
+                        onDiscountChange={setSelectedDiscountId}
                         onDeliveryStateChange={setCurrentDeliveryState}
                         onQuoteRefresh={refreshDeliveryQuote}
                         onSubmit={() => {
