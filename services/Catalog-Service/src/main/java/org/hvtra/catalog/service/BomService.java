@@ -15,5 +15,6 @@ public interface BomService {
     BomResponse create(BomRequest request);
     BomResponse update(UUID id, BomRequest request);
     BomResponse updateStatus(UUID id, Status status);
+    void delete(UUID id);
 }
 

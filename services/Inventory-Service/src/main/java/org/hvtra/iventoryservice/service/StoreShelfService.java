@@ -21,4 +21,5 @@ public interface StoreShelfService {
     InventoryLocationResponse create(StoreShelfRequest request);
     InventoryLocationResponse update(UUID id, StoreShelfRequest request);
     InventoryLocationResponse updateStatus(UUID id, InventoryStatus status);
+    void delete(UUID id);
 }

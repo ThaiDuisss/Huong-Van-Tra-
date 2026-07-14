@@ -67,6 +67,7 @@ public class ProductServiceImpl implements ProductService {
             String name, UUID categoryId, Status status, Pageable pageable) {
         Specification<Product> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             if (name != null && !name.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
             }
@@ -100,7 +101,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
-        Page<Product> page = productRepository.findByNameContainingIgnoreCase(search, pageable);
+        Page<Product> page = productRepository.findByNameContainingIgnoreCaseAndIsDeletedFalse(search, pageable);
         return new PageResponse<>(
                 page.getContent().stream()
                         .map(p -> new LookupResponse(p.getId().toString(), p.getName()))
@@ -412,5 +413,17 @@ public class ProductServiceImpl implements ProductService {
         return productRepository.findAllById(ids).stream()
                 .map(mapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", id));
+        if (product.getIsDeleted()) {
+            throw new ResourceNotFoundException("Product", id);
+        }
+        product.setIsDeleted(true);
+        productRepository.save(product);
     }
 }

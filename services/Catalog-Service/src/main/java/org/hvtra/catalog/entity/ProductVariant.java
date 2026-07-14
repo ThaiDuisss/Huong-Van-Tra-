@@ -36,7 +36,6 @@ public class ProductVariant extends BaseEntity {
     /**
      * Đơn vị bán thương mại của Mặt hàng này.
      * Ví dụ: "Hộp 100g", "Gói 250g", "Cốc".
-     * Thông thường là Unit có type = PACKAGING.
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "unit_id", nullable = false)

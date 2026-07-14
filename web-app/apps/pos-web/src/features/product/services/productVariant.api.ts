@@ -97,5 +97,8 @@ export const productVariantApi = {
     },
     downloadTemplate() {
         return apiClient.download("/catalog/product-variants/import/template");
+    },
+    delete(id: string) {
+        return apiClient.delete<void>(`/catalog/product-variants/${encodeURIComponent(id)}`);
     }
 };

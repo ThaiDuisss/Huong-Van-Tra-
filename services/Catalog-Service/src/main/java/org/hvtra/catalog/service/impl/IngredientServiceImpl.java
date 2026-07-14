@@ -9,6 +9,7 @@ import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.IngredientMapper;
+import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.service.IngredientService;
 import org.springframework.data.domain.Pageable;
@@ -24,10 +25,60 @@ import java.util.UUID;
 public class IngredientServiceImpl implements IngredientService {
     private final IngredientRepository repository;
     private final IngredientMapper mapper;
+    private final BusinessSequenceRepository businessSequenceRepository;
 
-    public IngredientServiceImpl(IngredientRepository repository, IngredientMapper mapper) {
+    public IngredientServiceImpl(IngredientRepository repository, IngredientMapper mapper, BusinessSequenceRepository businessSequenceRepository) {
         this.repository = repository;
         this.mapper = mapper;
+        this.businessSequenceRepository = businessSequenceRepository;
+    }
+
+    @Transactional
+    public String generateIngredientCode(String ingredientName) {
+        // 1. Lấy hoặc tạo mới bộ đếm dùng chung duy nhất "INGREDIENT"
+        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository
+                .findBySequenceKeyWithLock("INGREDIENT") // Giữ nguyên key tổng của bạn
+                .orElseGet(() -> {
+                    var newSeq = new org.hvtra.catalog.entity.BusinessSequence();
+                    newSeq.setSequenceKey("INGREDIENT");
+                    newSeq.setCurrentValue(0L);
+                    return businessSequenceRepository.saveAndFlush(newSeq);
+                });
+
+        // 2. Tăng giá trị đếm tiếp theo
+        long nextVal = seq.getCurrentValue() + 1;
+        seq.setCurrentValue(nextVal);
+        businessSequenceRepository.saveAndFlush(seq);
+
+        // 3. Trích xuất chữ cái đầu từ tên để ghép vào mã (Ví dụ: "Trà Xanh" -> "TX")
+        String prefix = getInitials(ingredientName);
+
+        // 4. Trả về đúng định dạng: TX-01, TD-02, BS-03...
+        return String.format("%s-%02d", prefix, nextVal);
+    }
+
+    /**
+     * Hàm bổ trợ trích xuất chữ cái đầu viết hoa không dấu từ tên tiếng Việt
+     */
+    private String getInitials(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return "NL";
+        }
+
+        // Khử dấu tiếng Việt chuẩn hóa
+        String normalized = java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .replace("Đ", "D")
+                .replace("đ", "d");
+
+        StringBuilder initials = new StringBuilder();
+        for (String word : normalized.split("\\s+")) {
+            if (!word.isEmpty()) {
+                initials.append(Character.toUpperCase(word.charAt(0)));
+            }
+        }
+
+        return initials.toString();
     }
 
     @Override
@@ -59,16 +110,18 @@ public class IngredientServiceImpl implements IngredientService {
     @Override
     @Transactional
     public IngredientResponse create(IngredientRequest request) {
-        validateCode(request.ingredientCode(), null);
+        String code = generateIngredientCode(request.name());
+        validateCode(code, null);
+        
         Ingredient ingredient = new Ingredient();
         mapper.update(ingredient, request);
+        ingredient.setIngredientCode(code);
         return mapper.toResponse(repository.save(ingredient));
     }
 
     @Override
     @Transactional
     public IngredientResponse update(UUID id, IngredientRequest request) {
-        validateCode(request.ingredientCode(), id);
         Ingredient ingredient = get(id);
         if (ingredient.getIsDeleted()) {
             throw new ResourceNotFoundException("Ingredient", id);

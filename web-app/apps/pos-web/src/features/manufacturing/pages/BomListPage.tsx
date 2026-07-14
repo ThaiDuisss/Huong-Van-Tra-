@@ -9,6 +9,7 @@ import { Pagination } from "../components/shared/Pagination";
 import { SearchBox } from "../components/shared/SearchBox";
 import { SearchableDropdown } from "../components/shared/SearchableDropdown";
 import { BomTable } from "../components/bom/BomTable";
+import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 
 import { bomApi } from "../services/bom.api";
 import { ingredientApi } from "../../product/services/ingredient.api";
@@ -51,6 +52,12 @@ export function BomListPage() {
     // Filters extra state (BOM specific filters)
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const [filterVersion, setFilterVersion] = useState("");
+
+    // Delete state
+    const [deletingBom, setDeletingBom] = useState<BomResponse | null>(null);
+    const [deleteError, setDeleteError] = useState("");
+    const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+    const [toast, setToast] = useState("");
     
     // Searchable dropdown states for Category
     const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
@@ -129,9 +136,13 @@ export function BomListPage() {
         }).catch(err => console.error("Error loading units", err));
     }, []);
 
-    // Listen to redirect state to trigger edit mode
+    // Listen to redirect state or query params to trigger edit mode or create mode
     useEffect(() => {
-        const state = location.state as { editBomId?: string } | null;
+        const searchParams = new URLSearchParams(location.search);
+        const createBomParam = searchParams.get("create");
+        const variantIdParam = searchParams.get("variantId");
+        const state = location.state as { editBomId?: string; createBom?: boolean; variantId?: string } | null;
+
         if (state?.editBomId) {
             bomApi.detail(state.editBomId)
                 .then((res) => {
@@ -141,8 +152,17 @@ export function BomListPage() {
 
             // Clean state to avoid re-triggering on subsequent navigation actions
             window.history.replaceState({}, document.title);
+        } else if (state?.createBom || createBomParam === "true") {
+            const targetVariantId = state?.variantId || variantIdParam;
+            handleCreate();
+            if (targetVariantId) {
+                setFormVariantId(targetVariantId);
+            }
+            // Clean state and search query to avoid re-triggering
+            window.history.replaceState({}, document.title);
+            navigate(location.pathname, { replace: true });
         }
-    }, [location.state]);
+    }, [location.state, location.search, navigate]);
 
 
     // Handle trigger open Form dialog for Create
@@ -397,6 +417,7 @@ export function BomListPage() {
                                  onRowClick={(item) => navigate(routePaths.bomDetail.replace(":id", item.id))}
                                  onEdit={handleEdit}
                                  onToggleStatus={handleToggleStatus}
+                                 onDelete={setDeletingBom}
                              />
                         )}
                     </div>
@@ -636,6 +657,39 @@ export function BomListPage() {
                             </button>
                         </footer>
                     </form>
+                </div>
+            )}
+
+            {deletingBom && (
+                <ConfirmDialog
+                    error={deleteError}
+                    submitting={deleteSubmitting}
+                    onCancel={() => setDeletingBom(null)}
+                    onConfirm={async () => {
+                        setDeleteError("");
+                        setDeleteSubmitting(true);
+                        try {
+                            await bomApi.delete(deletingBom.id);
+                            setToast("Xóa công thức thành công!");
+                            setDeletingBom(null);
+                            resource.refresh();
+                            window.setTimeout(() => setToast(""), 2500);
+                        } catch (err: any) {
+                            setDeleteError(err?.message || "Không thể xóa công thức này.");
+                        } finally {
+                            setDeleteSubmitting(false);
+                        }
+                    }}
+                    title="Xác nhận xóa công thức"
+                    description={`Bạn có chắc chắn muốn xóa công thức "${deletingBom.name}"? Hành động này sẽ thực hiện xóa mềm khỏi hệ thống.`}
+                    confirmLabel="Xóa"
+                    confirmVariant="danger"
+                />
+            )}
+
+            {toast && (
+                <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-hvt-green-900 px-5 py-3 text-sm font-bold text-white shadow-pos-panel">
+                    {toast}
                 </div>
             )}
         </section>

@@ -10,6 +10,8 @@ export const bomApi = {
                 size: query.size,
                 search: query.search,
                 categoryId: query.categoryId,
+                productVariantId: query.productVariantId,
+                productId: query.productId,
                 version: query.version,
                 status: query.status
             }
@@ -37,5 +39,8 @@ export const bomApi = {
             `/catalog/boms/${encodeURIComponent(id)}/status`,
             { status }
         );
+    },
+    delete(id: string) {
+        return apiClient.delete<void>(`/catalog/boms/${encodeURIComponent(id)}`);
     }
 };

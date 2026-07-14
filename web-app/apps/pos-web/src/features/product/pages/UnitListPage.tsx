@@ -34,7 +34,7 @@ export function UnitListPage() {
     const units = resource.data?.content ?? [];
     const allUnits = allUnitsResource.data?.content ?? [];
     const baseUnitOptions = allUnits.filter(
-        (u) => u.type === "BASE" && u.status === "ACTIVE"
+        (u) => u.status === "ACTIVE"
     );
 
     async function submit(values: FormValues, editingItem: Unit | null) {
@@ -44,7 +44,7 @@ export function UnitListPage() {
             precisionScale: getNumber(values, "precisionScale"),
             type: getString(values, "type") as UnitType,
             baseUnitId: getString(values, "baseUnitId") || null,
-            conversionRate: getNumber(values, "conversionRate"),
+            conversionRate: getString(values, "baseUnitId") ? getNumber(values, "conversionRate") : 1,
             status: getString(values, "status") as CatalogStatus
         };
 
@@ -54,6 +54,10 @@ export function UnitListPage() {
             await unitApi.create(input);
         }
     }
+
+    const handleDelete = async (item: Unit) => {
+        await unitApi.delete(String(item.id));
+    };
 
     return (
         <CatalogResourceManagement
@@ -77,6 +81,7 @@ export function UnitListPage() {
             onPageSizeChange={state.setPageSize}
             onRefresh={resource.refresh}
             onSubmit={submit}
+            onDelete={handleDelete}
             onChangeStatus={(item) =>
                 unitApi
                     .updateStatus(
@@ -89,7 +94,7 @@ export function UnitListPage() {
                 name: item.name,
                 symbol: item.symbol,
                 precisionScale: String(item.precisionScale ?? 0),
-                type: item.type ?? "BASE",
+                type: item.type ?? "COUNT",
                 baseUnitId: String(item.baseUnitId ?? ""),
                 conversionRate: String(item.conversionRate ?? 1),
                 status: item.status
@@ -98,8 +103,9 @@ export function UnitListPage() {
                 label: "Phân loại",
                 value: state.secondaryValue,
                 options: [
-                    { label: "Gốc ", value: "BASE" },
-                    { label: "Đóng gói", value: "PACKAGING" }
+                    { label: "Khối lượng", value: "WEIGHT" },
+                    { label: "Thể tích", value: "VOLUME" },
+                    { label: "Đếm", value: "COUNT" }
                 ],
                 onChange: state.setSecondaryValue
             }}
@@ -125,11 +131,13 @@ export function UnitListPage() {
                         </TableCell> */}
                         <TableCell>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                item.type === "PACKAGING"
-                                    ? "bg-purple-100 text-purple-700"
-                                    : "bg-blue-100 text-blue-700"
+                                item.type === "WEIGHT"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : item.type === "VOLUME"
+                                        ? "bg-purple-100 text-purple-700"
+                                        : "bg-emerald-100 text-emerald-700"
                             }`}>
-                                {item.type === "PACKAGING" ? "Đóng gói" : "Gốc"}
+                                {item.type === "WEIGHT" ? "Khối lượng" : item.type === "VOLUME" ? "Thể tích" : "Đếm"}
                             </span>
                         </TableCell>
                         {/* <TableCell>
@@ -138,7 +146,7 @@ export function UnitListPage() {
                                     {baseUnit ? `${baseUnit.name} (${baseUnit.symbol})` : String(item.baseUnitId)}
                                 </span>
                             ) : (
-                                <span className="text-gray-400 italic">Gốc</span>
+                                <span className="text-gray-400 italic">Không có</span>
                             )}
                         </TableCell> */}
                         {/* <TableCell>
@@ -161,7 +169,7 @@ export function UnitListPage() {
                             { label: "Ký hiệu", value: item.symbol },
                             {
                                 label: "Phân loại",
-                                value: item.type === "PACKAGING" ? "Đóng gói " : "Gốc "
+                                value: item.type === "WEIGHT" ? "Khối lượng" : item.type === "VOLUME" ? "Thể tích" : "Đếm"
                             },
                             {
                                 label: "Đơn vị gốc",
@@ -170,12 +178,12 @@ export function UnitListPage() {
                                         {baseUnit ? `${baseUnit.name} (${item.baseUnitId})` : String(item.baseUnitId)}
                                     </span>
                                 ) : (
-                                    "Gốc"
+                                    "Không chọn"
                                 )
                             },
                             {
                                 label: "Tỷ lệ quy đổi",
-                                value: item.type === "PACKAGING"
+                                value: item.baseUnitId
                                     ? `1 ${item.symbol} = ${item.conversionRate} (đơn vị gốc)`
                                     : "—"
                             },
@@ -217,25 +225,30 @@ export function UnitListPage() {
                     type: "select",
                     required: true,
                     options: [
-                        { label: "Gốc ", value: "BASE" },
-                        { label: "Đóng gói thương mại (PACKAGING)", value: "PACKAGING" }
+                        { label: "Khối lượng", value: "WEIGHT" },
+                        { label: "Thể tích", value: "VOLUME" },
+                        { label: "Đếm", value: "COUNT" }
                     ]
                 },
                 {
                     name: "baseUnitId",
-                    label: "Đơn vị gốc (chỉ dùng cho PACKAGING)",
+                    label: "Đơn vị gốc",
                     type: "select",
                     required: false,
-                    options: baseUnitOptions.map((u) => ({
-                        label: `${u.name} (${u.symbol})`,
-                        value: String(u.id)
-                    }))
+                    options: [
+                        { label: "-- Không chọn --", value: "" },
+                        ...baseUnitOptions.map((u) => ({
+                            label: `${u.name} (${u.symbol}) - ${u.type === "WEIGHT" ? "Khối lượng" : u.type === "VOLUME" ? "Thể tích" : "Đếm"}`,
+                            value: String(u.id)
+                        }))
+                    ]
                 },
                 {
                     name: "conversionRate",
                     label: "Tỷ lệ quy đổi (so với đơn vị gốc)",
                     type: "number",
-                    required: false,
+                    required: (values) => !!values.baseUnitId,
+                    hidden: (values) => !values.baseUnitId,
                     placeholder: "Ví dụ: 100 (1 Hộp 100g = 100 gram)"
                 },
                 {

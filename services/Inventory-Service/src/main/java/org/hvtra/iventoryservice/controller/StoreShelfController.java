@@ -65,4 +65,10 @@ public class StoreShelfController {
             @Valid @RequestBody InventoryStatusRequest request) {
         return service.updateStatus(id, request.status());
     }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable("id") UUID id) {
+        service.delete(id);
+    }
 }

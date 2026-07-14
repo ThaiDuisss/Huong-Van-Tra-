@@ -67,4 +67,10 @@ public class CategoryController {
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable("id") UUID id) {
+        service.delete(id);
+    }
 }

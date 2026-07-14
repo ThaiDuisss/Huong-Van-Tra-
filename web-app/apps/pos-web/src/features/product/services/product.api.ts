@@ -64,5 +64,8 @@ export const productApi = {
     },
     downloadTemplate() {
         return apiClient.download("/catalog/products/import/template");
+    },
+    delete(id: string) {
+        return apiClient.delete<void>(`/catalog/products/${encodeURIComponent(id)}`);
     }
 };

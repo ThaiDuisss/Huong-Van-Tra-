@@ -18,5 +18,6 @@ public interface CategoryService {
     CategoryResponse updateStatus(UUID id, Status status);
     List<CategoryResponse> findAllByIds(List<UUID> ids);
     PageResponse<LookupResponse> lookup(String search, Pageable pageable);
+    void delete(UUID id);
 }
 

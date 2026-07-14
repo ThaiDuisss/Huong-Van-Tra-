@@ -49,6 +49,7 @@ public class BomServiceImpl implements BomService {
             UUID categoryId, UUID productVariantId, UUID productId, String search, Integer version, Status status, Pageable pageable) {
         Specification<Bom> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             
             if (query.getResultType() != Long.class && query.getResultType() != long.class) {
                 root.fetch("productVariant", jakarta.persistence.criteria.JoinType.LEFT)
@@ -212,6 +213,17 @@ public class BomServiceImpl implements BomService {
 
     private Bom get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("BOM", id));
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        Bom bom = get(id);
+        if (bom.getIsDeleted()) {
+            throw new ResourceNotFoundException("BOM", id);
+        }
+        bom.setIsDeleted(true);
+        repository.save(bom);
     }
 }
 

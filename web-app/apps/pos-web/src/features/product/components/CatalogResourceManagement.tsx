@@ -4,10 +4,11 @@ import {
     Pencil,
     Plus,
     ToggleLeft,
-    MoreHorizontal
+    MoreHorizontal,
+    Trash2
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
@@ -40,10 +41,12 @@ export interface FormField {
     name: string;
     label: string;
     type?: "text" | "textarea" | "number" | "date" | "select" | "file";
-    required?: boolean;
+    required?: boolean | ((values: FormValues) => boolean);
     options?: Array<{ label: string; value: string }>;
     placeholder?: string;
     purpose?: string;
+    disabled?: boolean | ((values: FormValues) => boolean);
+    hidden?: boolean | ((values: FormValues) => boolean);
 }
 
 export interface CatalogFilter {
@@ -90,6 +93,8 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     extraHeaderActions?: ReactNode;
     totalItemsLabel?: string;
     filters?: CatalogFilter[];
+    renderExtraRowActions?(item: T, closeMenu: () => void): ReactNode;
+    onDelete?(item: T): Promise<void>;
 }
 
 export function CatalogResourceManagement<T extends RowBase, S extends string = string>({
@@ -123,10 +128,14 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     statusOptions,
     extraHeaderActions,
     totalItemsLabel,
-    filters
+    filters,
+    renderExtraRowActions,
+    onDelete
 }: CatalogResourceManagementProps<T, S>) {
+    const navigate = useNavigate();
     const [selectedItem, setSelectedItem] = useState<T | null>(null);
     const [editingItem, setEditingItem] = useState<T | null>(null);
+    const [deletingItem, setDeletingItem] = useState<T | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [statusTarget, setStatusTarget] = useState<T | null>(null);
     const [toast, setToast] = useState("");
@@ -376,7 +385,13 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                             return (
                                                 <tr
                                                     key={item.id}
-                                                    onClick={() => setSelectedItem(item)}
+                                                    onClick={() => {
+                                                        if (detailPath) {
+                                                            navigate(detailPath(item));
+                                                        } else {
+                                                            setSelectedItem(item);
+                                                        }
+                                                    }}
                                                     className={`cursor-pointer hover:bg-neutral-50 transition-all ${rowBgClass}`}
                                                 >
                                                     {renderCells(item)}
@@ -440,6 +455,20 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                                                 Đổi trạng thái
                                                                             </button>
                                                                         )}
+                                                                        {onDelete && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setDeletingItem(item);
+                                                                                    setActiveActionMenuId(null);
+                                                                                }}
+                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors cursor-pointer"
+                                                                            >
+                                                                                <Trash2 size={14} />
+                                                                                Xóa
+                                                                            </button>
+                                                                        )}
+                                                                        {renderExtraRowActions && renderExtraRowActions(item, () => setActiveActionMenuId(null))}
                                                                     </div>
                                                                 </>
                                                             )}
@@ -514,6 +543,33 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                     submitting={submitting}
                     onCancel={() => setStatusTarget(null)}
                     onConfirm={confirmStatusChange}
+                />
+            ) : null}
+
+            {deletingItem ? (
+                <ConfirmDialog
+                    error={actionError}
+                    submitting={submitting}
+                    onCancel={() => setDeletingItem(null)}
+                    onConfirm={async () => {
+                        if (!onDelete) return;
+                        setActionError("");
+                        setSubmitting(true);
+                        try {
+                            await onDelete(deletingItem);
+                            setToast("Xóa thành công!");
+                            setDeletingItem(null);
+                            onRefresh();
+                        } catch (err: any) {
+                            setActionError(err?.message || "Không thể xóa mục này.");
+                        } finally {
+                            setSubmitting(false);
+                        }
+                    }}
+                    title="Xác nhận xóa"
+                    description={`Bạn có chắc chắn muốn xóa "${(deletingItem as any).name || (deletingItem as any).title || "mục này"}"? Hành động này sẽ thực hiện xóa mềm khỏi hệ thống.`}
+                    confirmLabel="Xóa"
+                    confirmVariant="danger"
                 />
             ) : null}
 

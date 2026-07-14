@@ -159,6 +159,10 @@ export function ProductListPage() {
         }
     };
 
+    const handleDelete = async (item: ProductSummary) => {
+        await productApi.delete(String(item.id));
+    };
+
     return (
         <>
             <CatalogResourceManagement
@@ -216,6 +220,7 @@ export function ProductListPage() {
             onPageSizeChange={state.setPageSize}
             onRefresh={resource.refresh}
             onSubmit={submit}
+            onDelete={handleDelete}
             onChangeStatus={(item) =>
                 productApi.updateStatus(
                     String(item.id),

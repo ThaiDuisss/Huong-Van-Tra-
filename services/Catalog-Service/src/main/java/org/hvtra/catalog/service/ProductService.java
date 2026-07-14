@@ -24,5 +24,6 @@ public interface ProductService {
     void importFromExcel(org.springframework.web.multipart.MultipartFile file);
     byte[] getImportTemplate();
     List<ProductResponse> findAllByIds(List<UUID> ids);
+    void delete(UUID id);
 }
 

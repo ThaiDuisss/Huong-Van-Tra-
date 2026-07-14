@@ -40,6 +40,7 @@ public class CategoryServiceImpl implements CategoryService {
     public PageResponse<CategoryResponse> findAll(String name, Status status, Pageable pageable) {
         Specification<Category> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             if (name != null && !name.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
             }
@@ -148,6 +149,17 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
         return PageResponse.from(repository.findLookup(search, pageable));
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        Category category = get(id);
+        if (category.getIsDeleted()) {
+            throw new ResourceNotFoundException("Category", id);
+        }
+        category.setIsDeleted(true);
+        repository.save(category);
     }
 }
 

@@ -26,4 +26,5 @@ public interface ProductVariantService {
     List<ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName);
     ProductVariantSearchViewResponse getPosView(UUID variantId);
     List<ProductVariantProductRefResponse> findRefsByProductIds(List<UUID> productIds);
+    void delete(UUID id);
 }

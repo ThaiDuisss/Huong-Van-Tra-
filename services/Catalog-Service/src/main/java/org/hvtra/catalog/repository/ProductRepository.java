@@ -13,6 +13,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     boolean existsByCategoryId(UUID categoryId);
     Optional<Product> findByProductCode(String productCode);
     boolean existsByProductCode(String productCode);
-    Page<Product> findByNameContainingIgnoreCase(String name, Pageable pageable);
+    Page<Product> findByNameContainingIgnoreCaseAndIsDeletedFalse(String name, Pageable pageable);
 }
 

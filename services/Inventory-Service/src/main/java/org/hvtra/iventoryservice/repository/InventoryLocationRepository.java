@@ -26,7 +26,7 @@ public interface InventoryLocationRepository
             InventoryStatus status
     );
 
-    Page<InventoryLocation> findByNameContainingIgnoreCaseAndType(
+    Page<InventoryLocation> findByNameContainingIgnoreCaseAndTypeAndIsDeletedFalse(
             String name,
             InventoryLocationType type,
             Pageable pageable

@@ -2,7 +2,7 @@ import type { QueryParams } from "@hvt/api-client";
 
 export type CatalogStatus = "ACTIVE" | "INACTIVE";
 export type EntityId = number | string;
-export type UnitType = "BASE" | "PACKAGING";
+export type UnitType = "WEIGHT" | "VOLUME" | "COUNT";
 
 export interface PageResult<T> {
     content: T[];
@@ -77,9 +77,9 @@ export interface Unit {
     name: string;
     symbol: string;
     precisionScale: number;
-    /** Phân loại: BASE (đơn vị gốc) hoặc PACKAGING (đơn vị đóng gói) */
+    // Phân loại: 
     type: UnitType;
-    /** ID đơn vị gốc. Chỉ có giá trị khi type = PACKAGING */
+    // ID đơn vị gốc. 
     baseUnitId: EntityId | null;
     /** Tỷ lệ quy đổi so với đơn vị gốc. Ví dụ: 1 Hộp = 100g -> conversionRate = 100 */
     conversionRate: number;
@@ -159,7 +159,7 @@ export interface Ingredient {
 }
 
 export interface IngredientInput {
-    ingredientCode: string;
+    ingredientCode?: string;
     name: string;
     status: CatalogStatus;
 }

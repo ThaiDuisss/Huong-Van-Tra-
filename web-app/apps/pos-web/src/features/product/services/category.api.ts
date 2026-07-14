@@ -44,5 +44,8 @@ export const categoryApi = {
             `/catalog/categories/${encodeURIComponent(id)}/status`,
             { status }
         );
+    },
+    delete(id: string) {
+        return apiClient.delete<void>(`/catalog/categories/${encodeURIComponent(id)}`);
     }
 };

@@ -71,6 +71,10 @@ export function CategoryListPage() {
         }
     }
 
+    const handleDelete = async (item: Category) => {
+        await categoryApi.delete(String(item.id));
+    };
+
     return (
         <CatalogResourceManagement
             title="Danh mục sản phẩm"
@@ -93,6 +97,7 @@ export function CategoryListPage() {
             onPageSizeChange={state.setPageSize}
             onRefresh={resource.refresh}
             onSubmit={submit}
+            onDelete={handleDelete}
             onChangeStatus={(item) =>
                 categoryApi.updateStatus(
                     String(item.id),

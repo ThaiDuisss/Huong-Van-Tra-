@@ -20,4 +20,5 @@ public interface UnitService {
     UnitResponse update(UUID id, UnitRequest request);
     UnitResponse updateStatus(UUID id, Status status);
     List<UnitResponse> findAllByIds(List<UUID> ids);
+    void delete(UUID id);
 }

@@ -36,7 +36,7 @@ public class StoreShelfServiceImpl implements StoreShelfService {
     }
 
     public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
-        Page<InventoryLocation> page = repository.findByNameContainingIgnoreCaseAndType(search, InventoryLocationType.SHELF, pageable);
+        Page<InventoryLocation> page = repository.findByNameContainingIgnoreCaseAndTypeAndIsDeletedFalse(search, InventoryLocationType.SHELF, pageable);
         return new PageResponse<>(
                 page.getContent().stream()
                         .map(shelf -> new LookupResponse(shelf.getId().toString(), shelf.getName()))
@@ -59,6 +59,7 @@ public class StoreShelfServiceImpl implements StoreShelfService {
 
         Specification<InventoryLocation> spec = (root, rootQuery, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             // Chỉ lấy kệ (SHELF) thuộc kho đầu tiên
             predicates.add(cb.equal(root.get("type"), InventoryLocationType.SHELF));
             predicates.add(cb.equal(root.get("parentLocation"), warehouse));
@@ -153,5 +154,16 @@ public class StoreShelfServiceImpl implements StoreShelfService {
                 .substring(0, 8)
                 .toUpperCase();
         return "KE-" + suffix;
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        InventoryLocation shelf = getShelf(id);
+        if (shelf.getIsDeleted()) {
+            throw new ResourceNotFoundException("Kệ", id);
+        }
+        shelf.setIsDeleted(true);
+        repository.save(shelf);
     }
 }

@@ -1,6 +1,6 @@
-import { Download, Upload } from "lucide-react";
+import { Download, Upload, Plus } from "lucide-react";
 import { useCallback, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 
@@ -221,6 +221,10 @@ export function ProductVariantListPage() {
         }
     };
 
+    const handleDelete = async (item: ProductVariant) => {
+        await productVariantApi.delete(String(item.id));
+    };
+
     return (
         <>
             <CatalogResourceManagement
@@ -262,6 +266,7 @@ export function ProductVariantListPage() {
                         item.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
                     ).then(() => undefined)
                 }
+                onDelete={handleDelete}
                 getInitialValues={(item) => ({
                     productId: String(item.productId),
                     variantName: item.variantName,
@@ -300,42 +305,70 @@ export function ProductVariantListPage() {
                         </TableCell>
                     </>
                 )}
+                detailPath={(item) => `/system/product-variants/${item.id}`}
+                renderExtraRowActions={(item, closeMenu) => (
+                    <Link
+                        to={`/system/manufacturing/boms?create=true&variantId=${item.id}`}
+                        onClick={closeMenu}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                    >
+                        <Plus size={14} />
+                        Tạo công thức
+                    </Link>
+                )}
                 renderDetail={(item) => {
                     const matchedUnit = units.find((u) => u.id === item.unitId);
                     const unitText = matchedUnit ? `${matchedUnit.name} (${matchedUnit.symbol})` : `Mã đơn vị: ${item.unitId}`;
                     return (
-                        <DetailList
-                            items={[
-                                { label: "Sản phẩm", value: item.productName },
-                                { label: "SKU", value: item.sku },
-                                { label: "Tên Mặt hàng", value: item.variantName },
-                                {
-                                    label: "Giá bán",
-                                    value: formatCurrency(item.sellingPrice)
-                                },
-                                {
-                                    label: "Giá vốn",
-                                    value: formatCurrency(item.costPrice)
-                                },
-                                {
-                                    label: "Đơn vị bán",
-                                    value: unitText
-                                },
-                                {
-                                    label: "Chính sách tồn kho",
-                                    value:
-                                        item.inventoryPolicy === "TRACK_STOCK"
-                                            ? "Theo dõi tồn kho"
-                                            : "Không theo dõi"
-                                },
-                                {
-                                    label: "Trạng thái",
-                                    value: (
-                                        <CatalogStatusBadge status={item.status} />
-                                    )
-                                }
-                            ]}
-                        />
+                        <div className="grid gap-4">
+                            <DetailList
+                                items={[
+                                    { label: "Sản phẩm", value: item.productName },
+                                    { label: "SKU", value: item.sku },
+                                    { label: "Tên Mặt hàng", value: item.variantName },
+                                    {
+                                        label: "Giá bán",
+                                        value: formatCurrency(item.sellingPrice)
+                                    },
+                                    {
+                                        label: "Giá vốn",
+                                        value: formatCurrency(item.costPrice)
+                                    },
+                                    {
+                                        label: "Đơn vị bán",
+                                        value: unitText
+                                    },
+                                    {
+                                        label: "Chính sách tồn kho",
+                                        value:
+                                            item.inventoryPolicy === "TRACK_STOCK"
+                                                ? "Theo dõi tồn kho"
+                                                : "Không theo dõi"
+                                    },
+                                    {
+                                        label: "Trạng thái",
+                                        value: (
+                                            <CatalogStatusBadge status={item.status} />
+                                        )
+                                    }
+                                ]}
+                            />
+                            <div className="flex gap-2 justify-end border-t border-pos-border pt-4">
+                                <Link
+                                    to={`/system/manufacturing/boms?create=true&variantId=${item.id}`}
+                                    className="flex items-center gap-1.5 rounded-xl bg-[#07883a] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-hvt-green-700 active:scale-95 transition-all cursor-pointer"
+                                >
+                                    <Plus size={16} />
+                                    Tạo công thức (BOM)
+                                </Link>
+                                <Link
+                                    to={`/system/product-variants/${item.id}`}
+                                    className="flex items-center gap-1.5 rounded-xl border border-pos-border bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+                                >
+                                    Xem chi tiết nâng cao
+                                </Link>
+                            </div>
+                        </div>
                     );
                 }}
                 formFields={[

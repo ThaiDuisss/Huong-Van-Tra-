@@ -13,7 +13,7 @@ public record UnitRequest(
         @NotNull @Min(0) @Max(10) Integer precisionScale,
         @NotNull UnitType type,
         UUID baseUnitId,
-        @DecimalMin("0.0001") BigDecimal conversionRate,
+        BigDecimal conversionRate,
         @NotNull Status status
 ) {
 }

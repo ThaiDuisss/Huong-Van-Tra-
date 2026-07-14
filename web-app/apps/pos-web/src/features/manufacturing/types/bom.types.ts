@@ -25,7 +25,7 @@ export interface BomItemResponse {
         name: string;
         symbol: string;
         precisionScale: number;
-        type: "BASE" | "PACKAGING";
+        type: "WEIGHT" | "VOLUME" | "COUNT"
         baseUnitId: string | null;
         conversionRate: number;
         status: CatalogStatus;
@@ -75,6 +75,8 @@ export interface BomQuery {
     size?: number;
     search?: string;
     categoryId?: string;
+    productVariantId?: string;
+    productId?: string;
     version?: number;
     status?: BomStatus;
 }

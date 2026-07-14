@@ -82,55 +82,76 @@ export function FormDialog({
                     </button>
                 </header>
                 <div className="grid gap-4">
-                    {fields.map((field) => (
-                        <label
-                            key={field.name}
-                            className="grid gap-2 text-sm font-bold text-gray-500"
-                        >
-                            {field.label}
-                            {field.type === "textarea" ? (
-                                <textarea
-                                    name={field.name}
-                                    rows={4}
-                                    required={field.required}
-                                    placeholder={field.placeholder}
-                                    value={formValues[field.name]}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setFormValues(prev => ({
-                                            ...prev,
-                                            [field.name]: val
-                                        }));
-                                    }}
-                                    className="rounded-xl border border-pos-border px-3 py-2 font-normal outline-none focus:border-hvt-green-700"
-                                />
-                            ) : field.type === "select" ? (
-                                <select
-                                    name={field.name}
-                                    required={field.required}
-                                    value={formValues[field.name]}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setFormValues(prev => {
-                                            const updated = { ...prev, [field.name]: val };
-                                            if (field.name === "productId") {
-                                                const oldProductOpt = field.options?.find(o => o.value === prev.productId);
-                                                const newProductOpt = field.options?.find(o => o.value === val);
-                                                if (newProductOpt) {
-                                                    const oldPrefix = oldProductOpt ? oldProductOpt.label : "";
-                                                    const currentName = prev.variantName || "";
-                                                    if (oldPrefix && currentName.startsWith(oldPrefix)) {
-                                                        updated.variantName = currentName.replace(oldPrefix, newProductOpt.label);
-                                                    } else {
-                                                        updated.variantName = newProductOpt.label + " " + currentName;
+                    {fields.map((field) => {
+                        const isFieldHidden = typeof field.hidden === "function"
+                            ? field.hidden(formValues)
+                            : !!field.hidden;
+                        if (isFieldHidden) {
+                            return null;
+                        }
+                        const isFieldDisabled = typeof field.disabled === "function"
+                            ? field.disabled(formValues)
+                            : !!field.disabled;
+                        const isFieldRequired = typeof field.required === "function"
+                            ? field.required(formValues)
+                            : !!field.required;
+                        return (
+                            <label
+                                key={field.name}
+                                className={`grid gap-2 text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                            >
+                                <span>
+                                    {field.label}
+                                    {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
+                                </span>
+                                {field.type === "textarea" ? (
+                                    <textarea
+                                        name={field.name}
+                                        rows={4}
+                                        required={isFieldRequired && !isFieldDisabled}
+                                        disabled={isFieldDisabled}
+                                        placeholder={field.placeholder}
+                                        value={formValues[field.name]}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setFormValues(prev => ({
+                                                ...prev,
+                                                [field.name]: val
+                                            }));
+                                        }}
+                                        className="rounded-xl border border-pos-border px-3 py-2 font-normal outline-none focus:border-hvt-green-700 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                                    />
+                                ) : field.type === "select" ? (
+                                    <select
+                                        name={field.name}
+                                        required={isFieldRequired && !isFieldDisabled}
+                                        disabled={isFieldDisabled}
+                                        value={formValues[field.name]}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setFormValues(prev => {
+                                                const updated = { ...prev, [field.name]: val };
+                                                if (field.name === "productId") {
+                                                    const oldProductOpt = field.options?.find(o => o.value === prev.productId);
+                                                    const newProductOpt = field.options?.find(o => o.value === val);
+                                                    if (newProductOpt) {
+                                                        const oldPrefix = oldProductOpt ? oldProductOpt.label : "";
+                                                        const currentName = prev.variantName || "";
+                                                        if (oldPrefix && currentName.startsWith(oldPrefix)) {
+                                                            updated.variantName = currentName.replace(oldPrefix, newProductOpt.label);
+                                                        } else {
+                                                            updated.variantName = newProductOpt.label + " " + currentName;
+                                                        }
                                                     }
                                                 }
-                                            }
-                                            return updated;
-                                        });
-                                    }}
-                                    className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal"
-                                >
+                                                if (field.name === "baseUnitId" && !val) {
+                                                    updated.conversionRate = "1";
+                                                }
+                                                return updated;
+                                            });
+                                        }}
+                                        className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                                    >
                                     {field.options?.map((option) => (
                                         <option
                                             key={option.value}
@@ -241,7 +262,8 @@ export function FormDialog({
                                 <input
                                     name={field.name}
                                     type={field.type ?? "text"}
-                                    required={field.required}
+                                    required={isFieldRequired && !isFieldDisabled}
+                                    disabled={isFieldDisabled}
                                     placeholder={field.placeholder}
                                     value={formValues[field.name]}
                                     onChange={(e) => {
@@ -251,11 +273,12 @@ export function FormDialog({
                                             [field.name]: val
                                         }));
                                     }}
-                                    className="h-11 rounded-xl border border-pos-border px-3 font-normal outline-none focus:border-hvt-green-700"
+                                    className="h-11 rounded-xl border border-pos-border px-3 font-normal outline-none focus:border-hvt-green-700 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                                 />
                             )}
                         </label>
-                    ))}
+                        );
+                    })}
                 </div>
                 {error ? (
                     <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">

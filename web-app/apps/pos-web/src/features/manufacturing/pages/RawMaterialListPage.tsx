@@ -53,7 +53,6 @@ export function RawMaterialListPage() {
         editingItem: Ingredient | null
     ) {
         const input = {
-            ingredientCode: getString(values, "ingredientCode"),
             name: getString(values, "name"),
             status: getString(values, "status") as CatalogStatus
         };
@@ -128,6 +127,10 @@ export function RawMaterialListPage() {
         }
     };
 
+    const handleDelete = async (item: Ingredient) => {
+        await ingredientApi.delete(String(item.id));
+    };
+
     return (
         <>
             <CatalogResourceManagement
@@ -179,8 +182,8 @@ export function RawMaterialListPage() {
                         item.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
                     ).then(() => undefined)
                 }
+                onDelete={handleDelete}
                 getInitialValues={(item: Ingredient) => ({
-                    ingredientCode: item.ingredientCode,
                     name: item.name,
                     status: item.status
                 })}
@@ -215,12 +218,6 @@ export function RawMaterialListPage() {
                     />
                 )}
                 formFields={[
-                    {
-                        name: "ingredientCode",
-                        label: "Mã nguyên liệu",
-                        required: true,
-                        placeholder: "Nhập mã nguyên liệu..."
-                    },
                     {
                         name: "name",
                         label: "Tên nguyên liệu",

@@ -80,6 +80,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             Pageable pageable) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -552,6 +553,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     public List<ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             if (keyword != null && !keyword.isBlank()) {
                 String normalizedKeyword = "%" + keyword.toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -671,5 +673,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 stock != null ? stock.reservedQuantity() : BigDecimal.ZERO,
                 stock != null ? stock.stockStatus() : "OUT_OF_STOCK"
         );
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        ProductVariant variant = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
+        if (variant.getIsDeleted()) {
+            throw new ResourceNotFoundException("ProductVariant", id);
+        }
+        variant.setIsDeleted(true);
+        repository.save(variant);
     }
 }

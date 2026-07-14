@@ -9,5 +9,5 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface UnitRepository extends JpaRepository<Unit, UUID>, JpaSpecificationExecutor<Unit> {
-    Page<Unit> findByNameContainingIgnoreCase(String name, Pageable pageable);
+    Page<Unit> findByNameContainingIgnoreCaseAndIsDeletedFalse(String name, Pageable pageable);
 }
