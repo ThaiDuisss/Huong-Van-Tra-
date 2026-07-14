@@ -48,10 +48,6 @@ spring:
             uri: lb://promotion-service
             predicates:
               - Path=/api/promotions/**
-              - Path=/api/events/**
-              - Path=/api/campaigns/**
-              - Path=/api/coupons/**
-              - Path=/api/coupon-usages/**
           - id: identity-service
             uri: lb://identity-service
             predicates:

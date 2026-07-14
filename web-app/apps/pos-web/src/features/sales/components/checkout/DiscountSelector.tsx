@@ -24,6 +24,11 @@ export function DiscountSelector({
   const selectedDiscount =
     discounts.find((discount) => discount.id === selectedDiscountId) ??
     discounts[0];
+  const selectedDiscountLabel =
+    selectedDiscount?.couponCode ||
+    selectedDiscount?.code ||
+    selectedDiscount?.label ||
+    "";
 
   function closeDialog() {
     setOpen(false);
@@ -49,13 +54,13 @@ export function DiscountSelector({
           <span
             className={
               selectedDiscount?.id === "none"
-                ? "truncate text-neutral-400"
-                : "truncate text-gray-500"
+                ? "block min-w-0 truncate text-neutral-400"
+                : "block min-w-0 truncate text-gray-500"
             }
           >
             {selectedDiscount?.id === "none"
               ? "Tìm hoặc nhập mã khuyến mãi"
-              : `${selectedDiscount?.code} - ${selectedDiscount?.label}`}
+              : selectedDiscountLabel}
           </span>
           <ChevronDown
             className="ml-auto size-4 shrink-0 text-gray-500"

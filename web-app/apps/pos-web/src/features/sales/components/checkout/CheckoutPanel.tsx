@@ -159,11 +159,15 @@ export function CheckoutPanel({
             <PaymentMethodGrid
                 value={paymentMethod}
                 onChange={(value) => {
+                    const alreadySelected = value === paymentMethod;
                     onPaymentMethodChange(value);
 
                     if (value === "BANK_TRANSFER") {
                         setBankTransferOpen(true);
-                        onBankTransferStart();
+
+                        if (!alreadySelected || !bankTransferPayment) {
+                            onBankTransferStart();
+                        }
                     }
 
                     if (value === "COMBINED") {

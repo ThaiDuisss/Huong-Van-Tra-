@@ -590,15 +590,6 @@ function EventDetailView({
 }) {
     return (
         <div className={styles.eventPanel}>
-            <header className={styles.eventPanelHeader}>
-                <div>
-                    <span className={styles.eventPanelEyebrow}>
-                        Chi tiết sự kiện
-                    </span>
-                    <h2>{event.name}</h2>
-                </div>
-            </header>
-
             <div className={styles.eventDetailGrid}>
                 <section className={styles.eventDetailSection}>
                     <h3>Thông tin cơ bản</h3>

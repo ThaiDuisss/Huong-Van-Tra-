@@ -24,6 +24,10 @@ export function calculateDiscountAmount(
     return 0;
   }
 
+  if (discount.estimatedDiscount !== undefined) {
+    return Math.min(subtotal, Math.max(0, discount.estimatedDiscount));
+  }
+
   if (discount.type === "PERCENT") {
     return Math.round((subtotal * discount.value) / 100);
   }

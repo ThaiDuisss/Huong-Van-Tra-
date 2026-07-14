@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@hvt/api-client";
 
+import { useAuth } from "../../../auth/auth-context";
 import { PosShell } from "../../../components/layout/Pos/PosShell";
 import { useNotifications } from "../../notification/context/useNotifications";
 import type { NotificationResponse } from "../../notification/types/notification.types";
@@ -8,7 +9,6 @@ import { CheckoutPanel } from "../components/checkout/CheckoutPanel";
 import { DeliveryCheckoutPanel } from "../components/delivery/DeliveryCheckoutPanel";
 import type { PaymentStatusValue } from "../components/dialogs/PaymentStatus";
 import { SaleWorkspace } from "../components/workspace/SaleWorkspace";
-import { mockDiscounts } from "../mock/discounts.mock";
 import { deliveryApi } from "../services/delivery.api";
 import {
     calculateDeliveryTotals,
@@ -29,8 +29,14 @@ import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
 import { posProductApi } from "../services/posProduct.api";
 import {
     calculateDiscountAmount,
+    calculateSubtotal,
     calculateSaleTotals
 } from "../services/totals";
+import {
+    posPromotionApi,
+    type AvailablePromotionResponse,
+    type CouponUsageResponse
+} from "../services/posPromotion.api";
 import type {
     SaleCartItem,
     SaleDiscountOption,
@@ -61,6 +67,8 @@ const noDiscount: SaleDiscountOption = {
 const currentInvoiceId = "invoice-1";
 const currentBranchId = import.meta.env.VITE_POS_BRANCH_ID ?? null;
 const currentBranchLocation: BranchLocation | null = null;
+const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const initialDeliveryState: DeliveryCheckoutState = {
     addresses: [],
@@ -188,6 +196,71 @@ function toNumber(value: number | string | null | undefined) {
     return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
+function getUuid(value: string | null | undefined) {
+    return value && uuidPattern.test(value) ? value : undefined;
+}
+
+function getPromotionExpiryLabel(value: string | undefined) {
+    if (!value) {
+        return null;
+    }
+
+    const expiryDate = new Date(value);
+
+    if (Number.isNaN(expiryDate.getTime())) {
+        return null;
+    }
+
+    const daysLeft = Math.ceil(
+        (expiryDate.getTime() - Date.now()) / 86_400_000
+    );
+
+    if (daysLeft <= 0) {
+        return "Đã hết hạn";
+    }
+
+    return `Còn ${daysLeft} ngày`;
+}
+
+function promotionToDiscount(
+    promotion: AvailablePromotionResponse,
+    index: number
+): SaleDiscountOption {
+    const estimatedDiscount = toNumber(promotion.estimatedDiscount);
+    const hasDiscount = estimatedDiscount > 0;
+    const couponCode = promotion.couponCode?.trim() || undefined;
+
+    return {
+        id: promotion.couponId
+            ? `coupon:${promotion.couponId}`
+            : `promotion:${promotion.promotionId}`,
+        label: promotion.promotionName,
+        code: couponCode ?? promotion.promotionName,
+        type: "AMOUNT",
+        value: estimatedDiscount,
+        estimatedDiscount,
+        description: promotion.requiresCoupon
+            ? "Áp dụng bằng mã khuyến mãi"
+            : "Khuyến mãi đủ điều kiện cho hóa đơn",
+        status: hasDiscount
+            ? index === 0
+                ? "RECOMMENDED"
+                : "AVAILABLE"
+            : "INELIGIBLE",
+        condition: hasDiscount
+            ? "Có thể áp dụng cho hóa đơn hiện tại"
+            : "Chưa đủ điều kiện áp dụng",
+        minSubtotal: null,
+        expiresIn: getPromotionExpiryLabel(promotion.couponExpiresAt),
+        promotionId: promotion.promotionId,
+        applyMethod: promotion.applyMethod,
+        benefitType: promotion.benefitType,
+        requiresCoupon: promotion.requiresCoupon,
+        couponId: promotion.couponId,
+        couponCode
+    };
+}
+
 function orderToCartItemsById(order: PosOrderDto): Record<string, SaleCartItem> {
     const items = order.items ?? [];
 
@@ -265,6 +338,7 @@ function notificationToPaymentStatus(
 }
 
 export function PosSalePage() {
+    const { userId } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<
         SaleProductPreview[]
@@ -283,6 +357,11 @@ export function PosSalePage() {
         useState<SaleOrderType>("QUICK_SALE");
     const [selectedDiscountId, setSelectedDiscountId] =
         useState("none");
+    const [promotionDiscounts, setPromotionDiscounts] = useState<
+        SaleDiscountOption[]
+    >([]);
+    const [reservedCouponUsage, setReservedCouponUsage] =
+        useState<CouponUsageResponse | null>(null);
     const [subtotalOverride, setSubtotalOverride] =
         useState<number | null>(null);
     const [subtotalOverrideNote, setSubtotalOverrideNote] =
@@ -388,14 +467,21 @@ export function PosSalePage() {
         () => Object.values(cartItemsById),
         [cartItemsById]
     );
-
-    const selectedDiscount =
-        mockDiscounts.find(
-            (discount) => discount.id === selectedDiscountId
-        ) ?? noDiscount;
     const selectedCustomer =
         selectedCustomersByInvoice[currentInvoiceId] ?? null;
     const selectedCustomerId = selectedCustomer?.id ?? null;
+    const discounts = useMemo(
+        () => [noDiscount, ...promotionDiscounts],
+        [promotionDiscounts]
+    );
+    const selectedDiscount =
+        discounts.find(
+            (discount) => discount.id === selectedDiscountId
+        ) ?? noDiscount;
+    const previewSubtotal = useMemo(
+        () => calculateSubtotal(cartItems),
+        [cartItems]
+    );
 
     const baseTotals = useMemo(
         () => calculateSaleTotals(cartItems, selectedDiscount),
@@ -419,6 +505,68 @@ export function PosSalePage() {
               };
     }, [baseTotals, selectedDiscount, subtotalOverride]);
     const changeAmount = Math.max(0, cashReceived - totals.total);
+
+    useEffect(() => {
+        if (cartItems.length === 0 || previewSubtotal <= 0) {
+            setPromotionDiscounts([]);
+            setSelectedDiscountId("none");
+            return undefined;
+        }
+
+        let active = true;
+        const timeoutId = window.setTimeout(() => {
+            void posPromotionApi
+                .preview({
+                    orderAmount: previewSubtotal,
+                    customerId: getUuid(selectedCustomerId),
+                    branchId: getUuid(currentBranchId),
+                    channel: "POS"
+                })
+                .then((response) => {
+                    if (!active) {
+                        return;
+                    }
+
+                    const nextDiscounts = (
+                        response.availablePromotions ?? []
+                    ).map(promotionToDiscount);
+
+                    setPromotionDiscounts((currentDiscounts) => {
+                        if (
+                            selectedDiscountId === "none" ||
+                            nextDiscounts.some(
+                                (discount) =>
+                                    discount.id === selectedDiscountId
+                            )
+                        ) {
+                            return nextDiscounts;
+                        }
+
+                        const currentSelectedDiscount = currentDiscounts.find(
+                            (discount) =>
+                                discount.id === selectedDiscountId
+                        );
+
+                        return currentSelectedDiscount
+                            ? [...nextDiscounts, currentSelectedDiscount]
+                            : nextDiscounts;
+                    });
+                })
+                .catch((error: unknown) => {
+                    logApiError(error);
+                });
+        }, 250);
+
+        return () => {
+            active = false;
+            window.clearTimeout(timeoutId);
+        };
+    }, [
+        cartItems.length,
+        previewSubtotal,
+        selectedCustomerId,
+        selectedDiscountId
+    ]);
 
     const clearCustomer = useCallback(() => {
         setSelectedCustomersByInvoice((currentCustomers) => ({
@@ -452,11 +600,90 @@ export function PosSalePage() {
         });
     }, [patchCurrentDeliveryState]);
 
+    async function reserveSelectedCouponUsage() {
+        const couponCode = selectedDiscount.couponCode;
+
+        if (
+            !couponCode ||
+            selectedDiscount.id === "none" ||
+            totals.discountAmount <= 0
+        ) {
+            return null;
+        }
+
+        const orderId = getUuid(draftOrder?.id);
+        const customerId = getUuid(selectedCustomerId);
+
+        if (!orderId) {
+            throw new Error("Hóa đơn nháp chưa sẵn sàng để giữ mã khuyến mãi.");
+        }
+
+        if (!customerId) {
+            throw new Error("Vui lòng chọn khách hàng để áp dụng mã khuyến mãi.");
+        }
+
+        if (
+            reservedCouponUsage?.couponCode === couponCode &&
+            reservedCouponUsage.orderId === orderId
+        ) {
+            return reservedCouponUsage;
+        }
+
+        const usage = await posPromotionApi.reserveCoupon({
+            couponCode,
+            orderId,
+            customerId,
+            discountAmount: totals.discountAmount,
+            branchId: getUuid(currentBranchId),
+            cashierId: getUuid(userId),
+            channel: "POS"
+        });
+
+        setReservedCouponUsage(usage);
+
+        return usage;
+    }
+
+    async function applyCouponUsage(usage: CouponUsageResponse | null) {
+        if (!usage) {
+            return;
+        }
+
+        await posPromotionApi.applyCouponUsage(usage.id);
+        setReservedCouponUsage(null);
+    }
+
+    async function releaseCouponUsage(
+        usage: CouponUsageResponse | null = reservedCouponUsage,
+        action: "release" | "cancel" | "expire" = "release"
+    ) {
+        if (!usage) {
+            return;
+        }
+
+        try {
+            if (action === "cancel") {
+                await posPromotionApi.cancelCouponUsage(usage.id);
+            } else if (action === "expire") {
+                await posPromotionApi.expireCouponUsage(usage.id);
+            } else {
+                await posPromotionApi.releaseCouponUsage(usage.id);
+            }
+        } catch (error) {
+            logApiError(error);
+        } finally {
+            setReservedCouponUsage((currentUsage) =>
+                currentUsage?.id === usage.id ? null : currentUsage
+            );
+        }
+    }
+
     const resetCurrentSale = useCallback(() => {
         setCartItemsById({});
         setDraftOrder(null);
         setNote("");
         setSelectedDiscountId("none");
+        setReservedCouponUsage(null);
         setSubtotalOverride(null);
         setSubtotalOverrideNote("");
         setCashReceived(0);
@@ -473,6 +700,10 @@ export function PosSalePage() {
             return;
         }
 
+        if (bankTransferPayment) {
+            return;
+        }
+
         setCheckoutError("");
         setCheckoutSuccess("");
         setBankTransferEventMessage("");
@@ -481,7 +712,10 @@ export function PosSalePage() {
         handledBankNotificationIdRef.current = null;
         setCheckoutLoading(true);
 
+        let couponUsage: CouponUsageResponse | null = null;
+
         try {
+            couponUsage = await reserveSelectedCouponUsage();
             const checkout = await completePosCheckout({
                 orderId: draftOrder?.id ?? null,
                 cartItems,
@@ -496,12 +730,14 @@ export function PosSalePage() {
             });
 
             if (!checkout.payment?.qrUrl) {
+                await releaseCouponUsage(couponUsage);
                 setCheckoutError("Payment-Service chưa trả về URL QR.");
                 return;
             }
 
             setBankTransferPayment(checkout.payment);
         } catch (error) {
+            await releaseCouponUsage(couponUsage);
             logApiError(error);
             setCheckoutError(getErrorMessage(error));
         } finally {
@@ -510,6 +746,14 @@ export function PosSalePage() {
     }
 
     async function completePayment() {
+        if (
+            paymentMethod === "BANK_TRANSFER" &&
+            bankTransferStatus === "RECEIVED"
+        ) {
+            await confirmBankTransferReceived();
+            return;
+        }
+
         if (paymentMethod === "BANK_TRANSFER") {
             if (bankTransferStatus !== "RECEIVED") {
                 setCheckoutError("Vui lòng xác nhận đã nhận chuyển khoản.");
@@ -521,7 +765,10 @@ export function PosSalePage() {
         setCheckoutError("");
         setCheckoutSuccess("");
 
+        let couponUsage: CouponUsageResponse | null = null;
+
         try {
+            couponUsage = await reserveSelectedCouponUsage();
             const checkout = await completePosCheckout({
                 orderId: draftOrder?.id ?? null,
                 cartItems,
@@ -534,16 +781,45 @@ export function PosSalePage() {
                 subtotalOverrideNote,
                 selectedCustomerId
             });
+            await applyCouponUsage(couponUsage);
 
             resetCurrentSale();
+
             setCheckoutSuccess(
                 checkout.orderCode
                     ? `Thanh toán thành công đơn ${checkout.orderCode}.`
                     : "Thanh toán thành công."
             );
         } catch (error) {
+            await releaseCouponUsage(couponUsage);
             logApiError(error);
             setCheckoutError(getErrorMessage(error));
+        } finally {
+            setCheckoutLoading(false);
+        }
+    }
+
+    async function confirmBankTransferReceived() {
+        if (checkoutLoading) {
+            return;
+        }
+
+        setCheckoutLoading(true);
+        setCheckoutError("");
+
+        try {
+            await applyCouponUsage(reservedCouponUsage);
+            setBankTransferStatus("RECEIVED");
+            setCheckoutSuccess("Thanh toán chuyển khoản thành công.");
+
+            window.setTimeout(() => {
+                resetCurrentSale();
+                setCheckoutSuccess("Thanh toán chuyển khoản thành công.");
+            }, 1500);
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(getErrorMessage(error));
+            setCheckoutSuccess("");
         } finally {
             setCheckoutLoading(false);
         }
@@ -757,6 +1033,8 @@ export function PosSalePage() {
         setCheckoutSuccess("");
 
         try {
+            await releaseCouponUsage(reservedCouponUsage, "cancel");
+
             if (draftOrder?.id && draftOrder.status === "DRAFT") {
                 await posOrderApi.cancelDraftOrder(draftOrder.id);
             }
@@ -765,6 +1043,7 @@ export function PosSalePage() {
             setNote("");
             setCashReceived(0);
             setSelectedDiscountId("none");
+            setReservedCouponUsage(null);
             setSubtotalOverride(null);
             setSubtotalOverrideNote("");
             setBankTransferPayment(null);
@@ -1306,6 +1585,14 @@ export function PosSalePage() {
             setBankTransferEventMessage(matchedNotification.message);
 
             if (nextStatus !== "RECEIVED") {
+                void releaseCouponUsage(
+                    reservedCouponUsage,
+                    nextStatus === "CANCELLED"
+                        ? "cancel"
+                        : nextStatus === "EXPIRED"
+                            ? "expire"
+                            : "release"
+                );
                 setCheckoutError(
                     matchedNotification.message ||
                     "Thanh toán chuyển khoản chưa hoàn tất."
@@ -1313,6 +1600,8 @@ export function PosSalePage() {
                 setCheckoutSuccess("");
                 return;
             }
+
+            void applyCouponUsage(reservedCouponUsage).catch(logApiError);
 
             setCheckoutSuccess(
                 matchedNotification.message ||
@@ -1333,7 +1622,13 @@ export function PosSalePage() {
                 window.clearTimeout(resetTimeoutId);
             }
         };
-    }, [bankTransferPayment, notifications, paymentMethod, resetCurrentSale]);
+    }, [
+        bankTransferPayment,
+        notifications,
+        paymentMethod,
+        reservedCouponUsage,
+        resetCurrentSale
+    ]);
 
     return (
         <PosShell
@@ -1360,7 +1655,7 @@ export function PosSalePage() {
                     />
                 ) : (
                     <CheckoutPanel
-                        discounts={mockDiscounts}
+                        discounts={discounts}
                         selectedDiscountId={selectedDiscount.id}
                         totals={totals}
                         subtotalOverrideNote={subtotalOverrideNote}
@@ -1395,12 +1690,16 @@ export function PosSalePage() {
                         onCustomerOpen={loadCustomers}
                         onCustomerChange={selectCustomer}
                         onCustomerClear={clearCustomer}
-                        onBankTransferCancel={() =>
-                            setBankTransferStatus("CANCELLED")
-                        }
-                        onBankTransferConfirm={() =>
-                            setBankTransferStatus("RECEIVED")
-                        }
+                        onBankTransferCancel={() => {
+                            setBankTransferStatus("CANCELLED");
+                            void releaseCouponUsage(
+                                reservedCouponUsage,
+                                "cancel"
+                            );
+                        }}
+                        onBankTransferConfirm={() => {
+                            void confirmBankTransferReceived();
+                        }}
                         onBankTransferRefresh={() =>
                             setBankTransferStatus("WAITING")
                         }

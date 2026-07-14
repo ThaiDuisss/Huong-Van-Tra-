@@ -16,11 +16,7 @@ export const apiClient = createApiClient({
     },
 
     onUnauthorized() {
-        /*
-         * Không tự redirect sang Keycloak khi một request nền bị 401.
-         * UI sẽ giữ nguyên màn hình hiện tại hoặc hiển thị nút đăng nhập
-         * qua ProtectedRoute nếu phiên thật sự hết hạn.
-         */
         console.warn("Phiên đăng nhập đã hết hạn hoặc bị từ chối");
+        return tokenProvider.login?.();
     }
 });

@@ -519,6 +519,11 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOrderStatusException("Chưa có sản phẩm trong đơn");
         }
 
+        if (request.getDiscountAmount() != null) {
+            order.setDiscountAmount(
+                    defaultZero(request.getDiscountAmount()).max(BigDecimal.ZERO)
+            );
+        }
         recalculateOrderTotals(order);
         String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
         if (paymentMethod == null) {

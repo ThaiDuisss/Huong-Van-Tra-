@@ -1,4 +1,5 @@
 import {
+    AlertCircle,
     CalendarDays,
     Copy,
     MoreVertical,
@@ -185,7 +186,9 @@ export function PromotionPage() {
                     page: 0,
                     size: 100
                 });
-                setEvents(response.content ?? []);
+                setEvents(
+                    (response.content ?? []).filter((event) => !event.isDeleted)
+                );
             } catch (err) {
                 console.error("Không thể tải danh sách event", err);
             }
@@ -433,8 +436,12 @@ export function PromotionPage() {
             ) : null}
 
             {error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                    {error}
+                <div className={styles.pageAlert} role="alert">
+                    <AlertCircle size={18} aria-hidden="true" />
+                    <div>
+                        <strong>Không thể tải dữ liệu</strong>
+                        <p>{error}</p>
+                    </div>
                 </div>
             ) : null}
 
@@ -663,10 +670,17 @@ export function PromotionPage() {
                     </table>
                 </div>
 
-                {!loading && promotions.length === 0 ? (
-                    <div className={styles.empty}>
-                        Chưa có chương trình giảm giá phù hợp.
-                    </div>
+                {!loading && !error && promotions.length === 0 ? (
+                    <PromotionEmptyState
+                        mode={mode}
+                        hasFilters={hasPromotionFilters(appliedFilters)}
+                        onClear={clearPromotionFilters}
+                        onCreate={() =>
+                            setFormState({
+                                mode: "create"
+                            })
+                        }
+                    />
                 ) : null}
 
                 {loading ? (
@@ -713,6 +727,54 @@ function PromotionStatusBadge({
         >
             {getPromotionStatusLabel(promotion.status)}
         </span>
+    );
+}
+
+function PromotionEmptyState({
+    mode,
+    hasFilters,
+    onClear,
+    onCreate
+}: {
+    mode: PromotionMode;
+    hasFilters: boolean;
+    onClear(): void;
+    onCreate(): void;
+}) {
+    return (
+        <div className={styles.emptyState}>
+            <div className={styles.emptyStateIcon}>
+                <Search size={24} aria-hidden="true" />
+            </div>
+            <h3>Chưa có chương trình giảm giá phù hợp</h3>
+            <p>
+                {hasFilters
+                    ? "Thử bỏ bớt điều kiện lọc hoặc tìm bằng từ khóa khác."
+                    : mode === "EVENT_FILTERED"
+                      ? "Sự kiện này chưa có chương trình giảm giá nào. Bạn có thể tạo mới và hệ thống sẽ tự gắn vào sự kiện hiện tại."
+                      : "Bạn có thể tạo chương trình giảm giá đầu tiên để bắt đầu quản lý ưu đãi."}
+            </p>
+            <div className={styles.emptyStateActions}>
+                {hasFilters ? (
+                    <button
+                        className={styles.secondaryButton}
+                        type="button"
+                        onClick={onClear}
+                    >
+                        <X size={17} aria-hidden="true" />
+                        Xóa bộ lọc
+                    </button>
+                ) : null}
+                <button
+                    className={styles.primaryButton}
+                    type="button"
+                    onClick={onCreate}
+                >
+                    <Plus size={17} aria-hidden="true" />
+                    Tạo khuyến mãi
+                </button>
+            </div>
+        </div>
     );
 }
 
@@ -1403,7 +1465,7 @@ function getPromotionActionLabel(action: PromotionActionType) {
 
 function getErrorMessage(error: unknown) {
     if (error instanceof Error && error.message) {
-        return error.message;
+        return normalizePromotionErrorMessage(error.message);
     }
 
     if (typeof error === "object" && error) {
@@ -1411,9 +1473,19 @@ function getErrorMessage(error: unknown) {
             "message" in error ? (error as { message?: unknown }).message : null;
 
         if (typeof maybeMessage === "string" && maybeMessage.trim()) {
-            return maybeMessage;
+            return normalizePromotionErrorMessage(maybeMessage);
         }
     }
 
     return "Không thể xử lý yêu cầu. Vui lòng thử lại.";
+}
+
+function normalizePromotionErrorMessage(message: string) {
+    const normalized = message.trim();
+
+    if (/event not found/i.test(normalized)) {
+        return "Không tìm thấy sự kiện này. Sự kiện có thể đã bị xóa hoặc đường dẫn không còn hợp lệ.";
+    }
+
+    return normalized;
 }
