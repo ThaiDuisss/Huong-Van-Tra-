@@ -88,8 +88,8 @@ const initialDeliveryState: DeliveryCheckoutState = {
     saveAddress: false,
     setAsDefaultAddress: false,
     deliveryNote: "",
-    selectedDeliveryMode: null,
-    deliveryModeSelectionSource: null,
+    selectedDeliveryMode: "THIRD_PARTY",
+    deliveryModeSelectionSource: "RECOMMENDED",
     recommendedDeliveryMode: null,
     deliveryModeRecommendationReason: "",
     internalDeliveryOption: null,
@@ -432,8 +432,8 @@ export function PosSalePage() {
             selectedAddressId: null,
             addressSuggestionReason: null,
             useManualAddress: false,
-            selectedDeliveryMode: null,
-            deliveryModeSelectionSource: null,
+            selectedDeliveryMode: "THIRD_PARTY",
+            deliveryModeSelectionSource: "RECOMMENDED",
             recommendedDeliveryMode: null,
             deliveryModeRecommendationReason: "",
             internalDeliveryOption: null,
@@ -588,8 +588,8 @@ export function PosSalePage() {
             selectedAddressId: null,
             addressSuggestionReason: null,
             useManualAddress: false,
-            selectedDeliveryMode: null,
-            deliveryModeSelectionSource: null,
+            selectedDeliveryMode: "THIRD_PARTY",
+            deliveryModeSelectionSource: "RECOMMENDED",
             recommendedDeliveryMode: null,
             deliveryModeRecommendationReason: "",
             internalDeliveryOption: null,
@@ -790,8 +790,8 @@ export function PosSalePage() {
                 addresses: [],
                 selectedAddressId: null,
                 addressSuggestionReason: null,
-                selectedDeliveryMode: null,
-                deliveryModeSelectionSource: null,
+                selectedDeliveryMode: "THIRD_PARTY",
+                deliveryModeSelectionSource: "RECOMMENDED",
                 recommendedDeliveryMode: null,
                 deliveryModeRecommendationReason: "",
                 internalDeliveryOption: null,
@@ -1346,8 +1346,6 @@ export function PosSalePage() {
                         customers={customers}
                         customersLoading={customersLoading}
                         customersError={customersError}
-                        discounts={mockDiscounts}
-                        selectedDiscountId={selectedDiscount.id}
                         selectedCustomer={selectedCustomer}
                         state={deliveryState}
                         totals={totals}
@@ -1355,7 +1353,6 @@ export function PosSalePage() {
                         onCustomerChange={selectCustomer}
                         onCustomerClear={clearCustomer}
                         onDeliveryStateChange={setCurrentDeliveryState}
-                        onDiscountChange={setSelectedDiscountId}
                         onQuoteRefresh={refreshDeliveryQuote}
                         onSubmit={() => {
                             void createDeliveryOrder();

@@ -1,18 +1,14 @@
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import {
-  AlertTriangle,
   ChevronDown,
-  Loader2,
+  Info,
   MapPin,
-  Package,
-  PackageCheck,
   Pencil,
   Phone,
   Settings,
   Store,
   Truck,
-  User,
-  Wallet
+  User
 } from "lucide-react";
 
 import {
@@ -34,6 +30,7 @@ import {
 } from "../../services/delivery.utils";
 import type {
   BranchLocation,
+  CustomerAddress,
   DeliveryCheckoutState,
   DeliveryMode,
   DeliveryOption,
@@ -57,7 +54,6 @@ interface DeliveryCheckoutPanelProps {
   customers: SaleCustomer[];
   customersLoading: boolean;
   customersError: string;
-  selectedDiscountId: string;
   selectedCustomer: SaleCustomer | null;
   state: DeliveryCheckoutState;
   totals: SaleTotals;
@@ -65,7 +61,6 @@ interface DeliveryCheckoutPanelProps {
   onCustomerClear(): void;
   onCustomerOpen(): void;
   onDeliveryStateChange(nextState: DeliveryCheckoutState): void;
-  onDiscountChange(discountId: string): void;
   onQuoteRefresh(): void;
   onSubmit(): void;
 }
@@ -88,6 +83,7 @@ export function DeliveryCheckoutPanel({
 }: DeliveryCheckoutPanelProps) {
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [packageOpen, setPackageOpen] = useState(false);
+  const [shippingSettingsOpen, setShippingSettingsOpen] = useState(false);
   const [waitConfirmationOption, setWaitConfirmationOption] =
     useState<DeliveryOption | null>(null);
   const selectedAddress =
@@ -250,7 +246,14 @@ export function DeliveryCheckoutPanel({
           <div className="flex items-start gap-3 rounded-lg border border-[#b8d7ff] bg-[#eef6ff] px-4 py-3 text-sm font-semibold text-[#334155]">
             <MapPin className="mt-0.5 shrink-0 text-[#1479f6]" size={18} aria-hidden="true" />
             <span>Nhập đầy đủ địa chỉ lấy và giao để tra cước và tạo đơn.</span>
-            <Settings className="ml-auto shrink-0 text-[#172317]" size={18} aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => setShippingSettingsOpen(true)}
+              className="ml-auto grid size-8 shrink-0 place-items-center rounded-lg text-[#172317] hover:bg-white"
+              aria-label="Thiết lập vận chuyển"
+            >
+              <Settings size={18} aria-hidden="true" />
+            </button>
           </div>
 
           {state.selectedDeliveryMode === "THIRD_PARTY" ? (
@@ -320,9 +323,9 @@ export function DeliveryCheckoutPanel({
           ) : null}
 
           {state.selectedDeliveryMode === "INTERNAL" &&
-          state.internalDeliveryOption &&
-          !state.internalDeliveryOption.availableNow &&
-          state.internalDeliveryOption.availableLater ? (
+            state.internalDeliveryOption &&
+            !state.internalDeliveryOption.availableNow &&
+            state.internalDeliveryOption.availableLater ? (
             <button
               type="button"
               onClick={() =>
@@ -461,6 +464,11 @@ export function DeliveryCheckoutPanel({
           setWaitConfirmationOption(null);
         }}
       />
+
+      <ShippingSettingsDialog
+        open={shippingSettingsOpen}
+        onOpenChange={setShippingSettingsOpen}
+      />
     </section>
   );
 }
@@ -477,23 +485,21 @@ function DeliveryModeTabs({
       <button
         type="button"
         onClick={() => onSelectMode("THIRD_PARTY")}
-        className={`flex h-12 items-center justify-center gap-2 rounded-t-xl border-r border-[#dfe5ec] text-sm font-black outline-none focus:ring-2 focus:ring-[#1479f6]/25 ${
-          selectedMode === "THIRD_PARTY"
-            ? "bg-white text-[#1479f6]"
-            : "bg-[#f6f8fb] text-[#697684]"
-        }`}
+        className={`flex h-12 items-center justify-center gap-2 rounded-t-xl border-r border-[#dfe5ec] text-sm font-black outline-none focus:ring-2 focus:ring-[#1479f6]/25 ${selectedMode === "THIRD_PARTY"
+          ? "bg-white text-[#1479f6]"
+          : "bg-[#f6f8fb] text-[#697684]"
+          }`}
       >
         <Truck size={16} aria-hidden="true" />
-        Cổng KiotViet
+        Đối tác vận chuyển
       </button>
       <button
         type="button"
         onClick={() => onSelectMode("INTERNAL")}
-        className={`flex h-12 items-center justify-center gap-2 rounded-t-xl text-sm font-black outline-none focus:ring-2 focus:ring-[#1479f6]/25 ${
-          selectedMode === "INTERNAL"
-            ? "bg-white text-[#1479f6]"
-            : "bg-[#f6f8fb] text-[#697684]"
-        }`}
+        className={`flex h-12 items-center justify-center gap-2 rounded-t-xl text-sm font-black outline-none focus:ring-2 focus:ring-[#1479f6]/25 ${selectedMode === "INTERNAL"
+          ? "bg-white text-[#1479f6]"
+          : "bg-[#f6f8fb] text-[#697684]"
+          }`}
       >
         <Store size={16} aria-hidden="true" />
         Tự giao hàng
@@ -509,7 +515,7 @@ function WaybillAddressForm({
   useManualAddress,
   onAddressChange
 }: {
-  address: BranchLocation extends never ? never : import("../../types/delivery.types").CustomerAddress | null;
+  address: CustomerAddress | null;
   customer: SaleCustomer | null;
   manualAddress: ManualDeliveryAddress;
   useManualAddress: boolean;
@@ -578,7 +584,7 @@ function ReadonlyLine({
   value,
   placeholder
 }: {
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   value: string;
   placeholder: string;
 }) {
@@ -670,7 +676,7 @@ function DeliveryQuoteArea({
 }
 
 function ProviderCloud() {
-  const providers = ["GHN", "Ahamove", "Viettel Post", "GHTK", "GrabExpress", "J&T", "NinjaVan", "EMS"];
+  const providers = ["GHN", "Ahamove"];
 
   return (
     <div className="grid gap-5">
@@ -679,7 +685,7 @@ function ProviderCloud() {
       </p>
       <div className="grid gap-3">
         <strong className="text-xs font-black uppercase text-[#1479f6]">
-          Đối tác vận chuyển của KiotViet
+          Đối tác vận chuyển của Hương Vân Trà
         </strong>
         <div className="grid grid-cols-3 gap-2 text-sm font-black text-[#334155]">
           {providers.map((provider) => (
@@ -761,6 +767,472 @@ function ThirdPartyProviderSelect({
   );
 }
 
+type ShippingSettingsTab = "GENERAL" | "PARTNERS";
+
+interface ShippingSettingsForm {
+  declaredValue: string;
+  feePayer: "SENDER" | "RECEIVER";
+  deliveryNote: string;
+  courierNote: string;
+  weight: string;
+  length: string;
+  width: string;
+  height: string;
+  defaultService: string;
+  bulkyEnabled: boolean;
+  bulkyStandard: string;
+  driverSupportEnabled: boolean;
+  driverSupportFee: string;
+  applyAllAccounts: boolean;
+  enabledPartners: Record<"GHN" | "AHAMOVE", boolean>;
+}
+
+const deliveryNoteOptions = [
+  "Không cho xem hàng",
+  "Cho xem, không thử",
+  "Cho thử hàng"
+];
+
+const serviceOptions = [
+  "SPX Express - Tiêu chuẩn",
+  "AhaMove - Siêu tốc",
+  "AhaMove - Siêu tốc - Tiết Kiệm",
+  "AhaMove - Tiết kiệm",
+  "AhaMove - 4H",
+  "GHN - Nhanh",
+  "GHN - Chuẩn"
+];
+
+function ShippingSettingsDialog({
+  open,
+  onOpenChange
+}: {
+  open: boolean;
+  onOpenChange(open: boolean): void;
+}) {
+  const [activeTab, setActiveTab] = useState<ShippingSettingsTab>("GENERAL");
+  const [form, setForm] = useState<ShippingSettingsForm>({
+    declaredValue: "45,000",
+    feePayer: "RECEIVER",
+    deliveryNote: "Cho xem, không thử",
+    courierNote: "không có ghio chữ",
+    weight: "45,000",
+    length: "10",
+    width: "10",
+    height: "10",
+    defaultService: "AhaMove - Siêu tốc",
+    bulkyEnabled: true,
+    bulkyStandard: "Tiêu chuẩn 50x40x50:30kg",
+    driverSupportEnabled: true,
+    driverSupportFee: "5,000 đ",
+    applyAllAccounts: false,
+    enabledPartners: {
+      GHN: true,
+      AHAMOVE: true
+    }
+  });
+
+  function patchForm(partial: Partial<ShippingSettingsForm>) {
+    setForm((current) => ({
+      ...current,
+      ...partial
+    }));
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[min(1000px,calc(100vw-40px))]">
+        <DialogHeader className="px-7 py-6">
+          <DialogTitle className="text-xl">Thiết lập vận chuyển</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid min-h-[560px] grid-cols-[230px_1fr]">
+          <aside className="border-r border-[#e1e5ea] bg-white">
+            <ShippingSettingsTabButton
+              active={activeTab === "GENERAL"}
+              label="Thiết lập chung"
+              onClick={() => setActiveTab("GENERAL")}
+            />
+            <ShippingSettingsTabButton
+              active={activeTab === "PARTNERS"}
+              label="Đối tác vận chuyển"
+              onClick={() => setActiveTab("PARTNERS")}
+            />
+          </aside>
+
+          <main className="min-w-0 px-8 py-5">
+            {activeTab === "GENERAL" ? (
+              <ShippingGeneralSettings form={form} onChange={patchForm} />
+            ) : (
+              <ShippingPartnerSettings form={form} onChange={patchForm} />
+            )}
+          </main>
+        </div>
+
+        <DialogFooter className="items-center justify-between px-7 py-5">
+          <label className="inline-flex items-center gap-3 text-sm font-semibold text-[#172317]">
+            <input
+              type="checkbox"
+              checked={form.applyAllAccounts}
+              onChange={(event) =>
+                patchForm({ applyAllAccounts: event.currentTarget.checked })
+              }
+              className="size-4 accent-[#1479f6]"
+            />
+            Áp dụng thiết lập cho tất cả tài khoản của gian hàng
+          </label>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="h-11 min-w-[128px] rounded-md border border-[#1479f6] px-5 text-sm font-black text-[#1479f6]"
+            >
+              Bỏ qua
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="h-11 min-w-[128px] rounded-md bg-[#1479f6] px-5 text-sm font-black text-white"
+            >
+              Lưu
+            </button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ShippingSettingsTabButton({
+  active,
+  label,
+  onClick
+}: {
+  active: boolean;
+  label: string;
+  onClick(): void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-14 w-full border-b border-[#e1e5ea] px-8 text-left text-base font-black ${
+        active
+          ? "border-l-2 border-l-[#1479f6] bg-[#eef6ff] text-[#1479f6]"
+          : "bg-white text-[#172317] hover:bg-[#f8fafc]"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ShippingGeneralSettings({
+  form,
+  onChange
+}: {
+  form: ShippingSettingsForm;
+  onChange(partial: Partial<ShippingSettingsForm>): void;
+}) {
+  return (
+    <div className="grid max-w-[720px] gap-6">
+      <SettingsRow label="Khai giá">
+        <div className="flex items-center gap-4">
+          <LineInput
+            value={form.declaredValue}
+            onChange={(declaredValue) => onChange({ declaredValue })}
+          />
+          <Toggle checked onChange={() => undefined} />
+        </div>
+      </SettingsRow>
+
+      <SettingsRow label="Người trả phí">
+        <div className="flex items-center gap-10">
+          <RadioChoice
+            checked={form.feePayer === "SENDER"}
+            label="Người gửi"
+            onChange={() => onChange({ feePayer: "SENDER" })}
+          />
+          <RadioChoice
+            checked={form.feePayer === "RECEIVER"}
+            label="Người nhận"
+            onChange={() => onChange({ feePayer: "RECEIVER" })}
+          />
+        </div>
+      </SettingsRow>
+
+      <SettingsRow label="Lưu ý giao hàng">
+        <LineSelect
+          value={form.deliveryNote}
+          options={deliveryNoteOptions}
+          onChange={(deliveryNote) => onChange({ deliveryNote })}
+        />
+      </SettingsRow>
+
+      <SettingsRow label="Ghi chú cho bưu tá">
+        <LineInput
+          value={form.courierNote}
+          onChange={(courierNote) => onChange({ courierNote })}
+        />
+      </SettingsRow>
+
+      <SettingsRow label="Trọng lượng & Kích thước">
+        <div className="flex flex-wrap items-center gap-3">
+          <LineInput
+            className="w-16"
+            value={form.weight}
+            onChange={(weight) => onChange({ weight })}
+          />
+          <LineSelect
+            className="w-[78px]"
+            value="gram"
+            options={["gram", "kg"]}
+            onChange={() => undefined}
+          />
+          <DimensionInput
+            value={form.length}
+            onChange={(length) => onChange({ length })}
+          />
+          <span className="text-[#697684]">x</span>
+          <DimensionInput
+            value={form.width}
+            onChange={(width) => onChange({ width })}
+          />
+          <span className="text-[#697684]">x</span>
+          <DimensionInput
+            value={form.height}
+            onChange={(height) => onChange({ height })}
+          />
+          <LineSelect
+            className="w-16"
+            value="cm"
+            options={["cm"]}
+            onChange={() => undefined}
+          />
+        </div>
+      </SettingsRow>
+
+      <SettingsRow label="Dịch vụ mặc định">
+        <LineSelect
+          value={form.defaultService}
+          options={serviceOptions}
+          onChange={(defaultService) => onChange({ defaultService })}
+        />
+      </SettingsRow>
+
+      <div className="ml-[212px] grid max-h-[172px] gap-3 overflow-y-auto rounded-md border border-[#e1e5ea] bg-[#f8fafc] p-4">
+        <AddOnRow
+          checked={form.bulkyEnabled}
+          label="Giao hàng cồng kềnh"
+          onCheckedChange={(bulkyEnabled) => onChange({ bulkyEnabled })}
+        >
+          <LineSelect
+            value={form.bulkyStandard}
+            options={["---Tiêu chuẩn---", "Tiêu chuẩn 50x40x50:30kg", "Miễn phí"]}
+            onChange={(bulkyStandard) => onChange({ bulkyStandard })}
+          />
+        </AddOnRow>
+        <AddOnRow
+          checked={form.driverSupportEnabled}
+          label="Hỗ trợ tài xế"
+          onCheckedChange={(driverSupportEnabled) =>
+            onChange({ driverSupportEnabled })
+          }
+        >
+          <LineSelect
+            value={form.driverSupportFee}
+            options={["5,000 đ", "25,000 đ", "30,000 đ"]}
+            onChange={(driverSupportFee) => onChange({ driverSupportFee })}
+          />
+        </AddOnRow>
+      </div>
+    </div>
+  );
+}
+
+function ShippingPartnerSettings({
+  form,
+  onChange
+}: {
+  form: ShippingSettingsForm;
+  onChange(partial: Partial<ShippingSettingsForm>): void;
+}) {
+  return (
+    <div className="grid max-w-[620px] gap-4">
+      <p className="text-sm font-semibold text-[#697684]">
+        Chọn đối tác được phép xuất hiện trong danh sách báo giá tại POS.
+      </p>
+      {[
+        { key: "GHN" as const, label: "GHN" },
+        { key: "AHAMOVE" as const, label: "AhaMove" }
+      ].map((partner) => (
+        <label
+          key={partner.key}
+          className="flex h-14 items-center justify-between rounded-lg border border-[#e1e5ea] px-4 text-base font-bold text-[#172317]"
+        >
+          {partner.label}
+          <input
+            type="checkbox"
+            checked={form.enabledPartners[partner.key]}
+            onChange={(event) =>
+              onChange({
+                enabledPartners: {
+                  ...form.enabledPartners,
+                  [partner.key]: event.currentTarget.checked
+                }
+              })
+            }
+            className="size-5 accent-[#1479f6]"
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function SettingsRow({
+  label,
+  children
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[190px_1fr] items-center gap-6">
+      <span className="text-base font-semibold text-[#172317]">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function LineInput({
+  className = "w-full",
+  value,
+  onChange
+}: {
+  className?: string;
+  value: string;
+  onChange(value: string): void;
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(event) => onChange(event.currentTarget.value)}
+      className={`h-9 border-0 border-b border-[#bfc7d2] bg-transparent px-0 text-base font-semibold text-[#172317] outline-none focus:border-[#1479f6] ${className}`}
+    />
+  );
+}
+
+function DimensionInput({
+  value,
+  onChange
+}: {
+  value: string;
+  onChange(value: string): void;
+}) {
+  return (
+    <LineInput className="w-12 text-center" value={value} onChange={onChange} />
+  );
+}
+
+function LineSelect({
+  className = "w-full",
+  value,
+  options,
+  onChange
+}: {
+  className?: string;
+  value: string;
+  options: string[];
+  onChange(value: string): void;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(event) => onChange(event.currentTarget.value)}
+      className={`h-9 border-0 border-b border-[#bfc7d2] bg-transparent px-0 text-base font-semibold text-[#172317] outline-none focus:border-[#1479f6] ${className}`}
+    >
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function RadioChoice({
+  checked,
+  label,
+  onChange
+}: {
+  checked: boolean;
+  label: string;
+  onChange(): void;
+}) {
+  return (
+    <label className="inline-flex items-center gap-2 text-base font-semibold text-[#172317]">
+      <input
+        type="radio"
+        checked={checked}
+        onChange={onChange}
+        className="size-5 accent-[#1479f6]"
+      />
+      {label}
+    </label>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange
+}: {
+  checked: boolean;
+  onChange(checked: boolean): void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`relative h-5 w-9 rounded-full ${checked ? "bg-[#1479f6]" : "bg-[#cbd5e1]"}`}
+    >
+      <span
+        className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-[18px]" : "translate-x-0.5"
+        }`}
+      />
+    </button>
+  );
+}
+
+function AddOnRow({
+  checked,
+  children,
+  label,
+  onCheckedChange
+}: {
+  checked: boolean;
+  children: ReactNode;
+  label: string;
+  onCheckedChange(checked: boolean): void;
+}) {
+  return (
+    <div className="grid grid-cols-[auto_1fr_240px] items-center gap-3">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onCheckedChange(event.currentTarget.checked)}
+        className="size-5 accent-[#1479f6]"
+      />
+      <span className="inline-flex items-center gap-2 text-base font-semibold text-[#172317]">
+        {label}
+        <Info size={16} aria-hidden="true" />
+      </span>
+      {children}
+    </div>
+  );
+}
+
 function PackageInformationAccordion({
   cartItemCount,
   open,
@@ -816,139 +1288,6 @@ function PackageInformationAccordion({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function DeliveryOrderSummary({
-  deliveryTotals,
-  depositAmount,
-  disabled,
-  discounts,
-  loading,
-  paymentMethod,
-  selectedDiscountId,
-  submitError,
-  onDepositAmountChange,
-  onDiscountChange,
-  onPaymentMethodChange,
-  onSubmit
-}: {
-  deliveryTotals: ReturnType<typeof calculateDeliveryTotals>;
-  depositAmount: number;
-  disabled: boolean;
-  discounts: SaleDiscountOption[];
-  loading: boolean;
-  paymentMethod: string;
-  selectedDiscountId: string;
-  submitError: string;
-  onDepositAmountChange(value: number): void;
-  onDiscountChange(discountId: string): void;
-  onPaymentMethodChange(value: string): void;
-  onSubmit(): void;
-}) {
-  return (
-    <aside className="sticky top-0 grid max-h-full min-w-0 content-start gap-3 overflow-y-auto overflow-x-hidden rounded-lg border border-[#edf0f4] bg-white p-3">
-      <h2 className="truncate text-sm font-black uppercase text-[#53678f]">
-        Tổng kết đơn hàng
-      </h2>
-      <label className="grid gap-1 text-xs font-bold text-[#53678f]">
-        Khuyến mãi
-        <select
-          value={selectedDiscountId}
-          onChange={(event) => onDiscountChange(event.currentTarget.value)}
-          className="h-9 w-full min-w-0 rounded-lg border border-[#d8eadc] bg-white px-2 text-xs font-bold text-[#172317]"
-        >
-          {discounts.map((discount) => (
-            <option key={discount.id} value={discount.id}>
-              {discount.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="grid gap-1 border-b border-pos-border pb-3">
-        <SummaryRow label="Tiền hàng" value={deliveryTotals.itemTotal} />
-        <SummaryRow label="Giảm giá" value={-deliveryTotals.discountAmount} />
-        <SummaryRow label="Phí giao hàng" value={deliveryTotals.shippingFee} />
-        <SummaryRow label="Thành tiền" value={deliveryTotals.grandTotal} strong />
-      </div>
-
-      <label className="grid gap-1 text-xs font-bold text-[#53678f]">
-        Thanh toán
-        <select
-          value={paymentMethod}
-          onChange={(event) => onPaymentMethodChange(event.currentTarget.value)}
-          className="h-9 w-full min-w-0 rounded-lg border border-[#d8eadc] bg-white px-2 text-xs font-bold text-[#172317]"
-        >
-          <option value="COD">Thanh toán khi nhận hàng</option>
-          <option value="CASH">Tiền mặt</option>
-          <option value="BANK_TRANSFER">Chuyển khoản</option>
-          <option value="COMBINED">Thanh toán tổng hợp</option>
-        </select>
-      </label>
-      <label className="grid gap-1 text-xs font-bold text-[#53678f]">
-        Tiền cọc
-        <input
-          type="number"
-          min={0}
-          value={depositAmount || ""}
-          onChange={(event) =>
-            onDepositAmountChange(Number(event.currentTarget.value || 0))
-          }
-          className="h-9 w-full min-w-0 rounded-lg border border-[#d8eadc] bg-white px-2 text-xs font-bold text-[#172317]"
-        />
-      </label>
-
-      <div className="grid gap-1 border-b border-pos-border pb-3">
-        <SummaryRow label="Đã thanh toán" value={deliveryTotals.paidAmount} />
-        <SummaryRow label="Còn phải thu" value={deliveryTotals.codAmount} strong />
-        <SummaryRow label="COD" value={deliveryTotals.codAmount} />
-      </div>
-
-      {submitError ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-2 py-2 text-xs font-bold text-red-700">
-          {submitError}
-        </p>
-      ) : null}
-
-      <div className="sticky bottom-0 bg-white pt-1">
-        <CompletePaymentButton
-          total={deliveryTotals.grandTotal}
-          disabled={disabled}
-          label={depositAmount > 0 ? "Tạo đơn và thanh toán cọc" : "Tạo đơn giao hàng"}
-          loadingLabel="Đang tạo đơn..."
-          loading={loading}
-          onClick={onSubmit}
-        />
-        <div className="mt-2 flex items-center justify-center gap-2 text-[11px] font-black text-[#159734]">
-          {loading ? (
-            <Loader2 className="animate-spin" size={14} aria-hidden="true" />
-          ) : (
-            <PackageCheck size={14} aria-hidden="true" />
-          )}
-          Tạo đơn giao hàng
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function SummaryRow({
-  label,
-  value,
-  strong = false
-}: {
-  label: string;
-  value: number;
-  strong?: boolean;
-}) {
-  return (
-    <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
-      <span className="min-w-0 truncate font-semibold text-[#697684]">{label}</span>
-      <strong className={`shrink-0 ${strong ? "text-sm text-[#159734]" : "text-[#172317]"}`}>
-        {formatCurrency(value)}
-      </strong>
-    </div>
   );
 }
 
