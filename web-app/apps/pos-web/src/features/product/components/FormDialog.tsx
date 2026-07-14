@@ -95,6 +95,43 @@ export function FormDialog({
                         const isFieldRequired = typeof field.required === "function"
                             ? field.required(formValues)
                             : !!field.required;
+                        if (field.type === "checkbox") {
+                            return (
+                                <label
+                                    key={field.name}
+                                    className={`flex items-center gap-3 py-1 cursor-pointer text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        name={field.name}
+                                        checked={formValues[field.name] === "true"}
+                                        disabled={isFieldDisabled}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setFormValues(prev => {
+                                                const updated = {
+                                                    ...prev,
+                                                    [field.name]: checked ? "true" : "false"
+                                                };
+                                                if (field.name === "isBaseUnit") {
+                                                    if (checked) {
+                                                        updated.baseUnitId = "";
+                                                        updated.conversionRate = "1";
+                                                    }
+                                                }
+                                                return updated;
+                                            });
+                                        }}
+                                        className="size-5 rounded border-pos-border text-[#07883a] focus:ring-[#07883a] focus:ring-offset-0 cursor-pointer"
+                                    />
+                                    <span>
+                                        {field.label}
+                                        {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
+                                    </span>
+                                </label>
+                            );
+                        }
+
                         return (
                             <label
                                 key={field.name}

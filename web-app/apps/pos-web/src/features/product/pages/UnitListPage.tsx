@@ -38,13 +38,14 @@ export function UnitListPage() {
     );
 
     async function submit(values: FormValues, editingItem: Unit | null) {
+        const isBase = getString(values, "isBaseUnit") === "true";
         const input = {
             name: getString(values, "name"),
             symbol: getString(values, "symbol"),
             precisionScale: getNumber(values, "precisionScale"),
             type: getString(values, "type") as UnitType,
-            baseUnitId: getString(values, "baseUnitId") || null,
-            conversionRate: getString(values, "baseUnitId") ? getNumber(values, "conversionRate") : 1,
+            baseUnitId: isBase ? null : (getString(values, "baseUnitId") || null),
+            conversionRate: (!isBase && getString(values, "baseUnitId")) ? getNumber(values, "conversionRate") : 1,
             status: getString(values, "status") as CatalogStatus
         };
 
@@ -95,6 +96,7 @@ export function UnitListPage() {
                 symbol: item.symbol,
                 precisionScale: String(item.precisionScale ?? 0),
                 type: item.type ?? "COUNT",
+                isBaseUnit: item.id ? (item.baseUnitId ? "false" : "true") : "true",
                 baseUnitId: String(item.baseUnitId ?? ""),
                 conversionRate: String(item.conversionRate ?? 1),
                 status: item.status
@@ -111,7 +113,7 @@ export function UnitListPage() {
             }}
             columns={[
                 { key: "name", label: "Tên đơn vị" },
-                // { key: "symbol", label: "Ký hiệu" },
+                { key: "symbol", label: "Ký hiệu" },
                 { key: "type", label: "Phân loại" },
                 // { key: "baseUnitId", label: "Đơn vị gốc" },
                 // { key: "precisionScale", label: "Độ chính xác" },
@@ -124,11 +126,11 @@ export function UnitListPage() {
                         <TableCell className="font-bold text-gray-700">
                             {item.name}
                         </TableCell>
-                        {/* <TableCell>
+                        <TableCell>
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-gray-100 text-gray-700 font-mono text-sm font-semibold">
                                 {item.symbol}
                             </span>
-                        </TableCell> */}
+                        </TableCell>
                         <TableCell>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                 item.type === "WEIGHT"
@@ -178,7 +180,7 @@ export function UnitListPage() {
                                         {baseUnit ? `${baseUnit.name} (${item.baseUnitId})` : String(item.baseUnitId)}
                                     </span>
                                 ) : (
-                                    "Không chọn"
+                                    "Là đơn vị gốc"
                                 )
                             },
                             {
@@ -231,14 +233,21 @@ export function UnitListPage() {
                     ]
                 },
                 {
+                    name: "isBaseUnit",
+                    label: "Đây là đơn vị gốc",
+                    type: "checkbox",
+                    required: false
+                },
+                {
                     name: "baseUnitId",
                     label: "Đơn vị gốc",
                     type: "select",
-                    required: false,
+                    required: (values) => values.isBaseUnit !== "true",
+                    hidden: (values) => values.isBaseUnit === "true",
                     options: [
-                        { label: "-- Không chọn --", value: "" },
+                        { label: "-- Chọn đơn vị gốc --", value: "" },
                         ...baseUnitOptions.map((u) => ({
-                            label: `${u.name} (${u.symbol}) - ${u.type === "WEIGHT" ? "Khối lượng" : u.type === "VOLUME" ? "Thể tích" : "Đếm"}`,
+                            label: `${u.name} (${u.symbol})`,
                             value: String(u.id)
                         }))
                     ]
@@ -247,8 +256,8 @@ export function UnitListPage() {
                     name: "conversionRate",
                     label: "Tỷ lệ quy đổi (so với đơn vị gốc)",
                     type: "number",
-                    required: (values) => !!values.baseUnitId,
-                    hidden: (values) => !values.baseUnitId,
+                    required: (values) => values.isBaseUnit !== "true" && !!values.baseUnitId,
+                    hidden: (values) => values.isBaseUnit === "true" || !values.baseUnitId,
                     placeholder: "Ví dụ: 100 (1 Hộp 100g = 100 gram)"
                 },
                 {

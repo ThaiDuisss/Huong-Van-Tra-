@@ -40,7 +40,7 @@ export type FormValues = Record<string, string | File>;
 export interface FormField {
     name: string;
     label: string;
-    type?: "text" | "textarea" | "number" | "date" | "select" | "file";
+    type?: "text" | "textarea" | "number" | "date" | "select" | "file" | "checkbox";
     required?: boolean | ((values: FormValues) => boolean);
     options?: Array<{ label: string; value: string }>;
     placeholder?: string;
