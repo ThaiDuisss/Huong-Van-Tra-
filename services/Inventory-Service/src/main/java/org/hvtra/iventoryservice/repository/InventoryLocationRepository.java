@@ -5,19 +5,30 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.UUID;
+import java.util.Optional;
+import org.hvtra.iventoryservice.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.enums.InventoryStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface InventoryLocationRepository
         extends JpaRepository<InventoryLocation, UUID>, JpaSpecificationExecutor<InventoryLocation> {
     boolean existsByBranchIdAndCode(UUID branchId, String code);
     boolean existsByBranchIdAndCodeAndIdNot(UUID branchId, String code, UUID id);
-    java.util.Optional<InventoryLocation> findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType type);
-    java.util.Optional<InventoryLocation> findFirstByTypeAndStatus(
-            org.hvtra.iventoryservice.enums.InventoryLocationType type,
-            org.hvtra.iventoryservice.enums.InventoryStatus status
+    Optional<InventoryLocation> findFirstByType(InventoryLocationType type);
+    Optional<InventoryLocation> findFirstByTypeAndStatus(
+            InventoryLocationType type,
+            InventoryStatus status
     );
-    java.util.Optional<InventoryLocation> findFirstByBranchIdAndTypeAndStatus(
+    Optional<InventoryLocation> findFirstByBranchIdAndTypeAndStatus(
             UUID branchId,
-            org.hvtra.iventoryservice.enums.InventoryLocationType type,
-            org.hvtra.iventoryservice.enums.InventoryStatus status
+            InventoryLocationType type,
+            InventoryStatus status
+    );
+
+    Page<InventoryLocation> findByNameContainingIgnoreCaseAndTypeAndIsDeletedFalse(
+            String name,
+            InventoryLocationType type,
+            Pageable pageable
     );
 }

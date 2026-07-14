@@ -1,4 +1,4 @@
-import { MoreHorizontal, Eye, Pencil, ToggleLeft } from "lucide-react";
+import { MoreHorizontal, Eye, Pencil, ToggleLeft, Trash2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
 import { StatusBadge } from "../shared/StatusBadge";
@@ -10,6 +10,7 @@ interface BomTableProps {
     onRowClick(item: BomResponse): void;
     onEdit(item: BomResponse): void;
     onToggleStatus(item: BomResponse): void;
+    onDelete?(item: BomResponse): void;
 }
 
 export function BomTable({
@@ -17,7 +18,8 @@ export function BomTable({
     selectedBomId,
     onRowClick,
     onEdit,
-    onToggleStatus
+    onToggleStatus,
+    onDelete
 }: BomTableProps) {
     const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement | null>(null);
@@ -151,6 +153,19 @@ export function BomTable({
                                                         ? "Vô hiệu hóa"
                                                         : "Kích hoạt"}
                                                 </button>
+                                                {onDelete && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setActiveActionMenuId(null);
+                                                            onDelete(item);
+                                                        }}
+                                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700 border-t border-pos-border mt-1 pt-2 cursor-pointer"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                        Xóa công thức
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                     </td>

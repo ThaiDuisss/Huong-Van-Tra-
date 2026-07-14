@@ -21,6 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
+import org.hvtra.iventoryservice.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.enums.InventoryStatus;
 
 @Service
 @Transactional(readOnly = true)
@@ -107,7 +114,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             matchingVariantIds = catalogClient.searchVariantIds(sku, productCode, productName, categoryCode, categoryId, unitId);
             if (matchingVariantIds == null || matchingVariantIds.isEmpty()) {
                 return new PageResponse<>(
-                        java.util.Collections.emptyList(),
+                        Collections.emptyList(),
                         pageable.getPageNumber(),
                         pageable.getPageSize(),
                         0,
@@ -124,13 +131,13 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         org.hvtra.iventoryservice.entity.InventoryLocation tempWarehouse = null;
         if (branchId != null) {
             tempWarehouse = locationRepository
-                    .findFirstByBranchIdAndTypeAndStatus(branchId, org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE, org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE)
+                    .findFirstByBranchIdAndTypeAndStatus(branchId, InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE)
                     .orElse(null);
         }
         if (tempWarehouse == null) {
             tempWarehouse = locationRepository
-                    .findFirstByTypeAndStatus(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE, org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE)
-                    .or(() -> locationRepository.findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE))
+                    .findFirstByTypeAndStatus(InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE)
+                    .or(() -> locationRepository.findFirstByType(InventoryLocationType.WAREHOUSE))
                     .orElse(null);
         }
         defaultWarehouse = tempWarehouse;
@@ -144,7 +151,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             }
 
             // Always only display balances on locations where type = SHELF
-            predicates.add(cb.equal(root.get("location").get("type"), org.hvtra.iventoryservice.enums.InventoryLocationType.SHELF));
+            predicates.add(cb.equal(root.get("location").get("type"), InventoryLocationType.SHELF));
 
             if (locationId != null) {
                 predicates.add(cb.equal(root.get("location").get("id"), locationId));
@@ -163,7 +170,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         Page<InventoryBalance> balancePage = repository.findAll(specification, pageable);
         if (balancePage.isEmpty()) {
             return new PageResponse<>(
-                    java.util.Collections.emptyList(),
+                    Collections.emptyList(),
                     balancePage.getNumber(),
                     balancePage.getSize(),
                     balancePage.getTotalElements(),
@@ -180,18 +187,18 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 .toList();
 
         List<CatalogClient.VariantResponse> variants = catalogClient.getVariantsBatch(variantIds);
-        java.util.Map<UUID, CatalogClient.VariantResponse> variantMap = variants.stream()
-                .collect(java.util.stream.Collectors.toMap(CatalogClient.VariantResponse::id, v -> v, (v1, v2) -> v1));
+        Map<UUID, CatalogClient.VariantResponse> variantMap = variants.stream()
+                .collect(Collectors.toMap(CatalogClient.VariantResponse::id, v -> v, (v1, v2) -> v1));
 
         List<UUID> productIds = variants.stream().map(CatalogClient.VariantResponse::productId).distinct().toList();
         List<CatalogClient.ProductResponse> products = catalogClient.getProductsBatch(productIds);
-        java.util.Map<UUID, CatalogClient.ProductResponse> productMap = products.stream()
-                .collect(java.util.stream.Collectors.toMap(CatalogClient.ProductResponse::id, p -> p, (p1, p2) -> p1));
+        Map<UUID, CatalogClient.ProductResponse> productMap = products.stream()
+                .collect(Collectors.toMap(CatalogClient.ProductResponse::id, p -> p, (p1, p2) -> p1));
 
         List<UUID> unitIds = variants.stream().map(CatalogClient.VariantResponse::baseUnitId).distinct().toList();
         List<CatalogClient.UnitResponse> units = catalogClient.getUnitsBatch(unitIds);
-        java.util.Map<UUID, CatalogClient.UnitResponse> unitMap = units.stream()
-                .collect(java.util.stream.Collectors.toMap(CatalogClient.UnitResponse::id, u -> u, (u1, u2) -> u1));
+        Map<UUID, CatalogClient.UnitResponse> unitMap = units.stream()
+                .collect(Collectors.toMap(CatalogClient.UnitResponse::id, u -> u, (u1, u2) -> u1));
 
         // 4. Map and Join
         List<InventoryBalanceViewResponse> mappedList = balancePage.getContent().stream()
@@ -243,15 +250,15 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
     }
 
     @Override
-    public java.util.List<org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse> findWarehouseBalances(
+    public List<InventoryBalanceWarehouseResponse> findWarehouseBalances(
             String sku,
             String productName
     ) {
         // 1. Get first location whose type is WAREHOUSE
-        java.util.Optional<org.hvtra.iventoryservice.entity.InventoryLocation> warehouseLocOpt =
-                locationRepository.findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE);
+        Optional<org.hvtra.iventoryservice.entity.InventoryLocation> warehouseLocOpt =
+                locationRepository.findFirstByType(InventoryLocationType.WAREHOUSE);
         if (warehouseLocOpt.isEmpty()) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
         org.hvtra.iventoryservice.entity.InventoryLocation warehouseLoc = warehouseLocOpt.get();
 
@@ -267,7 +274,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                     null
             );
             if (matchingVariantIds == null || matchingVariantIds.isEmpty()) {
-                return java.util.Collections.emptyList();
+                return Collections.emptyList();
             }
         }
 
@@ -285,7 +292,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         List<InventoryBalance> balances = repository.findAll(spec);
 
         return balances.stream()
-                .map(b -> new org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse(
+                .map(b -> new InventoryBalanceWarehouseResponse(
                         b.getId(),
                         b.getLocation().getId(),
                         b.getInventoryItem().getId(),
@@ -302,7 +309,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
     @Override
     @Transactional
     public void bulkUpdateLocation() {
-        org.hvtra.iventoryservice.entity.InventoryLocation newLocation = locationRepository.findFirstByType(org.hvtra.iventoryservice.enums.InventoryLocationType.SHELF)
+        org.hvtra.iventoryservice.entity.InventoryLocation newLocation = locationRepository.findFirstByType(InventoryLocationType.SHELF)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vị trí lưu trữ nào có loại SHELF", null));
 
         List<InventoryBalance> balancesToUpdate = repository.findAll();
@@ -314,7 +321,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             }
 
             UUID itemId = balance.getInventoryItem().getId();
-                java.util.Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
+                Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
 
             if (existingBalanceOpt.isPresent()) {
                 // If a balance already exists at the target location, merge the quantities and delete the old record

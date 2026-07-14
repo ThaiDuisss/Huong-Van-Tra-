@@ -17,11 +17,11 @@ import { StoreInventoryForm } from "../components/StoreInventoryForm";
 import { routePaths } from "../../../routes/path";
 import { formatInventoryDate, formatQuantity } from "../utils/inventory-labels";
 import type { InventoryBalanceViewResponse, InventoryLocationResponse } from "../types/inventory.types";
-import type { Category, Unit } from "../../product/types/product.types";
 import { categoryApi } from "../../product/services/category.api";
 import { unitApi } from "../../product/services/unit.api";
 import { productApi } from "../../product/services/product.api";
-import type { ProductSummary } from "../../product/types/product.types";
+import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 
 const FALLBACK_STORE_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -51,12 +51,10 @@ export function InventoryBalancePage() {
     // Store & Catalog states
     const [activeStoreId, setActiveStoreId] = useState<string | null>(null);
     const [activeLocationId, setActiveLocationId] = useState<string | null>("");
-    const [defaultWarehouseId, setDefaultWarehouseId] = useState<string | null>(null);
+
     const [loadingStore, setLoadingStore] = useState(true);
 
     const [locations, setLocations] = useState<InventoryLocationResponse[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [units, setUnits] = useState<Unit[]>([]);
 
     const [balances, setBalances] = useState<any[]>([]);
     const [totalElements, setTotalElements] = useState(0);
@@ -65,14 +63,43 @@ export function InventoryBalancePage() {
     const [error, setError] = useState<string | null>(null);
 
     // Filter, pagination & sorting states
-    const [searchQuery, setSearchQuery] = useState("");
+    const [skuQuery, setSkuQuery] = useState("");
+    const [productNameQuery, setProductNameQuery] = useState("");
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const [filterUnitId, setFilterUnitId] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
     const [filterProductId, setFilterProductId] = useState("");
-    const [products, setProducts] = useState<ProductSummary[]>([]);
+    const [filterProductName, setFilterProductName] = useState("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+
+    // Searchable dropdown states: Shelf (Location)
+    const [shelfOptions, setShelfOptions] = useState<LookupItem[]>([]);
+    const [shelfPage, setShelfPage] = useState(0);
+    const [shelfHasMore, setShelfHasMore] = useState(true);
+    const [shelfLoading, setShelfLoading] = useState(false);
+    const [shelfSearchTerm, setShelfSearchTerm] = useState("");
+
+    // Searchable dropdown states: Category
+    const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
+    const [categoryPage, setCategoryPage] = useState(0);
+    const [categoryHasMore, setCategoryHasMore] = useState(true);
+    const [categoryLoading, setCategoryLoading] = useState(false);
+    const [categorySearchTerm, setCategorySearchTerm] = useState("");
+
+    // Searchable dropdown states: Unit
+    const [unitOptions, setUnitOptions] = useState<LookupItem[]>([]);
+    const [unitPage, setUnitPage] = useState(0);
+    const [unitHasMore, setUnitHasMore] = useState(true);
+    const [unitLoading, setUnitLoading] = useState(false);
+    const [unitSearchTerm, setUnitSearchTerm] = useState("");
+
+    // Searchable dropdown states: Product
+    const [productOptions, setProductOptions] = useState<LookupItem[]>([]);
+    const [productPage, setProductPage] = useState(0);
+    const [productHasMore, setProductHasMore] = useState(true);
+    const [productLoading, setProductLoading] = useState(false);
+    const [productSearchTerm, setProductSearchTerm] = useState("");
 
     const [sortColumn, setSortColumn] = useState<string | null>(null);
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -96,6 +123,115 @@ export function InventoryBalancePage() {
     });
 
     // 1. Resolve Active Store and Load Locations
+    // Fetch shelf options with infinite scroll
+    const loadShelfOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setShelfLoading(true);
+            const res = await inventoryLocationApi.lookup(search, page, 20);
+            setShelfOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setShelfHasMore(!res.last);
+        } catch (err) {
+            setShelfHasMore(false);
+        } finally {
+            setShelfLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        setShelfPage(0);
+        loadShelfOptions(shelfSearchTerm, 0);
+    }, [shelfSearchTerm, loadShelfOptions]);
+
+    const handleLoadMoreShelves = useCallback(() => {
+        if (!shelfLoading && shelfHasMore) {
+            const nextPage = shelfPage + 1;
+            setShelfPage(nextPage);
+            loadShelfOptions(shelfSearchTerm, nextPage);
+        }
+    }, [shelfLoading, shelfHasMore, shelfPage, shelfSearchTerm, loadShelfOptions]);
+
+    // Fetch category options with infinite scroll
+    const loadCategoryOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setCategoryLoading(true);
+            const res = await categoryApi.lookup(search, page, 20);
+            setCategoryOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setCategoryHasMore(!res.last);
+        } catch (err) {
+            setCategoryHasMore(false);
+        } finally {
+            setCategoryLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        setCategoryPage(0);
+        loadCategoryOptions(categorySearchTerm, 0);
+    }, [categorySearchTerm, loadCategoryOptions]);
+
+    const handleLoadMoreCategories = useCallback(() => {
+        if (!categoryLoading && categoryHasMore) {
+            const nextPage = categoryPage + 1;
+            setCategoryPage(nextPage);
+            loadCategoryOptions(categorySearchTerm, nextPage);
+        }
+    }, [categoryLoading, categoryHasMore, categoryPage, categorySearchTerm, loadCategoryOptions]);
+
+    // Fetch unit options with infinite scroll
+    const loadUnitOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setUnitLoading(true);
+            const res = await unitApi.lookup(search, page, 20);
+            setUnitOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setUnitHasMore(!res.last);
+        } catch (err) {
+            setUnitHasMore(false);
+        } finally {
+            setUnitLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        setUnitPage(0);
+        loadUnitOptions(unitSearchTerm, 0);
+    }, [unitSearchTerm, loadUnitOptions]);
+
+    const handleLoadMoreUnits = useCallback(() => {
+        if (!unitLoading && unitHasMore) {
+            const nextPage = unitPage + 1;
+            setUnitPage(nextPage);
+            loadUnitOptions(unitSearchTerm, nextPage);
+        }
+    }, [unitLoading, unitHasMore, unitPage, unitSearchTerm, loadUnitOptions]);
+
+    // Fetch product options with infinite scroll
+    const loadProductOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setProductLoading(true);
+            const res = await productApi.lookup(search, page, 20);
+            setProductOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setProductHasMore(!res.last);
+        } catch (err) {
+            setProductHasMore(false);
+        } finally {
+            setProductLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        setProductPage(0);
+        loadProductOptions(productSearchTerm, 0);
+    }, [productSearchTerm, loadProductOptions]);
+
+    const handleLoadMoreProducts = useCallback(() => {
+        if (!productLoading && productHasMore) {
+            const nextPage = productPage + 1;
+            setProductPage(nextPage);
+            loadProductOptions(productSearchTerm, nextPage);
+        }
+    }, [productLoading, productHasMore, productPage, productSearchTerm, loadProductOptions]);
+
+    // 1. Resolve Active Store and Load Locations
     useEffect(() => {
         async function initCatalogAndStore() {
             try {
@@ -103,18 +239,6 @@ export function InventoryBalancePage() {
                 const locRes = await inventoryLocationApi.list({ page: 0, size: 500 });
                 const locs = locRes.content ?? [];
                 setLocations(locs);
-
-                // Fetch categories list
-                const catRes = await categoryApi.list({ page: 0, size: 500 });
-                setCategories(catRes.content ?? []);
-
-                // Fetch units list
-                const unitRes = await unitApi.list({ page: 0, size: 500 });
-                setUnits(unitRes.content ?? []);
-
-                // Fetch products list
-                const prodRes = await productApi.list({ page: 0, size: 1000 });
-                setProducts(prodRes.content ?? []);
 
                 // Determine branchId
                 let resolvedBranchId = FALLBACK_STORE_ID;
@@ -128,27 +252,7 @@ export function InventoryBalancePage() {
                 }
                 setActiveStoreId(resolvedBranchId);
 
-                // Fetch default warehouse from backend
-                try {
-                    const defaultWarehouse = await inventoryLocationApi.defaultWarehouse(resolvedBranchId);
-                    if (defaultWarehouse) {
-                        setDefaultWarehouseId(String(defaultWarehouse.id));
-                    } else {
-                        // Fallback: search locally
-                        const warehouseLoc = locs.find(l => l.type === "WAREHOUSE" && String(l.branchId) === resolvedBranchId)
-                            || locs.find(l => l.type === "WAREHOUSE");
-                        if (warehouseLoc) {
-                            setDefaultWarehouseId(String(warehouseLoc.id));
-                        }
-                    }
-                } catch (err) {
-                    console.error("Failed to fetch default warehouse from backend, falling back to client-side resolution", err);
-                    const warehouseLoc = locs.find(l => l.type === "WAREHOUSE" && String(l.branchId) === resolvedBranchId)
-                        || locs.find(l => l.type === "WAREHOUSE");
-                    if (warehouseLoc) {
-                        setDefaultWarehouseId(String(warehouseLoc.id));
-                    }
-                }
+
             } catch (err) {
                 console.error("Initialization error:", err);
                 setActiveStoreId(FALLBACK_STORE_ID);
@@ -171,10 +275,7 @@ export function InventoryBalancePage() {
         return warehouseLoc ? warehouseLoc.name : "Cửa hàng";
     }, [activeLocationId, locations, balances, activeStoreId]);
 
-    const defaultShelves = useMemo(() => {
-        if (!defaultWarehouseId) return [];
-        return locations.filter(l => l.type === "SHELF" && String(l.parentLocationId) === defaultWarehouseId);
-    }, [locations, defaultWarehouseId]);
+
 
     // 2. Fetch inventory balances filtered by active store, location, and search criteria
     const loadBalances = useCallback(async () => {
@@ -182,15 +283,14 @@ export function InventoryBalancePage() {
         setLoadingBalances(true);
         setError(null);
         try {
-            const selectedProduct = products.find(p => String(p.id) === filterProductId);
-            const productNameParam = selectedProduct ? selectedProduct.name : undefined;
+            const productNameParam = filterProductName || productNameQuery.trim() || undefined;
             const res = await inventoryBalanceApi.view({
                 page: page - 1,
                 size: pageSize,
                 branchId: activeStoreId as any,
                 locationId: activeLocationId ? (activeLocationId as any) : undefined,
-                sku: !productNameParam ? (searchQuery.trim() || undefined) : undefined,
-                productName: productNameParam || searchQuery.trim() || undefined,
+                sku: skuQuery.trim() || undefined,
+                productName: productNameParam,
                 categoryId: filterCategoryId || undefined,
                 unitId: filterUnitId || undefined
             });
@@ -202,7 +302,7 @@ export function InventoryBalancePage() {
         } finally {
             setLoadingBalances(false);
         }
-    }, [activeStoreId, activeLocationId, page, pageSize, searchQuery, filterCategoryId, filterUnitId, filterProductId, products]);
+    }, [activeStoreId, activeLocationId, page, pageSize, skuQuery, productNameQuery, filterCategoryId, filterUnitId, filterProductName]);
 
     useEffect(() => {
         loadBalances();
@@ -211,7 +311,7 @@ export function InventoryBalancePage() {
     // Reset page to 1 when filters change
     useEffect(() => {
         setPage(1);
-    }, [searchQuery, filterCategoryId, filterUnitId, filterStatus]);
+    }, [skuQuery, productNameQuery, filterCategoryId, filterUnitId, filterStatus]);
 
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
@@ -365,63 +465,88 @@ export function InventoryBalancePage() {
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
                 <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
-                    {/* Search */}
-                    <div className="relative flex-1">
+                    {/* Search SKU */}
+                    <div className="relative flex-1 min-w-[150px]">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         <input
                             type="text"
-                            placeholder="Tìm theo SKU hoặc tên sản phẩm..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Tìm theo SKU..."
+                            value={skuQuery}
+                            onChange={(e) => setSkuQuery(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
+                        />
+                    </div>
+                    {/* Search Tên sản phẩm */}
+                    <div className="relative flex-1 min-w-[180px]">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Tìm theo tên sản phẩm..."
+                            value={productNameQuery}
+                            onChange={(e) => setProductNameQuery(e.target.value)}
                             className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
                         />
                     </div>
                     
                     <div className="flex flex-wrap gap-3 items-center">
                         {/* Dropdown 1: Kệ hàng */}
-                        <select
+                        <SearchableDropdown
                             value={activeLocationId ?? ""}
-                            onChange={(e) => { setActiveLocationId(e.target.value); setPage(1); }}
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] max-w-[200px] truncate"
-                        >
-                            <option value="">Kệ hàng</option>
-                            {defaultShelves.map((shelf) => (
-                                <option key={shelf.id} value={String(shelf.id)}>{shelf.name}</option>
-                            ))}
-                        </select>
+                            onChange={(val: string) => {
+                                setActiveLocationId(val);
+                                setPage(1);
+                            }}
+                            options={shelfOptions}
+                            onSearch={setShelfSearchTerm}
+                            onLoadMore={handleLoadMoreShelves}
+                            hasMore={shelfHasMore}
+                            loading={shelfLoading}
+                            placeholder="Kệ hàng"
+                        />
                         {/* Dropdown 2: Đơn vị tính */}
-                        <select
+                        <SearchableDropdown
                             value={filterUnitId}
-                            onChange={(e) => { setFilterUnitId(e.target.value); setPage(1); }}
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] max-w-[200px] truncate"
-                        >
-                            <option value="">Đơn vị tính</option>
-                            {units.map((u) => (
-                                <option key={u.id} value={String(u.id)}>{u.name}</option>
-                            ))}
-                        </select>
+                            onChange={(val: string) => {
+                                setFilterUnitId(val);
+                                setPage(1);
+                            }}
+                            options={unitOptions}
+                            onSearch={setUnitSearchTerm}
+                            onLoadMore={handleLoadMoreUnits}
+                            hasMore={unitHasMore}
+                            loading={unitLoading}
+                            placeholder="Đơn vị tính"
+                        />
                         {/* Dropdown 3: Sản phẩm */}
-                        <select
+                        <SearchableDropdown
                             value={filterProductId}
-                            onChange={(e) => { setFilterProductId(e.target.value); setPage(1); }}
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] max-w-[200px] truncate"
-                        >
-                            <option value="">Sản phẩm</option>
-                            {products.map((p) => (
-                                <option key={p.id} value={String(p.id)}>{p.name}</option>
-                            ))}
-                        </select>
+                            onChange={(val: string) => {
+                                setFilterProductId(val);
+                                const selectedName = productOptions.find(o => o.id === val)?.name || "";
+                                setFilterProductName(selectedName);
+                                setPage(1);
+                            }}
+                            options={productOptions}
+                            onSearch={setProductSearchTerm}
+                            onLoadMore={handleLoadMoreProducts}
+                            hasMore={productHasMore}
+                            loading={productLoading}
+                            placeholder="Sản phẩm"
+                        />
                         {/* Dropdown 4: Danh mục */}
-                        <select
+                        <SearchableDropdown
                             value={filterCategoryId}
-                            onChange={(e) => { setFilterCategoryId(e.target.value); setPage(1); }}
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[150px] max-w-[200px] truncate"
-                        >
-                            <option value="">Danh mục</option>
-                            {categories.map((c) => (
-                                <option key={c.id} value={String(c.id)}>{c.name}</option>
-                            ))}
-                        </select>
+                            onChange={(val: string) => {
+                                setFilterCategoryId(val);
+                                setPage(1);
+                            }}
+                            options={categoryOptions}
+                            onSearch={setCategorySearchTerm}
+                            onLoadMore={handleLoadMoreCategories}
+                            hasMore={categoryHasMore}
+                            loading={categoryLoading}
+                            placeholder="Danh mục"
+                        />
                     </div>
                 </div>
 

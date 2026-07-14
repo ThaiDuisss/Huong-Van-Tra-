@@ -10,19 +10,20 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 public interface ProductVariantRepository extends JpaRepository<ProductVariant, UUID>,
         JpaSpecificationExecutor<ProductVariant> {
     boolean existsBySku(String sku);
     boolean existsBySkuAndIdNot(String sku, UUID id);
-    java.util.List<ProductVariant> findByProductId(UUID productId);
+    List<ProductVariant> findByProductId(UUID productId);
 
     @Query("""
             select v from ProductVariant v
             join fetch v.product p
             where p.id in :productIds
             """)
-    java.util.List<ProductVariant> findByProductIds(@Param("productIds") Collection<UUID> productIds);
+    List<ProductVariant> findByProductIds(@Param("productIds") Collection<UUID> productIds);
 
     @Query("""
             select new org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse(

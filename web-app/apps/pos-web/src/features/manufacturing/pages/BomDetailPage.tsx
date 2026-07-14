@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { bomApi } from "../services/bom.api";
 import type { BomResponse, BomItemResponse } from "../types/bom.types";
 import { ActionButton } from "../components/shared/ActionButton";
+import { Eye, Check } from "lucide-react";
 
 export function BomDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     
     const [bom, setBom] = useState<BomResponse | null>(null);
+    const [otherVersions, setOtherVersions] = useState<BomResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +21,13 @@ export function BomDetailPage() {
             .then((res: BomResponse) => {
                 setBom(res);
                 setError(null);
+                
+                // Fetch other versions for the same product variant
+                bomApi.list({ productVariantId: res.productVariantId, size: 50 })
+                    .then((page) => {
+                        setOtherVersions(page.content ?? []);
+                    })
+                    .catch((err) => console.error("Error loading other versions", err));
             })
             .catch((err: any) => {
                 console.error("Error loading BOM detail", err);
@@ -53,22 +62,7 @@ export function BomDetailPage() {
         );
     }
 
-    // Format Date Helper
-    function formatDate(dateStr: string | null | undefined) {
-        if (!dateStr) return "N/A";
-        try {
-            const d = new Date(dateStr);
-            return d.toLocaleString("vi-VN", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-            });
-        } catch {
-            return dateStr;
-        }
-    }
+
 
     return (
         <div className="flex flex-col gap-6 p-6">
@@ -122,7 +116,7 @@ export function BomDetailPage() {
                             </div>
 
                             <div className="grid gap-1">
-                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Biến thể sản phẩm</span>
+                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Mặt hàng</span>
                                 <span className="font-semibold text-gray-800">{bom.productName}</span>
                                 <span className="text-xs text-gray-500">Variant: {bom.variantName} (SKU: {bom.variantSku})</span>
                             </div>
@@ -208,73 +202,79 @@ export function BomDetailPage() {
                 </div>
             </div>
 
-            {/* Timeline: Change History */}
+            {/* Other Versions List */}
             <div className="rounded-2xl border border-pos-border bg-white p-6 shadow-sm">
-                <h3 className="mb-6 text-base font-bold text-gray-800">Lịch sử biến động</h3>
-                <div className="flow-root">
-                    <ul className="-mb-8">
-                        {/* Event 1: Tạo BOM */}
-                        <li>
-                            <div className="relative pb-8">
-                                {bom.updatedAt && bom.updatedAt !== bom.createdAt && (
-                                    <span className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true" />
-                                )}
-                                <div className="relative flex space-x-3">
-                                    <div>
-                                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-50 ring-8 ring-white">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-green-600">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-11.25a.75.75 0 0 0-1.5 0v2.5h-2.5a.75.75 0 0 0 0 1.5h2.5v2.5a.75.75 0 0 0 1.5 0v-2.5h2.5a.75.75 0 0 0 0-1.5h-2.5v-2.5Z" clipRule="evenodd" />
-                                            </svg>
-                                        </span>
-                                    </div>
-                                    <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
-                                        <div>
-                                            <p className="text-sm font-bold text-gray-800">
-                                                Khởi tạo công thức (BOM) phiên bản v{bom.version}
-                                            </p>
-                                            <p className="text-xs font-semibold text-gray-500">
-                                                Mã hệ thống ghi nhận: <span className="font-mono text-neutral-600 bg-neutral-100 px-1 rounded">{bom.id}</span>
-                                            </p>
-                                        </div>
-                                        <div className="whitespace-nowrap text-right text-xs font-semibold text-gray-500">
-                                            <time>{formatDate(bom.createdAt)}</time>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </li>
-
-                        {/* Event 2: Cập nhật cuối cùng (nếu updatedAt tồn tại và khác createdAt) */}
-                        {bom.updatedAt && bom.updatedAt !== bom.createdAt && (
-                            <li>
-                                <div className="relative pb-8">
-                                    <div className="relative flex space-x-3">
-                                        <div>
-                                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 ring-8 ring-white">
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-blue-600">
-                                                    <path d="m2.695 14.762-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z" />
-                                                </svg>
-                                            </span>
-                                        </div>
-                                        <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
-                                            <div>
-                                                <p className="text-sm font-bold text-gray-800">
-                                                    Cập nhật thông tin công thức
-                                                </p>
-                                                <p className="text-xs font-semibold text-gray-500">
-                                                    Hệ thống đồng bộ thay đổi định lượng nguyên vật liệu.
-                                                </p>
-                                            </div>
-                                            <div className="whitespace-nowrap text-right text-xs font-semibold text-gray-500">
-                                                <time>{formatDate(bom.updatedAt)}</time>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </li>
-                        )}
-                    </ul>
-                </div>
+                <h3 className="mb-4 text-base font-bold text-gray-800">Các phiên bản khác</h3>
+                {otherVersions.length <= 1 ? (
+                    <p className="text-sm font-medium text-gray-500">Mặt hàng này hiện không có phiên bản công thức nào khác.</p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-gray-500">
+                            <thead className="bg-neutral-50 text-xs font-bold uppercase tracking-wider text-gray-400 border-b border-pos-border">
+                                <tr>
+                                    <th scope="col" className="px-6 py-3">Phiên bản</th>
+                                    <th scope="col" className="px-6 py-3">Mã BOM</th>
+                                    <th scope="col" className="px-6 py-3">Tên công thức</th>
+                                    <th scope="col" className="px-6 py-3">Trạng thái</th>
+                                    <th scope="col" className="px-6 py-3">Mặc định</th>
+                                    <th scope="col" className="px-6 py-3 text-right">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-pos-border font-medium text-gray-700">
+                                {[...otherVersions]
+                                    .sort((a, b) => b.version - a.version)
+                                    .map((v) => {
+                                        const isCurrent = v.id === bom.id;
+                                        return (
+                                            <tr key={v.id} className={`hover:bg-neutral-50 transition-colors ${isCurrent ? "bg-emerald-50/20" : ""}`}>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-bold ${
+                                                        isCurrent ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-800"
+                                                    }`}>
+                                                        v{v.version} {isCurrent && "(Hiện tại)"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 font-semibold text-gray-800">{v.bomCode || "-"}</td>
+                                                <td className="px-6 py-4">{v.name || "Mặc định (Chưa đặt tên)"}</td>
+                                                <td className="px-6 py-4">
+                                                    {v.status === "ACTIVE" ? (
+                                                        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-bold text-green-700 ring-1 ring-inset ring-green-600/20">
+                                                            Đang hoạt động
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700 ring-1 ring-inset ring-red-600/20">
+                                                            Ngừng hoạt động
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {v.isDefault ? (
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                                            <Check size={10} /> Mặc định
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-400 text-xs">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    {isCurrent ? (
+                                                        <span className="text-xs font-bold text-gray-400">Đang xem</span>
+                                                    ) : (
+                                                        <Link
+                                                            to={`/system/manufacturing/boms/${v.id}`}
+                                                            className="inline-flex items-center gap-1 text-xs text-[#07883a] hover:underline font-bold"
+                                                        >
+                                                            <Eye size={12} /> Xem
+                                                        </Link>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         </div>
     );

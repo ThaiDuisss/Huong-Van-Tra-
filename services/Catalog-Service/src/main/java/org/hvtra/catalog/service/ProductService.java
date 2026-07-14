@@ -9,9 +9,13 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
 
+import org.hvtra.catalog.dto.response.LookupResponse;
+import java.util.List;
+
 public interface ProductService {
     PageResponse<ProductSummaryResponse> findAll(
             String name, UUID categoryId, Status status, Pageable pageable);
+    PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     ProductResponse findById(UUID id);
     ProductResponse create(ProductRequest request);
     ProductResponse update(UUID id, ProductRequest request);
@@ -19,6 +23,7 @@ public interface ProductService {
     byte[] exportToExcel();
     void importFromExcel(org.springframework.web.multipart.MultipartFile file);
     byte[] getImportTemplate();
-    java.util.List<ProductResponse> findAllByIds(java.util.List<UUID> ids);
+    List<ProductResponse> findAllByIds(List<UUID> ids);
+    void delete(UUID id);
 }
 

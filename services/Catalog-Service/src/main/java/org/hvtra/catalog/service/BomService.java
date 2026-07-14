@@ -10,10 +10,11 @@ import java.util.UUID;
 
 public interface BomService {
     PageResponse<BomResponse> findAll(
-            UUID productVariantId, UUID productId, String search, Integer version, Status status, Pageable pageable);
+            UUID categoryId, UUID productVariantId, UUID productId, String search, Integer version, Status status, Pageable pageable);
     BomResponse findById(UUID id);
     BomResponse create(BomRequest request);
     BomResponse update(UUID id, BomRequest request);
     BomResponse updateStatus(UUID id, Status status);
+    void delete(UUID id);
 }
 

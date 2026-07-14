@@ -46,15 +46,20 @@ public class BomServiceImpl implements BomService {
 
     @Override
     public PageResponse<BomResponse> findAll(
-            UUID productVariantId, UUID productId, String search, Integer version, Status status, Pageable pageable) {
+            UUID categoryId, UUID productVariantId, UUID productId, String search, Integer version, Status status, Pageable pageable) {
         Specification<Bom> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             
             if (query.getResultType() != Long.class && query.getResultType() != long.class) {
                 root.fetch("productVariant", jakarta.persistence.criteria.JoinType.LEFT)
-                    .fetch("product", jakarta.persistence.criteria.JoinType.LEFT);
+                    .fetch("product", jakarta.persistence.criteria.JoinType.LEFT)
+                    .fetch("category", jakarta.persistence.criteria.JoinType.LEFT);
             }
 
+            if (categoryId != null) {
+                predicates.add(cb.equal(root.get("productVariant").get("product").get("category").get("id"), categoryId));
+            }
             if (productVariantId != null) {
                 predicates.add(cb.equal(root.get("productVariantId"), productVariantId));
             }
@@ -67,7 +72,8 @@ public class BomServiceImpl implements BomService {
                         cb.like(cb.lower(root.get("bomCode")), searchPattern),
                         cb.like(cb.lower(root.get("name")), searchPattern),
                         cb.like(cb.lower(root.get("productVariant").get("sku")), searchPattern),
-                        cb.like(cb.lower(root.get("productVariant").get("variantName")), searchPattern)
+                        cb.like(cb.lower(root.get("productVariant").get("variantName")), searchPattern),
+                        cb.like(cb.lower(root.get("productVariant").get("product").get("name")), searchPattern)
                 ));
             }
             if (version != null) predicates.add(cb.equal(root.get("bomVersion"), version));
@@ -207,6 +213,17 @@ public class BomServiceImpl implements BomService {
 
     private Bom get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("BOM", id));
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        Bom bom = get(id);
+        if (bom.getIsDeleted()) {
+            throw new ResourceNotFoundException("BOM", id);
+        }
+        bom.setIsDeleted(true);
+        repository.save(bom);
     }
 }
 

@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 
 public record BomResponse(
         UUID id,
@@ -21,8 +22,8 @@ public record BomResponse(
         String description,
         LocalDateTime effectiveFrom,
         LocalDateTime effectiveTo,
-        java.time.Instant createdAt,
-        java.time.Instant updatedAt,
+        Instant createdAt,
+        Instant updatedAt,
         List<ItemResponse> items
 ) {
     public record ItemResponse(
