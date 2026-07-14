@@ -37,6 +37,7 @@ public class InventoryBalanceController {
 
     @GetMapping("/store")
     public PageResponse<InventoryBalanceViewResponse> findAllView(
+            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productCode", required = false) String productCode,
             @RequestParam(name = "productName", required = false) String productName,
@@ -46,7 +47,7 @@ public class InventoryBalanceController {
             @RequestParam(name = "locationId", required = false) UUID locationId,
             @RequestParam(name = "branchId", required = false) UUID branchId,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
-        return service.findAllView(sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, pageable);
+        return service.findAllView(keyword, sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, pageable);
     }
 
     @Tag(

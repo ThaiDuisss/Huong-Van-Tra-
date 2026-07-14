@@ -1,9 +1,9 @@
-import { Eye, History, ArrowUpDown, ArrowLeftRight, X, Search, MoreHorizontal } from "lucide-react";
+import { Eye, History, ArrowUpDown, ArrowLeftRight, X, MoreHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
+import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
 import {
     InventoryEmpty,
     InventoryError,
@@ -63,8 +63,7 @@ export function InventoryBalancePage() {
     const [error, setError] = useState<string | null>(null);
 
     // Filter, pagination & sorting states
-    const [skuQuery, setSkuQuery] = useState("");
-    const [productNameQuery, setProductNameQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const [filterUnitId, setFilterUnitId] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
@@ -283,14 +282,13 @@ export function InventoryBalancePage() {
         setLoadingBalances(true);
         setError(null);
         try {
-            const productNameParam = filterProductName || productNameQuery.trim() || undefined;
             const res = await inventoryBalanceApi.view({
                 page: page - 1,
                 size: pageSize,
                 branchId: activeStoreId as any,
                 locationId: activeLocationId ? (activeLocationId as any) : undefined,
-                sku: skuQuery.trim() || undefined,
-                productName: productNameParam,
+                keyword: searchQuery.trim() || undefined,
+                productName: filterProductName || undefined,
                 categoryId: filterCategoryId || undefined,
                 unitId: filterUnitId || undefined
             });
@@ -302,7 +300,7 @@ export function InventoryBalancePage() {
         } finally {
             setLoadingBalances(false);
         }
-    }, [activeStoreId, activeLocationId, page, pageSize, skuQuery, productNameQuery, filterCategoryId, filterUnitId, filterProductName]);
+    }, [activeStoreId, activeLocationId, page, pageSize, searchQuery, filterProductName, filterCategoryId, filterUnitId]);
 
     useEffect(() => {
         loadBalances();
@@ -311,7 +309,7 @@ export function InventoryBalancePage() {
     // Reset page to 1 when filters change
     useEffect(() => {
         setPage(1);
-    }, [skuQuery, productNameQuery, filterCategoryId, filterUnitId, filterStatus]);
+    }, [searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus]);
 
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
@@ -465,26 +463,13 @@ export function InventoryBalancePage() {
             {/* Config & Filters Row */}
             <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
                 <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
-                    {/* Search SKU */}
-                    <div className="relative flex-1 min-w-[150px]">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Tìm theo SKU..."
-                            value={skuQuery}
-                            onChange={(e) => setSkuQuery(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
-                        />
-                    </div>
-                    {/* Search Tên sản phẩm */}
-                    <div className="relative flex-1 min-w-[180px]">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Tìm theo tên sản phẩm..."
-                            value={productNameQuery}
-                            onChange={(e) => setProductNameQuery(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
+                    {/* Search SKU & Tên sản phẩm */}
+                    <div className="relative flex-1 min-w-[240px]">
+                        <SearchBox
+                            value={searchQuery}
+                            placeholder="Tìm theo SKU, tên sản phẩm..."
+                            onChange={setSearchQuery}
+                            className="w-full"
                         />
                     </div>
                     
@@ -551,7 +536,7 @@ export function InventoryBalancePage() {
                 </div>
 
                 {/* Status chips (giữ nguyên như cũ) */}
-                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#f3f5f7] mt-3">
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#f3f5f7] mt-2">
                     <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
                         Trạng thái tồn:
                     </span>
@@ -726,46 +711,104 @@ export function InventoryBalancePage() {
                 {/* Dynamic Details Panel */}
                 {selectedRow ? (
                     <div
-                        className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-5"
+                        className="fixed inset-0 z-50 grid place-items-center bg-[#152a1c]/45 p-6 backdrop-blur-[2px] transition-opacity duration-300"
                         onClick={() => setSelectedRow(null)}
-                        role="presentation"
                     >
-                        <div
+                        <section
+                            aria-label="Chi tiết tồn kho"
                             aria-modal="true"
-                            className="w-full max-w-xl max-h-[85vh] overflow-y-auto"
-                            onClick={(event) => event.stopPropagation()}
+                            className="relative flex max-h-[85vh] w-[min(92vw,960px)] flex-col overflow-hidden rounded-2xl border border-[#dfe8e3] bg-white shadow-[0_28px_90px_rgba(21,43,30,0.24)] max-md:h-[92vh] max-md:w-[calc(100vw-24px)]"
                             role="dialog"
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            <DetailPanel title="Thông tin chi tiết" onClose={() => setSelectedRow(null)}>
-                                {selectedRow["Ảnh sản phẩm"] ? (
-                                    <img
-                                        src={selectedRow["Ảnh sản phẩm"]}
-                                        alt=""
-                                        className="h-40 w-full rounded-2xl object-cover mb-4 border border-pos-border"
-                                    />
-                                ) : null}
+                            <header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-[#e2e9e5] bg-white px-4 py-2.5">
+                                <h2 className="truncate text-base font-black text-[#172317]">
+                                    Chi tiết tồn kho
+                                </h2>
+                                <button
+                                    aria-label="Đóng"
+                                    className="grid size-9 place-items-center rounded-lg text-[#657282] hover:bg-[#eef3f0] hover:text-[#172317] cursor-pointer"
+                                    onClick={() => setSelectedRow(null)}
+                                    type="button"
+                                >
+                                    <X size={20} aria-hidden="true" />
+                                </button>
+                            </header>
 
-                                <dl className="grid gap-3 border-b border-pos-border pb-4 mb-4 text-sm">
-                                    {/* Dynamically render all schema keys (adapts automatically to future schema additions) */}
-                                    {Object.entries(selectedRow)
-                                        .filter(([key]) => !["id", "inventoryItemId", "locationId", "branchId", "Ảnh sản phẩm", "Tồn thực tế", "Tồn giữ chỗ", "Vị trí"].includes(key))
-                                        .map(([key, val]) => (
-                                            <div key={key} className="flex justify-between py-1 border-b border-dashed border-neutral-100 last:border-0">
-                                                <dt className="text-gray-500 font-medium">{key}</dt>
-                                                <dd className="text-gray-900 font-semibold max-w-[200px] truncate text-right">
-                                                    {key === "Ngày cập nhật"
-                                                        ? formatInventoryDate(val)
-                                                        : (key === "Giá nhập" || key === "Giá bán")
-                                                        ? (typeof val === "number" ? `${formatQuantity(val)} đ` : String(val ?? "-"))
-                                                        : typeof val === "number"
-                                                        ? formatQuantity(val)
-                                                        : String(val ?? "-")}
-                                                </dd>
+                            <main className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)] max-md:block max-md:overflow-y-auto">
+                                <aside className="min-h-0 border-r border-[#e2e9e5] bg-white max-md:border-b max-md:border-r-0 overflow-y-auto px-6 py-6 flex flex-col gap-5">
+                                    <div className="flex items-start gap-4 border-b border-[#eef2f0] pb-6">
+                                        {selectedRow["Ảnh sản phẩm"] ? (
+                                            <img
+                                                src={selectedRow["Ảnh sản phẩm"]}
+                                                alt=""
+                                                className="size-16 shrink-0 rounded-xl object-cover border border-pos-border ring-1 ring-[#c9ead2]"
+                                            />
+                                        ) : (
+                                            <span className="grid size-16 shrink-0 place-items-center rounded-full bg-[#eaf8ee] text-2xl font-black text-[#116f28] ring-1 ring-[#c9ead2]">
+                                                {(selectedRow["Tên mặt hàng"] || selectedRow["Tên sản phẩm"] || "T").charAt(0).toUpperCase()}
+                                            </span>
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <strong className="block truncate text-lg font-black text-[#172317]">
+                                                {selectedRow["Tên mặt hàng"] || selectedRow["Tên sản phẩm"]}
+                                            </strong>
+                                            <span className="mt-1 block text-xs font-bold text-[#718078]">
+                                                Mặt hàng tồn kho
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="grid gap-4">
+                                        {selectedRow["SKU"] && (
+                                            <div className="grid gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">SKU</span>
+                                                <span className="text-sm font-semibold text-[#172317]">{selectedRow["SKU"]}</span>
                                             </div>
-                                        ))}
-                                </dl>
-                            </DetailPanel>
-                        </div>
+                                        )}
+                                        {selectedRow["Đơn vị"] && (
+                                            <div className="grid gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Đơn vị</span>
+                                                <span className="text-sm font-semibold text-[#172317]">{selectedRow["Đơn vị"]}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </aside>
+
+                                <section className="flex min-h-0 min-w-0 flex-col overflow-y-auto p-6 bg-slate-50/50">
+                                    <dl className="grid gap-3 text-sm">
+                                        {/* Dynamically render all schema keys */}
+                                        {Object.entries(selectedRow)
+                                            .filter(([key]) => !["id", "inventoryItemId", "locationId", "branchId", "Ảnh sản phẩm", "Tồn thực tế", "Tồn giữ chỗ", "Vị trí", "Tên mặt hàng", "Tên sản phẩm", "SKU", "Đơn vị"].includes(key))
+                                            .map(([key, val]) => (
+                                                <div key={key} className="flex justify-between py-2 border-b border-dashed border-neutral-200 last:border-0">
+                                                    <dt className="text-gray-500 font-bold uppercase text-xs">{key}</dt>
+                                                    <dd className="text-gray-900 font-semibold max-w-[240px] truncate text-right">
+                                                        {key === "Ngày cập nhật"
+                                                            ? formatInventoryDate(val)
+                                                            : (key === "Giá nhập" || key === "Giá bán")
+                                                            ? (typeof val === "number" ? `${formatQuantity(val)} đ` : String(val ?? "-"))
+                                                            : typeof val === "number"
+                                                            ? formatQuantity(val)
+                                                            : String(val ?? "-")}
+                                                    </dd>
+                                                </div>
+                                            ))}
+                                    </dl>
+                                </section>
+                            </main>
+
+                            <footer className="sticky bottom-0 z-20 flex min-h-16 shrink-0 items-center gap-3 border-t border-[#e2e9e5] bg-white px-4 py-3">
+                                <div className="ml-auto flex shrink-0 gap-2">
+                                    <button
+                                        className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-[#dce5e1] bg-white px-5 text-sm font-black text-[#536171] hover:bg-[#f4f8f5] cursor-pointer"
+                                        onClick={() => setSelectedRow(null)}
+                                        type="button"
+                                    >
+                                        Đóng
+                                    </button>
+                                </div>
+                            </footer>
+                        </section>
                     </div>
                 ) : null}
             </div>

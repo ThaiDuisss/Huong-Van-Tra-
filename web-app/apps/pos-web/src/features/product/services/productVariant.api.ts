@@ -8,6 +8,7 @@ import type {
 
 export interface ProductVariantQuery extends CatalogQuery {
     productId?: string;
+    categoryId?: string;
     sku?: string;
     variantName?: string;
 }
@@ -22,6 +23,7 @@ export const productVariantApi = {
                     size: query.size,
                     keyword: query.sku ?? query.keyword,
                     productId: query.productId,
+                    categoryId: query.categoryId,
                     status: query.status
                 }
             }

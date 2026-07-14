@@ -49,9 +49,10 @@ public class ProductVariantController {
             @RequestParam(name = "variantName", required = false) String variantName,
             @RequestParam(name = "barcode", required = false) String barcode,
             @RequestParam(name = "productId", required = false) UUID productId,
+            @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "status", required = false) Status status,
             @PageableDefault(size = 20, sort = "sku") Pageable pageable) {
-        return service.findAll(keyword, sku, variantName, barcode, productId, status, pageable);
+        return service.findAll(keyword, sku, variantName, barcode, productId, categoryId, status, pageable);
     }
 
     @GetMapping("/{id}")
@@ -66,13 +67,14 @@ public class ProductVariantController {
 
     @GetMapping("/search-ids")
     public List<UUID> searchIds(
+            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productCode", required = false) String productCode,
             @RequestParam(name = "productName", required = false) String productName,
             @RequestParam(name = "categoryCode", required = false) String categoryCode,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "unitId", required = false) UUID unitId) {
-        return service.searchVariantIds(sku, productCode, productName, categoryCode, categoryId, unitId);
+        return service.searchVariantIds(keyword, sku, productCode, productName, categoryCode, categoryId, unitId);
     }
 
     @Tag(

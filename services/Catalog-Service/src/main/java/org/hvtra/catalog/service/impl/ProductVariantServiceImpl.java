@@ -76,6 +76,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             String variantName,
             String barcode,
             UUID productId,
+            UUID categoryId,
             Status status,
             Pageable pageable) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
@@ -103,6 +104,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                         "%" + barcode.toLowerCase() + "%"));
             }
             if (productId != null) predicates.add(cb.equal(root.get("product").get("id"), productId));
+            if (categoryId != null) predicates.add(cb.equal(root.get("product").get("category").get("id"), categoryId));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
@@ -521,9 +523,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public List<UUID> searchVariantIds(String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId) {
+    public List<UUID> searchVariantIds(String keyword, String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            if (keyword != null && !keyword.isBlank()) {
+                String pattern = "%" + keyword.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("sku")), pattern),
+                        cb.like(cb.lower(root.get("variantName")), pattern),
+                        cb.like(cb.lower(root.get("product").get("name")), pattern)
+                ));
+            }
             if (sku != null && !sku.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("sku")), "%" + sku.toLowerCase() + "%"));
             }

@@ -13,7 +13,7 @@ import org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse;
 
 public interface ProductVariantService {
     PageResponse<ProductResponse.VariantSummaryResponse> findAll(
-            String keyword, String sku, String variantName, String barcode, UUID productId, Status status, Pageable pageable);
+            String keyword, String sku, String variantName, String barcode, UUID productId, UUID categoryId, Status status, Pageable pageable);
     ProductResponse.VariantResponse findById(UUID id);
     ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request);
     ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request);
@@ -22,7 +22,7 @@ public interface ProductVariantService {
     void importFromExcel(org.springframework.web.multipart.MultipartFile file, UUID productId);
     byte[] getImportTemplate();
     List<ProductResponse.VariantResponse> findAllByIds(List<UUID> ids);
-    List<UUID> searchVariantIds(String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId);
+    List<UUID> searchVariantIds(String keyword, String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId);
     List<ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName);
     ProductVariantSearchViewResponse getPosView(UUID variantId);
     List<ProductVariantProductRefResponse> findRefsByProductIds(List<UUID> productIds);

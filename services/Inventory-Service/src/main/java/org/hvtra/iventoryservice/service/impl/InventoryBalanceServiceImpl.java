@@ -91,6 +91,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
     @Override
     public PageResponse<InventoryBalanceViewResponse> findAllView(
+            String keyword,
             String sku,
             String productCode,
             String productName,
@@ -103,7 +104,8 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
     ) {
         // 1. Resolve variant IDs if catalog filters are active
         List<UUID> matchingVariantIds = null;
-        boolean hasCatalogFilters = (sku != null && !sku.isBlank()) ||
+        boolean hasCatalogFilters = (keyword != null && !keyword.isBlank()) ||
+                                    (sku != null && !sku.isBlank()) ||
                                     (productCode != null && !productCode.isBlank()) ||
                                     (productName != null && !productName.isBlank()) ||
                                     (categoryCode != null && !categoryCode.isBlank()) ||
@@ -111,7 +113,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                                     unitId != null;
 
         if (hasCatalogFilters) {
-            matchingVariantIds = catalogClient.searchVariantIds(sku, productCode, productName, categoryCode, categoryId, unitId);
+            matchingVariantIds = catalogClient.searchVariantIds(keyword, sku, productCode, productName, categoryCode, categoryId, unitId);
             if (matchingVariantIds == null || matchingVariantIds.isEmpty()) {
                 return new PageResponse<>(
                         Collections.emptyList(),
@@ -266,6 +268,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         List<UUID> matchingVariantIds = null;
         if ((sku != null && !sku.isBlank()) || (productName != null && !productName.isBlank())) {
             matchingVariantIds = catalogClient.searchVariantIds(
+                    null,
                     sku != null ? sku.trim() : null,
                     null,
                     productName != null ? productName.trim() : null,

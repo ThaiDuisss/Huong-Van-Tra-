@@ -39,6 +39,7 @@ public interface CatalogClient {
 
     @GetMapping("/api/catalog/product-variants/search-ids")
     List<UUID> searchVariantIds(
+            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productCode", required = false) String productCode,
             @RequestParam(name = "productName", required = false) String productName,
