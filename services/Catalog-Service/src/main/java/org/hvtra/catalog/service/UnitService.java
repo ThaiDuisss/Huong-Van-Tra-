@@ -16,6 +16,7 @@ public interface UnitService {
     PageResponse<UnitResponse> findAll(String name, Status status, UnitType type, Pageable pageable);
     PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     List<UnitResponse> findAll();
+    List<UnitResponse> findBases();
     UnitResponse create(UnitRequest request);
     UnitResponse update(UUID id, UnitRequest request);
     UnitResponse updateStatus(UUID id, Status status);

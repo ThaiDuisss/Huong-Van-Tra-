@@ -210,10 +210,10 @@ export function RawMaterialListPage() {
                         items={[
                             { label: "Mã nguyên liệu", value: item.ingredientCode },
                             { label: "Tên nguyên liệu", value: item.name },
-                            {
-                                label: "Trạng thái",
-                                value: <CatalogStatusBadge status={item.status} />
-                            }
+                            // {
+                            //     label: "Trạng thái",
+                            //     value: <CatalogStatusBadge status={item.status} />
+                            // }
                         ]}
                     />
                 )}

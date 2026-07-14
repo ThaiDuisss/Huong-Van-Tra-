@@ -78,6 +78,13 @@ public class UnitServiceImpl implements UnitService {
     }
 
     @Override
+    public List<UnitResponse> findBases() {
+        return repository.findByBaseUnitIsNullAndIsDeletedFalseAndStatus(Status.ACTIVE).stream()
+                .map(mapper::toResponse)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public UnitResponse create(UnitRequest request) {
         Unit unit = new Unit();

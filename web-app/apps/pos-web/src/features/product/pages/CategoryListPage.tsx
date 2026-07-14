@@ -136,12 +136,12 @@ export function CategoryListPage() {
                             label: "Danh mục cha",
                             value: getParentName(item)
                         },
-                        {
-                            label: "Trạng thái",
-                            value: (
-                                <CatalogStatusBadge status={item.status} />
-                            )
-                        },
+                        // {
+                        //     label: "Trạng thái",
+                        //     value: (
+                        //         <CatalogStatusBadge status={item.status} />
+                        //     )
+                        // },
                         {
                             label: "Tồn kho cảnh báo mặc định",
                             value: item.defaultReorderPoint

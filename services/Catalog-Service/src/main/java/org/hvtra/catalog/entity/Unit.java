@@ -24,15 +24,14 @@ public class Unit extends BaseEntity {
     @Column(name = "precision_scale", nullable = false)
     private Integer precisionScale;
 
-    /**
-     * Phân loại đơn vị: WEIGHT (Khối lượng), VOLUME (Thể tích), COUNT (Đếm).
-     */
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UnitType type = UnitType.COUNT;
 
     /**
-     * Đơn vị gốc mà đơn vị này tham chiếu đến (nếu có).
+     * Đơn vị gốc mà đơn vị đóng gói này tham chiếu đến.
+     * Chỉ có giá trị khi type = PACKAGING.
      * Ví dụ: Đơn vị "Hộp 100g" -> baseUnit = "Gram"
      */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -41,6 +40,7 @@ public class Unit extends BaseEntity {
 
     /**
      * Tỷ lệ quy đổi so với đơn vị gốc.
+     * Chỉ có ý nghĩa khi type = PACKAGING.
      * Ví dụ: 1 Hộp = 100 Gram -> conversionRate = 100.0000
      */
     @Column(name = "conversion_rate", nullable = false, precision = 18, scale = 4)

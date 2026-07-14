@@ -66,7 +66,7 @@ export function FormDialog({
 
                     onSubmit(values);
                 }}
-                className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-pos-panel"
+                className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-pos-panel"
             >
                 <header className="mb-5 flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-600">
@@ -81,7 +81,7 @@ export function FormDialog({
                         <X size={20} />
                     </button>
                 </header>
-                <div className="grid gap-4">
+                <div className="grid grid-cols-2 gap-4">
                     {fields.map((field) => {
                         const isFieldHidden = typeof field.hidden === "function"
                             ? field.hidden(formValues)
@@ -99,7 +99,7 @@ export function FormDialog({
                             return (
                                 <label
                                     key={field.name}
-                                    className={`flex items-center gap-3 py-1 cursor-pointer text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                                    className={`flex items-center gap-3 py-1 cursor-pointer text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""} col-span-2`}
                                 >
                                     <input
                                         type="checkbox"
@@ -135,7 +135,9 @@ export function FormDialog({
                         return (
                             <label
                                 key={field.name}
-                                className={`grid gap-2 text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                                className={`grid gap-2 text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""} ${
+                                    field.type === "textarea" || field.type === "file" ? "col-span-2" : ""
+                                }`}
                             >
                                 <span>
                                     {field.label}

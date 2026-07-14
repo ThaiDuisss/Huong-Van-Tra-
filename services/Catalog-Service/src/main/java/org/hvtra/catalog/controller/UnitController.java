@@ -35,6 +35,11 @@ public class UnitController {
         return service.findAll(name, status, type, pageable);
     }
 
+    @GetMapping("/bases")
+    public List<UnitResponse> findBases() {
+        return service.findBases();
+    }
+
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,

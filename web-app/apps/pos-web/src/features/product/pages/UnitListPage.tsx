@@ -27,15 +27,21 @@ export function UnitListPage() {
             }),
         [state.page, state.pageSize, state.query, state.status, state.secondaryValue]
     );
-    // Load all units for baseUnit select (only BASE units should be selectable)
     const loadAllUnits = useCallback(() => unitApi.list({ page: 0, size: 500 }), []);
+    const loadBaseUnits = useCallback(() => unitApi.listBases(), []);
     const resource = usePagedApiResource(loadUnits);
     const allUnitsResource = useApiResource(loadAllUnits);
+    const baseUnitsResource = useApiResource(loadBaseUnits);
+
     const units = resource.data?.content ?? [];
     const allUnits = allUnitsResource.data?.content ?? [];
-    const baseUnitOptions = allUnits.filter(
-        (u) => u.status === "ACTIVE"
-    );
+    const baseUnitOptions = baseUnitsResource.data ?? [];
+
+    const handleRefresh = useCallback(() => {
+        resource.refresh();
+        allUnitsResource.refresh();
+        baseUnitsResource.refresh();
+    }, [resource, allUnitsResource, baseUnitsResource]);
 
     async function submit(values: FormValues, editingItem: Unit | null) {
         const isBase = getString(values, "isBaseUnit") === "true";
@@ -80,7 +86,7 @@ export function UnitListPage() {
             onStatusChange={state.setStatus}
             onPageChange={state.setPage}
             onPageSizeChange={state.setPageSize}
-            onRefresh={resource.refresh}
+            onRefresh={handleRefresh}
             onSubmit={submit}
             onDelete={handleDelete}
             onChangeStatus={(item) =>
@@ -193,10 +199,10 @@ export function UnitListPage() {
                                 label: "Độ chính xác thập phân",
                                 value: `${item.precisionScale} chữ số`
                             },
-                            {
-                                label: "Trạng thái",
-                                value: <CatalogStatusBadge status={item.status} />
-                            }
+                            // {
+                            //     label: "Trạng thái",
+                            //     value: <CatalogStatusBadge status={item.status} />
+                            // }
                         ]}
                     />
                 );
