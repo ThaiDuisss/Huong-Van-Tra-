@@ -7,16 +7,18 @@ import { routePaths } from "../../../routes/path";
 import { PageHeader } from "../components/shared/PageHeader";
 import { Pagination } from "../components/shared/Pagination";
 import { SearchBox } from "../components/shared/SearchBox";
+import { SearchableDropdown } from "../components/shared/SearchableDropdown";
 import { BomTable } from "../components/bom/BomTable";
+import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 
 import { bomApi } from "../services/bom.api";
 import { ingredientApi } from "../../product/services/ingredient.api";
 import { productVariantApi } from "../../product/services/productVariant.api";
-import { productApi } from "../../product/services/product.api";
 import { unitApi } from "../../product/services/unit.api";
+import { categoryApi } from "../../product/services/category.api";
 
-import type { BomResponse, BomItemInput, BomStatus } from "../types/bom.types";
-import type { Ingredient, ProductVariant, Unit, ProductSummary } from "../../product/types/product.types";
+import type { BomResponse, BomItemInput, BomStatus, LookupItem } from "../types/bom.types";
+import type { Ingredient, ProductVariant, Unit } from "../../product/types/product.types";
 import { usePagedApiResource } from "../../product/hooks/useApiResource";
 import { useCatalogPageState } from "../../product/hooks/useCatalogPageState";
 
@@ -27,7 +29,6 @@ export function BomListPage() {
 
     // Dropdown list resources
     const [variants, setVariants] = useState<ProductVariant[]>([]);
-    const [products, setProducts] = useState<ProductSummary[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     const [units, setUnits] = useState<Unit[]>([]);
 
@@ -49,8 +50,21 @@ export function BomListPage() {
     const [formSubmitting, setFormSubmitting] = useState(false);
 
     // Filters extra state (BOM specific filters)
-    const [filterProductId, setFilterProductId] = useState("ALL");
-    const [filterVariantId, setFilterVariantId] = useState("ALL");
+    const [filterCategoryId, setFilterCategoryId] = useState("");
+    const [filterVersion, setFilterVersion] = useState("");
+
+    // Delete state
+    const [deletingBom, setDeletingBom] = useState<BomResponse | null>(null);
+    const [deleteError, setDeleteError] = useState("");
+    const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+    const [toast, setToast] = useState("");
+    
+    // Searchable dropdown states for Category
+    const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
+    const [categoryPage, setCategoryPage] = useState(0);
+    const [categoryHasMore, setCategoryHasMore] = useState(true);
+    const [categoryLoading, setCategoryLoading] = useState(false);
+    const [categorySearchTerm, setCategorySearchTerm] = useState("");
 
     // Load main BOMs table paged resource
     const loadBoms = useCallback(
@@ -59,8 +73,8 @@ export function BomListPage() {
                 page: pageState.page - 1,
                 size: pageState.pageSize,
                 search: pageState.query || undefined,
-                productId: filterProductId === "ALL" ? undefined : filterProductId,
-                productVariantId: filterVariantId === "ALL" ? undefined : filterVariantId,
+                categoryId: filterCategoryId || undefined,
+                version: filterVersion ? Number(filterVersion) : undefined,
                 status: pageState.status === "ALL" ? undefined : pageState.status
             }),
         [
@@ -68,13 +82,42 @@ export function BomListPage() {
             pageState.pageSize,
             pageState.query,
             pageState.status,
-            filterProductId,
-            filterVariantId
+            filterCategoryId,
+            filterVersion
         ]
     );
 
     const resource = usePagedApiResource(loadBoms);
     const boms = resource.data?.content ?? [];
+    
+    // Fetch category options with infinite scroll
+    const loadCategoryOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setCategoryLoading(true);
+            const res = await categoryApi.lookup(search, page, 20);
+            setCategoryOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setCategoryHasMore(!res.last);
+        } catch (err) {
+            console.error("Error loading categories", err);
+            setCategoryHasMore(false);
+        } finally {
+            setCategoryLoading(false);
+        }
+    }, []);
+
+    // Initial load and search change for categories
+    useEffect(() => {
+        setCategoryPage(0);
+        loadCategoryOptions(categorySearchTerm, 0);
+    }, [categorySearchTerm, loadCategoryOptions]);
+
+    const handleLoadMoreCategories = useCallback(() => {
+        if (!categoryLoading && categoryHasMore) {
+            const nextPage = categoryPage + 1;
+            setCategoryPage(nextPage);
+            loadCategoryOptions(categorySearchTerm, nextPage);
+        }
+    }, [categoryLoading, categoryHasMore, categoryPage, categorySearchTerm, loadCategoryOptions]);
 
     // Load active dropdown options once
     useEffect(() => {
@@ -82,11 +125,6 @@ export function BomListPage() {
         productVariantApi.list({ size: 1000, status: "ACTIVE" }).then((res) => {
             setVariants(res.content ?? []);
         }).catch(err => console.error("Error loading variants", err));
-
-        // Load products
-        productApi.list({ size: 1000, status: "ACTIVE" }).then((res) => {
-            setProducts(res.content ?? []);
-        }).catch(err => console.error("Error loading products", err));
 
         // Load ingredients
         ingredientApi.list({ size: 1000, status: "ACTIVE" }).then((res) => {
@@ -98,9 +136,13 @@ export function BomListPage() {
         }).catch(err => console.error("Error loading units", err));
     }, []);
 
-    // Listen to redirect state to trigger edit mode
+    // Listen to redirect state or query params to trigger edit mode or create mode
     useEffect(() => {
-        const state = location.state as { editBomId?: string } | null;
+        const searchParams = new URLSearchParams(location.search);
+        const createBomParam = searchParams.get("create");
+        const variantIdParam = searchParams.get("variantId");
+        const state = location.state as { editBomId?: string; createBom?: boolean; variantId?: string } | null;
+
         if (state?.editBomId) {
             bomApi.detail(state.editBomId)
                 .then((res) => {
@@ -110,8 +152,17 @@ export function BomListPage() {
 
             // Clean state to avoid re-triggering on subsequent navigation actions
             window.history.replaceState({}, document.title);
+        } else if (state?.createBom || createBomParam === "true") {
+            const targetVariantId = state?.variantId || variantIdParam;
+            handleCreate();
+            if (targetVariantId) {
+                setFormVariantId(targetVariantId);
+            }
+            // Clean state and search query to avoid re-triggering
+            window.history.replaceState({}, document.title);
+            navigate(location.pathname, { replace: true });
         }
-    }, [location.state]);
+    }, [location.state, location.search, navigate]);
 
 
     // Handle trigger open Form dialog for Create
@@ -283,7 +334,7 @@ export function BomListPage() {
                     <div className="relative flex-1">
                         <SearchBox
                             value={pageState.query}
-                            placeholder="Tìm theo tên BOM, mã, SKU..."
+                            placeholder="Tìm theo tên BOM, mã, tên sản phẩm, mặt hàng, SKU..."
                             onChange={(value) => {
                                 pageState.setQuery(value);
                             }}
@@ -291,39 +342,30 @@ export function BomListPage() {
                         />
                     </div>
                     <div className="flex flex-wrap gap-3 items-center">
-                        <select
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[180px]"
-                            value={filterProductId}
-                            onChange={(e) => {
-                                setFilterProductId(e.target.value);
-                                setFilterVariantId("ALL");
+                        <SearchableDropdown
+                            value={filterCategoryId}
+                            onChange={(val) => {
+                                setFilterCategoryId(val);
                                 pageState.setPage(1);
                             }}
-                        >
-                            <option value="ALL">Tất cả sản phẩm</option>
-                            {products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[180px]"
-                            value={filterVariantId}
+                            options={categoryOptions}
+                            onSearch={setCategorySearchTerm}
+                            onLoadMore={handleLoadMoreCategories}
+                            hasMore={categoryHasMore}
+                            loading={categoryLoading}
+                            placeholder="Chọn danh mục"
+                        />
+                        <input
+                            type="number"
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] min-w-[120px]"
+                            placeholder="Phiên bản..."
+                            value={filterVersion}
                             onChange={(e) => {
-                                setFilterVariantId(e.target.value);
+                                setFilterVersion(e.target.value);
                                 pageState.setPage(1);
                             }}
-                        >
-                            <option value="ALL">Tất cả Mặt hàng</option>
-                            {variants
-                                .filter((v) => filterProductId === "ALL" || String(v.productId) === filterProductId)
-                                .map((v) => (
-                                    <option key={v.id} value={v.id}>
-                                        {v.variantName}
-                                    </option>
-                                ))}
-                        </select>
+                            min="1"
+                        />
                     </div>
                 </div>
 
@@ -375,6 +417,7 @@ export function BomListPage() {
                                  onRowClick={(item) => navigate(routePaths.bomDetail.replace(":id", item.id))}
                                  onEdit={handleEdit}
                                  onToggleStatus={handleToggleStatus}
+                                 onDelete={setDeletingBom}
                              />
                         )}
                     </div>
@@ -614,6 +657,39 @@ export function BomListPage() {
                             </button>
                         </footer>
                     </form>
+                </div>
+            )}
+
+            {deletingBom && (
+                <ConfirmDialog
+                    error={deleteError}
+                    submitting={deleteSubmitting}
+                    onCancel={() => setDeletingBom(null)}
+                    onConfirm={async () => {
+                        setDeleteError("");
+                        setDeleteSubmitting(true);
+                        try {
+                            await bomApi.delete(deletingBom.id);
+                            setToast("Xóa công thức thành công!");
+                            setDeletingBom(null);
+                            resource.refresh();
+                            window.setTimeout(() => setToast(""), 2500);
+                        } catch (err: any) {
+                            setDeleteError(err?.message || "Không thể xóa công thức này.");
+                        } finally {
+                            setDeleteSubmitting(false);
+                        }
+                    }}
+                    title="Xác nhận xóa công thức"
+                    description={`Bạn có chắc chắn muốn xóa công thức "${deletingBom.name}"? Hành động này sẽ thực hiện xóa mềm khỏi hệ thống.`}
+                    confirmLabel="Xóa"
+                    confirmVariant="danger"
+                />
+            )}
+
+            {toast && (
+                <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-hvt-green-900 px-5 py-3 text-sm font-bold text-white shadow-pos-panel">
+                    {toast}
                 </div>
             )}
         </section>

@@ -7,6 +7,7 @@ import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
+import java.util.List;
 
 public interface InventoryBalanceService {
     PageResponse<InventoryBalanceResponse> findAll(
@@ -24,7 +25,7 @@ public interface InventoryBalanceService {
             UUID branchId,
             Pageable pageable
     );
-    java.util.List<InventoryBalanceWarehouseResponse> findWarehouseBalances(
+    List<InventoryBalanceWarehouseResponse> findWarehouseBalances(
             String sku,
             String productName
     );

@@ -15,6 +15,12 @@ export const inventoryLocationApi = {
             { query }
         );
     },
+    lookup(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResponse<{ id: string; name: string }>>(
+            "/inventory/inventory-locations/store/lookup",
+            { query: { search, page, size } }
+        );
+    },
     detail(id: EntityId) {
         return apiClient.get<InventoryLocationResponse>(
             `/inventory/inventory-locations/${id}`

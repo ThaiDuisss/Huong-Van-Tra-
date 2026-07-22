@@ -17,6 +17,14 @@ export const unitApi = {
     listAll() {
         return apiClient.get<Unit[]>("/catalog/units");
     },
+    listBases() {
+        return apiClient.get<Unit[]>("/catalog/units/bases");
+    },
+    lookup(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/units/lookup", {
+            query: { search, page, size }
+        });
+    },
     detail(id: string) {
         return apiClient.get<Unit>(`/catalog/units/${encodeURIComponent(id)}`);
     },
@@ -34,5 +42,8 @@ export const unitApi = {
             `/catalog/units/${encodeURIComponent(id)}/status`,
             { status }
         );
+    },
+    delete(id: string) {
+        return apiClient.delete<void>(`/catalog/units/${encodeURIComponent(id)}`);
     }
 };

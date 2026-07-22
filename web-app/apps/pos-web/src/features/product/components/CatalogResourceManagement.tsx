@@ -4,13 +4,14 @@ import {
     Pencil,
     Plus,
     ToggleLeft,
-    MoreHorizontal
+    MoreHorizontal,
+    Trash2,
+    X
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
-import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
 import { ApiErrorState, ApiLoadingState } from "./ApiState";
@@ -39,11 +40,13 @@ export type FormValues = Record<string, string | File>;
 export interface FormField {
     name: string;
     label: string;
-    type?: "text" | "textarea" | "number" | "date" | "select" | "file";
-    required?: boolean;
+    type?: "text" | "textarea" | "number" | "date" | "select" | "file" | "checkbox";
+    required?: boolean | ((values: FormValues) => boolean);
     options?: Array<{ label: string; value: string }>;
     placeholder?: string;
     purpose?: string;
+    disabled?: boolean | ((values: FormValues) => boolean);
+    hidden?: boolean | ((values: FormValues) => boolean);
 }
 
 export interface CatalogFilter {
@@ -90,6 +93,8 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     extraHeaderActions?: ReactNode;
     totalItemsLabel?: string;
     filters?: CatalogFilter[];
+    renderExtraRowActions?(item: T, closeMenu: () => void): ReactNode;
+    onDelete?(item: T): Promise<void>;
 }
 
 export function CatalogResourceManagement<T extends RowBase, S extends string = string>({
@@ -123,10 +128,14 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     statusOptions,
     extraHeaderActions,
     totalItemsLabel,
-    filters
+    filters,
+    renderExtraRowActions,
+    onDelete
 }: CatalogResourceManagementProps<T, S>) {
+    const navigate = useNavigate();
     const [selectedItem, setSelectedItem] = useState<T | null>(null);
     const [editingItem, setEditingItem] = useState<T | null>(null);
+    const [deletingItem, setDeletingItem] = useState<T | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [statusTarget, setStatusTarget] = useState<T | null>(null);
     const [toast, setToast] = useState("");
@@ -376,7 +385,13 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                             return (
                                                 <tr
                                                     key={item.id}
-                                                    onClick={() => setSelectedItem(item)}
+                                                    onClick={() => {
+                                                        if (detailPath) {
+                                                            navigate(detailPath(item));
+                                                        } else {
+                                                            setSelectedItem(item);
+                                                        }
+                                                    }}
                                                     className={`cursor-pointer hover:bg-neutral-50 transition-all ${rowBgClass}`}
                                                 >
                                                     {renderCells(item)}
@@ -440,6 +455,20 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                                                 Đổi trạng thái
                                                                             </button>
                                                                         )}
+                                                                        {onDelete && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setDeletingItem(item);
+                                                                                    setActiveActionMenuId(null);
+                                                                                }}
+                                                                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors cursor-pointer"
+                                                                            >
+                                                                                <Trash2 size={14} />
+                                                                                Xóa
+                                                                            </button>
+                                                                        )}
+                                                                        {renderExtraRowActions && renderExtraRowActions(item, () => setActiveActionMenuId(null))}
                                                                     </div>
                                                                 </>
                                                             )}
@@ -467,24 +496,109 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 </section>
 
                 {selectedItem ? (
-                    <div
-                        className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-5"
-                        onClick={() => setSelectedItem(null)}
-                        role="presentation"
-                    >
-                        <div
+                    <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4" role="presentation">
+                        <button
+                            aria-label={`Đóng chi tiết ${title}`}
+                            className="absolute inset-0 cursor-default bg-[#101a14]/45 backdrop-blur-[2px]"
+                            onClick={() => setSelectedItem(null)}
+                            type="button"
+                        />
+                        <section
+                            aria-label={`Chi tiết ${title}`}
                             aria-modal="true"
-                            className="w-full max-w-xl max-h-[85vh] overflow-y-auto"
-                            onClick={(event) => event.stopPropagation()}
+                            className="relative flex max-h-[85vh] w-[min(92vw,960px)] flex-col overflow-hidden rounded-2xl border border-[#dfe8e3] bg-white shadow-[0_28px_90px_rgba(21,43,30,0.24)] max-md:h-[92vh] max-md:w-[calc(100vw-24px)]"
                             role="dialog"
                         >
-                            <DetailPanel
-                                title={`Chi tiết ${title.toLowerCase()}`}
-                                onClose={() => setSelectedItem(null)}
-                            >
-                                {renderDetail(selectedItem)}
-                            </DetailPanel>
-                        </div>
+                            <header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-[#e2e9e5] bg-white px-4 py-2.5">
+                                <h2 className="truncate text-base font-black text-[#172317]">
+                                    Chi tiết {title.toLowerCase()}
+                                </h2>
+                                <button
+                                    aria-label="Đóng"
+                                    className="grid size-9 place-items-center rounded-lg text-[#657282] hover:bg-[#eef3f0] hover:text-[#172317] cursor-pointer"
+                                    onClick={() => setSelectedItem(null)}
+                                    type="button"
+                                >
+                                    <X size={20} aria-hidden="true" />
+                                </button>
+                            </header>
+
+                            <main className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)] max-md:block max-md:overflow-y-auto">
+                                <aside className="min-h-0 border-r border-[#e2e9e5] bg-white max-md:border-b max-md:border-r-0 overflow-y-auto px-6 py-6">
+                                    <div className="flex items-start gap-4 border-b border-[#eef2f0] pb-6">
+                                        <span className="grid size-16 shrink-0 place-items-center rounded-full bg-[#eaf8ee] text-2xl font-black text-[#116f28] ring-1 ring-[#c9ead2]">
+                                            {((selectedItem as any).name || (selectedItem as any).variantName || title).charAt(0).toUpperCase()}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <strong className="block truncate text-lg font-black text-[#172317]">
+                                                {(selectedItem as any).name || (selectedItem as any).variantName || title}
+                                            </strong>
+                                            <span className="mt-1 block text-xs font-bold text-[#718078]">
+                                                {title}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-6 grid gap-4">
+                                        {((selectedItem as any).symbol || (selectedItem as any).code) && (
+                                            <div className="grid gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Kí hiệu / Mã</span>
+                                                <span className="text-sm font-semibold text-[#172317]">{(selectedItem as any).symbol || (selectedItem as any).code}</span>
+                                            </div>
+                                        )}
+                                        {(selectedItem as any).status && (
+                                            <div className="grid gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Trạng thái</span>
+                                                <div>
+                                                    <CatalogStatusBadge status={(selectedItem as any).status} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </aside>
+
+                                <section className="flex min-h-0 min-w-0 flex-col overflow-y-auto p-6 bg-slate-50/50">
+                                    {renderDetail(selectedItem)}
+                                </section>
+                            </main>
+
+                            <footer className="sticky bottom-0 z-20 flex min-h-16 shrink-0 items-center gap-3 border-t border-[#e2e9e5] bg-white px-4 py-3">
+                                {onDelete && (
+                                    <button
+                                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#efc9c2] bg-white px-4 text-sm font-black text-[#c4422e] hover:bg-[#fff5f3] cursor-pointer"
+                                        onClick={() => {
+                                            setDeletingItem(selectedItem);
+                                            setSelectedItem(null);
+                                        }}
+                                        type="button"
+                                    >
+                                        <Trash2 size={16} aria-hidden="true" />
+                                        Xóa
+                                    </button>
+                                )}
+                                <div className="ml-auto flex shrink-0 gap-2">
+                                    <button
+                                        className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-[#dce5e1] bg-white px-4 text-sm font-black text-[#536171] hover:bg-[#f4f8f5] cursor-pointer"
+                                        onClick={() => setSelectedItem(null)}
+                                        type="button"
+                                    >
+                                        Đóng
+                                    </button>
+                                    <button
+                                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-sm hover:bg-[#12862d] cursor-pointer"
+                                        onClick={() => {
+                                            setEditingItem(selectedItem);
+                                            setActionError("");
+                                            setShowForm(true);
+                                            setSelectedItem(null);
+                                        }}
+                                        type="button"
+                                    >
+                                        <Pencil size={16} aria-hidden="true" />
+                                        Chỉnh sửa
+                                    </button>
+                                </div>
+                            </footer>
+                        </section>
                     </div>
                 ) : null}
             </div>
@@ -514,6 +628,33 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                     submitting={submitting}
                     onCancel={() => setStatusTarget(null)}
                     onConfirm={confirmStatusChange}
+                />
+            ) : null}
+
+            {deletingItem ? (
+                <ConfirmDialog
+                    error={actionError}
+                    submitting={submitting}
+                    onCancel={() => setDeletingItem(null)}
+                    onConfirm={async () => {
+                        if (!onDelete) return;
+                        setActionError("");
+                        setSubmitting(true);
+                        try {
+                            await onDelete(deletingItem);
+                            setToast("Xóa thành công!");
+                            setDeletingItem(null);
+                            onRefresh();
+                        } catch (err: any) {
+                            setActionError(err?.message || "Không thể xóa mục này.");
+                        } finally {
+                            setSubmitting(false);
+                        }
+                    }}
+                    title="Xác nhận xóa"
+                    description={`Bạn có chắc chắn muốn xóa "${(deletingItem as any).name || (deletingItem as any).title || "mục này"}"? Hành động này sẽ thực hiện xóa mềm khỏi hệ thống.`}
+                    confirmLabel="Xóa"
+                    confirmVariant="danger"
                 />
             ) : null}
 

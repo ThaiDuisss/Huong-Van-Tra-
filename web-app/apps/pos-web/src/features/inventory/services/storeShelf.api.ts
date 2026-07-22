@@ -45,5 +45,8 @@ export const storeShelfApi = {
             `/inventory/inventory-locations/store/${id}/status`,
             { status }
         );
+    },
+    delete(id: EntityId) {
+        return apiClient.delete<void>(`/inventory/inventory-locations/store/${id}`);
     }
 };

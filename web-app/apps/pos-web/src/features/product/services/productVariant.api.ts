@@ -20,8 +20,7 @@ export const productVariantApi = {
                 query: {
                     page: query.page,
                     size: query.size,
-                    sku: query.sku ?? query.keyword,
-                    variantName: query.variantName,
+                    keyword: query.sku ?? query.keyword,
                     productId: query.productId,
                     status: query.status
                 }
@@ -98,5 +97,8 @@ export const productVariantApi = {
     },
     downloadTemplate() {
         return apiClient.download("/catalog/product-variants/import/template");
+    },
+    delete(id: string) {
+        return apiClient.delete<void>(`/catalog/product-variants/${encodeURIComponent(id)}`);
     }
 };

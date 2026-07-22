@@ -1,10 +1,11 @@
-import { Eye, Pencil, Plus, ToggleLeft, X, Search, MoreHorizontal } from "lucide-react";
+import { Eye, Pencil, Plus, ToggleLeft, X, Search, MoreHorizontal, Trash2 } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
 import { PageHeader } from "../../manufacturing/components/shared/PageHeader";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
+import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 
 import { InventoryStatusBadge } from "../components/InventoryBadges";
 import {
@@ -36,6 +37,8 @@ export function ShelfManagementPage() {
     const [actionError, setActionError] = useState("");
     const [toast, setToast] = useState("");
     const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState<InventoryLocationResponse | null>(null);
+    const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
     const load = useCallback(
         () =>
@@ -228,6 +231,14 @@ export function ShelfManagementPage() {
                                                                         <ToggleLeft size={14} />
                                                                         Đổi trạng thái
                                                                     </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setDeleting(item); setActiveActionMenuId(null); }}
+                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors cursor-pointer border-t border-pos-border mt-1 pt-2"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                        Xóa kệ
+                                                                    </button>
                                                                 </div>
                                                             </>
                                                         )}
@@ -303,6 +314,33 @@ export function ShelfManagementPage() {
                     {toast}
                 </div>
             ) : null}
+
+            {deleting && (
+                <ConfirmDialog
+                    error={actionError}
+                    submitting={deleteSubmitting}
+                    onCancel={() => setDeleting(null)}
+                    onConfirm={async () => {
+                        setActionError("");
+                        setDeleteSubmitting(true);
+                        try {
+                            await storeShelfApi.delete(deleting.id);
+                            setToast("Xóa kệ thành công!");
+                            setDeleting(null);
+                            resource.refresh();
+                            window.setTimeout(() => setToast(""), 2500);
+                        } catch (err: any) {
+                            setActionError(err?.message || "Không thể xóa kệ này.");
+                        } finally {
+                            setDeleteSubmitting(false);
+                        }
+                    }}
+                    title="Xác nhận xóa kệ"
+                    description={`Bạn có chắc chắn muốn xóa kệ "${deleting.name}"? Hành động này sẽ thực hiện xóa mềm khỏi hệ thống.`}
+                    confirmLabel="Xóa"
+                    confirmVariant="danger"
+                />
+            )}
         </section>
     );
 }

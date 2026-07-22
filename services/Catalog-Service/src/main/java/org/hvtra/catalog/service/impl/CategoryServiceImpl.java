@@ -4,6 +4,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.hvtra.catalog.dto.request.CategoryRequest;
 import org.hvtra.catalog.dto.response.CategoryResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
@@ -19,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.Collections;
+import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
@@ -37,6 +40,7 @@ public class CategoryServiceImpl implements CategoryService {
     public PageResponse<CategoryResponse> findAll(String name, Status status, Pageable pageable) {
         Specification<Category> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
             if (name != null && !name.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
             }
@@ -133,13 +137,29 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public java.util.List<CategoryResponse> findAllByIds(java.util.List<UUID> ids) {
+    public List<CategoryResponse> findAllByIds(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
         return repository.findAllById(ids).stream()
                 .map(mapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
+        return PageResponse.from(repository.findLookup(search, pageable));
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        Category category = get(id);
+        if (category.getIsDeleted()) {
+            throw new ResourceNotFoundException("Category", id);
+        }
+        category.setIsDeleted(true);
+        repository.save(category);
     }
 }
 
