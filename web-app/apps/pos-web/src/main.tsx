@@ -1,31 +1,35 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 
-import { keycloak } from "./auth/keycloak";
 import App from "./App";
+import { initKeycloak } from "./auth/keycloak";
+import { AuthProvider } from "./auth/AuthProvider";
 
 async function bootstrap(): Promise<void> {
+  const rootElement = document.getElementById("root");
+
+  if (!rootElement) {
+    throw new Error("Không tìm thấy element #root");
+  }
+
   try {
-    await keycloak.init({
-      onLoad: "login-required",
-      flow: "standard",
-      pkceMethod: "S256",
+    await initKeycloak();
 
-      // Quan trọng: tắt iframe check để tránh lỗi:
-      // Timeout when waiting for 3rd party check iframe message
-      checkLoginIframe: false,
-    });
-
-    createRoot(document.getElementById("root")!).render(
+    createRoot(rootElement).render(
       <StrictMode>
-        <App />
+        <AuthProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AuthProvider>
       </StrictMode>
     );
   } catch (error) {
     console.error("Không thể khởi tạo Keycloak", error);
 
-    document.body.innerHTML = `
-      <main>
+    rootElement.innerHTML = `
+      <main style="padding: 24px">
         <h1>Không thể kết nối hệ thống đăng nhập</h1>
         <p>Vui lòng thử tải lại trang.</p>
       </main>

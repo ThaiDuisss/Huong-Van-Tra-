@@ -1,7 +1,7 @@
 package org.hvtra.promotionservice.service;
 
 import org.hvtra.promotionservice.dto.request.promotion.PromotionCreateRequest;
-import org.hvtra.promotionservice.dto.request.promotion.PromotionStatusUpdateRequest;
+import org.hvtra.promotionservice.dto.request.promotion.PromotionFilterRequest;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionUpdateRequest;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.dto.response.PromotionResponse;
@@ -16,9 +16,9 @@ public interface PromotionService {
 
     PromotionResponse getPromotionById(UUID promotionId);
 
-    PageResponse<PromotionResponse> getAllPromotions(int page, int size);
+    PageResponse<PromotionResponse> getPromotions(PromotionFilterRequest request, int page, int size);
 
-    PageResponse<PromotionResponse> getPromotionsByEvent(UUID eventId, int page, int size);
+    PageResponse<PromotionResponse> getPromotionsByEvent(UUID eventId, PromotionFilterRequest request, int page, int size);
 
     PromotionResponse updatePromotion(UUID promotionId, PromotionUpdateRequest request);
 
@@ -35,6 +35,8 @@ public interface PromotionService {
     PromotionResponse cancelPromotion(UUID promotionId);
 
     PromotionResponse expirePromotion(UUID promotionId);
+
+    PromotionResponse endPromotion(UUID promotionId);
 
     PromotionResponse duplicatePromotion(UUID promotionId);
 }

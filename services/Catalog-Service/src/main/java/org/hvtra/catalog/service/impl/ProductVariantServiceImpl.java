@@ -642,7 +642,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         if (variantIds == null || variantIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        try {
+
             Map<UUID, InventoryClient.StockVariantBatchResponse> a   = inventoryClient.getStocksByVariantIds(new InventoryClient.StockVariantBatchRequest(variantIds)).stream()
                     .collect(Collectors.toMap(
                             InventoryClient.StockVariantBatchResponse::variantId,
@@ -651,9 +651,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             log.info("Loaded {} variant stocks", a);
 
             return a;
-        } catch (FeignClientException | FeignException exception) {
-            throw new InventoryServiceUnavailableException("Inventory service is temporarily unavailable", exception);
-        }
+
     }
 
     private ProductVariantSearchViewResponse toPosSearchView(

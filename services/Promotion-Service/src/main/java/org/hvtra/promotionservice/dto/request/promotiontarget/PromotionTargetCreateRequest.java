@@ -24,7 +24,7 @@ public class PromotionTargetCreateRequest {
     @Schema(
             description = "Loại đối tượng áp dụng khuyến mãi",
             example = "PRODUCT",
-            allowableValues = {"PRODUCT", "CATEGORY", "BRAND"}
+            implementation = PromotionTargetType.class
     )
     @NotNull(message = "Promotion target type is required")
     PromotionTargetType targetType;
@@ -51,13 +51,7 @@ public class PromotionTargetCreateRequest {
     @Schema(
             description = "Loại quyền lợi override riêng cho target này",
             example = "PERCENT_DISCOUNT",
-            allowableValues = {
-                    "PERCENT_DISCOUNT",
-                    "FIXED_DISCOUNT",
-                    "FREE_SHIPPING",
-                    "FREE_PRODUCT",
-                    "BUY_X_GET_Y"
-            }
+            implementation = BenefitType.class
     )
     BenefitType overrideBenefitType;
 

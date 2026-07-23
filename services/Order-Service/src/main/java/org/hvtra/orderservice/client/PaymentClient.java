@@ -18,7 +18,7 @@ public interface PaymentClient {
     PaymentOrderInfoResponse getPaymentByOrderId(@PathVariable("orderId") UUID orderId);
 
     @PostMapping("/api/payments/checkout")
-    PaymentResponse getPaymentByOrderId(@RequestBody PaymentCreateRequest request);
+    PaymentResponse checkout(@RequestBody PaymentCreateRequest request);
 
     record PaymentOrderInfoResponse(
             UUID paymentId,

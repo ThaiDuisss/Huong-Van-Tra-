@@ -3,6 +3,7 @@ package org.hvtra.promotionservice.service.impl;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.commonservice.exception.ResourceNotFoundException;
 import org.hvtra.promotionservice.dto.request.coupon.*;
 import org.hvtra.promotionservice.dto.response.CouponResponse;
@@ -13,7 +14,7 @@ import org.hvtra.promotionservice.entity.coupon.Coupon;
 import org.hvtra.promotionservice.enums.coupon.CouponScope;
 import org.hvtra.promotionservice.enums.coupon.CouponStatus;
 import org.hvtra.promotionservice.mapper.CouponMapper;
-import org.hvtra.promotionservice.repository.PromotionRepository;
+import org.hvtra.promotionservice.repository.promotion.PromotionRepository;
 import org.hvtra.promotionservice.repository.coupon.CouponRepository;
 import org.hvtra.promotionservice.service.CouponService;
 import org.hvtra.promotionservice.validation.validator.CouponValidator;
@@ -68,9 +69,27 @@ public class CouponServiceImpl implements CouponService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<CouponResponse> getAllCoupons(int page, int size) {
+        return getCoupons(new CouponFilterRequest(), page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<CouponResponse> getCoupons(CouponFilterRequest request, int page, int size) {
+        CouponFilterRequest filter = request == null ? new CouponFilterRequest() : request;
+        validateExpireRange(filter.getExpiresFrom(), filter.getExpiresTo());
+
         Pageable pageable = createPageable(page, size);
 
-        Page<CouponResponse> couponPage = couponRepository.findAllByIsDeletedFalse(pageable)
+        Page<CouponResponse> couponPage = couponRepository.searchCoupons(
+                        normalizeKeyword(filter.getKeyword()),
+                        filter.getPromotionId(),
+                        filter.getStatus(),
+                        filter.getScope(),
+                        filter.getCustomerId(),
+                        filter.getExpiresFrom(),
+                        filter.getExpiresTo(),
+                        pageable
+                )
                 .map(couponMapper::toResponse);
 
         return PageResponse.from(couponPage);
@@ -81,13 +100,9 @@ public class CouponServiceImpl implements CouponService {
     public PageResponse<CouponResponse> getCouponsByPromotion(UUID promotionId, int page, int size) {
         getExistingPromotion(promotionId);
 
-        Pageable pageable = createPageable(page, size);
-
-        Page<CouponResponse> couponPage = couponRepository
-                .findAllByPromotionIdAndIsDeletedFalse(promotionId, pageable)
-                .map(couponMapper::toResponse);
-
-        return PageResponse.from(couponPage);
+        return getCoupons(CouponFilterRequest.builder()
+                .promotionId(promotionId)
+                .build(), page, size);
     }
 
     @Override
@@ -98,6 +113,7 @@ public class CouponServiceImpl implements CouponService {
         couponValidator.validateBeforeUpdate(coupon, request);
 
         couponMapper.updateEntityFromRequest(request, coupon);
+        normalizeCouponLimits(coupon);
 
         Coupon updatedCoupon = couponRepository.save(coupon);
 
@@ -138,13 +154,7 @@ public class CouponServiceImpl implements CouponService {
         Coupon coupon = couponMapper.toEntity(request);
         coupon.setPromotion(promotion);
 
-        if (coupon.getUsageLimit() == null) {
-            coupon.setUsageLimit(1);
-        }
-
-        if (coupon.getUsedCount() == null) {
-            coupon.setUsedCount(0);
-        }
+        normalizeCouponLimits(coupon);
 
         applySnapshot(coupon, promotion);
 
@@ -232,6 +242,34 @@ public class CouponServiceImpl implements CouponService {
         return couponMapper.toResponse(updatedCoupon);
     }
 
+    private void normalizeCouponLimits(Coupon coupon) {
+        if (coupon.getUsageLimit() == null) {
+            coupon.setUsageLimit(1);
+        }
+
+        if (coupon.getUsedCount() == null) {
+            coupon.setUsedCount(0);
+        }
+
+        if (coupon.getPerCustomerLimit() == null) {
+            coupon.setPerCustomerLimit(1);
+        }
+    }
+
+    @Override
+    @Transactional
+    public CouponResponse expireCoupon(UUID couponId) {
+        Coupon coupon = getExistingCoupon(couponId);
+
+        couponValidator.validateBeforeExpire(coupon);
+
+        coupon.setStatus(CouponStatus.EXPIRED);
+
+        Coupon updatedCoupon = couponRepository.save(coupon);
+
+        return couponMapper.toResponse(updatedCoupon);
+    }
+
     @Override
     @Transactional
     public CouponResponse archiveCoupon(UUID couponId) {
@@ -260,6 +298,7 @@ public class CouponServiceImpl implements CouponService {
                 .issueReason(request.getIssueReason())
                 .issuedAt(LocalDateTime.now())
                 .usageLimit(request.getUsageLimit() == null ? 1 : request.getUsageLimit())
+                .perCustomerLimit(request.getPerCustomerLimit() == null ? 1 : request.getPerCustomerLimit())
                 .usedCount(0)
                 .expiresAt(request.getExpiresAt())
                 .status(CouponStatus.DRAFT)
@@ -288,6 +327,7 @@ public class CouponServiceImpl implements CouponService {
                 .sourceOrderId(request.getSourceOrderId())
                 .issuedAt(LocalDateTime.now())
                 .usageLimit(request.getUsageLimit() == null ? 1 : request.getUsageLimit())
+                .perCustomerLimit(request.getPerCustomerLimit() == null ? 1 : request.getPerCustomerLimit())
                 .usedCount(0)
                 .expiresAt(request.getExpiresAt())
                 .status(CouponStatus.DRAFT)
@@ -318,6 +358,7 @@ public class CouponServiceImpl implements CouponService {
                         .issueReason(request.getIssueReason())
                         .issuedAt(LocalDateTime.now())
                         .usageLimit(request.getUsageLimit() == null ? 1 : request.getUsageLimit())
+                        .perCustomerLimit(request.getPerCustomerLimit() == null ? 1 : request.getPerCustomerLimit())
                         .usedCount(0)
                         .expiresAt(request.getExpiresAt())
                         .status(CouponStatus.DRAFT)
@@ -338,6 +379,7 @@ public class CouponServiceImpl implements CouponService {
                         .issueReason(request.getIssueReason())
                         .issuedAt(LocalDateTime.now())
                         .usageLimit(request.getUsageLimit() == null ? 1 : request.getUsageLimit())
+                        .perCustomerLimit(request.getPerCustomerLimit() == null ? 1 : request.getPerCustomerLimit())
                         .usedCount(0)
                         .expiresAt(request.getExpiresAt())
                         .status(CouponStatus.DRAFT)
@@ -371,5 +413,19 @@ public class CouponServiceImpl implements CouponService {
         } while (couponRepository.existsByCodeAndIsDeletedFalse(code));
 
         return code;
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+
+        return keyword.trim();
+    }
+
+    private void validateExpireRange(LocalDateTime expiresFrom, LocalDateTime expiresTo) {
+        if (expiresFrom != null && expiresTo != null && expiresFrom.isAfter(expiresTo)) {
+            throw new BusinessException("Expires from must be before or equal to expires to");
+        }
     }
 }

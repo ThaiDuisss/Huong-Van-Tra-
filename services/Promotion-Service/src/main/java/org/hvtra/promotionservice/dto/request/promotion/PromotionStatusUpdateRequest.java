@@ -18,14 +18,7 @@ public class PromotionStatusUpdateRequest {
     @Schema(
             description = "Trạng thái mới của promotion",
             example = "ACTIVE",
-            allowableValues = {
-                    "DRAFT",
-                    "SCHEDULED",
-                    "ACTIVE",
-                    "INACTIVE",
-                    "EXPIRED",
-                    "CANCELLED"
-            }
+            implementation = PromotionStatus.class
     )
     @NotNull(message = "Promotion status is required")
     PromotionStatus status;

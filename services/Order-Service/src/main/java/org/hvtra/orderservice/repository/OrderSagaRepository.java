@@ -17,15 +17,17 @@ import java.util.UUID;
 @Repository
 public interface OrderSagaRepository extends JpaRepository<OrderSaga, UUID> {
 
-    Optional<OrderSaga> findBySagaId(UUID sagaId);
+    Optional<OrderSaga> findById(UUID id);
 
     Optional<OrderSaga> findByOrderId(UUID orderId);
 
-    boolean existsBySagaId(UUID sagaId);
+    Optional<OrderSaga> findFirstByOrderIdAndSagaTypeOrderByStartedAtDesc(UUID orderId, String sagaType);
+
+    boolean existsById(UUID id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select s from OrderSaga s where s.sagaId = :sagaId")
-    Optional<OrderSaga> findBySagaIdForUpdate(@Param("sagaId") UUID sagaId);
+    @Query("select s from OrderSaga s where s.id = :id")
+    Optional<OrderSaga> findByIdForUpdate(@Param("id") UUID id);
 
     List<OrderSaga> findByStatusAndUpdatedAtBefore(
             SagaStatus status,

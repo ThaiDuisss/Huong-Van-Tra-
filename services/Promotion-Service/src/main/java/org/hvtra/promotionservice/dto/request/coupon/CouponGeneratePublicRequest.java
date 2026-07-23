@@ -25,7 +25,11 @@ public class CouponGeneratePublicRequest {
     @Min(value = 1, message = "Usage limit must be greater than or equal to 1")
     Integer usageLimit;
 
-    @Schema(description = "Lý do phát hành coupon", example = "MANUAL")
+    @Schema(description = "So lan moi khach hang duoc phep su dung coupon", example = "1")
+    @Min(value = 1, message = "Per customer limit must be greater than or equal to 1")
+    Integer perCustomerLimit;
+
+    @Schema(description = "Lý do phát hành coupon", example = "MANUAL", implementation = CouponIssueReason.class)
     CouponIssueReason issueReason;
 
     @Schema(description = "Thời điểm hết hạn coupon", example = "2027-02-15T23:59:59")

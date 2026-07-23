@@ -42,20 +42,20 @@ public class CustomerRateLimiter implements RateLimiter<CustomerRateLimiter.Conf
                     long remaining = toLong(result.get(1));
                     long ttl = toLong(result.get(2));
 
-                    Map<String, String> headers = Map.of(
+                    if (allowed == 1) {
+                        return new Response(true, Map.of());
+                    }
+
+                    return new Response(false, Map.of(
                             "X-RateLimit-Type", policy.type(),
                             "X-RateLimit-Limit", String.valueOf(policy.limit()),
                             "X-RateLimit-Remaining", String.valueOf(Math.max(remaining, 0)),
                             "X-RateLimit-Reset-Seconds", String.valueOf(ttl)
-                    );
-
-                    return new Response(allowed == 1, headers);
+                    ));
                 })
                 .onErrorResume(ex ->
                         // Redis lỗi thì tạm thời cho đi qua để tránh sập hệ thống
-                        Mono.just(new Response(true, Map.of(
-                                "X-RateLimit-Error", "redis-error"
-                        )))
+                        Mono.just(new Response(true, Map.of()))
                 );
     }
     private RateLimitPolicy resolvePolicy(String key) {

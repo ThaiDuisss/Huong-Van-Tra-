@@ -15,6 +15,7 @@
     "@hvt/schemas": "workspace:*",
     "@hvt/types": "workspace:*",
     "@hvt/ui": "workspace:*",
+    "@microsoft/fetch-event-source": "^2.0.1",
     "keycloak-js": "^26.2.4",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",

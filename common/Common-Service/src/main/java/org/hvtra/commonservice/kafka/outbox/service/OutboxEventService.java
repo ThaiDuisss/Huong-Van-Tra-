@@ -1,72 +1,58 @@
 package org.hvtra.commonservice.kafka.outbox.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
 import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
 import org.hvtra.commonservice.kafka.outbox.factory.OutboxEventFactory;
 import org.hvtra.commonservice.kafka.outbox.repository.BaseOutboxEventRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Instant;
 import java.util.UUID;
 
+@Slf4j
 @RequiredArgsConstructor
 public class OutboxEventService<T extends BaseOutboxEvent> {
 
     private final BaseOutboxEventRepository<T> outboxEventRepository;
     private final OutboxEventFactory<T> outboxEventFactory;
-    private final ObjectMapper objectMapper;
 
-    public void saveEvent(
-            String aggregateType,
-            String aggregateId,
-            String eventType,
-            String eventKey,
-            Object payload
-    ) {
-        saveEvent(aggregateType, UUID.fromString(aggregateId), eventType, UUID.fromString(eventKey), payload, null);
-    }
-
-    public void saveEvent(
-            String aggregateType,
-            UUID aggregateId,
-            String eventType,
-            UUID eventKey,
-            Object payload,
-            Object headers
-    ) {
-        try {
-            String payloadJson = objectMapper.writeValueAsString(payload);
-            String headersJson = headers == null ? null : objectMapper.writeValueAsString(headers);
-
-            T event = outboxEventFactory.create(
-                    aggregateType,
-                    aggregateId,
-                    eventType,
-                    eventKey,
-                    payloadJson,
-                    headersJson
-            );
-
-            outboxEventRepository.save(event);
-
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Cannot serialize outbox event", ex);
-        }
-    }
-
-    public void saveEvent(
-            String aggregateType,
-            UUID aggregateId,
-            String eventType,
-            UUID eventKey,
-            Object payload
-    ) {
-        saveEvent(
-                aggregateType,
-                aggregateId.toString(),
-                eventType,
-                eventKey.toString(),
-                payload
+    public void saveEvent(OutboxSaveCommand command) {
+        T event = outboxEventFactory.create(
+                command,
+                command.eventId() == null || command.eventId().isBlank()
+                        ? UUID.randomUUID().toString()
+                        : command.eventId(),
+                Instant.now()
         );
+
+        outboxEventRepository.saveAndFlush(event);
+    }
+
+    public void saveEventIfAbsent(OutboxSaveCommand command) {
+        if (outboxEventRepository.existsByEventTypeAndBusinessKey(
+                command.eventType(),
+                command.businessKey()
+        )) {
+            return;
+        }
+
+        try {
+            saveEvent(command);
+        } catch (DataIntegrityViolationException ex) {
+            if (!outboxEventRepository.existsByEventTypeAndBusinessKey(
+                    command.eventType(),
+                    command.businessKey()
+            )) {
+                throw ex;
+            }
+
+            log.debug(
+                    "Ignore duplicate outbox event. eventType={}, businessKey={}",
+                    command.eventType(),
+                    command.businessKey()
+            );
+        }
     }
 }

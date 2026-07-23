@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
-    Optional<Payment> findByOrderIdAndIsDeletedFalse(UUID orderId);
+    Optional<Payment> findByOrderId(UUID orderId);
 
-    boolean existsByOrderIdAndStatusAndIsDeletedFalse(UUID orderId, PaymentStatus status);
+    boolean existsByOrderIdAndStatus(UUID orderId, PaymentStatus status);
 }

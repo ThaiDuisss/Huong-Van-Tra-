@@ -31,7 +31,11 @@ public class CouponGeneratePersonalRequest {
     @Min(value = 1, message = "Usage limit must be greater than or equal to 1")
     Integer usageLimit;
 
-    @Schema(description = "Lý do phát hành coupon", example = "ORDER_AMOUNT_REACHED")
+    @Schema(description = "So lan moi khach hang duoc phep su dung coupon", example = "1")
+    @Min(value = 1, message = "Per customer limit must be greater than or equal to 1")
+    Integer perCustomerLimit;
+
+    @Schema(description = "Lý do phát hành coupon", example = "ORDER_AMOUNT_REACHED", implementation = CouponIssueReason.class)
     CouponIssueReason issueReason;
 
     @Schema(description = "ID đơn hàng nguồn phát sinh coupon", example = "550e8400-e29b-41d4-a716-446655440020")

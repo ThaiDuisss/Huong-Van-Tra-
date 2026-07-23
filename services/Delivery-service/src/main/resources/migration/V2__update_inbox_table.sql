@@ -1,0 +1,1 @@
+alter table inbox_events add column consumer_group varchar(150);

@@ -1,6 +1,6 @@
 spring:
   application:
-    name: Catalog-Service
+    name: catalog-Service
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/catalog_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME}
@@ -44,3 +44,7 @@ eureka:
     prefer-ip-address: false
     hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
     instance-id: ${spring.application.name}:${server.port}
+
+security:
+  internal:
+      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}

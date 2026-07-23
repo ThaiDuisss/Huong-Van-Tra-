@@ -28,6 +28,7 @@ public class OrderResponse {
     private PaymentStatus paymentStatus;
     private String paymentMethod;
     private String paymentMethodLabel;
+    private PaymentResponse payment;
 
     private BigDecimal originalAmount;
     private BigDecimal subTotal;

@@ -39,14 +39,16 @@ public class PromotionUpdateRequest {
 
     @Schema(
             description = "Loại promotion",
-            example = "PERCENT_DISCOUNT"
+            example = "PERCENT_DISCOUNT",
+            implementation = PromotionType.class
     )
     @NotNull(message = "Promotion type is required")
     PromotionType type;
 
     @Schema(
             description = "Cách áp dụng promotion",
-            example = "COUPON_CODE"
+            example = "COUPON_CODE",
+            implementation = PromotionApplyMethod.class
     )
     @NotNull(message = "Promotion apply method is required")
     PromotionApplyMethod applyMethod;

@@ -12,38 +12,34 @@ import java.util.stream.Collectors;
 public final class UserHeaderInformation {
     private final String correlationId;
     private final String userId;
-    private final String userEmail;
     private final List<String> userRoles;
     private final String authorization;
 
     private UserHeaderInformation(
             String correlationId,
             String userId,
-            String userEmail,
             List<String> userRoles,
             String authorization
     ) {
         this.correlationId = correlationId;
         this.userId = userId;
-        this.userEmail = userEmail;
         this.userRoles = userRoles == null ? Collections.emptyList() : Collections.unmodifiableList(userRoles);
         this.authorization = authorization;
     }
 
     public static UserHeaderInformation fromRequest(HttpServletRequest request) {
         if (request == null) {
-            return new UserHeaderInformation(null, null, null, Collections.emptyList(), null);
+            return new UserHeaderInformation(null, null, Collections.emptyList(), null);
         }
 
         String correlationId = request.getHeader(HeaderConstants.HEADER_CORRELATION_ID);
         String userId = request.getHeader(HeaderConstants.HEADER_USER_ID);
-        String userEmail = request.getHeader(HeaderConstants.HEADER_USER_NAME);
         String rolesRaw = request.getHeader(HeaderConstants.HEADER_USER_ROLES);
         String authorization = request.getHeader(HeaderConstants.HEADER_AUTHOR);
 
         List<String> roles = parseRoles(rolesRaw);
 
-        return new UserHeaderInformation(correlationId, userId, userEmail, roles, authorization);
+        return new UserHeaderInformation(correlationId, userId, roles, authorization);
     }
 
     private static List<String> parseRoles(String raw) {
@@ -64,10 +60,6 @@ public final class UserHeaderInformation {
         return userId;
     }
 
-    public String getUserEmail() {
-        return userEmail;
-    }
-
     public List<String> getUserRoles() {
         return userRoles;
     }
@@ -83,14 +75,13 @@ public final class UserHeaderInformation {
         UserHeaderInformation that = (UserHeaderInformation) o;
         return Objects.equals(correlationId, that.correlationId) &&
                 Objects.equals(userId, that.userId) &&
-                Objects.equals(userEmail, that.userEmail) &&
                 Objects.equals(userRoles, that.userRoles) &&
                 Objects.equals(authorization, that.authorization);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(correlationId, userId, userEmail, userRoles, authorization);
+        return Objects.hash(correlationId, userId, userRoles, authorization);
     }
 
     @Override
@@ -98,7 +89,6 @@ public final class UserHeaderInformation {
         return "UserHeaderInformation{" +
                 "correlationId='" + correlationId + '\'' +
                 ", userId='" + userId + '\'' +
-                ", userEmail='" + userEmail + '\'' +
                 ", userRoles=" + userRoles +
                 ", authorization='" + (authorization != null ? "[REDACTED]" : null) + '\'' +
                 '}';

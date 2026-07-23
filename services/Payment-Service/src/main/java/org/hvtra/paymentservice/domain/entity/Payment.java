@@ -31,7 +31,7 @@ import java.util.UUID;
 )
 @Getter
 @Setter
-@SuperBuilder
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -90,10 +90,6 @@ public class Payment extends BaseEntity {
 
     @Column(name = "review_reason", columnDefinition = "TEXT")
     String reviewReason;
-
-    @Version
-    @Column(name = "version", nullable = false)
-    Long version;
 
     @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, orphanRemoval = true)
     List<PaymentAttempt> attempts = new ArrayList<>();

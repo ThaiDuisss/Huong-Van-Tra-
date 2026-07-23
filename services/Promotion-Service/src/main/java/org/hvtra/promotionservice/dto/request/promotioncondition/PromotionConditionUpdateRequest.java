@@ -20,14 +20,16 @@ public class PromotionConditionUpdateRequest {
 
     @Schema(
             description = "Loại điều kiện áp dụng khuyến mãi",
-            example = "MIN_ORDER_AMOUNT"
+            example = "MIN_ORDER_AMOUNT",
+            implementation = ConditionType.class
     )
     @NotNull(message = "Promotion condition type is required")
     ConditionType conditionType;
 
     @Schema(
             description = "Toán tử so sánh điều kiện",
-            example = "GTE"
+            example = "GTE",
+            implementation = ConditionOperator.class
     )
     @NotNull(message = "Promotion condition operator is required")
     ConditionOperator operator;

@@ -35,7 +35,8 @@ public class PromotionBenefitResponse {
                     FREE_PRODUCT: tặng sản phẩm.
                     BUY_X_GET_Y: mua X tặng Y.
                     """,
-            example = "PERCENT_DISCOUNT"
+            example = "PERCENT_DISCOUNT",
+            implementation = BenefitType.class
     )
     BenefitType benefitType;
 
