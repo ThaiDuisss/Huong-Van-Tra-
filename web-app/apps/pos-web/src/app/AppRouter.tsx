@@ -25,6 +25,7 @@ import { UnitListPage } from "../features/product/pages/UnitListPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
 import { ProductListPage } from "../features/product/pages/ProductListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
+import { ProductVariantDetailPage } from "../features/product/pages/ProductVariantDetailPage";
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
@@ -120,6 +121,10 @@ export function AppRouter() {
                 <Route
                     path="product-variants"
                     element={<ProductVariantListPage />}
+                />
+                <Route
+                    path="product-variants/:id"
+                    element={<ProductVariantDetailPage />}
                 />
 
                 <Route

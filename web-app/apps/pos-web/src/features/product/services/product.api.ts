@@ -23,6 +23,11 @@ export const productApi = {
             }
         });
     },
+    lookup(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/products/lookup", {
+            query: { search, page, size }
+        });
+    },
     detail(id: string) {
         return apiClient.get<Product>(
             `/catalog/products/${encodeURIComponent(id)}`
@@ -59,5 +64,8 @@ export const productApi = {
     },
     downloadTemplate() {
         return apiClient.download("/catalog/products/import/template");
+    },
+    delete(id: string) {
+        return apiClient.delete<void>(`/catalog/products/${encodeURIComponent(id)}`);
     }
 };

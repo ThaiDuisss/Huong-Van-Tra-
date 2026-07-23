@@ -24,12 +24,10 @@ public class Unit extends BaseEntity {
     @Column(name = "precision_scale", nullable = false)
     private Integer precisionScale;
 
-    /**
-     * Phân loại đơn vị: BASE (đơn vị gốc) hoặc PACKAGING (đơn vị đóng gói).
-     */
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private UnitType type = UnitType.BASE;
+    private UnitType type = UnitType.COUNT;
 
     /**
      * Đơn vị gốc mà đơn vị đóng gói này tham chiếu đến.

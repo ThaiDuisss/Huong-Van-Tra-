@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
@@ -143,7 +144,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
                         cb.lower(root.get("referenceId")),
                         "%" + searchTrim + "%"));
                 try {
-                    searchPredicates.add(cb.equal(root.get("createdBy"), java.util.UUID.fromString(searchTrim)));
+                    searchPredicates.add(cb.equal(root.get("createdBy"), UUID.fromString(searchTrim)));
                 } catch (IllegalArgumentException e) {
                     // Ignored: search query is not a valid UUID format
                 }
@@ -188,7 +189,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         }
 
         // Lấy danh sách ID transaction thuộc kệ SHELF của WAREHOUSE đầu tiên
-        java.util.List<UUID> storeTransactionIds = transactionRepository.findStoreTransactionIds();
+        List<UUID> storeTransactionIds = transactionRepository.findStoreTransactionIds();
 
         Specification<InventoryTransaction> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
@@ -207,7 +208,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
                 searchPredicates.add(cb.like(cb.lower(root.get("transactionCode")), "%" + searchTrim + "%"));
                 searchPredicates.add(cb.like(cb.lower(root.get("referenceId")), "%" + searchTrim + "%"));
                 try {
-                    searchPredicates.add(cb.equal(root.get("createdBy"), java.util.UUID.fromString(searchTrim)));
+                    searchPredicates.add(cb.equal(root.get("createdBy"), UUID.fromString(searchTrim)));
                 } catch (IllegalArgumentException e) {
                     // Ignored: not a valid UUID
                 }
@@ -287,7 +288,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         return location;
     }
 
-    private void validateDistinctStockInLines(java.util.List<StockInRequest.LineRequest> lines) {
+    private void validateDistinctStockInLines(List<StockInRequest.LineRequest> lines) {
         Set<String> keys = new HashSet<>();
         for (StockInRequest.LineRequest line : lines) {
             validateMovementKey(keys, line.inventoryItemId(), line.locationId());
@@ -295,7 +296,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     }
 
     private void validateDistinctAdjustmentLines(
-            java.util.List<StockAdjustmentRequest.LineRequest> lines) {
+            List<StockAdjustmentRequest.LineRequest> lines) {
         Set<String> keys = new HashSet<>();
         for (StockAdjustmentRequest.LineRequest line : lines) {
             validateMovementKey(keys, line.inventoryItemId(), line.locationId());
@@ -514,7 +515,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         return mapper.toResponse(transactionRepository.saveAndFlush(transaction));
     }
 
-    private void validateDistinctStoreStockOutLines(java.util.List<StoreStockOutRequest.LineRequest> lines) {
+    private void validateDistinctStoreStockOutLines(List<StoreStockOutRequest.LineRequest> lines) {
         Set<UUID> itemIds = new HashSet<>();
         for (StoreStockOutRequest.LineRequest line : lines) {
             if (!itemIds.add(line.inventoryItemId())) {
@@ -523,7 +524,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         }
     }
 
-    private void validateDistinctStoreStockInLines(java.util.List<StoreStockInRequest.LineRequest> lines) {
+    private void validateDistinctStoreStockInLines(List<StoreStockInRequest.LineRequest> lines) {
         Set<UUID> itemIds = new HashSet<>();
         for (StoreStockInRequest.LineRequest line : lines) {
             if (!itemIds.add(line.inventoryItemId())) {
@@ -533,7 +534,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     }
 
     private void validateDistinctStoreAdjustmentLines(
-            java.util.List<StoreStockAdjustmentRequest.LineRequest> lines) {
+            List<StoreStockAdjustmentRequest.LineRequest> lines) {
         Set<UUID> itemIds = new HashSet<>();
         for (StoreStockAdjustmentRequest.LineRequest line : lines) {
             if (!itemIds.add(line.inventoryItemId())) {
