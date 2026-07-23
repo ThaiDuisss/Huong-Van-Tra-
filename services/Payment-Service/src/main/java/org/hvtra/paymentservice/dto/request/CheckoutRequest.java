@@ -1,7 +1,5 @@
 package org.hvtra.paymentservice.dto.request;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,10 +15,9 @@ public class CheckoutRequest {
     @NotNull(message = "orderId không được null")
     private UUID orderId;
 
-    @NotBlank(message = "orderCode không được trống")
+    // @NotBlank(message = "orderCode không được trống")
     private String orderCode;
 
-    @NotNull(message = "customerId không được null")
     private UUID customerId;
 
     @NotNull(message = "sagaId không được null")

@@ -8,6 +8,7 @@ import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
+import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
@@ -53,4 +54,6 @@ public interface OrderService {
     OrderResponse removeDraftItem(UUID orderId, UUID itemId);
     OrderResponse cancelDraftOrder(UUID orderId);
     OrderResponse checkoutDraftOrder(UUID orderId, CheckoutDraftOrderRequest request);
+    void handlePaymentEvent(PaymentOrderEventPayload event);
+    void handlePaymentSucceeded(PaymentOrderEventPayload event);
 }

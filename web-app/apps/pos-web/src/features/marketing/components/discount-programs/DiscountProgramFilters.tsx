@@ -1,10 +1,14 @@
 import {
     CalendarDays,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
     Search,
     SlidersHorizontal,
     X
 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 
 import { MarketingSelectField } from "../MarketingSelectField";
 import styles from "./DiscountProgramPage.module.css";
@@ -224,21 +228,252 @@ function DateFilterField({
     value: string;
     onChange(value: string): void;
 }) {
+    const selectedDate = parseDateValue(value);
+    const [open, setOpen] = useState(false);
+    const [yearPickerOpen, setYearPickerOpen] = useState(false);
+    const [cursor, setCursor] = useState(() => selectedDate ?? new Date());
+    const days = useMemo(() => buildCalendarDays(cursor), [cursor]);
+    const years = useMemo(() => buildYearOptions(cursor), [cursor]);
+
+    function selectDate(day: Date) {
+        onChange(toDateValue(day));
+        setCursor(day);
+        setOpen(false);
+        setYearPickerOpen(false);
+    }
+
+    function moveMonth(offset: number) {
+        setYearPickerOpen(false);
+        setCursor(
+            (current) =>
+                new Date(current.getFullYear(), current.getMonth() + offset, 1)
+        );
+    }
+
+    function moveYear(offset: number) {
+        setCursor(
+            (current) =>
+                new Date(current.getFullYear() + offset, current.getMonth(), 1)
+        );
+    }
+
+    function selectYear(year: number) {
+        setCursor(
+            (current) => new Date(year, current.getMonth(), 1)
+        );
+        setYearPickerOpen(false);
+    }
+
     return (
         <label className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{label}</span>
-            <span className={styles.dateWrap}>
-                <CalendarDays size={17} aria-hidden="true" />
-                <input
-                    type="date"
-                    className={styles.dateInput}
-                    value={value}
+            <span className={styles.datePickerAnchor}>
+                <button
+                    type="button"
+                    className={`${styles.dateWrap} ${
+                        open ? styles.dateWrapActive : ""
+                    }`}
                     aria-label={label}
-                    onChange={(event) =>
-                        onChange(event.currentTarget.value)
-                    }
-                />
+                    aria-expanded={open}
+                    onClick={() => setOpen((current) => !current)}
+                >
+                    <CalendarDays size={17} aria-hidden="true" />
+                    <span className={value ? styles.dateValue : styles.datePlaceholder}>
+                        {value ? formatDateValue(value) : "Chọn ngày"}
+                    </span>
+                </button>
+
+                {open ? (
+                    <div className={styles.datePopover}>
+                        <header className={styles.datePopoverHeader}>
+                            <button
+                                type="button"
+                                className={styles.dateNavButton}
+                                onClick={() => moveYear(-1)}
+                                aria-label="Năm trước"
+                            >
+                                <ChevronsLeft size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.dateNavButton}
+                                onClick={() => moveMonth(-1)}
+                                aria-label="Tháng trước"
+                            >
+                                <ChevronLeft size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.dateTitleButton}
+                                onClick={() =>
+                                    setYearPickerOpen((current) => !current)
+                                }
+                            >
+                                {formatMonthLabel(cursor)}
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.dateNavButton}
+                                onClick={() => moveMonth(1)}
+                                aria-label="Tháng sau"
+                            >
+                                <ChevronRight size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.dateNavButton}
+                                onClick={() => moveYear(1)}
+                                aria-label="Năm sau"
+                            >
+                                <ChevronsRight size={16} aria-hidden="true" />
+                            </button>
+                        </header>
+
+                        {yearPickerOpen ? (
+                            <div className={styles.yearGrid}>
+                                {years.map((year) => (
+                                    <button
+                                        key={year}
+                                        type="button"
+                                        className={`${styles.yearButton} ${
+                                            year === cursor.getFullYear()
+                                                ? styles.yearButtonSelected
+                                                : ""
+                                        }`}
+                                        onClick={() => selectYear(year)}
+                                    >
+                                        {year}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <>
+                                <div className={styles.weekdayGrid}>
+                                    {[
+                                        "T2",
+                                        "T3",
+                                        "T4",
+                                        "T5",
+                                        "T6",
+                                        "T7",
+                                        "CN"
+                                    ].map((weekday) => (
+                                        <span key={weekday}>{weekday}</span>
+                                    ))}
+                                </div>
+
+                                <div className={styles.calendarGrid}>
+                                    {days.map((day) => {
+                                        const dateValue = toDateValue(day);
+                                        const selected = value === dateValue;
+                                        const muted =
+                                            day.getMonth() !==
+                                            cursor.getMonth();
+
+                                        return (
+                                            <button
+                                                key={dateValue}
+                                                type="button"
+                                                className={`${
+                                                    styles.calendarDay
+                                                } ${
+                                                    selected
+                                                        ? styles.calendarDaySelected
+                                                        : ""
+                                                } ${
+                                                    muted
+                                                        ? styles.calendarDayMuted
+                                                        : ""
+                                                }`}
+                                                onClick={() => selectDate(day)}
+                                            >
+                                                {day.getDate()}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
+
+                        <footer className={styles.datePopoverFooter}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onChange("");
+                                    setOpen(false);
+                                }}
+                            >
+                                Xóa
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => selectDate(new Date())}
+                            >
+                                Hôm nay
+                            </button>
+                        </footer>
+                    </div>
+                ) : null}
             </span>
         </label>
     );
+}
+
+function parseDateValue(value: string) {
+    if (!value) return null;
+
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return null;
+
+    return new Date(year, month - 1, day);
+}
+
+function toDateValue(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
+function formatDateValue(value: string) {
+    const date = parseDateValue(value);
+    if (!date) return value;
+
+    return new Intl.DateTimeFormat("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+    }).format(date);
+}
+
+function formatMonthLabel(date: Date) {
+    return new Intl.DateTimeFormat("vi-VN", {
+        month: "long",
+        year: "numeric"
+    }).format(date);
+}
+
+function buildCalendarDays(cursor: Date) {
+    const firstOfMonth = new Date(
+        cursor.getFullYear(),
+        cursor.getMonth(),
+        1
+    );
+    const mondayBasedOffset = (firstOfMonth.getDay() + 6) % 7;
+    const firstVisible = new Date(firstOfMonth);
+    firstVisible.setDate(firstOfMonth.getDate() - mondayBasedOffset);
+
+    return Array.from({ length: 42 }, (_, index) => {
+        const day = new Date(firstVisible);
+        day.setDate(firstVisible.getDate() + index);
+        return day;
+    });
+}
+
+function buildYearOptions(cursor: Date) {
+    const currentYear = cursor.getFullYear();
+    const startYear = currentYear - 5;
+
+    return Array.from({ length: 12 }, (_, index) => startYear + index);
 }

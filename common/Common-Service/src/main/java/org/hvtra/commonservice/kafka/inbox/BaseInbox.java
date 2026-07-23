@@ -35,8 +35,8 @@ public abstract class BaseInbox {
     /**
      * Event id từ producer.
      */
-    @Column(name = "event_id", nullable = false)
-    UUID eventId;
+    @Column(name = "event_id", nullable = false, length = 36)
+    String eventId;
 
     /**
      * Consumer group xử lý message này.
@@ -68,11 +68,11 @@ public abstract class BaseInbox {
     @Column(name = "entity_type", length = 100)
     String entityType;
 
-    @Column(name = "entity_id")
-    UUID entityId;
+    @Column(name = "entity_id", length = 36)
+    String entityId;
 
-    @Column(name = "saga_id")
-    UUID sagaId;
+    @Column(name = "saga_id", length = 36)
+    String sagaId;
 
     @Column(name = "correlation_id", length = 150)
     String correlationId;
@@ -101,6 +101,9 @@ public abstract class BaseInbox {
     @Column(name = "processed_at")
     Instant processedAt;
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    Instant createdAt;
+
     @Column(name = "updated_at", nullable = false)
     Instant updatedAt;
 
@@ -126,6 +129,10 @@ public abstract class BaseInbox {
 
         if (receivedAt == null) {
             receivedAt = now;
+        }
+
+        if (createdAt == null) {
+            createdAt = now;
         }
 
         updatedAt = now;

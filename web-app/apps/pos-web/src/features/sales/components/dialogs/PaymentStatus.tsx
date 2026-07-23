@@ -1,6 +1,11 @@
-import { CheckCircle2, Clock3, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, TimerOff, XCircle } from "lucide-react";
 
-export type PaymentStatusValue = "WAITING" | "RECEIVED" | "CANCELLED";
+export type PaymentStatusValue =
+  | "WAITING"
+  | "RECEIVED"
+  | "FAILED"
+  | "EXPIRED"
+  | "CANCELLED";
 
 interface PaymentStatusProps {
   value: PaymentStatusValue;
@@ -23,9 +28,21 @@ const statusCopy: Record<
   },
   RECEIVED: {
     label: "Đã nhận thanh toán",
-    description: "Giao dịch đã được xác nhận thủ công.",
+    description: "Giao dịch đã được xác nhận.",
     className: "bg-hvt-green-50 text-hvt-green-900",
     icon: CheckCircle2
+  },
+  FAILED: {
+    label: "Thanh toán thất bại",
+    description: "Giao dịch không hoàn tất. Vui lòng kiểm tra lại đơn.",
+    className: "bg-red-50 text-red-700",
+    icon: AlertTriangle
+  },
+  EXPIRED: {
+    label: "QR đã hết hạn",
+    description: "Mã chuyển khoản không còn hiệu lực.",
+    className: "bg-stone-100 text-stone-700",
+    icon: TimerOff
   },
   CANCELLED: {
     label: "Đã hủy thanh toán",

@@ -1,15 +1,14 @@
 package org.hvtra.paymentservice.outbox.service;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import lombok.*;
+import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
+import org.hvtra.commonservice.kafka.outbox.service.OutboxEventService;
 import org.hvtra.paymentservice.domain.entity.Payment;
 import org.hvtra.paymentservice.domain.entity.PaymentAttempt;
 import org.hvtra.paymentservice.domain.entity.PaymentTransaction;
 import org.hvtra.paymentservice.outbox.entity.OutboxEvent;
 import org.hvtra.paymentservice.outbox.event.PaymentOrderEventPayload;
-import org.hvtra.paymentservice.outbox.factory.PaymentOutboxEventFactory;
-import org.hvtra.paymentservice.outbox.repository.OutboxEventRepository;
+import org.hvtra.paymentservice.outbox.resolver.PaymentOutboxTopicResolver;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -34,11 +33,8 @@ public class PaymentOutboxPublisher {
     public static final String PAYMENT_CANCELLED = "PAYMENT_CANCELLED";
     public static final String PAYMENT_NEED_REVIEW = "PAYMENT_NEED_REVIEW";
 
-    private final OutboxEventRepository outboxEventRepository;
-    private final PaymentOutboxEventFactory paymentOutboxEventFactory;
-
-    @PersistenceContext
-    private EntityManager entityManager;
+    private final OutboxEventService<OutboxEvent> paymentOutboxEventService;
+    private final PaymentOutboxTopicResolver paymentOutboxTopicResolver;
 
     /**
      * BANK_TRANSFER vừa tạo QR / attempt.
@@ -47,89 +43,91 @@ public class PaymentOutboxPublisher {
      * Vì bank transfer có thể tạo nhiều attempt, key nên gắn với paymentId + attemptNo.
      */
     public void publishWaitingPayment(Payment payment, PaymentAttempt attempt) {
-        UUID eventKey = paymentAttemptEventKey(PAYMENT_WAITING_PAYMENT, payment, attempt);
+        String businessKey = paymentAttemptBusinessKey(payment, attempt);
+        UUID eventId = stableEventId(PAYMENT_WAITING_PAYMENT, businessKey);
 
         PaymentOrderEventPayload payload = buildPayload(
                 PAYMENT_WAITING_PAYMENT,
-                eventKey,
+                eventId,
                 payment,
                 attempt,
                 null
         );
 
-        save(payment, PAYMENT_WAITING_PAYMENT, eventKey, payload);
+        save(payment, PAYMENT_WAITING_PAYMENT, businessKey, eventId, payload);
     }
 
     /**
-     * Payment đã thanh toán thành công.
-     *
-     * Cash sẽ gọi event này ngay sau khi tạo transaction thành công.
-     * Bank transfer sẽ gọi event này sau khi SePay webhook matched đúng payment.
+     * Payment thanh toán thành công.
      */
     public void publishSucceeded(Payment payment, PaymentTransaction transaction) {
-        UUID eventKey = paymentStateEventKey(PAYMENT_SUCCEEDED, payment);
+        String businessKey = paymentStateBusinessKey(payment);
+        UUID eventId = stableEventId(PAYMENT_SUCCEEDED, businessKey);
 
         PaymentOrderEventPayload payload = buildPayload(
                 PAYMENT_SUCCEEDED,
-                eventKey,
+                eventId,
                 payment,
                 transaction == null ? null : transaction.getAttempt(),
                 transaction
         );
 
-        save(payment, PAYMENT_SUCCEEDED, eventKey, payload);
+        save(payment, PAYMENT_SUCCEEDED, businessKey, eventId, payload);
     }
 
     /**
      * Payment thất bại.
      */
     public void publishFailed(Payment payment, String reason) {
-        UUID eventKey = paymentStateEventKey(PAYMENT_FAILED, payment);
+        String businessKey = paymentStateBusinessKey(payment);
+        UUID eventId = stableEventId(PAYMENT_FAILED, businessKey);
 
         PaymentOrderEventPayload payload = buildPayload(
                 PAYMENT_FAILED,
-                eventKey,
+                eventId,
                 payment,
                 null,
                 null
         );
         payload.setFailureReason(reason);
 
-        save(payment, PAYMENT_FAILED, eventKey, payload);
+        save(payment, PAYMENT_FAILED, businessKey, eventId, payload);
     }
 
     /**
      * Payment hết hạn.
      */
     public void publishExpired(Payment payment) {
-        UUID eventKey = paymentStateEventKey(PAYMENT_EXPIRED, payment);
+        String businessKey = paymentStateBusinessKey(payment);
+        UUID eventId = stableEventId(PAYMENT_EXPIRED, businessKey);
 
         PaymentOrderEventPayload payload = buildPayload(
                 PAYMENT_EXPIRED,
-                eventKey,
+                eventId,
                 payment,
                 null,
                 null
         );
 
-        save(payment, PAYMENT_EXPIRED, eventKey, payload);
+        save(payment, PAYMENT_EXPIRED, businessKey, eventId, payload);
     }
 
     /**
      * Payment bị huỷ.
      */
     public void publishCancelled(Payment payment) {
-        UUID eventKey = paymentStateEventKey(PAYMENT_CANCELLED, payment);
+        String businessKey = paymentStateBusinessKey(payment);
+        UUID eventId = stableEventId(PAYMENT_CANCELLED, businessKey);
 
         PaymentOrderEventPayload payload = buildPayload(
                 PAYMENT_CANCELLED,
-                eventKey,
+                eventId,
                 payment,
                 null,
                 null
         );
 
-        save(payment, PAYMENT_CANCELLED, eventKey, payload);
+        save(payment, PAYMENT_CANCELLED, businessKey, eventId, payload);
     }
 
     /**
@@ -146,59 +144,61 @@ public class PaymentOutboxPublisher {
             PaymentTransaction transaction,
             String reviewReason
     ) {
-        UUID eventKey = stableEventKey(
-                PAYMENT_NEED_REVIEW,
-                payment.getId() + ":transaction:" + safeId(transaction)
-        );
+        String businessKey = payment.getId() + ":transaction:" + safeId(transaction);
+        UUID eventId = stableEventId(PAYMENT_NEED_REVIEW, businessKey);
 
         PaymentOrderEventPayload payload = buildPayload(
                 PAYMENT_NEED_REVIEW,
-                eventKey,
+                eventId,
                 payment,
                 attempt,
                 transaction
         );
         payload.setFailureReason(reviewReason);
 
-        save(payment, PAYMENT_NEED_REVIEW, eventKey, payload);
+        save(payment, PAYMENT_NEED_REVIEW, businessKey, eventId, payload);
     }
 
     private void save(
             Payment payment,
             String eventType,
-            UUID eventKey,
+            String businessKey,
+            UUID eventId,
             PaymentOrderEventPayload payload
     ) {
-        /*
-         * Check mềm để tránh insert lại cùng business event trong cùng service flow.
-         * Check cứng vẫn là unique constraint ở DB: event_type + event_key.
-         */
-        if (existsOutboxEvent(eventType, eventKey)) {
-            return;
-        }
+        String messageKey = resolveMessageKey(payment);
+        String topic = paymentOutboxTopicResolver.resolveTopic(eventType);
+        payload.setEventId(toString(eventId));
+        payload.setEventKey(businessKey);
 
-        OutboxEvent outboxEvent = paymentOutboxEventFactory.create(
+        paymentOutboxEventService.saveEventIfAbsent(new OutboxSaveCommand(
+                toString(eventId),
                 AGGREGATE_TYPE,
-                payment.getId(),
+                toString(payment.getId()),
+                messageKey,
                 eventType,
-                eventKey,
+                businessKey,
+                topic,
+                SOURCE,
+                toString(payment.getSagaId()),
+                null,
+                null,
                 payload,
-                buildHeaders(payment, eventType, eventKey)
-        );
-
-        outboxEventRepository.save(outboxEvent);
+                buildHeaders(payment, eventType, eventId, messageKey, businessKey, topic)
+        ));
     }
 
     private PaymentOrderEventPayload buildPayload(
             String eventType,
-            UUID eventKey,
+            UUID eventId,
             Payment payment,
             PaymentAttempt attempt,
             PaymentTransaction transaction
     ) {
         return PaymentOrderEventPayload.builder()
+                .eventId(toString(eventId))
                 .eventType(eventType)
-                .eventKey(toString(eventKey))
+                .eventKey(null)
 
                 .sagaId(toString(payment.getSagaId()))
 
@@ -233,14 +233,27 @@ public class PaymentOutboxPublisher {
                 .build();
     }
 
-    private Map<String, Object> buildHeaders(Payment payment, String eventType, UUID eventKey) {
+    private Map<String, Object> buildHeaders(
+            Payment payment,
+            String eventType,
+            UUID eventId,
+            String messageKey,
+            String businessKey,
+            String topic
+    ) {
         Map<String, Object> headers = new LinkedHashMap<>();
 
         headers.put("source", SOURCE);
+        headers.put("sourceService", SOURCE);
         headers.put("aggregateType", AGGREGATE_TYPE);
         headers.put("aggregateId", toString(payment.getId()));
+        headers.put("eventId", toString(eventId));
+        headers.put("event_id", toString(eventId));
         headers.put("eventType", eventType);
-        headers.put("eventKey", toString(eventKey));
+        headers.put("eventKey", businessKey);
+        headers.put("messageKey", messageKey);
+        headers.put("businessKey", businessKey);
+        headers.put("topic", topic);
         headers.put("sagaId", toString(payment.getSagaId()));
         headers.put("orderId", toString(payment.getOrderId()));
         headers.put("orderCode", payment.getOrderCode());
@@ -250,39 +263,29 @@ public class PaymentOutboxPublisher {
     }
 
     /**
-     * Key ổn định theo business event.
+     * ID ổn định theo business event.
      *
      * Ví dụ:
      * PAYMENT_SUCCEEDED:{paymentId}
      * PAYMENT_WAITING_PAYMENT:{paymentId}:attempt:{attemptNo}
      */
-    private UUID stableEventKey(String eventType, String uniqueBusinessKey) {
+    private UUID stableEventId(String eventType, String uniqueBusinessKey) {
         return UUID.nameUUIDFromBytes(
                 (eventType + ":" + uniqueBusinessKey).getBytes(StandardCharsets.UTF_8)
         );
     }
 
-    private UUID paymentStateEventKey(String eventType, Payment payment) {
-        return stableEventKey(eventType, payment.getId().toString());
+    private String paymentStateBusinessKey(Payment payment) {
+        return payment.getId().toString();
     }
 
-    private UUID paymentAttemptEventKey(String eventType, Payment payment, PaymentAttempt attempt) {
-        String businessKey = payment.getId() + ":attempt:" + attempt.getAttemptNo();
-        return stableEventKey(eventType, businessKey);
+    private String paymentAttemptBusinessKey(Payment payment, PaymentAttempt attempt) {
+        return payment.getId() + ":attempt:" + attempt.getAttemptNo();
     }
 
-    private boolean existsOutboxEvent(String eventType, UUID eventKey) {
-        Long count = entityManager.createQuery("""
-                        select count(e.id)
-                        from OutboxEvent e
-                        where e.eventType = :eventType
-                          and e.eventKey = :eventKey
-                        """, Long.class)
-                .setParameter("eventType", eventType)
-                .setParameter("eventKey", eventKey)
-                .getSingleResult();
-
-        return count != null && count > 0;
+    private String resolveMessageKey(Payment payment) {
+        String orderId = toString(payment.getOrderId());
+        return orderId == null ? toString(payment.getId()) : orderId;
     }
 
     private BigDecimal resolveAmountPaid(Payment payment, PaymentTransaction transaction) {
@@ -332,5 +335,4 @@ public class PaymentOutboxPublisher {
     private String toString(UUID value) {
         return value == null ? null : value.toString();
     }
-
 }

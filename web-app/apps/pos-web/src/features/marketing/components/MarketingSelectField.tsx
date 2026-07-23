@@ -1,5 +1,10 @@
-import { ChevronDown } from "lucide-react";
-
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "../../../components/ui/select";
 import styles from "./discount-programs/DiscountProgramPage.module.css";
 
 interface MarketingSelectFieldProps {
@@ -18,22 +23,25 @@ export function MarketingSelectField({
     return (
         <label className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{label}</span>
-            <span className={styles.selectWrap}>
-                <select
-                    className={styles.select}
-                    value={value}
-                    onChange={(event) =>
-                        onChange(event.currentTarget.value)
-                    }
+            <Select
+                className="w-full"
+                value={value}
+                onValueChange={onChange}
+            >
+                <SelectTrigger
+                    aria-label={label}
+                    className="h-10 w-full rounded-lg border-[#edf1f6] px-3 text-sm text-[#17213a] shadow-none hover:bg-white"
                 >
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[90] rounded-lg border-[#d0d5dd] p-1 shadow-[0_18px_38px_rgba(15,23,42,0.16)]">
                     {options.map((option) => (
-                        <option key={option.value} value={option.value}>
+                        <SelectItem key={option.value} value={option.value}>
                             {option.label}
-                        </option>
+                        </SelectItem>
                     ))}
-                </select>
-                <ChevronDown size={16} aria-hidden="true" />
-            </span>
+                </SelectContent>
+            </Select>
         </label>
     );
 }

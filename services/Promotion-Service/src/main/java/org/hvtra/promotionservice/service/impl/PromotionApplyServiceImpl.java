@@ -13,11 +13,17 @@ import org.hvtra.promotionservice.dto.response.PromotionPreviewResponse;
 import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.entity.PromotionBenefit;
 import org.hvtra.promotionservice.entity.PromotionCondition;
+import org.hvtra.promotionservice.entity.coupon.Coupon;
 import org.hvtra.promotionservice.enums.benefit.BenefitType;
 import org.hvtra.promotionservice.enums.condition.ConditionType;
+import org.hvtra.promotionservice.enums.coupon.CouponStatus;
+import org.hvtra.promotionservice.enums.coupon.CouponUsageStatus;
 import org.hvtra.promotionservice.enums.event.EventStatus;
+import org.hvtra.promotionservice.enums.promotion.PromotionApplyMethod;
 import org.hvtra.promotionservice.enums.promotion.PromotionStatus;
-import org.hvtra.promotionservice.repository.PromotionRepository;
+import org.hvtra.promotionservice.repository.coupon.CouponRepository;
+import org.hvtra.promotionservice.repository.coupon.CouponUsageRepository;
+import org.hvtra.promotionservice.repository.promotion.PromotionRepository;
 import org.hvtra.promotionservice.service.PromotionApplyService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +33,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -37,17 +44,21 @@ public class PromotionApplyServiceImpl implements PromotionApplyService {
             "Order amount condition value must contain numeric amount, e.g. {\"amount\":500000}";
 
     PromotionRepository promotionRepository;
+    CouponRepository couponRepository;
+    CouponUsageRepository couponUsageRepository;
     ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
     public PromotionPreviewResponse preview(PromotionPreviewRequest request) {
         BigDecimal orderAmount = request.getOrderAmount();
+        LocalDateTime now = LocalDateTime.now();
+        String requestedCouponCode = normalizeCouponCode(request.getCouponCode());
 
         List<Promotion> promotions = promotionRepository.findActivePromotionsForPreview(
                 PromotionStatus.ACTIVE,
                 EventStatus.ACTIVE,
-                LocalDateTime.now()
+                now
         );
 
         List<AvailablePromotionResponse> availablePromotions = new ArrayList<>();
@@ -63,14 +74,39 @@ public class PromotionApplyServiceImpl implements PromotionApplyService {
                 continue;
             }
 
-            availablePromotions.add(AvailablePromotionResponse.builder()
+            Optional<Coupon> couponCandidate = Optional.empty();
+            boolean requiresCoupon = promotion.getApplyMethod() == PromotionApplyMethod.COUPON_CODE;
+
+            if (requiresCoupon) {
+                couponCandidate = findEligibleCouponForPreview(
+                        promotion,
+                        request,
+                        requestedCouponCode,
+                        now
+                );
+
+                if (couponCandidate.isEmpty()) {
+                    continue;
+                }
+            }
+
+            AvailablePromotionResponse.AvailablePromotionResponseBuilder responseBuilder =
+                    AvailablePromotionResponse.builder()
                     .promotionId(promotion.getId())
                     .promotionName(promotion.getName())
                     .applyMethod(promotion.getApplyMethod())
                     .benefitType(getMainBenefitType(promotion))
                     .estimatedDiscount(discountAmount)
                     .stackable(promotion.getStackable())
-                    .build());
+                    .requiresCoupon(requiresCoupon);
+
+            couponCandidate.ifPresent(coupon -> responseBuilder
+                    .couponId(coupon.getId())
+                    .couponCode(coupon.getCode())
+                    .couponScope(coupon.getScope())
+                    .couponExpiresAt(coupon.getExpiresAt()));
+
+            availablePromotions.add(responseBuilder.build());
         }
 
         return PromotionPreviewResponse.builder()
@@ -129,6 +165,47 @@ public class PromotionApplyServiceImpl implements PromotionApplyService {
                 .findFirst()
                 .map(PromotionBenefit::getBenefitType)
                 .orElse(null);
+    }
+
+    private Optional<Coupon> findEligibleCouponForPreview(
+            Promotion promotion,
+            PromotionPreviewRequest request,
+            String requestedCouponCode,
+            LocalDateTime now
+    ) {
+        return couponRepository.findPreviewEligibleCoupons(
+                        promotion.getId(),
+                        request.getCustomerId(),
+                        requestedCouponCode,
+                        CouponStatus.ACTIVE,
+                        now
+                )
+                .stream()
+                .filter(coupon -> !hasReachedPerCustomerLimit(coupon, request))
+                .findFirst();
+    }
+
+    private boolean hasReachedPerCustomerLimit(Coupon coupon, PromotionPreviewRequest request) {
+        if (request.getCustomerId() == null) {
+            return false;
+        }
+
+        int perCustomerLimit = coupon.getPerCustomerLimit() == null ? 1 : coupon.getPerCustomerLimit();
+        long customerUsageCount = couponUsageRepository.countByCouponIdAndCustomerIdAndStatusInAndIsDeletedFalse(
+                coupon.getId(),
+                request.getCustomerId(),
+                List.of(CouponUsageStatus.RESERVED, CouponUsageStatus.APPLIED)
+        );
+
+        return customerUsageCount >= perCustomerLimit;
+    }
+
+    private String normalizeCouponCode(String couponCode) {
+        if (couponCode == null || couponCode.isBlank()) {
+            return null;
+        }
+
+        return couponCode.trim();
     }
 
     private BigDecimal parseConditionValue(String value) {

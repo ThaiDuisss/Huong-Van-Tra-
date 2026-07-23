@@ -13,15 +13,18 @@ import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
 @Table(
         name = "outbox_events",
         indexes = {
-                @Index(name = "idx_outbox_status_created_at", columnList = "status, created_at"),
-                @Index(name = "idx_outbox_status_locked_at", columnList = "status, locked_at"),
-                @Index(name = "idx_outbox_event_type", columnList = "event_type"),
-                @Index(name = "idx_outbox_aggregate", columnList = "aggregate_type, aggregate_id")
+                @Index(name = "idx_outbox_topic_created_at", columnList = "topic, created_at"),
+                @Index(name = "idx_outbox_saga_id", columnList = "saga_id"),
+                @Index(name = "idx_outbox_created_at", columnList = "created_at")
         },
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_outbox_event_key_type",
-                        columnNames = {"event_type", "event_key"}
+                        name = "uk_outbox_event_id",
+                        columnNames = {"event_id"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_outbox_business_key",
+                        columnNames = {"event_type", "business_key"}
                 )
         }
 )

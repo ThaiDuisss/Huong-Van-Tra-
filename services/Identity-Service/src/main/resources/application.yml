@@ -1,26 +1,24 @@
 spring:
   application:
-    name: Identity-Service
+    name: identity-Service
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/identity_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME:identity_app}
     password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2026}
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://auth.hvtra.id.vn/realms/hvt
-          audiences: hvtra-api
   jpa:
     hibernate:
       ddl-auto: validate
 
   flyway:
-    enabled: false
+    enabled: true
     locations: classpath:db/migration
 
 server:
-  port: 8083
+  port: 8183
+
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}
 
 springdoc:
   api-docs:

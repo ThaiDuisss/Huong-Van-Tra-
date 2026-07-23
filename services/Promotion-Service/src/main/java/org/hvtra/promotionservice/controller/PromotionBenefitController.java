@@ -8,6 +8,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.promotionbenefit.PromotionBenefitSuccessMessage;
 import org.hvtra.promotionservice.dto.request.promotionbenefit.PromotionBenefitCreateRequest;
 import org.hvtra.promotionservice.dto.request.promotionbenefit.PromotionBenefitUpdateRequest;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/promotions/{promotionId}/benefits")
+@RequestMapping(ApiPath.PROMOTION_SERVICE + "/{promotionId}/benefits")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(

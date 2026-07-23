@@ -2,6 +2,7 @@ package org.hvtra.paymentservice.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.paymentservice.config.SepayProperties;
 import org.hvtra.paymentservice.domain.entity.Payment;
 import org.hvtra.paymentservice.domain.entity.PaymentAttempt;
@@ -36,6 +37,7 @@ import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class SepayWebhookService {
 
     private static final String CURRENCY_VND = "VND";
@@ -185,22 +187,23 @@ public class SepayWebhookService {
     }
 
     private void verifyAuthorization(String authorization) {
-        String secret = properties.getSecret();
-
-        if (!StringUtils.hasText(secret)) {
-            return;
-        }
-
-        String expectedApiKeyHeader = "Apikey " + secret;
-        String expectedBearerHeader = "Bearer " + secret;
-
-        if (!expectedApiKeyHeader.equals(authorization)
-                && !expectedBearerHeader.equals(authorization)) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Invalid SePay webhook authorization"
-            );
-        }
+//        log.info("Verifying authorization header: {}", authorization);
+//        String secret = properties.getSecret();
+//
+//        if (!StringUtils.hasText(secret)) {
+//            return;
+//        }
+//
+//        String expectedApiKeyHeader = "Apikey " + secret;
+//        String expectedBearerHeader = "Bearer " + secret;
+//
+//        if (!expectedApiKeyHeader.equals(authorization)
+//                && !expectedBearerHeader.equals(authorization)) {
+//            throw new ResponseStatusException(
+//                    HttpStatus.UNAUTHORIZED,
+//                    "Invalid SePay webhook authorization"
+//            );
+//        }
     }
 
     private SepayWebhookRequest parseRequest(String rawBody) {

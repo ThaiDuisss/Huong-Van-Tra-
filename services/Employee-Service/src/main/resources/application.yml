@@ -42,3 +42,7 @@ eureka:
     prefer-ip-address: false
     hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
     instance-id: ${spring.application.name}:${server.port}
+
+security:
+  internal:
+      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}

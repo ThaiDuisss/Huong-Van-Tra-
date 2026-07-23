@@ -47,13 +47,7 @@ public class PromotionCreateRequest {
     @Schema(
             description = "Loại promotion",
             example = "PERCENT_DISCOUNT",
-            allowableValues = {
-                    "PERCENT_DISCOUNT",
-                    "FIXED_DISCOUNT",
-                    "FREE_SHIPPING",
-                    "BUY_X_GET_Y",
-                    "FREE_PRODUCT"
-            }
+            implementation = PromotionType.class
     )
     @NotNull(message = "Promotion type is required")
     PromotionType type;
@@ -61,11 +55,7 @@ public class PromotionCreateRequest {
     @Schema(
             description = "Cách áp dụng promotion",
             example = "COUPON_CODE",
-            allowableValues = {
-                    "AUTO",
-                    "COUPON_CODE",
-                    "DIRECT_DISCOUNT"
-            }
+            implementation = PromotionApplyMethod.class
     )
     @NotNull(message = "Promotion apply method is required")
     PromotionApplyMethod applyMethod;

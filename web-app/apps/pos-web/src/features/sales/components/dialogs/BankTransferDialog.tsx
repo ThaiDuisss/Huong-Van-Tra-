@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import {
   Bell,
+  AlertTriangle,
   CheckCircle2,
   Copy,
   Landmark,
   RefreshCw,
   ShieldCheck,
+  TimerOff,
   X
 } from "lucide-react";
 
@@ -18,6 +20,7 @@ interface BankTransferDialogProps {
   referenceCode?: string;
   status: PaymentStatusValue;
   payment: PosCheckoutPaymentResult | null;
+  eventMessage?: string;
   loading?: boolean;
   error?: string;
   onClose(): void;
@@ -50,6 +53,7 @@ export function BankTransferDialog({
   referenceCode: fallbackReferenceCode,
   status,
   payment,
+  eventMessage = "",
   loading = false,
   error = "",
   onClose,
@@ -58,6 +62,10 @@ export function BankTransferDialog({
   onRefreshStatus
 }: BankTransferDialogProps) {
   const received = status === "RECEIVED";
+  const failed = status === "FAILED";
+  const expired = status === "EXPIRED";
+  const cancelled = status === "CANCELLED";
+  const terminal = received || failed || expired || cancelled;
   const referenceCode =
     payment?.transferContent ??
     payment?.paymentCode ??
@@ -71,11 +79,49 @@ export function BankTransferDialog({
   const accountNumber =
     payment?.bankAccountNumber ?? bankInformation.accountNumber;
   const payableAmount = payment?.amountRequired ?? amount;
+  const statusClassName = received
+    ? "bg-[#e8f8ec] text-[#159734]"
+    : failed || cancelled
+      ? "bg-red-50 text-red-700"
+      : expired
+        ? "bg-stone-100 text-stone-700"
+        : "bg-[#fff7e8] text-[#c77906]";
+  const ResultIcon = received
+    ? CheckCircle2
+    : expired
+      ? TimerOff
+      : AlertTriangle;
+  const resultCopy = received
+    ? {
+        title: "Thanh toán thành công",
+        message:
+          eventMessage ||
+          "Giao dịch chuyển khoản đã được xác nhận. Hệ thống sẽ quay lại màn POS sau giây lát.",
+        className: "border-[#bde9c6] bg-[#f3fff6] text-[#159734]",
+        iconClassName: "bg-[#e8f8ec] text-[#159734]"
+      }
+    : expired
+      ? {
+          title: "QR đã hết hạn",
+          message:
+            eventMessage ||
+            "Mã QR không còn hiệu lực. Vui lòng tạo lại thanh toán nếu khách vẫn muốn chuyển khoản.",
+          className: "border-stone-200 bg-stone-50 text-stone-700",
+          iconClassName: "bg-stone-200 text-stone-700"
+        }
+      : {
+          title: cancelled ? "Thanh toán đã hủy" : "Thanh toán thất bại",
+          message:
+            eventMessage ||
+            "Giao dịch chưa hoàn tất. Vui lòng kiểm tra lại trạng thái thanh toán.",
+          className: "border-red-200 bg-red-50 text-red-700",
+          iconClassName: "bg-red-100 text-red-700"
+        };
 
   return (
     <section
       aria-labelledby="bank-transfer-dialog-title"
-      className="w-[560px] max-w-[calc(100vw-32px)] rounded-xl bg-white p-0 shadow-[0_26px_80px_rgba(10,25,18,0.28)]"
+      className="w-[680px] max-w-[calc(100vw-32px)] rounded-xl bg-white p-0 shadow-[0_26px_80px_rgba(10,25,18,0.28)]"
       role="dialog"
       aria-modal="true"
     >
@@ -96,7 +142,7 @@ export function BankTransferDialog({
         </button>
       </header>
 
-      <div className="grid grid-cols-[230px_minmax(0,1fr)] gap-5 px-5 py-5">
+      <div className="grid grid-cols-[300px_minmax(0,1fr)] gap-5 px-5 py-5 max-[700px]:grid-cols-1">
         <div className="grid justify-items-center gap-3">
           <div className="flex items-center gap-2 text-[#159734]">
             <span className="grid size-8 place-items-center rounded-full bg-[#eaf8ed]">
@@ -105,37 +151,57 @@ export function BankTransferDialog({
             <strong className="text-[22px] font-black">SePay</strong>
           </div>
 
-          {qrImageUrl ? (
+          {terminal ? (
+            <div
+              className={`grid aspect-square w-[260px] max-w-full place-items-center rounded-lg border p-5 text-center ${resultCopy.className}`}
+            >
+              <div className="grid gap-3 justify-items-center">
+                <span
+                  className={`grid size-16 place-items-center rounded-full ${resultCopy.iconClassName}`}
+                >
+                  <ResultIcon size={34} strokeWidth={2.2} aria-hidden="true" />
+                </span>
+                <strong className="text-[20px] font-black">
+                  {resultCopy.title}
+                </strong>
+                <span className="text-[12px] font-semibold leading-snug">
+                  {resultCopy.message}
+                </span>
+              </div>
+            </div>
+          ) : qrImageUrl ? (
             <img
-              className="aspect-square w-[174px] rounded-lg border border-[#d8eadc] bg-white object-contain p-2"
+              className="aspect-square w-[260px] max-w-full rounded-lg border border-[#d8eadc] bg-white object-contain p-2"
               src={qrImageUrl}
               alt={`QR thanh toán SePay ${referenceCode}`}
             />
           ) : (
-            <div className="grid aspect-square w-[174px] place-items-center rounded-lg border border-dashed border-[#d8eadc] bg-[#f7fff9] p-4 text-center text-[12px] font-bold text-[#5f6b7a]">
+            <div className="grid aspect-square w-[260px] max-w-full place-items-center rounded-lg border border-dashed border-[#d8eadc] bg-[#f7fff9] p-4 text-center text-[12px] font-bold text-[#5f6b7a]">
               {loading ? "Đang tạo mã QR..." : "Chưa có mã QR"}
             </div>
           )}
 
-          <p className="max-w-[190px] text-center text-[11px] font-medium leading-snug text-[#5f6b7a]">
+          <p className="max-w-[260px] text-center text-[11px] font-medium leading-snug text-[#5f6b7a]">
             Quét mã QR bằng ứng dụng ngân hàng hoặc ví điện tử hỗ trợ VietQR.
           </p>
         </div>
 
         <div className="grid content-start gap-3">
           <div
-            className={`flex items-center justify-center gap-2 rounded-full px-3 py-2 text-[12px] font-extrabold ${
-              received
-                ? "bg-[#e8f8ec] text-[#159734]"
-                : "bg-[#fff7e8] text-[#c77906]"
-            }`}
+            className={`flex items-center justify-center gap-2 rounded-full px-3 py-2 text-[12px] font-extrabold ${statusClassName}`}
           >
             <CheckCircle2 size={15} aria-hidden="true" />
             {received
-              ? "Đã nhận đủ thanh toán"
-              : loading
-                ? "Đang tạo thanh toán"
-                : "Đang chờ thanh toán"}
+              ? "Thanh toán thành công"
+              : failed
+                ? "Thanh toán thất bại"
+                : expired
+                  ? "QR đã hết hạn"
+                  : cancelled
+                    ? "Đã hủy thanh toán"
+                    : loading
+                      ? "Đang tạo thanh toán"
+                      : "Đang chờ thanh toán"}
           </div>
 
           {error ? (
@@ -177,7 +243,7 @@ export function BankTransferDialog({
           <button
             type="button"
             onClick={onRefreshStatus}
-            disabled={loading}
+            disabled={loading || terminal}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d8eadc] text-[12px] font-bold text-[#159734] hover:bg-[#f4faf5]"
           >
             <RefreshCw size={15} aria-hidden="true" />
@@ -186,7 +252,7 @@ export function BankTransferDialog({
           <button
             type="button"
             onClick={onConfirmReceived}
-            disabled={loading}
+            disabled={loading || terminal}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d8eadc] text-[12px] font-bold text-[#159734] hover:bg-[#f4faf5]"
           >
             <Bell size={15} aria-hidden="true" />
@@ -205,7 +271,7 @@ export function BankTransferDialog({
           <button
             type="button"
             onClick={onConfirmReceived}
-            disabled={loading}
+            disabled={loading || terminal}
             className="h-10 rounded-lg bg-[#159734] text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(21,151,52,0.22)]"
           >
             Đã nhận đủ tiền

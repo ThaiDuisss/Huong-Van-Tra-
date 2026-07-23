@@ -44,6 +44,10 @@ public class PromotionConditionValidator {
         if (promotion.getStatus() == PromotionStatus.EXPIRED) {
             throw new BusinessException("Cannot modify conditions of expired promotion");
         }
+
+        if (promotion.getStatus() == PromotionStatus.ENDED) {
+            throw new BusinessException("Cannot modify conditions of ended promotion");
+        }
     }
 
     private void validateJsonConditionValue(String conditionValue) {

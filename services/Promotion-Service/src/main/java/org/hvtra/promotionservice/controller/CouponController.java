@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ApiPath.COUPON_USAGES)
+@RequestMapping(ApiPath.PROMOTION_SERVICE)
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(
@@ -77,13 +77,15 @@ public class CouponController {
     )
     @GetMapping("/coupons")
     public ApiResponse<PageResponse<CouponResponse>> getAllCoupons(
+            @Valid @ModelAttribute CouponFilterRequest filter,
+
             @Parameter(description = "Số trang, bắt đầu từ 0", example = "0")
             @RequestParam(defaultValue = "0") int page,
 
             @Parameter(description = "Số lượng phần tử trên mỗi trang", example = "10")
             @RequestParam(defaultValue = "10") int size
     ) {
-        PageResponse<CouponResponse> response = couponService.getAllCoupons(page, size);
+        PageResponse<CouponResponse> response = couponService.getCoupons(filter, page, size);
         return ApiResponse.success(CouponSuccessMessage.LIST_FETCHED, response);
     }
 
@@ -187,6 +189,19 @@ public class CouponController {
             @PathVariable UUID couponId
     ) {
         CouponResponse response = couponService.cancelCoupon(couponId);
+        return ApiResponse.updated(CouponSuccessMessage.STATUS_UPDATED, response);
+    }
+
+    @Operation(
+            summary = "Expire coupon",
+            description = "Change coupon status to EXPIRED."
+    )
+    @PostMapping("/coupons/{couponId}/expire")
+    public ApiResponse<CouponResponse> expireCoupon(
+            @Parameter(description = "ID coupon", required = true)
+            @PathVariable UUID couponId
+    ) {
+        CouponResponse response = couponService.expireCoupon(couponId);
         return ApiResponse.updated(CouponSuccessMessage.STATUS_UPDATED, response);
     }
 

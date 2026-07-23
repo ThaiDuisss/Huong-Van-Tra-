@@ -1,0 +1,23 @@
+package org.hvtra.orderservice.outbox.resolver;
+
+import org.hvtra.commonservice.kafka.outbox.resolver.OutboxTopicResolver;
+import org.hvtra.orderservice.outbox.event.OrderEventType;
+import org.springframework.stereotype.Component;
+
+@Component
+public class OrderOutboxTopicResolver implements OutboxTopicResolver {
+
+    @Override
+    public String resolveTopic(String eventType) {
+        return switch (eventType) {
+            case OrderEventType.ORDER_COMPLETED -> "order.completed";
+            case OrderEventType.ORDER_PAYMENT_SUCCEEDED -> "notification.order.payment-succeeded";
+            case OrderEventType.ORDER_PAYMENT_FAILED -> "notification.order.payment-failed";
+            case OrderEventType.ORDER_CANCELLED -> "notification.order.cancelled";
+            case OrderEventType.INVENTORY_RESERVATION_CONFIRM_REQUESTED -> "inventory.reservation-confirm.requested";
+            case OrderEventType.CUSTOMER_PURCHASE_UPDATE_REQUESTED -> "customer.purchase-update.requested";
+            case OrderEventType.PROMOTION_USAGE_COMMIT_REQUESTED -> "promotion.usage-commit.requested";
+            default -> throw new IllegalArgumentException("Unknown order event type: " + eventType);
+        };
+    }
+}

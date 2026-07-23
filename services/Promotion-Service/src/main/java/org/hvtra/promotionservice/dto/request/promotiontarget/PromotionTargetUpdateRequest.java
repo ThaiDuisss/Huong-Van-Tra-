@@ -21,7 +21,7 @@ import java.util.UUID;
 @Schema(description = "Request cập nhật phạm vi áp dụng khuyến mãi")
 public class PromotionTargetUpdateRequest {
 
-    @Schema(description = "Loại đối tượng áp dụng khuyến mãi", example = "PRODUCT")
+    @Schema(description = "Loại đối tượng áp dụng khuyến mãi", example = "PRODUCT", implementation = PromotionTargetType.class)
     @NotNull(message = "Promotion target type is required")
     PromotionTargetType targetType;
 
@@ -35,7 +35,7 @@ public class PromotionTargetUpdateRequest {
     @Schema(description = "Có loại trừ target này khỏi khuyến mãi hay không", example = "false")
     Boolean excluded;
 
-    @Schema(description = "Loại quyền lợi override riêng cho target này", example = "PERCENT_DISCOUNT")
+    @Schema(description = "Loại quyền lợi override riêng cho target này", example = "PERCENT_DISCOUNT", implementation = BenefitType.class)
     BenefitType overrideBenefitType;
 
     @Schema(description = "Giá trị giảm override", example = "15")

@@ -36,9 +36,8 @@ File-Service lay user hien tai tu header do Api-Gateway forward xuong.
 
 ```http
 X-User-ID: 550e8400-e29b-41d4-a716-446655440000
-X-User_Email: user@example.com
 X-User_Roles: USER
-X-Correlation-ID: optional-trace-id
+X-Request-ID: optional-trace-id
 Authorization: Bearer <token>
 ```
 
@@ -455,4 +454,3 @@ Neu dung public file that, `public-endpoint` nen la endpoint ma browser/client t
 5. Goi `complete`.
 6. Luu `fileId` vao entity nghiep vu cua service khac.
 7. Khi can hien thi/tai file, goi `download-url`.
-

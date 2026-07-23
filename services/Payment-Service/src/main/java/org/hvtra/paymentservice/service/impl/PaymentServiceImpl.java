@@ -59,7 +59,7 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal receivedAmount = normalizeMoney(request.getReceivedAmount());
 
         Payment existingPayment = paymentRepository
-                .findByOrderIdAndIsDeletedFalse(request.getOrderId())
+                .findByOrderId(request.getOrderId())
                 .orElse(null);
 
         if (existingPayment != null && existingPayment.getStatus() == PaymentStatus.PAID) {
@@ -129,7 +129,7 @@ public class PaymentServiceImpl implements PaymentService {
         LocalDateTime now = LocalDateTime.now();
 
         Payment existingPayment = paymentRepository
-                .findByOrderIdAndIsDeletedFalse(request.getOrderId())
+                .findByOrderId(request.getOrderId())
                 .orElse(null);
 
         if (existingPayment != null && existingPayment.getStatus() == PaymentStatus.PAID) {
@@ -253,7 +253,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public OrderPaymentMethodResponse getPaymentByOrderId(UUID orderId) {
-        Payment payment = paymentRepository.findByOrderIdAndIsDeletedFalse(orderId)
+        Payment payment = paymentRepository.findByOrderId(orderId)
                 .orElse(null);
 
         if (payment == null) {
@@ -285,10 +285,6 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("orderCode không được để trống");
         }
 
-        if (request.getCustomerId() == null) {
-            throw new IllegalArgumentException("customerId không được để trống");
-        }
-
         if (request.getSagaId() == null) {
             throw new IllegalArgumentException("sagaId không được để trống");
         }
@@ -312,7 +308,7 @@ public class PaymentServiceImpl implements PaymentService {
             }
         }
 
-        if (paymentRepository.existsByOrderIdAndStatusAndIsDeletedFalse(
+        if (paymentRepository.existsByOrderIdAndStatus(
                 request.getOrderId(),
                 PaymentStatus.PAID
         )) {

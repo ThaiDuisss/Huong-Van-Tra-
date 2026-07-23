@@ -33,7 +33,7 @@ public class PaymentController {
 
     @GetMapping("/orders/{orderId}")
     @Operation(summary = "Lấy phương thức thanh toán mới nhất của đơn hàng")
-    public OrderPaymentMethodResponse getPaymentByOrderId(@PathVariable UUID orderId) {
+    public OrderPaymentMethodResponse getPaymentByOrderId(@PathVariable("orderId") UUID orderId) {
         return paymentService.getPaymentByOrderId(orderId);
     }
 
