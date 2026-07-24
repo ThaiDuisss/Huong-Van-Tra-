@@ -20,6 +20,7 @@ public class EventMetadataResolver {
 
     private final ObjectMapper objectMapper;
 
+//Bổ sung eventId và eventType vào payload nếu payload đang thiếu.
     public void normalizeBeforeEventId(
             ConsumerRecord<String, String> record,
             CommonEventPayload event,
@@ -34,7 +35,7 @@ public class EventMetadataResolver {
             event.setEventType(resolveEventType(record, topicEventTypeResolver, unknownEventType, eventName));
         }
     }
-
+//Bổ sung eventKey vào payload nếu payload đang thiếu.
     public void normalizeEventKey(ConsumerRecord<String, String> record, CommonEventPayload event) {
         if (isBlank(event.getEventKey())) {
             event.setEventKey(headerValue(record, record.key(), "business_key", "businessKey", "message_key", "messageKey"));

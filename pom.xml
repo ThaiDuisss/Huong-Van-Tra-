@@ -28,6 +28,8 @@
     </properties>
 
     <modules>
+        <module>common/Common-Service</module>
+
         <module>infra/Api-Gateway</module>
         <module>infra/Discovery-Service</module>
 
@@ -44,9 +46,6 @@
         <module>services/Employee-Service</module>
         <module>services/File-Service</module>
         <module>services/Delivery-Service</module>
-
-        <module>common/Common-Service</module>
-
 
     </modules>
 

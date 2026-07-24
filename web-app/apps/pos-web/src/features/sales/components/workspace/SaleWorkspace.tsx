@@ -5,6 +5,7 @@ import { ProductSearchBar } from "../product/ProductSearchBar";
 import { formatCurrency } from "../../services/money";
 import type {
     SaleCartItem,
+    SaleManualDiscount,
     SaleOrderType,
     SaleProductPreview
 } from "../../types/sale.types";
@@ -26,6 +27,7 @@ interface SaleWorkspaceProps {
     onProductIncrement(productId: string): void;
     onProductDecrement(productId: string): void;
     onProductRemove(productId: string): void;
+    onProductDiscountChange(productId: string, discount: SaleManualDiscount | null): void;
     onInvoiceClose(): void;
     onNoteChange(value: string): void;
     onOrderTypeChange(value: SaleOrderType): void;
@@ -46,6 +48,7 @@ export function SaleWorkspace({
     onProductIncrement,
     onProductDecrement,
     onProductRemove,
+    onProductDiscountChange,
     onInvoiceClose,
     onNoteChange,
     onOrderTypeChange
@@ -74,6 +77,7 @@ export function SaleWorkspace({
                 onIncrement={onProductIncrement}
                 onDecrement={onProductDecrement}
                 onRemove={onProductRemove}
+                onDiscountChange={onProductDiscountChange}
             />
 
             <CartNote value={note} onChange={onNoteChange} />

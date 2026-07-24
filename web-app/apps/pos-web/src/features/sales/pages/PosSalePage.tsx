@@ -28,8 +28,7 @@ import {
 import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
 import { posProductApi } from "../services/posProduct.api";
 import {
-    calculateDiscountAmount,
-    calculateSubtotal,
+    calculateNetSubtotal,
     calculateSaleTotals
 } from "../services/totals";
 import {
@@ -41,6 +40,7 @@ import type {
     SaleCartItem,
     SaleDiscountOption,
     SaleCustomer,
+    SaleManualDiscount,
     SaleOrderType,
     SalePaymentMethod,
     SaleProductPreview,
@@ -261,7 +261,10 @@ function promotionToDiscount(
     };
 }
 
-function orderToCartItemsById(order: PosOrderDto): Record<string, SaleCartItem> {
+function orderToCartItemsById(
+    order: PosOrderDto,
+    currentItemsById: Record<string, SaleCartItem> = {}
+): Record<string, SaleCartItem> {
     const items = order.items ?? [];
 
     return Object.fromEntries(
@@ -284,7 +287,10 @@ function orderToCartItemsById(order: PosOrderDto): Record<string, SaleCartItem> 
                     variant: item.variantNameSnapshot ?? "",
                     quantity,
                     unitPrice,
-                    inventoryLocationId: null
+                    inventoryLocationId: null,
+                    manualDiscount:
+                        currentItemsById[productVariantId]?.manualDiscount ??
+                        null
                 }
             ];
         })
@@ -362,10 +368,8 @@ export function PosSalePage() {
     >([]);
     const [reservedCouponUsage, setReservedCouponUsage] =
         useState<CouponUsageResponse | null>(null);
-    const [subtotalOverride, setSubtotalOverride] =
-        useState<number | null>(null);
-    const [subtotalOverrideNote, setSubtotalOverrideNote] =
-        useState("");
+    const [manualOrderDiscount, setManualOrderDiscount] =
+        useState<SaleManualDiscount | null>(null);
     const [cashReceived, setCashReceived] = useState(0);
     const [paymentMethod, setPaymentMethod] =
         useState<SalePaymentMethod>("CASH");
@@ -478,46 +482,38 @@ export function PosSalePage() {
         discounts.find(
             (discount) => discount.id === selectedDiscountId
         ) ?? noDiscount;
-    const previewSubtotal = useMemo(
-        () => calculateSubtotal(cartItems),
+    const discountableSubtotal = useMemo(
+        () => calculateNetSubtotal(cartItems),
         [cartItems]
     );
 
     const baseTotals = useMemo(
-        () => calculateSaleTotals(cartItems, selectedDiscount),
-        [cartItems, selectedDiscount]
+        () =>
+            calculateSaleTotals(
+                cartItems,
+                selectedDiscount,
+                manualOrderDiscount
+            ),
+        [cartItems, manualOrderDiscount, selectedDiscount]
     );
-    const totals: SaleTotals = useMemo(() => {
-        const subtotalOverrideDiscount =
-            subtotalOverride === null
-                ? 0
-                : calculateDiscountAmount(subtotalOverride, selectedDiscount);
-
-        return subtotalOverride === null
-            ? baseTotals
-            : {
-                  subtotal: subtotalOverride,
-                  discountAmount: subtotalOverrideDiscount,
-                  total: Math.max(
-                      0,
-                      subtotalOverride - subtotalOverrideDiscount
-                  )
-              };
-    }, [baseTotals, selectedDiscount, subtotalOverride]);
+    const totals: SaleTotals = baseTotals;
     const changeAmount = Math.max(0, cashReceived - totals.total);
 
     useEffect(() => {
-        if (cartItems.length === 0 || previewSubtotal <= 0) {
-            setPromotionDiscounts([]);
-            setSelectedDiscountId("none");
-            return undefined;
+        if (cartItems.length === 0 || discountableSubtotal <= 0) {
+            const resetDiscountsTimeoutId = window.setTimeout(() => {
+                setPromotionDiscounts([]);
+                setSelectedDiscountId("none");
+            }, 0);
+
+            return () => window.clearTimeout(resetDiscountsTimeoutId);
         }
 
         let active = true;
         const timeoutId = window.setTimeout(() => {
             void posPromotionApi
                 .preview({
-                    orderAmount: previewSubtotal,
+                    orderAmount: discountableSubtotal,
                     customerId: getUuid(selectedCustomerId),
                     branchId: getUuid(currentBranchId),
                     channel: "POS"
@@ -563,7 +559,7 @@ export function PosSalePage() {
         };
     }, [
         cartItems.length,
-        previewSubtotal,
+        discountableSubtotal,
         selectedCustomerId,
         selectedDiscountId
     ]);
@@ -644,19 +640,19 @@ export function PosSalePage() {
         return usage;
     }
 
-    async function applyCouponUsage(usage: CouponUsageResponse | null) {
+    const applyCouponUsage = useCallback(async (usage: CouponUsageResponse | null) => {
         if (!usage) {
             return;
         }
 
         await posPromotionApi.applyCouponUsage(usage.id);
         setReservedCouponUsage(null);
-    }
+    }, []);
 
-    async function releaseCouponUsage(
+    const releaseCouponUsage = useCallback(async (
         usage: CouponUsageResponse | null = reservedCouponUsage,
         action: "release" | "cancel" | "expire" = "release"
-    ) {
+    ) => {
         if (!usage) {
             return;
         }
@@ -676,7 +672,7 @@ export function PosSalePage() {
                 currentUsage?.id === usage.id ? null : currentUsage
             );
         }
-    }
+    }, [reservedCouponUsage]);
 
     const resetCurrentSale = useCallback(() => {
         setCartItemsById({});
@@ -684,8 +680,7 @@ export function PosSalePage() {
         setNote("");
         setSelectedDiscountId("none");
         setReservedCouponUsage(null);
-        setSubtotalOverride(null);
-        setSubtotalOverrideNote("");
+        setManualOrderDiscount(null);
         setCashReceived(0);
         setPaymentMethod("CASH");
         setBankTransferStatus("WAITING");
@@ -724,8 +719,9 @@ export function PosSalePage() {
                 cashReceived,
                 totals,
                 originalSubtotal: baseTotals.subtotal,
-                subtotalOverride,
-                subtotalOverrideNote,
+                selectedDiscount,
+                manualOrderDiscount,
+                couponUsageId: couponUsage?.id,
                 selectedCustomerId
             });
 
@@ -777,8 +773,9 @@ export function PosSalePage() {
                 cashReceived,
                 totals,
                 originalSubtotal: baseTotals.subtotal,
-                subtotalOverride,
-                subtotalOverrideNote,
+                selectedDiscount,
+                manualOrderDiscount,
+                couponUsageId: couponUsage?.id,
                 selectedCustomerId
             });
             await applyCouponUsage(couponUsage);
@@ -886,7 +883,9 @@ export function PosSalePage() {
 
     function applyDraftOrder(order: PosOrderDto) {
         setDraftOrder(order);
-        setCartItemsById(orderToCartItemsById(order));
+        setCartItemsById((currentItemsById) =>
+            orderToCartItemsById(order, currentItemsById)
+        );
         setBankTransferPayment(null);
         setBankTransferStatus("WAITING");
         setBankTransferEventMessage("");
@@ -1017,6 +1016,39 @@ export function PosSalePage() {
         void updateCartItemQuantity(productId, 0);
     }
 
+    function changeProductDiscount(
+        productId: string,
+        discount: SaleManualDiscount | null
+    ) {
+        setCartItemsById((currentItemsById) => {
+            const currentItem = currentItemsById[productId];
+
+            if (!currentItem) {
+                return currentItemsById;
+            }
+
+            return {
+                ...currentItemsById,
+                [productId]: {
+                    ...currentItem,
+                    manualDiscount: discount
+                }
+            };
+        });
+        setBankTransferPayment(null);
+        setBankTransferStatus("WAITING");
+        setBankTransferEventMessage("");
+        setCheckoutError("");
+        setCheckoutSuccess("");
+    }
+
+    function changeSelectedDiscount(discountId: string) {
+        setSelectedDiscountId(discountId);
+        setBankTransferPayment(null);
+        setBankTransferStatus("WAITING");
+        setBankTransferEventMessage("");
+    }
+
     function changePaymentMethod(method: SalePaymentMethod) {
         setPaymentMethod(method);
 
@@ -1044,8 +1076,7 @@ export function PosSalePage() {
             setCashReceived(0);
             setSelectedDiscountId("none");
             setReservedCouponUsage(null);
-            setSubtotalOverride(null);
-            setSubtotalOverrideNote("");
+            setManualOrderDiscount(null);
             setBankTransferPayment(null);
             setBankTransferStatus("WAITING");
             setBankTransferEventMessage("");
@@ -1623,9 +1654,11 @@ export function PosSalePage() {
             }
         };
     }, [
+        applyCouponUsage,
         bankTransferPayment,
         notifications,
         paymentMethod,
+        releaseCouponUsage,
         reservedCouponUsage,
         resetCurrentSale
     ]);
@@ -1641,7 +1674,7 @@ export function PosSalePage() {
                         customers={customers}
                         customersLoading={customersLoading}
                         customersError={customersError}
-                        discounts={mockDiscounts}
+                        discounts={discounts}
                         selectedDiscountId={selectedDiscount.id}
                         selectedCustomer={selectedCustomer}
                         state={deliveryState}
@@ -1649,7 +1682,7 @@ export function PosSalePage() {
                         onCustomerOpen={loadCustomers}
                         onCustomerChange={selectCustomer}
                         onCustomerClear={clearCustomer}
-                        onDiscountChange={setSelectedDiscountId}
+                        onDiscountChange={changeSelectedDiscount}
                         onDeliveryStateChange={setCurrentDeliveryState}
                         onQuoteRefresh={refreshDeliveryQuote}
                         onSubmit={() => {
@@ -1661,7 +1694,7 @@ export function PosSalePage() {
                         discounts={discounts}
                         selectedDiscountId={selectedDiscount.id}
                         totals={totals}
-                        subtotalOverrideNote={subtotalOverrideNote}
+                        manualOrderDiscount={manualOrderDiscount}
                         cashReceived={cashReceived}
                         changeAmount={changeAmount}
                         orderType={orderType}
@@ -1680,14 +1713,12 @@ export function PosSalePage() {
                         customersError={customersError}
                         selectedCustomer={selectedCustomer}
                         onCashReceivedChange={setCashReceived}
-                        onDiscountChange={setSelectedDiscountId}
-                        onSubtotalOverride={(value, subtotalNote) => {
-                            setSubtotalOverride(value);
-                            setSubtotalOverrideNote(subtotalNote);
-                        }}
-                        onSubtotalReset={() => {
-                            setSubtotalOverride(null);
-                            setSubtotalOverrideNote("");
+                        onDiscountChange={changeSelectedDiscount}
+                        onManualOrderDiscountChange={(discount) => {
+                            setManualOrderDiscount(discount);
+                            setBankTransferPayment(null);
+                            setBankTransferStatus("WAITING");
+                            setBankTransferEventMessage("");
                         }}
                         onPaymentMethodChange={changePaymentMethod}
                         onCustomerOpen={loadCustomers}
@@ -1729,6 +1760,7 @@ export function PosSalePage() {
                 onProductIncrement={incrementProduct}
                 onProductDecrement={decrementProduct}
                 onProductRemove={removeProduct}
+                onProductDiscountChange={changeProductDiscount}
                 onInvoiceClose={() => {
                     void closeCurrentInvoice();
                 }}

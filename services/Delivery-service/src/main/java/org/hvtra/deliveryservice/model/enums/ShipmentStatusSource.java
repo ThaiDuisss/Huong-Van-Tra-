@@ -6,5 +6,6 @@ public enum ShipmentStatusSource {
     COURIER,
     DISPATCHER,
     CARRIER_WEBHOOK,
-    RECONCILIATION_JOB
+    RECONCILIATION_JOB,
+    CARRIER_API
 }

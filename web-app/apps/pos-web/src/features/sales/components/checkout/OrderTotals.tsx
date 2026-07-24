@@ -5,98 +5,175 @@ import {
     formatCurrency,
     parseCurrencyInput
 } from "../../services/money";
-import type { SaleTotals } from "../../types/sale.types";
+import type { SaleManualDiscount, SaleTotals } from "../../types/sale.types";
 
 interface OrderTotalsProps {
     totals: SaleTotals;
-    subtotalOverrideNote: string;
-    onSubtotalOverride(value: number, note: string): void;
-    onSubtotalReset(): void;
+    manualOrderDiscount: SaleManualDiscount | null;
+    onManualOrderDiscountChange(value: SaleManualDiscount | null): void;
 }
 
 export function OrderTotals({
     totals,
-    subtotalOverrideNote,
-    onSubtotalOverride,
-    onSubtotalReset
+    manualOrderDiscount,
+    onManualOrderDiscountChange
 }: OrderTotalsProps) {
-    const [editingSubtotal, setEditingSubtotal] = useState(false);
-    const [draftSubtotal, setDraftSubtotal] = useState(
-        formatCurrency(totals.subtotal)
+    const [editingDiscount, setEditingDiscount] = useState(false);
+    const [draftType, setDraftType] =
+        useState<SaleManualDiscount["discountType"]>(
+            manualOrderDiscount?.discountType ?? "FIXED_AMOUNT"
+        );
+    const [draftValue, setDraftValue] = useState(
+        manualOrderDiscount
+            ? String(manualOrderDiscount.discountValue)
+            : ""
     );
-    const [draftNote, setDraftNote] = useState(subtotalOverrideNote);
-    const canSave = draftNote.trim().length > 0;
+    const [draftReason, setDraftReason] = useState(
+        manualOrderDiscount?.reasonCode ?? "MANUAL_ORDER_DISCOUNT"
+    );
+    const [draftNote, setDraftNote] = useState(manualOrderDiscount?.note ?? "");
+    const parsedValue =
+        draftType === "PERCENTAGE"
+            ? Number(draftValue.replace(",", "."))
+            : parseCurrencyInput(draftValue);
+    const canSave =
+        Number.isFinite(parsedValue) &&
+        parsedValue > 0 &&
+        (draftType !== "PERCENTAGE" || parsedValue <= 100) &&
+        draftReason.trim().length > 0;
 
-    function openSubtotalEditor() {
-        setDraftSubtotal(formatCurrency(totals.subtotal));
-        setDraftNote(subtotalOverrideNote);
-        setEditingSubtotal(!editingSubtotal);
+    function openDiscountEditor() {
+        setDraftType(manualOrderDiscount?.discountType ?? "FIXED_AMOUNT");
+        setDraftValue(
+            manualOrderDiscount
+                ? String(manualOrderDiscount.discountValue)
+                : ""
+        );
+        setDraftReason(
+            manualOrderDiscount?.reasonCode ?? "MANUAL_ORDER_DISCOUNT"
+        );
+        setDraftNote(manualOrderDiscount?.note ?? "");
+        setEditingDiscount(!editingDiscount);
     }
 
-    function saveSubtotalOverride() {
+    function saveDiscount() {
         if (!canSave) {
             return;
         }
 
-        onSubtotalOverride(
-            parseCurrencyInput(draftSubtotal),
-            draftNote.trim()
-        );
-        setEditingSubtotal(false);
+        onManualOrderDiscountChange({
+            discountType: draftType,
+            discountValue: parsedValue,
+            reasonCode: draftReason.trim(),
+            note: draftNote.trim() || undefined
+        });
+        setEditingDiscount(false);
     }
 
     return (
         <div className="grid gap-3">
             <div className="flex items-center justify-between text-sm">
+                <span>Tổng tiền hàng</span>
+                <div className="flex items-center gap-2">
+                    <strong>{formatCurrency(totals.subtotal)}</strong>
+                </div>
+            </div>
+
+            {totals.itemDiscountAmount > 0 ? (
+                <div className="flex items-center justify-between text-sm text-amber-700">
+                    <span>Giảm giá sản phẩm</span>
+                    <strong>-{formatCurrency(totals.itemDiscountAmount)}</strong>
+                </div>
+            ) : null}
+
+            <div className="flex items-center justify-between text-sm">
                 <div className="grid gap-1">
-                    <span>Tổng tiền hàng</span>
-                    {subtotalOverrideNote ? (
+                    <span>Giảm giá đơn hàng</span>
+                    {manualOrderDiscount ? (
                         <span className="max-w-48 truncate text-xs text-amber-700">
-                            Đã sửa: {subtotalOverrideNote}
+                            {manualOrderDiscount.reasonCode}
                         </span>
                     ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        onClick={openSubtotalEditor}
+                        onClick={openDiscountEditor}
                         className="grid size-7 place-items-center rounded-full border border-pos-border text-pos-muted hover:border-hvt-green-500 hover:text-hvt-green-900"
-                        aria-label="Sửa tổng tiền hàng"
+                        aria-label="Sửa giảm giá đơn hàng"
                     >
                         <Pencil size={14} aria-hidden="true" />
                     </button>
-                    {subtotalOverrideNote ? (
+                    {manualOrderDiscount ? (
                         <button
                             type="button"
-                            onClick={onSubtotalReset}
+                            onClick={() => onManualOrderDiscountChange(null)}
                             className="grid size-7 place-items-center rounded-full border border-pos-border text-pos-muted hover:border-amber-400 hover:text-amber-700"
-                            aria-label="Hoàn tác sửa tổng tiền hàng"
+                            aria-label="Bỏ giảm giá đơn hàng"
                         >
                             <RotateCcw size={14} aria-hidden="true" />
                         </button>
                     ) : null}
-                    <strong>{formatCurrency(totals.subtotal)}</strong>
+                    <strong>-{formatCurrency(totals.orderDiscountAmount)}</strong>
                 </div>
             </div>
 
-            {editingSubtotal ? (
+            {editingDiscount ? (
                 <div className="grid gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                    <div className="grid grid-cols-[1fr_auto] gap-2">
+                        <input
+                            className="h-10 min-w-0 rounded-lg border border-pos-border bg-white px-3 text-sm outline-none focus:border-hvt-green-700"
+                            inputMode={draftType === "PERCENTAGE" ? "decimal" : "numeric"}
+                            placeholder={
+                                draftType === "PERCENTAGE"
+                                    ? "Nhập % giảm"
+                                    : "Nhập số tiền giảm"
+                            }
+                            value={draftValue}
+                            onChange={(event) =>
+                                setDraftValue(event.currentTarget.value)
+                            }
+                        />
+                        <div className="flex overflow-hidden rounded-lg border border-pos-border bg-white">
+                            <button
+                                type="button"
+                                onClick={() => setDraftType("FIXED_AMOUNT")}
+                                className={`h-10 px-3 text-xs font-black ${
+                                    draftType === "FIXED_AMOUNT"
+                                        ? "bg-hvt-green-900 text-white"
+                                        : "text-pos-muted"
+                                }`}
+                            >
+                                VND
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDraftType("PERCENTAGE")}
+                                className={`h-10 px-3 text-xs font-black ${
+                                    draftType === "PERCENTAGE"
+                                        ? "bg-hvt-green-900 text-white"
+                                        : "text-pos-muted"
+                                }`}
+                            >
+                                %
+                            </button>
+                        </div>
+                    </div>
                     <label className="grid gap-1 text-xs font-semibold text-gray-500">
-                        Tổng tiền hàng mới
+                        Mã lý do
                         <input
                             className="h-10 rounded-lg border border-pos-border bg-white px-3 text-sm outline-none focus:border-hvt-green-700"
-                            inputMode="numeric"
-                            value={draftSubtotal}
+                            value={draftReason}
                             onChange={(event) =>
-                                setDraftSubtotal(event.currentTarget.value)
+                                setDraftReason(event.currentTarget.value)
                             }
                         />
                     </label>
                     <label className="grid gap-1 text-xs font-semibold text-gray-500">
-                        Ghi chú bắt buộc
+                        Ghi chú
                         <textarea
                             className="min-h-16 resize-none rounded-lg border border-pos-border bg-white px-3 py-2 text-sm outline-none focus:border-hvt-green-700"
-                            placeholder="Nhập lý do thay đổi tổng tiền hàng"
+                            placeholder="Nhập ghi chú giảm giá"
                             value={draftNote}
                             onChange={(event) =>
                                 setDraftNote(event.currentTarget.value)
@@ -106,14 +183,14 @@ export function OrderTotals({
                     <div className="flex justify-end gap-2">
                         <button
                             type="button"
-                            onClick={() => setEditingSubtotal(false)}
+                            onClick={() => setEditingDiscount(false)}
                             className="h-9 rounded-lg px-3 text-xs font-semibold text-pos-muted hover:bg-white"
                         >
                             Hủy
                         </button>
                         <button
                             type="button"
-                            onClick={saveSubtotalOverride}
+                            onClick={saveDiscount}
                             disabled={!canSave}
                             className="h-9 rounded-lg bg-hvt-green-900 px-3 text-xs font-bold text-white disabled:bg-neutral-300"
                         >
@@ -123,10 +200,12 @@ export function OrderTotals({
                 </div>
             ) : null}
 
-            <div className="flex items-center justify-between text-sm">
-                <span>Giảm giá</span>
-                <strong>{formatCurrency(totals.discountAmount)}</strong>
-            </div>
+            {totals.discountAmount > 0 ? (
+                <div className="flex items-center justify-between text-sm font-semibold text-amber-700">
+                    <span>Tổng giảm giá</span>
+                    <strong>-{formatCurrency(totals.discountAmount)}</strong>
+                </div>
+            ) : null}
             <div className="flex items-center justify-between border-t border-pos-border pt-3">
                 <span className="font-semibold">Thành tiền</span>
                 <strong className="text-2xl font-bold text-[#159734]">

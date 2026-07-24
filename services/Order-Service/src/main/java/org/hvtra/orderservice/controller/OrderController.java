@@ -18,6 +18,7 @@ import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
+import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -36,10 +37,14 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    @Operation(summary = "tao don hang")
+    @Operation(summary = "checkout hoa don POS da tao draft")
     @PostMapping("/pos/checkout")
-    @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse createOrder(@Valid @RequestBody CreateOrderRequest request) {
+        if (request.getOrderId() == null) {
+            throw new InvalidOrderStatusException(
+                    "POS checkout phải truyền orderId của hóa đơn nháp"
+            );
+        }
         return orderService.createOrder(request);
     }
 

@@ -68,7 +68,7 @@ notification:
   order:
     events:
       topics:
-        payment-succeeded: order.event.ORDER_PAYMENT_SUCCEEDED
+        payment-succeeded: notification.order.payment-succeeded
         payment-failed: order.event.ORDER_PAYMENT_FAILED
         confirmed: order.event.ORDER_CONFIRMED
         cancelled: order.event.ORDER_CANCELLED

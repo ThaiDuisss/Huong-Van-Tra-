@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -90,6 +91,35 @@ public class OrderPaymentSagaService {
         OrderSaga saga = findOrCreateSaga(order, sagaId);
         completeSaga(saga, order, causationId);
         return saga.getId();
+    }
+
+    @Transactional
+    public void markResourceConfirmationRequested(Order order, UUID sagaId) {
+        OrderSaga saga = findOrCreateSaga(order, sagaId);
+        saga.setStatus(SagaStatus.RUNNING);
+        saga.setCurrentStep(org.hvtra.orderservice.domain.enums.OrderSagaStep.INVENTORY_CONFIRM_REQUESTED.name());
+        saga.setCompletedAt(null);
+        saga.setLastError(null);
+        saga.setSagaDataJson(mergeSagaData(order, null, "Resource confirmation requested"));
+        orderSagaRepository.save(saga);
+
+        upsertStep(
+                saga.getId(),
+                4,
+                org.hvtra.orderservice.domain.enums.OrderSagaStep.INVENTORY_CONFIRM_REQUESTED.name(),
+                SagaStepStatus.PROCESSING,
+                null
+        );
+
+        if (hasCouponUsage(order)) {
+            upsertStep(
+                    saga.getId(),
+                    5,
+                    org.hvtra.orderservice.domain.enums.OrderSagaStep.PROMOTION_CONFIRM_REQUESTED.name(),
+                    SagaStepStatus.PROCESSING,
+                    null
+            );
+        }
     }
 
     @Transactional
@@ -239,6 +269,13 @@ public class OrderPaymentSagaService {
         data.put("paymentEventKey", event == null ? null : event.getEventKey());
         data.put("failureReason", event == null ? note : firstNonBlank(event.getFailureReason(), note));
         return toJson(data);
+    }
+
+    private boolean hasCouponUsage(Order order) {
+        return order.getDiscounts() != null
+                && order.getDiscounts().stream()
+                .map(discount -> discount.getUsageId())
+                .anyMatch(Objects::nonNull);
     }
 
     private String toJson(Object value) {

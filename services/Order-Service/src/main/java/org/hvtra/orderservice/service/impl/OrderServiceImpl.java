@@ -7,23 +7,16 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hvtra.commonservice.utils.SecurityUtils;
 import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
+import org.hvtra.orderservice.domain.entity.OrderDiscount;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
-import org.hvtra.orderservice.domain.enums.OrderStatus;
-import org.hvtra.orderservice.domain.enums.PaymentMethod;
-import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.domain.enums.*;
 import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
-import org.hvtra.orderservice.dto.request.CancelOrderRequest;
-import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
-import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
-import org.hvtra.orderservice.dto.request.CreateOrderRequest;
-import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
-import org.hvtra.orderservice.dto.request.PaymentCreateRequest;
-import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
-import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
+import org.hvtra.orderservice.dto.request.*;
 import org.hvtra.orderservice.dto.response.CustomerResponse;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
@@ -39,6 +32,7 @@ import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
 import org.hvtra.orderservice.exception.OrderAlreadyPaidException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
+import org.hvtra.orderservice.repository.OrderDiscountRepository;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.OrderInventoryReservationService;
@@ -67,6 +61,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import static org.hvtra.orderservice.domain.enums.DiscountType.*;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -85,31 +81,50 @@ public class OrderServiceImpl implements OrderService {
     private final OrderOutboxPublisher orderOutboxPublisher;
     private final OrderInventoryReservationService inventoryReservationService;
     private final OrderPaymentSagaService orderPaymentSagaService;
+    private final OrderDiscountRepository orderDiscountRepository;
 
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
+        if (request.getOrderId() != null) {
+            return checkoutExistingDraftOrder(request);
+        }
 
-        BigDecimal originalAmount = BigDecimal.ZERO;
-        CustomerResponse customerSnapshot = loadCustomerSnapshot(request.getCustomerId());
+        CustomerResponse customerSnapshot =
+                loadCustomerSnapshot(request.getCustomerId());
+
+        BigDecimal shippingFee = defaultZero(
+                request.getShippingFee()
+        ).setScale(2, RoundingMode.HALF_UP);
+
+        if (shippingFee.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException(
+                    "Phí giao hàng không được âm"
+            );
+        }
 
         Order order = Order.builder()
                 .orderCode(generateOrderCode())
                 .tenantId(request.getTenantId())
-                .branchId(request.getBranchId())
                 .terminalId(request.getTerminalId())
                 .shiftId(request.getShiftId())
                 .customerId(request.getCustomerId())
                 .customerNameSnapshot(firstNonBlank(
-                        customerSnapshot == null ? null : customerSnapshot.getFullName(),
+                        customerSnapshot == null
+                                ? null
+                                : customerSnapshot.getFullName(),
                         request.getCustomerNameSnapshot()
                 ))
                 .customerPhoneSnapshot(firstNonBlank(
-                        customerSnapshot == null ? null : customerSnapshot.getPhone(),
+                        customerSnapshot == null
+                                ? null
+                                : customerSnapshot.getPhone(),
                         request.getCustomerPhoneSnapshot()
                 ))
                 .customerEmailSnapshot(firstNonBlank(
-                        customerSnapshot == null ? null : customerSnapshot.getEmail(),
+                        customerSnapshot == null
+                                ? null
+                                : customerSnapshot.getEmail(),
                         request.getCustomerEmailSnapshot()
                 ))
                 .branchNameSnapshot(request.getBranchNameSnapshot())
@@ -125,19 +140,59 @@ public class OrderServiceImpl implements OrderService {
                 .status(OrderStatus.PENDING_PAYMENT)
                 .paymentStatus(PaymentStatus.WAITING_PAYMENT)
                 .originalAmount(BigDecimal.ZERO)
-                .discountAmount(defaultZero(request.getDiscountAmount()))
-                .shippingFee(defaultZero(request.getShippingFee()))
+                .discountAmount(BigDecimal.ZERO)
+                .shippingFee(shippingFee)
                 .finalAmount(BigDecimal.ZERO)
                 .paidAmount(BigDecimal.ZERO)
                 .debtAmount(BigDecimal.ZERO)
                 .build();
 
-        for (var itemRequest : request.getItems()) {
-            var variant = catalogClient.getProductVariantPosView(itemRequest.getProductVariantId());
-            BigDecimal quantity = defaultZero(itemRequest.getQuantity());
-            BigDecimal actualUnitPrice = defaultZero(variant.sellingPrice());
-            BigDecimal itemDiscount = defaultZero(itemRequest.getDiscountAmount());
-            BigDecimal lineTotal = actualUnitPrice.multiply(quantity).subtract(itemDiscount);
+        BigDecimal originalAmount = BigDecimal.ZERO;
+        BigDecimal totalItemDiscount = BigDecimal.ZERO;
+
+        for (CreateOrderItemRequest itemRequest : request.getItems()) {
+            BigDecimal quantity = defaultZero(
+                    itemRequest.getQuantity()
+            );
+
+            if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException(
+                        "Số lượng sản phẩm phải lớn hơn 0"
+                );
+            }
+
+            var variant = catalogClient.getProductVariantPosView(
+                    itemRequest.getProductVariantId()
+            );
+
+            if (variant == null || variant.sellingPrice() == null) {
+                throw new IllegalArgumentException(
+                        "Không tìm thấy giá bán của sản phẩm: "
+                                + itemRequest.getProductVariantId()
+                );
+            }
+
+            BigDecimal actualUnitPrice = variant.sellingPrice()
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            if (actualUnitPrice.compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException(
+                        "Giá bán sản phẩm không hợp lệ: "
+                                + itemRequest.getProductVariantId()
+                );
+            }
+
+            BigDecimal grossLineAmount = actualUnitPrice
+                    .multiply(quantity)
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            BigDecimal itemDiscount = calculateDiscounts(
+                    grossLineAmount,
+                    itemRequest.getItemDiscounts()
+            );
+
+            BigDecimal lineTotal =
+                    grossLineAmount.subtract(itemDiscount);
 
             OrderItem item = OrderItem.builder()
                     .productVariantId(variant.variantId())
@@ -153,45 +208,379 @@ public class OrderServiceImpl implements OrderService {
                     .build();
 
             order.addItem(item);
-            originalAmount = originalAmount.add(lineTotal);
+
+            originalAmount = originalAmount.add(grossLineAmount);
+            totalItemDiscount = totalItemDiscount.add(itemDiscount);
         }
 
-        BigDecimal discountAmount = defaultZero(request.getDiscountAmount());
-        BigDecimal shippingFee = defaultZero(request.getShippingFee());
-        BigDecimal finalAmount = originalAmount.subtract(discountAmount).add(shippingFee);
-        if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
-            finalAmount = BigDecimal.ZERO;
-        }
+        BigDecimal amountAfterItemDiscount =
+                originalAmount.subtract(totalItemDiscount);
+
+        BigDecimal orderDiscountAmount = calculateDiscounts(
+                amountAfterItemDiscount,
+                request.getOrderDiscounts()
+        );
+
+        BigDecimal totalDiscountAmount =
+                totalItemDiscount.add(orderDiscountAmount);
+
+        BigDecimal finalAmount = originalAmount
+                .subtract(totalDiscountAmount)
+                .add(shippingFee)
+                .setScale(2, RoundingMode.HALF_UP);
 
         order.setOriginalAmount(originalAmount);
-        order.setDiscountAmount(discountAmount);
+        order.setDiscountAmount(totalDiscountAmount);
         order.setShippingFee(shippingFee);
         order.setFinalAmount(finalAmount);
         order.setPaidAmount(BigDecimal.ZERO);
         order.setDebtAmount(finalAmount);
 
-        Order savedOrder = orderRepository.save(order);
-        saveStatusHistory(savedOrder, null, savedOrder.getStatus(), "Tạo đơn hàng", null);
+        Order savedOrder = orderRepository.saveAndFlush(order);
 
-        String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
+        saveDiscountDetails(savedOrder, request);
+
+        saveStatusHistory(
+                savedOrder,
+                null,
+                savedOrder.getStatus(),
+                "Tạo đơn hàng",
+                request.getCashierId()
+        );
+
+        String paymentMethod =
+                normalizePaymentMethod(request.getPaymentMethod());
+
         if (paymentMethod == null) {
             return toResponse(savedOrder);
         }
-        PaymentResponse payment = null;
-        try {
-             payment = checkoutPayment(
-                    savedOrder,
-                    paymentMethod,
-                    request.getPaidAmount(),
-                    request.getChangedBy()
-            );
-        }catch (RuntimeException e) {
-            throw new RuntimeException(e);
+
+        PaymentResponse payment = checkoutPayment(
+                savedOrder,
+                paymentMethod,
+                request.getPaidAmount()
+        );
+
+        return toResponse(savedOrder, payment);
+    }
+
+    private OrderResponse checkoutExistingDraftOrder(CreateOrderRequest request) {
+        Order order = getEditableDraftOrder(request.getOrderId());
+        if (order.getItems() == null || order.getItems().isEmpty()) {
+            throw new InvalidOrderStatusException("Chưa có sản phẩm trong đơn");
         }
 
+        updateDraftOrderCheckoutInfo(order, request);
+        applyDraftCheckoutDiscounts(order, request);
 
-        Order paidOrder = orderRepository.save(savedOrder);
-        return toResponse(paidOrder, payment);
+        String paymentMethod =
+                normalizePaymentMethod(request.getPaymentMethod());
+        if (paymentMethod == null) {
+            throw new InvalidPaymentAmountException(
+                    "Phương thức thanh toán không hợp lệ"
+            );
+        }
+
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        order.setPaymentStatus(PaymentStatus.WAITING_PAYMENT);
+        order.setPaymentMethod(paymentMethod);
+        order.setPaymentCode(firstNonBlank(
+                request.getPaymentCode(),
+                generatePosPaymentCode(order, paymentMethod)
+        ));
+        order.setExpiresAt(null);
+
+        Order savedOrder = orderRepository.saveAndFlush(order);
+
+        saveStatusHistory(
+                savedOrder,
+                OrderStatus.DRAFT,
+                OrderStatus.PENDING_PAYMENT,
+                "Checkout hóa đơn nháp POS",
+                request.getCashierId()
+        );
+
+        PaymentResponse payment = checkoutPayment(
+                savedOrder,
+                paymentMethod,
+                request.getPaidAmount()
+        );
+
+        return toResponse(savedOrder, payment);
+    }
+
+    private void updateDraftOrderCheckoutInfo(
+            Order order,
+            CreateOrderRequest request
+    ) {
+        CustomerResponse customerSnapshot =
+                loadCustomerSnapshot(request.getCustomerId());
+
+        BigDecimal shippingFee = defaultZero(
+                request.getShippingFee()
+        ).setScale(2, RoundingMode.HALF_UP);
+
+        if (shippingFee.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException(
+                    "Phí giao hàng không được âm"
+            );
+        }
+
+        order.setTenantId(firstNonNull(request.getTenantId(), order.getTenantId()));
+        order.setTerminalId(firstNonNull(request.getTerminalId(), order.getTerminalId()));
+        order.setShiftId(firstNonNull(request.getShiftId(), order.getShiftId()));
+        order.setCustomerId(request.getCustomerId());
+        order.setCustomerNameSnapshot(firstNonBlank(
+                customerSnapshot == null ? null : customerSnapshot.getFullName(),
+                request.getCustomerNameSnapshot()
+        ));
+        order.setCustomerPhoneSnapshot(firstNonBlank(
+                customerSnapshot == null ? null : customerSnapshot.getPhone(),
+                request.getCustomerPhoneSnapshot()
+        ));
+        order.setCustomerEmailSnapshot(firstNonBlank(
+                customerSnapshot == null ? null : customerSnapshot.getEmail(),
+                request.getCustomerEmailSnapshot()
+        ));
+        order.setBranchNameSnapshot(request.getBranchNameSnapshot());
+        order.setTerminalNameSnapshot(request.getTerminalNameSnapshot());
+        order.setShiftCodeSnapshot(request.getShiftCodeSnapshot());
+        order.setCashierId(firstNonNull(request.getCashierId(), order.getCashierId()));
+        order.setCashierNameSnapshot(firstNonBlank(
+                request.getCashierNameSnapshot(),
+                order.getCashierNameSnapshot()
+        ));
+        order.setRecipientNameSnapshot(request.getRecipientNameSnapshot());
+        order.setRecipientPhoneSnapshot(request.getRecipientPhoneSnapshot());
+        order.setShippingAddressSnapshot(request.getShippingAddressSnapshot());
+        order.setShippingProviderSnapshot(request.getShippingProviderSnapshot());
+        order.setOrderType(normalizeOrderType(request.getOrderType()));
+        order.setShippingFee(shippingFee);
+    }
+
+    private void applyDraftCheckoutDiscounts(
+            Order order,
+            CreateOrderRequest request
+    ) {
+        clearDiscountDetails(order);
+
+        List<OrderDiscount> discountEntities = new ArrayList<>();
+        List<UUID> processedItemIds = new ArrayList<>();
+        BigDecimal originalAmount = BigDecimal.ZERO;
+        BigDecimal totalItemDiscount = BigDecimal.ZERO;
+
+        for (CreateOrderItemRequest itemRequest : request.getItems()) {
+            OrderItem item = findDraftItem(
+                    order,
+                    itemRequest.getProductVariantId(),
+                    itemRequest.getBomVersionId()
+            );
+
+            if (item == null) {
+                throw new InvalidOrderStatusException(
+                        "Sản phẩm checkout không có trong hóa đơn nháp: "
+                                + itemRequest.getProductVariantId()
+                );
+            }
+
+            if (processedItemIds.contains(item.getId())) {
+                throw new InvalidOrderStatusException(
+                        "Sản phẩm checkout bị trùng trong request: "
+                                + itemRequest.getProductVariantId()
+                );
+            }
+            processedItemIds.add(item.getId());
+
+            BigDecimal requestedQuantity =
+                    defaultPositive(itemRequest.getQuantity());
+            if (requestedQuantity.compareTo(defaultZero(item.getQuantity())) != 0) {
+                throw new InvalidOrderStatusException(
+                        "Số lượng checkout không khớp hóa đơn nháp: "
+                                + itemRequest.getProductVariantId()
+                );
+            }
+
+            BigDecimal grossLineAmount = defaultZero(item.getActualUnitPrice())
+                    .multiply(defaultZero(item.getQuantity()))
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            BigDecimal itemDiscount = calculateDiscounts(
+                    grossLineAmount,
+                    itemRequest.getItemDiscounts()
+            );
+
+            item.setDiscountAmount(itemDiscount);
+            item.setLineTotal(grossLineAmount.subtract(itemDiscount));
+
+            discountEntities.addAll(createDiscountEntities(
+                    order,
+                    item,
+                    DiscountScope.ITEM,
+                    grossLineAmount,
+                    itemRequest.getItemDiscounts()
+            ));
+
+            originalAmount = originalAmount.add(grossLineAmount);
+            totalItemDiscount = totalItemDiscount.add(itemDiscount);
+        }
+
+        if (processedItemIds.size() != order.getItems().size()) {
+            throw new InvalidOrderStatusException(
+                    "Danh sách sản phẩm checkout không khớp hóa đơn nháp"
+            );
+        }
+
+        BigDecimal orderDiscountBase =
+                originalAmount.subtract(totalItemDiscount);
+        BigDecimal orderDiscountAmount = calculateDiscounts(
+                orderDiscountBase,
+                request.getOrderDiscounts()
+        );
+
+        discountEntities.addAll(createDiscountEntities(
+                order,
+                null,
+                DiscountScope.ORDER,
+                orderDiscountBase,
+                request.getOrderDiscounts()
+        ));
+
+        BigDecimal totalDiscountAmount =
+                totalItemDiscount.add(orderDiscountAmount);
+        BigDecimal finalAmount = originalAmount
+                .subtract(totalDiscountAmount)
+                .add(defaultZero(order.getShippingFee()))
+                .setScale(2, RoundingMode.HALF_UP);
+
+        order.setOriginalAmount(originalAmount);
+        order.setDiscountAmount(totalDiscountAmount);
+        order.setFinalAmount(finalAmount);
+        order.setPaidAmount(BigDecimal.ZERO);
+        order.setDebtAmount(finalAmount);
+
+        if (!discountEntities.isEmpty()) {
+            List<OrderDiscount> savedDiscounts =
+                    orderDiscountRepository.saveAll(discountEntities);
+            order.getDiscounts().addAll(savedDiscounts);
+        }
+    }
+
+    private void clearDiscountDetails(Order order) {
+        if (order.getDiscounts() == null) {
+            order.setDiscounts(new ArrayList<>());
+            return;
+        }
+
+        if (!order.getDiscounts().isEmpty()) {
+            orderDiscountRepository.deleteAll(order.getDiscounts());
+            order.getDiscounts().clear();
+        }
+    }
+
+    private void saveDiscountDetails(
+            Order order,
+            CreateOrderRequest request
+    ) {
+        List<OrderDiscount> entities = new ArrayList<>();
+
+        for (int index = 0;
+             index < request.getItems().size();
+             index++) {
+
+            CreateOrderItemRequest itemRequest =
+                    request.getItems().get(index);
+
+            OrderItem item = order.getItems().get(index);
+
+            BigDecimal grossLineAmount = item
+                    .getActualUnitPrice()
+                    .multiply(item.getQuantity())
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            entities.addAll(createDiscountEntities(
+                    order,
+                    item,
+                    DiscountScope.ITEM,
+                    grossLineAmount,
+                    itemRequest.getItemDiscounts()
+            ));
+        }
+
+        BigDecimal totalItemDiscount = order.getItems().stream()
+                .map(OrderItem::getDiscountAmount)
+                .map(this::defaultZero)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal orderDiscountBase = order
+                .getOriginalAmount()
+                .subtract(totalItemDiscount);
+
+        entities.addAll(createDiscountEntities(
+                order,
+                null,
+                DiscountScope.ORDER,
+                orderDiscountBase,
+                request.getOrderDiscounts()
+        ));
+
+        if (!entities.isEmpty()) {
+            List<OrderDiscount> savedDiscounts =
+                    orderDiscountRepository.saveAll(entities);
+            if (order.getDiscounts() == null) {
+                order.setDiscounts(new ArrayList<>());
+            }
+            order.getDiscounts().clear();
+            order.getDiscounts().addAll(savedDiscounts);
+        }
+    }
+
+    private List<OrderDiscount> createDiscountEntities(
+            Order order,
+            OrderItem orderItem,
+            DiscountScope scope,
+            BigDecimal startingAmount,
+            List<CreateDiscountRequest> requests
+    ) {
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
+        }
+
+        List<OrderDiscount> entities = new ArrayList<>();
+        BigDecimal remainingAmount = startingAmount;
+
+        for (int index = 0; index < requests.size(); index++) {
+            CreateDiscountRequest request = requests.get(index);
+
+            BigDecimal appliedAmount =
+                    calculateDiscountAmount(
+                            remainingAmount,
+                            request
+                    );
+
+            OrderDiscount entity = new OrderDiscount();
+            entity.setOrder(order);
+            entity.setOrderItem(orderItem);
+            entity.setScope(scope);
+            entity.setSource(request.getSource());
+            entity.setDiscountType(request.getDiscountType());
+            entity.setUsageId(request.getUsageId());
+            entity.setDiscountValue(request.getDiscountValue());
+            entity.setBaseAmount(remainingAmount);
+            entity.setAppliedAmount(appliedAmount);
+            entity.setReasonCode(request.getReasonCode());
+            entity.setNote(request.getNote());
+            entity.setStatus(DiscountStatus.ACTIVE);
+            entity.setAppliedBy(order.getCashierId());
+            entity.setAppliedByNameSnapshot(
+                    order.getCashierNameSnapshot()
+            );
+
+            entities.add(entity);
+            remainingAmount =
+                    remainingAmount.subtract(appliedAmount);
+        }
+
+        return entities;
     }
 
     @Override
@@ -246,6 +635,7 @@ public class OrderServiceImpl implements OrderService {
         );
 
         UUID sagaId = orderPaymentSagaService.completeManualPaymentSaga(savedOrder, request.getPaymentCode());
+        orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
         orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
         orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, request.getPaymentCode(), sagaId.toString());
 
@@ -325,6 +715,7 @@ public class OrderServiceImpl implements OrderService {
         );
 
         UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, paymentCausationId(event));
+        orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
         orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
         orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, paymentCausationId(event), sagaId.toString());
         orderOutboxPublisher.publishOrderPaymentSucceededNotification(
@@ -543,8 +934,7 @@ public class OrderServiceImpl implements OrderService {
         PaymentResponse payment = checkoutPayment(
                 savedOrder,
                 paymentMethod,
-                request.getPaidAmount(),
-                request.getChangedBy()
+                request.getPaidAmount()
         );
 
         Order checkoutOrder = orderRepository.save(savedOrder);
@@ -618,24 +1008,28 @@ public class OrderServiceImpl implements OrderService {
             int size
     ) {
         LocalDate today = LocalDate.now(ZoneId.systemDefault());
+
         Pageable pageable = PageRequest.of(
                 Math.max(page, 0),
                 Math.min(Math.max(size, 1), 200),
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
 
-        List<TodaySalesItemResponse> filteredItems = orderRepository.findAll(
-                        orderSpecification(null, status, paymentStatus, null, today, today, null),
-                        Sort.by(Sort.Direction.DESC, "createdAt")
-                )
-                .stream()
-                .map(this::toTodaySalesItemResponse)
-                .filter(item -> paymentMethodMatches(item, paymentMethod))
-                .toList();
-        int start = (int) Math.min(pageable.getOffset(), filteredItems.size());
-        int end = Math.min(start + pageable.getPageSize(), filteredItems.size());
+        Page<Order> orderPage = orderRepository.findAll(
+                orderSpecification(
+                        null,
+                        status,
+                        paymentStatus,
+                        paymentMethod,
+                        null,
+                        today,
+                        today,
+                        null
+                ),
+                pageable
+        );
 
-        return new PageImpl<>(filteredItems.subList(start, end), pageable, filteredItems.size());
+        return orderPage.map(this::toTodaySalesItemResponse);
     }
 
     @Override
@@ -898,6 +1292,96 @@ public class OrderServiceImpl implements OrderService {
         };
     }
 
+    private Specification<Order> orderSpecification(
+            String keyword,
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String paymentMethod,
+            String orderType,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            predicates.add(criteriaBuilder.isFalse(root.get("isDeleted")));
+            applyDefaultOrder(root, query, criteriaBuilder, sort);
+
+            if (keyword != null && !keyword.isBlank()) {
+                String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("orderCode")),
+                                pattern
+                        ),
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("customerNameSnapshot")),
+                                pattern
+                        ),
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("customerPhoneSnapshot")),
+                                pattern
+                        )
+                ));
+            }
+
+            if (status != null) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("status"),
+                        status
+                ));
+            }
+
+            if (paymentStatus != null) {
+                if (paymentStatus == PaymentStatus.UNPAID) {
+                    predicates.add(root.get("paymentStatus").in(
+                            PaymentStatus.UNPAID,
+                            PaymentStatus.WAITING_PAYMENT
+                    ));
+                } else {
+                    predicates.add(criteriaBuilder.equal(
+                            root.get("paymentStatus"),
+                            paymentStatus
+                    ));
+                }
+            }
+
+            if (paymentMethod != null && !paymentMethod.isBlank()) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.upper(root.get("paymentMethod")),
+                        paymentMethod.trim().toUpperCase(Locale.ROOT)
+                ));
+            }
+
+            if (orderType != null && !orderType.isBlank()) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("orderType"),
+                        normalizeOrderType(orderType)
+                ));
+            }
+
+            if (fromDate != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(
+                        root.get("createdAt"),
+                        startOfDay(fromDate)
+                ));
+            }
+
+            if (toDate != null) {
+                predicates.add(criteriaBuilder.lessThan(
+                        root.get("createdAt"),
+                        startOfDay(toDate.plusDays(1))
+                ));
+            }
+
+            return criteriaBuilder.and(
+                    predicates.toArray(Predicate[]::new)
+            );
+        };
+    }
+
     private void applyDefaultOrder(
             Root<Order> root,
             CriteriaQuery<?> query,
@@ -1051,6 +1535,106 @@ public class OrderServiceImpl implements OrderService {
                 .cashierId(order.getCashierId())
                 .cashierName(order.getCashierNameSnapshot())
                 .build();
+    }
+
+    private BigDecimal calculateDiscounts(
+            BigDecimal baseAmount,
+            List<CreateDiscountRequest> discounts
+    ) {
+        if (discounts == null || discounts.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        if (baseAmount == null
+                || baseAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException(
+                    "Số tiền làm cơ sở giảm giá không hợp lệ"
+            );
+        }
+
+        BigDecimal remainingAmount = baseAmount;
+        BigDecimal totalDiscount = BigDecimal.ZERO;
+
+        for (CreateDiscountRequest discount : discounts) {
+            BigDecimal appliedAmount = calculateDiscountAmount(
+                    remainingAmount,
+                    discount
+            );
+
+            totalDiscount = totalDiscount.add(appliedAmount);
+            remainingAmount = remainingAmount.subtract(appliedAmount);
+        }
+
+        return totalDiscount.setScale(
+                2,
+                RoundingMode.HALF_UP
+        );
+    }
+
+    private BigDecimal calculateDiscountAmount(
+            BigDecimal baseAmount,
+            CreateDiscountRequest discount
+    ) {
+        if (discount == null
+                || discount.getDiscountType() == null
+                || discount.getDiscountValue() == null) {
+            throw new IllegalArgumentException(
+                    "Thông tin giảm giá không hợp lệ"
+            );
+        }
+
+        BigDecimal discountValue =
+                discount.getDiscountValue();
+
+        if (discountValue.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                    "Giá trị giảm giá phải lớn hơn 0"
+            );
+        }
+
+        BigDecimal appliedAmount;
+
+        if (discount.getDiscountType()
+                == DiscountType.PERCENTAGE) {
+
+            if (discountValue.compareTo(
+                    BigDecimal.valueOf(100)
+            ) > 0) {
+                throw new IllegalArgumentException(
+                        "Phần trăm giảm giá không được vượt quá 100"
+                );
+            }
+
+            appliedAmount = baseAmount
+                    .multiply(discountValue)
+                    .divide(
+                            BigDecimal.valueOf(100),
+                            2,
+                            RoundingMode.HALF_UP
+                    );
+
+        } else if (discount.getDiscountType()
+                == DiscountType.FIXED_AMOUNT) {
+
+            appliedAmount = discountValue.setScale(
+                    2,
+                    RoundingMode.HALF_UP
+            );
+
+        } else {
+            throw new IllegalArgumentException(
+                    "Loại giảm giá không được hỗ trợ: "
+                            + discount.getDiscountType()
+            );
+        }
+
+        if (appliedAmount.compareTo(baseAmount) > 0) {
+            throw new IllegalArgumentException(
+                    "Số tiền giảm vượt quá giá trị còn lại"
+            );
+        }
+
+        return appliedAmount;
     }
 
     private TodaySalesItemResponse toTodaySalesItemResponse(Order order) {
@@ -1220,8 +1804,7 @@ public class OrderServiceImpl implements OrderService {
     private PaymentResponse checkoutPayment(
             Order order,
             String paymentMethod,
-            BigDecimal receivedAmount,
-            UUID changedBy
+            BigDecimal receivedAmount
     ) {
         PaymentMethod method = toSupportedPaymentMethod(paymentMethod);
         if (method == PaymentMethod.CASH
@@ -1245,7 +1828,7 @@ public class OrderServiceImpl implements OrderService {
         paymentRequest.setDeliveryRequired(false);
 
         PaymentResponse payment = paymentClient.checkout(paymentRequest);
-        applyPaymentCheckoutResult(order, payment, changedBy, sagaId);
+        applyPaymentCheckoutResult(order, payment, getUserId(), sagaId);
         return payment;
     }
 
@@ -1275,6 +1858,7 @@ public class OrderServiceImpl implements OrderService {
                     changedBy
             );
             orderPaymentSagaService.completePaymentSaga(order, eventFromPaymentResponse(order, payment, sagaId), order.getPaymentCode());
+            orderPaymentSagaService.markResourceConfirmationRequested(order, sagaId);
             orderCustomerServiceImpl.updateCustomerPurchase(order.getId());
             orderOutboxPublisher.publishPaymentCompletedOrchestration(order, order.getPaymentCode(), sagaId.toString());
             return;
@@ -1441,6 +2025,10 @@ public class OrderServiceImpl implements OrderService {
         return primary != null && !primary.isBlank() ? primary : fallback;
     }
 
+    private <T> T firstNonNull(T primary, T fallback) {
+        return primary != null ? primary : fallback;
+    }
+
     private String toAuditString(Object value) {
         return value == null ? null : value.toString();
     }
@@ -1480,5 +2068,9 @@ public class OrderServiceImpl implements OrderService {
 
     private String generateOrderCode() {
         return "ORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
+    }
+
+    private UUID getUserId() {
+        return UUID.fromString(SecurityUtils.currentUserId());
     }
 }

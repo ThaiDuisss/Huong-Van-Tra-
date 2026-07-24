@@ -164,7 +164,7 @@ order:
       topics:
         failed: payment.event.PAYMENT_FAILED
         waiting: payment.waiting-payment
-        succeeded: payment.event.PAYMENT_SUCCEEDED
+        succeeded: payment.succeeded
         expired: payment.expired
         cancelled: payment.cancelled
         need-review: payment.need-review

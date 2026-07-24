@@ -3,10 +3,13 @@ import { ApiError } from "@hvt/api-client";
 import { posOrderApi } from "./posOrder.api";
 import type {
     SaleCartItem,
+    SaleDiscountOption,
+    SaleManualDiscount,
     SaleOrderType,
     SalePaymentMethod,
     SaleTotals
 } from "../types/sale.types";
+import type { PosDiscountRequest } from "./posOrder.api";
 
 interface PosCheckoutInput {
     orderId: string | null;
@@ -16,8 +19,9 @@ interface PosCheckoutInput {
     cashReceived: number;
     totals: SaleTotals;
     originalSubtotal: number;
-    subtotalOverride: number | null;
-    subtotalOverrideNote: string;
+    selectedDiscount: SaleDiscountOption;
+    manualOrderDiscount: SaleManualDiscount | null;
+    couponUsageId?: string | null;
     selectedCustomerId: string | null;
 }
 
@@ -72,6 +76,49 @@ function getCustomerId(value: string | null) {
     return value && uuidPattern.test(value) ? value : null;
 }
 
+function getOrderDiscounts(input: PosCheckoutInput): PosDiscountRequest[] {
+    const discounts: PosDiscountRequest[] = [];
+
+    if (
+        input.selectedDiscount.id !== "none" &&
+        input.totals.orderDiscountAmount > 0
+    ) {
+        const discountType =
+            input.selectedDiscount.type === "PERCENT"
+                ? "PERCENTAGE"
+                : "FIXED_AMOUNT";
+
+        discounts.push({
+            discountType,
+            discountValue: input.selectedDiscount.value,
+            source: input.selectedDiscount.couponId ? "COUPON" : "PROMOTION",
+            reasonCode:
+                input.selectedDiscount.couponCode ||
+                input.selectedDiscount.code ||
+                input.selectedDiscount.label,
+            usageId: input.selectedDiscount.couponId
+                ? input.couponUsageId ?? undefined
+                : undefined,
+            note: input.selectedDiscount.description
+        });
+    }
+
+    if (
+        input.manualOrderDiscount &&
+        input.manualOrderDiscount.discountValue > 0
+    ) {
+        discounts.push({
+            discountType: input.manualOrderDiscount.discountType,
+            discountValue: input.manualOrderDiscount.discountValue,
+            source: "MANUAL",
+            reasonCode: input.manualOrderDiscount.reasonCode,
+            note: input.manualOrderDiscount.note
+        });
+    }
+
+    return discounts;
+}
+
 function toPaymentResult(
     payment: Awaited<ReturnType<typeof checkoutPosOrder>>["payment"]
 ): PosCheckoutPaymentResult | null {
@@ -106,7 +153,6 @@ export function getPosCheckoutValidationMessage(
     input: Pick<
         PosCheckoutInput,
         "orderId" | "cartItems" | "orderType" | "paymentMethod" | "cashReceived" | "totals"
-        | "subtotalOverride" | "subtotalOverrideNote"
     >
 ) {
     if (input.cartItems.length === 0) {
@@ -128,13 +174,6 @@ export function getPosCheckoutValidationMessage(
         return "Tiền khách đưa chưa đủ để thanh toán.";
     }
 
-    if (
-        input.subtotalOverride !== null &&
-        input.subtotalOverrideNote.trim().length === 0
-    ) {
-        return "Vui lòng nhập ghi chú khi chỉnh sửa tổng tiền hàng.";
-    }
-
     return unsupportedPaymentMessages[input.paymentMethod] ?? "";
 }
 
@@ -143,16 +182,6 @@ async function checkoutPosOrder(input: PosCheckoutInput) {
         throw new Error("Chưa có sản phẩm trong đơn.");
     }
 
-    const manualAdjustment =
-        input.subtotalOverride === null
-            ? undefined
-            : {
-                originalAmount: input.originalSubtotal,
-                adjustedAmount: input.subtotalOverride,
-                changeAmount:
-                    input.subtotalOverride - input.originalSubtotal,
-                note: input.subtotalOverrideNote
-            };
     const receivedAmount =
         input.paymentMethod === "CASH"
             ? Math.max(input.cashReceived, input.totals.total)
@@ -170,10 +199,10 @@ async function checkoutPosOrder(input: PosCheckoutInput) {
             originalAmount: input.originalSubtotal,
             discountAmount: input.totals.discountAmount,
             finalAmount: input.totals.total,
-            manualAdjustment,
+            orderDiscounts: getOrderDiscounts(input),
             items: input.cartItems,
             paymentMethod: input.paymentMethod,
-            paymentAmount: input.totals.total,
+            paidAmount: input.totals.total,
             receivedAmount,
             changeAmount
         });
