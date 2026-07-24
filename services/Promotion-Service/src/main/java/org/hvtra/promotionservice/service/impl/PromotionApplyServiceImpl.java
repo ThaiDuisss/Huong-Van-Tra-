@@ -8,11 +8,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.promotionservice.dto.request.PromotionPreviewRequest;
+import org.hvtra.promotionservice.dto.request.PromotionPreviewLineRequest;
 import org.hvtra.promotionservice.dto.response.AvailablePromotionResponse;
 import org.hvtra.promotionservice.dto.response.PromotionPreviewResponse;
 import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.entity.PromotionBenefit;
 import org.hvtra.promotionservice.entity.PromotionCondition;
+import org.hvtra.promotionservice.entity.PromotionTarget;
 import org.hvtra.promotionservice.entity.coupon.Coupon;
 import org.hvtra.promotionservice.enums.benefit.BenefitType;
 import org.hvtra.promotionservice.enums.condition.ConditionType;
@@ -34,6 +36,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -64,13 +68,17 @@ public class PromotionApplyServiceImpl implements PromotionApplyService {
         List<AvailablePromotionResponse> availablePromotions = new ArrayList<>();
 
         for (Promotion promotion : promotions) {
-            if (!matchOrderAmountConditions(promotion, orderAmount)) {
+            if (!matchConditions(promotion, request)) {
                 continue;
             }
 
-            BigDecimal discountAmount = calculateDiscount(promotion, orderAmount);
+            BenefitPreview preview = calculateBenefits(
+                    promotion,
+                    request,
+                    getEligibleAmount(promotion, request)
+            );
 
-            if (discountAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            if (!preview.hasBenefit()) {
                 continue;
             }
 
@@ -96,7 +104,10 @@ public class PromotionApplyServiceImpl implements PromotionApplyService {
                     .promotionName(promotion.getName())
                     .applyMethod(promotion.getApplyMethod())
                     .benefitType(getMainBenefitType(promotion))
-                    .estimatedDiscount(discountAmount)
+                    .estimatedDiscount(preview.discount())
+                    .giftProductId(preview.giftProductId())
+                    .giftQuantity(preview.giftQuantity())
+                    .buyQuantity(preview.buyQuantity())
                     .stackable(promotion.getStackable())
                     .requiresCoupon(requiresCoupon);
 
@@ -115,48 +126,155 @@ public class PromotionApplyServiceImpl implements PromotionApplyService {
                 .build();
     }
 
-    private boolean matchOrderAmountConditions(Promotion promotion, BigDecimal orderAmount) {
+    private boolean matchConditions(Promotion promotion, PromotionPreviewRequest request) {
         return promotion.getConditions()
                 .stream()
-                .allMatch(condition -> matchOrderAmountCondition(condition, orderAmount));
+                .allMatch(condition -> matchCondition(condition, request));
     }
 
-    private boolean matchOrderAmountCondition(PromotionCondition condition, BigDecimal orderAmount) {
+    private boolean matchCondition(PromotionCondition condition, PromotionPreviewRequest request) {
         return switch (condition.getConditionType()) {
-            case MIN_ORDER_AMOUNT -> orderAmount.compareTo(
+            case MIN_ORDER_AMOUNT -> request.getOrderAmount().compareTo(
                     parseConditionValue(condition.getConditionValue())
             ) >= 0;
-            case MAX_ORDER_AMOUNT -> orderAmount.compareTo(
+            case MAX_ORDER_AMOUNT -> request.getOrderAmount().compareTo(
                     parseConditionValue(condition.getConditionValue())
             ) <= 0;
+            case MIN_ITEM_QUANTITY -> getLines(request).stream()
+                    .map(PromotionPreviewLineRequest::getQuantity)
+                    .filter(Objects::nonNull)
+                    .reduce(0, Integer::sum) >= parseConditionValue(condition.getConditionValue()).intValue();
+            case FIRST_PURCHASE -> request.getCustomerId() != null
+                    && request.getCustomerOrderCount() != null
+                    && request.getCustomerOrderCount() == 0;
+            case CHANNEL -> request.getChannel() != null
+                    && condition.getConditionValue().toUpperCase().contains(request.getChannel().name());
+            case BRANCH -> request.getBranchId() != null
+                    && condition.getConditionValue().contains(request.getBranchId().toString());
             default -> true;
         };
     }
 
-    private BigDecimal calculateDiscount(Promotion promotion, BigDecimal orderAmount) {
-        return promotion.getBenefits()
-                .stream()
-                .map(benefit -> calculateBenefitDiscount(benefit, orderAmount))
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .min(orderAmount);
+    private BigDecimal getEligibleAmount(Promotion promotion, PromotionPreviewRequest request) {
+        List<PromotionTarget> targets = promotion.getTargets();
+        if (targets == null || targets.isEmpty()) {
+            return request.getOrderAmount();
+        }
+        return getLines(request).stream()
+                .filter(line -> isLineEligible(line, targets))
+                .map(PromotionPreviewLineRequest::getLineAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal calculateBenefitDiscount(PromotionBenefit benefit, BigDecimal orderAmount) {
-        BigDecimal discount = switch (benefit.getBenefitType()) {
-            case PERCENT_DISCOUNT -> orderAmount
-                    .multiply(benefit.getValue())
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-
-            case FIXED_DISCOUNT -> benefit.getValue();
-
-            default -> BigDecimal.ZERO;
-        };
-
-        if (benefit.getMaxDiscount() != null) {
-            discount = discount.min(benefit.getMaxDiscount());
+    private boolean isLineEligible(PromotionPreviewLineRequest line, List<PromotionTarget> targets) {
+        if (targets.stream().filter(t -> Boolean.TRUE.equals(t.getExcluded()))
+                .anyMatch(target -> matchesTarget(line, target))) {
+            return false;
         }
+        List<PromotionTarget> included = targets.stream()
+                .filter(target -> !Boolean.TRUE.equals(target.getExcluded()))
+                .toList();
+        return included.isEmpty() || included.stream().anyMatch(target -> matchesTarget(line, target));
+    }
 
-        return discount.max(BigDecimal.ZERO);
+    private boolean matchesTarget(PromotionPreviewLineRequest line, PromotionTarget target) {
+        return switch (target.getTargetType()) {
+            case PRODUCT -> target.getTargetId().equals(line.getProductId());
+            case CATEGORY -> target.getTargetId().equals(line.getCategoryId());
+            case BRAND -> false;
+        };
+    }
+
+    private BenefitPreview calculateBenefits(
+            Promotion promotion,
+            PromotionPreviewRequest request,
+            BigDecimal eligibleAmount
+    ) {
+        BigDecimal discount = BigDecimal.ZERO;
+        UUID giftProductId = null;
+        int giftQuantity = 0;
+        Integer buyQuantity = null;
+
+        for (PromotionBenefit benefit : promotion.getBenefits()) {
+            switch (benefit.getBenefitType()) {
+                case PERCENT_DISCOUNT -> {
+                    BigDecimal amount = eligibleAmount.multiply(benefit.getValue())
+                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                    discount = discount.add(benefit.getMaxDiscount() == null
+                            ? amount : amount.min(benefit.getMaxDiscount()));
+                }
+                case FIXED_DISCOUNT -> discount = discount.add(benefit.getValue().min(eligibleAmount));
+                case FREE_PRODUCT -> {
+                    giftProductId = benefit.getGiftProductId();
+                    int free = benefit.getGetQuantity() == null ? 1 : benefit.getGetQuantity();
+                    giftQuantity += free;
+                    discount = discount.add(getGiftValue(request, giftProductId, free));
+                }
+                case BUY_X_GET_Y -> {
+                    int required = benefit.getBuyQuantity() == null ? 1 : benefit.getBuyQuantity();
+                    int free = benefit.getGetQuantity() == null ? 1 : benefit.getGetQuantity();
+                    int matchingQuantity = getLines(request).stream()
+                            .filter(line -> promotion.getTargets() == null
+                                    || promotion.getTargets().isEmpty()
+                                    || isLineEligible(line, promotion.getTargets()))
+                            .map(PromotionPreviewLineRequest::getQuantity)
+                            .filter(Objects::nonNull)
+                            .reduce(0, Integer::sum);
+                    int groups = matchingQuantity / required;
+                    if (groups > 0) {
+                        giftProductId = benefit.getGiftProductId();
+                        int awardedQuantity = groups * free;
+                        giftQuantity += awardedQuantity;
+                        discount = discount.add(getGiftValue(request, giftProductId, awardedQuantity));
+                        buyQuantity = required;
+                    }
+                }
+                case FREE_SHIPPING -> {
+                    // The POS request has no shipping fee to discount.
+                }
+            }
+        }
+        return new BenefitPreview(
+                discount.max(BigDecimal.ZERO).min(request.getOrderAmount()),
+                giftProductId,
+                giftQuantity,
+                buyQuantity
+        );
+    }
+
+    private BigDecimal getGiftValue(
+            PromotionPreviewRequest request,
+            UUID giftProductId,
+            int giftQuantity
+    ) {
+        if (giftProductId == null || giftQuantity <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return getLines(request).stream()
+                .filter(line -> giftProductId.equals(line.getProductId()))
+                .filter(line -> line.getQuantity() != null && line.getQuantity() > 0)
+                .filter(line -> line.getLineAmount() != null)
+                .findFirst()
+                .map(line -> line.getLineAmount()
+                        .divide(BigDecimal.valueOf(line.getQuantity()), 2, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(Math.min(giftQuantity, line.getQuantity()))))
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private List<PromotionPreviewLineRequest> getLines(PromotionPreviewRequest request) {
+        return request.getLines() == null ? List.of() : request.getLines();
+    }
+
+    private record BenefitPreview(
+            BigDecimal discount,
+            UUID giftProductId,
+            int giftQuantity,
+            Integer buyQuantity
+    ) {
+        boolean hasBenefit() {
+            return discount.compareTo(BigDecimal.ZERO) > 0 || giftQuantity > 0;
+        }
     }
 
     private BenefitType getMainBenefitType(Promotion promotion) {

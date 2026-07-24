@@ -45,7 +45,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Component
@@ -56,35 +58,95 @@ import java.util.stream.IntStream;
 @Slf4j
 public class PromotionServiceDataInitializer implements ApplicationRunner {
 
-    private static final int SEED_RECORD_COUNT = 60;
-    private static final String SEED_PREFIX = "INIT";
+    private static final int PROMOTION_RECORD_COUNT = 60;
+    private static final int COUPON_RECORD_COUNT = 150;
+    private static final int COUPON_USAGE_RECORD_COUNT = 60;
 
     private static final List<String> EVENT_THEMES = List.of(
-            "Tet Sum Vay",
-            "Flash Sale Tra Sua",
-            "Xa Kho O Long",
-            "Tri An Hoi Vien",
-            "Don Lon Tang Qua",
-            "Sinh Nhat Khach Hang",
-            "Trung Thu Doan Vien",
-            "Back To School",
-            "Black Friday",
-            "Christmas Gift Set",
-            "Hello Summer",
-            "Tea Break Van Phong"
+            "Ưu đãi trà Việt mỗi ngày",
+            "Mừng khai trương chi nhánh mới",
+            "Tri ân khách hàng thân thiết",
+            "Cuối tuần thưởng trà",
+            "Giờ vàng mua trà",
+            "Mùa hè thanh mát",
+            "Trung thu đoàn viên",
+            "Tết sum vầy",
+            "Ngày hội thành viên",
+            "Ưu đãi đặt hàng trực tuyến",
+            "Tháng khuyến mại toàn hệ thống",
+            "Quà tặng doanh nghiệp"
     );
 
     private static final List<String> PROMOTION_PURPOSES = List.of(
-            "Tang gia tri don hang",
-            "Keo khach quay lai",
-            "Day nhanh hang ton",
-            "Tang ty le mua combo",
-            "Thu hut khach moi",
-            "Cham soc khach VIP",
-            "Giam phi giao hang",
-            "Tang tan suat mua hang",
-            "Kich hoat khung gio thap diem",
-            "Kiem thu luong coupon"
+            "Tăng giá trị trung bình của đơn hàng",
+            "Khuyến khích khách hàng quay lại mua sắm",
+            "Tăng doanh số trong khung giờ thấp điểm",
+            "Thúc đẩy đơn hàng có giá trị cao",
+            "Thu hút khách hàng mới",
+            "Chăm sóc khách hàng thành viên",
+            "Tăng tỷ lệ hoàn tất đơn hàng trực tuyến",
+            "Đẩy mạnh doanh số toàn hệ thống"
+    );
+
+    private static final List<String> COUPON_PREFIXES = List.of(
+            "TRAHE", "HVT", "THANHVIEN", "DONHANG", "CUOITUAN",
+            "GIAMGIA", "TRASUA", "OLONG", "MATCHA", "KHAITRUONG",
+            "TET", "TRUNGTHU", "ONLINE", "VIP", "FREESHIP"
+    );
+
+    private static final String ACTIVE_TEST_EVENT_NAME =
+            "Bộ kiểm thử đầy đủ khuyến mãi đang chạy";
+
+    private static final List<ActivePromotionSeed> ACTIVE_PROMOTION_TEST_SUITE = List.of(
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Giảm 10% tự động",
+                    PromotionType.PERCENT_DISCOUNT,
+                    PromotionApplyMethod.AUTO,
+                    BenefitType.PERCENT_DISCOUNT,
+                    10, 100000, null, null, false, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Giảm 50.000đ trực tiếp",
+                    PromotionType.FIXED_DISCOUNT,
+                    PromotionApplyMethod.DIRECT_DISCOUNT,
+                    BenefitType.FIXED_DISCOUNT,
+                    50000, null, null, null, false, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Giảm 15% bằng mã",
+                    PromotionType.PERCENT_DISCOUNT,
+                    PromotionApplyMethod.COUPON_CODE,
+                    BenefitType.PERCENT_DISCOUNT,
+                    15, 150000, null, null, false, "TESTGIAM15"
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Miễn phí vận chuyển",
+                    PromotionType.FREE_SHIPPING,
+                    PromotionApplyMethod.AUTO,
+                    BenefitType.FREE_SHIPPING,
+                    0, 50000, null, null, false, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Mua 2 tặng 1",
+                    PromotionType.BUY_X_GET_Y,
+                    PromotionApplyMethod.AUTO,
+                    BenefitType.BUY_X_GET_Y,
+                    0, null, 2, 1, false, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Tặng sản phẩm lần mua đầu",
+                    PromotionType.FREE_PRODUCT,
+                    PromotionApplyMethod.AUTO,
+                    BenefitType.FREE_PRODUCT,
+                    0, null, null, 1, true, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Giảm 75.000đ bằng mã",
+                    PromotionType.FIXED_DISCOUNT,
+                    PromotionApplyMethod.COUPON_CODE,
+                    BenefitType.FIXED_DISCOUNT,
+                    75000, null, null, null, false, "TESTGIAM75K"
+            )
     );
 
     EventRepository eventRepository;
@@ -109,10 +171,131 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
         seedPromotionConditions(promotions);
         List<Coupon> coupons = seedCoupons(promotions, now);
         seedCouponUsages(coupons, now);
+        seedActivePromotionTestSuite(now);
 
         log.info(
-                "Promotion-Service seed completed. Target records per table: {}.",
-                SEED_RECORD_COUNT
+                "Promotion-Service seed completed. Promotions: {}, coupons: {}.",
+                PROMOTION_RECORD_COUNT, COUPON_RECORD_COUNT
+        );
+    }
+
+    private void seedActivePromotionTestSuite(LocalDateTime now) {
+        Event testEvent = eventRepository.findAll()
+                .stream()
+                .filter(event -> ACTIVE_TEST_EVENT_NAME.equals(event.getName()))
+                .findFirst()
+                .orElseGet(() -> eventRepository.save(Event.builder()
+                        .name(ACTIVE_TEST_EVENT_NAME)
+                        .description("Sự kiện dữ liệu kiểm thử đủ loại khuyến mãi, luôn ở trạng thái đang chạy.")
+                        .startAt(now.minusDays(30))
+                        .endAt(now.plusYears(2))
+                        .eventType(EventType.MANUAL_CAMPAIGN)
+                        .audience(EventAudience.ALL_CUSTOMERS)
+                        .status(EventStatus.ACTIVE)
+                        .build()));
+
+        Set<String> existingPromotionNames = promotionRepository.findAll()
+                .stream()
+                .map(Promotion::getName)
+                .collect(Collectors.toSet());
+        Set<String> existingCouponCodes = couponRepository.findAll()
+                .stream()
+                .map(Coupon::getCode)
+                .collect(Collectors.toSet());
+
+        int createdPromotions = 0;
+        int createdCoupons = 0;
+
+        for (int index = 0; index < ACTIVE_PROMOTION_TEST_SUITE.size(); index++) {
+            ActivePromotionSeed seed = ACTIVE_PROMOTION_TEST_SUITE.get(index);
+            if (existingPromotionNames.contains(seed.name())) {
+                continue;
+            }
+
+            Promotion promotion = Promotion.builder()
+                    .event(testEvent)
+                    .name(seed.name())
+                    .description("Dữ liệu test bổ sung, không thay thế dữ liệu seed cũ.")
+                    .objective("Kiểm thử " + seed.type() + " qua POS và màn quản trị.")
+                    .type(seed.type())
+                    .applyMethod(seed.applyMethod())
+                    .startAt(now.minusDays(30))
+                    .endAt(now.plusYears(2))
+                    .stackable(false)
+                    .priority(1000 - index)
+                    .status(PromotionStatus.ACTIVE)
+                    .build();
+
+            UUID giftProductId = seed.benefitType() == BenefitType.FREE_PRODUCT
+                    || seed.benefitType() == BenefitType.BUY_X_GET_Y
+                    ? productUuid(900 + index)
+                    : null;
+
+            promotion.addBenefit(PromotionBenefit.builder()
+                    .benefitType(seed.benefitType())
+                    .value(bd(seed.value()))
+                    .maxDiscount(seed.maxDiscount() == null ? null : bd(seed.maxDiscount()))
+                    .giftProductId(giftProductId)
+                    .buyQuantity(seed.buyQuantity())
+                    .getQuantity(seed.getQuantity())
+                    .reason("Quyền lợi test cho " + seed.name() + ".")
+                    .minMarginPercent(bd(15))
+                    .expectedMarginPercent(bd(25))
+                    .aiRecommended(false)
+                    .build());
+
+            promotion.addCondition(PromotionCondition.builder()
+                    .conditionType(seed.firstPurchase()
+                            ? ConditionType.FIRST_PURCHASE
+                            : seed.benefitType() == BenefitType.BUY_X_GET_Y
+                                    ? ConditionType.MIN_ITEM_QUANTITY
+                                    : ConditionType.MIN_ORDER_AMOUNT)
+                    .operator(seed.firstPurchase()
+                            ? ConditionOperator.EQ
+                            : ConditionOperator.GTE)
+                    .conditionValue(seed.firstPurchase()
+                            ? "true"
+                            : seed.benefitType() == BenefitType.BUY_X_GET_Y
+                                    ? String.valueOf(seed.buyQuantity())
+                                    : "0")
+                    .build());
+
+            Promotion savedPromotion = promotionRepository.save(promotion);
+            createdPromotions++;
+
+            if (seed.couponCode() != null
+                    && !existingCouponCodes.contains(seed.couponCode())) {
+                couponRepository.save(Coupon.builder()
+                        .promotion(savedPromotion)
+                        .scope(CouponScope.PUBLIC)
+                        .code(seed.couponCode())
+                        .issueReason(CouponIssueReason.MANUAL)
+                        .issuedAt(now.minusDays(1))
+                        .usageLimit(10000)
+                        .perCustomerLimit(20)
+                        .usedCount(0)
+                        .expiresAt(now.plusYears(2))
+                        .status(CouponStatus.ACTIVE)
+                        .snapshotPromotionName(savedPromotion.getName())
+                        .snapshotBenefitType(seed.benefitType())
+                        .snapshotDiscountValue(bd(seed.value()))
+                        .snapshotMaxDiscount(
+                                seed.maxDiscount() == null
+                                        ? null
+                                        : bd(seed.maxDiscount())
+                        )
+                        .build());
+                existingCouponCodes.add(seed.couponCode());
+                createdCoupons++;
+            }
+        }
+
+        promotionRepository.flush();
+        couponRepository.flush();
+        log.info(
+                "Added ACTIVE promotion test suite. Promotions: {}, coupons: {}.",
+                createdPromotions,
+                createdCoupons
         );
     }
 
@@ -122,7 +305,7 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
                 .map(Event::getName)
                 .toList();
 
-        List<Event> missingEvents = IntStream.range(0, SEED_RECORD_COUNT)
+        List<Event> missingEvents = IntStream.range(0, PROMOTION_RECORD_COUNT)
                 .mapToObj(index -> event(index, now))
                 .filter(event -> !existingNames.contains(event.getName()))
                 .toList();
@@ -142,7 +325,7 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
                 .map(Promotion::getName)
                 .toList();
 
-        List<Promotion> missingPromotions = IntStream.range(0, SEED_RECORD_COUNT)
+        List<Promotion> missingPromotions = IntStream.range(0, PROMOTION_RECORD_COUNT)
                 .mapToObj(index -> promotion(index, events.get(index % events.size()), now))
                 .filter(promotion -> !existingNames.contains(promotion.getName()))
                 .toList();
@@ -159,12 +342,12 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     private void seedPromotionBenefits(List<Promotion> promotions) {
         long existingCount = promotionBenefitRepository.count();
 
-        if (existingCount >= SEED_RECORD_COUNT) {
+        if (existingCount >= PROMOTION_RECORD_COUNT) {
             return;
         }
 
         List<PromotionBenefit> benefits = IntStream
-                .range((int) existingCount, SEED_RECORD_COUNT)
+                .range((int) existingCount, PROMOTION_RECORD_COUNT)
                 .mapToObj(index -> benefit(index, promotions.get(index % promotions.size())))
                 .toList();
 
@@ -175,12 +358,12 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     private void seedPromotionTargets(List<Promotion> promotions) {
         long existingCount = promotionTargetRepository.count();
 
-        if (existingCount >= SEED_RECORD_COUNT) {
+        if (existingCount >= PROMOTION_RECORD_COUNT) {
             return;
         }
 
         List<PromotionTarget> targets = IntStream
-                .range((int) existingCount, SEED_RECORD_COUNT)
+                .range((int) existingCount, PROMOTION_RECORD_COUNT)
                 .mapToObj(index -> target(index, promotions.get(index % promotions.size())))
                 .toList();
 
@@ -191,12 +374,12 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     private void seedPromotionConditions(List<Promotion> promotions) {
         long existingCount = promotionConditionRepository.count();
 
-        if (existingCount >= SEED_RECORD_COUNT) {
+        if (existingCount >= PROMOTION_RECORD_COUNT) {
             return;
         }
 
         List<PromotionCondition> conditions = IntStream
-                .range((int) existingCount, SEED_RECORD_COUNT)
+                .range((int) existingCount, PROMOTION_RECORD_COUNT)
                 .mapToObj(index -> condition(index, promotions.get(index % promotions.size())))
                 .toList();
 
@@ -210,8 +393,8 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
                 .map(Coupon::getCode)
                 .toList();
 
-        List<Coupon> missingCoupons = IntStream.range(0, SEED_RECORD_COUNT)
-                .mapToObj(index -> coupon(index, promotions.get(index % promotions.size()), now))
+        List<Coupon> missingCoupons = IntStream.range(0, COUPON_RECORD_COUNT)
+                .mapToObj(index -> coupon(index, promotionForCoupon(index, promotions), now))
                 .filter(coupon -> !existingCodes.contains(coupon.getCode()))
                 .toList();
 
@@ -230,7 +413,7 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
                 .map(CouponUsage::getReservationToken)
                 .toList();
 
-        List<CouponUsage> missingUsages = IntStream.range(0, SEED_RECORD_COUNT)
+        List<CouponUsage> missingUsages = IntStream.range(0, COUPON_USAGE_RECORD_COUNT)
                 .mapToObj(index -> usage(index, coupons.get(index % coupons.size()), now))
                 .filter(usage -> !existingTokens.contains(usage.getReservationToken()))
                 .toList();
@@ -242,16 +425,16 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     }
 
     private Event event(int index, LocalDateTime now) {
-        EventStatus status = cycle(EventStatus.values(), index);
+        EventStatus status = eventStatus(index);
         EventType eventType = cycle(EventType.values(), index);
         EventAudience audience = cycle(EventAudience.values(), index);
         String theme = EVENT_THEMES.get(index % EVENT_THEMES.size());
         TimeRange range = eventTimeRange(index, status, now);
 
         return Event.builder()
-                .name(seedName("EVENT", index, theme))
-                .description("Campaign " + theme + " cho nhom " + audience.name()
-                        + ", dung de kiem thu lifecycle " + status.name() + ".")
+                .name(eventName(index, theme))
+                .description("Chương trình " + theme.toLowerCase()
+                        + " dành cho " + audienceLabel(audience) + ".")
                 .startAt(range.startAt())
                 .endAt(range.endAt())
                 .eventType(eventType)
@@ -261,23 +444,22 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     }
 
     private Promotion promotion(int index, Event event, LocalDateTime now) {
-        PromotionType type = cycle(PromotionType.values(), index);
-        PromotionApplyMethod applyMethod = cycle(PromotionApplyMethod.values(), index);
-        PromotionStatus status = promotionStatusFor(event.getStatus(), index);
+        PromotionType type = promotionType(index);
+        PromotionApplyMethod applyMethod = promotionApplyMethod(index);
+        PromotionStatus status = promotionStatus(index);
         TimeRange range = promotionTimeRange(index, status, event, now);
         String purpose = PROMOTION_PURPOSES.get(index % PROMOTION_PURPOSES.size());
 
         return Promotion.builder()
                 .event(event)
-                .name(seedName("PROMO", index, type.name() + " " + applyMethod.name()))
-                .description("Khuyen mai " + type.name() + " theo hinh thuc "
-                        + applyMethod.name() + " cho " + event.getName() + ".")
+                .name(promotionName(index, type))
+                .description(promotionDescription(index, type, applyMethod))
                 .objective(purpose)
                 .type(type)
                 .applyMethod(applyMethod)
                 .startAt(range.startAt())
                 .endAt(range.endAt())
-                .stackable(index % 4 == 0)
+                .stackable(index % 10 == 0)
                 .priority(100 - index)
                 .status(status)
                 .build();
@@ -334,7 +516,9 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     }
 
     private PromotionCondition condition(int index, Promotion promotion) {
-        ConditionType conditionType = cycle(ConditionType.values(), index);
+        ConditionType conditionType = index % 10 < 8
+                ? ConditionType.MIN_ORDER_AMOUNT
+                : cycle(ConditionType.values(), index);
         ConditionOperator operator = operatorFor(conditionType, index);
 
         return PromotionCondition.builder()
@@ -345,9 +529,16 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
                 .build();
     }
 
+    private Promotion promotionForCoupon(int index, List<Promotion> promotions) {
+        if (couponStatus(index) == CouponStatus.ACTIVE) {
+            return promotions.get(index % 54);
+        }
+        return promotions.get(index % promotions.size());
+    }
+
     private Coupon coupon(int index, Promotion promotion, LocalDateTime now) {
-        CouponStatus status = cycle(CouponStatus.values(), index);
-        CouponScope scope = index % 4 == 0 ? CouponScope.PERSONAL : CouponScope.PUBLIC;
+        CouponStatus status = couponStatus(index);
+        CouponScope scope = index % 10 == 0 ? CouponScope.PERSONAL : CouponScope.PUBLIC;
         CouponIssueReason issueReason = cycle(CouponIssueReason.values(), index);
         BenefitType snapshotBenefitType = benefitTypeFor(promotion.getType());
         int usedCount = usedCountFor(status, index);
@@ -356,15 +547,15 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
                 .promotion(promotion)
                 .scope(scope)
                 .customerId(scope == CouponScope.PERSONAL ? customerUuid(index) : null)
-                .code(seedName("COUPON", index, promotion.getType().name()).replace(" ", "-"))
+                .code(couponCode(index, snapshotBenefitType))
                 .issueReason(issueReason)
-                .sourceOrderId(index % 5 == 0 ? orderUuid("source-" + index) : null)
-                .issuedAt(index % 2 == 0 ? now.minusDays(Math.max(1, index % 20)) : null)
+                .sourceOrderId(index % 12 == 0 ? orderUuid("source-" + index) : null)
+                .issuedAt(now.minusDays(1 + index % 20))
                 .claimedAt(scope == CouponScope.PERSONAL && status == CouponStatus.ACTIVE
                         ? now.minusHours(2 + index % 12)
                         : null)
-                .usageLimit(1 + index % 5)
-                .perCustomerLimit(1)
+                .usageLimit(50 + (index % 10) * 25)
+                .perCustomerLimit(index % 5 == 0 ? 2 : 1)
                 .usedCount(usedCount)
                 .expiresAt(couponExpiresAt(status, promotion, now, index))
                 .status(status)
@@ -392,7 +583,7 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
                 .customerId(coupon.getCustomerId() != null ? coupon.getCustomerId() : customerUuid(index))
                 .discountAmount(discountAmount(coupon, index))
                 .status(status)
-                .reservationToken(seedName("RESERVATION", index, coupon.getCode()).replace(" ", "-"))
+                .reservationToken("RSV-" + coupon.getCode() + "-" + String.format("%04d", index + 1))
                 .reservedAt(reservedAt)
                 .reservationExpiresAt(reservedAt.plusMinutes(30))
                 .usedAt(usedAt)
@@ -406,9 +597,9 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     private List<Event> seedEvents() {
         return eventRepository.findAll()
                 .stream()
-                .filter(event -> event.getName() != null && event.getName().startsWith(SEED_PREFIX + "-EVENT-"))
+                .filter(event -> event.getName() != null && EVENT_THEMES.stream().anyMatch(event.getName()::startsWith))
                 .sorted(Comparator.comparing(Event::getName))
-                .limit(SEED_RECORD_COUNT)
+                .limit(PROMOTION_RECORD_COUNT)
                 .toList();
     }
 
@@ -416,9 +607,12 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
         return promotionRepository.findAll()
                 .stream()
                 .filter(promotion -> promotion.getName() != null
-                        && promotion.getName().startsWith(SEED_PREFIX + "-PROMO-"))
+                        && (promotion.getName().startsWith("Giảm ")
+                        || promotion.getName().startsWith("Miễn phí")
+                        || promotion.getName().startsWith("Mua ")
+                        || promotion.getName().startsWith("Tặng ")))
                 .sorted(Comparator.comparing(Promotion::getName))
-                .limit(SEED_RECORD_COUNT)
+                .limit(PROMOTION_RECORD_COUNT)
                 .toList();
     }
 
@@ -426,9 +620,9 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
         return couponRepository.findAll()
                 .stream()
                 .filter(coupon -> coupon.getCode() != null
-                        && coupon.getCode().startsWith(SEED_PREFIX + "-COUPON-"))
+                        && COUPON_PREFIXES.stream().anyMatch(coupon.getCode()::startsWith))
                 .sorted(Comparator.comparing(Coupon::getCode))
-                .limit(SEED_RECORD_COUNT)
+                .limit(COUPON_RECORD_COUNT)
                 .toList();
     }
 
@@ -474,32 +668,66 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
         return new TimeRange(startAt, endAt);
     }
 
-    private PromotionStatus promotionStatusFor(EventStatus eventStatus, int index) {
-        if (eventStatus == EventStatus.DRAFT) {
-            return index % 3 == 0 ? PromotionStatus.CANCELLED : PromotionStatus.DRAFT;
+    private EventStatus eventStatus(int index) {
+        if (index < 54) {
+            return EventStatus.ACTIVE;
         }
+        return switch (index) {
+            case 54 -> EventStatus.SCHEDULED;
+            case 55 -> EventStatus.PAUSED;
+            case 56 -> EventStatus.DRAFT;
+            case 57 -> EventStatus.EXPIRED;
+            case 58 -> EventStatus.ENDED;
+            default -> EventStatus.CANCELLED;
+        };
+    }
 
-        if (eventStatus == EventStatus.SCHEDULED) {
-            return index % 4 == 0 ? PromotionStatus.DRAFT : PromotionStatus.SCHEDULED;
+    private PromotionStatus promotionStatus(int index) {
+        if (index < 54) {
+            return PromotionStatus.ACTIVE;
         }
+        return switch (index) {
+            case 54 -> PromotionStatus.SCHEDULED;
+            case 55 -> PromotionStatus.PAUSED;
+            case 56 -> PromotionStatus.DRAFT;
+            case 57 -> PromotionStatus.EXPIRED;
+            case 58 -> PromotionStatus.ENDED;
+            default -> PromotionStatus.CANCELLED;
+        };
+    }
 
-        if (eventStatus == EventStatus.PAUSED) {
-            return PromotionStatus.PAUSED;
+    private CouponStatus couponStatus(int index) {
+        if (index < 138) {
+            return CouponStatus.ACTIVE;
         }
+        return switch (index) {
+            case 138, 139, 140 -> CouponStatus.SCHEDULED;
+            case 141, 142 -> CouponStatus.PAUSED;
+            case 143, 144 -> CouponStatus.DRAFT;
+            case 145, 146 -> CouponStatus.EXPIRED;
+            case 147, 148 -> CouponStatus.CANCELLED;
+            default -> CouponStatus.ARCHIVED;
+        };
+    }
 
-        if (eventStatus == EventStatus.EXPIRED) {
-            return PromotionStatus.EXPIRED;
+    private PromotionType promotionType(int index) {
+        int value = index % 10;
+        if (value < 5) {
+            return PromotionType.PERCENT_DISCOUNT;
         }
-
-        if (eventStatus == EventStatus.ENDED) {
-            return PromotionStatus.ENDED;
+        if (value < 9) {
+            return PromotionType.FIXED_DISCOUNT;
         }
+        return PromotionType.FREE_SHIPPING;
+    }
 
-        if (eventStatus == EventStatus.CANCELLED) {
-            return PromotionStatus.CANCELLED;
+    private PromotionApplyMethod promotionApplyMethod(int index) {
+        if (index % 10 < 7) {
+            return PromotionApplyMethod.COUPON_CODE;
         }
-
-        return cycle(PromotionStatus.values(), index);
+        return index % 2 == 0
+                ? PromotionApplyMethod.AUTO
+                : PromotionApplyMethod.DIRECT_DISCOUNT;
     }
 
     private BenefitType benefitTypeFor(PromotionType promotionType) {
@@ -535,7 +763,7 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
             case FREE_SHIPPING -> "Ho tro phi giao hang de tang ty le hoan tat don.";
             case FREE_PRODUCT -> "Tang san pham dung thu cho khach hang muc tieu.";
             case BUY_X_GET_Y -> "Tang item khi khach mua combo nhieu san pham.";
-        } + " Batch " + (index + 1) + ".";
+        };
     }
 
     private ConditionOperator operatorFor(ConditionType conditionType, int index) {
@@ -583,7 +811,7 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
 
     private int usedCountFor(CouponStatus status, int index) {
         if (status == CouponStatus.ACTIVE || status == CouponStatus.ARCHIVED) {
-            return index % 3;
+            return index % 12;
         }
 
         if (status == CouponStatus.EXPIRED) {
@@ -621,9 +849,65 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
         };
     }
 
-    private String seedName(String entity, int index, String label) {
-        return SEED_PREFIX + "-" + entity + "-" + String.format("%03d", index + 1)
-                + "-" + label;
+    private String eventName(int index, String theme) {
+        String scope = switch (index % 5) {
+            case 0 -> "toàn hệ thống";
+            case 1 -> "tại cửa hàng";
+            case 2 -> "trên website";
+            case 3 -> "cho hội viên";
+            default -> "cuối tuần";
+        };
+        return theme + " " + scope;
+    }
+
+    private String audienceLabel(EventAudience audience) {
+        return switch (audience) {
+            case ALL_CUSTOMERS -> "tất cả khách hàng";
+            case CUSTOMER_SEGMENT -> "nhóm khách hàng thành viên";
+            case SPECIFIC_CUSTOMERS -> "nhóm khách hàng được lựa chọn";
+        };
+    }
+
+    private String promotionName(int index, PromotionType type) {
+        int threshold = 100000 + (index % 12) * 50000;
+        return switch (type) {
+            case PERCENT_DISCOUNT -> "Giảm " + (5 + index % 21)
+                    + "% cho đơn từ " + moneyLabel(threshold);
+            case FIXED_DISCOUNT -> "Giảm " + moneyLabel((index % 8 + 1) * 10000)
+                    + " cho đơn từ " + moneyLabel(threshold);
+            case FREE_SHIPPING -> "Miễn phí giao hàng cho đơn từ " + moneyLabel(threshold);
+            case BUY_X_GET_Y -> "Mua 2 tặng 1 sản phẩm cùng loại";
+            case FREE_PRODUCT -> "Tặng trà dùng thử cho đơn từ " + moneyLabel(threshold);
+        };
+    }
+
+    private String promotionDescription(
+            int index,
+            PromotionType type,
+            PromotionApplyMethod applyMethod
+    ) {
+        String method = switch (applyMethod) {
+            case AUTO -> "Hệ thống tự động áp dụng khi đơn hàng đủ điều kiện.";
+            case COUPON_CODE -> "Khách hàng nhập mã giảm giá khi thanh toán.";
+            case DIRECT_DISCOUNT -> "Nhân viên áp dụng trực tiếp tại quầy.";
+        };
+        return promotionName(index, type) + ". " + method;
+    }
+
+    private String couponCode(int index, BenefitType benefitType) {
+        String prefix = COUPON_PREFIXES.get(index % COUPON_PREFIXES.size());
+        String value = switch (benefitType) {
+            case PERCENT_DISCOUNT -> String.valueOf(5 + index % 21);
+            case FIXED_DISCOUNT -> String.valueOf((index % 8 + 1) * 10) + "K";
+            case FREE_SHIPPING -> "SHIP";
+            case FREE_PRODUCT -> "QUA";
+            case BUY_X_GET_Y -> "M2T1";
+        };
+        return prefix + value + String.format("%02d", index / COUPON_PREFIXES.size() + 1);
+    }
+
+    private String moneyLabel(int value) {
+        return String.format("%,dđ", value).replace(',', '.');
     }
 
     private <T> T cycle(T[] values, int index) {
@@ -679,5 +963,19 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     }
 
     private record TimeRange(LocalDateTime startAt, LocalDateTime endAt) {
+    }
+
+    private record ActivePromotionSeed(
+            String name,
+            PromotionType type,
+            PromotionApplyMethod applyMethod,
+            BenefitType benefitType,
+            int value,
+            Integer maxDiscount,
+            Integer buyQuantity,
+            Integer getQuantity,
+            boolean firstPurchase,
+            String couponCode
+    ) {
     }
 }

@@ -36,11 +36,9 @@ public interface PromotionRepository
         );
 
         if (!promotions.isEmpty()) {
-            findPromotionsWithBenefitsByIdIn(
-                    promotions.stream()
-                            .map(Promotion::getId)
-                            .toList()
-            );
+            List<UUID> ids = promotions.stream().map(Promotion::getId).toList();
+            findPromotionsWithBenefitsByIdIn(ids);
+            findPromotionsWithTargetsByIdIn(ids);
         }
 
         return promotions;
@@ -70,4 +68,12 @@ public interface PromotionRepository
             where p.id in :ids
             """)
     List<Promotion> findPromotionsWithBenefitsByIdIn(@Param("ids") List<UUID> ids);
+
+    @Query("""
+            select distinct p
+            from Promotion p
+            left join fetch p.targets
+            where p.id in :ids
+            """)
+    List<Promotion> findPromotionsWithTargetsByIdIn(@Param("ids") List<UUID> ids);
 }

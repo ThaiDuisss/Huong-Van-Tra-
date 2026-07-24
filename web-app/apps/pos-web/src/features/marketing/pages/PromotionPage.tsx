@@ -16,6 +16,11 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { MarketingPagination } from "../components/MarketingPagination";
 import { MarketingSelectField } from "../components/MarketingSelectField";
+import {
+    MarketingTableSkeleton,
+    MarketingToast,
+    type MarketingNotice
+} from "../components/MarketingFeedback";
 import styles from "../components/discount-programs/DiscountProgramPage.module.css";
 import { eventApi } from "../services/event.api";
 import { promotionApi } from "../services/promotion.api";
@@ -27,7 +32,9 @@ import type {
     PromotionResponse,
     PromotionUpdateRequest
 } from "../types/promotion.types";
-import { formatDiscountDate } from "../utils/discount-programs";
+import {
+    formatDiscountDateParts
+} from "../utils/discount-programs";
 import {
     getPromotionApplyMethodLabel,
     getPromotionStatusLabel,
@@ -84,6 +91,12 @@ const statusClassNames: Record<string, string> = {
 
 const promotionStatusOptions = Object.keys(statusClassNames);
 
+const applyMethodClassNames: Record<string, string> = {
+    AUTO: styles.applyMethodAuto,
+    COUPON_CODE: styles.applyMethodCoupon,
+    DIRECT_DISCOUNT: styles.applyMethodDirect
+};
+
 const emptyPromotionFilters: PromotionFilterFormState = {
     keyword: "",
     eventId: "ALL",
@@ -118,6 +131,7 @@ export function PromotionPage() {
     );
     const [error, setError] = useState<string | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [notice, setNotice] = useState<MarketingNotice | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [filters, setFilters] = useState<PromotionFilterFormState>(
         emptyPromotionFilters
@@ -157,7 +171,9 @@ export function PromotionPage() {
             setResource(promotions);
         } catch (err) {
             console.error("Không thể tải danh sách khuyến mãi", err);
-            setError(getErrorMessage(err));
+            const message = getErrorMessage(err);
+            setError(message);
+            setNotice({ type: "error", message });
         } finally {
             setLoading(false);
         }
@@ -265,11 +281,20 @@ export function PromotionPage() {
                 await promotionApi.createPromotion(payload);
             }
 
+            setNotice({
+                type: "success",
+                message:
+                    formState?.mode === "edit"
+                        ? "Cập nhật chương trình giảm giá thành công."
+                        : "Tạo chương trình giảm giá thành công."
+            });
             setFormState(null);
             reload();
         } catch (err) {
             console.error("Không thể lưu khuyến mãi", err);
-            setError(getErrorMessage(err));
+            const message = getErrorMessage(err);
+            setError(message);
+            setNotice({ type: "error", message });
         } finally {
             setActionLoadingId(null);
         }
@@ -322,10 +347,16 @@ export function PromotionPage() {
                     break;
             }
 
+            setNotice({
+                type: "success",
+                message: `${getPromotionActionLabel(action)} chương trình thành công.`
+            });
             reload();
         } catch (err) {
             console.error("Không thể cập nhật khuyến mãi", err);
-            setError(getErrorMessage(err));
+            const message = getErrorMessage(err);
+            setError(message);
+            setNotice({ type: "error", message });
         } finally {
             setActionLoadingId(null);
         }
@@ -345,10 +376,16 @@ export function PromotionPage() {
             setOpenMenuId(null);
             setError(null);
             await promotionApi.deletePromotion(promotion.id);
+            setNotice({
+                type: "success",
+                message: "Xóa chương trình giảm giá thành công."
+            });
             reload();
         } catch (err) {
             console.error("Không thể xóa khuyến mãi", err);
-            setError(getErrorMessage(err));
+            const message = getErrorMessage(err);
+            setError(message);
+            setNotice({ type: "error", message });
         } finally {
             setActionLoadingId(null);
         }
@@ -458,20 +495,27 @@ export function PromotionPage() {
 
             <section className={styles.tableCard}>
                 <div className={styles.tableScroll}>
-                    <table className={styles.table}>
+                    <table className={`${styles.table} ${styles.promotionTable}`}>
+                        <colgroup>
+                            <col className={styles.promotionNameColumn} />
+                            <col className={styles.promotionStatusColumn} />
+                            <col className={styles.promotionApplyColumn} />
+                            <col className={styles.promotionTimeColumn} />
+                            <col className={styles.promotionActionColumn} />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>Tên khuyến mãi</th>
                                 <th>Trạng thái</th>
-                                <th>Sự kiện</th>
                                 <th>Cách áp dụng</th>
-                                <th>Bắt đầu</th>
-                                <th>Kết thúc</th>
+                                <th>Thời gian</th>
                                 <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {promotions.map((promotion, index) => {
+                            {loading ? (
+                                <MarketingTableSkeleton columns={5} />
+                            ) : promotions.map((promotion, index) => {
                                 const actions =
                                     getAllowedPromotionActions(promotion);
                                 const disabled =
@@ -512,26 +556,23 @@ export function PromotionPage() {
                                             />
                                         </td>
                                         <td>
-                                            {formatPromotionEventName(
-                                                promotion,
-                                                mode,
-                                                displayEventName
-                                            )}
+                                            <span
+                                                className={`${styles.applyMethodPill} ${
+                                                    applyMethodClassNames[
+                                                        promotion.applyMethod
+                                                    ] ?? styles.applyMethodDefault
+                                                }`}
+                                            >
+                                                {getPromotionApplyMethodLabel(
+                                                    promotion.applyMethod
+                                                )}
+                                            </span>
                                         </td>
-                                        <td>
-                                            {getPromotionApplyMethodLabel(
-                                                promotion.applyMethod
-                                            )}
-                                        </td>
-                                        <td>
-                                            {formatDiscountDate(
-                                                promotion.startAt
-                                            )}
-                                        </td>
-                                        <td>
-                                            {formatDiscountDate(
-                                                promotion.endAt
-                                            )}
+                                        <td className={styles.promotionTimeCell}>
+                                            <PromotionTimeRange
+                                                startAt={promotion.startAt}
+                                                endAt={promotion.endAt}
+                                            />
                                         </td>
                                         <td
                                             className={styles.actionCell}
@@ -683,10 +724,6 @@ export function PromotionPage() {
                     />
                 ) : null}
 
-                {loading ? (
-                    <div className={styles.empty}>Đang tải dữ liệu...</div>
-                ) : null}
-
                 <MarketingPagination
                     page={safePage}
                     pageCount={pageCount}
@@ -710,6 +747,11 @@ export function PromotionPage() {
                     onSubmit={submitPromotion}
                 />
             ) : null}
+
+            <MarketingToast
+                notice={notice}
+                onClose={() => setNotice(null)}
+            />
         </section>
     );
 }
@@ -1080,17 +1122,28 @@ function getPromotionDetailPath(promotionId: string) {
     );
 }
 
-function formatPromotionEventName(
-    promotion: PromotionResponse,
-    mode: PromotionMode,
-    displayEventName: string
-) {
+function PromotionTimeRange({
+    startAt,
+    endAt
+}: {
+    startAt: string;
+    endAt?: string | null;
+}) {
+    const start = formatDiscountDateParts(startAt);
+    const end = endAt ? formatDiscountDateParts(endAt) : null;
+
     return (
-        promotion.eventName?.trim() ||
-        (mode === "EVENT_FILTERED"
-            ? displayEventName
-            : promotion.eventId?.trim()) ||
-        "Không có"
+        <div className={styles.timeRangeCell}>
+            <span className={styles.timePoint}>
+                <span className={styles.timeDate}>{start.date}</span>
+                <span className={styles.timeHour}>{start.time}</span>
+            </span>
+            <span className={styles.timeSeparator} aria-hidden="true" />
+            <span className={styles.timePoint}>
+                <span className={styles.timeDate}>{end?.date ?? "Không hạn"}</span>
+                <span className={styles.timeHour}>{end?.time ?? "—"}</span>
+            </span>
+        </div>
     );
 }
 

@@ -168,10 +168,6 @@ export function AppRouter() {
                     element={<CouponUsageListPage />}
                 />
                 <Route
-                    path="marketing/discount-rules"
-                    element={<PromotionPage />}
-                />
-                <Route
                     path="customers/tiers"
                     element={<CustomerTierManagementPage />}
                 />

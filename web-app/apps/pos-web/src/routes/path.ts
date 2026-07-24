@@ -31,7 +31,6 @@ export const routePaths = {
         "/system/marketing/discount-programs/:programId",
     discountCodes: "/system/marketing/discount-codes",
     discountHistory: "/system/marketing/discount-history",
-    discountRules: "/system/marketing/discount-rules",
     customerTiers: "/system/customers/tiers",
     bomList: "/system/manufacturing/boms",
     bomDetail: "/system/manufacturing/boms/:id",

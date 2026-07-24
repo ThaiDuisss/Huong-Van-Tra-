@@ -1,6 +1,7 @@
 package org.hvtra.promotionservice.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -8,6 +9,8 @@ import lombok.experimental.FieldDefaults;
 import org.hvtra.promotionservice.enums.promotion.PromotionChannel;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -34,4 +37,10 @@ public class PromotionPreviewRequest {
 
     @Schema(description = "Ma coupon khach nhap neu muon preview theo ma cu the", example = "TET2027")
     String couponCode;
+
+    @Builder.Default
+    @Valid
+    List<PromotionPreviewLineRequest> lines = new ArrayList<>();
+
+    Integer customerOrderCount;
 }
