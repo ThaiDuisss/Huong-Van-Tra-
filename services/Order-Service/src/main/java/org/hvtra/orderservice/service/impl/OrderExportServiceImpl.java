@@ -14,7 +14,7 @@ import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.service.OrderExportService;
-import org.hvtra.orderservice.service.OrderService;
+import org.hvtra.orderservice.service.OrderQueryService;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,10 +38,10 @@ public class OrderExportServiceImpl implements OrderExportService {
     private static final String DEFAULT_SORT = "businessStatus";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    private final OrderService orderService;
+    private final OrderQueryService orderQueryService;
 
-    public OrderExportServiceImpl(OrderService orderService) {
-        this.orderService = orderService;
+    public OrderExportServiceImpl(OrderQueryService orderQueryService) {
+        this.orderQueryService = orderQueryService;
     }
 
     @Override
@@ -124,7 +124,7 @@ public class OrderExportServiceImpl implements OrderExportService {
 
         int rowIndex = 1;
         for (OrderSummaryResponse summary : orders) {
-            OrderResponse detail = orderService.getOrderById(summary.getId());
+            OrderResponse detail = orderQueryService.getOrderById(summary.getId());
             List<OrderItemResponse> items = detail.getItems();
 
             if (items == null || items.isEmpty()) {
@@ -190,7 +190,7 @@ public class OrderExportServiceImpl implements OrderExportService {
         boolean hasNext;
 
         do {
-            Page<OrderSummaryResponse> result = orderService.getOrders(
+            Page<OrderSummaryResponse> result = orderQueryService.getOrders(
                     keyword,
                     status,
                     paymentStatus,
