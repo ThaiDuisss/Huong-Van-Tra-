@@ -14,6 +14,7 @@ import org.hvtra.orderservice.service.OrderCancellationService;
 import org.hvtra.orderservice.service.OrderCheckoutService;
 import org.hvtra.orderservice.service.OrderDraftService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
+import org.hvtra.orderservice.service.OrderPaymentService;
 import org.hvtra.orderservice.service.OrderQueryService;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.service.OrderStatusManagementService;
@@ -39,6 +40,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderCustomerServiceImpl orderCustomerServiceImpl;
     private final OrderOutboxPublisher orderOutboxPublisher;
     private final OrderPaymentSagaService orderPaymentSagaService;
+    private final OrderPaymentService orderPaymentService;
     private final OrderCheckoutService orderCheckoutService;
     private final OrderQueryService orderQueryService;
     private final TodaySalesService todaySalesService;
@@ -66,32 +68,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional
     public OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
-        Order order = getExistingOrder(orderId);
-        BigDecimal paidAmount = orderAmountCalculator.defaultZero(request.getPaidAmount());
-        orderValidator.validateMarkPaid(order, paidAmount);
-
-        OrderStatus oldStatus = order.getStatus();
-        order.setPaymentStatus(PaymentStatus.PAID);
-        order.setStatus(OrderStatus.COMPLETED);
-        order.setPaidAmount(order.getFinalAmount());
-        order.setDebtAmount(BigDecimal.ZERO);
-
-        Order savedOrder = orderRepository.save(order);
-        orderStatusHistoryWriter.write(
-                savedOrder,
-                oldStatus,
-                OrderStatus.COMPLETED,
-                "Thanh toán thành công, mã thanh toán: " + request.getPaymentCode(),
-                request.getChangedBy()
-        );
-
-        UUID sagaId = orderPaymentSagaService.completeManualPaymentSaga(savedOrder, request.getPaymentCode());
-        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
-        orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, request.getPaymentCode(), sagaId.toString());
-
-        return orderResponseAssembler.toResponse(savedOrder);
+        return orderPaymentService.markOrderPaid(orderId, request);
     }
 
     @Override
