@@ -25,7 +25,6 @@ import org.hvtra.orderservice.dto.request.PaymentCreateRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.CustomerResponse;
-import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.PaymentResponse;
@@ -36,7 +35,6 @@ import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
-import org.hvtra.orderservice.exception.OrderAlreadyPaidException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderRepository;
@@ -44,6 +42,12 @@ import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.OrderInventoryReservationService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderService;
+import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
+import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
+import org.hvtra.orderservice.service.helper.OrderDateTimeHelper;
+import org.hvtra.orderservice.service.mapper.OrderItemMapper;
+import org.hvtra.orderservice.service.mapper.OrderMapper;
+import org.hvtra.orderservice.service.validator.OrderValidator;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -53,15 +57,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
-import java.time.format.DateTimeFormatter;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -75,8 +73,6 @@ public class OrderServiceImpl implements OrderService {
     private static final String DEFAULT_ORDER_TYPE = "POS";
     private static final String SORT_BUSINESS_STATUS = "businessStatus";
     private static final String SORT_INVOICE_PAYMENT = "invoicePayment";
-    private static final long DRAFT_TTL_MINUTES = 15;
-
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final CatalogClient catalogClient;
@@ -85,90 +81,60 @@ public class OrderServiceImpl implements OrderService {
     private final OrderOutboxPublisher orderOutboxPublisher;
     private final OrderInventoryReservationService inventoryReservationService;
     private final OrderPaymentSagaService orderPaymentSagaService;
+    private final OrderMapper orderMapper;
+    private final OrderItemMapper orderItemMapper;
+    private final OrderValidator orderValidator;
+    private final OrderAmountCalculator orderAmountCalculator;
+    private final OrderCodeGenerator orderCodeGenerator;
+    private final OrderDateTimeHelper orderDateTimeHelper;
 
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
 
         BigDecimal originalAmount = BigDecimal.ZERO;
+        BigDecimal discountAmount = orderAmountCalculator.defaultZero(request.getDiscountAmount());
+        BigDecimal shippingFee = orderAmountCalculator.defaultZero(request.getShippingFee());
         CustomerResponse customerSnapshot = loadCustomerSnapshot(request.getCustomerId());
-
-        Order order = Order.builder()
-                .orderCode(generateOrderCode())
-                .tenantId(request.getTenantId())
-                .branchId(request.getBranchId())
-                .terminalId(request.getTerminalId())
-                .shiftId(request.getShiftId())
-                .customerId(request.getCustomerId())
-                .customerNameSnapshot(firstNonBlank(
-                        customerSnapshot == null ? null : customerSnapshot.getFullName(),
-                        request.getCustomerNameSnapshot()
-                ))
-                .customerPhoneSnapshot(firstNonBlank(
-                        customerSnapshot == null ? null : customerSnapshot.getPhone(),
-                        request.getCustomerPhoneSnapshot()
-                ))
-                .customerEmailSnapshot(firstNonBlank(
-                        customerSnapshot == null ? null : customerSnapshot.getEmail(),
-                        request.getCustomerEmailSnapshot()
-                ))
-                .branchNameSnapshot(request.getBranchNameSnapshot())
-                .terminalNameSnapshot(request.getTerminalNameSnapshot())
-                .shiftCodeSnapshot(request.getShiftCodeSnapshot())
-                .cashierId(request.getCashierId())
-                .cashierNameSnapshot(request.getCashierNameSnapshot())
-                .recipientNameSnapshot(request.getRecipientNameSnapshot())
-                .recipientPhoneSnapshot(request.getRecipientPhoneSnapshot())
-                .shippingAddressSnapshot(request.getShippingAddressSnapshot())
-                .shippingProviderSnapshot(request.getShippingProviderSnapshot())
-                .orderType(normalizeOrderType(request.getOrderType()))
-                .status(OrderStatus.PENDING_PAYMENT)
-                .paymentStatus(PaymentStatus.WAITING_PAYMENT)
-                .originalAmount(BigDecimal.ZERO)
-                .discountAmount(defaultZero(request.getDiscountAmount()))
-                .shippingFee(defaultZero(request.getShippingFee()))
-                .finalAmount(BigDecimal.ZERO)
-                .paidAmount(BigDecimal.ZERO)
-                .debtAmount(BigDecimal.ZERO)
-                .build();
+        Order order = orderMapper.toOrder(
+                request,
+                customerSnapshot,
+                orderCodeGenerator.generateOrderCode(),
+                normalizeOrderType(request.getOrderType()),
+                discountAmount,
+                shippingFee
+        );
 
         for (var itemRequest : request.getItems()) {
             var variant = catalogClient.getProductVariantPosView(itemRequest.getProductVariantId());
-            BigDecimal quantity = defaultZero(itemRequest.getQuantity());
-            BigDecimal actualUnitPrice = defaultZero(variant.sellingPrice());
-            BigDecimal itemDiscount = defaultZero(itemRequest.getDiscountAmount());
-            BigDecimal lineTotal = actualUnitPrice.multiply(quantity).subtract(itemDiscount);
+            BigDecimal quantity = orderAmountCalculator.defaultZero(itemRequest.getQuantity());
+            BigDecimal actualUnitPrice = orderAmountCalculator.defaultZero(variant.sellingPrice());
+            BigDecimal itemDiscount = orderAmountCalculator.defaultZero(itemRequest.getDiscountAmount());
+            BigDecimal lineTotal = orderAmountCalculator.calculateCreationLineTotal(
+                    actualUnitPrice,
+                    quantity,
+                    itemDiscount
+            );
 
-            OrderItem item = OrderItem.builder()
-                    .productVariantId(variant.variantId())
-                    .skuSnapshot(variant.sku())
-                    .productNameSnapshot(variant.productName())
-                    .variantNameSnapshot(variant.variantName())
-                    .quantity(quantity)
-                    .originalUnitPrice(actualUnitPrice)
-                    .actualUnitPrice(actualUnitPrice)
-                    .discountAmount(itemDiscount)
-                    .lineTotal(lineTotal)
-                    .bomVersionId(itemRequest.getBomVersionId())
-                    .build();
+            OrderItem item = orderItemMapper.toOrderItem(
+                    variant,
+                    quantity,
+                    actualUnitPrice,
+                    itemDiscount,
+                    lineTotal,
+                    itemRequest.getBomVersionId()
+            );
 
             order.addItem(item);
             originalAmount = originalAmount.add(lineTotal);
         }
 
-        BigDecimal discountAmount = defaultZero(request.getDiscountAmount());
-        BigDecimal shippingFee = defaultZero(request.getShippingFee());
-        BigDecimal finalAmount = originalAmount.subtract(discountAmount).add(shippingFee);
-        if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
-            finalAmount = BigDecimal.ZERO;
-        }
-
-        order.setOriginalAmount(originalAmount);
-        order.setDiscountAmount(discountAmount);
-        order.setShippingFee(shippingFee);
-        order.setFinalAmount(finalAmount);
-        order.setPaidAmount(BigDecimal.ZERO);
-        order.setDebtAmount(finalAmount);
+        orderAmountCalculator.applyCreatedOrderTotals(
+                order,
+                originalAmount,
+                discountAmount,
+                shippingFee
+        );
 
         Order savedOrder = orderRepository.save(order);
         saveStatusHistory(savedOrder, null, savedOrder.getStatus(), "Tạo đơn hàng", null);
@@ -204,31 +170,15 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public OrderPaymentInfoResponse getPaymentInfo(UUID orderId) {
         Order order = getExistingOrder(orderId);
-
-        return OrderPaymentInfoResponse.builder()
-                .orderId(order.getId())
-                .orderCode(order.getOrderCode())
-                .status(order.getStatus())
-                .paymentStatus(order.getPaymentStatus())
-                .finalAmount(order.getFinalAmount())
-                .paidAmount(order.getPaidAmount())
-                .debtAmount(order.getDebtAmount())
-                .build();
+        return orderMapper.toPaymentInfoResponse(order);
     }
 
     @Override
     @Transactional
     public OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
         Order order = getExistingOrder(orderId);
-
-        if (PaymentStatus.PAID == order.getPaymentStatus()) {
-            throw new OrderAlreadyPaidException("Đơn hàng đã được thanh toán");
-        }
-
-        BigDecimal paidAmount = defaultZero(request.getPaidAmount());
-        if (paidAmount.compareTo(order.getFinalAmount()) < 0) {
-            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
-        }
+        BigDecimal paidAmount = orderAmountCalculator.defaultZero(request.getPaidAmount());
+        orderValidator.validateMarkPaid(order, paidAmount);
 
         OrderStatus oldStatus = order.getStatus();
         order.setPaymentStatus(PaymentStatus.PAID);
@@ -302,10 +252,8 @@ public class OrderServiceImpl implements OrderService {
             return;
         }
 
-        BigDecimal amountPaid = defaultZero(event.getAmountPaid());
-        if (amountPaid.compareTo(order.getFinalAmount()) < 0) {
-            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
-        }
+        BigDecimal amountPaid = orderAmountCalculator.defaultZero(event.getAmountPaid());
+        orderValidator.validatePaymentAmount(order, amountPaid);
 
         OrderStatus oldStatus = order.getStatus();
         order.setPaymentStatus(PaymentStatus.PAID);
@@ -428,7 +376,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse addDraftItem(AddDraftOrderItemRequest request) {
-        Instant expiresAt = nextDraftExpiresAt();
+        Instant expiresAt = orderDateTimeHelper.nextDraftExpiresAt();
         Order order = request.getOrderId() == null
                 ? createDraftOrder(request, expiresAt)
                 : getEditableDraftOrder(request.getOrderId());
@@ -436,33 +384,31 @@ public class OrderServiceImpl implements OrderService {
 
         var variant = catalogClient.getProductVariantPosView(request.getProductVariantId());
         log.info("variant: {}", variant);
-        BigDecimal addQuantity = defaultPositive(request.getQuantity());
+        BigDecimal addQuantity = orderValidator.requirePositiveQuantity(request.getQuantity());
         OrderItem item = findDraftItem(order, variant.variantId(), request.getBomVersionId());
-        BigDecimal oldQuantity = item == null ? BigDecimal.ZERO : defaultZero(item.getQuantity());
+        BigDecimal oldQuantity = item == null
+                ? BigDecimal.ZERO
+                : orderAmountCalculator.defaultZero(item.getQuantity());
         BigDecimal targetQuantity = oldQuantity.add(addQuantity);
         log.info("varient{} {}", variant.variantId(), request.getProductVariantId());
         inventoryReservationService.applyReservation(order, variant.variantId(), targetQuantity, request.getInventoryLocationId());
 
         if (item == null) {
-            item = OrderItem.builder()
-                    .productVariantId(variant.variantId())
-                    .skuSnapshot(variant.sku())
-                    .productNameSnapshot(variant.productName())
-                    .variantNameSnapshot(variant.variantName())
-                    .quantity(targetQuantity)
-                    .originalUnitPrice(defaultZero(variant.sellingPrice()))
-                    .actualUnitPrice(defaultZero(variant.sellingPrice()))
-                    .discountAmount(defaultZero(request.getDiscountAmount()))
-                    .bomVersionId(request.getBomVersionId())
-                    .build();
-            recalculateLine(item);
+            item = orderItemMapper.toDraftOrderItem(
+                    variant,
+                    targetQuantity,
+                    orderAmountCalculator.defaultZero(variant.sellingPrice()),
+                    orderAmountCalculator.defaultZero(request.getDiscountAmount()),
+                    request.getBomVersionId()
+            );
+            orderAmountCalculator.recalculateLine(item);
             order.addItem(item);
         } else {
             item.setQuantity(targetQuantity);
-            recalculateLine(item);
+            orderAmountCalculator.recalculateLine(item);
         }
 
-        recalculateOrderTotals(order);
+        orderAmountCalculator.recalculateOrderTotals(order);
         return toResponse(orderRepository.save(order));
     }
 
@@ -471,8 +417,8 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse updateDraftItemQuantity(UUID orderId, UUID itemId, UpdateDraftOrderItemQuantityRequest request) {
         Order order = getEditableDraftOrder(orderId);
         OrderItem item = getOrderItem(order, itemId);
-        BigDecimal targetQuantity = defaultZero(request.getQuantity());
-        order.setExpiresAt(nextDraftExpiresAt());
+        BigDecimal targetQuantity = orderAmountCalculator.defaultZero(request.getQuantity());
+        order.setExpiresAt(orderDateTimeHelper.nextDraftExpiresAt());
 
         if (targetQuantity.compareTo(BigDecimal.ZERO) <= 0) {
             return removeDraftItem(orderId, itemId);
@@ -480,8 +426,8 @@ public class OrderServiceImpl implements OrderService {
 
         inventoryReservationService.applyReservation(order, item.getProductVariantId(), targetQuantity, null);
         item.setQuantity(targetQuantity);
-        recalculateLine(item);
-        recalculateOrderTotals(order);
+        orderAmountCalculator.recalculateLine(item);
+        orderAmountCalculator.recalculateOrderTotals(order);
         return toResponse(orderRepository.save(order));
     }
 
@@ -493,8 +439,8 @@ public class OrderServiceImpl implements OrderService {
 
         inventoryReservationService.releaseItemReservation(order.getId(), item.getProductVariantId(), null);
         order.getItems().remove(item);
-        order.setExpiresAt(nextDraftExpiresAt());
-        recalculateOrderTotals(order);
+        order.setExpiresAt(orderDateTimeHelper.nextDraftExpiresAt());
+        orderAmountCalculator.recalculateOrderTotals(order);
         return toResponse(orderRepository.save(order));
     }
 
@@ -505,9 +451,7 @@ public class OrderServiceImpl implements OrderService {
         if (OrderStatus.CANCELLED == order.getStatus() || OrderStatus.EXPIRED == order.getStatus()) {
             return toResponse(order);
         }
-        if (OrderStatus.DRAFT != order.getStatus()) {
-            throw new InvalidOrderStatusException("Chỉ hóa đơn nháp mới được hủy bằng API này");
-        }
+        orderValidator.validateDraftCancellation(order);
 
         inventoryReservationService.releaseOrderReservation(order.getId());
         OrderStatus oldStatus = order.getStatus();
@@ -521,23 +465,24 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse checkoutDraftOrder(UUID orderId, CheckoutDraftOrderRequest request) {
         Order order = getEditableDraftOrder(orderId);
-        if (order.getItems() == null || order.getItems().isEmpty()) {
-            throw new InvalidOrderStatusException("Chưa có sản phẩm trong đơn");
-        }
+        orderValidator.validateDraftHasItems(order);
 
         if (request.getDiscountAmount() != null) {
             order.setDiscountAmount(
-                    defaultZero(request.getDiscountAmount()).max(BigDecimal.ZERO)
+                    orderAmountCalculator.defaultZero(request.getDiscountAmount()).max(BigDecimal.ZERO)
             );
         }
-        recalculateOrderTotals(order);
+        orderAmountCalculator.recalculateOrderTotals(order);
         String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
         if (paymentMethod == null) {
             throw new InvalidPaymentAmountException("Phương thức thanh toán không hợp lệ");
         }
 
         order.setPaymentMethod(paymentMethod);
-        order.setPaymentCode(firstNonBlank(request.getPaymentCode(), generatePosPaymentCode(order, paymentMethod)));
+        order.setPaymentCode(firstNonBlank(
+                request.getPaymentCode(),
+                orderCodeGenerator.generatePosPaymentCode(order, paymentMethod)
+        ));
         Order savedOrder = orderRepository.save(order);
 
         PaymentResponse payment = checkoutPayment(
@@ -581,7 +526,7 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.findAll(
                 withBusinessOrder(filters, normalizeOrderSort(sort)),
                 pageRequest
-        ).map(this::toSummaryResponse);
+        ).map(orderMapper::toSummaryResponse);
     }
 
     @Override
@@ -618,7 +563,7 @@ public class OrderServiceImpl implements OrderService {
             int page,
             int size
     ) {
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        LocalDate today = orderDateTimeHelper.today();
         Pageable pageable = PageRequest.of(
                 Math.max(page, 0),
                 Math.min(Math.max(size, 1), 200),
@@ -642,41 +587,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public TodaySalesSummaryResponse getTodaySalesSummary() {
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        LocalDate today = orderDateTimeHelper.today();
         List<Order> todayOrders = orderRepository.findAll(
                 orderSpecification(null, null, null, null, today, today)
         );
-
-        long totalOrders = todayOrders.size();
-        long completedOrders = todayOrders.stream().filter(this::isCompletedSale).count();
-        long pendingPaymentOrders = todayOrders.stream().filter(this::isPendingPaymentSale).count();
-
-        // Doanh thu chỉ tính đơn đã thanh toán/hoàn thành và không bị hủy.
-        BigDecimal todayRevenue = todayOrders.stream()
-                .filter(this::isCompletedSale)
-                .map(order -> defaultZero(order.getFinalAmount()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // Chờ thu chỉ tính đơn chưa thanh toán và chưa hủy.
-        BigDecimal pendingAmount = todayOrders.stream()
-                .filter(this::isPendingPaymentSale)
-                .map(order -> defaultZero(order.getDebtAmount()).compareTo(BigDecimal.ZERO) > 0
-                        ? defaultZero(order.getDebtAmount())
-                        : defaultZero(order.getFinalAmount()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal averageOrderValue = completedOrders == 0
-                ? BigDecimal.ZERO
-                : todayRevenue.divide(BigDecimal.valueOf(completedOrders), 2, RoundingMode.HALF_UP);
-
-        return TodaySalesSummaryResponse.builder()
-                .todayRevenue(todayRevenue)
-                .totalOrders(totalOrders)
-                .completedOrders(completedOrders)
-                .pendingPaymentOrders(pendingPaymentOrders)
-                .averageOrderValue(averageOrderValue)
-                .pendingAmount(pendingAmount)
-                .build();
+        return orderAmountCalculator.calculateTodaySalesSummary(todayOrders);
     }
 
     @Override
@@ -700,15 +615,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse cancelOrder(UUID orderId, CancelOrderRequest request) {
         Order order = getExistingOrder(orderId);
-
-        if (PaymentStatus.PAID == order.getPaymentStatus() || OrderStatus.COMPLETED == order.getStatus()) {
-            throw new InvalidOrderStatusException(
-                    "Đơn hàng đã thanh toán hoặc đã hoàn thành, không thể hủy trực tiếp. Vui lòng dùng luồng hoàn tiền/hoàn hàng."
-            );
-        }
-        if (OrderStatus.CANCELLED == order.getStatus()) {
-            throw new InvalidOrderStatusException("Đơn hàng đã được hủy trước đó");
-        }
+        orderValidator.validateCancellation(order);
 
         OrderStatus oldStatus = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
@@ -725,36 +632,12 @@ public class OrderServiceImpl implements OrderService {
 
     private Order createDraftOrder(AddDraftOrderItemRequest request, Instant expiresAt) {
         CustomerResponse customerSnapshot = loadCustomerSnapshot(request.getCustomerId());
-        Order order = Order.builder()
-                .orderCode(generateOrderCode())
-                .tenantId(request.getTenantId())
-                .branchId(request.getBranchId())
-                .terminalId(request.getTerminalId())
-                .shiftId(request.getShiftId())
-                .customerId(request.getCustomerId())
-                .customerNameSnapshot(firstNonBlank(
-                        customerSnapshot == null ? null : customerSnapshot.getFullName(),
-                        request.getCustomerNameSnapshot()))
-                .customerPhoneSnapshot(firstNonBlank(
-                        customerSnapshot == null ? null : customerSnapshot.getPhone(),
-                        request.getCustomerPhoneSnapshot()))
-                .customerEmailSnapshot(customerSnapshot == null ? null : customerSnapshot.getEmail())
-                .branchNameSnapshot(request.getBranchNameSnapshot())
-                .terminalNameSnapshot(request.getTerminalNameSnapshot())
-                .shiftCodeSnapshot(request.getShiftCodeSnapshot())
-                .cashierId(request.getCashierId())
-                .cashierNameSnapshot(request.getCashierNameSnapshot())
-                .orderType(DEFAULT_ORDER_TYPE)
-                .status(OrderStatus.DRAFT)
-                .paymentStatus(PaymentStatus.WAITING_PAYMENT)
-                .originalAmount(BigDecimal.ZERO)
-                .discountAmount(BigDecimal.ZERO)
-                .shippingFee(BigDecimal.ZERO)
-                .finalAmount(BigDecimal.ZERO)
-                .paidAmount(BigDecimal.ZERO)
-                .debtAmount(BigDecimal.ZERO)
-                .expiresAt(expiresAt)
-                .build();
+        Order order = orderMapper.toDraftOrder(
+                request,
+                customerSnapshot,
+                orderCodeGenerator.generateOrderCode(),
+                expiresAt
+        );
         Order savedOrder = orderRepository.saveAndFlush(order);
         saveStatusHistory(savedOrder, null, OrderStatus.DRAFT, "Tạo hóa đơn nháp POS", request.getCashierId());
         return savedOrder;
@@ -762,12 +645,7 @@ public class OrderServiceImpl implements OrderService {
 
     private Order getEditableDraftOrder(UUID orderId) {
         Order order = getExistingOrder(orderId);
-        if (OrderStatus.DRAFT != order.getStatus()) {
-            throw new InvalidOrderStatusException("ORDER_NOT_DRAFT");
-        }
-        if (order.getExpiresAt() != null && order.getExpiresAt().isBefore(Instant.now())) {
-            throw new InvalidOrderStatusException("ORDER_EXPIRED");
-        }
+        orderValidator.validateEditableDraft(order, Instant.now());
         return order;
     }
 
@@ -791,47 +669,6 @@ public class OrderServiceImpl implements OrderService {
 
     private boolean bomVersionMatches(UUID current, UUID requested) {
         return current == null ? requested == null : current.equals(requested);
-    }
-
-    private Instant nextDraftExpiresAt() {
-        return Instant.now().plusSeconds(DRAFT_TTL_MINUTES * 60);
-    }
-
-    private BigDecimal defaultPositive(BigDecimal value) {
-        BigDecimal normalized = defaultZero(value);
-        if (normalized.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new InvalidOrderStatusException("Số lượng phải lớn hơn 0");
-        }
-        return normalized;
-    }
-
-    private void recalculateLine(OrderItem item) {
-        BigDecimal quantity = defaultZero(item.getQuantity());
-        BigDecimal unitPrice = defaultZero(item.getActualUnitPrice());
-        BigDecimal discountAmount = defaultZero(item.getDiscountAmount());
-        BigDecimal lineTotal = unitPrice.multiply(quantity).subtract(discountAmount);
-        item.setLineTotal(lineTotal.max(BigDecimal.ZERO));
-    }
-
-    private void recalculateOrderTotals(Order order) {
-        BigDecimal originalAmount = order.getItems() == null
-                ? BigDecimal.ZERO
-                : order.getItems().stream()
-                .peek(this::recalculateLine)
-                .map(item -> defaultZero(item.getLineTotal()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal discountAmount = defaultZero(order.getDiscountAmount());
-        BigDecimal shippingFee = defaultZero(order.getShippingFee());
-        BigDecimal finalAmount = originalAmount.subtract(discountAmount).add(shippingFee).max(BigDecimal.ZERO);
-
-        order.setOriginalAmount(originalAmount);
-        order.setDiscountAmount(discountAmount);
-        order.setShippingFee(shippingFee);
-        order.setFinalAmount(finalAmount);
-        if (PaymentStatus.PAID != order.getPaymentStatus()) {
-            order.setPaidAmount(BigDecimal.ZERO);
-            order.setDebtAmount(finalAmount);
-        }
     }
 
     private void saveStatusHistory(
@@ -889,10 +726,16 @@ public class OrderServiceImpl implements OrderService {
                 predicates.add(criteriaBuilder.equal(root.get("orderType"), normalizeOrderType(orderType)));
             }
             if (fromDate != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), startOfDay(fromDate)));
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(
+                        root.get("createdAt"),
+                        orderDateTimeHelper.startOfDay(fromDate)
+                ));
             }
             if (toDate != null) {
-                predicates.add(criteriaBuilder.lessThan(root.get("createdAt"), startOfDay(toDate.plusDays(1))));
+                predicates.add(criteriaBuilder.lessThan(
+                        root.get("createdAt"),
+                        orderDateTimeHelper.startOfDay(toDate.plusDays(1))
+                ));
             }
 
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
@@ -972,10 +815,16 @@ public class OrderServiceImpl implements OrderService {
             predicates.add(criteriaBuilder.isFalse(root.get("isDeleted")));
             predicates.add(root.get("status").in(statuses));
             if (fromDate != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), startOfDay(fromDate)));
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(
+                        root.get("createdAt"),
+                        orderDateTimeHelper.startOfDay(fromDate)
+                ));
             }
             if (toDate != null) {
-                predicates.add(criteriaBuilder.lessThan(root.get("createdAt"), startOfDay(toDate.plusDays(1))));
+                predicates.add(criteriaBuilder.lessThan(
+                        root.get("createdAt"),
+                        orderDateTimeHelper.startOfDay(toDate.plusDays(1))
+                ));
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         });
@@ -987,10 +836,16 @@ public class OrderServiceImpl implements OrderService {
             predicates.add(criteriaBuilder.isFalse(root.get("isDeleted")));
             predicates.add(root.get("paymentStatus").in(statuses));
             if (fromDate != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), startOfDay(fromDate)));
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(
+                        root.get("createdAt"),
+                        orderDateTimeHelper.startOfDay(fromDate)
+                ));
             }
             if (toDate != null) {
-                predicates.add(criteriaBuilder.lessThan(root.get("createdAt"), startOfDay(toDate.plusDays(1))));
+                predicates.add(criteriaBuilder.lessThan(
+                        root.get("createdAt"),
+                        orderDateTimeHelper.startOfDay(toDate.plusDays(1))
+                ));
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         });
@@ -1002,142 +857,31 @@ public class OrderServiceImpl implements OrderService {
 
     private OrderResponse toResponse(Order order, PaymentResponse payment) {
         PaymentClient.PaymentOrderInfoResponse paymentInfo = fetchPaymentInfo(order.getId());
-        BigDecimal changeAmount = paymentInfo == null ? BigDecimal.ZERO : defaultZero(paymentInfo.changeAmount());
+        BigDecimal changeAmount = paymentInfo == null
+                ? BigDecimal.ZERO
+                : orderAmountCalculator.defaultZero(paymentInfo.changeAmount());
         String paymentMethod = resolvePaymentMethod(order, paymentInfo);
-        LocalDateTime createdAt = toLocalDateTime(auditValue(order, "getCreatedAt"));
-
-        return OrderResponse.builder()
-                .id(order.getId())
-                .orderCode(order.getOrderCode())
-                .tenantId(order.getTenantId())
-                .branchId(order.getBranchId())
-                .terminalId(order.getTerminalId())
-                .shiftId(order.getShiftId())
-                .customerId(order.getCustomerId())
-                .orderType(order.getOrderType())
-                .status(order.getStatus())
-                .paymentStatus(order.getPaymentStatus())
-                .paymentMethod(paymentMethod)
-                .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))
-                .payment(payment)
-                .originalAmount(order.getOriginalAmount())
-                .subTotal(order.getOriginalAmount())
-                .discountAmount(order.getDiscountAmount())
-                .shippingFee(order.getShippingFee())
-                .finalAmount(order.getFinalAmount())
-                .paidAmount(order.getPaidAmount())
-                .debtAmount(order.getDebtAmount())
-                .changeAmount(changeAmount)
-                .expiresAt(order.getExpiresAt())
-                .items(order.getItems().stream().map(this::toItemResponse).toList())
-                .customerName(order.getCustomerNameSnapshot())
-                .customerPhone(order.getCustomerPhoneSnapshot())
-                .customerEmail(order.getCustomerEmailSnapshot())
-                .branchName(order.getBranchNameSnapshot())
-                .terminalName(order.getTerminalNameSnapshot())
-                .shiftCode(order.getShiftCodeSnapshot())
-                .cashierId(order.getCashierId())
-                .cashierName(order.getCashierNameSnapshot())
-                .recipientName(order.getRecipientNameSnapshot())
-                .recipientPhone(order.getRecipientPhoneSnapshot())
-                .shippingAddress(order.getShippingAddressSnapshot())
-                .shippingProvider(order.getShippingProviderSnapshot())
-                .orderTypeLabel(toOrderTypeLabel(order.getOrderType()))
-                .statusLabel(toOrderStatusLabel(order.getStatus()))
-                .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
-                .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
-                .createdByName(order.getCashierNameSnapshot())
-                .createdAt(createdAt)
-                .soldAt(createdAt)
-                .updatedBy(toAuditString(auditValue(order, "getUpdatedBy")))
-                .updatedAt(toLocalDateTime(auditValue(order, "getUpdatedAt")))
-                .statusHistories(toStatusHistoryResponses(order.getId()))
-                .build();
-    }
-
-    private OrderSummaryResponse toSummaryResponse(Order order) {
-        return OrderSummaryResponse.builder()
-                .id(order.getId())
-                .orderCode(order.getOrderCode())
-                .customerName(order.getCustomerNameSnapshot())
-                .customerPhone(order.getCustomerPhoneSnapshot())
-                .orderType(order.getOrderType())
-                .orderTypeLabel(toOrderTypeLabel(order.getOrderType()))
-                .status(order.getStatus())
-                .statusLabel(toOrderStatusLabel(order.getStatus()))
-                .paymentStatus(order.getPaymentStatus())
-                .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
-                .finalAmount(order.getFinalAmount())
-                .createdAt(toLocalDateTime(auditValue(order, "getCreatedAt")))
-                .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
-                .createdByName(order.getCashierNameSnapshot())
-                .cashierId(order.getCashierId())
-                .cashierName(order.getCashierNameSnapshot())
-                .build();
+        OrderResponse response = orderMapper.toResponse(
+                order,
+                payment,
+                changeAmount,
+                paymentMethod
+        );
+        response.setStatusHistories(toStatusHistoryResponses(order.getId()));
+        return response;
     }
 
     private TodaySalesItemResponse toTodaySalesItemResponse(Order order) {
-        LocalDateTime createdAt = toLocalDateTime(auditValue(order, "getCreatedAt"));
         PaymentClient.PaymentOrderInfoResponse paymentInfo = fetchPaymentInfo(order.getId());
         String paymentMethod = resolvePaymentMethod(order, paymentInfo);
-
-        return TodaySalesItemResponse.builder()
-                .orderId(order.getId())
-                .orderCode(order.getOrderCode())
-                .soldAt(createdAt)
-                .createdAt(createdAt)
-                .customerName(order.getCustomerNameSnapshot())
-                .customerPhone(order.getCustomerPhoneSnapshot())
-                .cashierName(order.getCashierNameSnapshot())
-                .totalItems(totalItems(order))
-                .finalAmount(order.getFinalAmount())
-                .paymentMethod(paymentMethod)
-                .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))
-                .status(order.getStatus())
-                .statusLabel(toOrderStatusLabel(order.getStatus()))
-                .paymentStatus(order.getPaymentStatus())
-                .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
-                .build();
-    }
-
-    private OrderItemResponse toItemResponse(OrderItem item) {
-        return OrderItemResponse.builder()
-                .id(item.getId())
-                .productVariantId(item.getProductVariantId())
-                .skuSnapshot(item.getSkuSnapshot())
-                .sku(item.getSkuSnapshot())
-                .productNameSnapshot(item.getProductNameSnapshot())
-                .productName(item.getProductNameSnapshot())
-                .variantNameSnapshot(item.getVariantNameSnapshot())
-                .quantity(item.getQuantity())
-                .originalUnitPrice(item.getOriginalUnitPrice())
-                .actualUnitPrice(item.getActualUnitPrice())
-                .unitPrice(item.getActualUnitPrice())
-                .discountAmount(item.getDiscountAmount())
-                .lineTotal(item.getLineTotal())
-                .bomVersionId(item.getBomVersionId())
-                .build();
+        return orderMapper.toTodaySalesItemResponse(order, paymentMethod);
     }
 
     private List<OrderStatusHistoryResponse> toStatusHistoryResponses(UUID orderId) {
         return orderStatusHistoryRepository.findByOrderIdAndIsDeletedFalseOrderByChangedAtAsc(orderId)
                 .stream()
-                .map(this::toStatusHistoryResponse)
+                .map(orderMapper::toStatusHistoryResponse)
                 .toList();
-    }
-
-    private OrderStatusHistoryResponse toStatusHistoryResponse(OrderStatusHistory history) {
-        return OrderStatusHistoryResponse.builder()
-                .id(history.getId())
-                .oldStatus(history.getFromStatus())
-                .newStatus(history.getToStatus())
-                .oldStatusLabel(toOrderStatusLabel(history.getFromStatus()))
-                .newStatusLabel(toOrderStatusLabel(history.getToStatus()))
-                .note(history.getReason())
-                .createdBy(toAuditString(history.getChangedBy()))
-                .createdByName(null)
-                .createdAt(toLocalDateTime(history.getChangedAt()))
-                .build();
     }
 
     private CustomerResponse loadCustomerSnapshot(UUID customerId) {
@@ -1150,88 +894,6 @@ public class OrderServiceImpl implements OrderService {
             log.warn("Không lấy được snapshot khách hàng customerId={}: {}", customerId, ex.getMessage());
             return null;
         }
-    }
-
-    private String toOrderTypeLabel(String orderType) {
-        if (orderType == null) {
-            return null;
-        }
-        return switch (orderType.toUpperCase(Locale.ROOT)) {
-            case "POS" -> "Bán tại quầy";
-            case "ONLINE" -> "Đơn online";
-            case "RETURN" -> "Hoàn hàng";
-            case "REFUND" -> "Hoàn tiền";
-            case "EXCHANGE" -> "Đổi hàng";
-            default -> orderType;
-        };
-    }
-
-    private String toOrderStatusLabel(OrderStatus status) {
-        if (status == null) {
-            return null;
-        }
-        return switch (status) {
-            case DRAFT -> "Nháp";
-            case PENDING_PAYMENT -> "Chờ thanh toán";
-            case PAYMENT_CONFIRMED -> "Chờ duyệt";
-            case COMPLETED -> "Đã hoàn thành";
-            case CANCELLED -> "Đã hủy";
-            case EXPIRED -> "Đã hết hạn";
-            case PAYMENT_FAILED -> "Thanh toán thất bại";
-        };
-    }
-
-    private String toPaymentStatusLabel(PaymentStatus status) {
-        if (status == null) {
-            return null;
-        }
-        return switch (status) {
-            case UNPAID, WAITING_PAYMENT -> "Chưa thanh toán";
-            case PAID -> "Đã thanh toán";
-            case FAILED -> "Thanh toán thất bại";
-            case REFUNDED -> "Đã hoàn tiền";
-            case PARTIALLY_REFUNDED -> "Hoàn tiền một phần";
-        };
-    }
-
-    private String toPaymentMethodLabel(String paymentMethod) {
-        if (paymentMethod == null) {
-            return null;
-        }
-        return switch (paymentMethod) {
-            case "CASH" -> "Tiền mặt";
-            case "BANK_TRANSFER", "QR_CODE" -> "Chuyển khoản";
-            case "DEBT" -> "Công nợ";
-            case "CARD" -> "Thẻ";
-            case "E_WALLET" -> "Ví điện tử";
-            case "COMBINED" -> "Kết hợp";
-            default -> paymentMethod;
-        };
-    }
-
-    private BigDecimal defaultZero(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
-    }
-
-    private boolean isCompletedSale(Order order) {
-        return OrderStatus.CANCELLED != order.getStatus()
-                && (PaymentStatus.PAID == order.getPaymentStatus() || OrderStatus.COMPLETED == order.getStatus());
-    }
-
-    private boolean isPendingPaymentSale(Order order) {
-        return OrderStatus.CANCELLED != order.getStatus()
-                && (PaymentStatus.UNPAID == order.getPaymentStatus()
-                || PaymentStatus.WAITING_PAYMENT == order.getPaymentStatus()
-                || OrderStatus.PENDING_PAYMENT == order.getStatus());
-    }
-
-    private BigDecimal totalItems(Order order) {
-        if (order.getItems() == null) {
-            return BigDecimal.ZERO;
-        }
-        return order.getItems().stream()
-                .map(item -> defaultZero(item.getQuantity()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private boolean paymentMethodMatches(TodaySalesItemResponse item, String paymentMethod) {
@@ -1247,10 +909,7 @@ public class OrderServiceImpl implements OrderService {
             UUID changedBy
     ) {
         PaymentMethod method = toSupportedPaymentMethod(paymentMethod);
-        if (method == PaymentMethod.CASH
-                && defaultZero(receivedAmount).compareTo(order.getFinalAmount()) < 0) {
-            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
-        }
+        orderValidator.validateCashPaymentAmount(order, method, receivedAmount);
 
         UUID sagaId = orderPaymentSagaService.startPaymentSaga(order, method.name());
 
@@ -1273,9 +932,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void applyPaymentCheckoutResult(Order order, PaymentResponse payment, UUID changedBy, UUID sagaId) {
-        if (payment == null || payment.getStatus() == null) {
-            throw new InvalidPaymentAmountException("Payment-Service không trả về kết quả thanh toán");
-        }
+        orderValidator.validatePaymentCheckoutResult(payment);
 
         OrderStatus oldStatus = order.getStatus();
         String paymentStatus = payment.getStatus().trim().toUpperCase(Locale.ROOT);
@@ -1425,7 +1082,8 @@ public class OrderServiceImpl implements OrderService {
         if (paymentInfo != null && paymentInfo.method() != null) {
             return normalizePaymentMethod(paymentInfo.method());
         }
-        if (defaultZero(order.getDebtAmount()).compareTo(BigDecimal.ZERO) > 0 || isPendingPaymentSale(order)) {
+        if (orderAmountCalculator.defaultZero(order.getDebtAmount()).compareTo(BigDecimal.ZERO) > 0
+                || orderAmountCalculator.isPendingPaymentSale(order)) {
             return "DEBT";
         }
         return PaymentStatus.PAID == order.getPaymentStatus() ? "CASH" : null;
@@ -1447,12 +1105,6 @@ public class OrderServiceImpl implements OrderService {
         };
     }
 
-    private String generatePosPaymentCode(Order order, String paymentMethod) {
-        return "POS-%s-%s".formatted(
-                paymentMethod,
-                order.getOrderCode() != null ? order.getOrderCode() : order.getId());
-    }
-
     private String normalizeOrderType(String orderType) {
         if (orderType == null || orderType.isBlank()) {
             return DEFAULT_ORDER_TYPE;
@@ -1464,44 +1116,4 @@ public class OrderServiceImpl implements OrderService {
         return primary != null && !primary.isBlank() ? primary : fallback;
     }
 
-    private String toAuditString(Object value) {
-        return value == null ? null : value.toString();
-    }
-
-    private Object auditValue(Object entity, String getterName) {
-        if (entity == null) {
-            return null;
-        }
-        try {
-            Method method = entity.getClass().getMethod(getterName);
-            return method.invoke(entity);
-        } catch (ReflectiveOperationException ex) {
-            log.warn("Không đọc được audit field {} từ {}: {}", getterName, entity.getClass().getName(), ex.getMessage());
-            return null;
-        }
-    }
-
-    private LocalDateTime toLocalDateTime(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Instant instant) {
-            return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
-        }
-        if (value instanceof LocalDateTime localDateTime) {
-            return localDateTime;
-        }
-        if (value instanceof Date date) {
-            return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
-        }
-        return null;
-    }
-
-    private Instant startOfDay(LocalDate date) {
-        return date.atStartOfDay(ZoneId.systemDefault()).toInstant();
-    }
-
-    private String generateOrderCode() {
-        return "ORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
-    }
 }
