@@ -12,6 +12,7 @@ import org.hvtra.orderservice.service.impl.OrderCancellationServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderCheckoutServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderDraftServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderExportServiceImpl;
+import org.hvtra.orderservice.service.impl.OrderPaymentEventServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderPaymentServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderQueryServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderStatusManagementServiceImpl;
@@ -80,6 +81,9 @@ class OrderSupportContextTest {
     private OrderPaymentService orderPaymentService;
 
     @Autowired
+    private OrderPaymentEventService orderPaymentEventService;
+
+    @Autowired
     private OrderQueryService orderQueryService;
 
     @Autowired
@@ -111,6 +115,7 @@ class OrderSupportContextTest {
         assertNotNull(orderCheckoutPaymentProcessor);
         assertNotNull(orderCheckoutService);
         assertNotNull(orderPaymentService);
+        assertNotNull(orderPaymentEventService);
         assertNotNull(orderQueryService);
         assertNotNull(orderExportService);
         assertNotNull(todaySalesService);
@@ -119,6 +124,7 @@ class OrderSupportContextTest {
         assertNotNull(orderStatusManagementService);
         assertTrue(AopUtils.isAopProxy(orderCheckoutService));
         assertTrue(AopUtils.isAopProxy(orderPaymentService));
+        assertTrue(AopUtils.isAopProxy(orderPaymentEventService));
         assertTrue(AopUtils.isAopProxy(orderQueryService));
         assertTrue(AopUtils.isAopProxy(orderExportService));
         assertTrue(AopUtils.isAopProxy(todaySalesService));
@@ -145,6 +151,7 @@ class OrderSupportContextTest {
             OrderCheckoutPaymentProcessor.class,
             OrderCheckoutServiceImpl.class,
             OrderPaymentServiceImpl.class,
+            OrderPaymentEventServiceImpl.class,
             OrderQueryServiceImpl.class,
             OrderExportServiceImpl.class,
             TodaySalesServiceImpl.class,

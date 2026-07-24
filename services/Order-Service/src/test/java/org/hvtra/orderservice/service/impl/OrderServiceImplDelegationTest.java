@@ -6,21 +6,16 @@ import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
+import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
 import org.hvtra.orderservice.dto.response.OrderResponse;
-import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
-import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderCancellationService;
 import org.hvtra.orderservice.service.OrderCheckoutService;
 import org.hvtra.orderservice.service.OrderDraftService;
-import org.hvtra.orderservice.service.OrderPaymentSagaService;
+import org.hvtra.orderservice.service.OrderPaymentEventService;
 import org.hvtra.orderservice.service.OrderPaymentService;
 import org.hvtra.orderservice.service.OrderQueryService;
 import org.hvtra.orderservice.service.OrderStatusManagementService;
 import org.hvtra.orderservice.service.TodaySalesService;
-import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
-import org.hvtra.orderservice.service.support.OrderResponseAssembler;
-import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
-import org.hvtra.orderservice.service.validator.OrderValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,26 +26,16 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceImplDelegationTest {
 
     @Mock
-    private OrderRepository orderRepository;
-
-    @Mock
-    private OrderCustomerServiceImpl orderCustomerServiceImpl;
-
-    @Mock
-    private OrderOutboxPublisher orderOutboxPublisher;
-
-    @Mock
-    private OrderPaymentSagaService orderPaymentSagaService;
-
-    @Mock
     private OrderPaymentService orderPaymentService;
+
+    @Mock
+    private OrderPaymentEventService orderPaymentEventService;
 
     @Mock
     private OrderCheckoutService orderCheckoutService;
@@ -70,38 +55,19 @@ class OrderServiceImplDelegationTest {
     @Mock
     private OrderStatusManagementService orderStatusManagementService;
 
-    @Mock
-    private OrderValidator orderValidator;
-
-    @Mock
-    private OrderAmountCalculator orderAmountCalculator;
-
-    @Mock
-    private OrderStatusHistoryWriter orderStatusHistoryWriter;
-
-    @Mock
-    private OrderResponseAssembler orderResponseAssembler;
-
     private OrderServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new OrderServiceImpl(
-                orderRepository,
-                orderCustomerServiceImpl,
-                orderOutboxPublisher,
-                orderPaymentSagaService,
                 orderPaymentService,
+                orderPaymentEventService,
                 orderCheckoutService,
                 orderQueryService,
                 todaySalesService,
                 orderDraftService,
                 orderCancellationService,
-                orderStatusManagementService,
-                orderValidator,
-                orderAmountCalculator,
-                orderStatusHistoryWriter,
-                orderResponseAssembler
+                orderStatusManagementService
         );
     }
 
@@ -111,6 +77,7 @@ class OrderServiceImplDelegationTest {
         UUID itemId = UUID.randomUUID();
         CreateOrderRequest createOrderRequest = new CreateOrderRequest();
         MarkOrderPaidRequest markOrderPaidRequest = new MarkOrderPaidRequest();
+        PaymentOrderEventPayload paymentEvent = new PaymentOrderEventPayload();
         AddDraftOrderItemRequest addDraftRequest = new AddDraftOrderItemRequest();
         UpdateDraftOrderItemQuantityRequest updateDraftRequest = new UpdateDraftOrderItemQuantityRequest();
         CancelOrderRequest cancelOrderRequest = new CancelOrderRequest();
@@ -137,6 +104,8 @@ class OrderServiceImplDelegationTest {
 
         assertSame(createOrderResponse, service.createOrder(createOrderRequest));
         assertSame(markOrderPaidResponse, service.markOrderPaid(orderId, markOrderPaidRequest));
+        service.handlePaymentEvent(paymentEvent);
+        service.handlePaymentSucceeded(paymentEvent);
         assertSame(addDraftResponse, service.addDraftItem(addDraftRequest));
         assertSame(updateDraftResponse, service.updateDraftItemQuantity(orderId, itemId, updateDraftRequest));
         assertSame(removeDraftResponse, service.removeDraftItem(orderId, itemId));
@@ -147,6 +116,8 @@ class OrderServiceImplDelegationTest {
 
         verify(orderCheckoutService).createOrder(createOrderRequest);
         verify(orderPaymentService).markOrderPaid(orderId, markOrderPaidRequest);
+        verify(orderPaymentEventService).handlePaymentEvent(paymentEvent);
+        verify(orderPaymentEventService).handlePaymentSucceeded(paymentEvent);
         verify(orderDraftService).addDraftItem(addDraftRequest);
         verify(orderDraftService).updateDraftItemQuantity(orderId, itemId, updateDraftRequest);
         verify(orderDraftService).removeDraftItem(orderId, itemId);
@@ -154,12 +125,5 @@ class OrderServiceImplDelegationTest {
         verify(orderDraftService).checkoutDraftOrder(orderId, null);
         verify(orderCancellationService).cancelOrder(orderId, cancelOrderRequest);
         verify(orderStatusManagementService).updateOrderStatus(orderId, updateStatusRequest);
-        verifyNoInteractions(
-                orderRepository,
-                orderValidator,
-                orderAmountCalculator,
-                orderStatusHistoryWriter,
-                orderResponseAssembler
-        );
     }
 }
