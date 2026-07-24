@@ -8,8 +8,8 @@ import type {
     CouponUsageResponse
 } from "../types/coupon.types";
 
-const COUPON_API_BASE = "/promotions/coupon-usages";
-const COUPON_USAGE_API_BASE = `${COUPON_API_BASE}/`;
+const COUPON_API_BASE = "/promotions";
+const COUPON_USAGE_API_BASE = `${COUPON_API_BASE}/coupon-usages`;
 
 function couponPath(couponId: string) {
     return `${COUPON_API_BASE}/coupons/${encodeURIComponent(couponId)}`;

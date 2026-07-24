@@ -8,6 +8,15 @@ export interface PromotionPreviewRequest {
     branchId?: string;
     channel: PromotionChannel;
     couponCode?: string;
+    customerOrderCount?: number;
+    lines?: PromotionPreviewLineRequest[];
+}
+
+export interface PromotionPreviewLineRequest {
+    productId: string;
+    categoryId?: string;
+    quantity: number;
+    lineAmount: number;
 }
 
 export interface AvailablePromotionResponse {
@@ -16,6 +25,9 @@ export interface AvailablePromotionResponse {
     applyMethod?: string;
     benefitType?: string;
     estimatedDiscount?: number;
+    giftProductId?: string;
+    giftQuantity?: number;
+    buyQuantity?: number;
     stackable?: boolean;
     requiresCoupon?: boolean;
     couponId?: string;

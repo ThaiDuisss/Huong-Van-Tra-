@@ -40,7 +40,7 @@ export interface SaleCartItem {
 
 export type SaleOrderType = "QUICK_SALE" | "DELIVERY";
 
-export type SaleDiscountType = "NONE" | "PERCENT" | "AMOUNT";
+export type SaleDiscountType = "NONE" | "PERCENT" | "AMOUNT" | "GIFT";
 
 export type SaleBackendDiscountType =
   | "FIXED_AMOUNT"
@@ -89,6 +89,9 @@ export interface SaleDiscountOption {
   requiresCoupon?: boolean;
   couponId?: string;
   couponCode?: string;
+  giftProductId?: string;
+  giftQuantity?: number;
+  buyQuantity?: number;
 }
 
 export interface SaleTotals {

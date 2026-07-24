@@ -227,7 +227,9 @@ function promotionToDiscount(
     index: number
 ): SaleDiscountOption {
     const estimatedDiscount = toNumber(promotion.estimatedDiscount);
-    const hasDiscount = estimatedDiscount > 0;
+    const giftQuantity = toNumber(promotion.giftQuantity);
+    const hasBenefit = estimatedDiscount > 0 || giftQuantity > 0;
+    const isGift = giftQuantity > 0;
     const couponCode = promotion.couponCode?.trim() || undefined;
 
     return {
@@ -236,18 +238,22 @@ function promotionToDiscount(
             : `promotion:${promotion.promotionId}`,
         label: promotion.promotionName,
         code: couponCode ?? promotion.promotionName,
-        type: "AMOUNT",
+        type: isGift ? "GIFT" : "AMOUNT",
         value: estimatedDiscount,
         estimatedDiscount,
-        description: promotion.requiresCoupon
-            ? "Áp dụng bằng mã khuyến mãi"
-            : "Khuyến mãi đủ điều kiện cho hóa đơn",
-        status: hasDiscount
+        description: isGift
+            ? promotion.buyQuantity
+                ? `Mua ${promotion.buyQuantity} tặng ${giftQuantity} sản phẩm`
+                : `Tặng ${giftQuantity} sản phẩm`
+            : promotion.requiresCoupon
+              ? "Áp dụng bằng mã khuyến mãi"
+              : "Khuyến mãi đủ điều kiện cho hóa đơn",
+        status: hasBenefit
             ? index === 0
                 ? "RECOMMENDED"
                 : "AVAILABLE"
             : "INELIGIBLE",
-        condition: hasDiscount
+        condition: hasBenefit
             ? "Có thể áp dụng cho hóa đơn hiện tại"
             : "Chưa đủ điều kiện áp dụng",
         minSubtotal: null,
@@ -257,7 +263,10 @@ function promotionToDiscount(
         benefitType: promotion.benefitType,
         requiresCoupon: promotion.requiresCoupon,
         couponId: promotion.couponId,
-        couponCode
+        couponCode,
+        giftProductId: promotion.giftProductId,
+        giftQuantity,
+        buyQuantity: promotion.buyQuantity
     };
 }
 
@@ -516,7 +525,20 @@ export function PosSalePage() {
                     orderAmount: discountableSubtotal,
                     customerId: getUuid(selectedCustomerId),
                     branchId: getUuid(currentBranchId),
-                    channel: "POS"
+                    channel: "POS",
+                    customerOrderCount: selectedCustomer?.orderCount,
+                    lines: cartItems.flatMap((item) => {
+                        const productId = getUuid(
+                            item.productVariantId ?? item.productId
+                        );
+                        return productId
+                            ? [{
+                                  productId,
+                                  quantity: item.quantity,
+                                  lineAmount: item.unitPrice * item.quantity
+                              }]
+                            : [];
+                    })
                 })
                 .then((response) => {
                     if (!active) {
@@ -561,6 +583,7 @@ export function PosSalePage() {
         cartItems.length,
         discountableSubtotal,
         selectedCustomerId,
+        selectedCustomer?.orderCount,
         selectedDiscountId
     ]);
 

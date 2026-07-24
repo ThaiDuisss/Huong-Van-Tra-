@@ -45,7 +45,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Component
@@ -92,6 +94,61 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
             "TET", "TRUNGTHU", "ONLINE", "VIP", "FREESHIP"
     );
 
+    private static final String ACTIVE_TEST_EVENT_NAME =
+            "Bộ kiểm thử đầy đủ khuyến mãi đang chạy";
+
+    private static final List<ActivePromotionSeed> ACTIVE_PROMOTION_TEST_SUITE = List.of(
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Giảm 10% tự động",
+                    PromotionType.PERCENT_DISCOUNT,
+                    PromotionApplyMethod.AUTO,
+                    BenefitType.PERCENT_DISCOUNT,
+                    10, 100000, null, null, false, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Giảm 50.000đ trực tiếp",
+                    PromotionType.FIXED_DISCOUNT,
+                    PromotionApplyMethod.DIRECT_DISCOUNT,
+                    BenefitType.FIXED_DISCOUNT,
+                    50000, null, null, null, false, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Giảm 15% bằng mã",
+                    PromotionType.PERCENT_DISCOUNT,
+                    PromotionApplyMethod.COUPON_CODE,
+                    BenefitType.PERCENT_DISCOUNT,
+                    15, 150000, null, null, false, "TESTGIAM15"
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Miễn phí vận chuyển",
+                    PromotionType.FREE_SHIPPING,
+                    PromotionApplyMethod.AUTO,
+                    BenefitType.FREE_SHIPPING,
+                    0, 50000, null, null, false, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Mua 2 tặng 1",
+                    PromotionType.BUY_X_GET_Y,
+                    PromotionApplyMethod.AUTO,
+                    BenefitType.BUY_X_GET_Y,
+                    0, null, 2, 1, false, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Tặng sản phẩm lần mua đầu",
+                    PromotionType.FREE_PRODUCT,
+                    PromotionApplyMethod.AUTO,
+                    BenefitType.FREE_PRODUCT,
+                    0, null, null, 1, true, null
+            ),
+            new ActivePromotionSeed(
+                    "TEST ACTIVE - Giảm 75.000đ bằng mã",
+                    PromotionType.FIXED_DISCOUNT,
+                    PromotionApplyMethod.COUPON_CODE,
+                    BenefitType.FIXED_DISCOUNT,
+                    75000, null, null, null, false, "TESTGIAM75K"
+            )
+    );
+
     EventRepository eventRepository;
     PromotionRepository promotionRepository;
     PromotionBenefitRepository promotionBenefitRepository;
@@ -114,10 +171,131 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
         seedPromotionConditions(promotions);
         List<Coupon> coupons = seedCoupons(promotions, now);
         seedCouponUsages(coupons, now);
+        seedActivePromotionTestSuite(now);
 
         log.info(
                 "Promotion-Service seed completed. Promotions: {}, coupons: {}.",
                 PROMOTION_RECORD_COUNT, COUPON_RECORD_COUNT
+        );
+    }
+
+    private void seedActivePromotionTestSuite(LocalDateTime now) {
+        Event testEvent = eventRepository.findAll()
+                .stream()
+                .filter(event -> ACTIVE_TEST_EVENT_NAME.equals(event.getName()))
+                .findFirst()
+                .orElseGet(() -> eventRepository.save(Event.builder()
+                        .name(ACTIVE_TEST_EVENT_NAME)
+                        .description("Sự kiện dữ liệu kiểm thử đủ loại khuyến mãi, luôn ở trạng thái đang chạy.")
+                        .startAt(now.minusDays(30))
+                        .endAt(now.plusYears(2))
+                        .eventType(EventType.MANUAL_CAMPAIGN)
+                        .audience(EventAudience.ALL_CUSTOMERS)
+                        .status(EventStatus.ACTIVE)
+                        .build()));
+
+        Set<String> existingPromotionNames = promotionRepository.findAll()
+                .stream()
+                .map(Promotion::getName)
+                .collect(Collectors.toSet());
+        Set<String> existingCouponCodes = couponRepository.findAll()
+                .stream()
+                .map(Coupon::getCode)
+                .collect(Collectors.toSet());
+
+        int createdPromotions = 0;
+        int createdCoupons = 0;
+
+        for (int index = 0; index < ACTIVE_PROMOTION_TEST_SUITE.size(); index++) {
+            ActivePromotionSeed seed = ACTIVE_PROMOTION_TEST_SUITE.get(index);
+            if (existingPromotionNames.contains(seed.name())) {
+                continue;
+            }
+
+            Promotion promotion = Promotion.builder()
+                    .event(testEvent)
+                    .name(seed.name())
+                    .description("Dữ liệu test bổ sung, không thay thế dữ liệu seed cũ.")
+                    .objective("Kiểm thử " + seed.type() + " qua POS và màn quản trị.")
+                    .type(seed.type())
+                    .applyMethod(seed.applyMethod())
+                    .startAt(now.minusDays(30))
+                    .endAt(now.plusYears(2))
+                    .stackable(false)
+                    .priority(1000 - index)
+                    .status(PromotionStatus.ACTIVE)
+                    .build();
+
+            UUID giftProductId = seed.benefitType() == BenefitType.FREE_PRODUCT
+                    || seed.benefitType() == BenefitType.BUY_X_GET_Y
+                    ? productUuid(900 + index)
+                    : null;
+
+            promotion.addBenefit(PromotionBenefit.builder()
+                    .benefitType(seed.benefitType())
+                    .value(bd(seed.value()))
+                    .maxDiscount(seed.maxDiscount() == null ? null : bd(seed.maxDiscount()))
+                    .giftProductId(giftProductId)
+                    .buyQuantity(seed.buyQuantity())
+                    .getQuantity(seed.getQuantity())
+                    .reason("Quyền lợi test cho " + seed.name() + ".")
+                    .minMarginPercent(bd(15))
+                    .expectedMarginPercent(bd(25))
+                    .aiRecommended(false)
+                    .build());
+
+            promotion.addCondition(PromotionCondition.builder()
+                    .conditionType(seed.firstPurchase()
+                            ? ConditionType.FIRST_PURCHASE
+                            : seed.benefitType() == BenefitType.BUY_X_GET_Y
+                                    ? ConditionType.MIN_ITEM_QUANTITY
+                                    : ConditionType.MIN_ORDER_AMOUNT)
+                    .operator(seed.firstPurchase()
+                            ? ConditionOperator.EQ
+                            : ConditionOperator.GTE)
+                    .conditionValue(seed.firstPurchase()
+                            ? "true"
+                            : seed.benefitType() == BenefitType.BUY_X_GET_Y
+                                    ? String.valueOf(seed.buyQuantity())
+                                    : "0")
+                    .build());
+
+            Promotion savedPromotion = promotionRepository.save(promotion);
+            createdPromotions++;
+
+            if (seed.couponCode() != null
+                    && !existingCouponCodes.contains(seed.couponCode())) {
+                couponRepository.save(Coupon.builder()
+                        .promotion(savedPromotion)
+                        .scope(CouponScope.PUBLIC)
+                        .code(seed.couponCode())
+                        .issueReason(CouponIssueReason.MANUAL)
+                        .issuedAt(now.minusDays(1))
+                        .usageLimit(10000)
+                        .perCustomerLimit(20)
+                        .usedCount(0)
+                        .expiresAt(now.plusYears(2))
+                        .status(CouponStatus.ACTIVE)
+                        .snapshotPromotionName(savedPromotion.getName())
+                        .snapshotBenefitType(seed.benefitType())
+                        .snapshotDiscountValue(bd(seed.value()))
+                        .snapshotMaxDiscount(
+                                seed.maxDiscount() == null
+                                        ? null
+                                        : bd(seed.maxDiscount())
+                        )
+                        .build());
+                existingCouponCodes.add(seed.couponCode());
+                createdCoupons++;
+            }
+        }
+
+        promotionRepository.flush();
+        couponRepository.flush();
+        log.info(
+                "Added ACTIVE promotion test suite. Promotions: {}, coupons: {}.",
+                createdPromotions,
+                createdCoupons
         );
     }
 
@@ -785,5 +963,19 @@ public class PromotionServiceDataInitializer implements ApplicationRunner {
     }
 
     private record TimeRange(LocalDateTime startAt, LocalDateTime endAt) {
+    }
+
+    private record ActivePromotionSeed(
+            String name,
+            PromotionType type,
+            PromotionApplyMethod applyMethod,
+            BenefitType benefitType,
+            int value,
+            Integer maxDiscount,
+            Integer buyQuantity,
+            Integer getQuantity,
+            boolean firstPurchase,
+            String couponCode
+    ) {
     }
 }

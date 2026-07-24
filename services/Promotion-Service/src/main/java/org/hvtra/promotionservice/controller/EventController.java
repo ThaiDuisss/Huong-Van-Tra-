@@ -36,7 +36,7 @@ import static org.hvtra.promotionservice.constant.EventApiParameter.*;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(
         name = "Quản lý sự kiện",
-        description = "Các API dùng để quản lý các sự kiện/chương trình khuyến mãi như Tết, Black Friday, khai trương hoặc các chiến dịch marketing thủ công."
+        description = "Các API dùng để quản lý các sự kiện khuyến mãi như Tết, Black Friday, khai trương hoặc các chiến dịch marketing thủ công."
 )
 public class EventController {
 
@@ -44,7 +44,7 @@ public class EventController {
 
     @Operation(
             summary = "Tạo sự kiện",
-            description = "Tạo một sự kiện/chương trình khuyến mãi mới. Sự kiện là ngữ cảnh nghiệp vụ dùng để nhóm nhiều chương trình khuyến mãi."
+            description = "Tạo một sự kiện khuyến mãi mới. Sự kiện là ngữ cảnh nghiệp vụ dùng để nhóm nhiều chương trình khuyến mãi."
     )
     @PostMapping
     public ApiResponse<EventResponse> createEvent(
