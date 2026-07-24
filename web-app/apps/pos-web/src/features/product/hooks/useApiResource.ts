@@ -71,6 +71,7 @@ export function useApiResource<T>(load: () => Promise<T>) {
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         let active = true;
@@ -102,7 +103,11 @@ export function useApiResource<T>(load: () => Promise<T>) {
         return () => {
             active = false;
         };
-    }, [load]);
+    }, [load, refreshKey]);
 
-    return { data, loading, error };
+    const refresh = useCallback(() => {
+        setRefreshKey((current) => current + 1);
+    }, []);
+
+    return { data, loading, error, refresh };
 }

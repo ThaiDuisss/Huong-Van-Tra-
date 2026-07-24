@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.springframework.data.domain.Sort;
 
 @RestController
 @RequestMapping("/api/inventory/inventory-transactions")
@@ -44,7 +45,7 @@ public class InventoryTransactionController {
             @RequestParam(name = "referenceType", required = false)
             InventoryReferenceType referenceType,
             @RequestParam(name = "referenceId", required = false) String referenceId,
-            @PageableDefault(size = 20, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return service.findAll(
                 transactionCode,
@@ -74,7 +75,7 @@ public class InventoryTransactionController {
             @RequestParam(name = "referenceType", required = false)
             InventoryReferenceType referenceType,
             @RequestParam(name = "referenceId", required = false) String referenceId,
-            @PageableDefault(size = 20, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return service.findAllForStore(
                 transactionCode,

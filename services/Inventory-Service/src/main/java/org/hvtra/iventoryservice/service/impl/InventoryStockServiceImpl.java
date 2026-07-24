@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -52,7 +53,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
         }
 
         List<UUID> productIds = request.productIds().stream()
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
         if (productIds.isEmpty()) {
@@ -129,7 +130,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
         }
 
         List<UUID> variantIds = request.variantIds().stream()
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
         if (variantIds.isEmpty()) {

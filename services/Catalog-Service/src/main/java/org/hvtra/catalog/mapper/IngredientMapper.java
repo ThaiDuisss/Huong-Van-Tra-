@@ -18,7 +18,6 @@ public class IngredientMapper {
     }
 
     public void update(Ingredient ingredient, IngredientRequest request) {
-        ingredient.setIngredientCode(request.ingredientCode().trim());
         ingredient.setName(request.name().trim());
         ingredient.setStatus(request.status());
     }

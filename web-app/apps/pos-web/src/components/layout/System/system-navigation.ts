@@ -102,13 +102,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         icon: Package,
         children: [
             {
-                label: "Nguyên liệu",
-                to: routePaths.ingredient,
+                label: "Công thức",
+                to: routePaths.bomList,
                 icon: Layers3
             },
             {
-                label: "Danh sách công thức",
-                to: routePaths.bomList,
+                label: "Nguyên liệu",
+                to: routePaths.ingredient,
                 icon: Layers3
             },
             // {

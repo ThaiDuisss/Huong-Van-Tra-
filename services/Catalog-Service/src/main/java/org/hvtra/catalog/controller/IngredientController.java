@@ -7,12 +7,23 @@ import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.IngredientService;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/catalog/ingredients")
@@ -61,42 +72,41 @@ public class IngredientController {
     }
 
     @GetMapping("/export")
-    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> exportIngredients(
+    public ResponseEntity<Resource> exportIngredients(
             @RequestParam(name = "search", required = false) String search,
             @RequestParam(name = "status", required = false) Status status) {
         byte[] excelBytes = service.exportToExcel(search, status);
-        org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
-
-        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-        String timestamp = java.time.LocalDateTime.now().format(formatter);
+        ByteArrayResource resource = new ByteArrayResource(excelBytes);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+        String timestamp = LocalDateTime.now().format(formatter);
         String rawFilename = "Danh_sach_nguyen_lieu_" + timestamp + ".xlsx";
         String encodedFilename = "";
         try {
-            encodedFilename = java.net.URLEncoder.encode(rawFilename, java.nio.charset.StandardCharsets.UTF_8)
+            encodedFilename = URLEncoder.encode(rawFilename, StandardCharsets.UTF_8)
                     .replace("+", "%20");
         } catch (Exception ignored) {
         }
 
-        return org.springframework.http.ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
-                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
     }
 
     @PostMapping("/import")
     @ResponseStatus(HttpStatus.OK)
     public void importIngredients(
-            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+            @RequestParam("file") MultipartFile file) {
         service.importFromExcel(file);
     }
 
     @GetMapping("/import/template")
-    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> downloadTemplate() {
+    public ResponseEntity<Resource> downloadTemplate() {
         byte[] excelBytes = service.getImportTemplate();
-        org.springframework.core.io.ByteArrayResource resource = new org.springframework.core.io.ByteArrayResource(excelBytes);
-        return org.springframework.http.ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_nguyen_lieu.xlsx\"")
-                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        ByteArrayResource resource = new ByteArrayResource(excelBytes);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_nguyen_lieu.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
     }
 }

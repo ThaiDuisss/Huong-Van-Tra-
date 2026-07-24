@@ -89,6 +89,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
+
         BigDecimal originalAmount = BigDecimal.ZERO;
         CustomerResponse customerSnapshot = loadCustomerSnapshot(request.getCustomerId());
 
@@ -176,13 +177,18 @@ public class OrderServiceImpl implements OrderService {
         if (paymentMethod == null) {
             return toResponse(savedOrder);
         }
+        PaymentResponse payment = null;
+        try {
+             payment = checkoutPayment(
+                    savedOrder,
+                    paymentMethod,
+                    request.getPaidAmount(),
+                    request.getChangedBy()
+            );
+        }catch (RuntimeException e) {
+            throw new RuntimeException(e);
+        }
 
-        PaymentResponse payment = checkoutPayment(
-                savedOrder,
-                paymentMethod,
-                request.getPaidAmount(),
-                request.getChangedBy()
-        );
 
         Order paidOrder = orderRepository.save(savedOrder);
         return toResponse(paidOrder, payment);

@@ -66,7 +66,7 @@ export function FormDialog({
 
                     onSubmit(values);
                 }}
-                className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-pos-panel"
+                className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-pos-panel"
             >
                 <header className="mb-5 flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-600">
@@ -81,56 +81,116 @@ export function FormDialog({
                         <X size={20} />
                     </button>
                 </header>
-                <div className="grid gap-4">
-                    {fields.map((field) => (
-                        <label
-                            key={field.name}
-                            className="grid gap-2 text-sm font-bold text-gray-500"
-                        >
-                            {field.label}
-                            {field.type === "textarea" ? (
-                                <textarea
-                                    name={field.name}
-                                    rows={4}
-                                    required={field.required}
-                                    placeholder={field.placeholder}
-                                    value={formValues[field.name]}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setFormValues(prev => ({
-                                            ...prev,
-                                            [field.name]: val
-                                        }));
-                                    }}
-                                    className="rounded-xl border border-pos-border px-3 py-2 font-normal outline-none focus:border-hvt-green-700"
-                                />
-                            ) : field.type === "select" ? (
-                                <select
-                                    name={field.name}
-                                    required={field.required}
-                                    value={formValues[field.name]}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setFormValues(prev => {
-                                            const updated = { ...prev, [field.name]: val };
-                                            if (field.name === "productId") {
-                                                const oldProductOpt = field.options?.find(o => o.value === prev.productId);
-                                                const newProductOpt = field.options?.find(o => o.value === val);
-                                                if (newProductOpt) {
-                                                    const oldPrefix = oldProductOpt ? oldProductOpt.label : "";
-                                                    const currentName = prev.variantName || "";
-                                                    if (oldPrefix && currentName.startsWith(oldPrefix)) {
-                                                        updated.variantName = currentName.replace(oldPrefix, newProductOpt.label);
-                                                    } else {
-                                                        updated.variantName = newProductOpt.label + " " + currentName;
+                <div className="grid grid-cols-2 gap-4">
+                    {fields.map((field) => {
+                        const isFieldHidden = typeof field.hidden === "function"
+                            ? field.hidden(formValues)
+                            : !!field.hidden;
+                        if (isFieldHidden) {
+                            return null;
+                        }
+                        const isFieldDisabled = typeof field.disabled === "function"
+                            ? field.disabled(formValues)
+                            : !!field.disabled;
+                        const isFieldRequired = typeof field.required === "function"
+                            ? field.required(formValues)
+                            : !!field.required;
+                        if (field.type === "checkbox") {
+                            return (
+                                <label
+                                    key={field.name}
+                                    className={`flex items-center gap-3 py-1 cursor-pointer text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""} col-span-2`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        name={field.name}
+                                        checked={formValues[field.name] === "true"}
+                                        disabled={isFieldDisabled}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setFormValues(prev => {
+                                                const updated = {
+                                                    ...prev,
+                                                    [field.name]: checked ? "true" : "false"
+                                                };
+                                                if (field.name === "isBaseUnit") {
+                                                    if (checked) {
+                                                        updated.baseUnitId = "";
+                                                        updated.conversionRate = "1";
                                                     }
                                                 }
-                                            }
-                                            return updated;
-                                        });
-                                    }}
-                                    className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal"
-                                >
+                                                return updated;
+                                            });
+                                        }}
+                                        className="size-5 rounded border-pos-border text-[#07883a] focus:ring-[#07883a] focus:ring-offset-0 cursor-pointer"
+                                    />
+                                    <span>
+                                        {field.label}
+                                        {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
+                                    </span>
+                                </label>
+                            );
+                        }
+
+                        return (
+                            <label
+                                key={field.name}
+                                className={`grid gap-2 text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""} ${
+                                    field.type === "textarea" || field.type === "file" ? "col-span-2" : ""
+                                }`}
+                            >
+                                <span>
+                                    {field.label}
+                                    {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
+                                </span>
+                                {field.type === "textarea" ? (
+                                    <textarea
+                                        name={field.name}
+                                        rows={4}
+                                        required={isFieldRequired && !isFieldDisabled}
+                                        disabled={isFieldDisabled}
+                                        placeholder={field.placeholder}
+                                        value={formValues[field.name]}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setFormValues(prev => ({
+                                                ...prev,
+                                                [field.name]: val
+                                            }));
+                                        }}
+                                        className="rounded-xl border border-pos-border px-3 py-2 font-normal outline-none focus:border-hvt-green-700 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                                    />
+                                ) : field.type === "select" ? (
+                                    <select
+                                        name={field.name}
+                                        required={isFieldRequired && !isFieldDisabled}
+                                        disabled={isFieldDisabled}
+                                        value={formValues[field.name]}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setFormValues(prev => {
+                                                const updated = { ...prev, [field.name]: val };
+                                                if (field.name === "productId") {
+                                                    const oldProductOpt = field.options?.find(o => o.value === prev.productId);
+                                                    const newProductOpt = field.options?.find(o => o.value === val);
+                                                    if (newProductOpt) {
+                                                        const oldPrefix = oldProductOpt ? oldProductOpt.label : "";
+                                                        const currentName = prev.variantName || "";
+                                                        if (oldPrefix && currentName.startsWith(oldPrefix)) {
+                                                            updated.variantName = currentName.replace(oldPrefix, newProductOpt.label);
+                                                        } else {
+                                                            updated.variantName = newProductOpt.label + " " + currentName;
+                                                        }
+                                                    }
+                                                }
+                                                if (field.name === "baseUnitId" && !val) {
+                                                    updated.conversionRate = "1";
+                                                }
+                                                return updated;
+                                            });
+                                        }}
+                                        className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                                    >
                                     {field.options?.map((option) => (
                                         <option
                                             key={option.value}
@@ -241,7 +301,8 @@ export function FormDialog({
                                 <input
                                     name={field.name}
                                     type={field.type ?? "text"}
-                                    required={field.required}
+                                    required={isFieldRequired && !isFieldDisabled}
+                                    disabled={isFieldDisabled}
                                     placeholder={field.placeholder}
                                     value={formValues[field.name]}
                                     onChange={(e) => {
@@ -251,11 +312,12 @@ export function FormDialog({
                                             [field.name]: val
                                         }));
                                     }}
-                                    className="h-11 rounded-xl border border-pos-border px-3 font-normal outline-none focus:border-hvt-green-700"
+                                    className="h-11 rounded-xl border border-pos-border px-3 font-normal outline-none focus:border-hvt-green-700 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                                 />
                             )}
                         </label>
-                    ))}
+                        );
+                    })}
                 </div>
                 {error ? (
                     <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">

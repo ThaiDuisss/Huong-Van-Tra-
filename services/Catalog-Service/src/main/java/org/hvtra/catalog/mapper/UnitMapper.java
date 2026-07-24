@@ -24,7 +24,7 @@ public class UnitMapper {
 
     /**
      * Cập nhật các field của Unit từ request.
-     * @param resolvedBaseUnit Entity đơn vị gốc đã được resolve (có thể null nếu type = BASE)
+     * @param resolvedBaseUnit Entity đơn vị gốc đã được resolve (có thể null nếu không chọn đơn vị gốc)
      */
     public void update(Unit unit, UnitRequest request, Unit resolvedBaseUnit) {
         unit.setName(request.name().trim());

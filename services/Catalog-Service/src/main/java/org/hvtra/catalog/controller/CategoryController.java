@@ -5,6 +5,7 @@ import org.hvtra.catalog.dto.request.CategoryRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.response.CategoryResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.CategoryService;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/catalog/categories")
@@ -31,13 +33,20 @@ public class CategoryController {
         return service.findAll(name, status, pageable);
     }
 
+    @GetMapping("/lookup")
+    public PageResponse<LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        return service.lookup(search, pageable);
+    }
+
     @GetMapping("/{id}")
     public CategoryResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
     }
 
     @PostMapping("/batch")
-    public java.util.List<CategoryResponse> findByIds(@RequestBody java.util.List<UUID> ids) {
+    public List<CategoryResponse> findByIds(@RequestBody List<UUID> ids) {
         return service.findAllByIds(ids);
     }
 
@@ -57,5 +66,11 @@ public class CategoryController {
     public CategoryResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable("id") UUID id) {
+        service.delete(id);
     }
 }
