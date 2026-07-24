@@ -10,16 +10,16 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "kafka-config", name = "enabled", havingValue = "true")
-public class InventoryReservationConfirmConsumer {
+public class PromotionReservationConfirmConsumer {
 
-    private final InventoryReservationConfirmInboxService inventoryReservationConfirmInboxService;
+    private final PromotionReservationConfirmInboxService promotionReservationConfirmInboxService;
 
     @KafkaListener(
-            topics = "${inventory.order.events.topics.reservation-confirm:inventory.reservation-confirm.requested}",
-            groupId = "${spring.application.name:inventory-service}-order-events"
+            topics = "${promotion.order.events.topics.usage-commit:promotion.usage-commit.requested}",
+            groupId = "${spring.application.name:promotion-service}-order-events"
     )
     public void handle(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
-        inventoryReservationConfirmInboxService.handle(record);
+        promotionReservationConfirmInboxService.handle(record);
         acknowledgment.acknowledge();
     }
 }

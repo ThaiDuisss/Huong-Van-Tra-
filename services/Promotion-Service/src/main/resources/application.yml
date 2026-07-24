@@ -38,7 +38,7 @@ kafka-config:
 
 kafka-consumer-config:
   enabled: true
-  group-id: Inventory-Service-order-events
+  group-id: Promotion-Service-order-events
   key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   auto-offset-reset: earliest
@@ -57,7 +57,7 @@ promotion:
   order:
     events:
       topics:
-        promotion-confirm: inventory.promotion-confirm.requested
+        usage-commit: promotion.usage-commit.requested
 
 logging:
   pattern:

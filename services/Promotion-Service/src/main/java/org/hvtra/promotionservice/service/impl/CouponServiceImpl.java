@@ -33,7 +33,6 @@ import java.util.UUID;
 
 import static org.hvtra.promotionservice.constant.coupon.CouponErrorMessage.COUPON_NOT_FOUND_WITH_ID;
 import static org.hvtra.promotionservice.constant.promotion.PromotionErrorMessage.PROMOTION_NOT_FOUND_WITH_ID;
-
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
