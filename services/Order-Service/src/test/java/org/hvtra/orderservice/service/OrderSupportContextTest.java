@@ -9,6 +9,7 @@ import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.OrderDateTimeHelper;
 import org.hvtra.orderservice.service.impl.OrderCancellationServiceImpl;
+import org.hvtra.orderservice.service.impl.OrderCheckoutServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderDraftServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderExportServiceImpl;
 import org.hvtra.orderservice.service.impl.OrderQueryServiceImpl;
@@ -72,6 +73,9 @@ class OrderSupportContextTest {
     private OrderCheckoutPaymentProcessor orderCheckoutPaymentProcessor;
 
     @Autowired
+    private OrderCheckoutService orderCheckoutService;
+
+    @Autowired
     private OrderQueryService orderQueryService;
 
     @Autowired
@@ -101,12 +105,14 @@ class OrderSupportContextTest {
         assertNotNull(orderStatusHistoryReader);
         assertNotNull(orderResponseAssembler);
         assertNotNull(orderCheckoutPaymentProcessor);
+        assertNotNull(orderCheckoutService);
         assertNotNull(orderQueryService);
         assertNotNull(orderExportService);
         assertNotNull(todaySalesService);
         assertNotNull(orderDraftService);
         assertNotNull(orderCancellationService);
         assertNotNull(orderStatusManagementService);
+        assertTrue(AopUtils.isAopProxy(orderCheckoutService));
         assertTrue(AopUtils.isAopProxy(orderQueryService));
         assertTrue(AopUtils.isAopProxy(orderExportService));
         assertTrue(AopUtils.isAopProxy(todaySalesService));
@@ -131,6 +137,7 @@ class OrderSupportContextTest {
             OrderStatusHistoryReader.class,
             OrderResponseAssembler.class,
             OrderCheckoutPaymentProcessor.class,
+            OrderCheckoutServiceImpl.class,
             OrderQueryServiceImpl.class,
             OrderExportServiceImpl.class,
             TodaySalesServiceImpl.class,

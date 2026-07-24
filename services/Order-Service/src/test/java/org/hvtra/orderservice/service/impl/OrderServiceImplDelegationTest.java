@@ -2,26 +2,22 @@ package org.hvtra.orderservice.service.impl;
 
 import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
+import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderCancellationService;
+import org.hvtra.orderservice.service.OrderCheckoutService;
 import org.hvtra.orderservice.service.OrderDraftService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderQueryService;
 import org.hvtra.orderservice.service.OrderStatusManagementService;
 import org.hvtra.orderservice.service.TodaySalesService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
-import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
-import org.hvtra.orderservice.service.mapper.OrderItemMapper;
-import org.hvtra.orderservice.service.mapper.OrderMapper;
-import org.hvtra.orderservice.service.support.CustomerSnapshotResolver;
-import org.hvtra.orderservice.service.support.OrderCheckoutPaymentProcessor;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
 import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
-import org.hvtra.orderservice.service.support.ProductSnapshotResolver;
 import org.hvtra.orderservice.service.validator.OrderValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +48,9 @@ class OrderServiceImplDelegationTest {
     private OrderPaymentSagaService orderPaymentSagaService;
 
     @Mock
+    private OrderCheckoutService orderCheckoutService;
+
+    @Mock
     private OrderQueryService orderQueryService;
 
     @Mock
@@ -67,34 +66,16 @@ class OrderServiceImplDelegationTest {
     private OrderStatusManagementService orderStatusManagementService;
 
     @Mock
-    private OrderMapper orderMapper;
-
-    @Mock
-    private OrderItemMapper orderItemMapper;
-
-    @Mock
     private OrderValidator orderValidator;
 
     @Mock
     private OrderAmountCalculator orderAmountCalculator;
 
     @Mock
-    private OrderCodeGenerator orderCodeGenerator;
-
-    @Mock
     private OrderStatusHistoryWriter orderStatusHistoryWriter;
 
     @Mock
-    private CustomerSnapshotResolver customerSnapshotResolver;
-
-    @Mock
-    private ProductSnapshotResolver productSnapshotResolver;
-
-    @Mock
     private OrderResponseAssembler orderResponseAssembler;
-
-    @Mock
-    private OrderCheckoutPaymentProcessor orderCheckoutPaymentProcessor;
 
     private OrderServiceImpl service;
 
@@ -105,38 +86,36 @@ class OrderServiceImplDelegationTest {
                 orderCustomerServiceImpl,
                 orderOutboxPublisher,
                 orderPaymentSagaService,
+                orderCheckoutService,
                 orderQueryService,
                 todaySalesService,
                 orderDraftService,
                 orderCancellationService,
                 orderStatusManagementService,
-                orderMapper,
-                orderItemMapper,
                 orderValidator,
                 orderAmountCalculator,
-                orderCodeGenerator,
                 orderStatusHistoryWriter,
-                customerSnapshotResolver,
-                productSnapshotResolver,
-                orderResponseAssembler,
-                orderCheckoutPaymentProcessor
+                orderResponseAssembler
         );
     }
 
     @Test
-    void delegates3BUseCasesToDedicatedServices() {
+    void delegatesExtractedUseCasesToDedicatedServices() {
         UUID orderId = UUID.randomUUID();
         UUID itemId = UUID.randomUUID();
+        CreateOrderRequest createOrderRequest = new CreateOrderRequest();
         AddDraftOrderItemRequest addDraftRequest = new AddDraftOrderItemRequest();
         UpdateDraftOrderItemQuantityRequest updateDraftRequest = new UpdateDraftOrderItemQuantityRequest();
         CancelOrderRequest cancelOrderRequest = new CancelOrderRequest();
         UpdateOrderStatusRequest updateStatusRequest = new UpdateOrderStatusRequest();
+        OrderResponse createOrderResponse = OrderResponse.builder().id(UUID.randomUUID()).build();
         OrderResponse addDraftResponse = OrderResponse.builder().id(UUID.randomUUID()).build();
         OrderResponse updateDraftResponse = OrderResponse.builder().id(UUID.randomUUID()).build();
         OrderResponse removeDraftResponse = OrderResponse.builder().id(UUID.randomUUID()).build();
         OrderResponse cancelDraftResponse = OrderResponse.builder().id(UUID.randomUUID()).build();
         OrderResponse cancelOrderResponse = OrderResponse.builder().id(UUID.randomUUID()).build();
         OrderResponse updateStatusResponse = OrderResponse.builder().id(UUID.randomUUID()).build();
+        when(orderCheckoutService.createOrder(createOrderRequest)).thenReturn(createOrderResponse);
         when(orderDraftService.addDraftItem(addDraftRequest)).thenReturn(addDraftResponse);
         when(orderDraftService.updateDraftItemQuantity(orderId, itemId, updateDraftRequest))
                 .thenReturn(updateDraftResponse);
@@ -147,6 +126,7 @@ class OrderServiceImplDelegationTest {
         when(orderStatusManagementService.updateOrderStatus(orderId, updateStatusRequest))
                 .thenReturn(updateStatusResponse);
 
+        assertSame(createOrderResponse, service.createOrder(createOrderRequest));
         assertSame(addDraftResponse, service.addDraftItem(addDraftRequest));
         assertSame(updateDraftResponse, service.updateDraftItemQuantity(orderId, itemId, updateDraftRequest));
         assertSame(removeDraftResponse, service.removeDraftItem(orderId, itemId));
@@ -155,6 +135,7 @@ class OrderServiceImplDelegationTest {
         assertSame(cancelOrderResponse, service.cancelOrder(orderId, cancelOrderRequest));
         assertSame(updateStatusResponse, service.updateOrderStatus(orderId, updateStatusRequest));
 
+        verify(orderCheckoutService).createOrder(createOrderRequest);
         verify(orderDraftService).addDraftItem(addDraftRequest);
         verify(orderDraftService).updateDraftItemQuantity(orderId, itemId, updateDraftRequest);
         verify(orderDraftService).removeDraftItem(orderId, itemId);
@@ -164,8 +145,6 @@ class OrderServiceImplDelegationTest {
         verify(orderStatusManagementService).updateOrderStatus(orderId, updateStatusRequest);
         verifyNoInteractions(
                 orderRepository,
-                orderMapper,
-                orderItemMapper,
                 orderValidator,
                 orderAmountCalculator,
                 orderStatusHistoryWriter,

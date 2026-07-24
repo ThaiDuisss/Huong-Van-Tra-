@@ -11,6 +11,7 @@ import org.hvtra.orderservice.exception.*;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderCancellationService;
+import org.hvtra.orderservice.service.OrderCheckoutService;
 import org.hvtra.orderservice.service.OrderDraftService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderQueryService;
@@ -18,9 +19,6 @@ import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.service.OrderStatusManagementService;
 import org.hvtra.orderservice.service.TodaySalesService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
-import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
-import org.hvtra.orderservice.service.mapper.OrderItemMapper;
-import org.hvtra.orderservice.service.mapper.OrderMapper;
 import org.hvtra.orderservice.service.support.*;
 import org.hvtra.orderservice.service.validator.OrderValidator;
 import org.springframework.data.domain.Page;
@@ -28,7 +26,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Locale;
 import java.util.UUID;
@@ -38,97 +35,24 @@ import java.util.UUID;
 @Slf4j
 public class OrderServiceImpl implements OrderService {
 
-    private static final String DEFAULT_ORDER_TYPE = "POS";
     private final OrderRepository orderRepository;
     private final OrderCustomerServiceImpl orderCustomerServiceImpl;
     private final OrderOutboxPublisher orderOutboxPublisher;
     private final OrderPaymentSagaService orderPaymentSagaService;
+    private final OrderCheckoutService orderCheckoutService;
     private final OrderQueryService orderQueryService;
     private final TodaySalesService todaySalesService;
     private final OrderDraftService orderDraftService;
     private final OrderCancellationService orderCancellationService;
     private final OrderStatusManagementService orderStatusManagementService;
-    private final OrderMapper orderMapper;
-    private final OrderItemMapper orderItemMapper;
     private final OrderValidator orderValidator;
     private final OrderAmountCalculator orderAmountCalculator;
-    private final OrderCodeGenerator orderCodeGenerator;
     private final OrderStatusHistoryWriter orderStatusHistoryWriter;
-    private final CustomerSnapshotResolver customerSnapshotResolver;
-    private final ProductSnapshotResolver productSnapshotResolver;
     private final OrderResponseAssembler orderResponseAssembler;
-    private final OrderCheckoutPaymentProcessor orderCheckoutPaymentProcessor;
 
     @Override
-    @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
-
-        BigDecimal originalAmount = BigDecimal.ZERO;
-        BigDecimal discountAmount = orderAmountCalculator.defaultZero(request.getDiscountAmount());
-        BigDecimal shippingFee = orderAmountCalculator.defaultZero(request.getShippingFee());
-        CustomerResponse customerSnapshot = customerSnapshotResolver.resolve(request.getCustomerId());
-        Order order = orderMapper.toOrder(
-                request,
-                customerSnapshot,
-                orderCodeGenerator.generateOrderCode(),
-                normalizeOrderType(request.getOrderType()),
-                discountAmount,
-                shippingFee
-        );
-
-        for (var itemRequest : request.getItems()) {
-            var variant = productSnapshotResolver.resolvePosView(itemRequest.getProductVariantId());
-            BigDecimal quantity = orderAmountCalculator.defaultZero(itemRequest.getQuantity());
-            BigDecimal actualUnitPrice = orderAmountCalculator.defaultZero(variant.sellingPrice());
-            BigDecimal itemDiscount = orderAmountCalculator.defaultZero(itemRequest.getDiscountAmount());
-            BigDecimal lineTotal = orderAmountCalculator.calculateCreationLineTotal(
-                    actualUnitPrice,
-                    quantity,
-                    itemDiscount
-            );
-
-            OrderItem item = orderItemMapper.toOrderItem(
-                    variant,
-                    quantity,
-                    actualUnitPrice,
-                    itemDiscount,
-                    lineTotal,
-                    itemRequest.getBomVersionId()
-            );
-
-            order.addItem(item);
-            originalAmount = originalAmount.add(lineTotal);
-        }
-
-        orderAmountCalculator.applyCreatedOrderTotals(
-                order,
-                originalAmount,
-                discountAmount,
-                shippingFee
-        );
-
-        Order savedOrder = orderRepository.save(order);
-        orderStatusHistoryWriter.write(savedOrder, null, savedOrder.getStatus(), "Tạo đơn hàng", null);
-
-        String paymentMethod = orderResponseAssembler.normalizePaymentMethod(request.getPaymentMethod());
-        if (paymentMethod == null) {
-            return orderResponseAssembler.toResponse(savedOrder);
-        }
-        PaymentResponse payment = null;
-        try {
-             payment = orderCheckoutPaymentProcessor.checkoutPayment(
-                    savedOrder,
-                    paymentMethod,
-                    request.getPaidAmount(),
-                    request.getChangedBy()
-            );
-        }catch (RuntimeException e) {
-            throw new RuntimeException(e);
-        }
-
-
-        Order paidOrder = orderRepository.save(savedOrder);
-        return orderResponseAssembler.toResponse(paidOrder, payment);
+        return orderCheckoutService.createOrder(request);
     }
 
     @Override
@@ -487,13 +411,6 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return normalized;
-    }
-
-    private String normalizeOrderType(String orderType) {
-        if (orderType == null || orderType.isBlank()) {
-            return DEFAULT_ORDER_TYPE;
-        }
-        return orderType.trim().toUpperCase(Locale.ROOT);
     }
 
     private String firstNonBlank(String primary, String fallback) {
