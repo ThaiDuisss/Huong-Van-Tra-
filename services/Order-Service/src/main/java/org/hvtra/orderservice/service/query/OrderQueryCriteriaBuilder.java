@@ -146,7 +146,8 @@ public class OrderQueryCriteriaBuilder {
 
         query.orderBy(
                 criteriaBuilder.asc(priority),
-                criteriaBuilder.desc(root.get("createdAt"))
+                criteriaBuilder.desc(root.get("createdAt")),
+                criteriaBuilder.desc(root.get("id"))
         );
     }
 

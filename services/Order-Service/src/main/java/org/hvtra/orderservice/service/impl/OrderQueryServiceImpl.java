@@ -1,6 +1,7 @@
 package org.hvtra.orderservice.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -27,6 +28,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class OrderQueryServiceImpl implements OrderQueryService {
+
+    private static final String INVALID_DATE_RANGE_MESSAGE = "fromDate không được lớn hơn toDate";
 
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
@@ -58,6 +61,8 @@ public class OrderQueryServiceImpl implements OrderQueryService {
             int page,
             int size
     ) {
+        validateDateRange(fromDate, toDate);
+
         PageRequest pageRequest = PageRequest.of(
                 Math.max(page, 0),
                 Math.min(Math.max(size, 1), 200)
@@ -84,6 +89,8 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     @Override
     @Transactional(readOnly = true)
     public OrderStatsResponse getOrderStats(LocalDate fromDate, LocalDate toDate) {
+        validateDateRange(fromDate, toDate);
+
         Specification<Order> dateRange = orderQueryCriteriaBuilder.build(
                 null,
                 null,
@@ -127,6 +134,12 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                         List.of(PaymentStatus.PAID)
                 )))
                 .build();
+    }
+
+    private void validateDateRange(LocalDate fromDate, LocalDate toDate) {
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            throw new BusinessException("INVALID_DATE_RANGE", INVALID_DATE_RANGE_MESSAGE);
+        }
     }
 
     private Order getExistingOrder(UUID orderId) {

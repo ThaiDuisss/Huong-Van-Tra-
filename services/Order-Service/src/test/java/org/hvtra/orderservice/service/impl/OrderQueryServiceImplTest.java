@@ -3,6 +3,7 @@ package org.hvtra.orderservice.service.impl;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
@@ -174,6 +175,36 @@ class OrderQueryServiceImplTest {
         inOrder.verify(orderRepository).findAll(sorted, expectedPageRequest);
         inOrder.verify(orderMapper).toSummaryResponse(order);
         verifyNoInteractions(orderResponseAssembler);
+    }
+
+    @Test
+    void getOrdersRejectsInvalidDateRangeBeforeQueryingRepository() {
+        LocalDate fromDate = LocalDate.of(2026, 7, 25);
+        LocalDate toDate = LocalDate.of(2026, 7, 24);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.getOrders(
+                        null,
+                        null,
+                        null,
+                        null,
+                        fromDate,
+                        toDate,
+                        null,
+                        0,
+                        10
+                )
+        );
+
+        assertEquals("INVALID_DATE_RANGE", exception.getCode());
+        assertEquals("fromDate không được lớn hơn toDate", exception.getMessage());
+        verifyNoInteractions(
+                orderRepository,
+                orderMapper,
+                orderQueryCriteriaBuilder,
+                orderResponseAssembler
+        );
     }
 
     @Test

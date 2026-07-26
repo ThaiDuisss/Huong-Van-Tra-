@@ -29,6 +29,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @RestController
@@ -37,6 +39,8 @@ import java.util.UUID;
 public class OrderController {
 
     private static final String UUID_PATH = "{orderId:[0-9a-fA-F\\-]{36}}";
+    private static final DateTimeFormatter EXPORT_FILENAME_TIME =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     private final OrderService orderService;
     private final OrderExportService orderExportService;
@@ -119,7 +123,14 @@ public class OrderController {
         );
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=orders.xlsx")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + exportFilename(
+                        keyword,
+                        status,
+                        paymentStatus,
+                        orderType,
+                        fromDate,
+                        toDate
+                ) + "\"")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(excelBytes);
     }
@@ -195,5 +206,36 @@ public class OrderController {
             @Valid @RequestBody CancelOrderRequest request
     ) {
         return orderService.cancelOrder(orderId, request);
+    }
+
+    private String exportFilename(
+            String keyword,
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String orderType,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+        String prefix = hasExportFilter(keyword, status, paymentStatus, orderType, fromDate, toDate)
+                ? "don-hang-theo-bo-loc"
+                : "tat-ca-don-hang";
+
+        return prefix + "-" + LocalDateTime.now().format(EXPORT_FILENAME_TIME) + ".xlsx";
+    }
+
+    private boolean hasExportFilter(
+            String keyword,
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String orderType,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+        return (keyword != null && !keyword.isBlank())
+                || status != null
+                || paymentStatus != null
+                || (orderType != null && !orderType.isBlank())
+                || fromDate != null
+                || toDate != null;
     }
 }

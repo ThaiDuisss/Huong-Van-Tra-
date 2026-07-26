@@ -4,6 +4,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
@@ -26,6 +27,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -148,6 +150,14 @@ class OrderExportServiceImplTest {
     @Test
     void blankSortKeepsExistingBusinessStatusDefault() {
         OrderExportServiceImpl service = new OrderExportServiceImpl(orderQueryService);
+        UUID orderId = UUID.randomUUID();
+        OrderSummaryResponse summary = OrderSummaryResponse.builder()
+                .id(orderId)
+                .orderCode("ORD-001")
+                .statusLabel("Chờ thanh toán")
+                .finalAmount(new BigDecimal("100000"))
+                .createdAt(LocalDateTime.of(2026, 7, 25, 8, 0))
+                .build();
         when(orderQueryService.getOrders(
                 null,
                 null,
@@ -158,7 +168,15 @@ class OrderExportServiceImplTest {
                 "businessStatus",
                 0,
                 200
-        )).thenReturn(new PageImpl<>(List.of()));
+        )).thenReturn(new PageImpl<>(List.of(summary)));
+        when(orderQueryService.getOrderById(orderId)).thenReturn(OrderResponse.builder()
+                .id(orderId)
+                .orderCode("ORD-001")
+                .statusLabel("Chờ thanh toán")
+                .finalAmount(new BigDecimal("100000"))
+                .createdAt(LocalDateTime.of(2026, 7, 25, 8, 0))
+                .items(List.of())
+                .build());
 
         service.exportOrders(null, null, null, null, null, null, " ");
 
@@ -169,6 +187,135 @@ class OrderExportServiceImplTest {
                 null,
                 null,
                 null,
+                "businessStatus",
+                0,
+                200
+        );
+        verify(orderQueryService).getOrderById(orderId);
+    }
+
+    @Test
+    void loadsAllBatchesWithoutTruncatingToCurrentPage() throws Exception {
+        OrderExportServiceImpl service = new OrderExportServiceImpl(orderQueryService);
+        UUID firstOrderId = UUID.randomUUID();
+        UUID secondOrderId = UUID.randomUUID();
+        OrderSummaryResponse firstSummary = OrderSummaryResponse.builder()
+                .id(firstOrderId)
+                .orderCode("ORD-001")
+                .statusLabel("Chờ thanh toán")
+                .finalAmount(new BigDecimal("100000"))
+                .createdAt(LocalDateTime.of(2026, 7, 25, 8, 0))
+                .build();
+        OrderSummaryResponse secondSummary = OrderSummaryResponse.builder()
+                .id(secondOrderId)
+                .orderCode("ORD-201")
+                .statusLabel("Chờ thanh toán")
+                .finalAmount(new BigDecimal("200000"))
+                .createdAt(LocalDateTime.of(2026, 7, 25, 9, 0))
+                .build();
+
+        when(orderQueryService.getOrders(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "businessStatus",
+                0,
+                200
+        )).thenReturn(new PageImpl<>(
+                List.of(firstSummary),
+                PageRequest.of(0, 200),
+                201
+        ));
+        when(orderQueryService.getOrders(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "businessStatus",
+                1,
+                200
+        )).thenReturn(new PageImpl<>(
+                List.of(secondSummary),
+                PageRequest.of(1, 200),
+                201
+        ));
+        when(orderQueryService.getOrderById(firstOrderId)).thenReturn(OrderResponse.builder()
+                .id(firstOrderId)
+                .orderCode("ORD-001")
+                .statusLabel("Chờ thanh toán")
+                .finalAmount(new BigDecimal("100000"))
+                .createdAt(LocalDateTime.of(2026, 7, 25, 8, 0))
+                .items(List.of())
+                .build());
+        when(orderQueryService.getOrderById(secondOrderId)).thenReturn(OrderResponse.builder()
+                .id(secondOrderId)
+                .orderCode("ORD-201")
+                .statusLabel("Chờ thanh toán")
+                .finalAmount(new BigDecimal("200000"))
+                .createdAt(LocalDateTime.of(2026, 7, 25, 9, 0))
+                .items(List.of())
+                .build());
+
+        byte[] bytes = service.exportOrders(null, null, null, null, null, null, null);
+
+        try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+            Sheet summarySheet = workbook.getSheet("Danh sách đơn hàng");
+
+            assertEquals("ORD-001", summarySheet.getRow(1).getCell(0).getStringCellValue());
+            assertEquals("ORD-201", summarySheet.getRow(2).getCell(0).getStringCellValue());
+        }
+
+        verify(orderQueryService).getOrders(null, null, null, null, null, null, "businessStatus", 0, 200);
+        verify(orderQueryService).getOrders(null, null, null, null, null, null, "businessStatus", 1, 200);
+    }
+
+    @Test
+    void emptyResultRaisesClearBusinessExceptionInsteadOfBlankWorkbook() {
+        OrderExportServiceImpl service = new OrderExportServiceImpl(orderQueryService);
+        LocalDate fromDate = LocalDate.of(2026, 7, 25);
+        LocalDate toDate = LocalDate.of(2026, 7, 25);
+        when(orderQueryService.getOrders(
+                "Hoang",
+                OrderStatus.PENDING_PAYMENT,
+                null,
+                null,
+                fromDate,
+                toDate,
+                "businessStatus",
+                0,
+                200
+        )).thenReturn(new PageImpl<>(List.of()));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.exportOrders(
+                        "Hoang",
+                        OrderStatus.PENDING_PAYMENT,
+                        null,
+                        null,
+                        fromDate,
+                        toDate,
+                        null
+                )
+        );
+
+        assertEquals("ORDER_EXPORT_EMPTY", exception.getCode());
+        assertEquals(
+                "Không có đơn hàng phù hợp với bộ lọc để xuất file.",
+                exception.getMessage()
+        );
+        verify(orderQueryService).getOrders(
+                "Hoang",
+                OrderStatus.PENDING_PAYMENT,
+                null,
+                null,
+                fromDate,
+                toDate,
                 "businessStatus",
                 0,
                 200

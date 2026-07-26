@@ -7,6 +7,7 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.hvtra.orderservice.domain.entity.Order;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.service.helper.OrderDateTimeHelper;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,9 @@ import org.springframework.data.jpa.domain.Specification;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class OrderQueryCriteriaBuilderTest {
@@ -95,5 +98,44 @@ class OrderQueryCriteriaBuilderTest {
         Predicate result = specification.toPredicate(root, query, jpaCriteriaBuilder);
 
         assertSame(combinedPredicate, result);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void businessSortUsesCreatedAtAndIdTieBreakerForStablePaging() {
+        Root<Order> root = mock(Root.class);
+        CriteriaQuery<?> query = mock(CriteriaQuery.class);
+        CriteriaBuilder jpaCriteriaBuilder = mock(CriteriaBuilder.class);
+        Specification<Order> filters = mock(Specification.class);
+        Predicate filterPredicate = mock(Predicate.class);
+        Path<OrderStatus> statusPath = mock(Path.class);
+        Path<PaymentStatus> paymentStatusPath = mock(Path.class);
+        Path<Object> createdAtPath = mock(Path.class);
+        Path<Object> idPath = mock(Path.class);
+        CriteriaBuilder.Case<Integer> statusCase = mock(CriteriaBuilder.Case.class, RETURNS_SELF);
+        Expression<Integer> priority = mock(Expression.class);
+        jakarta.persistence.criteria.Order priorityOrder = mock(jakarta.persistence.criteria.Order.class);
+        jakarta.persistence.criteria.Order createdAtOrder = mock(jakarta.persistence.criteria.Order.class);
+        jakarta.persistence.criteria.Order idOrder = mock(jakarta.persistence.criteria.Order.class);
+
+        when(filters.toPredicate(root, query, jpaCriteriaBuilder)).thenReturn(filterPredicate);
+        when(query.getResultType()).thenReturn((Class) Order.class);
+        when(root.<OrderStatus>get("status")).thenReturn(statusPath);
+        when(root.<PaymentStatus>get("paymentStatus")).thenReturn(paymentStatusPath);
+        when(root.<Object>get("createdAt")).thenReturn(createdAtPath);
+        when(root.<Object>get("id")).thenReturn(idPath);
+        when(jpaCriteriaBuilder.equal(any(), any())).thenReturn(mock(Predicate.class));
+        when(jpaCriteriaBuilder.<Integer>selectCase()).thenReturn(statusCase);
+        when(statusCase.otherwise(99)).thenReturn(priority);
+        when(jpaCriteriaBuilder.asc(priority)).thenReturn(priorityOrder);
+        when(jpaCriteriaBuilder.desc(createdAtPath)).thenReturn(createdAtOrder);
+        when(jpaCriteriaBuilder.desc(idPath)).thenReturn(idOrder);
+
+        Predicate result = criteriaBuilder
+                .withBusinessOrder(filters, "businessStatus")
+                .toPredicate(root, query, jpaCriteriaBuilder);
+
+        assertSame(filterPredicate, result);
+        verify(query).orderBy(priorityOrder, createdAtOrder, idOrder);
     }
 }

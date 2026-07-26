@@ -201,6 +201,22 @@ function parseErrorBody(
     return {};
 }
 
+async function parseBlobErrorBody(
+    body: Blob
+): Promise<unknown> {
+    const text = await body.text();
+
+    if (!text) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch {
+        return text;
+    }
+}
+
 function unwrapApiResponse<T>(
     body: unknown,
     unwrapData: boolean
@@ -389,8 +405,11 @@ export function createApiClient(
                 );
 
             if (!response.ok) {
+                const errorBody = isBlob(parsedBody)
+                    ? await parseBlobErrorBody(parsedBody)
+                    : parsedBody;
                 const parsedError =
-                    parseErrorBody(parsedBody);
+                    parseErrorBody(errorBody);
 
                 throw new ApiError({
                     status: response.status,

@@ -7,7 +7,8 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
@@ -20,12 +21,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -33,10 +34,26 @@ import java.util.Locale;
 public class OrderExportServiceImpl implements OrderExportService {
 
     private static final int EXPORT_BATCH_SIZE = 200;
-    // Safety limit to avoid generating very large workbooks in one request.
-    private static final int MAX_EXPORT_ROWS = 5000;
+    private static final int ROW_ACCESS_WINDOW_SIZE = 200;
     private static final String DEFAULT_SORT = "businessStatus";
+    private static final String NO_EXPORT_DATA_MESSAGE = "Không có đơn hàng phù hợp với bộ lọc để xuất file.";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String[] SUMMARY_HEADERS = {
+            "Mã đơn hàng",
+            "Trạng thái",
+            "Giá trị đơn hàng",
+            "Ngày đặt"
+    };
+    private static final String[] DETAIL_HEADERS = {
+            "Mã đơn hàng",
+            "Ngày đặt",
+            "Trạng thái",
+            "Tên sản phẩm",
+            "Số lượng",
+            "Đơn giá",
+            "Thành tiền",
+            "Tổng đơn"
+    };
 
     private final OrderQueryService orderQueryService;
 
@@ -55,91 +72,55 @@ public class OrderExportServiceImpl implements OrderExportService {
             LocalDate toDate,
             String sort
     ) {
-        List<OrderSummaryResponse> orders = loadOrdersForExport(
-                keyword,
-                status,
-                paymentStatus,
-                orderType,
-                fromDate,
-                toDate,
-                sort
-        );
-
-        try (Workbook workbook = new XSSFWorkbook();
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        SXSSFWorkbook workbook = new SXSSFWorkbook(ROW_ACCESS_WINDOW_SIZE);
+        workbook.setCompressTempFiles(true);
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             CellStyle headerStyle = createHeaderStyle(workbook);
-            createSummarySheet(workbook, headerStyle, orders);
-            createDetailSheet(workbook, headerStyle, orders);
+            Sheet summarySheet = workbook.createSheet("Danh sách đơn hàng");
+            Sheet detailSheet = workbook.createSheet("Chi tiết đơn hàng");
+            writeHeader(summarySheet, headerStyle, SUMMARY_HEADERS);
+            writeHeader(detailSheet, headerStyle, DETAIL_HEADERS);
+
+            ExportRows rows = writeOrdersForExport(
+                    summarySheet,
+                    detailSheet,
+                    keyword,
+                    status,
+                    paymentStatus,
+                    orderType,
+                    fromDate,
+                    toDate,
+                    sort
+            );
+
+            if (!rows.hasOrders()) {
+                throw new BusinessException("ORDER_EXPORT_EMPTY", NO_EXPORT_DATA_MESSAGE);
+            }
+
+            finishSheet(summarySheet, SUMMARY_HEADERS.length, rows.summaryRowIndex());
+            finishSheet(detailSheet, DETAIL_HEADERS.length, rows.detailRowIndex());
 
             workbook.write(out);
             return out.toByteArray();
+        } catch (BusinessException exception) {
+            throw exception;
         } catch (Exception exception) {
             throw new RuntimeException("Lỗi xuất file Excel đơn hàng: " + exception.getMessage(), exception);
+        } finally {
+            closeWorkbook(workbook);
         }
     }
 
-    private void createSummarySheet(
-            Workbook workbook,
-            CellStyle headerStyle,
-            List<OrderSummaryResponse> orders
-    ) {
-        Sheet sheet = workbook.createSheet("Danh sách đơn hàng");
-        String[] headers = {
-                "Mã đơn hàng",
-                "Trạng thái",
-                "Giá trị đơn hàng",
-                "Ngày đặt"
-        };
-        writeHeader(sheet, headerStyle, headers);
-
-        int rowIndex = 1;
-        for (OrderSummaryResponse order : orders) {
-            Row row = sheet.createRow(rowIndex++);
-            row.createCell(0).setCellValue(valueOrDash(order.getOrderCode()));
-            row.createCell(1).setCellValue(valueOrDash(order.getStatusLabel()));
-            row.createCell(2).setCellValue(formatMoney(order.getFinalAmount()));
-            row.createCell(3).setCellValue(formatDate(order));
-        }
-
-        finishSheet(sheet, headers.length, rowIndex);
-    }
-
-    private void createDetailSheet(
-            Workbook workbook,
-            CellStyle headerStyle,
-            List<OrderSummaryResponse> orders
-    ) {
-        Sheet sheet = workbook.createSheet("Chi tiết đơn hàng");
-        String[] headers = {
-                "Mã đơn hàng",
-                "Ngày đặt",
-                "Trạng thái",
-                "Tên sản phẩm",
-                "Số lượng",
-                "Đơn giá",
-                "Thành tiền",
-                "Tổng đơn"
-        };
-        writeHeader(sheet, headerStyle, headers);
-
-        int rowIndex = 1;
-        for (OrderSummaryResponse summary : orders) {
-            OrderResponse detail = orderQueryService.getOrderById(summary.getId());
-            List<OrderItemResponse> items = detail.getItems();
-
-            if (items == null || items.isEmpty()) {
-                Row row = sheet.createRow(rowIndex++);
-                writeOrderDetailCells(row, detail, null);
-                continue;
-            }
-
-            for (OrderItemResponse item : items) {
-                Row row = sheet.createRow(rowIndex++);
-                writeOrderDetailCells(row, detail, item);
+    private void closeWorkbook(SXSSFWorkbook workbook) {
+        try {
+            workbook.dispose();
+        } finally {
+            try {
+                workbook.close();
+            } catch (IOException ignored) {
+                // Export already completed or failed; cleanup should not mask the original outcome.
             }
         }
-
-        finishSheet(sheet, headers.length, rowIndex);
     }
 
     private void writeOrderDetailCells(Row row, OrderResponse order, OrderItemResponse item) {
@@ -176,7 +157,9 @@ public class OrderExportServiceImpl implements OrderExportService {
         }
     }
 
-    private List<OrderSummaryResponse> loadOrdersForExport(
+    private ExportRows writeOrdersForExport(
+            Sheet summarySheet,
+            Sheet detailSheet,
             String keyword,
             OrderStatus status,
             PaymentStatus paymentStatus,
@@ -185,9 +168,11 @@ public class OrderExportServiceImpl implements OrderExportService {
             LocalDate toDate,
             String sort
     ) {
-        List<OrderSummaryResponse> orders = new ArrayList<>();
+        int summaryRowIndex = 1;
+        int detailRowIndex = 1;
         int page = 0;
         boolean hasNext;
+        boolean hasOrders = false;
 
         do {
             Page<OrderSummaryResponse> result = orderQueryService.getOrders(
@@ -201,19 +186,40 @@ public class OrderExportServiceImpl implements OrderExportService {
                     page,
                     EXPORT_BATCH_SIZE
             );
+            List<OrderSummaryResponse> batch = result.getContent();
 
-            for (OrderSummaryResponse order : result.getContent()) {
-                if (orders.size() >= MAX_EXPORT_ROWS) {
-                    return orders;
+            for (OrderSummaryResponse summary : batch) {
+                hasOrders = true;
+                Row summaryRow = summarySheet.createRow(summaryRowIndex++);
+                writeOrderSummaryCells(summaryRow, summary);
+
+                OrderResponse detail = orderQueryService.getOrderById(summary.getId());
+                List<OrderItemResponse> items = detail.getItems();
+
+                if (items == null || items.isEmpty()) {
+                    Row detailRow = detailSheet.createRow(detailRowIndex++);
+                    writeOrderDetailCells(detailRow, detail, null);
+                    continue;
                 }
-                orders.add(order);
+
+                for (OrderItemResponse item : items) {
+                    Row detailRow = detailSheet.createRow(detailRowIndex++);
+                    writeOrderDetailCells(detailRow, detail, item);
+                }
             }
 
-            hasNext = result.hasNext() && !result.getContent().isEmpty();
+            hasNext = result.hasNext() && !batch.isEmpty();
             page++;
-        } while (hasNext && orders.size() < MAX_EXPORT_ROWS);
+        } while (hasNext);
 
-        return orders;
+        return new ExportRows(summaryRowIndex, detailRowIndex, hasOrders);
+    }
+
+    private void writeOrderSummaryCells(Row row, OrderSummaryResponse order) {
+        row.createCell(0).setCellValue(valueOrDash(order.getOrderCode()));
+        row.createCell(1).setCellValue(valueOrDash(order.getStatusLabel()));
+        row.createCell(2).setCellValue(formatMoney(order.getFinalAmount()));
+        row.createCell(3).setCellValue(formatDate(order));
     }
 
     private CellStyle createHeaderStyle(Workbook workbook) {
@@ -284,5 +290,12 @@ public class OrderExportServiceImpl implements OrderExportService {
 
     private String valueOrDash(String value) {
         return value == null || value.isBlank() ? "--" : value.trim();
+    }
+
+    private record ExportRows(
+            int summaryRowIndex,
+            int detailRowIndex,
+            boolean hasOrders
+    ) {
     }
 }
