@@ -26,6 +26,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -104,6 +105,34 @@ class OrderQueryServiceImplTest {
         inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
         inOrder.verify(orderMapper).toPaymentInfoResponse(order);
         verifyNoMoreInteractions(orderRepository, orderMapper);
+        verifyNoInteractions(orderResponseAssembler, orderQueryCriteriaBuilder);
+    }
+
+    @Test
+    void getOrdersByIdsForExportLoadsOrdersAndItemsInOneBatchWithoutAssembler() {
+        UUID firstOrderId = UUID.randomUUID();
+        UUID secondOrderId = UUID.randomUUID();
+        List<UUID> orderIds = List.of(firstOrderId, secondOrderId);
+        Order firstOrder = order(firstOrderId);
+        Order secondOrder = order(secondOrderId);
+        firstOrder.setPaymentMethod("CASH");
+        secondOrder.setPaymentMethod("BANK_TRANSFER");
+        OrderResponse firstResponse = OrderResponse.builder().id(firstOrderId).build();
+        OrderResponse secondResponse = OrderResponse.builder().id(secondOrderId).build();
+        when(orderRepository.findAllWithItemsByIdIn(orderIds))
+                .thenReturn(List.of(firstOrder, secondOrder));
+        when(orderMapper.toResponse(firstOrder, null, BigDecimal.ZERO, "CASH"))
+                .thenReturn(firstResponse);
+        when(orderMapper.toResponse(secondOrder, null, BigDecimal.ZERO, "BANK_TRANSFER"))
+                .thenReturn(secondResponse);
+
+        List<OrderResponse> result = service.getOrdersByIdsForExport(orderIds);
+
+        assertEquals(List.of(firstResponse, secondResponse), result);
+        InOrder inOrder = inOrder(orderRepository, orderMapper);
+        inOrder.verify(orderRepository).findAllWithItemsByIdIn(orderIds);
+        inOrder.verify(orderMapper).toResponse(firstOrder, null, BigDecimal.ZERO, "CASH");
+        inOrder.verify(orderMapper).toResponse(secondOrder, null, BigDecimal.ZERO, "BANK_TRANSFER");
         verifyNoInteractions(orderResponseAssembler, orderQueryCriteriaBuilder);
     }
 
@@ -314,6 +343,7 @@ class OrderQueryServiceImplTest {
     @Test
     void queryMethodsKeepReadOnlyTransactionsOnImplementation() throws NoSuchMethodException {
         assertReadOnly("getOrderById", UUID.class);
+        assertReadOnly("getOrdersByIdsForExport", List.class);
         assertReadOnly("getPaymentInfo", UUID.class);
         assertReadOnly(
                 "getOrders",

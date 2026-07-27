@@ -9,11 +9,14 @@ import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.springframework.data.domain.Page;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public interface OrderQueryService {
 
     OrderResponse getOrderById(UUID orderId);
+
+    List<OrderResponse> getOrdersByIdsForExport(List<UUID> orderIds);
 
     OrderPaymentInfoResponse getPaymentInfo(UUID orderId);
 

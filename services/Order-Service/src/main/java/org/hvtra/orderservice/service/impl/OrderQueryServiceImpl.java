@@ -21,7 +21,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,6 +42,23 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(UUID orderId) {
         return orderResponseAssembler.toResponse(getExistingOrder(orderId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getOrdersByIdsForExport(List<UUID> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return orderRepository.findAllWithItemsByIdIn(orderIds).stream()
+                .map(order -> orderMapper.toResponse(
+                        order,
+                        null,
+                        BigDecimal.ZERO,
+                        order.getPaymentMethod()
+                ))
+                .toList();
     }
 
     @Override
