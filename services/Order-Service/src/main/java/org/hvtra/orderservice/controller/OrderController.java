@@ -122,17 +122,36 @@ public class OrderController {
                 sort
         );
 
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + exportFilename(
-                        keyword,
-                        status,
-                        paymentStatus,
-                        orderType,
-                        fromDate,
-                        toDate
-                ) + "\"")
-                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                .body(excelBytes);
+        return excelResponse(excelBytes, exportFilename(
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate
+        ));
+    }
+
+    @GetMapping("/invoices/export/excel")
+    public ResponseEntity<byte[]> exportInvoices(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) PaymentStatus paymentStatus,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "invoicePayment") String sort
+    ) {
+        byte[] excelBytes = orderExportService.exportInvoices(
+                keyword,
+                paymentStatus,
+                fromDate,
+                toDate,
+                sort
+        );
+
+        return excelResponse(
+                excelBytes,
+                invoiceExportFilename(keyword, paymentStatus, fromDate, toDate)
+        );
     }
 
     @Operation(summary = "Api cho Payment-Service gọi sau khi thanh toán thành công để cập nhật trạng thái đơn hàng")
@@ -221,6 +240,29 @@ public class OrderController {
                 : "tat-ca-don-hang";
 
         return prefix + "-" + LocalDateTime.now().format(EXPORT_FILENAME_TIME) + ".xlsx";
+    }
+
+    private String invoiceExportFilename(
+            String keyword,
+            PaymentStatus paymentStatus,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+        boolean hasFilter = (keyword != null && !keyword.isBlank())
+                || paymentStatus != null
+                || fromDate != null
+                || toDate != null;
+        String prefix = hasFilter ? "hoa-don-theo-bo-loc" : "tat-ca-hoa-don";
+        return prefix + "-" + LocalDateTime.now().format(EXPORT_FILENAME_TIME) + ".xlsx";
+    }
+
+    private ResponseEntity<byte[]> excelResponse(byte[] excelBytes, String filename) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ))
+                .body(excelBytes);
     }
 
     private boolean hasExportFilter(

@@ -1,7 +1,6 @@
 import {
     ChevronLeft,
     ChevronRight,
-    FileSpreadsheet,
     MoreHorizontal,
     Search,
     Upload
@@ -14,9 +13,15 @@ import {
     getDateRangeFromTimeNode,
     type TimeNode
 } from "../../../components/shared/TimeHierarchyFilter.utils";
+import { ExportDropdown } from "../components/ExportDropdown";
 import { InvoiceDetailPanel } from "../components/InvoiceDetailPanel";
 import { PaymentStatusBadge } from "../components/PaymentStatusBadge";
-import { getOrderById, getOrders, getOrderStats } from "../services/order.api";
+import {
+    exportInvoices,
+    getOrderById,
+    getOrders,
+    getOrderStats
+} from "../services/order.api";
 import type {
     OrderDetailResponse,
     OrderPageResponse,
@@ -30,6 +35,7 @@ import {
     getCustomerName,
     getPaymentStatusText
 } from "../utils/order-formatters";
+import { buildActiveOrderExportParams } from "../utils/order-export-filters";
 import styles from "./InvoiceListPage.module.css";
 
 type InvoicePaymentTabKey = "ALL" | "UNPAID" | "PAID";
@@ -266,10 +272,13 @@ export function InvoiceListPage() {
         window.alert("Chức năng nhập file đang được phát triển");
     };
 
-    const handleExportFile = () => {
-        console.log("TODO: Xuất file hóa đơn");
-        window.alert("Chức năng xuất file đang được phát triển");
-    };
+    const buildCurrentFilterExportParams = () =>
+        buildActiveOrderExportParams({
+            fromDate: timeRange?.fromDate,
+            keyword: debouncedKeyword,
+            paymentStatus: activePaymentTab?.paymentStatus,
+            toDate: timeRange?.toDate
+        });
 
     const selectPaymentFilter = (status: InvoicePaymentTabKey) => {
         setFilterPaymentStatus(status);
@@ -360,14 +369,29 @@ export function InvoiceListPage() {
                             <Upload size={18} aria-hidden="true" />
                             Nhập file
                         </button>
-                        <button
-                            className={styles.secondaryButton}
-                            onClick={handleExportFile}
-                            type="button"
-                        >
-                            <FileSpreadsheet size={18} aria-hidden="true" />
-                            Xuất file
-                        </button>
+                        <ExportDropdown
+                            allDescription="Bỏ qua các bộ lọc hiện tại"
+                            allFilenamePrefix="tat-ca-hoa-don"
+                            allLabel="Xuất toàn bộ hóa đơn"
+                            buttonClassName={styles.secondaryButton}
+                            emptyFilteredMessage="Không có hóa đơn phù hợp với bộ lọc để xuất file."
+                            fallbackErrorMessage="Không thể xuất file hóa đơn. Vui lòng thử lại."
+                            filteredDescription="Áp dụng thời gian, thanh toán và từ khóa đang chọn"
+                            filteredFilenamePrefix="hoa-don-theo-bo-loc"
+                            hasNoFilteredData={
+                                !isListLoading &&
+                                !listError &&
+                                totalElements === 0
+                            }
+                            onExport={(mode) =>
+                                exportInvoices(
+                                    mode === "filtered"
+                                        ? buildCurrentFilterExportParams()
+                                        : {}
+                                )
+                            }
+                            successMessage="Đã xuất file hóa đơn thành công."
+                        />
                     </div>
                 </div>
 

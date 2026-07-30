@@ -46,8 +46,12 @@ public class OrderExportServiceImpl implements OrderExportService {
 
     private static final int EXPORT_BATCH_SIZE = 200;
     private static final int ROW_ACCESS_WINDOW_SIZE = 200;
-    private static final String DEFAULT_SORT = "businessStatus";
-    private static final String NO_EXPORT_DATA_MESSAGE = "Không có đơn hàng phù hợp với bộ lọc để xuất file.";
+    private static final String ORDER_DEFAULT_SORT = "businessStatus";
+    private static final String INVOICE_DEFAULT_SORT = "invoicePayment";
+    private static final String NO_ORDER_EXPORT_DATA_MESSAGE =
+            "Không có đơn hàng phù hợp với bộ lọc để xuất file.";
+    private static final String NO_INVOICE_EXPORT_DATA_MESSAGE =
+            "Không có hóa đơn phù hợp với bộ lọc để xuất file.";
     private static final String MONEY_FORMAT = "#,##0 \"đ\"";
     private static final String DATE_TIME_FORMAT = "dd/MM/yyyy HH:mm";
     private static final String QUANTITY_FORMAT = "#,##0.###";
@@ -59,14 +63,22 @@ public class OrderExportServiceImpl implements OrderExportService {
     private static final byte[] EVEN_ROW_RGB = {
             (byte) 0xF3, (byte) 0xF7, (byte) 0xF4
     };
-    private static final String[] SUMMARY_HEADERS = {
+    private static final String[] ORDER_SUMMARY_HEADERS = {
             "Mã đơn hàng",
             "Trạng thái",
             "Giá trị đơn hàng",
             "Ngày đặt"
     };
-    private static final int[] SUMMARY_COLUMN_WIDTHS = {30, 22, 20, 22};
-    private static final String[] DETAIL_HEADERS = {
+    private static final int[] ORDER_SUMMARY_COLUMN_WIDTHS = {30, 22, 20, 22};
+    private static final String[] INVOICE_SUMMARY_HEADERS = {
+            "Mã hóa đơn",
+            "Thanh toán",
+            "Tổng tiền",
+            "Khách hàng",
+            "Ngày"
+    };
+    private static final int[] INVOICE_SUMMARY_COLUMN_WIDTHS = {32, 20, 20, 24, 22};
+    private static final String[] ORDER_DETAIL_HEADERS = {
             "Mã đơn hàng",
             "Khách hàng",
             "SĐT",
@@ -81,8 +93,26 @@ public class OrderExportServiceImpl implements OrderExportService {
             "Đơn giá",
             "Thành tiền"
     };
-    private static final int[] DETAIL_COLUMN_WIDTHS = {
+    private static final String[] INVOICE_DETAIL_HEADERS = {
+            "Mã hóa đơn",
+            "Thanh toán",
+            "Khách hàng",
+            "SĐT",
+            "Trạng thái hóa đơn",
+            "Thời gian",
+            "Nghiệp vụ",
+            "SKU",
+            "Tên sản phẩm",
+            "Biến thể",
+            "Số lượng",
+            "Đơn giá",
+            "Thành tiền"
+    };
+    private static final int[] ORDER_DETAIL_COLUMN_WIDTHS = {
             30, 24, 16, 20, 20, 22, 18, 26, 30, 30, 10, 18, 18
+    };
+    private static final int[] INVOICE_DETAIL_COLUMN_WIDTHS = {
+            32, 20, 24, 16, 20, 22, 18, 26, 30, 30, 10, 18, 18
     };
 
     private final OrderQueryService orderQueryService;
@@ -102,16 +132,60 @@ public class OrderExportServiceImpl implements OrderExportService {
             LocalDate toDate,
             String sort
     ) {
+        return export(
+                ExportType.ORDERS,
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate,
+                sort
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] exportInvoices(
+            String keyword,
+            PaymentStatus paymentStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort
+    ) {
+        return export(
+                ExportType.INVOICES,
+                keyword,
+                null,
+                paymentStatus,
+                null,
+                fromDate,
+                toDate,
+                sort
+        );
+    }
+
+    private byte[] export(
+            ExportType exportType,
+            String keyword,
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String orderType,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort
+    ) {
         SXSSFWorkbook workbook = new SXSSFWorkbook(ROW_ACCESS_WINDOW_SIZE);
         workbook.setCompressTempFiles(true);
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ExportStyles styles = createStyles(workbook);
-            Sheet summarySheet = workbook.createSheet("Danh sách đơn hàng");
+            Sheet summarySheet = workbook.createSheet(exportType.summarySheetName());
             Sheet detailSheet = workbook.createSheet("Chi tiết sản phẩm");
-            writeHeader(summarySheet, styles.header(), SUMMARY_HEADERS);
-            writeDetailHeader(detailSheet, styles);
+            writeHeader(summarySheet, styles.header(), exportType.summaryHeaders());
+            writeDetailHeader(detailSheet, styles, exportType.detailHeaders());
 
             ExportRows rows = writeOrdersForExport(
+                    exportType,
                     summarySheet,
                     detailSheet,
                     styles,
@@ -125,11 +199,24 @@ public class OrderExportServiceImpl implements OrderExportService {
             );
 
             if (!rows.hasOrders()) {
-                throw new BusinessException("ORDER_EXPORT_EMPTY", NO_EXPORT_DATA_MESSAGE);
+                throw new BusinessException(
+                        exportType.emptyErrorCode(),
+                        exportType.emptyMessage()
+                );
             }
 
-            finishSheet(summarySheet, SUMMARY_HEADERS.length, rows.summaryRowIndex(), SUMMARY_COLUMN_WIDTHS);
-            finishSheet(detailSheet, DETAIL_HEADERS.length, rows.detailRowIndex(), DETAIL_COLUMN_WIDTHS);
+            finishSheet(
+                    summarySheet,
+                    exportType.summaryHeaders().length,
+                    rows.summaryRowIndex(),
+                    exportType.summaryColumnWidths()
+            );
+            finishSheet(
+                    detailSheet,
+                    exportType.detailHeaders().length,
+                    rows.detailRowIndex(),
+                    exportType.detailColumnWidths()
+            );
 
             workbook.write(out);
             return out.toByteArray();
@@ -143,6 +230,7 @@ public class OrderExportServiceImpl implements OrderExportService {
     }
 
     private ExportRows writeOrdersForExport(
+            ExportType exportType,
             Sheet summarySheet,
             Sheet detailSheet,
             ExportStyles styles,
@@ -168,7 +256,7 @@ public class OrderExportServiceImpl implements OrderExportService {
                     orderType,
                     fromDate,
                     toDate,
-                    sort == null || sort.isBlank() ? DEFAULT_SORT : sort,
+                    sort == null || sort.isBlank() ? exportType.defaultSort() : sort,
                     page,
                     EXPORT_BATCH_SIZE
             );
@@ -178,8 +266,8 @@ public class OrderExportServiceImpl implements OrderExportService {
             for (OrderSummaryResponse summary : batch) {
                 hasOrders = true;
                 Row summaryRow = summarySheet.createRow(summaryRowIndex++);
-                summaryRow.setHeightInPoints(DATA_ROW_HEIGHT);
-                writeOrderSummaryCells(summaryRow, summary, styles);
+                adjustSummaryRowHeight(summaryRow, summary, exportType);
+                writeOrderSummaryCells(summaryRow, summary, styles, exportType);
 
                 OrderResponse detail = detailsByOrderId.getOrDefault(
                         summary.getId(),
@@ -189,15 +277,15 @@ public class OrderExportServiceImpl implements OrderExportService {
 
                 if (items == null || items.isEmpty()) {
                     Row detailRow = detailSheet.createRow(detailRowIndex++);
-                    adjustDetailRowHeight(detailRow, detail, null);
-                    writeOrderDetailCells(detailRow, detail, null, styles);
+                    adjustDetailRowHeight(detailRow, detail, null, exportType);
+                    writeOrderDetailCells(detailRow, detail, null, styles, exportType);
                     continue;
                 }
 
                 for (OrderItemResponse item : items) {
                     Row detailRow = detailSheet.createRow(detailRowIndex++);
-                    adjustDetailRowHeight(detailRow, detail, item);
-                    writeOrderDetailCells(detailRow, detail, item, styles);
+                    adjustDetailRowHeight(detailRow, detail, item, exportType);
+                    writeOrderDetailCells(detailRow, detail, item, styles, exportType);
                 }
             }
 
@@ -249,8 +337,22 @@ public class OrderExportServiceImpl implements OrderExportService {
                 .build();
     }
 
-    private void writeOrderSummaryCells(Row row, OrderSummaryResponse order, ExportStyles styles) {
+    private void writeOrderSummaryCells(
+            Row row,
+            OrderSummaryResponse order,
+            ExportStyles styles,
+            ExportType exportType
+    ) {
         DataStyles dataStyles = styles.forDataRow(row);
+        if (ExportType.INVOICES == exportType) {
+            writeTextCell(row, 0, invoiceCode(order.getOrderCode()), dataStyles.leftText());
+            writeTextCell(row, 1, order.getPaymentStatusLabel(), dataStyles.centerText());
+            writeNumericCell(row, 2, order.getFinalAmount(), dataStyles.money());
+            writeTextCell(row, 3, order.getCustomerName(), dataStyles.wrappedText());
+            writeDateTimeCell(row, 4, order.getCreatedAt(), dataStyles.dateTime());
+            return;
+        }
+
         writeTextCell(row, 0, order.getOrderCode(), dataStyles.leftText());
         writeTextCell(row, 1, order.getStatusLabel(), dataStyles.centerText());
         writeNumericCell(row, 2, order.getFinalAmount(), dataStyles.money());
@@ -261,10 +363,31 @@ public class OrderExportServiceImpl implements OrderExportService {
             Row row,
             OrderResponse order,
             OrderItemResponse item,
-            ExportStyles styles
+            ExportStyles styles,
+            ExportType exportType
     ) {
         DataStyles dataStyles = styles.forDataRow(row);
-        writeTextCell(row, 0, order.getOrderCode(), dataStyles.leftText());
+        String documentCode = ExportType.INVOICES == exportType
+                ? invoiceCode(order.getOrderCode())
+                : order.getOrderCode();
+        if (ExportType.INVOICES == exportType) {
+            writeTextCell(row, 0, documentCode, dataStyles.leftText());
+            writeTextCell(row, 1, order.getPaymentStatusLabel(), dataStyles.centerText());
+            writeTextCell(row, 2, order.getCustomerName(), dataStyles.wrappedText());
+            writeTextCell(row, 3, order.getCustomerPhone(), dataStyles.leftText());
+            writeTextCell(row, 4, order.getStatusLabel(), dataStyles.centerText());
+            writeDateTimeCell(row, 5, order.getCreatedAt(), dataStyles.dateTime());
+            writeTextCell(row, 6, order.getOrderTypeLabel(), dataStyles.centerText());
+            writeTextCell(row, 7, item == null ? null : itemSku(item), dataStyles.skuText());
+            writeTextCell(row, 8, item == null ? null : productName(item), dataStyles.wrappedText());
+            writeTextCell(row, 9, item == null ? null : item.getVariantNameSnapshot(), dataStyles.wrappedText());
+            writeNumericCell(row, 10, item == null ? null : item.getQuantity(), dataStyles.quantity());
+            writeNumericCell(row, 11, item == null ? null : itemUnitPrice(item), dataStyles.money());
+            writeNumericCell(row, 12, item == null ? null : itemLineTotal(item), dataStyles.money());
+            return;
+        }
+
+        writeTextCell(row, 0, documentCode, dataStyles.leftText());
         writeTextCell(row, 1, order.getCustomerName(), dataStyles.wrappedText());
         writeTextCell(row, 2, order.getCustomerPhone(), dataStyles.leftText());
         writeTextCell(row, 3, order.getStatusLabel(), dataStyles.centerText());
@@ -289,12 +412,12 @@ public class OrderExportServiceImpl implements OrderExportService {
         }
     }
 
-    private void writeDetailHeader(Sheet sheet, ExportStyles styles) {
+    private void writeDetailHeader(Sheet sheet, ExportStyles styles, String[] headers) {
         Row headerRow = sheet.createRow(0);
         headerRow.setHeightInPoints(HEADER_ROW_HEIGHT);
-        for (int index = 0; index < DETAIL_HEADERS.length; index++) {
+        for (int index = 0; index < headers.length; index++) {
             Cell cell = headerRow.createCell(index);
-            cell.setCellValue(DETAIL_HEADERS[index]);
+            cell.setCellValue(headers[index]);
             if (index == 7) {
                 cell.setCellStyle(styles.skuHeader());
             } else if (index > 7) {
@@ -466,18 +589,38 @@ public class OrderExportServiceImpl implements OrderExportService {
         style.setLeftBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
     }
 
-    private void adjustDetailRowHeight(Row row, OrderResponse order, OrderItemResponse item) {
-        int requiredLines = wrappedLineCount(order.getCustomerName(), DETAIL_COLUMN_WIDTHS[1]);
+    private void adjustDetailRowHeight(
+            Row row,
+            OrderResponse order,
+            OrderItemResponse item,
+            ExportType exportType
+    ) {
+        int customerColumnIndex = ExportType.INVOICES == exportType ? 2 : 1;
+        int requiredLines = wrappedLineCount(
+                order.getCustomerName(),
+                exportType.detailColumnWidths()[customerColumnIndex]
+        );
         if (item != null) {
             requiredLines = Math.max(
                     requiredLines,
-                    wrappedLineCount(productName(item), DETAIL_COLUMN_WIDTHS[8])
+                    wrappedLineCount(productName(item), exportType.detailColumnWidths()[8])
             );
             requiredLines = Math.max(
                     requiredLines,
-                    wrappedLineCount(item.getVariantNameSnapshot(), DETAIL_COLUMN_WIDTHS[9])
+                    wrappedLineCount(item.getVariantNameSnapshot(), exportType.detailColumnWidths()[9])
             );
         }
+        row.setHeightInPoints(DATA_ROW_HEIGHT * Math.max(requiredLines, 1));
+    }
+
+    private void adjustSummaryRowHeight(
+            Row row,
+            OrderSummaryResponse order,
+            ExportType exportType
+    ) {
+        int requiredLines = ExportType.INVOICES == exportType
+                ? wrappedLineCount(order.getCustomerName(), INVOICE_SUMMARY_COLUMN_WIDTHS[3])
+                : 1;
         row.setHeightInPoints(DATA_ROW_HEIGHT * Math.max(requiredLines, 1));
     }
 
@@ -538,6 +681,10 @@ public class OrderExportServiceImpl implements OrderExportService {
         return primary != null && !primary.isBlank() ? primary : fallback;
     }
 
+    private String invoiceCode(String orderCode) {
+        return orderCode == null || orderCode.isBlank() ? null : "HD-" + orderCode.trim();
+    }
+
     private record ExportStyles(
             CellStyle header,
             CellStyle productHeader,
@@ -567,5 +714,89 @@ public class OrderExportServiceImpl implements OrderExportService {
             int detailRowIndex,
             boolean hasOrders
     ) {
+    }
+
+    private enum ExportType {
+        ORDERS(
+                "Danh sách đơn hàng",
+                ORDER_SUMMARY_HEADERS,
+                ORDER_SUMMARY_COLUMN_WIDTHS,
+                ORDER_DETAIL_HEADERS,
+                ORDER_DETAIL_COLUMN_WIDTHS,
+                ORDER_DEFAULT_SORT,
+                "ORDER_EXPORT_EMPTY",
+                NO_ORDER_EXPORT_DATA_MESSAGE
+        ),
+        INVOICES(
+                "Danh sách hóa đơn",
+                INVOICE_SUMMARY_HEADERS,
+                INVOICE_SUMMARY_COLUMN_WIDTHS,
+                INVOICE_DETAIL_HEADERS,
+                INVOICE_DETAIL_COLUMN_WIDTHS,
+                INVOICE_DEFAULT_SORT,
+                "INVOICE_EXPORT_EMPTY",
+                NO_INVOICE_EXPORT_DATA_MESSAGE
+        );
+
+        private final String summarySheetName;
+        private final String[] summaryHeaders;
+        private final int[] summaryColumnWidths;
+        private final String[] detailHeaders;
+        private final int[] detailColumnWidths;
+        private final String defaultSort;
+        private final String emptyErrorCode;
+        private final String emptyMessage;
+
+        ExportType(
+                String summarySheetName,
+                String[] summaryHeaders,
+                int[] summaryColumnWidths,
+                String[] detailHeaders,
+                int[] detailColumnWidths,
+                String defaultSort,
+                String emptyErrorCode,
+                String emptyMessage
+        ) {
+            this.summarySheetName = summarySheetName;
+            this.summaryHeaders = summaryHeaders;
+            this.summaryColumnWidths = summaryColumnWidths;
+            this.detailHeaders = detailHeaders;
+            this.detailColumnWidths = detailColumnWidths;
+            this.defaultSort = defaultSort;
+            this.emptyErrorCode = emptyErrorCode;
+            this.emptyMessage = emptyMessage;
+        }
+
+        private String summarySheetName() {
+            return summarySheetName;
+        }
+
+        private String[] summaryHeaders() {
+            return summaryHeaders;
+        }
+
+        private int[] summaryColumnWidths() {
+            return summaryColumnWidths;
+        }
+
+        private String[] detailHeaders() {
+            return detailHeaders;
+        }
+
+        private int[] detailColumnWidths() {
+            return detailColumnWidths;
+        }
+
+        private String defaultSort() {
+            return defaultSort;
+        }
+
+        private String emptyErrorCode() {
+            return emptyErrorCode;
+        }
+
+        private String emptyMessage() {
+            return emptyMessage;
+        }
     }
 }

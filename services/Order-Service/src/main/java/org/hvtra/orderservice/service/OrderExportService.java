@@ -15,4 +15,12 @@ public interface OrderExportService {
             LocalDate toDate,
             String sort
     );
+
+    byte[] exportInvoices(
+            String keyword,
+            PaymentStatus paymentStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort
+    );
 }

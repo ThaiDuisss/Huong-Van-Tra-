@@ -1,9 +1,6 @@
 import {
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
-    FileSpreadsheet,
-    LoaderCircle,
     MoreHorizontal,
     Plus,
     Search,
@@ -17,6 +14,7 @@ import {
     getDateRangeFromTimeNode,
     type TimeNode
 } from "../../../components/shared/TimeHierarchyFilter.utils";
+import { ExportDropdown } from "../components/ExportDropdown";
 import { OrderDetailPanel } from "../components/OrderDetailPanel";
 import { OrderStatusBadge } from "../components/OrderStatusBadge";
 import {
@@ -37,6 +35,7 @@ import {
     getOrderCode,
     getOrderStatusText
 } from "../utils/order-formatters";
+import { buildActiveOrderExportParams } from "../utils/order-export-filters";
 import styles from "./OrderListPage.module.css";
 
 type OrderStatusTabKey =
@@ -46,8 +45,6 @@ type OrderStatusTabKey =
     | "SHIPPING"
     | "COMPLETED"
     | "RETURN_REFUND";
-
-type ExportMode = "all" | "filtered";
 
 const PAGE_SIZE = 10;
 
@@ -137,19 +134,8 @@ function getPageNumbers(totalPages: number, currentPage: number) {
     return Array.from({ length }, (_, index) => start + index);
 }
 
-function formatExportTimestamp(date: Date) {
-    const pad = (value: number) => value.toString().padStart(2, "0");
-
-    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(
-        date.getDate()
-    )}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(
-        date.getSeconds()
-    )}`;
-}
-
 export function OrderListPage() {
     const importInputRef = useRef<HTMLInputElement | null>(null);
-    const exportMenuRef = useRef<HTMLDivElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(
         buildTodayTimeNode
@@ -168,15 +154,9 @@ export function OrderListPage() {
     const [ordersPage, setOrdersPage] = useState(emptyPage);
     const [stats, setStats] = useState<OrderStatsResponse>({});
     const [isOrdersLoading, setIsOrdersLoading] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
-    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
     const [ordersError, setOrdersError] = useState<string | null>(null);
     const [isDetailLoading, setIsDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
-    const [toast, setToast] = useState<{
-        message: string;
-        type: "error" | "success";
-    } | null>(null);
 
     const activeStatusTab = ORDER_STATUS_TABS.find(
         (tab) => tab.key === filterStatus
@@ -298,42 +278,6 @@ export function OrderListPage() {
         };
     }, [activeOrderId]);
 
-    useEffect(() => {
-        if (!isExportMenuOpen) {
-            return;
-        }
-
-        const handleDocumentMouseDown = (event: MouseEvent) => {
-            if (
-                exportMenuRef.current &&
-                !exportMenuRef.current.contains(event.target as Node)
-            ) {
-                setIsExportMenuOpen(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleDocumentMouseDown);
-
-        return () => {
-            document.removeEventListener(
-                "mousedown",
-                handleDocumentMouseDown
-            );
-        };
-    }, [isExportMenuOpen]);
-
-    useEffect(() => {
-        if (!toast) {
-            return;
-        }
-
-        const timerId = window.setTimeout(() => {
-            setToast(null);
-        }, 3200);
-
-        return () => window.clearTimeout(timerId);
-    }, [toast]);
-
     const visibleOrders = ordersPage.content ?? [];
     const totalPages = Math.max(ordersPage.totalPages ?? 0, 1);
     const totalElements = ordersPage.totalElements ?? 0;
@@ -392,72 +336,14 @@ export function OrderListPage() {
         window.alert("Chức năng nhập file đang được phát triển");
     };
 
-    const showToast = (message: string, type: "error" | "success") => {
-        setToast({ message, type });
-    };
-
-    const downloadExportBlob = (blob: Blob, mode: ExportMode) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${
-            mode === "filtered"
-                ? "don-hang-theo-bo-loc"
-                : "tat-ca-don-hang"
-        }-${formatExportTimestamp(new Date())}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
-
-    const buildCurrentFilterExportParams = () => ({
-        fromDate: timeRange?.fromDate,
-        keyword: debouncedKeyword,
-        status: activeStatusTab?.status ?? undefined,
-        paymentStatus: activeStatusTab?.paymentStatus ?? undefined,
-        toDate: timeRange?.toDate
-    });
-
-    const handleExportFile = async (mode: ExportMode) => {
-        if (isExporting) {
-            return;
-        }
-
-        setIsExportMenuOpen(false);
-
-        if (
-            mode === "filtered" &&
-            (activeStatusTab?.emptyResult ||
-                (!isOrdersLoading && !ordersError && totalElements === 0))
-        ) {
-            showToast(
-                "Không có đơn hàng phù hợp với bộ lọc để xuất file.",
-                "error"
-            );
-            return;
-        }
-
-        setIsExporting(true);
-        try {
-            const blob = await exportOrders(
-                mode === "filtered" ? buildCurrentFilterExportParams() : {}
-            );
-            downloadExportBlob(blob, mode);
-            showToast("Đã xuất file đơn hàng thành công.", "success");
-        } catch (error) {
-            console.error("Lỗi xuất file đơn hàng", error);
-            const message = getErrorMessage(error);
-            showToast(
-                message === "Không thể tải dữ liệu. Vui lòng thử lại."
-                    ? "Không thể xuất file đơn hàng. Vui lòng thử lại."
-                    : message,
-                "error"
-            );
-        } finally {
-            setIsExporting(false);
-        }
-    };
+    const buildCurrentFilterExportParams = () =>
+        buildActiveOrderExportParams({
+            fromDate: timeRange?.fromDate,
+            keyword: debouncedKeyword,
+            status: activeStatusTab?.status,
+            paymentStatus: activeStatusTab?.paymentStatus,
+            toDate: timeRange?.toDate
+        });
 
     const fromRecord =
         totalElements > 0 ? ordersPage.number * ordersPage.size + 1 : 0;
@@ -523,66 +409,30 @@ export function OrderListPage() {
                             <Upload size={18} aria-hidden="true" />
                             Nhập file
                         </button>
-                        <div
-                            className={styles.exportMenuWrap}
-                            ref={exportMenuRef}
-                        >
-                            <button
-                                aria-busy={isExporting}
-                                aria-expanded={isExportMenuOpen}
-                                className={styles.secondaryButton}
-                                disabled={isExporting}
-                                onClick={() =>
-                                    setIsExportMenuOpen((open) => !open)
-                                }
-                                type="button"
-                            >
-                                {isExporting ? (
-                                    <LoaderCircle
-                                        className={styles.spinIcon}
-                                        size={18}
-                                        aria-hidden="true"
-                                    />
-                                ) : (
-                                    <FileSpreadsheet
-                                        size={18}
-                                        aria-hidden="true"
-                                    />
-                                )}
-                                {isExporting ? "Đang xuất..." : "Xuất file"}
-                                <ChevronDown size={16} aria-hidden="true" />
-                            </button>
-
-                            {isExportMenuOpen ? (
-                                <div className={styles.exportMenu}>
-                                    <button
-                                        disabled={isExporting}
-                                        onClick={() =>
-                                            void handleExportFile("filtered")
-                                        }
-                                        type="button"
-                                    >
-                                        <strong>
-                                            Xuất theo bộ lọc hiện tại
-                                        </strong>
-                                        <span>
-                                            Áp dụng thời gian, trạng thái và từ
-                                            khóa đang chọn
-                                        </span>
-                                    </button>
-                                    <button
-                                        disabled={isExporting}
-                                        onClick={() =>
-                                            void handleExportFile("all")
-                                        }
-                                        type="button"
-                                    >
-                                        <strong>Xuất toàn bộ đơn hàng</strong>
-                                        <span>Bỏ qua các bộ lọc hiện tại</span>
-                                    </button>
-                                </div>
-                            ) : null}
-                        </div>
+                        <ExportDropdown
+                            allDescription="Bỏ qua các bộ lọc hiện tại"
+                            allFilenamePrefix="tat-ca-don-hang"
+                            allLabel="Xuất toàn bộ đơn hàng"
+                            buttonClassName={styles.secondaryButton}
+                            emptyFilteredMessage="Không có đơn hàng phù hợp với bộ lọc để xuất file."
+                            fallbackErrorMessage="Không thể xuất file đơn hàng. Vui lòng thử lại."
+                            filteredDescription="Áp dụng thời gian, trạng thái và từ khóa đang chọn"
+                            filteredFilenamePrefix="don-hang-theo-bo-loc"
+                            hasNoFilteredData={
+                                Boolean(activeStatusTab?.emptyResult) ||
+                                (!isOrdersLoading &&
+                                    !ordersError &&
+                                    totalElements === 0)
+                            }
+                            onExport={(mode) =>
+                                exportOrders(
+                                    mode === "filtered"
+                                        ? buildCurrentFilterExportParams()
+                                        : {}
+                                )
+                            }
+                            successMessage="Đã xuất file đơn hàng thành công."
+                        />
                     </div>
                 </div>
 
@@ -918,18 +768,6 @@ export function OrderListPage() {
                 </div>
             </div>
 
-            {toast ? (
-                <div
-                    className={`${styles.toast} ${
-                        toast.type === "success"
-                            ? styles.toastSuccess
-                            : styles.toastError
-                    }`}
-                    role="status"
-                >
-                    {toast.message}
-                </div>
-            ) : null}
         </section>
     );
 }
