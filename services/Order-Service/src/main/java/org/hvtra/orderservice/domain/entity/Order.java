@@ -27,8 +27,6 @@ public class Order extends BaseEntity {
     @Column(name = "tenant_id", columnDefinition = "BINARY(16)")
     private UUID tenantId;
 
-
-
     @Column(name = "branch_id", columnDefinition = "BINARY(16)")
     private UUID branchId;
 

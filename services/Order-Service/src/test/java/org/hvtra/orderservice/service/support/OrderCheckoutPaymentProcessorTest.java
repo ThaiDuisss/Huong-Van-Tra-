@@ -1,0 +1,202 @@
+package org.hvtra.orderservice.service.support;
+
+import org.hvtra.orderservice.client.PaymentClient;
+import org.hvtra.orderservice.domain.entity.Order;
+import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.hvtra.orderservice.domain.enums.PaymentMethod;
+import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
+import org.hvtra.orderservice.dto.request.PaymentCreateRequest;
+import org.hvtra.orderservice.dto.response.PaymentResponse;
+import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
+import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
+import org.hvtra.orderservice.service.OrderCustomerService;
+import org.hvtra.orderservice.service.OrderPaymentSagaService;
+import org.hvtra.orderservice.service.validator.OrderValidator;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class OrderCheckoutPaymentProcessorTest {
+
+    @Mock
+    private PaymentClient paymentClient;
+
+    @Mock
+    private OrderValidator orderValidator;
+
+    @Mock
+    private OrderPaymentSagaService orderPaymentSagaService;
+
+    @Mock
+    private OrderCustomerService orderCustomerService;
+
+    @Mock
+    private OrderOutboxPublisher orderOutboxPublisher;
+
+    @Mock
+    private OrderStatusHistoryWriter orderStatusHistoryWriter;
+
+    @Mock
+    private OrderResponseAssembler orderResponseAssembler;
+
+    private OrderCheckoutPaymentProcessor processor;
+
+    @BeforeEach
+    void setUp() {
+        processor = new OrderCheckoutPaymentProcessor(
+                paymentClient,
+                orderValidator,
+                orderPaymentSagaService,
+                orderCustomerService,
+                orderOutboxPublisher,
+                orderStatusHistoryWriter,
+                orderResponseAssembler
+        );
+    }
+
+    @Test
+    void checkoutPaymentPaidKeepsSagaPaymentHistoryCustomerAndOutboxOrder() {
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        UUID changedBy = UUID.randomUUID();
+        UUID sagaId = UUID.randomUUID();
+        Order order = order(orderId, customerId);
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        order.setPaymentCode("PAY-OLD");
+        PaymentResponse payment = PaymentResponse.builder()
+                .paymentId(UUID.randomUUID())
+                .paymentCode("PAY-001")
+                .status("PAID")
+                .method("cash")
+                .amountRequired(order.getFinalAmount())
+                .amountPaid(order.getFinalAmount())
+                .build();
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderResponseAssembler.normalizePaymentMethod("cash")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, PaymentMethod.CASH.name())).thenReturn(sagaId);
+        when(paymentClient.checkout(any(PaymentCreateRequest.class))).thenReturn(payment);
+
+        PaymentResponse result = processor.checkoutPayment(order, "CASH", new BigDecimal("100000.00"), changedBy);
+
+        assertSame(payment, result);
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        assertEquals("PAY-001", order.getPaymentCode());
+        assertEquals(BigDecimal.ZERO, order.getDebtAmount());
+        ArgumentCaptor<PaymentCreateRequest> requestCaptor = ArgumentCaptor.forClass(PaymentCreateRequest.class);
+        InOrder inOrder = inOrder(
+                orderValidator,
+                orderPaymentSagaService,
+                paymentClient,
+                orderResponseAssembler,
+                orderStatusHistoryWriter,
+                orderCustomerService,
+                orderOutboxPublisher
+        );
+        inOrder.verify(orderResponseAssembler).normalizePaymentMethod("CASH");
+        inOrder.verify(orderValidator).validateCashPaymentAmount(order, PaymentMethod.CASH, new BigDecimal("100000.00"));
+        inOrder.verify(orderPaymentSagaService).startPaymentSaga(order, PaymentMethod.CASH.name());
+        inOrder.verify(paymentClient).checkout(requestCaptor.capture());
+        inOrder.verify(orderValidator).validatePaymentCheckoutResult(payment);
+        inOrder.verify(orderResponseAssembler).normalizePaymentMethod("cash");
+        inOrder.verify(orderStatusHistoryWriter).write(
+                order,
+                OrderStatus.PENDING_PAYMENT,
+                OrderStatus.COMPLETED,
+                "Thanh toán POS trực tiếp bằng CASH, mã thanh toán: PAY-001",
+                changedBy
+        );
+        inOrder.verify(orderPaymentSagaService).completePaymentSaga(any(Order.class), any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq("PAY-001"));
+        inOrder.verify(orderCustomerService).updateCustomerPurchase(orderId);
+        inOrder.verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(order, "PAY-001", sagaId.toString());
+        PaymentCreateRequest paymentRequest = requestCaptor.getValue();
+        assertEquals(orderId, paymentRequest.getOrderId());
+        assertEquals(sagaId, paymentRequest.getSagaId());
+        assertEquals(PaymentMethod.CASH, paymentRequest.getPaymentMethod());
+        assertEquals(new BigDecimal("100000.00"), paymentRequest.getReceivedAmount());
+        assertEquals(false, paymentRequest.getDeliveryRequired());
+    }
+
+    @Test
+    void checkoutPaymentWaitingKeepsRequestedSagaAndNoCustomerOrOutbox() {
+        UUID orderId = UUID.randomUUID();
+        UUID sagaId = UUID.randomUUID();
+        Order order = order(orderId, null);
+        order.setStatus(OrderStatus.DRAFT);
+        PaymentResponse payment = PaymentResponse.builder()
+                .paymentCode("PAY-002")
+                .status("WAITING_PAYMENT")
+                .method("bank")
+                .build();
+        when(orderResponseAssembler.normalizePaymentMethod("BANK_TRANSFER")).thenReturn("BANK_TRANSFER");
+        when(orderResponseAssembler.normalizePaymentMethod("bank")).thenReturn("BANK_TRANSFER");
+        when(orderPaymentSagaService.startPaymentSaga(order, PaymentMethod.BANK_TRANSFER.name())).thenReturn(sagaId);
+        when(paymentClient.checkout(any(PaymentCreateRequest.class))).thenReturn(payment);
+
+        PaymentResponse result = processor.checkoutPayment(order, "BANK_TRANSFER", null, null);
+
+        assertSame(payment, result);
+        assertEquals(PaymentStatus.WAITING_PAYMENT, order.getPaymentStatus());
+        assertEquals(OrderStatus.PENDING_PAYMENT, order.getStatus());
+        assertEquals(order.getFinalAmount(), order.getDebtAmount());
+        InOrder inOrder = inOrder(orderStatusHistoryWriter, orderPaymentSagaService);
+        inOrder.verify(orderStatusHistoryWriter).write(
+                order,
+                OrderStatus.DRAFT,
+                OrderStatus.PENDING_PAYMENT,
+                "Tạo yêu cầu thanh toán BANK_TRANSFER, mã thanh toán: PAY-002",
+                null
+        );
+        inOrder.verify(orderPaymentSagaService).markPaymentRequested(order, sagaId, payment);
+        verifyNoInteractions(orderCustomerService, orderOutboxPublisher);
+    }
+
+    @Test
+    void checkoutPaymentRejectsUnsupportedMethodBeforeSagaOrPaymentClient() {
+        Order order = order(UUID.randomUUID(), null);
+        when(orderResponseAssembler.normalizePaymentMethod("CARD")).thenReturn("CARD");
+
+        InvalidPaymentAmountException exception = assertThrows(
+                InvalidPaymentAmountException.class,
+                () -> processor.checkoutPayment(order, "CARD", null, null)
+        );
+
+        assertEquals("Payment-Service chưa hỗ trợ phương thức thanh toán: CARD", exception.getMessage());
+        verifyNoInteractions(orderValidator, orderPaymentSagaService, paymentClient);
+    }
+
+    private Order order(UUID orderId, UUID customerId) {
+        Order order = Order.builder()
+                .orderCode("ORD-001")
+                .customerId(customerId)
+                .status(OrderStatus.DRAFT)
+                .paymentStatus(PaymentStatus.WAITING_PAYMENT)
+                .originalAmount(new BigDecimal("90000.00"))
+                .discountAmount(new BigDecimal("10000.00"))
+                .shippingFee(BigDecimal.ZERO)
+                .finalAmount(new BigDecimal("80000.00"))
+                .paidAmount(BigDecimal.ZERO)
+                .debtAmount(new BigDecimal("80000.00"))
+                .build();
+        order.setId(orderId);
+        return order;
+    }
+}
