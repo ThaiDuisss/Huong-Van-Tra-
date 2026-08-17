@@ -6,6 +6,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.client.InventoryClient;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
@@ -682,6 +683,46 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 stock != null ? stock.availableQuantity() : BigDecimal.ZERO,
                 stock != null ? stock.reservedQuantity() : BigDecimal.ZERO,
                 stock != null ? stock.stockStatus() : "OUT_OF_STOCK"
+        );
+    }
+
+    @Override
+    public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
+        Specification<ProductVariant> spec = (root, query, cb) -> {
+            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
+            predicates.add(cb.equal(root.get("status"), Status.ACTIVE));
+
+            if (search != null && !search.trim().isEmpty()) {
+                String searchPattern = "%" + search.trim().toLowerCase() + "%";
+                var searchPredicates = new jakarta.persistence.criteria.Predicate[] {
+                    cb.like(cb.lower(root.get("variantName")), searchPattern),
+                    cb.like(cb.lower(root.get("sku")), searchPattern),
+                    cb.like(cb.lower(root.join("product").get("name")), searchPattern)
+                };
+                predicates.add(cb.or(searchPredicates));
+            }
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        org.springframework.data.domain.Page<ProductVariant> page = repository.findAll(spec, pageable);
+
+        return new PageResponse<>(
+                page.getContent().stream()
+                        .map(v -> {
+                            String displayName = v.getVariantName();
+                            if (displayName == null || displayName.trim().isEmpty()) {
+                                displayName = v.getProduct().getName();
+                            }
+                            return new LookupResponse(v.getId().toString(), displayName);
+                        })
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
         );
     }
 

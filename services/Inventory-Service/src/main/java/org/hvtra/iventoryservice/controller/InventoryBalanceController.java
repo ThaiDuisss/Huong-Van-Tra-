@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import org.hvtra.iventoryservice.enums.StockType;
+
 @RestController
 @RequestMapping("/api/inventory/inventory-balances")
 public class InventoryBalanceController {
@@ -46,8 +48,9 @@ public class InventoryBalanceController {
             @RequestParam(name = "unitId", required = false) UUID unitId,
             @RequestParam(name = "locationId", required = false) UUID locationId,
             @RequestParam(name = "branchId", required = false) UUID branchId,
+            @RequestParam(name = "status", required = false) StockType status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
-        return service.findAllView(keyword, sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, pageable);
+        return service.findAllView(keyword, sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, status, pageable);
     }
 
     @Tag(

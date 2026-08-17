@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
@@ -158,6 +159,13 @@ public class ProductVariantController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau_nhap_bien_the.xlsx\"")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
+    }
+
+    @GetMapping("/lookup")
+    public PageResponse<LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @PageableDefault(size = 20, sort = "sku") Pageable pageable) {
+        return service.lookup(search, pageable);
     }
 
     @DeleteMapping("/{id}")

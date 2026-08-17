@@ -30,7 +30,7 @@ interface BomFormWrapperProps {
 function BomFormWrapper({
     editingItem,
     onClose,
-    variants,
+    variants: _variants,
     ingredients,
     units,
     onSave
@@ -38,6 +38,66 @@ function BomFormWrapper({
     const isEditMode = !!(editingItem && editingItem.id);
 
     const [formVariantId, setFormVariantId] = useState(editingItem?.productVariantId || "");
+    const [variantOptions, setVariantOptions] = useState<LookupItem[]>([]);
+    const [variantSearchTerm, setVariantSearchTerm] = useState("");
+    const [variantPage, setVariantPage] = useState(0);
+    const [variantHasMore, setVariantHasMore] = useState(true);
+    const [variantLoading, setVariantLoading] = useState(false);
+
+    const loadVariantOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setVariantLoading(true);
+            const res = await productVariantApi.lookup(search, page, 20);
+            setVariantOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setVariantHasMore(!res.last);
+        } catch (err) {
+            console.error("Error loading product variants", err);
+            setVariantHasMore(false);
+        } finally {
+            setVariantLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        setVariantPage(0);
+        loadVariantOptions(variantSearchTerm, 0);
+    }, [variantSearchTerm, loadVariantOptions]);
+
+    const handleLoadMoreVariants = useCallback(() => {
+        if (!variantLoading && variantHasMore) {
+            const nextPage = variantPage + 1;
+            setVariantPage(nextPage);
+            loadVariantOptions(variantSearchTerm, nextPage);
+        }
+    }, [variantLoading, variantHasMore, variantPage, variantSearchTerm, loadVariantOptions]);
+
+    useEffect(() => {
+        if (editingItem?.productVariantId) {
+            if (editingItem.productName) {
+                const displayName = editingItem.variantName || editingItem.productName;
+                const initItem: LookupItem = {
+                    id: editingItem.productVariantId,
+                    name: displayName
+                };
+                setVariantOptions(prev => {
+                    if (prev.some(opt => opt.id === initItem.id)) return prev;
+                    return [initItem, ...prev];
+                });
+            } else {
+                productVariantApi.detail(editingItem.productVariantId).then(res => {
+                    const displayName = res.variantName || res.productName;
+                    const initItem: LookupItem = {
+                        id: String(res.id),
+                        name: displayName
+                    };
+                    setVariantOptions(prev => {
+                        if (prev.some(opt => opt.id === initItem.id)) return prev;
+                        return [initItem, ...prev];
+                    });
+                }).catch(err => console.error("Error fetching variant detail", err));
+            }
+        }
+    }, [editingItem]);
     const [formName, setFormName] = useState(editingItem?.name || "");
     const [formStatus, setFormStatus] = useState<BomStatus>(editingItem?.status || "ACTIVE");
     const [formDescription, setFormDescription] = useState(editingItem?.description || "");
@@ -172,22 +232,20 @@ function BomFormWrapper({
                 <div className="grid gap-5">
                     {/* General details */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                            Mặt hàng (Product Variant) *
-                            <select
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none disabled:bg-neutral-100 disabled:text-gray-400"
+                        <div className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            <span>Mặt hàng (Product Variant) *</span>
+                            <SearchableDropdown
                                 value={formVariantId}
-                                onChange={(e) => setFormVariantId(e.target.value)}
+                                onChange={setFormVariantId}
+                                options={variantOptions}
+                                onSearch={setVariantSearchTerm}
+                                onLoadMore={handleLoadMoreVariants}
+                                hasMore={variantHasMore}
+                                loading={variantLoading}
+                                placeholder="Chọn Mặt hàng..."
                                 disabled={isEditMode}
-                            >
-                                <option value="">-- Chọn Mặt hàng --</option>
-                                {variants.map((v) => (
-                                    <option key={v.id} value={v.id}>
-                                        {v.variantName} ({v.sku})
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                            />
+                        </div>
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Tên BOM

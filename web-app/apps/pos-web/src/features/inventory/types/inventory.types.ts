@@ -166,6 +166,7 @@ export interface InventoryBalanceQuery extends QueryParams {
     categoryCode?: string;
     categoryId?: string;
     unitId?: string;
+    status?: string;
 }
 
 export interface InventoryBalanceViewResponse {

@@ -94,6 +94,7 @@ export interface InventoryResourceManagementProps<T extends RowBase, S extends s
     controlledShowForm?: boolean;
     onControlledShowFormChange?(show: boolean): void;
     onControlledEditingItemChange?(item: T | null): void;
+    extraHeaderActions?: ReactNode;
 }
 
 export function TableCell({
@@ -156,7 +157,8 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
     controlledEditingItem,
     controlledShowForm,
     onControlledShowFormChange,
-    onControlledEditingItemChange
+    onControlledEditingItemChange,
+    extraHeaderActions
 }: InventoryResourceManagementProps<T, S>) {
     const navigate = useNavigate();
     const [selectedItem, setSelectedItem] = useState<T | null>(null);
@@ -257,6 +259,11 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                             <Plus size={17} aria-hidden="true" />
                             {createLabel}
                         </ActionButton>
+                    </div>
+                )}
+                {extraHeaderActions && (
+                    <div className="flex items-center gap-3 justify-end ml-auto">
+                        {extraHeaderActions}
                     </div>
                 )}
             </header>
@@ -365,10 +372,11 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                     <button
                                         key={opt.value}
                                         onClick={() => onStatusChange(opt.value)}
-                                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                                        type="button"
+                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
                                             isActive
-                                                ? "bg-[#07883a] text-white border-[#07883a]"
-                                                : "bg-[#f8faf8] text-[#536078] border-[#e2e9e4] hover:bg-[#edf2ee]"
+                                                ? "bg-[#159734] border-[#159734] text-white"
+                                                : "bg-white border-[#dce5e1] text-[#536171] hover:bg-[#f4f8f5] hover:text-[#172317]"
                                         }`}
                                     >
                                         {opt.label}
@@ -381,8 +389,9 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
             </div>
 
             <div className="grid gap-4 grid-cols-1">
-                <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card border border-neutral-100">
-                    {loading ? <InventoryLoading /> : null}
+                <section className="flex flex-col min-h-[580px] min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card border border-neutral-100">
+                    <div className="flex-1">
+                        {loading ? <InventoryLoading /> : null}
                     {!loading && error ? (
                         <InventoryError
                             message={error}
@@ -421,7 +430,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                         const isSelected = selectedItem?.id === item.id;
                                         const isEven = idx % 2 === 1;
                                         const rowBgClass = isSelected
-                                            ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
+                                            ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#159734]"
                                             : isEven
                                                 ? "bg-[#f2faf1]/50"
                                                 : "bg-white";
@@ -480,7 +489,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                                                                 setSelectedItem(item);
                                                                                 setActiveActionMenuId(null);
                                                                             }}
-                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
                                                                         >
                                                                             <Eye size={14} />
                                                                             Xem chi tiết
@@ -495,7 +504,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                                                                 setShowForm(true);
                                                                                 setActiveActionMenuId(null);
                                                                             }}
-                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
                                                                         >
                                                                             <Pencil size={14} />
                                                                             Chỉnh sửa
@@ -508,7 +517,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                                                                 setStatusTarget(item);
                                                                                 setActiveActionMenuId(null);
                                                                             }}
-                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
+                                                                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
                                                                         >
                                                                             <ToggleLeft size={14} />
                                                                             Đổi trạng thái
@@ -543,21 +552,18 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                             </table>
                         </div>
                     )}
-                    <div className="flex border-t border-[#edf0f4] px-4 py-3.5">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 my-auto">
-                            {totalItemsLabel || "Tổng số mục"}: {totalItems}
-                        </span>
-                        <div className="ml-auto">
-                            <Pagination
-                                page={page}
-                                pageCount={pageCount}
-                                onPageChange={onPageChange}
-                                totalItems={totalItems}
-                                pageSize={pageSize}
-                                onPageSizeChange={onPageSizeChange}
-                            />
-                        </div>
                     </div>
+                    {!loading && !error && (
+                        <Pagination
+                            page={page}
+                            pageCount={pageCount}
+                            onPageChange={onPageChange}
+                            totalItems={totalItems}
+                            pageSize={pageSize}
+                            onPageSizeChange={onPageSizeChange}
+                            totalItemsLabel={totalItemsLabel}
+                        />
+                    )}
                 </section>
 
                 {/* Detail Panel */}
@@ -590,12 +596,20 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                             <main className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)] max-md:block max-md:overflow-y-auto">
                                 <aside className="min-h-0 border-r border-[#e2e9e5] bg-white max-md:border-b max-md:border-r-0 overflow-y-auto px-6 py-6">
                                     <div className="flex items-start gap-4 border-b border-[#eef2f0] pb-6">
-                                        <span className="grid size-16 shrink-0 place-items-center rounded-full bg-[#eaf8ee] text-2xl font-black text-[#116f28] ring-1 ring-[#c9ead2]">
-                                            {((selectedItem as any).name || (selectedItem as any).transactionCode || title).charAt(0).toUpperCase()}
-                                        </span>
+                                        {((selectedItem as any)["Ảnh sản phẩm"] || (selectedItem as any).imageUrl) ? (
+                                            <img
+                                                src={((selectedItem as any)["Ảnh sản phẩm"] || (selectedItem as any).imageUrl)}
+                                                alt=""
+                                                className="size-16 shrink-0 rounded-xl object-cover border border-pos-border ring-1 ring-[#c9ead2]"
+                                            />
+                                        ) : (
+                                            <span className="grid size-16 shrink-0 place-items-center rounded-full bg-[#eaf8ee] text-2xl font-black text-[#116f28] ring-1 ring-[#c9ead2]">
+                                                {((selectedItem as any).name || (selectedItem as any)["Tên sản phẩm"] || (selectedItem as any).transactionCode || title).charAt(0).toUpperCase()}
+                                            </span>
+                                        )}
                                         <div className="min-w-0 flex-1">
                                             <strong className="block truncate text-lg font-black text-[#172317]">
-                                                {(selectedItem as any).name || (selectedItem as any).transactionCode || title}
+                                                {(selectedItem as any).name || (selectedItem as any)["Tên sản phẩm"] || (selectedItem as any).transactionCode || title}
                                             </strong>
                                             <span className="mt-1 block text-xs font-bold text-[#718078]">
                                                 {title}
@@ -649,7 +663,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                                     </button>
                                     {onSubmit && (
                                         <button
-                                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#07883a] px-4 text-sm font-black text-white shadow-sm hover:bg-[#067331] cursor-pointer"
+                                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-sm hover:bg-[#12862d] cursor-pointer"
                                             onClick={() => {
                                                 setEditingItem(selectedItem);
                                                 setActionError("");

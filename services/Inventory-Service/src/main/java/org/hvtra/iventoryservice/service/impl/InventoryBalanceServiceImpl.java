@@ -18,6 +18,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.hvtra.iventoryservice.enums.StockType;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -100,6 +102,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             UUID unitId,
             UUID locationId,
             UUID branchId,
+            StockType status,
             Pageable pageable
     ) {
         // 1. Resolve variant IDs if catalog filters are active
@@ -164,6 +167,18 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
             if (branchId != null) {
                 predicates.add(cb.equal(root.get("location").get("branchId"), branchId));
+            }
+
+            if (status != null && status != StockType.ALL) {
+                if (status == StockType.LOW_STOCK) {
+                    predicates.add(cb.greaterThan(root.get("quantityOnHand"), BigDecimal.ZERO));
+                    predicates.add(cb.lessThanOrEqualTo(
+                            root.get("quantityOnHand"),
+                            cb.coalesce(root.get("inventoryItem").get("reorderPoint"), 5).as(BigDecimal.class)
+                    ));
+                } else if (status == StockType.OUT_OF_STOCK) {
+                    predicates.add(cb.lessThanOrEqualTo(root.get("quantityOnHand"), BigDecimal.ZERO));
+                }
             }
 
             return cb.and(predicates.toArray(Predicate[]::new));

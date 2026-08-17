@@ -102,5 +102,11 @@ export const productVariantApi = {
     },
     delete(id: string) {
         return apiClient.delete<void>(`/catalog/product-variants/${encodeURIComponent(id)}`);
+    },
+    lookup(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>(
+            "/catalog/product-variants/lookup",
+            { query: { search, page, size } }
+        );
     }
 };
