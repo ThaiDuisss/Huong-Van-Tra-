@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
-import org.hvtra.iventoryservice.enums.ReservationStatus;
+import org.hvtra.iventoryservice.shared.enums.ReservationStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;

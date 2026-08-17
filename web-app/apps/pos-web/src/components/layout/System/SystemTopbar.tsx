@@ -5,9 +5,16 @@ import {
     Menu,
     ShieldCheck
 } from "lucide-react";
-import { useLocation, Link } from "react-router-dom";
+import { useMemo } from "react";
+import { Link, useLocation } from "react-router-dom";
 
-import { systemNavigationItems } from "./system-navigation";
+import { useAuth } from "../../../auth/auth-context";
+import {
+    filterNavigationByRoles,
+    findNavigationTrail,
+    getFirstNavigationPath,
+    systemNavigationItems
+} from "./system-navigation";
 
 interface BreadcrumbResult {
     section: string;
@@ -17,82 +24,122 @@ interface BreadcrumbResult {
     subPage?: string;
 }
 
-/**
- * Duyệt qua systemNavigationItems để tìm section + page label
- * khớp với pathname hiện tại (so sánh prefix để hỗ trợ dynamic routes).
- */
-function resolveBreadcrumb(pathname: string): BreadcrumbResult {
-    // Check exact matches first
-    for (const item of systemNavigationItems) {
-        if (!item.children) continue;
-
-        for (const child of item.children) {
-            if (pathname === child.to) {
-                const firstChild = item.children?.[0];
-                return {
-                    section: item.label,
-                    sectionTo: firstChild?.to,
-                    page: child.label,
-                    pageTo: child.to
-                };
-            }
-        }
+const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
+    "/system/products/": { parentTo: "/system/products", label: "Chi tiết sản phẩm" },
+    "/system/product-variants/": { parentTo: "/system/product-variants", label: "Chi tiết mặt hàng" },
+    "/system/orders/invoices/": { parentTo: "/system/orders/invoices", label: "Chi tiết hóa đơn" },
+    "/system/manufacturing/boms/": { parentTo: "/system/manufacturing/boms", label: "Chi tiết công thức" },
+    "/system/price-lists/": { parentTo: "/system/price-lists", label: "Chi tiết bảng giá" },
+    "/system/marketing/discount-programs/": {
+        parentTo: "/system/marketing/discount-programs",
+        label: "Chi tiết chương trình giảm giá"
+    },
+    "/management/inventory/documents/": {
+        parentTo: "/management/inventory/documents",
+        label: "Chi tiết chứng từ kho"
+    },
+    "/management/inventory/receipts/new": {
+        parentTo: "/management/inventory/receipts",
+        label: "Tạo phiếu nhập kho"
+    },
+    "/management/inventory/receipts/": {
+        parentTo: "/management/inventory/receipts",
+        label: "Chi tiết phiếu nhập kho"
+    },
+    "/management/inventory/production-orders/new": {
+        parentTo: "/management/inventory/production-orders",
+        label: "Tạo lệnh sản xuất"
+    },
+    "/management/inventory/production-orders/": {
+        parentTo: "/management/inventory/production-orders",
+        label: "Chi tiết lệnh sản xuất"
+    },
+    "/management/inventory/custom-bundles/": {
+        parentTo: "/management/inventory/custom-bundles",
+        label: "Chi tiết Custom Tea Bundle"
+    },
+    "/management/inventory/transfers/new": {
+        parentTo: "/management/inventory/transfers",
+        label: "Tạo phiếu chuyển kho"
+    },
+    "/management/inventory/transfers/": {
+        parentTo: "/management/inventory/transfers",
+        label: "Chi tiết chuyển kho"
+    },
+    "/management/inventory/stocktakes/new": {
+        parentTo: "/management/inventory/stocktakes",
+        label: "Tạo kỳ kiểm kê"
+    },
+    "/management/inventory/stocktakes/": {
+        parentTo: "/management/inventory/stocktakes",
+        label: "Chi tiết kiểm kê"
+    },
+    "/management/inventory/customer-returns/": {
+        parentTo: "/management/inventory/customer-returns",
+        label: "Chi tiết khách trả hàng"
+    },
+    "/management/inventory/supplier-returns/new": {
+        parentTo: "/management/inventory/supplier-returns",
+        label: "Tạo phiếu trả nhà cung cấp"
+    },
+    "/management/inventory/supplier-returns/": {
+        parentTo: "/management/inventory/supplier-returns",
+        label: "Chi tiết trả nhà cung cấp"
+    },
+    "/management/inventory/quality/batches/": {
+        parentTo: "/management/inventory/quality",
+        label: "Chi tiết lô chất lượng"
+    },
+    "/management/inventory/disposals/": {
+        parentTo: "/management/inventory/disposals",
+        label: "Chi tiết hỏng / tiêu hủy"
+    },
+    "/management/inventory/alerts/": {
+        parentTo: "/management/inventory/alerts",
+        label: "Chi tiết cảnh báo tồn kho"
     }
+};
 
-    // Check detail pages sub-routes
-    const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
-        "/system/products/": { parentTo: "/system/products", label: "Chi tiết sản phẩm" },
-        "/system/product-variants/": { parentTo: "/system/product-variants", label: "Chi tiết Mặt hàng" },
-        "/system/orders/invoices/": { parentTo: "/system/orders/invoices", label: "Chi tiết hóa đơn" },
-        "/system/manufacturing/boms/": { parentTo: "/system/manufacturing/boms", label: "Chi tiết công thức" },
-        "/system/price-lists/": { parentTo: "/system/price-lists", label: "Chi tiết bảng giá" },
-        "/system/marketing/discount-programs/": { parentTo: "/system/marketing/discount-programs", label: "Chi tiết chương trình giảm giá" },
-    };
-
+function resolveSubRouteLabel(pathname: string) {
     for (const [prefix, config] of Object.entries(subRouteLabels)) {
-        if (pathname.startsWith(prefix) && pathname !== config.parentTo) {
-            for (const item of systemNavigationItems) {
-                if (!item.children) continue;
-                for (const child of item.children) {
-                    if (child.to === config.parentTo) {
-                        const firstChild = item.children?.[0];
-                        return {
-                            section: item.label,
-                            sectionTo: firstChild?.to,
-                            page: child.label,
-                            pageTo: child.to,
-                            subPage: config.label
-                        };
-                    }
-                }
-            }
+        if (
+            (pathname === prefix || pathname.startsWith(prefix)) &&
+            pathname !== config.parentTo
+        ) {
+            return config.label;
         }
     }
 
-    // Fallback: search by prefix match
-    for (const item of systemNavigationItems) {
-        if (!item.children) continue;
+    return undefined;
+}
 
-        for (const child of item.children) {
-            if (pathname.startsWith(child.to + "/")) {
-                const firstChild = item.children?.[0];
-                return {
-                    section: item.label,
-                    sectionTo: firstChild?.to,
-                    page: child.label,
-                    pageTo: child.to
-                };
-            }
-        }
+function resolveBreadcrumb(pathname: string, roles: readonly string[] | undefined): BreadcrumbResult {
+    const visibleNavigationItems = filterNavigationByRoles(systemNavigationItems, roles);
+    const trail = findNavigationTrail(visibleNavigationItems, pathname);
+
+    if (!trail) {
+        return { section: "Hệ thống", page: "Tổng quan" };
     }
 
-    // Fallback mặc định
-    return { section: "Hệ thống", page: "Tổng quan" };
+    const leaf = trail.subPage ?? trail.page ?? trail.section;
+    const subPage = leaf.to && pathname !== leaf.to ? resolveSubRouteLabel(pathname) : undefined;
+
+    return {
+        section: trail.section.label,
+        sectionTo: getFirstNavigationPath(trail.section),
+        page: trail.subPage?.label ?? trail.page?.label ?? trail.section.label,
+        pageTo: trail.subPage?.to ?? trail.page?.to ?? trail.section.to,
+        subPage
+    };
 }
 
 export function SystemTopbar() {
     const location = useLocation();
-    const { section, sectionTo, page, pageTo, subPage } = resolveBreadcrumb(location.pathname);
+    const { roles } = useAuth();
+    const { section, sectionTo, page, pageTo, subPage } = useMemo(
+        () => resolveBreadcrumb(location.pathname, roles),
+        [location.pathname, roles]
+    );
 
     return (
         <header className="flex h-[58px] shrink-0 items-center gap-4 border-b border-[#e8eef0] bg-white px-4 text-[#172317] sm:px-5">
@@ -106,7 +153,7 @@ export function SystemTopbar() {
 
             <nav className="flex min-w-0 items-center gap-2 text-[12px] font-semibold">
                 {sectionTo ? (
-                    <Link to={sectionTo} className="text-[#5f6b7a] hover:text-[#159734] transition-colors hover:underline">
+                    <Link to={sectionTo} className="text-[#5f6b7a] transition-colors hover:text-[#159734] hover:underline">
                         {section}
                     </Link>
                 ) : (
@@ -114,7 +161,7 @@ export function SystemTopbar() {
                 )}
                 <span className="text-[#9aa7b5]">›</span>
                 {subPage && pageTo ? (
-                    <Link to={pageTo} className="text-[#5f6b7a] hover:text-[#159734] transition-colors hover:underline">
+                    <Link to={pageTo} className="text-[#5f6b7a] transition-colors hover:text-[#159734] hover:underline">
                         {page}
                     </Link>
                 ) : pageTo ? (
@@ -126,14 +173,14 @@ export function SystemTopbar() {
                         {page}
                     </span>
                 )}
-                {subPage && (
+                {subPage ? (
                     <>
                         <span className="text-[#9aa7b5]">›</span>
                         <span className="truncate text-[#159734]">
                             {subPage}
                         </span>
                     </>
-                )}
+                ) : null}
             </nav>
 
             <div className="ml-auto flex items-center gap-2">

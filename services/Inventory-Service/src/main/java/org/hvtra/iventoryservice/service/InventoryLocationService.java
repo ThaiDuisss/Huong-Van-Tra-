@@ -3,8 +3,8 @@ package org.hvtra.iventoryservice.service;
 import org.hvtra.iventoryservice.dto.request.InventoryLocationRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryLocationResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
-import org.hvtra.iventoryservice.enums.InventoryLocationType;
-import org.hvtra.iventoryservice.enums.InventoryStatus;
+import org.hvtra.iventoryservice.shared.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.shared.enums.InventoryStatus;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;

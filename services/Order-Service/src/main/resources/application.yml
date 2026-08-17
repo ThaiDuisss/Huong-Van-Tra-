@@ -2,7 +2,7 @@ spring:
   application:
     name: Order-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/order_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.89.77.53:3306/order_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME:order_app}
     password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
   cloud:
@@ -41,7 +41,7 @@ eureka:
 
 kafka-config:
   enabled: true
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.122.52.101:19092}
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.89.77.53:19092}
   num-of-partitions: 3
   replication-factor: 1
 #  schema-registry-url: http://localhost:8081

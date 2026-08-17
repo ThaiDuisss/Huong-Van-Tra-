@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.repository;
 
 import org.hvtra.iventoryservice.entity.InventoryReservation;
-import org.hvtra.iventoryservice.enums.ReservationStatus;
+import org.hvtra.iventoryservice.shared.enums.ReservationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;

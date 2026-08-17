@@ -6,12 +6,13 @@ import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.entity.InventoryBalance;
-import org.hvtra.iventoryservice.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.mapper.InventoryBalanceMapper;
 import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
+import org.hvtra.iventoryservice.entity.InventoryLocation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -26,8 +27,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
-import org.hvtra.iventoryservice.enums.InventoryLocationType;
-import org.hvtra.iventoryservice.enums.InventoryStatus;
+import org.hvtra.iventoryservice.shared.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.shared.enums.InventoryStatus;
 
 @Service
 @Transactional(readOnly = true)
@@ -127,8 +128,8 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
         // 2. Resolve default warehouse
         // 2. Resolve default warehouse
-        final org.hvtra.iventoryservice.entity.InventoryLocation defaultWarehouse;
-        org.hvtra.iventoryservice.entity.InventoryLocation tempWarehouse = null;
+        final InventoryLocation defaultWarehouse;
+        InventoryLocation tempWarehouse = null;
         if (branchId != null) {
             tempWarehouse = locationRepository
                     .findFirstByBranchIdAndTypeAndStatus(branchId, InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE)
@@ -207,7 +208,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                     CatalogClient.ProductResponse p = (v != null) ? productMap.get(v.productId()) : null;
                     CatalogClient.CategoryResponse cat = (p != null) ? p.category() : null;
                     CatalogClient.UnitResponse u = (v != null) ? unitMap.get(v.baseUnitId()) : null;
-                    org.hvtra.iventoryservice.entity.InventoryLocation loc = b.getLocation();
+                    InventoryLocation loc = b.getLocation();
 
                     return InventoryBalanceViewResponse.builder()
                             .inventoryBalanceId(b.getId())
@@ -255,12 +256,12 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             String productName
     ) {
         // 1. Get first location whose type is WAREHOUSE
-        Optional<org.hvtra.iventoryservice.entity.InventoryLocation> warehouseLocOpt =
+        Optional<InventoryLocation> warehouseLocOpt =
                 locationRepository.findFirstByType(InventoryLocationType.WAREHOUSE);
         if (warehouseLocOpt.isEmpty()) {
             return Collections.emptyList();
         }
-        org.hvtra.iventoryservice.entity.InventoryLocation warehouseLoc = warehouseLocOpt.get();
+        InventoryLocation warehouseLoc = warehouseLocOpt.get();
 
         // 2. Query matching variant IDs from Catalog Service if sku or productName is provided
         List<UUID> matchingVariantIds = null;
@@ -309,7 +310,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
     @Override
     @Transactional
     public void bulkUpdateLocation() {
-        org.hvtra.iventoryservice.entity.InventoryLocation newLocation = locationRepository.findFirstByType(InventoryLocationType.SHELF)
+        InventoryLocation newLocation = locationRepository.findFirstByType(InventoryLocationType.SHELF)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vị trí lưu trữ nào có loại SHELF", null));
 
         List<InventoryBalance> balancesToUpdate = repository.findAll();

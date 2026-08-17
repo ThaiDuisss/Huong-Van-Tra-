@@ -51,8 +51,10 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * CASH là luồng đồng bộ: Order-Service gọi Feign sang đây, nhận response PAID rồi tự cập nhật Order.
-     * Vì vậy không publish PAYMENT_SUCCEEDED ở đây để tránh Order nhận trùng trạng thái qua 2 đường.
+     * CASH là luồng đồng bộ: Order-Service gọi Feign sang đây, nhận response PAID
+     * rồi tự cập nhật Order.
+     * Vì vậy không publish PAYMENT_SUCCEEDED ở đây để tránh Order nhận trùng trạng
+     * thái qua 2 đường.
      */
     private PaymentCheckoutResponse payByCash(CheckoutRequest request) {
         BigDecimal amountRequired = normalizeMoney(request.getFinalAmount());
@@ -120,16 +122,18 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * BANK_TRANSFER là luồng bất đồng bộ: trả QR ngay cho Order/FE, còn kết quả thật sẽ được SePay webhook xác nhận.
+     * BANK_TRANSFER là luồng bất đồng bộ: trả QR ngay cho Order/FE, còn kết quả
+     * thật sẽ được SePay webhook xác nhận.
      * Order-Service nên dùng response này để set paymentStatus = WAITING_PAYMENT.
-     * Khi webhook success, Payment-Service mới ghi outbox để bắn event sang Order-Service.
+     * Khi webhook success, Payment-Service mới ghi outbox để bắn event sang
+     * Order-Service.
      */
     private PaymentCheckoutResponse createBankTransferCheckout(CheckoutRequest request) {
         BigDecimal amountRequired = normalizeMoney(request.getFinalAmount());
         LocalDateTime now = LocalDateTime.now();
 
         Payment existingPayment = paymentRepository
-                .findByOrderId(request.getOrderId())
+                .findByOrderIdAndIsDeletedFalse(request.getOrderId())
                 .orElse(null);
 
         if (existingPayment != null && existingPayment.getStatus() == PaymentStatus.PAID) {
@@ -143,13 +147,12 @@ public class PaymentServiceImpl implements PaymentService {
                     .findTopByPaymentIdOrderByAttemptNoDesc(existingPayment.getId())
                     .orElse(null);
 
-            boolean reusableWaitingPayment =
-                    existingPayment.getMethod() == PaymentMethod.BANK_TRANSFER
-                            && existingPayment.getStatus() == PaymentStatus.WAITING_PAYMENT
-                            && latestAttempt != null
-                            && latestAttempt.getStatus() == PaymentAttemptStatus.WAITING
-                            && !isExpired(latestAttempt.getExpiresAt(), now)
-                            && sameAmount(latestAttempt.getAmountExpected(), amountRequired);
+            boolean reusableWaitingPayment = existingPayment.getMethod() == PaymentMethod.BANK_TRANSFER
+                    && existingPayment.getStatus() == PaymentStatus.WAITING_PAYMENT
+                    && latestAttempt != null
+                    && latestAttempt.getStatus() == PaymentAttemptStatus.WAITING
+                    && !isExpired(latestAttempt.getExpiresAt(), now)
+                    && sameAmount(latestAttempt.getAmountExpected(), amountRequired);
 
             if (reusableWaitingPayment) {
                 return toBankTransferResponse(existingPayment, latestAttempt);
@@ -210,8 +213,7 @@ public class PaymentServiceImpl implements PaymentService {
     private Payment createBasePayment(
             CheckoutRequest request,
             PaymentMethod method,
-            PaymentProvider provider
-    ) {
+            PaymentProvider provider) {
         return Payment.builder()
                 .paymentCode(generatePaymentCode(method))
                 .orderId(request.getOrderId())
@@ -310,8 +312,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         if (paymentRepository.existsByOrderIdAndStatus(
                 request.getOrderId(),
-                PaymentStatus.PAID
-        )) {
+                PaymentStatus.PAID)) {
             throw new IllegalArgumentException("Đơn hàng đã được thanh toán");
         }
     }

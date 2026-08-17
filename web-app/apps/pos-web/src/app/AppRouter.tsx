@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
@@ -13,8 +13,41 @@ import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
+import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
+import { GoodsReceiptDetailPage } from "../features/inventory/pages/GoodsReceiptDetailPage";
+import { GoodsReceiptListPage } from "../features/inventory/pages/GoodsReceiptListPage";
+import { CustomerReturnDetailPage } from "../features/inventory/pages/CustomerReturnDetailPage";
+import { CustomerReturnListPage } from "../features/inventory/pages/CustomerReturnListPage";
+import { CustomBundleManagementDetailPage } from "../features/inventory/pages/CustomBundleManagementDetailPage";
+import { CustomBundleManagementListPage } from "../features/inventory/pages/CustomBundleManagementListPage";
 import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
+import { InventoryManagementPage } from "../features/inventory/pages/InventoryManagementPage";
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
+import { DisposalDetailPage } from "../features/inventory/pages/DisposalDetailPage";
+import { DisposalListPage } from "../features/inventory/pages/DisposalListPage";
+import { ProductionOrderCreatePage } from "../features/inventory/pages/ProductionOrderCreatePage";
+import { ProductionOrderDetailPage } from "../features/inventory/pages/ProductionOrderDetailPage";
+import { ProductionOrderListPage as InventoryProductionOrderListPage } from "../features/inventory/pages/ProductionOrderListPage";
+import { QualityBatchDetailPage } from "../features/inventory/pages/QualityBatchDetailPage";
+import { QualityDashboardPage } from "../features/inventory/pages/QualityDashboardPage";
+import { ReorderPolicyPage } from "../features/inventory/pages/ReorderPolicyPage";
+import { PosCustomBundleCreatePage } from "../features/inventory/pages/PosCustomBundleCreatePage";
+import { PosCustomBundleDetailPage } from "../features/inventory/pages/PosCustomBundleDetailPage";
+import { PosCustomerReturnCreatePage } from "../features/inventory/pages/PosCustomerReturnCreatePage";
+import { PosCustomerReturnDetailPage } from "../features/inventory/pages/PosCustomerReturnDetailPage";
+import { StockDocumentDetailPage } from "../features/inventory/pages/StockDocumentDetailPage";
+import { StockDocumentListPage } from "../features/inventory/pages/StockDocumentListPage";
+import { StocktakeCreatePage } from "../features/inventory/pages/StocktakeCreatePage";
+import { StocktakeDetailPage } from "../features/inventory/pages/StocktakeDetailPage";
+import { StocktakeListPage } from "../features/inventory/pages/StocktakeListPage";
+import { StockAlertDetailPage } from "../features/inventory/pages/StockAlertDetailPage";
+import { StockAlertListPage } from "../features/inventory/pages/StockAlertListPage";
+import { SupplierReturnCreatePage } from "../features/inventory/pages/SupplierReturnCreatePage";
+import { SupplierReturnDetailPage } from "../features/inventory/pages/SupplierReturnDetailPage";
+import { SupplierReturnListPage } from "../features/inventory/pages/SupplierReturnListPage";
+import { TransferCreatePage } from "../features/inventory/pages/TransferCreatePage";
+import { TransferDetailPage } from "../features/inventory/pages/TransferDetailPage";
+import { TransferListPage } from "../features/inventory/pages/TransferListPage";
 import { CouponListPage } from "../features/marketing/pages/CouponListPage";
 import { CouponUsageListPage } from "../features/marketing/pages/CouponUsageListPage";
 import { DiscountProgramListPage } from "../features/marketing/pages/DiscountProgramListPage";
@@ -29,7 +62,47 @@ import { ProductVariantDetailPage } from "../features/product/pages/ProductVaria
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
+import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
+import {
+    BACKOFFICE_ROLES,
+    INVENTORY_OPERATION_ROLES,
+    INVENTORY_ROLES,
+    MANUFACTURING_ROLES,
+    MARKETING_ROLES,
+    ORDER_ROLES,
+    POS_WORKSPACE_ROLES,
+    PRODUCT_ROLES,
+    getDefaultRouteForRoles,
+    type AppRole
+} from "../auth/role-utils";
+
+function RoleGate({ roles }: { roles: AppRole[] }) {
+    return (
+        <ProtectedRoute roles={roles}>
+            <Outlet />
+        </ProtectedRoute>
+    );
+}
+
+function RoleBasedRedirect() {
+    const { roles, user } = useAuth();
+
+    if (!user && !roles) {
+        return (
+            <main className="grid min-h-dvh place-items-center bg-[#f7f8fb] text-sm font-bold text-[#315f3c]">
+                Đang tải quyền truy cập...
+            </main>
+        );
+    }
+
+    return (
+        <Navigate
+            to={getDefaultRouteForRoles(roles)}
+            replace
+        />
+    );
+}
 
 export function AppRouter() {
     return (
@@ -37,18 +110,49 @@ export function AppRouter() {
             <Route
                 path={routePaths.home}
                 element={
-                    <Navigate
-                        to={routePaths.posSales}
-                        replace
-                    />
+                    <ProtectedRoute>
+                        <RoleBasedRedirect />
+                    </ProtectedRoute>
                 }
             />
 
             <Route
                 path={routePaths.posSales}
                 element={
-                    <ProtectedRoute>
+                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
                         <PosSalePage />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path={routePaths.posCustomBundleCreate}
+                element={
+                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+                        <PosCustomBundleCreatePage />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path={routePaths.posCustomBundleDetail}
+                element={
+                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+                        <PosCustomBundleDetailPage />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path={routePaths.posCustomerReturnCreate}
+                element={
+                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+                        <PosCustomerReturnCreatePage />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path={routePaths.posCustomerReturnDetail}
+                element={
+                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+                        <PosCustomerReturnDetailPage />
                     </ProtectedRoute>
                 }
             />
@@ -56,7 +160,7 @@ export function AppRouter() {
             <Route
                 path={routePaths.salesHistory}
                 element={
-                    <ProtectedRoute>
+                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
                         <PosShell>
                             <SalesHistoryPage />
                         </PosShell>
@@ -67,7 +171,7 @@ export function AppRouter() {
             <Route
                 path={routePaths.system}
                 element={
-                    <ProtectedRoute>
+                    <ProtectedRoute roles={BACKOFFICE_ROLES}>
                         <SystemShell />
                     </ProtectedRoute>
                 }
@@ -76,11 +180,12 @@ export function AppRouter() {
                     index
                     element={
                         <Navigate
-                            to={routePaths.customers}
+                            to={routePaths.inventoryBalances}
                             replace
                         />
                     }
                 />
+                <Route element={<RoleGate roles={ORDER_ROLES} />}>
                 <Route
                     path="orders"
                     element={<OrderListPage />}
@@ -101,6 +206,8 @@ export function AppRouter() {
                     path="orders/refunds"
                     element={<OrderListPage />}
                 />
+                </Route>
+                <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
                 <Route
                     path="categories"
                     element={<CategoryListPage />}
@@ -131,7 +238,9 @@ export function AppRouter() {
                     path="price-lists"
                     element={<PriceListPage />}
                 />
+                </Route>
 
+                <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
                 <Route
                     path="inventory/locations"
                     element={<InventoryLocationPage />}
@@ -145,6 +254,102 @@ export function AppRouter() {
                     element={<InventoryBalancePage />}
                 />
                 <Route
+                    path="inventory/documents"
+                    element={
+                        <Navigate
+                            to={routePaths.inventoryDocuments}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/raw-material-receipts"
+                    element={
+                        <Navigate
+                            to={routePaths.goodsReceipts}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/production-orders"
+                    element={
+                        <Navigate
+                            to={routePaths.inventoryProductionOrderList}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/tea-bundles"
+                    element={
+                        <Navigate
+                            to={routePaths.customBundles}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/branch-transfers"
+                    element={
+                        <Navigate
+                            to={routePaths.inventoryTransfers}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/stock-counts"
+                    element={
+                        <Navigate
+                            to={routePaths.inventoryStocktakes}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/customer-returns"
+                    element={
+                        <Navigate
+                            to={routePaths.inventoryCustomerReturnList}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/supplier-returns"
+                    element={
+                        <Navigate
+                            to={routePaths.inventorySupplierReturnList}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/waste-handling"
+                    element={
+                        <Navigate
+                            to={routePaths.inventoryQuality}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/replenishment-alerts"
+                    element={
+                        <Navigate
+                            to={routePaths.inventoryAlerts}
+                            replace
+                        />
+                    }
+                />
+                <Route
+                    path="inventory/:workspaceId"
+                    element={<InventoryManagementPage />}
+                />
+                </Route>
+                <Route element={<RoleGate roles={["ADMIN", "BRANCH_MANAGER"]} />}>
+                <Route
                     path="customers"
                     element={<CustomerListPage />}
                 />
@@ -152,6 +357,12 @@ export function AppRouter() {
                     path="customers/groups"
                     element={<CustomerListPage />}
                 />
+                <Route
+                    path="customers/tiers"
+                    element={<CustomerTierManagementPage />}
+                />
+                </Route>
+                <Route element={<RoleGate roles={MARKETING_ROLES} />}>
                 <Route
                     path="marketing/events"
                     element={<DiscountProgramListPage />}
@@ -172,10 +383,8 @@ export function AppRouter() {
                     path="marketing/discount-history"
                     element={<CouponUsageListPage />}
                 />
-                <Route
-                    path="customers/tiers"
-                    element={<CustomerTierManagementPage />}
-                />
+                </Route>
+                <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
                 <Route
                     path="manufacturing/boms"
                     element={<BomListPage />}
@@ -192,6 +401,146 @@ export function AppRouter() {
                     path="manufacturing/ingredients"
                     element={<RawMaterialListPage />}
                 />
+                </Route>
+            </Route>
+
+            <Route
+                path={routePaths.management}
+                element={
+                    <ProtectedRoute roles={BACKOFFICE_ROLES}>
+                        <SystemShell />
+                    </ProtectedRoute>
+                }
+            >
+                <Route
+                    index
+                    element={
+                        <Navigate
+                            to={routePaths.inventoryDocuments}
+                            replace
+                        />
+                    }
+                />
+                <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
+                <Route
+                    path="inventory/documents"
+                    element={<StockDocumentListPage />}
+                />
+                <Route
+                    path="inventory/documents/:documentId"
+                    element={<StockDocumentDetailPage />}
+                />
+                </Route>
+                <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
+                <Route
+                    path="inventory/receipts"
+                    element={<GoodsReceiptListPage />}
+                />
+                <Route
+                    path="inventory/receipts/new"
+                    element={<GoodsReceiptCreatePage />}
+                />
+                <Route
+                    path="inventory/receipts/:receiptId"
+                    element={<GoodsReceiptDetailPage />}
+                />
+                </Route>
+                <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
+                <Route
+                    path="inventory/production-orders"
+                    element={<InventoryProductionOrderListPage />}
+                />
+                <Route
+                    path="inventory/production-orders/new"
+                    element={<ProductionOrderCreatePage />}
+                />
+                <Route
+                    path="inventory/production-orders/:productionOrderId"
+                    element={<ProductionOrderDetailPage />}
+                />
+                <Route
+                    path="inventory/custom-bundles"
+                    element={<CustomBundleManagementListPage />}
+                />
+                <Route
+                    path="inventory/custom-bundles/:bundleId"
+                    element={<CustomBundleManagementDetailPage />}
+                />
+                </Route>
+                <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
+                <Route
+                    path="inventory/transfers"
+                    element={<TransferListPage />}
+                />
+                <Route
+                    path="inventory/transfers/new"
+                    element={<TransferCreatePage />}
+                />
+                <Route
+                    path="inventory/transfers/:transferId"
+                    element={<TransferDetailPage />}
+                />
+                <Route
+                    path="inventory/stocktakes"
+                    element={<StocktakeListPage />}
+                />
+                <Route
+                    path="inventory/stocktakes/new"
+                    element={<StocktakeCreatePage />}
+                />
+                <Route
+                    path="inventory/stocktakes/:stocktakeId"
+                    element={<StocktakeDetailPage />}
+                />
+                <Route
+                    path="inventory/customer-returns"
+                    element={<CustomerReturnListPage />}
+                />
+                <Route
+                    path="inventory/customer-returns/:returnId"
+                    element={<CustomerReturnDetailPage />}
+                />
+                <Route
+                    path="inventory/supplier-returns"
+                    element={<SupplierReturnListPage />}
+                />
+                <Route
+                    path="inventory/supplier-returns/new"
+                    element={<SupplierReturnCreatePage />}
+                />
+                <Route
+                    path="inventory/supplier-returns/:supplierReturnId"
+                    element={<SupplierReturnDetailPage />}
+                />
+                <Route
+                    path="inventory/quality"
+                    element={<QualityDashboardPage />}
+                />
+                <Route
+                    path="inventory/quality/batches/:batchId"
+                    element={<QualityBatchDetailPage />}
+                />
+                <Route
+                    path="inventory/disposals"
+                    element={<DisposalListPage />}
+                />
+                <Route
+                    path="inventory/disposals/:disposalId"
+                    element={<DisposalDetailPage />}
+                />
+                <Route
+                    path="inventory/alerts"
+                    element={<StockAlertListPage />}
+                />
+                <Route
+                    path="inventory/alerts/:alertId"
+                    element={<StockAlertDetailPage />}
+                />
+                <Route
+                    path="inventory/reorder-policies"
+                    element={<ReorderPolicyPage />}
+                />
+                </Route>
             </Route>
 
             <Route

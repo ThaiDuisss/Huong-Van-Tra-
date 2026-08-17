@@ -6,8 +6,8 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.UUID;
 import java.util.Optional;
-import org.hvtra.iventoryservice.enums.InventoryLocationType;
-import org.hvtra.iventoryservice.enums.InventoryStatus;
+import org.hvtra.iventoryservice.shared.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.shared.enums.InventoryStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

@@ -40,4 +40,6 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>, JpaSp
     boolean existsByEmail(String email);
 
     boolean existsByEmailAndIdNot(String email, UUID id);
+
+
 }

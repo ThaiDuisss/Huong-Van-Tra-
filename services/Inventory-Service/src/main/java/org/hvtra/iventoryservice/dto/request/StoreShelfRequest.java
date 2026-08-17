@@ -3,7 +3,7 @@ package org.hvtra.iventoryservice.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import org.hvtra.iventoryservice.enums.InventoryStatus;
+import org.hvtra.iventoryservice.shared.enums.InventoryStatus;
 
 /**
  * Request DTO dành riêng cho màn hình Quản lý kệ (Store Shelf).

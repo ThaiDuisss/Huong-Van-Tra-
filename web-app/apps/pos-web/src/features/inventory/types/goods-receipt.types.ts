@@ -1,0 +1,300 @@
+import type {
+    InventoryAuditEvent,
+    InventoryLocationSummary,
+    UserSnapshot
+} from "./stock-document.types";
+
+export type GoodsReceiptStatus =
+    | "DRAFT"
+    | "SUBMITTED"
+    | "RECEIVING"
+    | "AWAITING_QC"
+    | "PARTIALLY_PASSED"
+    | "AWAITING_COST"
+    | "READY_TO_POST"
+    | "POSTED"
+    | "REJECTED"
+    | "CANCELLED";
+
+export type QcResult =
+    | "PENDING"
+    | "PASSED"
+    | "PARTIALLY_PASSED"
+    | "FAILED";
+
+export type CostStatus = "PENDING" | "PROVISIONAL" | "FINAL";
+
+export type GoodsReceiptRole =
+    | "ADMIN"
+    | "WAREHOUSE"
+    | "QC_STAFF"
+    | "ACCOUNTANT"
+    | "BRANCH_MANAGER"
+    | "DIRECTOR";
+
+export type GoodsReceiptBatchStatus =
+    | "AWAITING_QC"
+    | "AVAILABLE"
+    | "QUARANTINED"
+    | "RETURN_TO_SUPPLIER"
+    | "POSTED";
+
+export interface SupplierSummary {
+    id: string;
+    code: string;
+    name: string;
+}
+
+export interface GoodsReceiptSummary {
+    id: string;
+    code: string;
+    supplier: SupplierSummary;
+    purchaseOrderCode?: string;
+    receivingLocation: InventoryLocationSummary;
+    totalLines: number;
+    totalReceivedQuantity: number;
+    qcResult: QcResult;
+    costStatus: CostStatus;
+    status: GoodsReceiptStatus;
+    receivedAt: string;
+    createdBy: UserSnapshot;
+    hasVariance: boolean;
+    stockDocumentId?: string;
+    stockDocumentCode?: string;
+}
+
+export interface GoodsReceiptDetail extends GoodsReceiptSummary {
+    invoiceNumber?: string;
+    deliveryPerson: string;
+    vehiclePlate?: string;
+    note?: string;
+    outsidePo: boolean;
+    outsidePoReason?: string;
+    lines: GoodsReceiptLine[];
+    evidence: GoodsReceiptEvidence[];
+    auditEvents: InventoryAuditEvent[];
+    movementSummary?: GoodsReceiptMovementSummary;
+}
+
+export interface GoodsReceiptLine {
+    id: string;
+    materialId: string;
+    skuCode: string;
+    materialName: string;
+    unit: string;
+    orderedQuantity?: number;
+    receivedQuantity: number;
+    initialDamagedQuantity: number;
+    shortageQuantity: number;
+    surplusQuantity: number;
+    conversionPreview: string;
+    supplierLot: string;
+    internalBatchCode: string;
+    manufacturedAt: string;
+    expiryDate: string;
+    countryOfOrigin?: string;
+    qualityCertificate?: string;
+    storageCondition?: string;
+    qc: GoodsReceiptQcLine;
+    cost: GoodsReceiptCostLine;
+    batchStatus: GoodsReceiptBatchStatus;
+}
+
+export interface GoodsReceiptQcLine {
+    result: QcResult;
+    receivedQuantity: number;
+    passedQuantity: number;
+    quarantinedQuantity: number;
+    failedQuantity: number;
+    reasonCode?: GoodsReceiptQcReasonCode;
+    inspectionNote?: string;
+}
+
+export type GoodsReceiptQcReasonCode =
+    | "QLT-01"
+    | "QLT-02"
+    | "QLT-03"
+    | "QLT-04"
+    | "QLT-05"
+    | "QLT-06"
+    | "QLT-99";
+
+export interface GoodsReceiptCostLine {
+    purchaseUnitPrice: number;
+    acceptedQuantity: number;
+    discount: number;
+    tax: number;
+    allocatedShippingCost: number;
+    otherCost: number;
+    finalUnitCost: number;
+    lineNetAmount: number;
+    status: CostStatus;
+    currency: "VND";
+}
+
+export interface GoodsReceiptEvidence {
+    id: string;
+    type:
+        | "GOODS_PHOTO"
+        | "BATCH_LABEL"
+        | "DELIVERY_NOTE"
+        | "INVOICE"
+        | "CERTIFICATE"
+        | "VARIANCE_NOTE";
+    fileName: string;
+    uploadedAt: string;
+    uploadedBy: string;
+}
+
+export interface GoodsReceiptMovementSummary {
+    availableQuantity: number;
+    quarantineQuantity: number;
+    returnToSupplierQuantity: number;
+    totalInventoryValue: number;
+}
+
+export interface GoodsReceiptListQuery {
+    page: number;
+    size: number;
+    receiptCode: string;
+    supplierId: "ALL" | string;
+    purchaseOrderCode: string;
+    status: "ALL" | GoodsReceiptStatus;
+    qcResult: "ALL" | QcResult;
+    costStatus: "ALL" | CostStatus;
+    receivingLocationId: "ALL" | string;
+    receivedFrom: string;
+    receivedTo: string;
+    hasVariance: "ALL" | "YES" | "NO";
+}
+
+export interface GoodsReceiptDashboardSummary {
+    draft: number;
+    awaitingQc: number;
+    awaitingCost: number;
+    readyToPost: number;
+    postedToday: number;
+}
+
+export interface GoodsReceiptListResult {
+    content: GoodsReceiptSummary[];
+    page: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
+    first: boolean;
+    last: boolean;
+    summary: GoodsReceiptDashboardSummary;
+}
+
+export interface GoodsReceiptOptions {
+    suppliers: SupplierSummary[];
+    locations: InventoryLocationSummary[];
+    materials: GoodsReceiptMaterialOption[];
+}
+
+export interface GoodsReceiptMaterialOption {
+    id: string;
+    skuCode: string;
+    name: string;
+    unit: string;
+    shelfLifeWarningDays: number;
+}
+
+export interface GoodsReceiptCreateInput {
+    receivingLocationId: string;
+    supplierId: string;
+    purchaseOrderCode?: string;
+    invoiceNumber?: string;
+    receivedAt: string;
+    deliveryPerson: string;
+    vehiclePlate?: string;
+    note?: string;
+    outsidePo: boolean;
+    outsidePoReason?: string;
+    lines: GoodsReceiptCreateLineInput[];
+    evidence: GoodsReceiptEvidence[];
+    submit: boolean;
+}
+
+export interface GoodsReceiptCreateLineInput {
+    materialId: string;
+    orderedQuantity?: number;
+    receivedQuantity: number;
+    initialDamagedQuantity: number;
+    supplierLot: string;
+    manufacturedAt: string;
+    expiryDate: string;
+    countryOfOrigin?: string;
+    qualityCertificate?: string;
+    storageCondition?: string;
+    duplicateReason?: string;
+}
+
+export interface GoodsReceiptQcInput {
+    receiptId: string;
+    actorRole: GoodsReceiptRole;
+    lines: Array<{
+        lineId: string;
+        receivedQuantity: number;
+        passedQuantity: number;
+        quarantinedQuantity: number;
+        failedQuantity: number;
+        reasonCode?: GoodsReceiptQcReasonCode;
+        inspectionNote?: string;
+    }>;
+}
+
+export interface GoodsReceiptCostInput {
+    receiptId: string;
+    actorRole: GoodsReceiptRole;
+    finalize: boolean;
+    lines: Array<{
+        lineId: string;
+        purchaseUnitPrice: number;
+        acceptedQuantity: number;
+        discount: number;
+        tax: number;
+        allocatedShippingCost: number;
+        otherCost: number;
+    }>;
+}
+
+export interface GoodsReceiptActionInput {
+    receiptId: string;
+    actorRole: GoodsReceiptRole;
+    note?: string;
+}
+
+export interface GoodsReceiptApi {
+    listGoodsReceipts(
+        query: GoodsReceiptListQuery
+    ): Promise<GoodsReceiptListResult>;
+    getGoodsReceipt(receiptId: string): Promise<GoodsReceiptDetail>;
+    createGoodsReceipt(
+        input: GoodsReceiptCreateInput
+    ): Promise<GoodsReceiptDetail>;
+    updateGoodsReceipt(
+        receiptId: string,
+        input: GoodsReceiptCreateInput
+    ): Promise<GoodsReceiptDetail>;
+    submitGoodsReceipt(
+        input: GoodsReceiptActionInput
+    ): Promise<GoodsReceiptDetail>;
+    performGoodsReceiptQc(
+        input: GoodsReceiptQcInput
+    ): Promise<GoodsReceiptDetail>;
+    saveGoodsReceiptCost(
+        input: GoodsReceiptCostInput
+    ): Promise<GoodsReceiptDetail>;
+    finalizeGoodsReceiptCost(
+        input: GoodsReceiptCostInput
+    ): Promise<GoodsReceiptDetail>;
+    postGoodsReceipt(
+        input: GoodsReceiptActionInput
+    ): Promise<GoodsReceiptDetail>;
+    cancelGoodsReceipt(
+        input: GoodsReceiptActionInput
+    ): Promise<GoodsReceiptDetail>;
+    getGoodsReceiptOptions(): Promise<GoodsReceiptOptions>;
+}

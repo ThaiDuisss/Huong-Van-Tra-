@@ -2,9 +2,7 @@ package org.hvtra.iventoryservice.repository;
 
 import jakarta.persistence.LockModeType;
 import org.hvtra.iventoryservice.entity.InventoryBalance;
-import org.hvtra.iventoryservice.enums.InventoryItemType;
-import org.hvtra.iventoryservice.enums.InventoryLocationType;
-import org.hvtra.iventoryservice.enums.InventoryStatus;
+import org.hvtra.iventoryservice.shared.enums.InventoryItemType;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 

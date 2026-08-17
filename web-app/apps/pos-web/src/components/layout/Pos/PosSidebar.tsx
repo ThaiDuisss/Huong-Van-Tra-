@@ -1,38 +1,20 @@
 import {
-  BarChart3,
-  BriefcaseBusiness,
   ChevronDown,
-  Clock3,
-  FileClock,
-  FileText,
   LogOut,
   Settings,
-  ShoppingBag,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
 
 import { HvtLogo } from "../../shared/HvtLogo";
 import { routePaths } from "../../../routes/path";
 import { PosNotificationButton } from "../../../features/notification/components/PosNotificationButton";
 import { useAuth } from "../../../auth/auth-context";
-
-const navItems = [
-  {
-    label: "POS",
-    icon: BriefcaseBusiness,
-    to: routePaths.posSales
-  },
-  {
-    label: "Đơn hàng",
-    icon: ShoppingBag,
-    to: null
-  },
-  {
-    label: "Ca làm việc",
-    icon: Clock3,
-    to: null
-  }
-];
+import {
+  filterPosNavigationByRoles,
+  posNavigationItems,
+  type PosNavigationItem
+} from "./pos-navigation";
 
 const utilityItems = [
   {
@@ -48,10 +30,23 @@ const utilityItems = [
 export function PosSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { avatarUrl, displayName, logout, roleLabel, username } = useAuth();
+  const { avatarUrl, displayName, logout, roleLabel, roles, username } = useAuth();
+  const visibleNavItems = useMemo(
+    () => filterPosNavigationByRoles(posNavigationItems, roles),
+    [roles]
+  );
+  const [openGroup, setOpenGroup] = useState<string | null>("orders");
   const userLabel = displayName ?? username ?? "Người dùng";
   const userInitial = userLabel.trim().charAt(0).toUpperCase() || "U";
   const userMeta = roleLabel ?? "Nhân viên POS";
+
+  function isItemActive(item: PosNavigationItem) {
+    if (item.to && location.pathname === item.to) {
+      return true;
+    }
+
+    return item.children?.some((child) => child.to === location.pathname) ?? false;
+  }
 
   return (
     <nav
@@ -63,12 +58,14 @@ export function PosSidebar() {
       </div>
 
       <ul className="grid gap-3">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
-          const isActive = item.to ? location.pathname === item.to : false;
+          const isActive = isItemActive(item);
+          const hasChildren = Boolean(item.children?.length);
+          const isOpen = openGroup === item.key;
 
           return (
-            <li key={item.label}>
+            <li key={item.key}>
               <button
                 className={`flex min-h-[52px] w-full items-center gap-3 rounded-lg px-2 text-left text-[14px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hvt-green-600 ${
                   isActive
@@ -78,8 +75,13 @@ export function PosSidebar() {
                 type="button"
                 aria-current={isActive ? "page" : undefined}
                 aria-label={item.label}
+                aria-expanded={hasChildren ? isOpen : undefined}
                 onClick={() => {
-                  if (item.to) {
+                  if (hasChildren) {
+                    setOpenGroup((current) =>
+                      current === item.key ? null : item.key
+                    );
+                  } else if (item.to) {
                     navigate(item.to);
                   }
                 }}
@@ -91,47 +93,43 @@ export function PosSidebar() {
                   <Icon size={22} strokeWidth={1.8} />
                 </span>
                 <span className="truncate">{item.label}</span>
-                {item.label === "Đơn hàng" ? (
+                {hasChildren ? (
                   <ChevronDown
-                    className="ml-auto"
+                    className={`ml-auto transition-transform ${
+                      isOpen ? "rotate-180" : ""
+                    }`}
                     size={16}
                     aria-hidden="true"
                   />
                 ) : null}
               </button>
-              {item.label === "Đơn hàng" ? (
+              {hasChildren && isOpen ? (
                 <div className="mt-1 grid gap-1 rounded-lg border border-[#a8e3b7] bg-white p-2">
-                  <button
-                    type="button"
-                    className="flex h-9 items-center gap-2 rounded-md px-2 text-left text-[13px] font-semibold text-[#159734] hover:bg-[#f4f5f3]"
-                  >
-                    <FileClock size={18} aria-hidden="true" />
-                    Đơn đang giữ
-                  </button>
-                  <button
-                    type="button"
-                    className="flex h-9 items-center gap-2 rounded-md px-2 text-left text-[13px] font-semibold text-[#159734] hover:bg-[#f4f5f3]"
-                  >
-                    <FileText size={18} aria-hidden="true" />
-                    Đơn trong ca
-                  </button>
-                  <button
-                    type="button"
-                    className={`flex h-9 items-center gap-2 rounded-md px-2 text-left text-[13px] font-semibold transition hover:bg-[#f4f5f3] ${
-                      location.pathname === routePaths.salesHistory
-                        ? "bg-[#f4f5f3] text-[#159734]"
-                        : "text-[#159734]"
-                    }`}
-                    aria-current={
-                      location.pathname === routePaths.salesHistory
-                        ? "page"
-                        : undefined
-                    }
-                    onClick={() => navigate(routePaths.salesHistory)}
-                  >
-                    <BarChart3 size={18} aria-hidden="true" />
-                    Bán hàng hôm nay
-                  </button>
+                  {item.children?.map((child) => {
+                    const ChildIcon = child.icon;
+                    const childActive = child.to === location.pathname;
+
+                    return (
+                      <button
+                        key={child.key}
+                        type="button"
+                        className={`flex h-9 items-center gap-2 rounded-md px-2 text-left text-[13px] font-semibold transition hover:bg-[#f4f5f3] ${
+                          childActive
+                            ? "bg-[#f4f5f3] text-[#159734]"
+                            : "text-[#159734]"
+                        }`}
+                        aria-current={childActive ? "page" : undefined}
+                        onClick={() => {
+                          if (child.to) {
+                            navigate(child.to);
+                          }
+                        }}
+                      >
+                        <ChildIcon size={18} aria-hidden="true" />
+                        {child.label}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : null}
             </li>
