@@ -1,8 +1,13 @@
 export const routePaths = {
     home: "/",
     posSales: "/pos/sales",
+    posCustomBundleCreate: "/pos/custom-bundles/new",
+    posCustomBundleDetail: "/pos/custom-bundles/:bundleId",
+    posCustomerReturnCreate: "/pos/customer-returns/new",
+    posCustomerReturnDetail: "/pos/customer-returns/:returnId",
     salesHistory: "/sales-history",
     system: "/system",
+    management: "/management",
     orders: "/system/orders",
     invoices: "/system/orders/invoices",
     invoiceDetail: "/system/orders/invoices/:invoiceId",
@@ -22,6 +27,66 @@ export const routePaths = {
     inventoryBalances: "/system/inventory/balances",
     inventoryTransactions: "/system/inventory/transactions",
     inventoryShelves: "/system/inventory/shelves",
+    inventoryRoles: "/system/inventory/roles",
+    inventoryDocuments: "/management/inventory/documents",
+    inventoryDocumentDetail:
+        "/management/inventory/documents/:documentId",
+    goodsReceipts: "/management/inventory/receipts",
+    goodsReceiptCreate: "/management/inventory/receipts/new",
+    goodsReceiptDetail: "/management/inventory/receipts/:receiptId",
+    inventoryProductionOrderList:
+        "/management/inventory/production-orders",
+    inventoryProductionOrderCreate:
+        "/management/inventory/production-orders/new",
+    inventoryProductionOrderDetail:
+        "/management/inventory/production-orders/:productionOrderId",
+    customBundles: "/management/inventory/custom-bundles",
+    customBundleDetail:
+        "/management/inventory/custom-bundles/:bundleId",
+    inventoryTransfers: "/management/inventory/transfers",
+    inventoryTransferCreate: "/management/inventory/transfers/new",
+    inventoryTransferDetail:
+        "/management/inventory/transfers/:transferId",
+    inventoryStocktakes: "/management/inventory/stocktakes",
+    inventoryStocktakeCreate: "/management/inventory/stocktakes/new",
+    inventoryStocktakeDetail:
+        "/management/inventory/stocktakes/:stocktakeId",
+    inventoryCustomerReturnList:
+        "/management/inventory/customer-returns",
+    inventoryCustomerReturnDetail:
+        "/management/inventory/customer-returns/:returnId",
+    inventorySupplierReturnList:
+        "/management/inventory/supplier-returns",
+    inventorySupplierReturnCreate:
+        "/management/inventory/supplier-returns/new",
+    inventorySupplierReturnDetail:
+        "/management/inventory/supplier-returns/:supplierReturnId",
+    inventoryQuality: "/management/inventory/quality",
+    inventoryQualityBatchDetail:
+        "/management/inventory/quality/batches/:batchId",
+    inventoryDisposals: "/management/inventory/disposals",
+    inventoryDisposalDetail:
+        "/management/inventory/disposals/:disposalId",
+    inventoryAlerts: "/management/inventory/alerts",
+    inventoryAlertDetail:
+        "/management/inventory/alerts/:alertId",
+    inventoryReorderPolicies:
+        "/management/inventory/reorder-policies",
+    inventoryRawMaterialReceipts:
+        "/system/inventory/raw-material-receipts",
+    inventoryProductionOrders:
+        "/system/inventory/production-orders",
+    inventoryTeaBundles: "/system/inventory/tea-bundles",
+    inventoryBranchTransfers:
+        "/management/inventory/transfers",
+    inventoryStockCounts: "/management/inventory/stocktakes",
+    inventoryCustomerReturns:
+        "/management/inventory/customer-returns",
+    inventorySupplierReturns:
+        "/management/inventory/supplier-returns",
+    inventoryWasteHandling: "/management/inventory/quality",
+    inventoryReplenishmentAlerts:
+        "/management/inventory/alerts",
 
     customers: "/system/customers",
     customerGroups: "/system/customers/groups",
@@ -31,7 +96,6 @@ export const routePaths = {
         "/system/marketing/discount-programs/:programId",
     discountCodes: "/system/marketing/discount-codes",
     discountHistory: "/system/marketing/discount-history",
-    discountRules: "/system/marketing/discount-rules",
     customerTiers: "/system/customers/tiers",
     bomList: "/system/manufacturing/boms",
     bomDetail: "/system/manufacturing/boms/:id",

@@ -35,10 +35,6 @@ public class Shipment extends SoftDeleteAuditableEntity {
     @Column(name = "tenant_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID tenantId;
 
-    @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "branch_id", nullable = false, columnDefinition = "BINARY(16)")
-    private UUID branchId;
-
     @Column(name = "shipment_code", nullable = false, length = 50)
     private String shipmentCode;
 
@@ -210,7 +206,6 @@ public class Shipment extends SoftDeleteAuditableEntity {
 
     public static Shipment create(
             UUID tenantId,
-            UUID branchId,
             String shipmentCode,
             UUID orderId,
             String orderCode,
@@ -228,7 +223,6 @@ public class Shipment extends SoftDeleteAuditableEntity {
     ) {
         Shipment shipment = new Shipment();
         shipment.tenantId = tenantId;
-        shipment.branchId = branchId;
         shipment.shipmentCode = shipmentCode;
         shipment.orderId = orderId;
         shipment.orderCode = orderCode;
@@ -247,6 +241,74 @@ public class Shipment extends SoftDeleteAuditableEntity {
         shipment.currency = "VND";
         shipment.packageCount = 1;
         return shipment;
+    }
+
+    public void releaseFromInternalRoute() {
+        requireStatus(ShipmentStatus.PLANNED, ShipmentStatus.ASSIGNED, ShipmentStatus.READY_FOR_PICKUP);
+        this.courierEmployeeId = null;
+        this.courierNameSnapshot = null;
+        this.status = ShipmentStatus.READY_FOR_PLANNING;
+    }
+
+    public void retryInternalDelivery() {
+        requireStatus(ShipmentStatus.DELIVERY_FAILED);
+        if (deliveryMode != DeliveryMode.INTERNAL) {
+            throw new IllegalStateException("Only internal shipment can be requeued");
+        }
+        this.courierEmployeeId = null;
+        this.courierNameSnapshot = null;
+        this.pickedUpAt = null;
+        this.deliveredAt = null;
+        this.codCollectedAmount = 0;
+        this.failureCode = null;
+        this.failureReason = null;
+        this.status = ShipmentStatus.READY_FOR_PLANNING;
+    }
+
+    public void updateActualShippingCost(Long actualShippingCost) {
+        if (actualShippingCost != null && actualShippingCost >= 0) {
+            this.actualShippingCost = actualShippingCost;
+        }
+    }
+    public boolean synchronizeCarrierStatus(
+            ShipmentStatus targetStatus,
+            Instant occurredAt,
+            String failureCode,
+            String failureReason
+    ) {
+        if (targetStatus == null || targetStatus == this.status) {
+            return false;
+        }
+        if (this.status == ShipmentStatus.DELIVERED
+                || this.status == ShipmentStatus.RETURNED
+                || this.status == ShipmentStatus.CANCELLED) {
+            return false;
+        }
+        this.status = targetStatus;
+        if (targetStatus == ShipmentStatus.PICKED_UP && this.pickedUpAt == null) {
+            this.pickedUpAt = occurredAt;
+        }
+        if (targetStatus == ShipmentStatus.DELIVERED) {
+            this.deliveredAt = occurredAt;
+            this.codCollectedAmount = this.codAmount;
+            this.failureCode = null;
+            this.failureReason = null;
+        } else if (targetStatus == ShipmentStatus.DELIVERY_FAILED) {
+            this.failureCode = failureCode;
+            this.failureReason = failureReason;
+        } else if (targetStatus == ShipmentStatus.CANCELLED && failureReason != null) {
+            this.failureReason = failureReason;
+        }
+        return true;
+    }
+    public void synchronizeCodAmount(Long codAmount) {
+        if (codAmount == null || codAmount < 0) {
+            return;
+        }
+        if (status == ShipmentStatus.DELIVERED || status == ShipmentStatus.RETURNED) {
+            return;
+        }
+        this.codAmount = codAmount;
     }
 
     public void attachPayment(UUID paymentId, String paymentCode) {
@@ -355,6 +417,13 @@ public class Shipment extends SoftDeleteAuditableEntity {
         this.failureCode = null;
         this.failureReason = null;
         this.status = ShipmentStatus.DELIVERED;
+    }
+
+    public void applyInternalShippingFee(long shippingFee) {
+        if (deliveryMode != DeliveryMode.INTERNAL || shippingFee < 0) {
+            throw new IllegalArgumentException("Invalid internal shipping fee");
+        }
+        this.shippingFee = shippingFee;
     }
 
     public void markDeliveryFailed(String code, String reason) {

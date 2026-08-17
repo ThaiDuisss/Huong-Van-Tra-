@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.hvtra.deliveryservice.model.entity.base.AuditableEntity;
 import org.hvtra.deliveryservice.model.enums.RouteStopStatus;
 import org.hvtra.deliveryservice.model.enums.RouteStopType;
+import org.hvtra.deliveryservice.model.enums.TravelEstimateSource;
 
 import java.time.Instant;
 
@@ -54,6 +55,10 @@ public class RouteStop extends AuditableEntity {
     @Column(name = "estimated_duration_second")
     private Integer estimatedDurationSecond;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estimate_source", length = 30)
+    private TravelEstimateSource estimateSource;
+
     @Column(name = "failure_code", length = 100)
     private String failureCode;
 
@@ -81,10 +86,13 @@ public class RouteStop extends AuditableEntity {
         this.sequenceNo = sequenceNo;
     }
 
-    public void configureEstimate(Integer distanceMeter, Integer durationSecond, Instant arrivalAt) {
+    public void configureEstimate(Integer distanceMeter, Integer durationSecond, Instant arrivalAt, TravelEstimateSource source
+    ) {
         this.estimatedDistanceMeter = distanceMeter;
         this.estimatedDurationSecond = durationSecond;
         this.plannedArrivalAt = arrivalAt;
+        this.estimateSource = source;
+
     }
 
     public void markArriving() {

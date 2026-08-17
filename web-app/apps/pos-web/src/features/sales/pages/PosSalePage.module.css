@@ -60,9 +60,9 @@
 .cartTableHeader,
 .cartRow {
   display: grid;
-  grid-template-columns: 42px minmax(98px, 120px) minmax(190px, 1fr) 120px 130px 84px;
+  grid-template-columns: 42px minmax(92px, 112px) minmax(170px, 1fr) 116px 126px 136px 48px;
   align-items: center;
-  column-gap: 16px;
+  column-gap: 12px;
 }
 
 .cartTableHeader {
@@ -143,6 +143,137 @@
   font-weight: 700;
 }
 
+.discountCell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.discountButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #dce5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #159734;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.discountButton span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clearDiscountButton {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff4ee;
+  color: #d15a2f;
+}
+
+.discountEditor {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  width: min(330px, 72vw);
+  padding: 12px;
+  border: 1px solid #dce5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 20px 48px rgb(28 54 39 / 0.18);
+}
+
+.discountEditor input {
+  min-width: 0;
+  height: 38px;
+  border: 1px solid #dce5e1;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.discountEditor input:focus {
+  border-color: #159734;
+}
+
+.discountEditorValueRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.discountTypeToggle {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid #dce5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.discountTypeToggle button {
+  width: 48px;
+  border: 0;
+  background: transparent;
+  color: #53678f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.discountTypeToggle .active {
+  background: #159734;
+  color: #ffffff;
+}
+
+.discountPreview {
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.discountEditorActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.discountEditorActions button {
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #53678f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.discountEditorActions button:last-child {
+  background: #159734;
+  color: #ffffff;
+}
+
+.discountEditorActions button:disabled {
+  background: #d1d5db;
+  color: #ffffff;
+}
+
 .rowActions {
   display: flex;
   align-items: center;
@@ -201,7 +332,7 @@
 
   .cartTableHeader,
   .cartRow {
-    grid-template-columns: 36px minmax(86px, 102px) minmax(160px, 1fr) 108px 112px 74px;
-    column-gap: 10px;
+    grid-template-columns: 34px minmax(76px, 92px) minmax(140px, 1fr) 104px 108px 122px 42px;
+    column-gap: 8px;
   }
 }

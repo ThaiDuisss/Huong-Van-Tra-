@@ -1,6 +1,8 @@
 import { apiClient } from "../../../api/api-client";
 import type {
+    SaleBackendDiscountType,
     SaleCartItem,
+    SaleDiscountSource,
     SaleOrderType,
     SalePaymentMethod
 } from "../types/sale.types";
@@ -13,34 +15,41 @@ export interface CreatePosOrderInput {
 }
 
 export interface CheckoutPosOrderInput extends CreatePosOrderInput {
-    orderId: string;
+    orderId: string | null;
     originalAmount: number;
     finalAmount: number;
-    manualAdjustment?: PosManualAdjustmentInput;
+    orderDiscounts: PosDiscountRequest[];
     paymentMethod: SalePaymentMethod;
-    paymentAmount: number;
+    paidAmount: number;
     receivedAmount?: number;
     changeAmount?: number;
-}
-
-export interface PosManualAdjustmentInput {
-    originalAmount: number;
-    adjustedAmount: number;
-    changeAmount: number;
-    note: string;
 }
 
 interface PosOrderItemRequest {
     productVariantId: string;
     quantity: number;
-    discountAmount: number;
+    bomVersionId?: string;
+    itemDiscounts: PosDiscountRequest[];
+}
+
+export interface PosDiscountRequest {
+    discountType: SaleBackendDiscountType;
+    discountValue: number;
+    source: SaleDiscountSource;
+    reasonCode: string;
+    usageId?: string;
+    note?: string;
 }
 
 interface CreatePosOrderRequestBody {
+    orderId?: string;
     customerId?: string;
     orderType: string;
-    discountAmount: number;
+    orderDiscounts?: PosDiscountRequest[];
     shippingFee: number;
+    paidAmount?: number;
+    paymentMethod?: string;
+    paymentCode?: string;
     items: PosOrderItemRequest[];
 }
 
@@ -56,12 +65,6 @@ interface AddDraftOrderItemRequestBody {
 
 interface UpdateDraftOrderItemQuantityRequestBody {
     quantity: number;
-}
-
-interface CheckoutDraftOrderRequestBody {
-    paidAmount: number;
-    discountAmount: number;
-    paymentMethod: string;
 }
 
 export interface PosCheckoutPaymentResponse {
@@ -154,17 +157,33 @@ function getCustomerId(value: string | null) {
     return value && uuidPattern.test(value) ? value : undefined;
 }
 
+function getCartItemDiscounts(item: SaleCartItem): PosDiscountRequest[] {
+    if (!item.manualDiscount || item.manualDiscount.discountValue <= 0) {
+        return [];
+    }
+
+    return [
+        {
+            discountType: item.manualDiscount.discountType,
+            discountValue: item.manualDiscount.discountValue,
+            source: "MANUAL",
+            reasonCode: item.manualDiscount.reasonCode,
+            note: item.manualDiscount.note
+        }
+    ];
+}
+
 export const posOrderApi = {
     create(input: CreatePosOrderInput) {
         return apiClient.post<PosOrderDto, CreatePosOrderRequestBody>("/orders", {
             customerId: input.customerId ?? undefined,
             orderType: orderTypeMap[input.orderType],
-            discountAmount: input.discountAmount,
+            orderDiscounts: [],
             shippingFee: 0,
             items: input.items.map((item) => ({
                 productVariantId: getProductVariantId(item),
                 quantity: item.quantity,
-                discountAmount: 0
+                itemDiscounts: getCartItemDiscounts(item)
             }))
         });
     },
@@ -217,11 +236,20 @@ export const posOrderApi = {
     checkout(input: CheckoutPosOrderInput) {
         return apiClient.post<
             PosCheckoutResponse,
-            CheckoutDraftOrderRequestBody
-        >(`/orders/pos/${encodeURIComponent(input.orderId)}/checkout`, {
-            paidAmount: input.paymentAmount,
-            discountAmount: input.discountAmount,
-            paymentMethod: paymentMethodMap[input.paymentMethod]
+            CreatePosOrderRequestBody
+        >("/orders/pos/checkout", {
+            orderId: input.orderId ?? undefined,
+            customerId: input.customerId ?? undefined,
+            orderType: orderTypeMap[input.orderType],
+            orderDiscounts: input.orderDiscounts,
+            shippingFee: 0,
+            paidAmount: input.paidAmount,
+            paymentMethod: paymentMethodMap[input.paymentMethod],
+            items: input.items.map((item) => ({
+                productVariantId: getProductVariantId(item),
+                quantity: item.quantity,
+                itemDiscounts: getCartItemDiscounts(item)
+            }))
         });
     }
 };

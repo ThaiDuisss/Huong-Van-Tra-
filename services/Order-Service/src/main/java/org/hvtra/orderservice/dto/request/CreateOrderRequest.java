@@ -6,18 +6,18 @@ import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Data
 public class CreateOrderRequest {
+    private UUID orderId;
 
     private UUID tenantId;
-    private UUID branchId;
     private UUID terminalId;
     private UUID shiftId;
     private UUID customerId;
-    private UUID orderId;
 
     private String customerNameSnapshot;
     private String customerPhoneSnapshot;
@@ -37,17 +37,27 @@ public class CreateOrderRequest {
 
     private String orderType = "POS";
 
-    @DecimalMin(value = "0.00", message = "discountAmount phải lớn hơn hoặc bằng 0")
-    private BigDecimal discountAmount = BigDecimal.ZERO;
+    @Valid
+    private List<CreateDiscountRequest> orderDiscounts =
+            new ArrayList<>();
 
+    @DecimalMin(
+            value = "0.00",
+            message = "shippingFee phải lớn hơn hoặc bằng 0"
+    )
     private BigDecimal shippingFee = BigDecimal.ZERO;
 
+    @DecimalMin(
+            value = "0.00",
+            message = "paidAmount phải lớn hơn hoặc bằng 0"
+    )
     private BigDecimal paidAmount;
+
     private String paymentMethod;
     private String paymentCode;
-    private UUID changedBy;
 
     @Valid
     @NotEmpty(message = "items không được rỗng")
-    private List<CreateOrderItemRequest> items;
+    private List<CreateOrderItemRequest> items =
+            new ArrayList<>();
 }

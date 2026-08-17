@@ -33,6 +33,12 @@ public class AvailablePromotionResponse {
 
     BigDecimal estimatedDiscount;
 
+    UUID giftProductId;
+
+    Integer giftQuantity;
+
+    Integer buyQuantity;
+
     Boolean stackable;
 
     @Schema(description = "Khuyen mai co can ma coupon de reserve truoc payment hay khong", example = "true")

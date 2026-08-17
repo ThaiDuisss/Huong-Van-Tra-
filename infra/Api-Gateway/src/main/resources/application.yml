@@ -101,7 +101,7 @@ spring:
             add-to-simple-url-handler-mapping: true
   data:
     redis:
-      host: 100.122.52.101
+      host: 100.89.77.53
       port: 6379
       password: Hvt@2026
 

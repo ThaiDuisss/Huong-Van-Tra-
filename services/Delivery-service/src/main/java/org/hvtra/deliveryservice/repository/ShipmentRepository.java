@@ -1,5 +1,6 @@
 package org.hvtra.deliveryservice.repository;
 
+import org.hvtra.deliveryservice.model.enums.DeliveryProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import jakarta.persistence.LockModeType;
@@ -20,16 +21,22 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID> {
     Optional<Shipment> findByProviderAndTrackingCode(org.hvtra.deliveryservice.model.enums.DeliveryProvider provider, String trackingCode);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Shipment s where s.id = :shipmentId")
+    Optional<Shipment> findByIdForUpdate(@Param("shipmentId") UUID shipmentId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select s from Shipment s
             where s.tenantId = :tenantId
               and s.deliveryMode = :deliveryMode
+              and s.provider = :provider
               and s.status = :status
             order by s.requestedTo asc nulls last, s.createdAt asc
             """)
     List<Shipment> lockPlanningCandidates(
             @Param("tenantId") UUID tenantId,
             @Param("deliveryMode") DeliveryMode deliveryMode,
+            @Param("provider") DeliveryProvider provider,
             @Param("status") ShipmentStatus status,
             Pageable pageable
     );

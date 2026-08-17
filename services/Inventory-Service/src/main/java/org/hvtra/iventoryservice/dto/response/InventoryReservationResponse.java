@@ -1,6 +1,6 @@
 package org.hvtra.iventoryservice.dto.response;
 
-import org.hvtra.iventoryservice.enums.ReservationStatus;
+import org.hvtra.iventoryservice.shared.enums.ReservationStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;

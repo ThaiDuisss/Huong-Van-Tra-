@@ -4,8 +4,8 @@ import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
 import org.hvtra.iventoryservice.dto.request.StockInRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
-import org.hvtra.iventoryservice.enums.InventoryReferenceType;
-import org.hvtra.iventoryservice.enums.InventoryTransactionType;
+import org.hvtra.iventoryservice.shared.enums.InventoryReferenceType;
+import org.hvtra.iventoryservice.shared.enums.InventoryTransactionType;
 import org.springframework.data.domain.Pageable;
 
 import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;

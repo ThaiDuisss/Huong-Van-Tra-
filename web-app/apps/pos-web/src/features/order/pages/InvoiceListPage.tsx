@@ -1,8 +1,6 @@
 import {
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
-    FileSpreadsheet,
     MoreHorizontal,
     Search,
     Upload
@@ -10,9 +8,20 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
+import {
+    buildTodayTimeNode,
+    getDateRangeFromTimeNode,
+    type TimeNode
+} from "../../../components/shared/TimeHierarchyFilter.utils";
+import { ExportDropdown } from "../components/ExportDropdown";
 import { InvoiceDetailPanel } from "../components/InvoiceDetailPanel";
 import { PaymentStatusBadge } from "../components/PaymentStatusBadge";
-import { getOrderById, getOrders, getOrderStats } from "../services/order.api";
+import {
+    exportInvoices,
+    getOrderById,
+    getOrders,
+    getOrderStats
+} from "../services/order.api";
 import type {
     OrderDetailResponse,
     OrderPageResponse,
@@ -26,6 +35,7 @@ import {
     getCustomerName,
     getPaymentStatusText
 } from "../utils/order-formatters";
+import { buildActiveOrderExportParams } from "../utils/order-export-filters";
 import styles from "./InvoiceListPage.module.css";
 
 type InvoicePaymentTabKey = "ALL" | "UNPAID" | "PAID";
@@ -99,6 +109,9 @@ function getPageNumbers(totalPages: number, currentPage: number) {
 export function InvoiceListPage() {
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(
+        buildTodayTimeNode
+    );
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterPaymentStatus, setFilterPaymentStatus] =
         useState<InvoicePaymentTabKey>("ALL");
@@ -121,6 +134,7 @@ export function InvoiceListPage() {
     const activePaymentTab = INVOICE_PAYMENT_TABS.find(
         (tab) => tab.key === filterPaymentStatus
     );
+    const timeRange = getDateRangeFromTimeNode(selectedTimeNode);
 
     useEffect(() => {
         let ignore = false;
@@ -129,8 +143,10 @@ export function InvoiceListPage() {
             setListError(null);
 
             getOrders({
+                fromDate: timeRange?.fromDate,
                 keyword: debouncedKeyword,
                 paymentStatus: activePaymentTab?.paymentStatus ?? undefined,
+                toDate: timeRange?.toDate,
                 sort: "invoicePayment",
                 page: currentPage,
                 size: PAGE_SIZE
@@ -161,12 +177,21 @@ export function InvoiceListPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [activePaymentTab?.paymentStatus, currentPage, debouncedKeyword]);
+    }, [
+        activePaymentTab?.paymentStatus,
+        currentPage,
+        debouncedKeyword,
+        timeRange?.fromDate,
+        timeRange?.toDate
+    ]);
 
     useEffect(() => {
         let ignore = false;
 
-        getOrderStats()
+        getOrderStats({
+            fromDate: timeRange?.fromDate,
+            toDate: timeRange?.toDate
+        })
             .then((response) => {
                 if (!ignore) {
                     setStats(response ?? {});
@@ -181,7 +206,7 @@ export function InvoiceListPage() {
         return () => {
             ignore = true;
         };
-    }, []);
+    }, [timeRange?.fromDate, timeRange?.toDate]);
 
     useEffect(() => {
         if (!selectedOrderId) {
@@ -247,13 +272,26 @@ export function InvoiceListPage() {
         window.alert("Chức năng nhập file đang được phát triển");
     };
 
-    const handleExportFile = () => {
-        console.log("TODO: Xuất file hóa đơn");
-        window.alert("Chức năng xuất file đang được phát triển");
-    };
+    const buildCurrentFilterExportParams = () =>
+        buildActiveOrderExportParams({
+            fromDate: timeRange?.fromDate,
+            keyword: debouncedKeyword,
+            paymentStatus: activePaymentTab?.paymentStatus,
+            toDate: timeRange?.toDate
+        });
 
     const selectPaymentFilter = (status: InvoicePaymentTabKey) => {
         setFilterPaymentStatus(status);
+        setCurrentPage(0);
+    };
+
+    const selectTimeNode = (node: TimeNode) => {
+        setSelectedTimeNode(node);
+        setCurrentPage(0);
+    };
+
+    const clearTimeRange = () => {
+        setSelectedTimeNode(null);
         setCurrentPage(0);
     };
 
@@ -291,10 +329,15 @@ export function InvoiceListPage() {
                 }`}
         >
             <TimeSidebar
+                activeDate={timeRange?.selectedDate ?? undefined}
                 collapsed={isTimeCollapsed}
+                enableCalendar
+                onClear={clearTimeRange}
+                onSelect={selectTimeNode}
                 onToggleCollapse={() =>
                     setIsTimeCollapsed((collapsed) => !collapsed)
                 }
+                selectedNode={selectedTimeNode}
             />
 
             <div className={styles.content}>
@@ -326,15 +369,29 @@ export function InvoiceListPage() {
                             <Upload size={18} aria-hidden="true" />
                             Nhập file
                         </button>
-                        <button
-                            className={styles.secondaryButton}
-                            onClick={handleExportFile}
-                            type="button"
-                        >
-                            <FileSpreadsheet size={18} aria-hidden="true" />
-                            Xuất file
-                            <ChevronDown size={16} aria-hidden="true" />
-                        </button>
+                        <ExportDropdown
+                            allDescription="Bỏ qua các bộ lọc hiện tại"
+                            allFilenamePrefix="tat-ca-hoa-don"
+                            allLabel="Xuất toàn bộ hóa đơn"
+                            buttonClassName={styles.secondaryButton}
+                            emptyFilteredMessage="Không có hóa đơn phù hợp với bộ lọc để xuất file."
+                            fallbackErrorMessage="Không thể xuất file hóa đơn. Vui lòng thử lại."
+                            filteredDescription="Áp dụng thời gian, thanh toán và từ khóa đang chọn"
+                            filteredFilenamePrefix="hoa-don-theo-bo-loc"
+                            hasNoFilteredData={
+                                !isListLoading &&
+                                !listError &&
+                                totalElements === 0
+                            }
+                            onExport={(mode) =>
+                                exportInvoices(
+                                    mode === "filtered"
+                                        ? buildCurrentFilterExportParams()
+                                        : {}
+                                )
+                            }
+                            successMessage="Đã xuất file hóa đơn thành công."
+                        />
                     </div>
                 </div>
 

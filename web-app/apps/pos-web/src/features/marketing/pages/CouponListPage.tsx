@@ -1,8 +1,13 @@
 import { History, RefreshCw, Search, TicketPercent } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { MarketingPagination } from "../components/MarketingPagination";
+import {
+    MarketingTableSkeleton,
+    MarketingToast,
+    type MarketingNotice
+} from "../components/MarketingFeedback";
 import styles from "../components/discount-programs/DiscountProgramPage.module.css";
 import { couponApi } from "../services/coupon.api";
 import type { CouponPageResponse } from "../types/coupon.types";
@@ -45,6 +50,8 @@ export function CouponListPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [notice, setNotice] = useState<MarketingNotice | null>(null);
+    const notifyAfterLoadRef = useRef(false);
 
     const loadCoupons = useCallback(async () => {
         try {
@@ -58,11 +65,20 @@ export function CouponListPage() {
             });
 
             setResource(response);
+            if (notifyAfterLoadRef.current) {
+                setNotice({
+                    type: "success",
+                    message: "Tải lại danh sách mã giảm giá thành công."
+                });
+            }
         } catch (err) {
             console.error("Không thể tải danh sách coupon", err);
-            setError(getErrorMessage(err));
+            const message = getErrorMessage(err);
+            setError(message);
+            setNotice({ type: "error", message });
         } finally {
             setLoading(false);
+            notifyAfterLoadRef.current = false;
         }
     }, [page, pageSize, promotionId]);
 
@@ -106,6 +122,7 @@ export function CouponListPage() {
         : resource?.totalPages ?? 1;
 
     function reload() {
+        notifyAfterLoadRef.current = true;
         setRefreshKey((current) => current + 1);
     }
 
@@ -191,7 +208,9 @@ export function CouponListPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {coupons.map((coupon, index) => (
+                            {loading ? (
+                                <MarketingTableSkeleton columns={7} />
+                            ) : coupons.map((coupon, index) => (
                                 <tr
                                     key={coupon.id}
                                     className={
@@ -253,6 +272,11 @@ export function CouponListPage() {
                     onPageSizeChange={updatePageSize}
                 />
             </section>
+
+            <MarketingToast
+                notice={notice}
+                onClose={() => setNotice(null)}
+            />
         </section>
     );
 }

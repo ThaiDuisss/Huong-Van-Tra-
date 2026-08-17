@@ -88,21 +88,21 @@ export function InvoiceDetailPanel({
 
     return (
         <aside
-            className="flex min-h-0 flex-col overflow-auto rounded-xl border border-[#edf0f4] bg-white p-4 shadow-[0_16px_38px_rgb(31_53_43_/_0.05)]"
+            className="flex min-h-0 flex-col overflow-auto rounded-xl border border-[#edf0f4] bg-white p-7 shadow-[0_16px_38px_rgb(31_53_43_/_0.05)]"
             aria-label="Thông tin hóa đơn"
         >
-            <div className="flex items-center justify-between gap-3 border-b border-[#edf0f4] pb-3">
-                <h2 className="m-0 text-[17px] font-black text-[#172317]">
+            <div className="flex items-center justify-between gap-3 border-b border-[#edf0f4] pb-5">
+                <h2 className="m-0 text-xl font-black text-[#172317]">
                     Thông tin hóa đơn
                 </h2>
                 {onClose ? (
                     <button
                         type="button"
-                        className="grid size-8 place-items-center rounded-lg text-[#536078] hover:bg-[#f4f6f8]"
+                        className="grid size-9 place-items-center rounded-lg text-[#536078] hover:bg-[#f4f6f8]"
                         aria-label="Đóng thông tin hóa đơn"
                         onClick={onClose}
                     >
-                        <X size={16} aria-hidden="true" />
+                        <X size={18} aria-hidden="true" />
                     </button>
                 ) : null}
             </div>
@@ -127,11 +127,11 @@ export function InvoiceDetailPanel({
 
             {displayOrder && !loading && !error ? (
                 <>
-                    <section className="border-b border-[#edf0f4] py-3.5">
-                        <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
+                    <section className="border-b border-[#edf0f4] py-5">
+                        <h3 className="mb-4 mt-0 text-base font-black text-[#172317]">
                             Thông tin chung
                         </h3>
-                        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2">
                             <InfoRow
                                 label="Mã hóa đơn"
                                 value={buildInvoiceCode(displayOrder, rowIndex)}
@@ -158,11 +158,11 @@ export function InvoiceDetailPanel({
                         </div>
                     </section>
 
-                    <section className="border-b border-[#edf0f4] py-3.5">
-                        <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
+                    <section className="border-b border-[#edf0f4] py-5">
+                        <h3 className="mb-4 mt-0 text-base font-black text-[#172317]">
                             Thanh toán
                         </h3>
-                        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2">
                             <InfoRow
                                 label="Trạng thái"
                                 value={
@@ -206,11 +206,11 @@ export function InvoiceDetailPanel({
                     </section>
 
                     {hasShippingInfo ? (
-                        <section className="py-3.5">
-                            <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
+                        <section className="py-5">
+                            <h3 className="mb-4 mt-0 text-base font-black text-[#172317]">
                                 Giao hàng
                             </h3>
-                            <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                            <div className="grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2">
                                 {hasValue(shippingProvider) ? (
                                     <InfoRow
                                         label="Đơn vị VC"
@@ -246,7 +246,7 @@ export function InvoiceDetailPanel({
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
     return (
-        <div className="flex items-center justify-between gap-4 text-xs text-[#172317]">
+        <div className="flex items-center justify-between gap-5 text-sm text-[#172317]">
             <span className="font-bold text-[#536078]">{label}</span>
             <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-right font-black">
                 {value || "--"}
@@ -263,7 +263,7 @@ function PanelMessage({
     description: string;
 }) {
     return (
-        <div className="grid gap-2 py-6 text-sm">
+        <div className="grid gap-2.5 py-8 text-base">
             <strong className="text-[#172317]">{title}</strong>
             <span className="font-semibold text-[#536078]">{description}</span>
         </div>

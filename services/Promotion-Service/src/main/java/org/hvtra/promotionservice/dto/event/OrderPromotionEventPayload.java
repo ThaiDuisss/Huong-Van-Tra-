@@ -6,6 +6,7 @@ import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.kafka.event.CommonEventPayload;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -23,5 +24,6 @@ public class OrderPromotionEventPayload implements CommonEventPayload {
     BigDecimal finalAmount;
     BigDecimal paidAmount;
     BigDecimal discountAmount;
+    List<String> usageIds;
     String causationId;
 }

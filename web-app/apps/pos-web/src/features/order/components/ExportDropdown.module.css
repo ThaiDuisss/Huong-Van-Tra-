@@ -1,0 +1,99 @@
+.exportMenuWrap {
+  position: relative;
+}
+
+.exportMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  width: 280px;
+  gap: 4px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px;
+  box-shadow: 0 16px 34px rgb(31 53 43 / 0.14);
+}
+
+.exportMenu button {
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #172317;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.exportMenu button:hover:not(:disabled) {
+  background: #f4f7f5;
+}
+
+.exportMenu button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.exportMenu strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.exportMenu span {
+  color: #536078;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.spinIcon {
+  animation: spin 0.8s linear infinite;
+}
+
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 90;
+  max-width: min(420px, calc(100vw - 32px));
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 16px 34px rgb(31 53 43 / 0.18);
+}
+
+.toastSuccess {
+  background: #07883a;
+}
+
+.toastError {
+  background: #c2410c;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .exportMenuWrap {
+    flex: 1 1 150px;
+  }
+
+  .exportMenuWrap > button {
+    width: 100%;
+  }
+
+  .exportMenu {
+    right: auto;
+    left: 0;
+    width: min(280px, calc(100vw - 32px));
+  }
+}

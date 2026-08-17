@@ -134,6 +134,64 @@ async function parseJsonSafely(
     }
 }
 
+function responseFilename(response: Response): string | null {
+    const contentDisposition =
+        response.headers.get("Content-Disposition");
+    if (!contentDisposition) {
+        return null;
+    }
+
+    const encodedMatch =
+        contentDisposition.match(
+            /filename\*\s*=\s*UTF-8''([^;]+)/i
+        );
+    const plainMatch =
+        contentDisposition.match(
+            /filename\s*=\s*(?:"([^"]+)"|([^;]+))/i
+        );
+    const rawFilename =
+        encodedMatch?.[1] ??
+        plainMatch?.[1] ??
+        plainMatch?.[2];
+    if (!rawFilename) {
+        return null;
+    }
+
+    let filename = rawFilename.trim();
+    try {
+        filename = decodeURIComponent(filename);
+    } catch {
+        // Keep a valid non-percent-encoded filename.
+    }
+
+    return filename.split(/[\\/]/).pop()?.trim() || null;
+}
+
+async function parseDownloadBlob(
+    response: Response
+): Promise<Blob> {
+    const blob = await response.blob();
+    const filename = responseFilename(response);
+    if (!filename) {
+        return blob;
+    }
+
+    if (typeof File !== "undefined") {
+        return new File([blob], filename, {
+            type: blob.type,
+            lastModified: Date.now()
+        });
+    }
+
+    Object.defineProperty(blob, "name", {
+        configurable: false,
+        enumerable: true,
+        value: filename,
+        writable: false
+    });
+    return blob;
+}
+
 async function parseResponse(
     response: Response,
     responseType: ResponseType
@@ -151,7 +209,7 @@ async function parseResponse(
 
     switch (responseType) {
         case "blob":
-            return response.blob();
+            return parseDownloadBlob(response);
 
         case "text":
             return response.text();
@@ -199,6 +257,22 @@ function parseErrorBody(
     }
 
     return {};
+}
+
+async function parseBlobErrorBody(
+    body: Blob
+): Promise<unknown> {
+    const text = await body.text();
+
+    if (!text) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch {
+        return text;
+    }
 }
 
 function unwrapApiResponse<T>(
@@ -389,8 +463,11 @@ export function createApiClient(
                 );
 
             if (!response.ok) {
+                const errorBody = isBlob(parsedBody)
+                    ? await parseBlobErrorBody(parsedBody)
+                    : parsedBody;
                 const parsedError =
-                    parseErrorBody(parsedBody);
+                    parseErrorBody(errorBody);
 
                 throw new ApiError({
                     status: response.status,

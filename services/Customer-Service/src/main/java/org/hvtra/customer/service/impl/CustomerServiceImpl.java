@@ -74,6 +74,10 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public CustomerResponse create(CustomerRequest request) {
+        if (customerRepository.existsByPhone(request.phone())){
+            throw new RuntimeException();
+        }
+
         CustomerRequest normalizedRequest = normalizeCreateRequest(request);
         ensureUniqueFields(normalizedRequest, null);
         Customer customer = new Customer();

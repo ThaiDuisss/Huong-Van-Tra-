@@ -134,6 +134,10 @@ public class CouponUsageServiceImpl implements CouponUsageService {
     public CouponUsageResponse applyUsage(UUID usageId) {
         CouponUsage usage = getExistingUsage(usageId);
 
+        if (usage.getStatus() == CouponUsageStatus.APPLIED) {
+            return couponUsageMapper.toResponse(usage);
+        }
+
         couponUsageValidator.validateBeforeApply(usage);
 
         usage.setStatus(CouponUsageStatus.APPLIED);

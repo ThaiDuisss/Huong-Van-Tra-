@@ -12,4 +12,5 @@ public interface CarrierShipmentRepository extends JpaRepository<CarrierShipment
     Optional<CarrierShipment> findByProviderAndTrackingCode(DeliveryProvider provider, String trackingCode);
     Optional<CarrierShipment> findByProviderAndExternalOrderCode(DeliveryProvider provider, String externalOrderCode);
     Optional<CarrierShipment> findByShipmentIdAndProvider(UUID shipmentId, DeliveryProvider provider);
+    Optional<CarrierShipment> findByProviderAndClientOrderCode(DeliveryProvider provider, String clientOrderCode);
 }

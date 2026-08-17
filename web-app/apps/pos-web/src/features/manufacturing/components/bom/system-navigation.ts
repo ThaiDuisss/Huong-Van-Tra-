@@ -181,11 +181,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 label: "Lịch sử giảm giá",
                 to: routePaths.discountHistory,
                 icon: History
-            },
-            {
-                label: "Các quy tắc giảm giá",
-                to: routePaths.discountRules,
-                icon: FileText
             }
         ]
     },

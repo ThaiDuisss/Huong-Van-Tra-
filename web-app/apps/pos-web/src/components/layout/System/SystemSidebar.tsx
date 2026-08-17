@@ -1,143 +1,213 @@
 import { ChevronDown, MapPin } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-import { HvtLogo } from "../../shared/HvtLogo";
-import { systemNavigationItems } from "./system-navigation";
+import { useAuth } from "../../../auth/auth-context";
 import { routePaths } from "../../../routes/path";
+import { HvtLogo } from "../../shared/HvtLogo";
+import {
+    filterNavigationByRoles,
+    getFirstNavigationPath,
+    isNavigationItemActive,
+    systemNavigationItems,
+    type SystemNavigationItem
+} from "./system-navigation";
+
+function getActiveKeys(items: readonly SystemNavigationItem[], pathname: string) {
+    const keys: string[] = [];
+
+    for (const item of items) {
+        if (!isNavigationItemActive(item, pathname)) {
+            continue;
+        }
+
+        keys.push(item.key);
+
+        if (item.children) {
+            keys.push(...getActiveKeys(item.children, pathname));
+        }
+
+        break;
+    }
+
+    return keys;
+}
+
+type SidebarItemProps = {
+    item: SystemNavigationItem;
+    level: number;
+    openKeys: Set<string>;
+    pathname: string;
+    onNavigate(to: string): void;
+    onToggle(item: SystemNavigationItem): void;
+};
+
+function SidebarItem({
+    item,
+    level,
+    onNavigate,
+    onToggle,
+    openKeys,
+    pathname
+}: SidebarItemProps) {
+    const Icon = item.icon;
+    const hasChildren = Boolean(item.children?.length);
+    const isOpen = openKeys.has(item.key);
+    const isActive = isNavigationItemActive(item, pathname);
+    const itemPath = getFirstNavigationPath(item);
+    const levelClasses =
+        level === 0
+            ? "h-9 px-2 text-[13px]"
+            : level === 1
+                ? "h-8 px-2 text-[12px]"
+                : "h-8 px-2 text-[12px]";
+    const stateClasses = isActive
+        ? level === 2
+            ? "bg-[#f1fbf3] text-[#159734]"
+            : "bg-[#edf8ef] text-[#159734]"
+        : level === 0
+            ? "text-[#159734] hover:bg-[#f4faf5]"
+            : "text-[#315f3c] hover:bg-[#f4faf5] hover:text-[#159734]";
+
+    if (!hasChildren && item.to) {
+        return (
+            <NavLink
+                to={item.to}
+                className={({ isActive: navActive }) =>
+                    `flex w-full items-center gap-2 rounded-lg text-left font-semibold transition ${levelClasses} ${
+                        navActive || isActive
+                            ? "bg-[#f1fbf3] text-[#159734]"
+                            : stateClasses
+                    }`
+                }
+            >
+                {level < 2 ? (
+                    <Icon size={level === 0 ? 17 : 14} strokeWidth={1.9} aria-hidden="true" />
+                ) : (
+                    <span className="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
+                )}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            </NavLink>
+        );
+    }
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => {
+                    if (hasChildren) {
+                        onToggle(item);
+                        return;
+                    }
+
+                    if (itemPath) {
+                        onNavigate(itemPath);
+                    }
+                }}
+                className={`flex w-full items-center gap-2 rounded-lg text-left font-semibold transition ${levelClasses} ${stateClasses}`}
+                aria-expanded={hasChildren ? isOpen : undefined}
+            >
+                <Icon size={level === 0 ? 17 : 14} strokeWidth={1.9} aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {hasChildren ? (
+                    <ChevronDown
+                        className={`shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        size={14}
+                        aria-hidden="true"
+                    />
+                ) : null}
+            </button>
+
+            {hasChildren && isOpen ? (
+                <ul
+                    className={`mt-1 grid gap-1 border-l border-[#d8eadc] ${
+                        level === 0 ? "ml-4 pl-3" : "ml-3 pl-2"
+                    }`}
+                >
+                    {item.children?.map((child) => (
+                        <li key={child.key}>
+                            <SidebarItem
+                                item={child}
+                                level={level + 1}
+                                onNavigate={onNavigate}
+                                onToggle={onToggle}
+                                openKeys={openKeys}
+                                pathname={pathname}
+                            />
+                        </li>
+                    ))}
+                </ul>
+            ) : null}
+        </>
+    );
+}
 
 export function SystemSidebar() {
     const location = useLocation();
     const navigate = useNavigate();
-    const activeGroup =
-        systemNavigationItems.find((item) =>
-            item.children?.some(
-                (child) =>
-                    location.pathname === child.to ||
-                    location.pathname.startsWith(`${child.to}/`)
-            )
-        )?.label ?? null;
-    const [openGroup, setOpenGroup] = useState<string | null>(
-        activeGroup ?? "Khách hàng"
+    const { avatarUrl, displayName, roleLabel, roles, username } = useAuth();
+    const visibleNavigationItems = useMemo(
+        () => filterNavigationByRoles(systemNavigationItems, roles),
+        [roles]
     );
+    const activeKeys = useMemo(
+        () => getActiveKeys(visibleNavigationItems, location.pathname),
+        [location.pathname, visibleNavigationItems]
+    );
+    const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set(activeKeys));
+    const effectiveOpenKeys = useMemo(
+        () => new Set([...openKeys, ...activeKeys]),
+        [activeKeys, openKeys]
+    );
+    const userLabel = displayName ?? username ?? "Người dùng";
+    const userInitial = userLabel.trim().charAt(0).toUpperCase() || "U";
+
+    function handleToggle(item: SystemNavigationItem) {
+        setOpenKeys((current) => {
+            const next = new Set(current);
+
+            if (next.has(item.key)) {
+                next.delete(item.key);
+            } else {
+                if (item.children && visibleNavigationItems.some((root) => root.key === item.key)) {
+                    visibleNavigationItems.forEach((root) => {
+                        if (root.key !== item.key) {
+                            next.delete(root.key);
+                        }
+                    });
+                }
+
+                next.add(item.key);
+            }
+
+            return next;
+        });
+    }
 
     return (
-        <aside className="flex h-dvh min-h-0 w-[178px] shrink-0 flex-col overflow-hidden border-r border-[#e8eef0] bg-white px-3 py-4 text-[#159734] shadow-[8px_0_30px_rgba(25,70,45,0.05)] xl:w-[188px]">
+        <aside className="flex h-dvh min-h-0 w-[210px] shrink-0 flex-col overflow-hidden border-r border-[#e8eef0] bg-white px-3 py-4 text-[#159734] shadow-[8px_0_30px_rgba(25,70,45,0.05)] xl:w-[224px]">
             <div className="mb-5 shrink-0 px-1">
                 <HvtLogo compact={false} />
             </div>
 
             <nav
-                className="min-h-0 flex-1 overflow-hidden"
+                className="min-h-0 flex-1 overflow-y-auto pr-1"
                 aria-label="Điều hướng quản lý hệ thống"
             >
-                <ul className="grid gap-2">
-                    {systemNavigationItems.map((item) => {
-                        const Icon = item.icon;
-                        const childActive = item.children?.some(
-                            (child) =>
-                                location.pathname === child.to ||
-                                location.pathname.startsWith(
-                                    `${child.to}/`
-                                )
-                        );
-                        const isOpen =
-                            openGroup === item.label ||
-                            (openGroup === null && childActive);
-                        const firstChildTo = item.children?.[0]?.to;
-
-                        return (
-                            <li key={item.label}>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (item.children) {
-                                            setOpenGroup((current) =>
-                                                current === item.label
-                                                    ? null
-                                                    : item.label
-                                            );
-
-                                            if (firstChildTo) {
-                                                navigate(firstChildTo);
-                                            }
-                                        }
-                                    }}
-                                    className={`flex h-9 w-full items-center gap-2.5 rounded-lg px-2 text-left text-[13px] font-semibold ${
-                                        childActive || item.label === activeGroup
-                                            ? "bg-[#edf8ef] text-[#159734]"
-                                            : "text-[#159734] hover:bg-[#f4faf5]"
-                                    }`}
-                                >
-                                    <Icon
-                                        size={17}
-                                        strokeWidth={1.9}
-                                        aria-hidden="true"
-                                    />
-                                    <span className="min-w-0 flex-1 truncate">
-                                        {item.label}
-                                    </span>
-                                    {item.badge ? (
-                                        <span className="grid min-w-5 place-items-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
-                                            {item.badge}
-                                        </span>
-                                    ) : null}
-                                    {item.children ? (
-                                        isOpen ? (
-                                            <ChevronDown
-                                                className="rotate-180"
-                                                size={14}
-                                                aria-hidden="true"
-                                            />
-                                        ) : (
-                                            <ChevronDown
-                                                size={14}
-                                                aria-hidden="true"
-                                            />
-                                        )
-                                    ) : null}
-                                </button>
-
-                                {item.children && isOpen ? (
-                                    <ul className="ml-4 mt-1 grid gap-1 border-l border-[#d8eadc] pl-3">
-                                        {item.children.map(
-                                            (child) => {
-                                                return (
-                                                    <li
-                                                        key={
-                                                            child.to
-                                                        }
-                                                    >
-                                                        <NavLink
-                                                            to={
-                                                                child.to
-                                                            }
-                                                            className={({
-                                                                isActive
-                                                            }) =>
-                                                                `flex h-8 items-center gap-2 rounded-md px-2 text-[12px] font-semibold transition ${isActive
-                                                                    ? "bg-[#f1fbf3] text-[#159734]"
-                                                                    : "text-[#315f3c] hover:bg-[#f4faf5] hover:text-[#159734]"
-                                                                }`
-                                                            }
-                                                        >
-                                                            <span
-                                                                className="size-1.5 rounded-full bg-current"
-                                                                aria-hidden="true"
-                                                            />
-                                                            {
-                                                                child.label
-                                                            }
-                                                        </NavLink>
-                                                    </li>
-                                                );
-                                            }
-                                        )}
-                                    </ul>
-                                ) : null}
-                            </li>
-                        );
-                    })}
+                <ul className="grid gap-1.5">
+                    {visibleNavigationItems.map((item) => (
+                        <li key={item.key}>
+                            <SidebarItem
+                                item={item}
+                                level={0}
+                                onNavigate={navigate}
+                                onToggle={handleToggle}
+                                openKeys={effectiveOpenKeys}
+                                pathname={location.pathname}
+                            />
+                        </li>
+                    ))}
                 </ul>
             </nav>
 
@@ -148,13 +218,24 @@ export function SystemSidebar() {
                     className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-2 text-left hover:bg-[#f4faf5]"
                     aria-label="Chuyển về POS bán hàng"
                 >
-                    <span className="block size-8 shrink-0 overflow-hidden rounded-full bg-[linear-gradient(135deg,#f8c9b5,#182438)]" />
+                    <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#f8c9b5,#182438)] text-xs font-bold text-white">
+                        {avatarUrl ? (
+                            <img
+                                src={avatarUrl}
+                                alt=""
+                                className="size-full object-cover"
+                                aria-hidden="true"
+                            />
+                        ) : (
+                            userInitial
+                        )}
+                    </span>
                     <span className="min-w-0 flex-1">
                         <strong className="block truncate text-[12px] text-[#315f3c]">
-                            Phạm Thu Hương
+                            {userLabel}
                         </strong>
                         <span className="block truncate text-[11px] text-[#5f7a66]">
-                            Quản trị viên
+                            {roleLabel ?? "Người dùng"}
                         </span>
                     </span>
                     <ChevronDown size={13} aria-hidden="true" />

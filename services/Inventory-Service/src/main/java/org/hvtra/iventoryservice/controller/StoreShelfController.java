@@ -5,7 +5,7 @@ import org.hvtra.iventoryservice.dto.request.InventoryStatusRequest;
 import org.hvtra.iventoryservice.dto.request.StoreShelfRequest;
 import org.hvtra.iventoryservice.dto.response.InventoryLocationResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
-import org.hvtra.iventoryservice.enums.InventoryStatus;
+import org.hvtra.iventoryservice.shared.enums.InventoryStatus;
 import org.hvtra.iventoryservice.service.StoreShelfService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;

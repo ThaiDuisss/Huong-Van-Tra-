@@ -16,6 +16,7 @@ import type { PosCheckoutPaymentResult } from "../../services/posCheckout.servic
 import type {
     SaleCustomer,
     SaleDiscountOption,
+    SaleManualDiscount,
     SaleOrderType,
     SalePaymentMethod,
     SaleTotals
@@ -25,7 +26,7 @@ interface CheckoutPanelProps {
     discounts: SaleDiscountOption[];
     selectedDiscountId: string;
     totals: SaleTotals;
-    subtotalOverrideNote: string;
+    manualOrderDiscount: SaleManualDiscount | null;
     cashReceived: number;
     changeAmount: number;
     orderType: SaleOrderType;
@@ -42,8 +43,7 @@ interface CheckoutPanelProps {
     customersError: string;
     selectedCustomer: SaleCustomer | null;
     onDiscountChange(discountId: string): void;
-    onSubtotalOverride(value: number, note: string): void;
-    onSubtotalReset(): void;
+    onManualOrderDiscountChange(value: SaleManualDiscount | null): void;
     onCashReceivedChange(value: number): void;
     onPaymentMethodChange(value: SalePaymentMethod): void;
     onCustomerOpen(): void;
@@ -60,7 +60,7 @@ export function CheckoutPanel({
     discounts,
     selectedDiscountId,
     totals,
-    subtotalOverrideNote,
+    manualOrderDiscount,
     cashReceived,
     changeAmount,
     orderType,
@@ -77,8 +77,7 @@ export function CheckoutPanel({
     customersError,
     selectedCustomer,
     onDiscountChange,
-    onSubtotalOverride,
-    onSubtotalReset,
+    onManualOrderDiscountChange,
     onCashReceivedChange,
     onPaymentMethodChange,
     onCustomerOpen,
@@ -128,9 +127,8 @@ export function CheckoutPanel({
             <div className="grid gap-3">
                 <OrderTotals
                     totals={totals}
-                    subtotalOverrideNote={subtotalOverrideNote}
-                    onSubtotalOverride={onSubtotalOverride}
-                    onSubtotalReset={onSubtotalReset}
+                    manualOrderDiscount={manualOrderDiscount}
+                    onManualOrderDiscountChange={onManualOrderDiscountChange}
                 />
                 <DiscountSelector
                     discounts={discounts}

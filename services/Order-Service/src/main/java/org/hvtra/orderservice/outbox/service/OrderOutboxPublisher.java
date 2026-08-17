@@ -11,10 +11,11 @@ import org.hvtra.orderservice.outbox.event.OrderEventType;
 import org.hvtra.orderservice.outbox.resolver.OrderOutboxTopicResolver;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -39,7 +40,7 @@ public class OrderOutboxPublisher {
             publish(order, OrderEventType.CUSTOMER_PURCHASE_UPDATE_REQUESTED, paymentEventId, "customer-purchase-update", sagaId);
         }
 
-        if (defaultZero(order.getDiscountAmount()).compareTo(BigDecimal.ZERO) > 0) {
+        if (!couponUsageIds(order).isEmpty()) {
             publish(order, OrderEventType.PROMOTION_USAGE_COMMIT_REQUESTED, paymentEventId, "promotion-commit", sagaId);
         }
     }
@@ -193,6 +194,7 @@ public class OrderOutboxPublisher {
         payload.put("finalAmount", order.getFinalAmount());
         payload.put("paidAmount", order.getPaidAmount());
         payload.put("discountAmount", order.getDiscountAmount());
+        payload.put("usageIds", couponUsageIds(order));
         payload.put("sagaId", sagaId);
         payload.put("correlationId", firstNonBlank(sagaId, order.getId().toString()));
         payload.put("causationId", causationId);
@@ -289,7 +291,17 @@ public class OrderOutboxPublisher {
         return order.getCreatedBy() == null ? null : order.getCreatedBy().toString();
     }
 
-    private BigDecimal defaultZero(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
+    private List<String> couponUsageIds(Order order) {
+        if (order.getDiscounts() == null) {
+            return List.of();
+        }
+
+        return order.getDiscounts().stream()
+                .map(discount -> discount.getUsageId())
+                .filter(Objects::nonNull)
+                .map(UUID::toString)
+                .distinct()
+                .toList();
     }
+
 }

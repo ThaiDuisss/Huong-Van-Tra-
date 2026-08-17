@@ -11,9 +11,12 @@ import org.hvtra.orderservice.domain.enums.DiscountSource;
 import org.hvtra.orderservice.domain.enums.DiscountType;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Data
 public class CreateDiscountRequest {
+
+    private UUID usageId;
 
     @NotNull(message = "discountType không được để trống")
     private DiscountType discountType;
