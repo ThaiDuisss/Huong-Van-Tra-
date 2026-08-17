@@ -8,6 +8,12 @@ import type {
     OrderSummaryResponse,
     UpdateOrderStatusRequest
 } from "../types/order.types";
+import type { OrderExportQueryParams } from "../utils/order-export-filters";
+
+type InvoiceExportQueryParams = Pick<
+    OrderQueryParams,
+    "fromDate" | "keyword" | "paymentStatus" | "sort" | "toDate"
+>;
 
 function compactQuery(params: OrderQueryParams = {}) {
     return Object.fromEntries(
@@ -23,6 +29,18 @@ function compactQuery(params: OrderQueryParams = {}) {
 
 export function getOrders(params: OrderQueryParams = {}) {
     return apiClient.get<OrderPageResponse<OrderSummaryResponse>>("/orders", {
+        query: compactQuery(params)
+    });
+}
+
+export function exportOrders(params: OrderExportQueryParams = {}) {
+    return apiClient.download("/orders/export", {
+        query: compactQuery(params)
+    });
+}
+
+export function exportInvoices(params: InvoiceExportQueryParams = {}) {
+    return apiClient.download("/orders/invoices/export/excel", {
         query: compactQuery(params)
     });
 }
@@ -60,6 +78,8 @@ export function cancelOrder(orderId: string, body: CancelOrderRequest) {
 
 export const orderApi = {
     getOrders,
+    exportOrders,
+    exportInvoices,
     getOrderById,
     getOrderStats,
     updateOrderStatus,

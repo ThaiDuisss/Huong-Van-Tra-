@@ -1,8 +1,6 @@
 import {
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
-    FileSpreadsheet,
     MoreHorizontal,
     Plus,
     Search,
@@ -11,9 +9,16 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
+import {
+    buildTodayTimeNode,
+    getDateRangeFromTimeNode,
+    type TimeNode
+} from "../../../components/shared/TimeHierarchyFilter.utils";
+import { ExportDropdown } from "../components/ExportDropdown";
 import { OrderDetailPanel } from "../components/OrderDetailPanel";
 import { OrderStatusBadge } from "../components/OrderStatusBadge";
 import {
+    exportOrders,
     getOrderById,
     getOrders,
     getOrderStats
@@ -30,6 +35,7 @@ import {
     getOrderCode,
     getOrderStatusText
 } from "../utils/order-formatters";
+import { buildActiveOrderExportParams } from "../utils/order-export-filters";
 import styles from "./OrderListPage.module.css";
 
 type OrderStatusTabKey =
@@ -54,6 +60,8 @@ const ORDER_STATUS_TABS: {
     key: OrderStatusTabKey;
     label: string;
     status: string | null;
+    paymentStatus?: string | null;
+    emptyResult?: boolean;
     countKey: keyof OrderStatsResponse;
 }[] = [
     { key: "ALL", label: "Tất cả", status: null, countKey: "total" },
@@ -66,13 +74,14 @@ const ORDER_STATUS_TABS: {
     {
         key: "PROCESSING",
         label: "Xử lý",
-        status: "PROCESSING",
+        status: "PAYMENT_CONFIRMED",
         countKey: "processing"
     },
     {
         key: "SHIPPING",
         label: "Giao",
-        status: "SHIPPING",
+        status: null,
+        emptyResult: true,
         countKey: "shipping"
     },
     {
@@ -84,8 +93,8 @@ const ORDER_STATUS_TABS: {
     {
         key: "RETURN_REFUND",
         label: "Hoàn tiền",
-        // TODO: khi backend hỗ trợ nhiều status/lần, truyền RETURNED và REFUNDED cùng lúc.
-        status: "RETURNED",
+        status: null,
+        paymentStatus: "REFUNDED",
         countKey: "returnedOrRefunded"
     }
 ];
@@ -128,6 +137,9 @@ function getPageNumbers(totalPages: number, currentPage: number) {
 export function OrderListPage() {
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(
+        buildTodayTimeNode
+    );
     const debouncedKeyword = useDebouncedValue(searchTerm.trim(), 400);
     const [filterStatus, setFilterStatus] =
         useState<OrderStatusTabKey>("ALL");
@@ -149,6 +161,7 @@ export function OrderListPage() {
     const activeStatusTab = ORDER_STATUS_TABS.find(
         (tab) => tab.key === filterStatus
     );
+    const timeRange = getDateRangeFromTimeNode(selectedTimeNode);
 
     useEffect(() => {
         let ignore = false;
@@ -156,10 +169,18 @@ export function OrderListPage() {
             setIsOrdersLoading(true);
             setOrdersError(null);
 
+            if (activeStatusTab?.emptyResult) {
+                setOrdersPage(emptyPage);
+                setIsOrdersLoading(false);
+                return;
+            }
+
             getOrders({
+                fromDate: timeRange?.fromDate,
                 keyword: debouncedKeyword,
                 status: activeStatusTab?.status ?? undefined,
-                sort: "businessStatus",
+                paymentStatus: activeStatusTab?.paymentStatus ?? undefined,
+                toDate: timeRange?.toDate,
                 page: currentPage,
                 size: PAGE_SIZE
             })
@@ -189,12 +210,23 @@ export function OrderListPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [activeStatusTab?.status, currentPage, debouncedKeyword]);
+    }, [
+        activeStatusTab?.paymentStatus,
+        activeStatusTab?.emptyResult,
+        activeStatusTab?.status,
+        currentPage,
+        debouncedKeyword,
+        timeRange?.fromDate,
+        timeRange?.toDate
+    ]);
 
     useEffect(() => {
         let ignore = false;
 
-        getOrderStats()
+        getOrderStats({
+            fromDate: timeRange?.fromDate,
+            toDate: timeRange?.toDate
+        })
             .then((response) => {
                 if (!ignore) {
                     setStats(response ?? {});
@@ -209,7 +241,7 @@ export function OrderListPage() {
         return () => {
             ignore = true;
         };
-    }, []);
+    }, [timeRange?.fromDate, timeRange?.toDate]);
 
     useEffect(() => {
         if (!activeOrderId) {
@@ -255,6 +287,16 @@ export function OrderListPage() {
         setCurrentPage(0);
     };
 
+    const selectTimeNode = (node: TimeNode) => {
+        setSelectedTimeNode(node);
+        setCurrentPage(0);
+    };
+
+    const clearTimeRange = () => {
+        setSelectedTimeNode(null);
+        setCurrentPage(0);
+    };
+
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
         setCurrentPage(0);
@@ -294,10 +336,14 @@ export function OrderListPage() {
         window.alert("Chức năng nhập file đang được phát triển");
     };
 
-    const handleExportFile = () => {
-        console.log("TODO: Xuất file đơn hàng");
-        window.alert("Chức năng xuất file đang được phát triển");
-    };
+    const buildCurrentFilterExportParams = () =>
+        buildActiveOrderExportParams({
+            fromDate: timeRange?.fromDate,
+            keyword: debouncedKeyword,
+            status: activeStatusTab?.status,
+            paymentStatus: activeStatusTab?.paymentStatus,
+            toDate: timeRange?.toDate
+        });
 
     const fromRecord =
         totalElements > 0 ? ordersPage.number * ordersPage.size + 1 : 0;
@@ -320,10 +366,15 @@ export function OrderListPage() {
             }`}
         >
             <TimeSidebar
+                activeDate={timeRange?.selectedDate ?? undefined}
                 collapsed={isTimeCollapsed}
+                enableCalendar
+                onClear={clearTimeRange}
+                onSelect={selectTimeNode}
                 onToggleCollapse={() =>
                     setIsTimeCollapsed((collapsed) => !collapsed)
                 }
+                selectedNode={selectedTimeNode}
             />
 
             <div className={styles.content}>
@@ -358,15 +409,30 @@ export function OrderListPage() {
                             <Upload size={18} aria-hidden="true" />
                             Nhập file
                         </button>
-                        <button
-                            className={styles.secondaryButton}
-                            onClick={handleExportFile}
-                            type="button"
-                        >
-                            <FileSpreadsheet size={18} aria-hidden="true" />
-                            Xuất file
-                            <ChevronDown size={16} aria-hidden="true" />
-                        </button>
+                        <ExportDropdown
+                            allDescription="Bỏ qua các bộ lọc hiện tại"
+                            allFilenamePrefix="tat-ca-don-hang"
+                            allLabel="Xuất toàn bộ đơn hàng"
+                            buttonClassName={styles.secondaryButton}
+                            emptyFilteredMessage="Không có đơn hàng phù hợp với bộ lọc để xuất file."
+                            fallbackErrorMessage="Không thể xuất file đơn hàng. Vui lòng thử lại."
+                            filteredDescription="Áp dụng thời gian, trạng thái và từ khóa đang chọn"
+                            filteredFilenamePrefix="don-hang-theo-bo-loc"
+                            hasNoFilteredData={
+                                Boolean(activeStatusTab?.emptyResult) ||
+                                (!isOrdersLoading &&
+                                    !ordersError &&
+                                    totalElements === 0)
+                            }
+                            onExport={(mode) =>
+                                exportOrders(
+                                    mode === "filtered"
+                                        ? buildCurrentFilterExportParams()
+                                        : {}
+                                )
+                            }
+                            successMessage="Đã xuất file đơn hàng thành công."
+                        />
                     </div>
                 </div>
 
@@ -701,6 +767,7 @@ export function OrderListPage() {
                     ) : null}
                 </div>
             </div>
+
         </section>
     );
 }

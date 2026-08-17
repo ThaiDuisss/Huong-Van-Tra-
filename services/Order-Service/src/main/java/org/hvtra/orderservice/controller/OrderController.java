@@ -18,14 +18,20 @@ import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
+import org.hvtra.orderservice.service.OrderExportService;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @RestController
@@ -34,8 +40,11 @@ import java.util.UUID;
 public class OrderController {
 
     private static final String UUID_PATH = "{orderId:[0-9a-fA-F\\-]{36}}";
+    private static final DateTimeFormatter EXPORT_FILENAME_TIME =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     private final OrderService orderService;
+    private final OrderExportService orderExportService;
 
     @Operation(summary = "checkout hoa don POS da tao draft")
     @PostMapping("/pos/checkout")
@@ -96,6 +105,58 @@ public class OrderController {
     @GetMapping("/" + UUID_PATH + "/payment-info")
     public OrderPaymentInfoResponse getPaymentInfo(@PathVariable UUID orderId) {
         return orderService.getPaymentInfo(orderId);
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportOrders(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) PaymentStatus paymentStatus,
+            @RequestParam(required = false) String orderType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "businessStatus") String sort
+    ) {
+        byte[] excelBytes = orderExportService.exportOrders(
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate,
+                sort
+        );
+
+        return excelResponse(excelBytes, exportFilename(
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate
+        ));
+    }
+
+    @GetMapping("/invoices/export/excel")
+    public ResponseEntity<byte[]> exportInvoices(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) PaymentStatus paymentStatus,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "invoicePayment") String sort
+    ) {
+        byte[] excelBytes = orderExportService.exportInvoices(
+                keyword,
+                paymentStatus,
+                fromDate,
+                toDate,
+                sort
+        );
+
+        return excelResponse(
+                excelBytes,
+                invoiceExportFilename(keyword, paymentStatus, fromDate, toDate)
+        );
     }
 
     @Operation(summary = "Api cho Payment-Service gọi sau khi thanh toán thành công để cập nhật trạng thái đơn hàng")
@@ -169,5 +230,59 @@ public class OrderController {
             @Valid @RequestBody CancelOrderRequest request
     ) {
         return orderService.cancelOrder(orderId, request);
+    }
+
+    private String exportFilename(
+            String keyword,
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String orderType,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+        String prefix = hasExportFilter(keyword, status, paymentStatus, orderType, fromDate, toDate)
+                ? "don-hang-theo-bo-loc"
+                : "tat-ca-don-hang";
+
+        return prefix + "-" + LocalDateTime.now().format(EXPORT_FILENAME_TIME) + ".xlsx";
+    }
+
+    private String invoiceExportFilename(
+            String keyword,
+            PaymentStatus paymentStatus,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+        boolean hasFilter = (keyword != null && !keyword.isBlank())
+                || paymentStatus != null
+                || fromDate != null
+                || toDate != null;
+        String prefix = hasFilter ? "hoa-don-theo-bo-loc" : "tat-ca-hoa-don";
+        return prefix + "-" + LocalDateTime.now().format(EXPORT_FILENAME_TIME) + ".xlsx";
+    }
+
+    private ResponseEntity<byte[]> excelResponse(byte[] excelBytes, String filename) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ))
+                .body(excelBytes);
+    }
+
+    private boolean hasExportFilter(
+            String keyword,
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String orderType,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+        return (keyword != null && !keyword.isBlank())
+                || status != null
+                || paymentStatus != null
+                || (orderType != null && !orderType.isBlank())
+                || fromDate != null
+                || toDate != null;
     }
 }

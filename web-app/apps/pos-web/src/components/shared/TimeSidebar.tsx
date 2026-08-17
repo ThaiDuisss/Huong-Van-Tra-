@@ -1,12 +1,17 @@
 import { CalendarDays, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { TimeHierarchyFilter } from "./TimeHierarchyFilter";
+import type { TimeNode } from "./TimeHierarchyFilter.utils";
 import styles from "./TimeSidebar.module.css";
 
 interface TimeSidebarProps {
     activeDate?: string;
     collapsed: boolean;
-    selectedYear?: number | null;
+    enableCalendar?: boolean;
+    selectedNode?: TimeNode | null;
+    title?: string;
+    onClear?: () => void;
+    onSelect?: (node: TimeNode) => void;
     onToggleCollapse: () => void;
     onYearChange?: (year: number) => void;
 }
@@ -14,9 +19,13 @@ interface TimeSidebarProps {
 export function TimeSidebar({
     activeDate,
     collapsed,
-    selectedYear,
+    enableCalendar = false,
+    onClear,
+    onSelect,
     onToggleCollapse,
-    onYearChange
+    onYearChange,
+    selectedNode,
+    title
 }: TimeSidebarProps) {
     return (
         <div className={styles.pane}>
@@ -42,8 +51,12 @@ export function TimeSidebar({
                     </button>
                     <TimeHierarchyFilter
                         activeDate={activeDate}
-                        selectedYear={selectedYear}
+                        enableCalendar={enableCalendar}
+                        onClear={onClear}
+                        onSelect={onSelect}
                         onYearChange={onYearChange}
+                        selectedNode={selectedNode}
+                        title={title}
                     />
                 </>
             )}

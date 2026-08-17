@@ -88,18 +88,18 @@ export function OrderDetailPanel({
             className="min-h-0 overflow-auto rounded-xl border border-[#edf0f4] bg-white shadow-[0_16px_38px_rgb(31_53_43_/_0.05)]"
             aria-label="Chi tiết đơn hàng"
         >
-            <div className="flex items-center justify-between gap-3 border-b border-[#edf0f4] px-4 py-3.5">
-                <h2 className="m-0 text-[17px] font-black text-[#172317]">
+            <div className="flex items-center justify-between gap-3 border-b border-[#edf0f4] px-7 py-5">
+                <h2 className="m-0 text-xl font-black text-[#172317]">
                     Chi tiết đơn hàng
                 </h2>
                 {onClose ? (
                     <button
                         aria-label="Đóng chi tiết đơn hàng"
-                        className="grid size-8 place-items-center rounded-lg border-0 bg-transparent text-[#536078] hover:bg-[#f4f7f5]"
+                        className="grid size-9 place-items-center rounded-lg border-0 bg-transparent text-[#536078] hover:bg-[#f4f7f5]"
                         onClick={onClose}
                         type="button"
                     >
-                        <X size={17} aria-hidden="true" />
+                        <X size={18} aria-hidden="true" />
                     </button>
                 ) : null}
             </div>
@@ -124,11 +124,11 @@ export function OrderDetailPanel({
 
             {displayOrder && !loading && !error ? (
                 <>
-                    <section className="border-b border-[#edf0f4] px-4 py-3.5">
-                        <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
+                    <section className="border-b border-[#edf0f4] px-7 py-5">
+                        <h3 className="mb-4 mt-0 text-base font-black text-[#172317]">
                             Thông tin đơn
                         </h3>
-                        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2">
                             <InfoRow label="Mã đơn hàng" value={getOrderCode(displayOrder)} />
                             <InfoRow
                                 label="Trạng thái đơn"
@@ -173,12 +173,12 @@ export function OrderDetailPanel({
                         </div>
                     </section>
 
-                    <section className="border-b border-[#edf0f4] px-4 py-3.5">
-                        <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
+                    <section className="border-b border-[#edf0f4] px-7 py-5">
+                        <h3 className="mb-4 mt-0 text-base font-black text-[#172317]">
                             Sản phẩm
                         </h3>
                         {order?.items?.length ? (
-                            <ul className="m-0 grid gap-2.5 p-0">
+                            <ul className="m-0 grid gap-3 p-0">
                                 {order.items.map((item, index) => {
                                     const unitPrice = getItemUnitPrice(item);
                                     const lineTotal = getItemLineTotal(item);
@@ -190,14 +190,14 @@ export function OrderDetailPanel({
 
                                     return (
                                         <li
-                                            className="grid list-none grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-[#edf0f4] bg-[#f8faf9] px-3 py-2.5 text-xs text-[#172317]"
+                                            className="grid list-none grid-cols-[minmax(0,1fr)_auto] gap-4 rounded-lg border border-[#edf0f4] bg-[#f8faf9] px-5 py-4 text-sm text-[#172317]"
                                             key={item.id ?? `${item.productVariantId}-${index}`}
                                         >
                                             <div className="min-w-0">
                                                 <div className="truncate font-black">
                                                     {item.productNameSnapshot || "--"}
                                                 </div>
-                                                <div className="mt-1 truncate font-bold text-[#536078]">
+                                                <div className="mt-1.5 truncate font-bold text-[#536078]">
                                                     {itemMeta.join(" · ")}
                                                 </div>
                                             </div>
@@ -205,7 +205,7 @@ export function OrderDetailPanel({
                                                 <strong className="block whitespace-nowrap font-black text-[#172317]">
                                                     {formatCurrency(lineTotal)}
                                                 </strong>
-                                                <span className="mt-1 inline-flex rounded-md bg-[#e9f8ed] px-2 py-0.5 text-[11px] font-black text-[#07883a]">
+                                                <span className="mt-1.5 inline-flex rounded-md bg-[#e9f8ed] px-2.5 py-1 text-xs font-black text-[#07883a]">
                                                     SL: {getItemQuantityText(item)}
                                                 </span>
                                             </div>
@@ -214,21 +214,21 @@ export function OrderDetailPanel({
                                 })}
                             </ul>
                         ) : (
-                            <p className="m-0 text-xs font-bold text-[#536078]">
+                            <p className="m-0 text-sm font-bold text-[#536078]">
                                 Chưa có dữ liệu sản phẩm
                             </p>
                         )}
                     </section>
 
-                    <section className="px-4 py-3.5">
-                        <h3 className="mb-3 mt-0 text-[13px] font-black text-[#172317]">
+                    <section className="px-7 py-5">
+                        <h3 className="mb-4 mt-0 text-base font-black text-[#172317]">
                             Lịch sử trạng thái
                         </h3>
                         {order?.statusHistories?.length ? (
-                            <ol className="m-0 grid gap-3 p-0">
+                            <ol className="m-0 grid gap-4 p-0">
                                 {order.statusHistories.map((history, index) => (
                                     <li
-                                        className="grid list-none gap-1 border-l-2 border-[#07883a] pl-3 text-xs"
+                                        className="grid list-none gap-1.5 border-l-2 border-[#07883a] pl-4 text-sm"
                                         key={history.id ?? index}
                                     >
                                         <strong className="text-[#172317]">
@@ -246,7 +246,7 @@ export function OrderDetailPanel({
                                 ))}
                             </ol>
                         ) : (
-                            <p className="m-0 text-xs font-bold text-[#536078]">
+                            <p className="m-0 text-sm font-bold text-[#536078]">
                                 Chưa có lịch sử trạng thái
                             </p>
                         )}
@@ -265,7 +265,7 @@ function InfoRow({
     value: ReactNode;
 }) {
     return (
-        <div className="flex items-center justify-between gap-4 text-xs text-[#172317]">
+        <div className="flex items-center justify-between gap-5 text-sm text-[#172317]">
             <span className="font-bold text-[#536078]">{label}</span>
             <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-right font-black">
                 {value || "--"}
@@ -282,7 +282,7 @@ function PanelMessage({
     description: string;
 }) {
     return (
-        <div className="grid gap-2 px-4 py-6 text-sm">
+        <div className="grid gap-2.5 px-7 py-8 text-base">
             <strong className="text-[#172317]">{title}</strong>
             <span className="font-semibold text-[#536078]">{description}</span>
         </div>
