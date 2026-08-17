@@ -39,3 +39,36 @@ eureka:
     prefer-ip-address: false
     hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
     instance-id: ${spring.application.name}:${server.port}
+
+kafka-config:
+  enabled: true
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.122.52.101:19092}
+  num-of-partitions: 3
+  replication-factor: 1
+
+kafka-consumer-config:
+  enabled: true
+  group-id: Inventory-Service-order-events
+  key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  auto-offset-reset: earliest
+  batch-listener: false
+  auto-startup: true
+  concurrency-level: 3
+  session-timeout-ms: 10000
+  heartbeat-interval-ms: 3000
+  max-poll-interval-ms: 300000
+  max-poll-records: 500
+  max-partition-fetch-bytes-default: 1048576
+  max-partition-fetch-bytes-boost-factor: 1
+  poll-timeout-ms: 150
+
+inventory:
+  order:
+    events:
+      topics:
+        reservation-confirm: inventory.reservation-confirm.requested
+
+security:
+  internal:
+      header-secret: ${INTERNAL_HEADER_SECRET}

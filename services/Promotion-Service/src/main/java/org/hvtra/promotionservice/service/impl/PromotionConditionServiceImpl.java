@@ -12,7 +12,7 @@ import org.hvtra.promotionservice.entity.Promotion;
 import org.hvtra.promotionservice.entity.PromotionCondition;
 import org.hvtra.promotionservice.mapper.PromotionConditionMapper;
 import org.hvtra.promotionservice.repository.PromotionConditionRepository;
-import org.hvtra.promotionservice.repository.PromotionRepository;
+import org.hvtra.promotionservice.repository.promotion.PromotionRepository;
 import org.hvtra.promotionservice.service.PromotionConditionService;
 import org.hvtra.promotionservice.validation.validator.PromotionConditionValidator;
 import org.springframework.data.domain.Page;

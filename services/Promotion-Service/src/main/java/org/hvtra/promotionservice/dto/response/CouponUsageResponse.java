@@ -40,7 +40,7 @@ public class CouponUsageResponse {
     @Schema(description = "Số tiền được giảm")
     BigDecimal discountAmount;
 
-    @Schema(description = "Trạng thái phiên sử dụng coupon", example = "RESERVED")
+    @Schema(description = "Trạng thái phiên sử dụng coupon", example = "RESERVED", implementation = CouponUsageStatus.class)
     CouponUsageStatus status;
 
     @Schema(description = "Token giữ chỗ coupon")
@@ -64,7 +64,7 @@ public class CouponUsageResponse {
     @Schema(description = "ID thu ngân/nhân viên xử lý")
     UUID cashierId;
 
-    @Schema(description = "Kênh bán hàng", example = "POS")
+    @Schema(description = "Kênh bán hàng", example = "POS", implementation = PromotionChannel.class)
     PromotionChannel channel;
 
     @Schema(description = "Đánh dấu bản ghi đã bị xóa mềm hay chưa")

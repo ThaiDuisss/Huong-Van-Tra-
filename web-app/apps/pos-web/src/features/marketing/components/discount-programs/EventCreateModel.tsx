@@ -1,10 +1,17 @@
-import { ChevronDown, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import {
     getEventAudienceLabel,
     getEventTypeLabel
 } from "../../utils/event-labels";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "../../../../components/ui/select";
 import {
     getFirstEventFormError,
     hasEventFormErrors,
@@ -283,28 +290,30 @@ export function EventCreateModal({
                             </span>
 
                             <div className="relative">
-                                <select
+                                <Select
+                                    className="w-full"
                                     value={form.eventType}
-                                    onChange={(event) =>
+                                    onValueChange={(value) =>
                                         updateField(
                                             "eventType",
-                                            event.currentTarget.value
+                                            value
                                         )
                                     }
-                                    className="w-full appearance-none rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 pr-11 text-sm font-semibold outline-none focus:border-[#009b4d]"
                                 >
-                                    {eventTypes.map((type) => (
-                                        <option key={type} value={type}>
-                                            {getEventTypeLabel(type)}
-                                        </option>
-                                    ))}
-                                </select>
-
-                                <ChevronDown
-                                    size={18}
-                                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#667085]"
-                                    aria-hidden="true"
-                                />
+                                    <SelectTrigger
+                                        aria-label="Loại sự kiện"
+                                        className="h-[46px] w-full rounded-xl border-[#d0d5dd] px-4 text-sm text-[#344054] shadow-none hover:bg-white"
+                                    >
+                                        <SelectValue placeholder="Chọn loại sự kiện" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-[90] rounded-xl border-[#d0d5dd] p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                                        {eventTypes.map((type) => (
+                                            <SelectItem key={type} value={type}>
+                                                {getEventTypeLabel(type)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             {fieldErrors.eventType ? (
                                 <span className={styles.fieldError}>
@@ -319,28 +328,33 @@ export function EventCreateModal({
                             </span>
 
                             <div className="relative">
-                                <select
+                                <Select
+                                    className="w-full"
                                     value={form.audience}
-                                    onChange={(event) =>
+                                    onValueChange={(value) =>
                                         updateField(
                                             "audience",
-                                            event.currentTarget.value
+                                            value
                                         )
                                     }
-                                    className="w-full appearance-none rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 pr-11 text-sm font-semibold outline-none focus:border-[#009b4d]"
                                 >
-                                    {eventAudiences.map((audience) => (
-                                        <option key={audience} value={audience}>
-                                            {getEventAudienceLabel(audience)}
-                                        </option>
-                                    ))}
-                                </select>
-
-                                <ChevronDown
-                                    size={18}
-                                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#667085]"
-                                    aria-hidden="true"
-                                />
+                                    <SelectTrigger
+                                        aria-label="Đối tượng áp dụng"
+                                        className="h-[46px] w-full rounded-xl border-[#d0d5dd] px-4 text-sm text-[#344054] shadow-none hover:bg-white"
+                                    >
+                                        <SelectValue placeholder="Chọn đối tượng" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-[90] rounded-xl border-[#d0d5dd] p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                                        {eventAudiences.map((audience) => (
+                                            <SelectItem
+                                                key={audience}
+                                                value={audience}
+                                            >
+                                                {getEventAudienceLabel(audience)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             {fieldErrors.audience ? (
                                 <span className={styles.fieldError}>

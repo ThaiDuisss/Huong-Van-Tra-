@@ -38,13 +38,11 @@ import java.util.Map;
 public class KafkaConsumerConfig <K , V> implements KafkaListenerConfigurer {
     private final KafkaConfigData kafkaConfigData;
     private final KafkaConsumerConfigData kafkaConsumerConfigData;
-    private final LocalValidatorFactoryBean validatorFactory;
 
     public KafkaConsumerConfig(KafkaConfigData kafkaConfigData,
-                               KafkaConsumerConfigData kafkaConsumerConfigData, LocalValidatorFactoryBean validatorFactory) {
+                               KafkaConsumerConfigData kafkaConsumerConfigData) {
         this.kafkaConfigData = kafkaConfigData;
         this.kafkaConsumerConfigData = kafkaConsumerConfigData;
-        this.validatorFactory = validatorFactory;
     }
     @Bean
     public Map<String, Object> consumerConfigs() {
@@ -87,11 +85,11 @@ public class KafkaConsumerConfig <K , V> implements KafkaListenerConfigurer {
 
     @Override
     public void configureKafkaListeners(KafkaListenerEndpointRegistrar registrar) {
-        registrar.setMessageHandlerMethodFactory(kafkaHandleMethodFactory());
+        registrar.setMessageHandlerMethodFactory(kafkaHandleMethodFactory(validator()));
     }
 
     @Bean
-    public MessageHandlerMethodFactory kafkaHandleMethodFactory() {
+    public MessageHandlerMethodFactory kafkaHandleMethodFactory(LocalValidatorFactoryBean validatorFactory) {
         DefaultMessageHandlerMethodFactory factory = new DefaultMessageHandlerMethodFactory();
         factory.setValidator(validatorFactory);
         return factory;

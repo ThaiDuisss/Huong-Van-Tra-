@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hvtra.promotionservice.enums.promotion.PromotionChannel;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -35,4 +36,13 @@ public class CouponUsageReserveRequest {
     @NotNull(message = "Discount amount is required")
     @DecimalMin(value = "0.0", inclusive = false, message = "Discount amount must be greater than 0")
     BigDecimal discountAmount;
+
+    @Schema(description = "ID chi nhanh", example = "550e8400-e29b-41d4-a716-446655440003")
+    UUID branchId;
+
+    @Schema(description = "ID thu ngan/nhan vien xu ly", example = "550e8400-e29b-41d4-a716-446655440004")
+    UUID cashierId;
+
+    @Schema(description = "Kenh ban hang", example = "POS", implementation = PromotionChannel.class)
+    PromotionChannel channel;
 }

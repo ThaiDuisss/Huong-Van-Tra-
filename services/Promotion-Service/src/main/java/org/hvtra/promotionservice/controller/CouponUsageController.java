@@ -3,11 +3,15 @@ package org.hvtra.promotionservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.couponusage.CouponUsageSuccessMessage;
+import org.hvtra.promotionservice.dto.request.couponusage.CouponUsageFilterRequest;
+import org.hvtra.promotionservice.dto.request.couponusage.CouponUsageReserveRequest;
 import org.hvtra.promotionservice.dto.response.CouponUsageResponse;
 import org.hvtra.promotionservice.dto.response.PageResponse;
 import org.hvtra.promotionservice.service.CouponUsageService;
@@ -16,61 +20,66 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping(ApiPath.PROMOTION_SERVICE)
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(
-        name = "Quản lý lịch sử sử dụng coupon",
-        description = "Nhóm API dùng để tra cứu và xử lý trạng thái các phiên sử dụng/giữ chỗ coupon"
+        name = "Coupon usage management",
+        description = "APIs for coupon reservation, payment confirmation and usage history."
 )
 public class CouponUsageController {
 
     CouponUsageService couponUsageService;
 
-    @Operation(
-            summary = "Lấy danh sách lịch sử sử dụng coupon",
-            description = "Lấy danh sách tất cả phiên sử dụng coupon chưa bị xóa mềm, có hỗ trợ phân trang."
-    )
+    @Operation(summary = "Get coupon usage list")
     @GetMapping("/coupon-usages")
     public ApiResponse<PageResponse<CouponUsageResponse>> getAllCouponUsages(
-            @Parameter(description = "Số trang, bắt đầu từ 0", example = "0")
+            @Valid @ModelAttribute CouponUsageFilterRequest filter,
+
+            @Parameter(description = "Page index, starting from 0", example = "0")
             @RequestParam(defaultValue = "0") int page,
 
-            @Parameter(description = "Số lượng phần tử trên mỗi trang", example = "10")
+            @Parameter(description = "Page size", example = "10")
             @RequestParam(defaultValue = "10") int size
     ) {
         PageResponse<CouponUsageResponse> response =
-                couponUsageService.getAllCouponUsages(page, size);
+                couponUsageService.getCouponUsages(filter, page, size);
 
         return ApiResponse.success(CouponUsageSuccessMessage.LIST_FETCHED, response);
     }
 
     @Operation(
-            summary = "Lấy chi tiết phiên sử dụng coupon",
-            description = "Lấy thông tin chi tiết của một phiên sử dụng/giữ chỗ coupon theo ID."
+            summary = "Reserve coupon",
+            description = "Reserve a coupon for pending payment and temporarily decrease available usage quota."
     )
+    @PostMapping("/coupon-usages/reserve")
+    public ApiResponse<CouponUsageResponse> reserveCoupon(
+            @Valid @RequestBody CouponUsageReserveRequest request
+    ) {
+        CouponUsageResponse response = couponUsageService.reserveCoupon(request);
+        return ApiResponse.created(CouponUsageSuccessMessage.RESERVED, response);
+    }
+
+    @Operation(summary = "Get coupon usage detail")
     @GetMapping("/coupon-usages/{usageId}")
     public ApiResponse<CouponUsageResponse> getCouponUsageById(
-            @Parameter(description = "ID phiên sử dụng coupon", required = true)
+            @Parameter(description = "Coupon usage id", required = true)
             @PathVariable UUID usageId
     ) {
         CouponUsageResponse response = couponUsageService.getCouponUsageById(usageId);
         return ApiResponse.success(CouponUsageSuccessMessage.FETCHED, response);
     }
 
-    @Operation(
-            summary = "Lấy lịch sử sử dụng theo coupon",
-            description = "Lấy danh sách các phiên sử dụng/giữ chỗ của một coupon cụ thể."
-    )
+    @Operation(summary = "Get coupon usages by coupon")
     @GetMapping("/coupons/{couponId}/usages")
     public ApiResponse<PageResponse<CouponUsageResponse>> getUsagesByCoupon(
-            @Parameter(description = "ID coupon", required = true)
+            @Parameter(description = "Coupon id", required = true)
             @PathVariable UUID couponId,
 
-            @Parameter(description = "Số trang, bắt đầu từ 0", example = "0")
+            @Parameter(description = "Page index, starting from 0", example = "0")
             @RequestParam(defaultValue = "0") int page,
 
-            @Parameter(description = "Số lượng phần tử trên mỗi trang", example = "10")
+            @Parameter(description = "Page size", example = "10")
             @RequestParam(defaultValue = "10") int size
     ) {
         PageResponse<CouponUsageResponse> response =
@@ -79,19 +88,16 @@ public class CouponUsageController {
         return ApiResponse.success(CouponUsageSuccessMessage.LIST_FETCHED, response);
     }
 
-    @Operation(
-            summary = "Lấy lịch sử sử dụng coupon theo đơn hàng",
-            description = "Lấy danh sách các coupon đã được giữ, áp dụng hoặc nhả theo một đơn hàng cụ thể."
-    )
+    @Operation(summary = "Get coupon usages by order")
     @GetMapping("/orders/{orderId}/coupon-usages")
     public ApiResponse<PageResponse<CouponUsageResponse>> getUsagesByOrder(
-            @Parameter(description = "ID đơn hàng", required = true)
+            @Parameter(description = "Order id", required = true)
             @PathVariable UUID orderId,
 
-            @Parameter(description = "Số trang, bắt đầu từ 0", example = "0")
+            @Parameter(description = "Page index, starting from 0", example = "0")
             @RequestParam(defaultValue = "0") int page,
 
-            @Parameter(description = "Số lượng phần tử trên mỗi trang", example = "10")
+            @Parameter(description = "Page size", example = "10")
             @RequestParam(defaultValue = "10") int size
     ) {
         PageResponse<CouponUsageResponse> response =
@@ -100,19 +106,16 @@ public class CouponUsageController {
         return ApiResponse.success(CouponUsageSuccessMessage.LIST_FETCHED, response);
     }
 
-    @Operation(
-            summary = "Lấy lịch sử sử dụng coupon theo khách hàng",
-            description = "Lấy danh sách các phiên sử dụng/giữ chỗ coupon của một khách hàng cụ thể."
-    )
+    @Operation(summary = "Get coupon usages by customer")
     @GetMapping("/customers/{customerId}/coupon-usages")
     public ApiResponse<PageResponse<CouponUsageResponse>> getUsagesByCustomer(
-            @Parameter(description = "ID khách hàng", required = true)
+            @Parameter(description = "Customer id", required = true)
             @PathVariable UUID customerId,
 
-            @Parameter(description = "Số trang, bắt đầu từ 0", example = "0")
+            @Parameter(description = "Page index, starting from 0", example = "0")
             @RequestParam(defaultValue = "0") int page,
 
-            @Parameter(description = "Số lượng phần tử trên mỗi trang", example = "10")
+            @Parameter(description = "Page size", example = "10")
             @RequestParam(defaultValue = "10") int size
     ) {
         PageResponse<CouponUsageResponse> response =
@@ -122,38 +125,42 @@ public class CouponUsageController {
     }
 
     @Operation(
-            summary = "Nhả coupon đã giữ",
-            description = "Chuyển phiên sử dụng coupon sang RELEASED. Dùng khi đơn hàng bị hủy hoặc thanh toán thất bại."
+            summary = "Apply reserved coupon",
+            description = "Mark a reserved coupon usage as APPLIED after payment succeeds."
     )
+    @PostMapping("/coupon-usages/{usageId}/apply")
+    public ApiResponse<CouponUsageResponse> applyUsage(
+            @Parameter(description = "Coupon usage id", required = true)
+            @PathVariable UUID usageId
+    ) {
+        CouponUsageResponse response = couponUsageService.applyUsage(usageId);
+        return ApiResponse.updated(CouponUsageSuccessMessage.STATUS_UPDATED, response);
+    }
+
+    @Operation(summary = "Release reserved coupon")
     @PostMapping("/coupon-usages/{usageId}/release")
     public ApiResponse<CouponUsageResponse> releaseUsage(
-            @Parameter(description = "ID phiên sử dụng coupon cần nhả", required = true)
+            @Parameter(description = "Coupon usage id", required = true)
             @PathVariable UUID usageId
     ) {
         CouponUsageResponse response = couponUsageService.releaseUsage(usageId);
         return ApiResponse.updated(CouponUsageSuccessMessage.STATUS_UPDATED, response);
     }
 
-    @Operation(
-            summary = "Hủy phiên sử dụng coupon",
-            description = "Chuyển phiên sử dụng coupon sang CANCELLED. Dùng cho trường hợp cần hủy thủ công một phiên sử dụng."
-    )
+    @Operation(summary = "Cancel coupon usage")
     @PostMapping("/coupon-usages/{usageId}/cancel")
     public ApiResponse<CouponUsageResponse> cancelUsage(
-            @Parameter(description = "ID phiên sử dụng coupon cần hủy", required = true)
+            @Parameter(description = "Coupon usage id", required = true)
             @PathVariable UUID usageId
     ) {
         CouponUsageResponse response = couponUsageService.cancelUsage(usageId);
         return ApiResponse.updated(CouponUsageSuccessMessage.STATUS_UPDATED, response);
     }
 
-    @Operation(
-            summary = "Đánh dấu phiên giữ coupon hết hạn",
-            description = "Chuyển phiên sử dụng coupon sang EXPIRED. Dùng khi reservation đã quá thời gian cho phép."
-    )
+    @Operation(summary = "Expire reserved coupon usage")
     @PostMapping("/coupon-usages/{usageId}/expire")
     public ApiResponse<CouponUsageResponse> expireUsage(
-            @Parameter(description = "ID phiên sử dụng coupon cần đánh dấu hết hạn", required = true)
+            @Parameter(description = "Coupon usage id", required = true)
             @PathVariable UUID usageId
     ) {
         CouponUsageResponse response = couponUsageService.expireUsage(usageId);

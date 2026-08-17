@@ -34,6 +34,7 @@ public class EventRepositoryImpl implements EventRepositoryCustom {
         List<Event> events = queryFactory
                 .selectFrom(event)
                 .where(
+                        event.isDeleted.isFalse(),
                         keywordContains(request.getKeyword()),
                         statusEquals(request.getStatus()),
                         eventTypeEquals(request.getEventType()),
@@ -56,6 +57,7 @@ public class EventRepositoryImpl implements EventRepositoryCustom {
                 .select(event.count())
                 .from(event)
                 .where(
+                        event.isDeleted.isFalse(),
                         keywordContains(request.getKeyword()),
                         statusEquals(request.getStatus()),
                         eventTypeEquals(request.getEventType()),

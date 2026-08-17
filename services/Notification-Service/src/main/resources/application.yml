@@ -2,9 +2,18 @@ spring:
   application:
     name: Notification-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/notification_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:notification_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    baseline-on-migrate: true
 
 server:
   port: 8085
@@ -31,3 +40,41 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
+
+kafka-config:
+  enabled: true
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.122.52.101:19092}
+  num-of-partitions: 3
+  replication-factor: 1
+
+kafka-consumer-config:
+  enabled: true
+  group-id: Notification-Service-order-events
+  key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  auto-offset-reset: earliest
+  batch-listener: false
+  auto-startup: true
+  concurrency-level: 3
+  session-timeout-ms: 10000
+  heartbeat-interval-ms: 3000
+  max-poll-interval-ms: 300000
+  max-poll-records: 500
+  max-partition-fetch-bytes-default: 1048576
+  max-partition-fetch-bytes-boost-factor: 1
+  poll-timeout-ms: 150
+
+notification:
+  order:
+    events:
+      topics:
+        payment-succeeded: order.event.ORDER_PAYMENT_SUCCEEDED
+        payment-failed: order.event.ORDER_PAYMENT_FAILED
+        confirmed: order.event.ORDER_CONFIRMED
+        cancelled: order.event.ORDER_CANCELLED
+        status-changed: order.event.ORDER_STATUS_CHANGED
+        completed: order.completed
+
+security:
+  internal:
+      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}

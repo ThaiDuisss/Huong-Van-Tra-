@@ -15,9 +15,11 @@ import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
-import { DiscountCodeListPage } from "../features/marketing/pages/DiscountCodeListPage";
-import { DiscountProgramDetailPage } from "../features/marketing/pages/DiscountProgramDetailPage";
+import { CouponListPage } from "../features/marketing/pages/CouponListPage";
+import { CouponUsageListPage } from "../features/marketing/pages/CouponUsageListPage";
 import { DiscountProgramListPage } from "../features/marketing/pages/DiscountProgramListPage";
+import { PromotionDetailPage } from "../features/marketing/pages/PromotionDetailPage";
+import { PromotionPage } from "../features/marketing/pages/PromotionPage";
 import { CategoryListPage } from "../features/product/pages/CategoryListPage";
 import { UnitListPage } from "../features/product/pages/UnitListPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
@@ -28,6 +30,7 @@ import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
 import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagementPage";
+import { ProtectedRoute } from "../auth/ProtectedRoute";
 
 export function AppRouter() {
     return (
@@ -44,20 +47,31 @@ export function AppRouter() {
 
             <Route
                 path={routePaths.posSales}
-                element={<PosSalePage />}
+                element={
+                    <ProtectedRoute>
+                        <PosSalePage />
+                    </ProtectedRoute>
+                }
             />
+
             <Route
                 path={routePaths.salesHistory}
                 element={
-                    <PosShell>
-                        <SalesHistoryPage />
-                    </PosShell>
+                    <ProtectedRoute>
+                        <PosShell>
+                            <SalesHistoryPage />
+                        </PosShell>
+                    </ProtectedRoute>
                 }
             />
 
             <Route
                 path={routePaths.system}
-                element={<SystemShell />}
+                element={
+                    <ProtectedRoute>
+                        <SystemShell />
+                    </ProtectedRoute>
+                }
             >
                 <Route
                     index
@@ -149,23 +163,23 @@ export function AppRouter() {
                 />
                 <Route
                     path="marketing/discount-programs"
-                    element={<DiscountProgramListPage />}
+                    element={<PromotionPage />}
                 />
                 <Route
                     path="marketing/discount-programs/:programId"
-                    element={<DiscountProgramDetailPage />}
+                    element={<PromotionDetailPage />}
                 />
                 <Route
                     path="marketing/discount-codes"
-                    element={<DiscountCodeListPage />}
+                    element={<CouponListPage />}
                 />
                 <Route
                     path="marketing/discount-history"
-                    element={<DiscountProgramListPage />}
+                    element={<CouponUsageListPage />}
                 />
                 <Route
                     path="marketing/discount-rules"
-                    element={<DiscountProgramListPage />}
+                    element={<PromotionPage />}
                 />
                 <Route
                     path="customers/tiers"
@@ -193,6 +207,6 @@ export function AppRouter() {
                 path="*"
                 element={<NotFoundPage />}
             />
-        </Routes>
+        </Routes >
     );
 }

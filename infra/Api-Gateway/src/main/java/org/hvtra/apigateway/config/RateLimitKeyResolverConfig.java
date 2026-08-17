@@ -49,7 +49,7 @@ public class RateLimitKeyResolverConfig {
         ServerHttpRequest request = exchange.getRequest();
         String forwardIp = request.getHeaders().getFirst("X-Forwarded-For");
 
-        if(forwardIp != null && forwardIp.isBlank()) {
+        if(forwardIp != null && !forwardIp.isBlank()) {
             return forwardIp.split(",")[0].trim();
         }
         if(request.getRemoteAddress() != null && request.getRemoteAddress().getAddress() != null) {

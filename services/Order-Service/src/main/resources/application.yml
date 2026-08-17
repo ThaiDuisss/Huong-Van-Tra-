@@ -41,15 +41,15 @@ eureka:
 
 kafka-config:
   enabled: true
-  bootstrap-servers: http://100.122.52.101:9092
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.122.52.101:19092}
   num-of-partitions: 3
-  replication-factor: 3
+  replication-factor: 1
 #  schema-registry-url: http://localhost:8081
 
 kafka-producer-config:
   enabled: true
   key-serializer-class: org.apache.kafka.common.serialization.StringSerializer
-  value-serializer-class: org.apache.kafka.common.serialization.JsonSerializer
+  value-serializer-class: org.apache.kafka.common.serialization.StringSerializer
   compression-type: snappy
   acks: all
   batch-size: 16384
@@ -59,14 +59,16 @@ kafka-producer-config:
   retry-count: 5
 
 kafka-consumer-config:
+  enabled: true
+  group-id: Order-Service-payment-events
   key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-  value-deserializer: org.apache.kafka.common.serialization.JsonDeserializer
+  value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   payment-consumer-group-id: payment-topic-consumer
   inventory-deduct-consumer-group-id: inventory-deduct-topic-consumer
   customer-group-id: customer-topic-consumer
   promotion-group-id: promotion-topic-consumer
   auto-offset-reset: earliest
-  batch-listener: true
+  batch-listener: false
   auto-startup: true
   concurrency-level: 3
   session-timeout-ms: 10000
@@ -156,3 +158,17 @@ clients:
     url: http://localhost:8087
   inventory-service:
     url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
+order:
+  payment:
+    events:
+      topics:
+        failed: payment.event.PAYMENT_FAILED
+        waiting: payment.waiting-payment
+        succeeded: payment.event.PAYMENT_SUCCEEDED
+        expired: payment.expired
+        cancelled: payment.cancelled
+        need-review: payment.need-review
+
+security:
+  internal:
+      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}

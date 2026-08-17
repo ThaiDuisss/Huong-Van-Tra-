@@ -60,6 +60,7 @@ interface UpdateDraftOrderItemQuantityRequestBody {
 
 interface CheckoutDraftOrderRequestBody {
     paidAmount: number;
+    discountAmount: number;
     paymentMethod: string;
 }
 
@@ -219,6 +220,7 @@ export const posOrderApi = {
             CheckoutDraftOrderRequestBody
         >(`/orders/pos/${encodeURIComponent(input.orderId)}/checkout`, {
             paidAmount: input.paymentAmount,
+            discountAmount: input.discountAmount,
             paymentMethod: paymentMethodMap[input.paymentMethod]
         });
     }

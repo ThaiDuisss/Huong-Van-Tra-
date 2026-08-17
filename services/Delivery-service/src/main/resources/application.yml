@@ -1,0 +1,83 @@
+spring:
+  application:
+    name: Delivery-Service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+server:
+  port: 8188
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api/delivery/v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /api/delivery/swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+eureka:
+  instance:
+    prefer-ip-address: false
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    instance-id: ${spring.application.name}:${server.port}
+  client:
+    healthcheck:
+      enabled: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+
+kafka-config:
+  enabled: true
+  bootstrap-servers: 100.122.52.101:19092
+  #  schema-registry-url-key: schema.registry.url
+  #  schema-registry-url: http://localhost:8081
+  num-of-partitions: 3
+  replication-factor: 1
+
+kafka-consumer-config:
+  key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  value-deserializer: org.apache.kafka.common.serialization.JsonDeserializer
+  payment-consumer-group-id: payment-topic-consumer
+  auto-offset-reset: earliest
+  #  specific-avro-reader-key: specific.avro.reader
+  #  specific-avro-reader: true
+  batch-listener: true
+  auto-startup: true
+  concurrency-level: 3
+  session-timeout-ms: 10000
+  heartbeat-interval-ms: 3000
+  max-poll-interval-ms: 300000
+  max-poll-records: 500
+  max-partition-fetch-bytes-default: 1048576
+  max-partition-fetch-bytes-boost-factor: 1
+  poll-timeout-ms: 150
+
+
+logging:
+  level:
+    org.springframework.kafka: WARN
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}
+
+delivery:
+  providers:
+    ghn:
+      enabled: true
+      base-url: ${GHN_BASE_URL:https://dev-online-gateway.ghn.vn/shiip/public-api}
+      token: ${GHN_TOKEN}
+      shop-id: ${GHN_SHOP_ID}
+      client-id: ${GHN_CLIENT_ID}
+      webhook-secret: ${GHN_WEBHOOK_SECRET}

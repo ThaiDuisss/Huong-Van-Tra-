@@ -17,6 +17,8 @@ public interface CouponService {
 
     PageResponse<CouponResponse> getAllCoupons(int page, int size);
 
+    PageResponse<CouponResponse> getCoupons(CouponFilterRequest request, int page, int size);
+
     PageResponse<CouponResponse> getCouponsByPromotion(UUID promotionId, int page, int size);
 
     CouponResponse updateCoupon(UUID couponId, CouponUpdateRequest request);
@@ -30,6 +32,8 @@ public interface CouponService {
     CouponResponse pauseCoupon(UUID couponId);
 
     CouponResponse cancelCoupon(UUID couponId);
+
+    CouponResponse expireCoupon(UUID couponId);
 
     CouponResponse archiveCoupon(UUID couponId);
 

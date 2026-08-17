@@ -54,6 +54,23 @@ export function formatDiscountDate(value: string) {
     }).format(new Date(value));
 }
 
+export function formatDiscountDateParts(value: string) {
+    const date = new Date(value);
+
+    return {
+        date: new Intl.DateTimeFormat("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+        }).format(date),
+        time: new Intl.DateTimeFormat("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hourCycle: "h23"
+        }).format(date)
+    };
+}
+
 export function formatDiscountDateTimeCompact(value: string) {
     return formatDiscountDateTime(value).replace(",", "");
 }

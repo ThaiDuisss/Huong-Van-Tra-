@@ -1,6 +1,21 @@
-import { Plus, RefreshCw } from "lucide-react";
+import {
+    AlertCircle,
+    CheckCircle2,
+    Plus,
+    RefreshCw,
+    Trash2,
+    X
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle
+} from "../../../components/ui/dialog";
 import { EventCreateModal } from "../components/discount-programs/EventCreateModel";
 import {
     defaultEventListFilters,
@@ -32,6 +47,11 @@ type PageNotice = {
     message: string;
 };
 
+type PendingStatusAction = {
+    action: EventAction;
+    event: EventResponse;
+};
+
 export function DiscountProgramListPage() {
     const [createOpen, setCreateOpen] = useState(false);
     const [draftFilters, setDraftFilters] =
@@ -46,15 +66,17 @@ export function DiscountProgramListPage() {
     const [eventAudiences, setEventAudiences] = useState<string[]>([]);
     const [eventStatuses, setEventStatuses] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<PageNotice | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(
         null
     );
+    const [pendingStatusAction, setPendingStatusAction] =
+        useState<PendingStatusAction | null>(null);
+    const [pendingRemoveEvent, setPendingRemoveEvent] =
+        useState<EventResponse | null>(null);
 
     const showSuccess = useCallback((message: string) => {
-        setError(null);
         setNotice({
             type: "success",
             message
@@ -62,7 +84,6 @@ export function DiscountProgramListPage() {
     }, []);
 
     const showError = useCallback((message: string) => {
-        setError(message);
         setNotice({
             type: "error",
             message
@@ -72,7 +93,6 @@ export function DiscountProgramListPage() {
     const loadEvents = useCallback(async () => {
         try {
             setLoading(true);
-            setError(null);
 
             const [eventsPage, types, audiences, statuses] =
                 await Promise.all([
@@ -84,7 +104,7 @@ export function DiscountProgramListPage() {
                     eventApi.eventStatuses()
                 ]);
 
-            setResource(eventsPage);
+            setResource(withoutDeletedEvents(eventsPage));
             setEventTypes(types);
             setEventAudiences(audiences);
             setEventStatuses(statuses);
@@ -101,6 +121,18 @@ export function DiscountProgramListPage() {
     useEffect(() => {
         void loadEvents();
     }, [loadEvents, refreshKey]);
+
+    useEffect(() => {
+        if (!notice) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setNotice(null);
+        }, 3500);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [notice]);
 
     const events = resource?.content ?? [];
     const pageCount = Math.max(1, resource?.totalPages ?? 1);
@@ -124,7 +156,6 @@ export function DiscountProgramListPage() {
             return;
         }
 
-        setError(null);
         setNotice(null);
         setAppliedFilters({
             ...draftFilters,
@@ -137,7 +168,6 @@ export function DiscountProgramListPage() {
     function clearFilters() {
         const initialFilters = getInitialEventFilters();
 
-        setError(null);
         setNotice(null);
         setDraftFilters(initialFilters);
         setAppliedFilters(initialFilters);
@@ -155,13 +185,20 @@ export function DiscountProgramListPage() {
         event: EventResponse,
         action: EventAction
     ) {
-        if (!confirmStatusAction(event, action)) {
+        if (needsStatusActionConfirmation(action)) {
+            setPendingStatusAction({ action, event });
             return;
         }
 
+        await runStatusAction(event, action);
+    }
+
+    async function runStatusAction(
+        event: EventResponse,
+        action: EventAction
+    ) {
         try {
             setActionLoadingId(event.id);
-            setError(null);
 
             switch (action) {
                 case "schedule":
@@ -201,6 +238,17 @@ export function DiscountProgramListPage() {
         }
     }
 
+    async function confirmPendingStatusAction() {
+        if (!pendingStatusAction) {
+            return;
+        }
+
+        const { action, event } = pendingStatusAction;
+
+        await runStatusAction(event, action);
+        setPendingStatusAction(null);
+    }
+
     async function handleUpdate(
         event: EventResponse,
         input: EventUpdateRequest
@@ -216,12 +264,12 @@ export function DiscountProgramListPage() {
         }
 
         if (!input.name.trim()) {
-            setError("Tên sự kiện là bắt buộc.");
+            showError("Tên sự kiện là bắt buộc.");
             return;
         }
 
         if (!input.startAt || !input.endAt) {
-            setError("Vui lòng chọn thời gian bắt đầu và kết thúc.");
+            showError("Vui lòng chọn thời gian bắt đầu và kết thúc.");
             return;
         }
 
@@ -229,15 +277,12 @@ export function DiscountProgramListPage() {
             new Date(input.startAt).getTime() >=
             new Date(input.endAt).getTime()
         ) {
-            setError(
-                "Thời gian kết thúc phải sau thời gian bắt đầu."
-            );
+            showError("Thời gian kết thúc phải sau thời gian bắt đầu.");
             return;
         }
 
         try {
             setActionLoadingId(event.id);
-            setError(null);
             await eventApi.update(event.id, normalizeEventPayload(input));
             showSuccess("Cập nhật sự kiện thành công.");
             reload();
@@ -250,20 +295,22 @@ export function DiscountProgramListPage() {
         }
     }
 
-    async function handleRemove(event: EventResponse) {
-        const confirmed = window.confirm(
-            `Xóa sự kiện?\n\nHành động này không thể hoàn tác.\n\nSự kiện: ${event.name}`
-        );
+    function handleRemove(event: EventResponse) {
+        setPendingRemoveEvent(event);
+    }
 
-        if (!confirmed) {
+    async function confirmPendingRemoveEvent() {
+        if (!pendingRemoveEvent) {
             return;
         }
 
+        const event = pendingRemoveEvent;
+
         try {
             setActionLoadingId(event.id);
-            setError(null);
             await eventApi.remove(event.id);
             showSuccess("Xóa sự kiện thành công.");
+            setPendingRemoveEvent(null);
             reload();
         } catch (err) {
             console.error("Không thể xóa sự kiện", err);
@@ -322,24 +369,6 @@ export function DiscountProgramListPage() {
                 </div>
             </header>
 
-            {notice ? (
-                <div
-                    className={
-                        notice.type === "success"
-                            ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"
-                            : "rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
-                    }
-                >
-                    {notice.message}
-                </div>
-            ) : null}
-
-            {!notice && error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                    {error}
-                </div>
-            ) : null}
-
             <DiscountProgramFilters
                 filters={draftFilters}
                 eventTypes={eventTypes}
@@ -377,27 +406,229 @@ export function DiscountProgramListPage() {
                 onClose={() => setCreateOpen(false)}
                 onCreated={handleCreated}
             />
+
+            <Dialog
+                open={pendingStatusAction !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setPendingStatusAction(null);
+                    }
+                }}
+            >
+                {pendingStatusAction ? (
+                    <EventStatusConfirmDialog
+                        pending={pendingStatusAction}
+                        loading={
+                            actionLoadingId === pendingStatusAction.event.id
+                        }
+                        onCancel={() => setPendingStatusAction(null)}
+                        onConfirm={() => void confirmPendingStatusAction()}
+                    />
+                ) : null}
+            </Dialog>
+
+            <Dialog
+                open={pendingRemoveEvent !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setPendingRemoveEvent(null);
+                    }
+                }}
+            >
+                {pendingRemoveEvent ? (
+                    <EventRemoveConfirmDialog
+                        event={pendingRemoveEvent}
+                        loading={actionLoadingId === pendingRemoveEvent.id}
+                        onCancel={() => setPendingRemoveEvent(null)}
+                        onConfirm={() => void confirmPendingRemoveEvent()}
+                    />
+                ) : null}
+            </Dialog>
+
+            {notice ? (
+                <EventToast notice={notice} onClose={() => setNotice(null)} />
+            ) : null}
         </section>
     );
 }
 
-function confirmStatusAction(
-    event: EventResponse,
-    action: EventAction
-) {
-    if (action === "cancel") {
-        return window.confirm(
-            `Hủy sự kiện?\n\nSự kiện sau khi hủy sẽ không thể đổi trạng thái lại.\n\nSự kiện: ${event.name}`
-        );
+function EventToast({
+    notice,
+    onClose
+}: {
+    notice: PageNotice;
+    onClose(): void;
+}) {
+    const isSuccess = notice.type === "success";
+    const Icon = isSuccess ? CheckCircle2 : AlertCircle;
+
+    return (
+        <div
+            className={`${styles.toast} ${
+                isSuccess ? styles.toastSuccess : styles.toastError
+            }`}
+            role="status"
+            aria-live="polite"
+        >
+            <Icon size={20} aria-hidden="true" />
+            <span>{notice.message}</span>
+            <button
+                type="button"
+                className={styles.toastClose}
+                onClick={onClose}
+                aria-label="Đóng thông báo"
+            >
+                <X size={16} aria-hidden="true" />
+            </button>
+        </div>
+    );
+}
+
+function withoutDeletedEvents(
+    page: PageResponse<EventResponse>
+): PageResponse<EventResponse> {
+    const content = (page.content ?? []).filter((event) => !event.isDeleted);
+
+    if (content.length === page.content.length) {
+        return page;
     }
 
-    if (action === "end") {
-        return window.confirm(
-            `Kết thúc sự kiện?\n\nSự kiện sau khi kết thúc sẽ không thể đổi trạng thái.\n\nSự kiện: ${event.name}`
-        );
-    }
+    const totalElements = Math.max(
+        0,
+        page.totalElements - (page.content.length - content.length)
+    );
 
-    return true;
+    return {
+        ...page,
+        content,
+        totalElements,
+        totalPages: Math.max(1, Math.ceil(totalElements / page.size)),
+        empty: content.length === 0 && totalElements === 0
+    };
+}
+
+function EventStatusConfirmDialog({
+    pending,
+    loading,
+    onCancel,
+    onConfirm
+}: {
+    pending: PendingStatusAction;
+    loading: boolean;
+    onCancel(): void;
+    onConfirm(): void;
+}) {
+    const isCancel = pending.action === "cancel";
+    const title = isCancel ? "Hủy sự kiện?" : "Kết thúc sự kiện?";
+    const description = isCancel
+        ? "Sự kiện sau khi hủy sẽ không thể đổi trạng thái lại."
+        : "Sự kiện sau khi kết thúc sẽ không thể đổi trạng thái.";
+    const confirmLabel = isCancel ? "Hủy sự kiện" : "Kết thúc sự kiện";
+
+    return (
+        <DialogContent className="w-[min(520px,calc(100vw-32px))]">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                    <AlertCircle
+                        className={isCancel ? "text-[#c4422e]" : "text-[#a86500]"}
+                        size={18}
+                    />
+                    {title}
+                </DialogTitle>
+                <DialogDescription>{description}</DialogDescription>
+            </DialogHeader>
+
+            <div className="px-6 py-5 text-sm font-semibold text-[#425047]">
+                <div className="rounded-xl border border-[#eef2f0] bg-[#f8faf9] p-4">
+                    Sự kiện:{" "}
+                    <strong className="font-black text-[#172317]">
+                        {pending.event.name}
+                    </strong>
+                </div>
+            </div>
+
+            <DialogFooter>
+                <button
+                    className={styles.secondaryButton}
+                    disabled={loading}
+                    onClick={onCancel}
+                    type="button"
+                >
+                    Đóng
+                </button>
+                <button
+                    className={
+                        isCancel
+                            ? styles.confirmDangerButton
+                            : styles.primaryButton
+                    }
+                    disabled={loading}
+                    onClick={onConfirm}
+                    type="button"
+                >
+                    {loading ? "Đang xử lý..." : confirmLabel}
+                </button>
+            </DialogFooter>
+        </DialogContent>
+    );
+}
+
+function needsStatusActionConfirmation(action: EventAction) {
+    return action === "cancel" || action === "end";
+}
+
+function EventRemoveConfirmDialog({
+    event,
+    loading,
+    onCancel,
+    onConfirm
+}: {
+    event: EventResponse;
+    loading: boolean;
+    onCancel(): void;
+    onConfirm(): void;
+}) {
+    return (
+        <DialogContent className="w-[min(520px,calc(100vw-32px))]">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                    <Trash2 className="text-[#c4422e]" size={18} />
+                    Xóa sự kiện?
+                </DialogTitle>
+                <DialogDescription>
+                    Hành động này không thể hoàn tác.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div className="px-6 py-5 text-sm font-semibold text-[#425047]">
+                <div className="rounded-xl border border-[#f1c8c1] bg-[#fff5f3] p-4">
+                    Sự kiện:{" "}
+                    <strong className="font-black text-[#172317]">
+                        {event.name}
+                    </strong>
+                </div>
+            </div>
+
+            <DialogFooter>
+                <button
+                    className={styles.secondaryButton}
+                    disabled={loading}
+                    onClick={onCancel}
+                    type="button"
+                >
+                    Đóng
+                </button>
+                <button
+                    className={styles.confirmDangerButton}
+                    disabled={loading}
+                    onClick={onConfirm}
+                    type="button"
+                >
+                    {loading ? "Đang xóa..." : "Xóa sự kiện"}
+                </button>
+            </DialogFooter>
+        </DialogContent>
+    );
 }
 
 function getEventActionSuccessMessage(action: EventAction) {
