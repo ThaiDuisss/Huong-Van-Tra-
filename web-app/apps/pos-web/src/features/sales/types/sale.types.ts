@@ -35,11 +35,35 @@ export interface SaleCartItem {
   availableQuantity?: number | null;
   quantityOnHand?: number | null;
   quantityReserved?: number | null;
+  manualDiscount?: SaleManualDiscount | null;
 }
 
 export type SaleOrderType = "QUICK_SALE" | "DELIVERY";
 
-export type SaleDiscountType = "NONE" | "PERCENT" | "AMOUNT";
+export type SaleDiscountType = "NONE" | "PERCENT" | "AMOUNT" | "GIFT";
+
+export type SaleBackendDiscountType =
+  | "FIXED_AMOUNT"
+  | "PERCENTAGE"
+  | "OVERRIDE_PRICE";
+
+export type SaleDiscountSource =
+  | "MANUAL"
+  | "PROMOTION"
+  | "COUPON"
+  | "VOUCHER"
+  | "LOYALTY"
+  | "LEGACY";
+
+export interface SaleManualDiscount {
+  discountType: Extract<
+    SaleBackendDiscountType,
+    "FIXED_AMOUNT" | "PERCENTAGE"
+  >;
+  discountValue: number;
+  reasonCode: string;
+  note?: string;
+}
 
 export type SalePromotionStatus =
   | "RECOMMENDED"
@@ -65,10 +89,15 @@ export interface SaleDiscountOption {
   requiresCoupon?: boolean;
   couponId?: string;
   couponCode?: string;
+  giftProductId?: string;
+  giftQuantity?: number;
+  buyQuantity?: number;
 }
 
 export interface SaleTotals {
   subtotal: number;
+  itemDiscountAmount: number;
+  orderDiscountAmount: number;
   discountAmount: number;
   total: number;
 }

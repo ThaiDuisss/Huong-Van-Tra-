@@ -1,7 +1,10 @@
 import {
     BadgePercent,
     CalendarDays,
+    ChevronDown,
     ChevronLeft,
+    ChevronsDown,
+    ChevronsUp,
     Edit3,
     ListChecks,
     Plus,
@@ -41,6 +44,8 @@ type DetailModal =
     | { kind: "target"; mode: "edit"; value: PromotionTargetResponse }
     | { kind: "condition"; mode: "create"; value?: undefined }
     | { kind: "condition"; mode: "edit"; value: PromotionConditionResponse };
+
+type DetailSectionId = "information" | "event" | "benefits" | "targets" | "conditions";
 
 const statusClassNames: Record<string, string> = {
     DRAFT: styles.statusInactive,
@@ -138,6 +143,22 @@ export function PromotionDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [modal, setModal] = useState<DetailModal | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [expandedSections, setExpandedSections] = useState<
+        Set<DetailSectionId>
+    >(() => new Set());
+    const allSectionsOpen = expandedSections.size === 5;
+
+    function toggleSection(section: DetailSectionId) {
+        setExpandedSections((current) => {
+            const next = new Set(current);
+            if (next.has(section)) {
+                next.delete(section);
+            } else {
+                next.add(section);
+            }
+            return next;
+        });
+    }
 
     const canModifyDetails = useMemo(
         () =>
@@ -400,6 +421,30 @@ export function PromotionDetailPage() {
                 </div>
 
                 <div className={styles.actions}>
+                    <button
+                        className={`${styles.secondaryButton} ${styles.compactButton}`}
+                        type="button"
+                        onClick={() => {
+                            setExpandedSections(
+                                allSectionsOpen
+                                    ? new Set()
+                                    : new Set<DetailSectionId>([
+                                          "information",
+                                          "event",
+                                          "benefits",
+                                          "targets",
+                                          "conditions"
+                                      ])
+                            );
+                        }}
+                    >
+                        {allSectionsOpen ? (
+                            <ChevronsUp size={17} aria-hidden="true" />
+                        ) : (
+                            <ChevronsDown size={17} aria-hidden="true" />
+                        )}
+                        {allSectionsOpen ? "Thu gọn tất cả" : "Hiện tất cả"}
+                    </button>
                     <Link
                         to={`${routePaths.discountCodes}?promotionId=${encodeURIComponent(
                             promotion.id
@@ -437,13 +482,12 @@ export function PromotionDetailPage() {
                 </div>
             ) : null}
 
-            <section className={styles.detailCard}>
-                <div className={styles.detailCardHeader}>
-                    <h2 className={styles.detailCardTitle}>
-                        Thông tin khuyến mãi
-                    </h2>
-                    <BadgePercent size={19} aria-hidden="true" />
-                </div>
+            <DetailAccordionSection
+                title="Thông tin khuyến mãi"
+                icon={<BadgePercent size={19} aria-hidden="true" />}
+                open={expandedSections.has("information")}
+                onToggle={() => toggleSection("information")}
+            >
                 <div className={styles.infoGrid}>
                     <div className={styles.infoColumn}>
                         <InfoRow label="Tên" value={promotion.name} />
@@ -491,15 +535,14 @@ export function PromotionDetailPage() {
                         <span>Mục tiêu: {promotion.objective}</span>
                     ) : null}
                 </div>
-            </section>
+            </DetailAccordionSection>
 
-            <section className={styles.detailCard}>
-                <div className={styles.detailCardHeader}>
-                    <h2 className={styles.detailCardTitle}>
-                        Sự kiện liên quan
-                    </h2>
-                    <CalendarDays size={19} aria-hidden="true" />
-                </div>
+            <DetailAccordionSection
+                title="Sự kiện liên quan"
+                icon={<CalendarDays size={19} aria-hidden="true" />}
+                open={expandedSections.has("event")}
+                onToggle={() => toggleSection("event")}
+            >
                 <div className={styles.infoGrid}>
                     <div className={styles.infoColumn}>
                         <InfoRow
@@ -534,13 +577,15 @@ export function PromotionDetailPage() {
                         />
                     </div>
                 </div>
-            </section>
+            </DetailAccordionSection>
 
             <RelatedSection
                 title="Quyền lợi khuyến mãi"
                 icon={<BadgePercent size={19} aria-hidden="true" />}
                 emptyText="Chưa cấu hình quyền lợi."
                 isEmpty={benefits.length === 0}
+                open={expandedSections.has("benefits")}
+                onToggle={() => toggleSection("benefits")}
                 action={
                     canModifyDetails ? (
                         <button
@@ -606,6 +651,8 @@ export function PromotionDetailPage() {
                 icon={<Target size={19} aria-hidden="true" />}
                 emptyText="Chưa cấu hình phạm vi áp dụng."
                 isEmpty={targets.length === 0}
+                open={expandedSections.has("targets")}
+                onToggle={() => toggleSection("targets")}
                 action={
                     canModifyDetails ? (
                         <button
@@ -669,6 +716,8 @@ export function PromotionDetailPage() {
                 icon={<ListChecks size={19} aria-hidden="true" />}
                 emptyText="Chưa cấu hình điều kiện."
                 isEmpty={conditions.length === 0}
+                open={expandedSections.has("conditions")}
+                onToggle={() => toggleSection("conditions")}
                 action={
                     canModifyDetails ? (
                         <button
@@ -808,11 +857,64 @@ function InfoRow({
     );
 }
 
+function DetailAccordionSection({
+    title,
+    icon,
+    open,
+    onToggle,
+    action,
+    children
+}: {
+    title: string;
+    icon: ReactNode;
+    open: boolean;
+    onToggle(): void;
+    action?: ReactNode;
+    children: ReactNode;
+}) {
+    return (
+        <section
+            className={`${styles.detailCard} ${
+                open ? styles.detailAccordionOpen : styles.detailAccordionClosed
+            }`}
+        >
+            <button
+                className={styles.detailAccordionTrigger}
+                type="button"
+                aria-expanded={open}
+                onClick={onToggle}
+            >
+                <span className={styles.detailAccordionHeading}>
+                    {icon}
+                    <span className={styles.detailCardTitle}>{title}</span>
+                </span>
+                <ChevronDown
+                    className={styles.detailAccordionChevron}
+                    size={19}
+                    aria-hidden="true"
+                />
+            </button>
+            {open ? (
+                <div className={styles.detailAccordionContent}>
+                    {action ? (
+                        <div className={styles.detailAccordionAction}>
+                            {action}
+                        </div>
+                    ) : null}
+                    {children}
+                </div>
+            ) : null}
+        </section>
+    );
+}
+
 function RelatedSection({
     title,
     icon,
     emptyText,
     isEmpty,
+    open,
+    onToggle,
     action,
     children
 }: {
@@ -820,18 +922,19 @@ function RelatedSection({
     icon: ReactNode;
     emptyText: string;
     isEmpty: boolean;
+    open: boolean;
+    onToggle(): void;
     action?: ReactNode;
     children: ReactNode;
 }) {
     return (
-        <section className={styles.detailCard}>
-            <div className={styles.detailCardHeader}>
-                <div className="flex min-w-0 items-center gap-2">
-                    {icon}
-                    <h2 className={styles.detailCardTitle}>{title}</h2>
-                </div>
-                {action}
-            </div>
+        <DetailAccordionSection
+            title={title}
+            icon={icon}
+            open={open}
+            onToggle={onToggle}
+            action={action}
+        >
             <div className={styles.tableScroll}>
                 {isEmpty ? (
                     <div className={styles.empty}>{emptyText}</div>
@@ -839,7 +942,7 @@ function RelatedSection({
                     children
                 )}
             </div>
-        </section>
+        </DetailAccordionSection>
     );
 }
 

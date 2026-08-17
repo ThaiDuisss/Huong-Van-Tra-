@@ -130,6 +130,9 @@ public class DeliveryRoute extends SoftDeleteAuditableEntity {
 
     public void assignCourier(UUID employeeId, String name) {
         requireStatus(DeliveryRouteStatus.DRAFT, DeliveryRouteStatus.PLANNING, DeliveryRouteStatus.READY);
+        if (employeeId == null) {
+            throw new IllegalArgumentException("courierEmployeeId is required");
+        }
         this.courierEmployeeId = employeeId;
         this.courierNameSnapshot = name;
         this.status = DeliveryRouteStatus.ASSIGNED;

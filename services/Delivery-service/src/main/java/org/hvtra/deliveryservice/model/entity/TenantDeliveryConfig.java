@@ -9,6 +9,8 @@ import org.hibernate.annotations.Where;
 import org.hibernate.type.SqlTypes;
 import org.hvtra.deliveryservice.model.entity.base.SoftDeleteAuditableEntity;
 import org.hvtra.deliveryservice.model.enums.DeliveryProvider;
+import org.hvtra.deliveryservice.model.enums.RoutePlanningAlgorithmType;
+import org.hvtra.deliveryservice.model.enums.TravelEstimationMode;
 
 
 import java.math.BigDecimal;
@@ -63,14 +65,35 @@ public class TenantDeliveryConfig extends SoftDeleteAuditableEntity {
     @Column(name = "evening_cutoff_time")
     private LocalTime eveningCutoffTime;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "planning_algorithm", nullable = false, length = 50)
+    private RoutePlanningAlgorithmType planningAlgorithm = RoutePlanningAlgorithmType.NEAREST_NEIGHBOR;
+
+    @Column(name = "average_speed_kmh", nullable = false, precision = 5, scale = 2)
+    private BigDecimal averageSpeedKmh = BigDecimal.valueOf(25);
+    @Enumerated(EnumType.STRING)
+    @Column(name = "travel_estimation_mode", nullable = false, length = 60)
+    private TravelEstimationMode travelEstimationMode =
+            TravelEstimationMode.ROAD_TRAFFIC_WITH_HAVERSINE_FALLBACK;
+
+    @Column(name = "service_time_per_stop_min", nullable = false)
+    private int serviceTimePerStopMin = 5;
+
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
     public static TenantDeliveryConfig create(UUID tenantId) {
+        if (tenantId == null) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
         TenantDeliveryConfig config = new TenantDeliveryConfig();
         config.tenantId = tenantId;
         config.active = true;
         config.maxOrdersPerRoute = 10;
+        config.planningAlgorithm = RoutePlanningAlgorithmType.NEAREST_NEIGHBOR;
+        config.averageSpeedKmh = BigDecimal.valueOf(25);
+        config.travelEstimationMode = TravelEstimationMode.ROAD_TRAFFIC_WITH_HAVERSINE_FALLBACK;
+        config.serviceTimePerStopMin = 5;
         return config;
     }
 
@@ -113,9 +136,50 @@ public class TenantDeliveryConfig extends SoftDeleteAuditableEntity {
     }
 
     public void configureCutoffTimes(LocalTime morning, LocalTime afternoon, LocalTime evening) {
+        LocalTime resolvedMorning = morning == null ? LocalTime.of(11, 0) : morning;
+        LocalTime resolvedAfternoon = afternoon == null ? LocalTime.of(16, 0) : afternoon;
+        LocalTime resolvedEvening = evening == null ? LocalTime.of(20, 0) : evening;
+        if (!resolvedMorning.isBefore(resolvedAfternoon)) {
+            throw new IllegalArgumentException("morningCutoffTime must be before afternoonCutoffTime");
+        }
+        if (!resolvedAfternoon.isBefore(resolvedEvening)) {
+            throw new IllegalArgumentException("afternoonCutoffTime must be before eveningCutoffTime");
+        }
         this.morningCutoffTime = morning;
         this.afternoonCutoffTime = afternoon;
         this.eveningCutoffTime = evening;
+    }
+
+    public void configurePlanning(
+            RoutePlanningAlgorithmType algorithm,
+            BigDecimal speedKmh,
+            TravelEstimationMode estimationMode,
+            int serviceTimeMin
+    ) {
+        if (speedKmh == null || speedKmh.signum() <= 0) {
+            throw new IllegalArgumentException("averageSpeedKmh must be greater than zero");
+        }
+        if (serviceTimeMin < 0) {
+            throw new IllegalArgumentException("serviceTimePerStopMin must not be negative");
+        }
+        this.planningAlgorithm = algorithm == null
+                ? RoutePlanningAlgorithmType.NEAREST_NEIGHBOR
+                : algorithm;
+        this.averageSpeedKmh = speedKmh;
+        this.travelEstimationMode = estimationMode == null
+                ? TravelEstimationMode.ROAD_TRAFFIC_WITH_HAVERSINE_FALLBACK
+                : estimationMode;
+        this.serviceTimePerStopMin = serviceTimeMin;
+    }
+
+    public long calculateInternalShippingFee(BigDecimal distanceKm) {
+        if (distanceKm == null || distanceKm.signum() < 0) {
+            throw new IllegalArgumentException("distanceKm must not be negative");
+        }
+        return BigDecimal.valueOf(baseShippingFee)
+                .add(distanceKm.multiply(BigDecimal.valueOf(feePerKm)))
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .longValueExact();
     }
 
     public void activate() {

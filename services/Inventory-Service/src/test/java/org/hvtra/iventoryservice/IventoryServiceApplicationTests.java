@@ -1,12 +1,5 @@
 package org.hvtra.iventoryservice;
 
-import org.hvtra.iventoryservice.dto.request.InventoryItemRequest;
-import org.hvtra.iventoryservice.dto.request.InventoryLocationRequest;
-import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
-import org.hvtra.iventoryservice.dto.request.StockInRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
-import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
-import org.hvtra.iventoryservice.enums.*;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
 import org.hvtra.iventoryservice.service.InventoryItemService;
 import org.hvtra.iventoryservice.service.InventoryLocationService;
@@ -14,11 +7,6 @@ import org.hvtra.iventoryservice.service.InventoryTransactionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

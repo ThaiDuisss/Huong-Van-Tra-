@@ -2,7 +2,7 @@ package org.hvtra.iventoryservice.dto.request;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
-import org.hvtra.iventoryservice.enums.InventoryReferenceType;
+import org.hvtra.iventoryservice.shared.enums.InventoryReferenceType;
 
 import java.math.BigDecimal;
 import java.util.List;

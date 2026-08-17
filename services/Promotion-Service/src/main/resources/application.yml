@@ -32,13 +32,13 @@ server:
 
 kafka-config:
   enabled: true
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.122.52.101:19092}
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.89.77.53:19092}
   num-of-partitions: 3
   replication-factor: 1
 
 kafka-consumer-config:
   enabled: true
-  group-id: Inventory-Service-order-events
+  group-id: Promotion-Service-order-events
   key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   auto-offset-reset: earliest
@@ -57,7 +57,7 @@ promotion:
   order:
     events:
       topics:
-        promotion-confirm: inventory.promotion-confirm.requested
+        usage-commit: promotion.usage-commit.requested
 
 logging:
   pattern:

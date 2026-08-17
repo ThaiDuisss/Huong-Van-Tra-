@@ -50,6 +50,9 @@ public class CarrierShipment extends AuditableEntity {
     @Column(name = "tracking_code", length = 100)
     private String trackingCode;
 
+    @Column(name = "tracking_url", length = 1000)
+    private String trackingUrl;
+
     @Column(name = "provider_status", length = 100)
     private String providerStatus;
 
@@ -90,6 +93,13 @@ public class CarrierShipment extends AuditableEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "create_response", columnDefinition = "JSON")
     private JsonNode createResponse;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "provider_metadata", columnDefinition = "JSON")
+    private JsonNode providerMetadata;
+
+    @Column(name = "last_synced_at")
+    private Instant lastSyncedAt;
 
     public static CarrierShipment create(
             Shipment shipment,
@@ -140,8 +150,50 @@ public class CarrierShipment extends AuditableEntity {
         this.createResponse = createResponse;
     }
 
+    public void updateCreateRequest(JsonNode createRequest) {
+        if (createRequest != null) {
+            this.createRequest = createRequest;
+        }
+    }
     public void updateProviderStatus(String providerStatus) {
         this.providerStatus = providerStatus;
+    }
+
+    public void updateTrackingUrl(String trackingUrl) {
+        if (trackingUrl != null && !trackingUrl.isBlank()) {
+            this.trackingUrl = trackingUrl;
+        }
+    }
+
+    public void updateProviderMetadata(JsonNode providerMetadata) {
+        if (providerMetadata != null && !providerMetadata.isNull()) {
+            this.providerMetadata = providerMetadata;
+        }
+    }
+
+    public void markSynced(Instant syncedAt) {
+        this.lastSyncedAt = syncedAt == null ? Instant.now() : syncedAt;
+    }
+
+
+    public void updateFees(Long shippingFee, Long insuranceFee, Long codFee, Long totalFee) {
+        if (shippingFee != null && shippingFee >= 0) {
+            this.shippingFee = shippingFee;
+        }
+        if (insuranceFee != null && insuranceFee >= 0) {
+            this.insuranceFee = insuranceFee;
+        }
+        if (codFee != null && codFee >= 0) {
+            this.codFee = codFee;
+        }
+        if (totalFee != null && totalFee >= 0) {
+            this.totalFee = totalFee;
+        }
+    }
+    public void updateCodAmount(Long codAmount) {
+        if (codAmount != null && codAmount >= 0) {
+            this.codAmount = codAmount;
+        }
     }
 
     public void markCodCollected() {

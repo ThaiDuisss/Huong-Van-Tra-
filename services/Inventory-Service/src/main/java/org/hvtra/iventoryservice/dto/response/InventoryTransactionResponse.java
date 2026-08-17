@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.dto.response;
 
-import org.hvtra.iventoryservice.enums.InventoryReferenceType;
-import org.hvtra.iventoryservice.enums.InventoryTransactionType;
+import org.hvtra.iventoryservice.shared.enums.InventoryReferenceType;
+import org.hvtra.iventoryservice.shared.enums.InventoryTransactionType;
 
 import java.math.BigDecimal;
 import java.time.Instant;

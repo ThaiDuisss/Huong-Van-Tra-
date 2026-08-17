@@ -20,11 +20,11 @@ import java.time.LocalDateTime;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @ValidTimeRange
-@Schema(description = "Request tạo mới event/campaign khuyến mãi")
+@Schema(description = "Request tạo mới event khuyến mãi")
 public class EventCreateRequest {
 
     @Schema(
-            description = "Tên event/campaign khuyến mãi",
+            description = "Tên event khuyến mãi",
             example = "Tet Holiday Campaign 2027"
     )
     @NotBlank(message = "Event name is required")

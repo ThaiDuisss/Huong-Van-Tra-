@@ -8,6 +8,7 @@ spring:
   flyway:
     baseline-on-migrate: true
     baseline-version: 0
+    locations: classpath:migration
   jpa:
     hibernate:
       ddl-auto: validate
@@ -40,7 +41,7 @@ eureka:
 
 kafka-config:
   enabled: true
-  bootstrap-servers: 100.122.52.101:19092
+  bootstrap-servers: 100.89.77.53:19092
   #  schema-registry-url-key: schema.registry.url
   #  schema-registry-url: http://localhost:8081
   num-of-partitions: 3
@@ -73,6 +74,17 @@ security:
     header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}
 
 delivery:
+  internal-routing:
+    google-routes:
+      enabled: ${GOOGLE_ROUTES_ENABLED:false}
+      base-url: ${GOOGLE_ROUTES_BASE_URL:https://routes.googleapis.com}
+      api-key: ${GOOGLE_ROUTES_API_KEY:}
+      travel-mode: ${GOOGLE_ROUTES_TRAVEL_MODE:DRIVE}
+      routing-preference: ${GOOGLE_ROUTES_ROUTING_PREFERENCE:TRAFFIC_AWARE}
+      avoid-tolls: ${GOOGLE_ROUTES_AVOID_TOLLS:false}
+      avoid-highways: ${GOOGLE_ROUTES_AVOID_HIGHWAYS:false}
+      avoid-ferries: ${GOOGLE_ROUTES_AVOID_FERRIES:true}
+      failure-cooldown-seconds: ${GOOGLE_ROUTES_FAILURE_COOLDOWN_SECONDS:30}
   providers:
     ghn:
       enabled: true
@@ -81,3 +93,11 @@ delivery:
       shop-id: ${GHN_SHOP_ID}
       client-id: ${GHN_CLIENT_ID}
       webhook-secret: ${GHN_WEBHOOK_SECRET}
+
+    ahamove:
+      enabled: ${AHAMOVE_ENABLED:false}
+      base-url: ${AHAMOVE_BASE_URL:https://partner-apistg.ahamove.com}
+      token: ${AHAMOVE_TOKEN:}
+      webhook-auth-type: ${AHAMOVE_WEBHOOK_AUTH_TYPE:API_KEY}
+      webhook-secret: ${AHAMOVE_WEBHOOK_SECRET:}
+      webhook-username: ${AHAMOVE_WEBHOOK_USERNAME:}

@@ -7,7 +7,7 @@ import org.hvtra.commonservice.kafka.inbox.InboxStatus;
 import org.hvtra.iventoryservice.dto.event.OrderInventoryEventPayload;
 import org.hvtra.iventoryservice.dto.request.ConfirmInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.entity.InventoryInbox;
-import org.hvtra.iventoryservice.exception.BadRequestException;
+import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.repository.InventoryInboxRepository;
 import org.hvtra.iventoryservice.service.InventoryReservationService;
 import org.springframework.beans.factory.annotation.Value;

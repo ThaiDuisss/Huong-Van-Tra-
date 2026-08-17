@@ -3,6 +3,7 @@ package org.hvtra.orderservice.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.orderservice.domain.enums.DiscountScope;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 
@@ -117,11 +118,38 @@ public class Order extends BaseEntity {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
+    @Builder.Default
+    @OneToMany(mappedBy = "order", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    private List<OrderDiscount> discounts = new ArrayList<>();
+
     public void addItem(OrderItem item) {
         if (items == null) {
             items = new ArrayList<>();
         }
         items.add(item);
         item.setOrder(this);
+    }
+
+    public void addDiscount(OrderDiscount discount) {
+        if (discount.getScope() == DiscountScope.ORDER
+                && discount.getOrderItem() != null) {
+            throw new IllegalArgumentException(
+                    "Order-level discount must not reference an order item"
+            );
+        }
+
+        if (discount.getScope() == DiscountScope.ITEM
+                && discount.getOrderItem() == null) {
+            throw new IllegalArgumentException(
+                    "Item-level discount must reference an order item"
+            );
+        }
+
+        if (discounts == null) {
+            discounts = new ArrayList<>();
+        }
+
+        discounts.add(discount);
+        discount.setOrder(this);
     }
 }

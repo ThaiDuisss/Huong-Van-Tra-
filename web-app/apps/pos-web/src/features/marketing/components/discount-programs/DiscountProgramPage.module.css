@@ -573,6 +573,50 @@
     width: 8%;
 }
 
+.promotionNameColumn {
+    width: 38%;
+}
+
+.promotionStatusColumn {
+    width: 15%;
+}
+
+.promotionApplyColumn {
+    width: 17%;
+}
+
+.promotionTimeColumn {
+    width: 23%;
+}
+
+.promotionActionColumn {
+    width: 7%;
+}
+
+.usageExpandColumn {
+    width: 5%;
+}
+
+.usageCouponColumn {
+    width: 18%;
+}
+
+.usageOrderColumn {
+    width: 29%;
+}
+
+.usageAmountColumn {
+    width: 15%;
+}
+
+.usageStatusColumn {
+    width: 16%;
+}
+
+.usageTimeColumn {
+    width: 17%;
+}
+
 .table th {
     height: 50px;
     border-bottom: 1px solid #d8e0ea;
@@ -859,6 +903,56 @@
 .typePill {
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.applyMethodPill {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 13px;
+    font-weight: 750;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.applyMethodAuto {
+    border-color: #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.applyMethodCoupon {
+    border-color: #ddd6fe;
+    background: #f5f3ff;
+    color: #6d28d9;
+}
+
+.applyMethodDirect {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.applyMethodDefault {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+}
+
+.promotionTimeCell {
+    text-align: center;
+}
+
+.promotionTimeCell .timeRangeCell {
+    width: 100%;
+}
+
+.promotionTable th:nth-child(4),
+.promotionTable td:nth-child(4) {
+    text-align: center;
 }
 
 .typeSeasonal {
@@ -1518,6 +1612,112 @@
 .detailCard {
     overflow: hidden;
     padding: 18px;
+}
+
+.detailAccordionClosed {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.detailAccordionOpen {
+    padding-top: 0;
+}
+
+.detailAccordionTrigger {
+    display: flex;
+    width: calc(100% + 36px);
+    min-height: 58px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 -18px;
+    border: 0;
+    background: transparent;
+    color: #17213a;
+    padding: 0 18px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.detailAccordionTrigger:hover {
+    background: #f8fafc;
+}
+
+.detailAccordionHeading {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+}
+
+.detailAccordionHeading > svg {
+    flex: 0 0 auto;
+    color: #009b4d;
+}
+
+.detailAccordionChevron {
+    flex: 0 0 auto;
+    color: #667085;
+    transition: transform 160ms ease;
+}
+
+.detailAccordionOpen .detailAccordionChevron {
+    transform: rotate(180deg);
+}
+
+.detailAccordionContent {
+    position: relative;
+    border-top: 1px solid #edf1f6;
+    padding-top: 18px;
+}
+
+.detailAccordionAction {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+.expandedDetailRow td {
+    height: auto;
+    border-bottom: 1px solid #bfdbfe;
+    background: #eff6ff;
+    padding: 0;
+}
+
+.usageDetailGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    padding: 18px 24px;
+}
+
+.usageDetailItem {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+    border: 1px solid #dbeafe;
+    border-radius: 9px;
+    background: #ffffff;
+    padding: 12px;
+}
+
+.usageDetailItem span {
+    color: #667085;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.usageDetailItem strong {
+    overflow-wrap: anywhere;
+    color: #17213a;
+    font-size: 13px;
+    font-weight: 750;
+}
+
+@media (max-width: 1000px) {
+    .usageDetailGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 .detailCardHeader {

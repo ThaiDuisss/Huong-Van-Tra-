@@ -217,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<CurrentUser | undefined>(() =>
         keycloak.authenticated ? readUserCache() : undefined
     );
+    const tokenRoles = keycloak.realmAccess?.roles;
 
     const syncAuthState = () => {
         setAuthenticated(!!keycloak.authenticated);
@@ -306,7 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             displayName: getUserDisplayName(user),
             avatarUrl: user?.avatarUrl,
             shiftName: getUserShiftName(user),
-            roles: user?.roles,
+            roles: user?.roles ?? tokenRoles,
             roleLabel: getUserRoleLabel(user),
 
             login: () => {
@@ -335,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return keycloak.hasResourceRole(role, resource);
             },
         }),
-        [initialized, authenticated, user]
+        [initialized, authenticated, tokenRoles, user]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

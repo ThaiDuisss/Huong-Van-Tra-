@@ -18,7 +18,11 @@ CREATE TABLE tenant_delivery_configs (
                                          morning_cutoff_time TIME NULL,
                                          afternoon_cutoff_time TIME NULL,
                                          evening_cutoff_time TIME NULL,
-
+                                         planning_algorithm VARCHAR(50) NOT NULL DEFAULT 'NEAREST_NEIGHBOR',
+                                         average_speed_kmh DECIMAL(5, 2) NOT NULL DEFAULT 25.00,
+                                         travel_estimation_mode VARCHAR(60) NOT NULL
+                                             DEFAULT 'ROAD_TRAFFIC_WITH_HAVERSINE_FALLBACK',
+                                         service_time_per_stop_min INT NOT NULL DEFAULT 5,
                                          active TINYINT(1) NOT NULL DEFAULT 1,
 
                                          created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -274,6 +278,7 @@ CREATE TABLE route_stops (
 
                              estimated_distance_meter INT NULL,
                              estimated_duration_second INT NULL,
+                             estimate_source VARCHAR(30) NULL,
 
                              failure_code VARCHAR(100) NULL,
                              failure_reason VARCHAR(1000) NULL,
@@ -382,9 +387,12 @@ CREATE TABLE carrier_shipments (
 
                                    expected_delivery_from DATETIME(6) NULL,
                                    expected_delivery_to DATETIME(6) NULL,
+                                   tracking_url VARCHAR(1000) NULL,
 
+                                   last_synced_at DATETIME(6) NULL,
                                    create_request JSON NULL,
                                    create_response JSON NULL,
+                                   provider_metadata JSON NULL,
 
                                    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                                    updated_at DATETIME(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),

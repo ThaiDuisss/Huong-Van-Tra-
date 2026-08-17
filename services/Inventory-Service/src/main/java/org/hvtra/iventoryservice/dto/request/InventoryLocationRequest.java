@@ -3,8 +3,8 @@ package org.hvtra.iventoryservice.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import org.hvtra.iventoryservice.enums.InventoryLocationType;
-import org.hvtra.iventoryservice.enums.InventoryStatus;
+import org.hvtra.iventoryservice.shared.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.shared.enums.InventoryStatus;
 
 import java.util.UUID;
 

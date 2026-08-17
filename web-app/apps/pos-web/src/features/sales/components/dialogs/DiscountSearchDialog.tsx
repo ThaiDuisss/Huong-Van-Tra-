@@ -37,6 +37,10 @@ function getDiscountValueLabel(discount: SaleDiscountOption) {
     return `-${formatCurrency(discount.value)}`;
   }
 
+  if (discount.type === "GIFT") {
+    return `Tặng ${discount.giftQuantity ?? 1}`;
+  }
+
   return "Không giảm";
 }
 

@@ -39,8 +39,8 @@ public class OrderPromotionEventMetadataResolver {
     }
 
     private String eventTypeFromTopic(String topic) {
-        if ("promotion.reservation-confirm.requested".equals(topic)) {
-            return "PROMOTION_RESERVATION_CONFIRM_REQUESTED";
+        if ("promotion.usage-commit.requested".equals(topic)) {
+            return "PROMOTION_USAGE_COMMIT_REQUESTED";
         }
         return null;
     }

@@ -2,11 +2,11 @@ package org.hvtra.promotionservice.integration.consumer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.coyote.BadRequestException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.hvtra.commonservice.kafka.inbox.InboxStatus;
 import org.hvtra.promotionservice.dto.event.OrderPromotionEventPayload;
 import org.hvtra.promotionservice.entity.PromotionInbox;
+import org.hvtra.promotionservice.repository.PromotionInboxRepository;
 import org.hvtra.promotionservice.service.CouponUsageService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,51 +23,51 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PromotionReservationConfirmInboxService {
 
-    private static final String INVENTORY_RESERVATION_CONFIRM_REQUESTED = "INVENTORY_RESERVATION_CONFIRM_REQUESTED";
+    private static final String PROMOTION_USAGE_COMMIT_REQUESTED = "PROMOTION_USAGE_COMMIT_REQUESTED";
     private final CouponUsageService couponUsageService;
 
-    private final OrderPromotionEventPayloadParser OrderPromotionEventPayloadParser;
-    private final OrderPromotionEventMetadataResolver orderInventoryEventMetadataResolver;
+    private final OrderPromotionEventPayloadParser orderPromotionEventPayloadParser;
+    private final OrderPromotionEventMetadataResolver orderPromotionEventMetadataResolver;
+    private final PromotionInboxRepository promotionInboxRepository;
 
-    @Value("${kafka-consumer-config.group-id:Inventory-Service-order-events}")
+
+    @Value("${kafka-consumer-config.group-id:Promotion-Service-order-events}")
     private String consumerGroup;
 
     @Transactional
     public void handle(ConsumerRecord<String, String> record) {
-        Optional<OrderPromotionEventPayload> parsedEvent = OrderPromotionEventPayloadParser.parseCreateEvent(record.value());
+        Optional<OrderPromotionEventPayload> parsedEvent = orderPromotionEventPayloadParser.parseCreateEvent(record.value());
         if (parsedEvent.isEmpty()) {
-            log.debug("Bỏ qua order inventory CDC event không phải create. topic={}, partition={}, offset={}",
+            log.debug("Bỏ qua order promotion CDC event không phải create. topic={}, partition={}, offset={}",
                     record.topic(), record.partition(), record.offset());
             return;
         }
 
         OrderPromotionEventPayload event = parsedEvent.get();
-        orderInventoryEventMetadataResolver.normalizeBeforeEventId(record, event);
-        String eventId = orderInventoryEventMetadataResolver.resolveEventId(record, event);
-        orderInventoryEventMetadataResolver.normalizeEventKey(record, event);
+        orderPromotionEventMetadataResolver.normalizeBeforeEventId(record, event);
+        String eventId = orderPromotionEventMetadataResolver.resolveEventId(record, event);
+        orderPromotionEventMetadataResolver.normalizeEventKey(record, event);
 
         PromotionInbox inbox = insertInbox(record, event, eventId);
         if (isTerminal(inbox.getStatus())) {
             return;
         }
 
-        if (!INVENTORY_RESERVATION_CONFIRM_REQUESTED.equals(event.getEventType())) {
-            log.debug("Bỏ qua order inventory event không phải confirm reservation: {}", event.getEventType());
+        if (!PROMOTION_USAGE_COMMIT_REQUESTED.equals(event.getEventType())) {
+            log.debug("Bỏ qua order promotion event không phải commit coupon usage: {}", event.getEventType());
             markIgnored(inbox);
             return;
         }
 
         try {
             inbox.setStatus(InboxStatus.PROCESSING);
-            inventoryReservationService.confirmOrder(new ConfirmInventoryReservationOrderRequest(UUID.fromString(event.getOrderId())));
+            applyCouponUsages(event);
             markProcessed(inbox);
-        } catch (BadRequestException ex) {
-            if (!isMissingReservation(ex)) {
-                throw ex;
-            }
-            log.error("Không confirm reservation vì order không có reservation active. eventId={}, orderId={}",
+        } catch (RuntimeException ex) {
+            log.error("Không commit được coupon usage. eventId={}, orderId={}",
                     eventId, event.getOrderId(), ex);
             markFailed(inbox, ex);
+            throw ex;
         }
     }
 
@@ -75,7 +76,7 @@ public class PromotionReservationConfirmInboxService {
             OrderPromotionEventPayload event,
             String eventId
     ) {
-        Optional<PromotionInbox> existing = PromotionInboxRepository.findByEventIdAndConsumerGroup(eventId, consumerGroup);
+        Optional<PromotionInbox> existing = promotionInboxRepository.findByEventIdAndConsumerGroup(eventId, consumerGroup);
         if (existing.isPresent()) {
             PromotionInbox inbox = existing.get();
             if (isTerminal(inbox.getStatus())) {
@@ -90,7 +91,7 @@ public class PromotionReservationConfirmInboxService {
 
         try {
             PromotionInbox inbox = buildInbox(record, event, eventId);
-            return PromotionInboxRepository.saveAndFlush(inbox);
+            return promotionInboxRepository.saveAndFlush(inbox);
         } catch (DataIntegrityViolationException ex) {
             throw ex;
         }
@@ -111,15 +112,31 @@ public class PromotionReservationConfirmInboxService {
         inbox.setMessageKey(record.key());
         inbox.setEventType(event.getEventType());
         inbox.setEventVersion(1);
-        inbox.setSourceService(orderInventoryEventMetadataResolver.sourceService(record));
+        inbox.setSourceService(orderPromotionEventMetadataResolver.sourceService(record));
         inbox.setEntityType("ORDER");
         inbox.setEntityId(event.getOrderId());
-        inbox.setCorrelationId(orderInventoryEventMetadataResolver.correlationId(record, event));
+        inbox.setCorrelationId(orderPromotionEventMetadataResolver.correlationId(record, event));
         inbox.setPayloadJson(record.value());
-        inbox.setHeadersJson(orderInventoryEventMetadataResolver.serializeHeaders(record));
+        inbox.setHeadersJson(orderPromotionEventMetadataResolver.serializeHeaders(record));
         inbox.setStatus(InboxStatus.RECEIVED);
 
         return inbox;
+    }
+
+    private void applyCouponUsages(OrderPromotionEventPayload event) {
+        List<String> usageIds = event.getUsageIds();
+        if (usageIds == null || usageIds.isEmpty()) {
+            throw new IllegalArgumentException("Promotion commit event thiếu usageIds");
+        }
+
+        for (String rawUsageId : usageIds) {
+            if (rawUsageId == null || rawUsageId.isBlank()) {
+                continue;
+            }
+
+            UUID usageId = UUID.fromString(rawUsageId);
+            couponUsageService.applyUsage(usageId);
+        }
     }
 
     private void markProcessed(PromotionInbox inbox) {
@@ -147,7 +164,4 @@ public class PromotionReservationConfirmInboxService {
                 || status == InboxStatus.DEAD;
     }
 
-    private boolean isMissingReservation(BadRequestException ex) {
-        return ex.getMessage() != null && ex.getMessage().contains("No active reservation found");
-    }
 }

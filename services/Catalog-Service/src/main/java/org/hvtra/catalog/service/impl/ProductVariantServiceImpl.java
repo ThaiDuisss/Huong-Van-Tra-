@@ -576,7 +576,6 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 .map(ProductVariant::getId)
                 .distinct()
                 .toList());
-
         return variants.stream()
                 .map(v -> toPosSearchView(v, stockMap.get(v.getId())))
                 .toList();

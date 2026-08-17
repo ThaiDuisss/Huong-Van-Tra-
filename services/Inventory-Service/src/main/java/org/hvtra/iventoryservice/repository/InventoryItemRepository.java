@@ -2,7 +2,7 @@ package org.hvtra.iventoryservice.repository;
 
 import jakarta.persistence.LockModeType;
 import org.hvtra.iventoryservice.entity.InventoryItem;
-import org.hvtra.iventoryservice.enums.InventoryItemType;
+import org.hvtra.iventoryservice.shared.enums.InventoryItemType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;

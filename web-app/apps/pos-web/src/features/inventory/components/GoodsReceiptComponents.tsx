@@ -1,0 +1,781 @@
+import {
+    AlertTriangle,
+    CheckCircle2,
+    Clock3,
+    Eye,
+    FileText,
+    Lock,
+    PackageCheck,
+    XCircle
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
+
+import {
+    costStatusLabels,
+    costStatusOptions,
+    goodsReceiptRoleLabels,
+    goodsReceiptStatusLabels,
+    goodsReceiptStatusOptions,
+    qcResultLabels,
+    qcResultOptions
+} from "../constants/goods-receipt.constants";
+import type {
+    CostStatus,
+    GoodsReceiptDetail,
+    GoodsReceiptListQuery,
+    GoodsReceiptRole,
+    GoodsReceiptStatus,
+    GoodsReceiptSummary,
+    QcResult,
+    SupplierSummary
+} from "../types/goods-receipt.types";
+import type { InventoryLocationSummary } from "../types/stock-document.types";
+import {
+    formatVietnamDateTime,
+    formatVietnamNumber,
+    formatVnd
+} from "../utils/inventory-format";
+
+const statusTone: Record<GoodsReceiptStatus, string> = {
+    AWAITING_COST: "border-blue-200 bg-blue-50 text-blue-700",
+    AWAITING_QC: "border-amber-200 bg-amber-50 text-amber-700",
+    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600",
+    DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
+    PARTIALLY_PASSED: "border-orange-200 bg-orange-50 text-orange-700",
+    POSTED: "border-green-200 bg-green-50 text-green-700",
+    READY_TO_POST: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    RECEIVING: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    REJECTED: "border-red-200 bg-red-50 text-red-700",
+    SUBMITTED: "border-amber-200 bg-amber-50 text-amber-700"
+};
+
+function statusIcon(status: GoodsReceiptStatus) {
+    if (status === "POSTED" || status === "READY_TO_POST") {
+        return <CheckCircle2 size={14} aria-hidden="true" />;
+    }
+
+    if (status === "REJECTED" || status === "CANCELLED") {
+        return <XCircle size={14} aria-hidden="true" />;
+    }
+
+    if (status === "PARTIALLY_PASSED") {
+        return <AlertTriangle size={14} aria-hidden="true" />;
+    }
+
+    return <Clock3 size={14} aria-hidden="true" />;
+}
+
+export function GoodsReceiptStatusBadge({
+    status
+}: {
+    status: GoodsReceiptStatus;
+}) {
+    return (
+        <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${statusTone[status]}`}
+        >
+            {statusIcon(status)}
+            {goodsReceiptStatusLabels[status]}
+        </span>
+    );
+}
+
+export function QcBadge({ result }: { result: QcResult }) {
+    return (
+        <span className="inline-flex rounded-full bg-[#f7f8fb] px-2.5 py-1 text-xs font-black text-[#536078]">
+            {qcResultLabels[result]}
+        </span>
+    );
+}
+
+export function CostBadge({ status }: { status: CostStatus }) {
+    return (
+        <span className="inline-flex rounded-full bg-[#edf8ef] px-2.5 py-1 text-xs font-black text-[#159734]">
+            {costStatusLabels[status]}
+        </span>
+    );
+}
+
+export function GoodsReceiptSummaryCard({
+    icon,
+    label,
+    value
+}: {
+    icon: ReactNode;
+    label: string;
+    value: number;
+}) {
+    return (
+        <article className="grid min-h-[90px] gap-2 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
+            <div className="flex items-center gap-2 text-sm font-black text-[#315f3c]">
+                <span className="grid size-8 place-items-center rounded-lg bg-[#edf8ef] text-[#159734]">
+                    {icon}
+                </span>
+                {label}
+            </div>
+            <strong className="text-2xl font-black text-[#172317]">
+                {formatVietnamNumber(value)}
+            </strong>
+        </article>
+    );
+}
+
+export function GoodsReceiptRoleSwitch({
+    onChange,
+    value
+}: {
+    onChange: (role: GoodsReceiptRole) => void;
+    value: GoodsReceiptRole;
+}) {
+    return (
+        <label className="grid gap-1 text-xs font-black text-[#536078]">
+            Vai trò mô phỏng
+            <select
+                aria-label="Vai trò mô phỏng"
+                className="h-10 min-w-[210px] rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black text-[#172317] outline-none focus:border-[#159734]"
+                onChange={(event) =>
+                    onChange(event.currentTarget.value as GoodsReceiptRole)
+                }
+                value={value}
+            >
+                {Object.entries(goodsReceiptRoleLabels).map(
+                    ([role, label]) => (
+                        <option key={role} value={role}>
+                            {label}
+                        </option>
+                    )
+                )}
+            </select>
+        </label>
+    );
+}
+
+export function GoodsReceiptFilterBar({
+    locations,
+    onChange,
+    onReset,
+    query,
+    suppliers
+}: {
+    locations: InventoryLocationSummary[];
+    onChange: (patch: Partial<GoodsReceiptListQuery>) => void;
+    onReset: () => void;
+    query: GoodsReceiptListQuery;
+    suppliers: SupplierSummary[];
+}) {
+    return (
+        <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <TextFilter
+                    label="Mã phiếu nhập"
+                    onChange={(receiptCode) =>
+                        onChange({ page: 0, receiptCode })
+                    }
+                    value={query.receiptCode}
+                />
+                <SelectFilter
+                    label="Nhà cung cấp"
+                    onChange={(supplierId) =>
+                        onChange({ page: 0, supplierId })
+                    }
+                    options={[
+                        { label: "Tất cả", value: "ALL" },
+                        ...suppliers.map((supplier) => ({
+                            label: supplier.name,
+                            value: supplier.id
+                        }))
+                    ]}
+                    value={query.supplierId}
+                />
+                <TextFilter
+                    label="Purchase Order"
+                    onChange={(purchaseOrderCode) =>
+                        onChange({ page: 0, purchaseOrderCode })
+                    }
+                    value={query.purchaseOrderCode}
+                />
+                <SelectFilter
+                    label="Trạng thái receipt"
+                    onChange={(status) =>
+                        onChange({
+                            page: 0,
+                            status: status as GoodsReceiptListQuery["status"]
+                        })
+                    }
+                    options={[
+                        { label: "Tất cả", value: "ALL" },
+                        ...goodsReceiptStatusOptions.map((status) => ({
+                            label: goodsReceiptStatusLabels[status],
+                            value: status
+                        }))
+                    ]}
+                    value={query.status}
+                />
+                <SelectFilter
+                    label="Kết quả QC"
+                    onChange={(qcResult) =>
+                        onChange({
+                            page: 0,
+                            qcResult:
+                                qcResult as GoodsReceiptListQuery["qcResult"]
+                        })
+                    }
+                    options={[
+                        { label: "Tất cả", value: "ALL" },
+                        ...qcResultOptions.map((result) => ({
+                            label: qcResultLabels[result],
+                            value: result
+                        }))
+                    ]}
+                    value={query.qcResult}
+                />
+                <SelectFilter
+                    label="Trạng thái giá"
+                    onChange={(costStatus) =>
+                        onChange({
+                            costStatus:
+                                costStatus as GoodsReceiptListQuery["costStatus"],
+                            page: 0
+                        })
+                    }
+                    options={[
+                        { label: "Tất cả", value: "ALL" },
+                        ...costStatusOptions.map((status) => ({
+                            label: costStatusLabels[status],
+                            value: status
+                        }))
+                    ]}
+                    value={query.costStatus}
+                />
+                <SelectFilter
+                    label="Kho nhận"
+                    onChange={(receivingLocationId) =>
+                        onChange({ page: 0, receivingLocationId })
+                    }
+                    options={[
+                        { label: "Tất cả", value: "ALL" },
+                        ...locations.map((location) => ({
+                            label: location.name,
+                            value: location.id
+                        }))
+                    ]}
+                    value={query.receivingLocationId}
+                />
+                <SelectFilter
+                    label="Có chênh lệch"
+                    onChange={(hasVariance) =>
+                        onChange({
+                            hasVariance:
+                                hasVariance as GoodsReceiptListQuery["hasVariance"],
+                            page: 0
+                        })
+                    }
+                    options={[
+                        { label: "Tất cả", value: "ALL" },
+                        { label: "Có", value: "YES" },
+                        { label: "Không", value: "NO" }
+                    ]}
+                    value={query.hasVariance}
+                />
+                <TextFilter
+                    label="Ngày nhận từ"
+                    onChange={(receivedFrom) =>
+                        onChange({ page: 0, receivedFrom })
+                    }
+                    type="date"
+                    value={query.receivedFrom}
+                />
+                <TextFilter
+                    label="Ngày nhận đến"
+                    onChange={(receivedTo) =>
+                        onChange({ page: 0, receivedTo })
+                    }
+                    type="date"
+                    value={query.receivedTo}
+                />
+                <div className="flex items-end">
+                    <button
+                        className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] hover:bg-[#f7f8fb]"
+                        onClick={onReset}
+                        type="button"
+                    >
+                        Xóa bộ lọc
+                    </button>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+export function GoodsReceiptTable({
+    receipts
+}: {
+    receipts: GoodsReceiptSummary[];
+}) {
+    const navigate = useNavigate();
+
+    return (
+        <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
+            <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-left text-sm">
+                <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
+                    <tr>
+                        <TableHead>Mã phiếu</TableHead>
+                        <TableHead>Nhà cung cấp</TableHead>
+                        <TableHead>PO</TableHead>
+                        <TableHead>Kho nhận</TableHead>
+                        <TableHead align="right">Số dòng</TableHead>
+                        <TableHead align="right">Tổng nhận</TableHead>
+                        <TableHead>QC</TableHead>
+                        <TableHead>Giá</TableHead>
+                        <TableHead>Trạng thái</TableHead>
+                        <TableHead>Ngày nhận</TableHead>
+                        <TableHead>Người tạo</TableHead>
+                        <TableHead align="right">Thao tác</TableHead>
+                    </tr>
+                </thead>
+                <tbody>
+                    {receipts.map((receipt) => (
+                        <tr
+                            className="cursor-pointer bg-white hover:bg-[#f8fbf8]"
+                            key={receipt.id}
+                            onClick={() =>
+                                navigate(
+                                    `/management/inventory/receipts/${receipt.id}`
+                                )
+                            }
+                        >
+                            <TableCell strong>
+                                <Link
+                                    className="text-[#159734] hover:underline"
+                                    onClick={(event) => event.stopPropagation()}
+                                    to={`/management/inventory/receipts/${receipt.id}`}
+                                >
+                                    {receipt.code}
+                                </Link>
+                            </TableCell>
+                            <TableCell>{receipt.supplier.name}</TableCell>
+                            <TableCell>{receipt.purchaseOrderCode ?? "Ngoài PO"}</TableCell>
+                            <TableCell>{receipt.receivingLocation.name}</TableCell>
+                            <TableCell align="right">
+                                {formatVietnamNumber(receipt.totalLines)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVietnamNumber(
+                                    receipt.totalReceivedQuantity
+                                )}
+                            </TableCell>
+                            <TableCell>
+                                <QcBadge result={receipt.qcResult} />
+                            </TableCell>
+                            <TableCell>
+                                <CostBadge status={receipt.costStatus} />
+                            </TableCell>
+                            <TableCell>
+                                <GoodsReceiptStatusBadge
+                                    status={receipt.status}
+                                />
+                            </TableCell>
+                            <TableCell>
+                                {formatVietnamDateTime(receipt.receivedAt)}
+                            </TableCell>
+                            <TableCell>{receipt.createdBy.name}</TableCell>
+                            <TableCell align="right">
+                                <Link
+                                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d8eadc] px-3 text-xs font-black text-[#159734] hover:bg-[#f4faf5]"
+                                    onClick={(event) => event.stopPropagation()}
+                                    to={`/management/inventory/receipts/${receipt.id}`}
+                                >
+                                    <Eye size={15} aria-hidden="true" />
+                                    Xem
+                                </Link>
+                            </TableCell>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+export function RoleUnavailable({
+    currentRole
+}: {
+    currentRole: GoodsReceiptRole;
+}) {
+    return (
+        <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#e8eef0] bg-[#f7f8fb] px-3 text-xs font-black text-[#697684]">
+            <Lock size={14} aria-hidden="true" />
+            Không khả dụng với {goodsReceiptRoleLabels[currentRole]}
+        </span>
+    );
+}
+
+export function GoodsReceiptLineTable({
+    receipt
+}: {
+    receipt: GoodsReceiptDetail;
+}) {
+    return (
+        <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
+            <table className="w-full min-w-[1120px] text-left text-sm">
+                <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
+                    <tr>
+                        <TableHead>SKU</TableHead>
+                        <TableHead>Nguyên liệu</TableHead>
+                        <TableHead align="right">Số đặt</TableHead>
+                        <TableHead align="right">Số nhận</TableHead>
+                        <TableHead align="right">Thiếu/thừa</TableHead>
+                        <TableHead align="right">Đạt QC</TableHead>
+                        <TableHead align="right">Quarantine</TableHead>
+                        <TableHead align="right">Failed</TableHead>
+                        <TableHead>Batch</TableHead>
+                        <TableHead>Hạn sử dụng</TableHead>
+                        <TableHead>Trạng thái batch</TableHead>
+                    </tr>
+                </thead>
+                <tbody>
+                    {receipt.lines.map((line) => (
+                        <tr key={line.id}>
+                            <TableCell strong>{line.skuCode}</TableCell>
+                            <TableCell>{line.materialName}</TableCell>
+                            <TableCell align="right">
+                                {line.orderedQuantity ?? "-"}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVietnamNumber(line.receivedQuantity)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {line.surplusQuantity > 0
+                                    ? `+${formatVietnamNumber(line.surplusQuantity)}`
+                                    : line.shortageQuantity > 0
+                                      ? `-${formatVietnamNumber(line.shortageQuantity)}`
+                                      : "0"}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVietnamNumber(line.qc.passedQuantity)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVietnamNumber(
+                                    line.qc.quarantinedQuantity
+                                )}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVietnamNumber(line.qc.failedQuantity)}
+                            </TableCell>
+                            <TableCell>{line.internalBatchCode}</TableCell>
+                            <TableCell>
+                                {formatVietnamDateTime(line.expiryDate)}
+                            </TableCell>
+                            <TableCell>{line.batchStatus}</TableCell>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+export function GoodsReceiptCostTable({
+    receipt
+}: {
+    receipt: GoodsReceiptDetail;
+}) {
+    return (
+        <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
+            <table className="w-full min-w-[1080px] text-left text-sm">
+                <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
+                    <tr>
+                        <TableHead>SKU</TableHead>
+                        <TableHead align="right">Đơn giá nhập</TableHead>
+                        <TableHead align="right">Accepted</TableHead>
+                        <TableHead align="right">Discount</TableHead>
+                        <TableHead align="right">Tax</TableHead>
+                        <TableHead align="right">Shipping</TableHead>
+                        <TableHead align="right">Other</TableHead>
+                        <TableHead align="right">Net amount</TableHead>
+                        <TableHead align="right">Final unit cost</TableHead>
+                        <TableHead>Trạng thái</TableHead>
+                    </tr>
+                </thead>
+                <tbody>
+                    {receipt.lines.map((line) => (
+                        <tr key={line.id}>
+                            <TableCell strong>{line.skuCode}</TableCell>
+                            <TableCell align="right">
+                                {formatVnd(line.cost.purchaseUnitPrice)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVietnamNumber(
+                                    line.cost.acceptedQuantity
+                                )}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVnd(line.cost.discount)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVnd(line.cost.tax)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVnd(line.cost.allocatedShippingCost)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVnd(line.cost.otherCost)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVnd(line.cost.lineNetAmount)}
+                            </TableCell>
+                            <TableCell align="right">
+                                {formatVnd(line.cost.finalUnitCost)}
+                            </TableCell>
+                            <TableCell>
+                                <CostBadge status={line.cost.status} />
+                            </TableCell>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+export function GoodsReceiptAuditTimeline({
+    receipt
+}: {
+    receipt: GoodsReceiptDetail;
+}) {
+    return (
+        <ol className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4">
+            {receipt.auditEvents.map((event) => (
+                <li className="grid grid-cols-[18px_1fr] gap-3" key={event.id}>
+                    <span className="mt-1 size-2.5 rounded-full bg-[#159734]" />
+                    <div className="grid gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <strong className="text-sm font-black text-[#172317]">
+                                {event.type}
+                            </strong>
+                            <span className="text-xs font-bold text-[#697684]">
+                                {formatVietnamDateTime(event.happenedAt)}
+                            </span>
+                        </div>
+                        <p className="text-sm font-semibold text-[#536078]">
+                            {event.actor.name} - {event.roleSnapshot}
+                        </p>
+                        {event.note ? (
+                            <p className="text-sm font-semibold text-[#697684]">
+                                Ghi chú: {event.note}
+                            </p>
+                        ) : null}
+                        {event.reason ? (
+                            <p className="text-sm font-bold text-red-700">
+                                Lý do: {event.reason}
+                            </p>
+                        ) : null}
+                    </div>
+                </li>
+            ))}
+        </ol>
+    );
+}
+
+export function GoodsReceiptEvidenceList({
+    receipt
+}: {
+    receipt: GoodsReceiptDetail;
+}) {
+    return (
+        <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4">
+            {receipt.evidence.length === 0 ? (
+                <p className="text-sm font-semibold text-[#697684]">
+                    Chưa có tài liệu đính kèm.
+                </p>
+            ) : (
+                receipt.evidence.map((item) => (
+                    <div
+                        className="flex items-center justify-between gap-3 rounded-lg bg-[#f7f8fb] px-3 py-2"
+                        key={item.id}
+                    >
+                        <span className="inline-flex items-center gap-2 text-sm font-black text-[#172317]">
+                            <FileText size={15} aria-hidden="true" />
+                            {item.fileName}
+                        </span>
+                        <span className="text-xs font-bold text-[#697684]">
+                            {item.type}
+                        </span>
+                    </div>
+                ))
+            )}
+        </div>
+    );
+}
+
+export function GoodsReceiptMovementPanel({
+    receipt
+}: {
+    receipt: GoodsReceiptDetail;
+}) {
+    if (!receipt.movementSummary) {
+        return (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                Hàng đã nhận vật lý tại AWAITING_QC. Available chưa tăng cho
+                đến khi QC và post hoàn tất.
+            </div>
+        );
+    }
+
+    return (
+        <div className="grid gap-3 rounded-xl border border-[#d8eadc] bg-[#f4faf5] p-4 md:grid-cols-4">
+            <MovementItem
+                label="AVAILABLE"
+                value={receipt.movementSummary.availableQuantity}
+            />
+            <MovementItem
+                label="QUARANTINE"
+                value={receipt.movementSummary.quarantineQuantity}
+            />
+            <MovementItem
+                label="RETURN_TO_SUPPLIER"
+                value={receipt.movementSummary.returnToSupplierQuantity}
+            />
+            <MovementItem
+                label="Tổng giá trị"
+                value={formatVnd(receipt.movementSummary.totalInventoryValue)}
+            />
+        </div>
+    );
+}
+
+function MovementItem({ label, value }: { label: string; value: number | string }) {
+    return (
+        <div className="grid gap-1">
+            <span className="text-xs font-black text-[#536078]">{label}</span>
+            <strong className="text-lg font-black text-[#172317]">
+                {typeof value === "number" ? formatVietnamNumber(value) : value}
+            </strong>
+        </div>
+    );
+}
+
+function TextFilter({
+    label,
+    onChange,
+    type = "text",
+    value
+}: {
+    label: string;
+    onChange: (value: string) => void;
+    type?: string;
+    value: string;
+}) {
+    return (
+        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
+            {label}
+            <input
+                aria-label={label}
+                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
+                onChange={(event) => onChange(event.currentTarget.value)}
+                type={type}
+                value={value}
+            />
+        </label>
+    );
+}
+
+function SelectFilter({
+    label,
+    onChange,
+    options,
+    value
+}: {
+    label: string;
+    onChange: (value: string) => void;
+    options: Array<{ label: string; value: string }>;
+    value: string;
+}) {
+    return (
+        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
+            {label}
+            <select
+                aria-label={label}
+                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
+                onChange={(event) => onChange(event.currentTarget.value)}
+                value={value}
+            >
+                {options.map((option) => (
+                    <option key={option.value} value={option.value}>
+                        {option.label}
+                    </option>
+                ))}
+            </select>
+        </label>
+    );
+}
+
+function TableHead({
+    align = "left",
+    children
+}: {
+    align?: "left" | "right";
+    children: ReactNode;
+}) {
+    return (
+        <th
+            className={`border-b border-[#dce8df] px-4 py-3 ${
+                align === "right" ? "text-right" : "text-left"
+            }`}
+        >
+            {children}
+        </th>
+    );
+}
+
+function TableCell({
+    align = "left",
+    children,
+    strong = false
+}: {
+    align?: "left" | "right";
+    children: ReactNode;
+    strong?: boolean;
+}) {
+    return (
+        <td
+            className={`border-b border-[#edf0f4] px-4 py-3 ${
+                align === "right" ? "text-right" : "text-left"
+            } ${strong ? "font-black text-[#172317]" : "font-semibold text-[#536078]"}`}
+        >
+            {children}
+        </td>
+    );
+}
+
+export function GoodsReceiptPostPreview({
+    receipt
+}: {
+    receipt: GoodsReceiptDetail;
+}) {
+    const available = receipt.lines.reduce(
+        (sum, line) => sum + line.qc.passedQuantity,
+        0
+    );
+    const quarantine = receipt.lines.reduce(
+        (sum, line) => sum + line.qc.quarantinedQuantity,
+        0
+    );
+    const totalValue = receipt.lines.reduce(
+        (sum, line) => sum + line.cost.lineNetAmount,
+        0
+    );
+
+    return (
+        <div className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">
+            <span className="inline-flex items-center gap-2">
+                <PackageCheck size={16} aria-hidden="true" />
+                Batch đưa vào AVAILABLE: {formatVietnamNumber(available)}
+            </span>
+            <span>Batch đưa vào QUARANTINE: {formatVietnamNumber(quarantine)}</span>
+            <span>Tổng giá trị nhập: {formatVnd(totalValue)}</span>
+            <span>Chứng từ PNK sẽ được tạo sau khi xác nhận post.</span>
+        </div>
+    );
+}

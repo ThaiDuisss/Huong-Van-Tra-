@@ -112,6 +112,7 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
         return path.startsWith("/actuator")
                 || path.contains("/v3/api-docs")
                 || path.contains("/swagger-ui")
+                || path.contains("/api/inventory/reservations/release-order")
                 || path.matches("^/api/[^/]+/public(/.*)?$")
                 || path.matches("^/api/payments/webhooks(/.*)?$");
     }

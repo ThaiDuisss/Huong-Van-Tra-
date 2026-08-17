@@ -40,6 +40,9 @@ public class OrderDiscount extends BaseEntity {
     @Column(name = "discount_type", nullable = false)
     private DiscountType discountType;
 
+    @Column(name = "usage_id", columnDefinition = "BINARY(16)")
+    private UUID usageId;
+
     @Column(name = "discount_value", nullable = false, precision = 19, scale = 4)
     private BigDecimal discountValue;
 

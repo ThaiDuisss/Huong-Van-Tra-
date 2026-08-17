@@ -2,7 +2,7 @@ spring:
   application:
     name: identity-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.122.52.101:3306/identity_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.89.77.53:3306/identity_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME:identity_app}
     password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2026}
   jpa:
