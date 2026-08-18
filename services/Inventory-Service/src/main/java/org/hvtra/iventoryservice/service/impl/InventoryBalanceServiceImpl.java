@@ -6,6 +6,7 @@ import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.entity.InventoryBalance;
+import org.hvtra.iventoryservice.shared.enums.StockType;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.mapper.InventoryBalanceMapper;
 import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
@@ -19,7 +20,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import org.hvtra.iventoryservice.enums.StockType;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;

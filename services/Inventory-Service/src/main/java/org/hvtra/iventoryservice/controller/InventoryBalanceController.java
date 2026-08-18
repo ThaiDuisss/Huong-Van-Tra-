@@ -6,13 +6,13 @@ import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
+import org.hvtra.iventoryservice.shared.enums.StockType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-import org.hvtra.iventoryservice.enums.StockType;
 
 @RestController
 @RequestMapping("/api/inventory/inventory-balances")

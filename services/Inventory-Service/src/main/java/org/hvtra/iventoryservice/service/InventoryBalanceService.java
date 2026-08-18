@@ -4,7 +4,7 @@ import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
-import org.hvtra.iventoryservice.enums.StockType;
+import org.hvtra.iventoryservice.shared.enums.StockType;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
