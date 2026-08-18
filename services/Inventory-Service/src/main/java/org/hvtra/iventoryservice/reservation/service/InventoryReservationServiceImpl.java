@@ -1,10 +1,10 @@
-package org.hvtra.iventoryservice.service.impl;
+package org.hvtra.iventoryservice.reservation.service;
 
-import org.hvtra.iventoryservice.dto.request.ApplyInventoryReservationRequest;
-import org.hvtra.iventoryservice.dto.request.ConfirmInventoryReservationOrderRequest;
-import org.hvtra.iventoryservice.dto.request.ReleaseInventoryReservationItemRequest;
-import org.hvtra.iventoryservice.dto.request.ReleaseInventoryReservationOrderRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryReservationResponse;
+import org.hvtra.iventoryservice.reservation.dto.request.ApplyInventoryReservationRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationItemRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationOrderRequest;
+import org.hvtra.iventoryservice.reservation.dto.response.InventoryReservationResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.InventoryReservation;
@@ -15,11 +15,10 @@ import org.hvtra.iventoryservice.domain.enums.ReservationStatus;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.OutOfStockException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
-import org.hvtra.iventoryservice.repository.InventoryItemRepository;
+import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
-import org.hvtra.iventoryservice.repository.InventoryReservationRepository;
-import org.hvtra.iventoryservice.service.InventoryReservationService;
+import org.hvtra.iventoryservice.reservation.repository.InventoryReservationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

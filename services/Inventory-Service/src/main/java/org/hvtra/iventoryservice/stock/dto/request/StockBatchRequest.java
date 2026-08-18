@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.request;
+package org.hvtra.iventoryservice.stock.dto.request;
 
 import java.util.List;
 import java.util.UUID;

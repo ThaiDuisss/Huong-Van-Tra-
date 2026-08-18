@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.entity;
+package org.hvtra.iventoryservice.domain.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Index;

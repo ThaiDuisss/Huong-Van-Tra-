@@ -1,16 +1,16 @@
-package org.hvtra.iventoryservice.service.impl;
+package org.hvtra.iventoryservice.location.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.iventoryservice.dto.request.StoreShelfRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryLocationResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.location.dto.request.StoreShelfRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.mapper.InventoryLocationMapper;
-import org.hvtra.iventoryservice.repository.InventoryLocationRepository;
-import org.hvtra.iventoryservice.service.StoreShelfService;
+import org.hvtra.iventoryservice.location.mapper.InventoryLocationMapper;
+import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
+import org.hvtra.iventoryservice.location.service.StoreShelfService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.UUID;
-import org.hvtra.iventoryservice.dto.response.LookupResponse;
+import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.springframework.data.domain.Page;
 
 @Service

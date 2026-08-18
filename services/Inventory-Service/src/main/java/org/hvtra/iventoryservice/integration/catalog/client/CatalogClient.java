@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.client;
+package org.hvtra.iventoryservice.integration.catalog.client;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;

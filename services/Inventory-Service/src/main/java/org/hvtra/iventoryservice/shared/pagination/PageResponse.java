@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.response;
+package org.hvtra.iventoryservice.shared.pagination;
 
 import org.springframework.data.domain.Page;
 

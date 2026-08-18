@@ -133,7 +133,7 @@ public class PaymentServiceImpl implements PaymentService {
         LocalDateTime now = LocalDateTime.now();
 
         Payment existingPayment = paymentRepository
-                .findByOrderIdAndIsDeletedFalse(request.getOrderId())
+                .findByOrderId(request.getOrderId())
                 .orElse(null);
 
         if (existingPayment != null && existingPayment.getStatus() == PaymentStatus.PAID) {

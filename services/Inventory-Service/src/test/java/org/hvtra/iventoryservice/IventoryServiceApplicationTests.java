@@ -1,9 +1,9 @@
 package org.hvtra.iventoryservice;
 
-import org.hvtra.iventoryservice.service.InventoryBalanceService;
-import org.hvtra.iventoryservice.service.InventoryItemService;
-import org.hvtra.iventoryservice.service.InventoryLocationService;
-import org.hvtra.iventoryservice.service.InventoryTransactionService;
+import org.hvtra.iventoryservice.stock.service.InventoryBalanceService;
+import org.hvtra.iventoryservice.item.service.InventoryItemService;
+import org.hvtra.iventoryservice.location.service.InventoryLocationService;
+import org.hvtra.iventoryservice.movement.service.InventoryTransactionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

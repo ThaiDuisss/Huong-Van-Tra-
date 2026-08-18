@@ -1,17 +1,17 @@
-package org.hvtra.iventoryservice.service.impl;
+package org.hvtra.iventoryservice.location.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.iventoryservice.dto.request.InventoryLocationRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryLocationResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.mapper.InventoryLocationMapper;
-import org.hvtra.iventoryservice.repository.InventoryLocationRepository;
-import org.hvtra.iventoryservice.service.InventoryLocationService;
+import org.hvtra.iventoryservice.location.mapper.InventoryLocationMapper;
+import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
+import org.hvtra.iventoryservice.location.service.InventoryLocationService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;

@@ -1,13 +1,15 @@
-package org.hvtra.iventoryservice.entity;
+package org.hvtra.iventoryservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
-import org.hvtra.iventoryservice.shared.enums.ReservationStatus;
+import org.hvtra.iventoryservice.domain.enums.ReservationStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -42,4 +44,12 @@ public class InventoryReservation extends BaseEntity {
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
+
+    @OneToMany(mappedBy = "reservation", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<InventoryReservationBatchAllocation> batchAllocations = new ArrayList<>();
+
+    public void addBatchAllocation(InventoryReservationBatchAllocation allocation) {
+        batchAllocations.add(allocation);
+        allocation.setReservation(this);
+    }
 }

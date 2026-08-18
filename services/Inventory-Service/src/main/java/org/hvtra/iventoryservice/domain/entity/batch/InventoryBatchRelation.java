@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.domain.entity;
+package org.hvtra.iventoryservice.domain.entity.batch;
 
 import jakarta.persistence.*;
 import lombok.Getter;

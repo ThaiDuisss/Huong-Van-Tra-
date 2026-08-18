@@ -1,10 +1,10 @@
-package org.hvtra.iventoryservice.controller;
+package org.hvtra.iventoryservice.location.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.iventoryservice.dto.request.InventoryStatusRequest;
-import org.hvtra.iventoryservice.dto.request.StoreShelfRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryLocationResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
+import org.hvtra.iventoryservice.location.dto.request.StoreShelfRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.location.service.StoreShelfService;
 import org.springframework.data.domain.Pageable;
@@ -13,7 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
-import org.hvtra.iventoryservice.dto.response.LookupResponse;
+import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 
 @RestController
 @RequestMapping("/api/inventory/inventory-locations/store")

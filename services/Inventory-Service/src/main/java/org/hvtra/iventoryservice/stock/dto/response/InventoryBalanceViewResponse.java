@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.response;
+package org.hvtra.iventoryservice.stock.dto.response;
 
 import lombok.Builder;
 import java.math.BigDecimal;

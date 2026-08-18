@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.event;
+package org.hvtra.iventoryservice.integration.order.dto;
 
 import lombok.AccessLevel;
 import lombok.Data;

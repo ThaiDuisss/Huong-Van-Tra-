@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.repository;
+package org.hvtra.iventoryservice.location.repository;
 
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.springframework.data.jpa.repository.JpaRepository;

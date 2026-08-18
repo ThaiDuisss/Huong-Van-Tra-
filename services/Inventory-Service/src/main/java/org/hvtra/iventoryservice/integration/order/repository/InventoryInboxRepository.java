@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.repository;
+package org.hvtra.iventoryservice.integration.order.repository;
 
 import org.hvtra.commonservice.kafka.inbox.repository.BaseInboxRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryInbox;

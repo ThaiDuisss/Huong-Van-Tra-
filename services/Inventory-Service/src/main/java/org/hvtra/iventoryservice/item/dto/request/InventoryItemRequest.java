@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.request;
+package org.hvtra.iventoryservice.item.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;

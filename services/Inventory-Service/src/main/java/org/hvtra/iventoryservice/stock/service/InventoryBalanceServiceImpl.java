@@ -1,18 +1,17 @@
-package org.hvtra.iventoryservice.service.impl;
+package org.hvtra.iventoryservice.stock.service;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.iventoryservice.client.CatalogClient;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.enums.StockType;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.mapper.InventoryBalanceMapper;
-import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
-import org.hvtra.iventoryservice.repository.InventoryItemRepository;
+import org.hvtra.iventoryservice.stock.mapper.InventoryBalanceMapper;
+import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
-import org.hvtra.iventoryservice.service.InventoryBalanceService;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,7 +27,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 

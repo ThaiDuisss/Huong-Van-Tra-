@@ -1,13 +1,13 @@
-package org.hvtra.iventoryservice.service;
+package org.hvtra.iventoryservice.location.service;
 
-import org.hvtra.iventoryservice.dto.request.StoreShelfRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryLocationResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.location.dto.request.StoreShelfRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
-import org.hvtra.iventoryservice.dto.response.LookupResponse;
+import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 
 /**
  * Service quản lý kệ (Shelf) trong cửa hàng.

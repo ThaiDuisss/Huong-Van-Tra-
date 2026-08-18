@@ -1,15 +1,15 @@
-package org.hvtra.iventoryservice.integration.consumer;
+package org.hvtra.iventoryservice.integration.order.consumer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.hvtra.commonservice.kafka.inbox.InboxStatus;
-import org.hvtra.iventoryservice.dto.event.OrderInventoryEventPayload;
-import org.hvtra.iventoryservice.dto.request.ConfirmInventoryReservationOrderRequest;
+import org.hvtra.iventoryservice.integration.order.dto.OrderInventoryEventPayload;
+import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
-import org.hvtra.iventoryservice.repository.InventoryInboxRepository;
-import org.hvtra.iventoryservice.service.InventoryReservationService;
+import org.hvtra.iventoryservice.integration.order.repository.InventoryInboxRepository;
+import org.hvtra.iventoryservice.reservation.service.InventoryReservationService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;

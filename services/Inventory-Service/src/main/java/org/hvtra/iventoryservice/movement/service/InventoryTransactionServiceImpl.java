@@ -1,23 +1,24 @@
-package org.hvtra.iventoryservice.service.impl;
+package org.hvtra.iventoryservice.movement.service;
 
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.domain.entity.*;
-import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
-import org.hvtra.iventoryservice.dto.request.StockInRequest;
-import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
-import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
-import org.hvtra.iventoryservice.dto.request.StoreStockOutRequest;
-import org.hvtra.iventoryservice.dto.request.StoreTransferRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
+import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
+import org.hvtra.iventoryservice.movement.dto.request.StockAdjustmentRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StockInRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StoreStockAdjustmentRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StoreStockInRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StoreStockOutRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StoreTransferRequest;
+import org.hvtra.iventoryservice.movement.dto.response.InventoryTransactionResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.mapper.InventoryTransactionMapper;
-import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
-import org.hvtra.iventoryservice.repository.InventoryItemRepository;
+import org.hvtra.iventoryservice.movement.mapper.InventoryTransactionMapper;
+import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
-import org.hvtra.iventoryservice.repository.InventoryTransactionRepository;
-import org.hvtra.iventoryservice.service.InventoryTransactionService;
+import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
@@ -553,6 +554,17 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             case RETURN_IN -> "RIN";
             case ADJUSTMENT -> "ADJ";
             case TRANSFER -> "TRF";
+            case PURCHASE_RECEIPT -> null;
+            case PRODUCTION_RECEIPT -> null;
+            case CUSTOMER_RETURN_RECEIPT -> null;
+            case PRODUCTION_ISSUE -> null;
+            case CUSTOM_BUNDLE_ISSUE -> null;
+            case TRANSFER_ISSUE -> null;
+            case TRANSFER_RECEIPT -> null;
+            case SUPPLIER_RETURN -> null;
+            case ADJUSTMENT_IN -> null;
+            case ADJUSTMENT_OUT -> null;
+            case WRITE_OFF -> null;
         };
         return prefix + "-"
                 + LocalDate.now().format(CODE_DATE) + "-"

@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.request;
+package org.hvtra.iventoryservice.movement.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
