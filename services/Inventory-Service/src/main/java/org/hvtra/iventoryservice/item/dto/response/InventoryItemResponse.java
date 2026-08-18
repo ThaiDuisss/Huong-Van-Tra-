@@ -1,0 +1,17 @@
+package org.hvtra.iventoryservice.dto.response;
+
+import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
+
+import java.util.UUID;
+
+public record InventoryItemResponse(
+        UUID id,
+        UUID referenceId,
+        InventoryItemType itemType,
+        UUID unitId,
+        InventoryStatus status,
+        Integer reorderPoint
+) {
+}
+

@@ -1,0 +1,70 @@
+package org.hvtra.iventoryservice.controller;
+
+import jakarta.validation.Valid;
+import org.hvtra.iventoryservice.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.dto.request.InventoryStatusRequest;
+import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.dto.response.InventoryItemResponse;
+import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
+import org.hvtra.iventoryservice.service.InventoryBalanceService;
+import org.hvtra.iventoryservice.service.InventoryItemService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/inventory/inventory-items")
+public class InventoryItemController {
+    private final InventoryItemService service;
+    private final InventoryBalanceService balanceService;
+
+    public InventoryItemController(
+            InventoryItemService service, InventoryBalanceService balanceService) {
+        this.service = service;
+        this.balanceService = balanceService;
+    }
+
+    @GetMapping
+    public PageResponse<InventoryItemResponse> findAll(
+            @RequestParam(name = "referenceId", required = false) UUID referenceId,
+            @RequestParam(name = "itemType", required = false) InventoryItemType itemType,
+            @RequestParam(name = "status", required = false) InventoryStatus status,
+            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+        return service.findAll(referenceId, itemType, status, pageable);
+    }
+
+    @GetMapping("/{id}")
+    public InventoryItemResponse findById(@PathVariable("id") UUID id) {
+        return service.findById(id);
+    }
+
+    @GetMapping("/{id}/balances")
+    public PageResponse<InventoryBalanceResponse> findBalances(
+            @PathVariable("id") UUID id,
+            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+        return balanceService.findByInventoryItem(id, pageable);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public InventoryItemResponse create(@Valid @RequestBody InventoryItemRequest request) {
+        return service.create(request);
+    }
+
+    @PutMapping("/{id}")
+    public InventoryItemResponse update(
+            @PathVariable("id") UUID id, @Valid @RequestBody InventoryItemRequest request) {
+        return service.update(id, request);
+    }
+
+    @PatchMapping("/{id}/status")
+    public InventoryItemResponse updateStatus(
+            @PathVariable("id") UUID id, @Valid @RequestBody InventoryStatusRequest request) {
+        return service.updateStatus(id, request.status());
+    }
+}
