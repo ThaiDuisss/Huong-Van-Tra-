@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import type { FormField, FormValues } from "./CatalogResourceManagement";
 import { fileApi } from "../../../api/file.api";
@@ -44,6 +44,25 @@ export function FormDialog({
         }
         return init;
     });
+
+    useEffect(() => {
+        setFormValues(prev => {
+            let updated = { ...prev };
+            let changed = false;
+            fields.forEach(f => {
+                if (f.type === "select" && !prev[f.name] && f.options && f.options.length > 0) {
+                    const defaultValue = f.options[0].value;
+                    updated[f.name] = defaultValue;
+                    changed = true;
+
+                    if (f.name === "productId" && !initialValues.variantName && !prev.variantName) {
+                        updated.variantName = f.options[0].label + " ";
+                    }
+                }
+            });
+            return changed ? updated : prev;
+        });
+    }, [fields, initialValues.variantName]);
 
     return (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/35 p-6">
@@ -133,7 +152,7 @@ export function FormDialog({
                         }
 
                         return (
-                            <label
+                            <div
                                 key={field.name}
                                 className={`grid gap-2 text-sm font-bold text-gray-500 ${isFieldDisabled ? "opacity-60 cursor-not-allowed" : ""} ${
                                     field.type === "textarea" || field.type === "file" ? "col-span-2" : ""
@@ -143,7 +162,30 @@ export function FormDialog({
                                     {field.label}
                                     {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
                                 </span>
-                                {field.type === "textarea" ? (
+                                {field.render ? (
+                                    <>
+                                        <input type="hidden" name={field.name} value={formValues[field.name] || ""} />
+                                        {field.render(formValues[field.name] || "", (val) => {
+                                            setFormValues(prev => {
+                                                const updated = { ...prev, [field.name]: val };
+                                                if (field.name === "productId") {
+                                                    const oldProductOpt = field.options?.find(o => o.value === prev.productId);
+                                                    const newProductOpt = field.options?.find(o => o.value === val);
+                                                    if (newProductOpt) {
+                                                        const oldPrefix = oldProductOpt ? oldProductOpt.label : "";
+                                                        const currentName = prev.variantName || "";
+                                                        if (oldPrefix && currentName.startsWith(oldPrefix)) {
+                                                            updated.variantName = currentName.replace(oldPrefix, newProductOpt.label);
+                                                        } else {
+                                                            updated.variantName = newProductOpt.label + " " + currentName;
+                                                        }
+                                                    }
+                                                }
+                                                return updated;
+                                            });
+                                        })}
+                                    </>
+                                ) : field.type === "textarea" ? (
                                     <textarea
                                         name={field.name}
                                         rows={4}
@@ -315,7 +357,7 @@ export function FormDialog({
                                     className="h-11 rounded-xl border border-pos-border px-3 font-normal outline-none focus:border-hvt-green-700 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                                 />
                             )}
-                        </label>
+                        </div>
                         );
                     })}
                 </div>

@@ -21,13 +21,13 @@ public interface InventoryTransactionRepository extends
             JOIN t.lines l
             JOIN l.location loc
             JOIN loc.parentLocation parent
-            WHERE loc.type = org.hvtra.iventoryservice.enums.InventoryLocationType.SHELF
-              AND parent.type = org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE
-              AND parent.status = org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE
+            WHERE loc.type = InventoryLocationType.SHELF
+              AND parent.type = InventoryLocationType.WAREHOUSE
+              AND parent.status = InventoryStatus.ACTIVE
               AND parent.id = (
                   SELECT pl.id FROM InventoryLocation pl
-                  WHERE pl.type = org.hvtra.iventoryservice.enums.InventoryLocationType.WAREHOUSE
-                    AND pl.status = org.hvtra.iventoryservice.enums.InventoryStatus.ACTIVE
+                  WHERE pl.type = InventoryLocationType.WAREHOUSE
+                    AND pl.status = InventoryStatus.ACTIVE
                   ORDER BY pl.createdAt ASC
                   LIMIT 1
               )

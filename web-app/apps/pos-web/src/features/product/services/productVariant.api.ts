@@ -8,6 +8,7 @@ import type {
 
 export interface ProductVariantQuery extends CatalogQuery {
     productId?: string;
+    categoryId?: string;
     sku?: string;
     variantName?: string;
 }
@@ -22,6 +23,7 @@ export const productVariantApi = {
                     size: query.size,
                     keyword: query.sku ?? query.keyword,
                     productId: query.productId,
+                    categoryId: query.categoryId,
                     status: query.status
                 }
             }
@@ -100,5 +102,11 @@ export const productVariantApi = {
     },
     delete(id: string) {
         return apiClient.delete<void>(`/catalog/product-variants/${encodeURIComponent(id)}`);
+    },
+    lookup(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>(
+            "/catalog/product-variants/lookup",
+            { query: { search, page, size } }
+        );
     }
 };

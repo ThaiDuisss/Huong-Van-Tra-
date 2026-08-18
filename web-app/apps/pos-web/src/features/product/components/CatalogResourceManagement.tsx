@@ -47,6 +47,7 @@ export interface FormField {
     purpose?: string;
     disabled?: boolean | ((values: FormValues) => boolean);
     hidden?: boolean | ((values: FormValues) => boolean);
+    render?: (value: string, onChange: (val: string) => void) => React.ReactNode;
 }
 
 export interface CatalogFilter {
@@ -54,6 +55,7 @@ export interface CatalogFilter {
     value: string;
     options: Array<{ label: string; value: string }>;
     onChange(value: string): void;
+    render?: ReactNode;
 }
 
 export interface CatalogResourceManagementProps<T extends RowBase, S extends string = string> {
@@ -73,8 +75,9 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     pageSize: number;
     renderCells(item: T): ReactNode;
     renderDetail(item: T): ReactNode;
-    formFields: FormField[] | ((editingItem: T | null) => FormField[]);
-    getInitialValues(item: T): Record<string, string>;
+    formFields?: FormField[] | ((editingItem: T | null) => FormField[]);
+    getInitialValues?(item: T): Record<string, string>;
+    customForm?(editingItem: T | null, onClose: () => void): ReactNode;
     onQueryChange(value: string): void;
     onStatusChange?(value: "ALL" | S): void;
     onPageChange(page: number): void;
@@ -95,6 +98,10 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     filters?: CatalogFilter[];
     renderExtraRowActions?(item: T, closeMenu: () => void): ReactNode;
     onDelete?(item: T): Promise<void>;
+    controlledEditingItem?: T | null;
+    controlledShowForm?: boolean;
+    onControlledShowFormChange?(show: boolean): void;
+    onControlledEditingItemChange?(item: T | null): void;
 }
 
 export function CatalogResourceManagement<T extends RowBase, S extends string = string>({
@@ -130,14 +137,36 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     totalItemsLabel,
     filters,
     renderExtraRowActions,
-    onDelete
+    onDelete,
+    customForm,
+    controlledEditingItem,
+    controlledShowForm,
+    onControlledShowFormChange,
+    onControlledEditingItemChange
 }: CatalogResourceManagementProps<T, S>) {
     const navigate = useNavigate();
     const [selectedItem, setSelectedItem] = useState<T | null>(null);
-    const [editingItem, setEditingItem] = useState<T | null>(null);
+    const [internalEditingItem, setInternalEditingItem] = useState<T | null>(null);
     const [deletingItem, setDeletingItem] = useState<T | null>(null);
-    const [showForm, setShowForm] = useState(false);
+    const [internalShowForm, setInternalShowForm] = useState(false);
     const [statusTarget, setStatusTarget] = useState<T | null>(null);
+
+    const editingItem = controlledEditingItem !== undefined ? controlledEditingItem : internalEditingItem;
+    const showForm = controlledShowForm !== undefined ? controlledShowForm : internalShowForm;
+
+    const setEditingItem = (item: T | null) => {
+        setInternalEditingItem(item);
+        if (onControlledEditingItemChange) {
+            onControlledEditingItemChange(item);
+        }
+    };
+
+    const setShowForm = (show: boolean) => {
+        setInternalShowForm(show);
+        if (onControlledShowFormChange) {
+            onControlledShowFormChange(show);
+        }
+    };
     const [toast, setToast] = useState("");
     const [actionError, setActionError] = useState("");
     const [submitting, setSubmitting] = useState(false);
@@ -253,9 +282,9 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 {searchPlaceholder ? (
                     <div className="border-b border-[#f3f5f7] pb-3">
                         {(() => {
-                            const topFilter = activeFilters.find(f => f.label === "Danh mục" || f.label === "Sản phẩm");
+                            const topFilters = activeFilters.filter(f => f.label === "Danh mục" || f.label === "Sản phẩm" || f.label === "Phiên bản");
                             return (
-                                <div className="flex items-center gap-3 justify-between">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">
                                     <div className="relative flex-1">
                                         <SearchBox
                                             value={query}
@@ -264,23 +293,31 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                             className="w-full"
                                         />
                                     </div>
-                                    {topFilter && (
-                                        <div className="min-w-[180px] shrink-0">
-                                            <select
-                                                value={topFilter.value}
-                                                onChange={(e) => topFilter.onChange(e.target.value)}
-                                                className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
-                                            >
-                                                <option value="ALL">{topFilter.label}</option>
-                                                {topFilter.options
-                                                    .filter(opt => opt.value !== "ALL")
-                                                    .map((opt) => (
-                                                        <option key={opt.value} value={opt.value}>
-                                                            {opt.label}
-                                                        </option>
-                                                    ))
-                                                }
-                                            </select>
+                                    {topFilters.length > 0 && (
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            {topFilters.map(filter => (
+                                                <div key={filter.label} className="min-w-[140px] shrink-0">
+                                                    {filter.render ? (
+                                                        filter.render
+                                                    ) : (
+                                                        <select
+                                                            value={filter.value}
+                                                            onChange={(e) => filter.onChange(e.target.value)}
+                                                            className="h-10 w-full rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                                                        >
+                                                            <option value="ALL">{filter.label}</option>
+                                                            {filter.options
+                                                                .filter(opt => opt.value !== "ALL")
+                                                                .map((opt) => (
+                                                                    <option key={opt.value} value={opt.value}>
+                                                                        {opt.label}
+                                                                    </option>
+                                                                ))
+                                                            }
+                                                        </select>
+                                                    )}
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
@@ -290,7 +327,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                 ) : null}
 
                 {(() => {
-                    const remainingFilters = activeFilters.filter(f => f.label !== "Danh mục" && f.label !== "Sản phẩm");
+                    const remainingFilters = activeFilters.filter(f => f.label !== "Danh mục" && f.label !== "Sản phẩm" && f.label !== "Phiên bản");
                     if (remainingFilters.length === 0) return null;
                     return (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-[10px] pt-3">
@@ -604,22 +641,26 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
             </div>
 
             {showForm ? (
-                <FormDialog
-                    title={editingItem ? `Chỉnh sửa ${title}` : createLabel}
-                    fields={
-                        typeof formFields === "function"
-                            ? formFields(editingItem)
-                            : formFields
-                    }
-                    initialValues={
-                        editingItem ? getInitialValues(editingItem) : {}
-                    }
-                    error={actionError}
-                    submitting={submitting}
-                    submitLabel={editingItem ? "Lưu thay đổi" : "Tạo mới"}
-                    onClose={() => setShowForm(false)}
-                    onSubmit={submitForm}
-                />
+                customForm ? (
+                    customForm(editingItem, () => setShowForm(false))
+                ) : (
+                    <FormDialog
+                        title={editingItem ? `Chỉnh sửa ${title}` : createLabel}
+                        fields={
+                            typeof formFields === "function"
+                                ? formFields!(editingItem)
+                                : formFields!
+                        }
+                        initialValues={
+                            editingItem && getInitialValues ? getInitialValues(editingItem) : {}
+                        }
+                        error={actionError}
+                        submitting={submitting}
+                        submitLabel={editingItem ? "Lưu thay đổi" : "Tạo mới"}
+                        onClose={() => setShowForm(false)}
+                        onSubmit={submitForm}
+                    />
+                )
             ) : null}
 
             {statusTarget ? (

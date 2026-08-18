@@ -1,20 +1,14 @@
-import { Eye, History, ArrowUpDown, ArrowLeftRight, X, Search, MoreHorizontal } from "lucide-react";
+import { ArrowLeftRight, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 
-import { DetailPanel } from "../../manufacturing/components/shared/DetailPanel";
-import { Pagination } from "../../manufacturing/components/shared/Pagination";
-import {
-    InventoryEmpty,
-    InventoryError,
-    InventoryLoading
-} from "../components/InventoryState";
+import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
+import { InventoryResourceManagement, TableCell } from "../components/InventoryResourceManagement";
+import { InventoryLoading } from "../components/InventoryState";
 import { inventoryBalanceApi } from "../services/inventoryBalance.api";
 import { inventoryLocationApi } from "../services/inventoryLocation.api";
 import { inventoryTransactionApi } from "../services/inventoryTransaction.api";
 import { storeShelfApi } from "../services/storeShelf.api";
 import { StoreInventoryForm } from "../components/StoreInventoryForm";
-import { routePaths } from "../../../routes/path";
 import { formatInventoryDate, formatQuantity } from "../utils/inventory-labels";
 import type { InventoryBalanceViewResponse, InventoryLocationResponse } from "../types/inventory.types";
 import { categoryApi } from "../../product/services/category.api";
@@ -43,11 +37,12 @@ interface JoinedRow {
     "Giá nhập"?: number;
     "Giá bán"?: number;
     "Ngày cập nhật": string;
-    [key: string]: any; // Allow future custom fields
+    isOutOfStock: boolean;
+    isLowStock: boolean;
+    [key: string]: any;
 }
 
 export function InventoryBalancePage() {
-
     // Store & Catalog states
     const [activeStoreId, setActiveStoreId] = useState<string | null>(null);
     const [activeLocationId, setActiveLocationId] = useState<string | null>("");
@@ -63,8 +58,7 @@ export function InventoryBalancePage() {
     const [error, setError] = useState<string | null>(null);
 
     // Filter, pagination & sorting states
-    const [skuQuery, setSkuQuery] = useState("");
-    const [productNameQuery, setProductNameQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const [filterUnitId, setFilterUnitId] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
@@ -101,34 +95,45 @@ export function InventoryBalancePage() {
     const [productLoading, setProductLoading] = useState(false);
     const [productSearchTerm, setProductSearchTerm] = useState("");
 
-    const [sortColumn, setSortColumn] = useState<string | null>(null);
-    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-
-    // UI Configuration states
-    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-    const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({});
-
     // Drawer / Panel state
-    const [selectedRow, setSelectedRow] = useState<JoinedRow | null>(null);
     const [activeModal, setActiveModal] = useState<"stock-in" | "adjustment" | "transfer" | null>(null);
-    const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
-
-    // Dashboard Metrics state (reserved for future KPI display)
-    const [_dashboardMetrics] = useState({
-        totalSku: 0,
-        totalStock: 0,
-        lowStock: 0,
-        outOfStock: 0,
-        totalValue: 0
-    });
 
     // 1. Resolve Active Store and Load Locations
+    useEffect(() => {
+        async function initCatalogAndStore() {
+            try {
+                // Fetch locations list
+                const locRes = await inventoryLocationApi.list({ page: 0, size: 500 });
+                const locs = locRes.content ?? [];
+                setLocations(locs);
+
+                // Determine branchId
+                let resolvedBranchId = FALLBACK_STORE_ID;
+                if (locs.length > 0) {
+                    resolvedBranchId = String(locs[0].branchId);
+                } else {
+                    const balCheck = await inventoryBalanceApi.view({ page: 0, size: 10 });
+                    if (balCheck.content && balCheck.content.length > 0) {
+                        resolvedBranchId = String(balCheck.content[0].branchId);
+                    }
+                }
+                setActiveStoreId(resolvedBranchId);
+            } catch (err) {
+                console.error("Initialization error:", err);
+                setActiveStoreId(FALLBACK_STORE_ID);
+            } finally {
+                setLoadingStore(false);
+            }
+        }
+        initCatalogAndStore();
+    }, []);
+
     // Fetch shelf options with infinite scroll
-    const loadShelfOptions = useCallback(async (search: string, page: number) => {
+    const loadShelfOptions = useCallback(async (search: string, pageNum: number) => {
         try {
             setShelfLoading(true);
-            const res = await inventoryLocationApi.lookup(search, page, 20);
-            setShelfOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            const res = await inventoryLocationApi.lookup(search, pageNum, 20);
+            setShelfOptions(prev => pageNum === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
             setShelfHasMore(!res.last);
         } catch (err) {
             setShelfHasMore(false);
@@ -151,11 +156,11 @@ export function InventoryBalancePage() {
     }, [shelfLoading, shelfHasMore, shelfPage, shelfSearchTerm, loadShelfOptions]);
 
     // Fetch category options with infinite scroll
-    const loadCategoryOptions = useCallback(async (search: string, page: number) => {
+    const loadCategoryOptions = useCallback(async (search: string, pageNum: number) => {
         try {
             setCategoryLoading(true);
-            const res = await categoryApi.lookup(search, page, 20);
-            setCategoryOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            const res = await categoryApi.lookup(search, pageNum, 20);
+            setCategoryOptions(prev => pageNum === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
             setCategoryHasMore(!res.last);
         } catch (err) {
             setCategoryHasMore(false);
@@ -178,11 +183,11 @@ export function InventoryBalancePage() {
     }, [categoryLoading, categoryHasMore, categoryPage, categorySearchTerm, loadCategoryOptions]);
 
     // Fetch unit options with infinite scroll
-    const loadUnitOptions = useCallback(async (search: string, page: number) => {
+    const loadUnitOptions = useCallback(async (search: string, pageNum: number) => {
         try {
             setUnitLoading(true);
-            const res = await unitApi.lookup(search, page, 20);
-            setUnitOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            const res = await unitApi.lookup(search, pageNum, 20);
+            setUnitOptions(prev => pageNum === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
             setUnitHasMore(!res.last);
         } catch (err) {
             setUnitHasMore(false);
@@ -205,11 +210,11 @@ export function InventoryBalancePage() {
     }, [unitLoading, unitHasMore, unitPage, unitSearchTerm, loadUnitOptions]);
 
     // Fetch product options with infinite scroll
-    const loadProductOptions = useCallback(async (search: string, page: number) => {
+    const loadProductOptions = useCallback(async (search: string, pageNum: number) => {
         try {
             setProductLoading(true);
-            const res = await productApi.lookup(search, page, 20);
-            setProductOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            const res = await productApi.lookup(search, pageNum, 20);
+            setProductOptions(prev => pageNum === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
             setProductHasMore(!res.last);
         } catch (err) {
             setProductHasMore(false);
@@ -231,51 +236,17 @@ export function InventoryBalancePage() {
         }
     }, [productLoading, productHasMore, productPage, productSearchTerm, loadProductOptions]);
 
-    // 1. Resolve Active Store and Load Locations
-    useEffect(() => {
-        async function initCatalogAndStore() {
-            try {
-                // Fetch locations list
-                const locRes = await inventoryLocationApi.list({ page: 0, size: 500 });
-                const locs = locRes.content ?? [];
-                setLocations(locs);
-
-                // Determine branchId
-                let resolvedBranchId = FALLBACK_STORE_ID;
-                if (locs.length > 0) {
-                    resolvedBranchId = String(locs[0].branchId);
-                } else {
-                    const balCheck = await inventoryBalanceApi.view({ page: 0, size: 10 });
-                    if (balCheck.content && balCheck.content.length > 0) {
-                        resolvedBranchId = String(balCheck.content[0].branchId);
-                    }
-                }
-                setActiveStoreId(resolvedBranchId);
-
-
-            } catch (err) {
-                console.error("Initialization error:", err);
-                setActiveStoreId(FALLBACK_STORE_ID);
-            } finally {
-                setLoadingStore(false);
-            }
-        }
-        initCatalogAndStore();
-    }, []);
-
-    // Active warehouse location name
     const activeLocationName = useMemo(() => {
         if (activeLocationId) {
-            return locations.find(l => String(l.id) === activeLocationId)?.name || "";
-        }
-        if (balances.length > 0) {
-            return balances[0].locationName || "";
+            const loc = locations.find(l => String(l.id) === activeLocationId);
+            if (loc) return loc.name;
+            const shelf = shelfOptions.find(s => s.id === activeLocationId);
+            if (shelf) return shelf.name;
+            return `Vị trí #${activeLocationId}`;
         }
         const warehouseLoc = locations.find(l => l.type === "WAREHOUSE" && String(l.branchId) === activeStoreId);
         return warehouseLoc ? warehouseLoc.name : "Cửa hàng";
-    }, [activeLocationId, locations, balances, activeStoreId]);
-
-
+    }, [activeLocationId, locations, activeStoreId, shelfOptions]);
 
     // 2. Fetch inventory balances filtered by active store, location, and search criteria
     const loadBalances = useCallback(async () => {
@@ -283,16 +254,16 @@ export function InventoryBalancePage() {
         setLoadingBalances(true);
         setError(null);
         try {
-            const productNameParam = filterProductName || productNameQuery.trim() || undefined;
             const res = await inventoryBalanceApi.view({
                 page: page - 1,
                 size: pageSize,
                 branchId: activeStoreId as any,
                 locationId: activeLocationId ? (activeLocationId as any) : undefined,
-                sku: skuQuery.trim() || undefined,
-                productName: productNameParam,
+                keyword: searchQuery.trim() || undefined,
+                productName: filterProductName || undefined,
                 categoryId: filterCategoryId || undefined,
-                unitId: filterUnitId || undefined
+                unitId: filterUnitId || undefined,
+                status: filterStatus || undefined
             });
             setBalances(res.content ?? []);
             setTotalElements(res.totalElements ?? 0);
@@ -302,7 +273,7 @@ export function InventoryBalancePage() {
         } finally {
             setLoadingBalances(false);
         }
-    }, [activeStoreId, activeLocationId, page, pageSize, skuQuery, productNameQuery, filterCategoryId, filterUnitId, filterProductName]);
+    }, [activeStoreId, activeLocationId, page, pageSize, searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus]);
 
     useEffect(() => {
         loadBalances();
@@ -311,12 +282,13 @@ export function InventoryBalancePage() {
     // Reset page to 1 when filters change
     useEffect(() => {
         setPage(1);
-    }, [skuQuery, productNameQuery, filterCategoryId, filterUnitId, filterStatus]);
+    }, [searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus]);
 
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
         return (balances as unknown as InventoryBalanceViewResponse[]).map((bal) => {
-
+            const isOutOfStock = bal.quantityOnHand <= 0;
+            const isLowStock = bal.quantityOnHand > 0 && bal.quantityOnHand <= (bal.reorderPoint || 5);
 
             const baseRow: JoinedRow = {
                 id: String(bal.inventoryBalanceId),
@@ -336,89 +308,12 @@ export function InventoryBalancePage() {
                 "Giá nhập": bal.cost_price,
                 "Giá bán": bal.selling_price,
                 "Ngày cập nhật": bal.updatedAt,
-                // "Hết hàng": isOutOfStock,
-                // "Gần hết hàng": isLowStock
+                isOutOfStock,
+                isLowStock
             };
             return baseRow;
         });
     }, [balances]);
-
-    // 4. Client-side Filtering & Sorting
-    const filteredRows = useMemo(() => {
-        let result = [...joinedRows];
-
-        if (filterStatus === "LOW_STOCK") {
-            result = result.filter(r => r.isLowStock);
-        } else if (filterStatus === "OUT_OF_STOCK") {
-            result = result.filter(r => r.isOutOfStock);
-        }
-
-        // Sorting logic
-        if (sortColumn) {
-            result.sort((a, b) => {
-                const valA = a[sortColumn];
-                const valB = b[sortColumn];
-
-                if (typeof valA === "number" && typeof valB === "number") {
-                    return sortDirection === "asc" ? valA - valB : valB - valA;
-                }
-
-                const strA = String(valA ?? "").toLowerCase();
-                const strB = String(valB ?? "").toLowerCase();
-                return sortDirection === "asc" ? strA.localeCompare(strB) : strB.localeCompare(strA);
-            });
-        }
-
-        return result;
-    }, [joinedRows, sortColumn, sortDirection, filterStatus]);
-
-    // 5. Hardcoded columns for the grid (omitting "Đơn vị", "Giá bán", and "Giá nhập")
-    const schemaColumns = useMemo(() => {
-        return ["Kệ","Ảnh sản phẩm", "Tên sản phẩm",  "Có thể bán"];
-    }, []);
-
-    // Set initial visibility mapping if empty
-    useEffect(() => {
-        if (schemaColumns.length > 0 && Object.keys(columnVisibility).length === 0) {
-            const initialVisibility: Record<string, boolean> = {};
-            schemaColumns.forEach(col => {
-                initialVisibility[col] = true;
-            });
-            setColumnVisibility(initialVisibility);
-        }
-    }, [schemaColumns, columnVisibility]);
-
-    // 6. Header Resize Handler (pure React implementation)
-    const handleResizeMouseDown = (e: React.MouseEvent, colKey: string) => {
-        e.preventDefault();
-        const startX = e.clientX;
-        const startWidth = columnWidths[colKey] || 140;
-
-        const handleMouseMove = (moveEvent: MouseEvent) => {
-            const newWidth = Math.max(60, startWidth + (moveEvent.clientX - startX));
-            setColumnWidths(prev => ({ ...prev, [colKey]: newWidth }));
-        };
-
-        const handleMouseUp = () => {
-            document.removeEventListener("mousemove", handleMouseMove);
-            document.removeEventListener("mouseup", handleMouseUp);
-        };
-
-        document.addEventListener("mousemove", handleMouseMove);
-        document.addEventListener("mouseup", handleMouseUp);
-    };
-
-    // Toggle sorting
-    const handleSort = (col: string) => {
-        if (sortColumn === col) {
-            setSortDirection(prev => (prev === "asc" ? "desc" : "asc"));
-        } else {
-            setSortColumn(col);
-            setSortDirection("asc");
-        }
-    };
-
-
 
     if (loadingStore) {
         return (
@@ -429,346 +324,194 @@ export function InventoryBalancePage() {
     }
 
     return (
-        <section className="grid gap-5">            
-            <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="grid gap-0.5 min-w-[200px] shrink-0">
-                    <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
-                        Tồn kho tại: {activeLocationName}
-                    </h1>
-                    <p className="text-sm text-gray-500">
-                        Theo dõi lượng tồn kho chi tiết.
-                    </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0 ml-auto">
-                    <button
-                        onClick={() => setActiveModal("stock-in")}
-                        className="flex items-center justify-center gap-[9px] h-12 rounded-lg bg-[#07883a] text-white px-[22px] font-black shadow-[0_10px_24px_rgba(7,136,58,0.24)] hover:opacity-90 transition-all cursor-pointer"
-                    >
-                        Nhập hàng
-                    </button>
-                    <button
-                        onClick={() => setActiveModal("adjustment")}
-                        className="flex items-center justify-center gap-[9px] h-12 rounded-lg border border-[#dfe6ee] bg-white text-[#172317] px-[18px] font-black hover:bg-neutral-50 transition-all cursor-pointer"
-                    >
-                        Điều chỉnh kho
-                    </button>
-                    <button
-                        onClick={() => setActiveModal("transfer")}
-                        className="flex items-center justify-center gap-[9px] h-12 rounded-lg border border-[#dfe6ee] bg-white text-[#172317] px-[18px] font-black hover:bg-neutral-50 transition-all cursor-pointer"
-                    >
-                        <ArrowLeftRight size={16} />
-                        Chuyển vị trí
-                    </button>
-                </div>
-            </header>
-
-            {/* Config & Filters Row */}
-            <div className="flex flex-col rounded-2xl bg-white p-4 shadow-pos-card border border-neutral-100">
-                <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
-                    {/* Search SKU */}
-                    <div className="relative flex-1 min-w-[150px]">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Tìm theo SKU..."
-                            value={skuQuery}
-                            onChange={(e) => setSkuQuery(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
-                        />
-                    </div>
-                    {/* Search Tên sản phẩm */}
-                    <div className="relative flex-1 min-w-[180px]">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Tìm theo tên sản phẩm..."
-                            value={productNameQuery}
-                            onChange={(e) => setProductNameQuery(e.target.value)}
-                            className="h-10 w-full rounded-xl border border-pos-border pl-9 pr-3 text-sm outline-none focus:border-hvt-green-700 bg-white"
-                        />
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-3 items-center">
-                        {/* Dropdown 1: Kệ hàng */}
-                        <SearchableDropdown
-                            value={activeLocationId ?? ""}
-                            onChange={(val: string) => {
-                                setActiveLocationId(val);
-                                setPage(1);
-                            }}
-                            options={shelfOptions}
-                            onSearch={setShelfSearchTerm}
-                            onLoadMore={handleLoadMoreShelves}
-                            hasMore={shelfHasMore}
-                            loading={shelfLoading}
-                            placeholder="Kệ hàng"
-                        />
-                        {/* Dropdown 2: Đơn vị tính */}
-                        <SearchableDropdown
-                            value={filterUnitId}
-                            onChange={(val: string) => {
-                                setFilterUnitId(val);
-                                setPage(1);
-                            }}
-                            options={unitOptions}
-                            onSearch={setUnitSearchTerm}
-                            onLoadMore={handleLoadMoreUnits}
-                            hasMore={unitHasMore}
-                            loading={unitLoading}
-                            placeholder="Đơn vị tính"
-                        />
-                        {/* Dropdown 3: Sản phẩm */}
-                        <SearchableDropdown
-                            value={filterProductId}
-                            onChange={(val: string) => {
-                                setFilterProductId(val);
-                                const selectedName = productOptions.find(o => o.id === val)?.name || "";
-                                setFilterProductName(selectedName);
-                                setPage(1);
-                            }}
-                            options={productOptions}
-                            onSearch={setProductSearchTerm}
-                            onLoadMore={handleLoadMoreProducts}
-                            hasMore={productHasMore}
-                            loading={productLoading}
-                            placeholder="Sản phẩm"
-                        />
-                        {/* Dropdown 4: Danh mục */}
-                        <SearchableDropdown
-                            value={filterCategoryId}
-                            onChange={(val: string) => {
-                                setFilterCategoryId(val);
-                                setPage(1);
-                            }}
-                            options={categoryOptions}
-                            onSearch={setCategorySearchTerm}
-                            onLoadMore={handleLoadMoreCategories}
-                            hasMore={categoryHasMore}
-                            loading={categoryLoading}
-                            placeholder="Danh mục"
-                        />
-                    </div>
-                </div>
-
-                {/* Status chips (giữ nguyên như cũ) */}
-                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#f3f5f7] mt-3">
-                    <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
-                        Trạng thái tồn:
-                    </span>
-                    <div className="flex flex-wrap gap-2 items-center">
-                        {[
-                            { value: "", label: "Tất cả" },
-                            { value: "LOW_STOCK", label: "Sắp hết hàng" },
-                            { value: "OUT_OF_STOCK", label: "Hết hàng" }
-                        ].map((opt) => {
-                            const isActive = filterStatus === opt.value;
-                            return (
-                                <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => { setFilterStatus(opt.value); setPage(1); }}
-                                    className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                        isActive
-                                            ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                            : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                    }`}
-                                >
-                                    {opt.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-
-            {/* Main Data Grid */}
-            <div className="grid gap-4 grid-cols-1">
-                <section className="flex flex-col min-h-[580px] min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
-                    <div className="flex-1 overflow-x-auto min-h-[280px]">
-                        {loadingBalances ? <InventoryLoading /> : null}
-                        {!loadingBalances && error ? <InventoryError message={error} onRetry={loadBalances} /> : null}
-                        {!loadingBalances && !error && filteredRows.length === 0 ? <InventoryEmpty /> : null}
-                        {!loadingBalances && !error && filteredRows.length > 0 ? (
-                            <table className="table-layout-fixed w-full text-left text-sm border-separate border-spacing-0">
-                                <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900 sticky top-0 z-10">
-                                    <tr>
-                                        {schemaColumns.map(col => {
-                                            if (!columnVisibility[col]) return null;
-                                            const width = columnWidths[col] || 150;
-                                            return (
-                                                <th
-                                                    key={col}
-                                                    style={{ width: `${width}px` }}
-                                                    className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] relative group cursor-pointer select-none first:pl-[18px]"
-                                                    onClick={() => handleSort(col)}
-                                                >
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span>{col}</span>
-                                                        <ArrowUpDown size={12} className="text-gray-400 opacity-50 group-hover:opacity-100" />
-                                                    </div>
-                                                    <div
-                                                        onMouseDown={(e) => {
-                                                            e.stopPropagation();
-                                                            handleResizeMouseDown(e, col);
-                                                        }}
-                                                        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-hvt-green-700/50 bg-transparent transition-colors"
-                                                    />
-                                                </th>
-                                            );
-                                        })}
-                                        <th className="h-[52px] align-middle px-4 py-0 text-right border-b border-[#edf0f4] sticky right-0 bg-[#eaf7ec] pr-[18px]" style={{ width: "100px" }}>
-                                            Thao tác
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredRows.map((row, idx) => {
-                                        const isSelected = selectedRow?.id === row.id;
-                                        const isEven = idx % 2 === 1;
-                                        const rowBgClass = isSelected
-                                            ? "bg-[#f0fbef] shadow-[inset_4px_0_0_#07883a]"
-                                            : isEven
-                                                ? "bg-[#f2faf1]/50"
-                                                : "bg-white";
-
-                                        const stickyBgClass = isSelected
-                                            ? "bg-[#f0fbef]"
-                                            : isEven
-                                                ? "bg-[#f7fcf6]"
-                                                : "bg-white";
-
-                                        return (
-                                            <tr
-                                                key={row.id}
-                                                onClick={() => setSelectedRow(row)}
-                                                className={`hover:bg-neutral-50 cursor-pointer transition-all ${rowBgClass}`}
-                                            >
-                                                {schemaColumns.map(col => {
-                                                    if (!columnVisibility[col]) return null;
-                                                    const val = row[col];
-                                                    return (
-                                                        <td key={col} className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] max-w-[300px] truncate first:pl-[18px]">
-                                                            {col === "Ảnh sản phẩm" ? (
-                                                                val ? (
-                                                                    <img src={val} alt="" className="size-10 rounded-lg object-cover border border-pos-border" />
-                                                                ) : (
-                                                                    <span className="grid size-10 place-items-center rounded-lg bg-neutral-100 text-gray-400">
-                                                                        -
-                                                                    </span>
-                                                                )
-                                                            ) : col === "Ngày cập nhật" ? (
-                                                                formatInventoryDate(val)
-                                                            ) : typeof val === "number" ? (
-                                                                formatQuantity(val)
-                                                            ) : (
-                                                                String(val ?? "-")
-                                                            )}
-                                                        </td>
-                                                    );
-                                                })}
-                                                <td className={`h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right sticky right-0 pr-[18px] ${activeActionMenuId === row.id ? "z-30" : "z-20"} ${stickyBgClass}`} onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex justify-end relative">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setActiveActionMenuId(activeActionMenuId === row.id ? null : row.id)}
-                                                            className="grid size-8 place-items-center rounded-lg hover:bg-neutral-100 text-gray-500 hover:text-gray-700 cursor-pointer"
-                                                        >
-                                                            <MoreHorizontal size={16} />
-                                                        </button>
-
-                                                        {activeActionMenuId === row.id && (
-                                                            <>
-                                                                <div className="fixed inset-0 z-30" onClick={() => setActiveActionMenuId(null)} />
-                                                                <div className={`absolute right-0 ${idx >= 2 && idx >= filteredRows.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => { setSelectedRow(row); setActiveActionMenuId(null); }}
-                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
-                                                                    >
-                                                                        <Eye size={14} />
-                                                                        Xem chi tiết
-                                                                    </button>
-                                                                    <Link
-                                                                        to={`${routePaths.inventoryTransactions}?inventoryItemId=${row.inventoryItemId}`}
-                                                                        onClick={() => setActiveActionMenuId(null)}
-                                                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
-                                                                    >
-                                                                        <History size={14} />
-                                                                        Lịch sử biến động
-                                                                    </Link>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        ) : null}
-                    </div>
-                    {!loadingBalances && !error ? (
-                        <Pagination
-                            page={page}
-                            pageCount={totalPages}
-                            totalItems={totalElements}
-                            pageSize={pageSize}
-                            onPageChange={setPage}
-                            onPageSizeChange={(value) => {
-                                setPageSize(value);
-                                setPage(1);
-                            }}
-                        />
-                    ) : null}
-                </section>
-
-                {/* Dynamic Details Panel */}
-                {selectedRow ? (
-                    <div
-                        className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-5"
-                        onClick={() => setSelectedRow(null)}
-                        role="presentation"
-                    >
-                        <div
-                            aria-modal="true"
-                            className="w-full max-w-xl max-h-[85vh] overflow-y-auto"
-                            onClick={(event) => event.stopPropagation()}
-                            role="dialog"
+        <div className="grid gap-5">
+            <InventoryResourceManagement
+                title={`Tồn kho tại: ${activeLocationName}`}
+                description="Theo dõi lượng tồn kho chi tiết."
+                items={joinedRows}
+                loading={loadingBalances}
+                error={error || ""}
+                page={page}
+                pageCount={totalPages}
+                totalItems={totalElements}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(val) => {
+                    setPageSize(val);
+                    setPage(1);
+                }}
+                onRefresh={loadBalances}
+                query={searchQuery}
+                onQueryChange={(val) => {
+                    setSearchQuery(val);
+                    setPage(1);
+                }}
+                searchPlaceholder="Tìm theo SKU, tên sản phẩm..."
+                status={filterStatus}
+                onStatusChange={(val) => {
+                    setFilterStatus(val);
+                    setPage(1);
+                }}
+                statusOptions={[
+                    { label: "Tất cả", value: "ALL" as any },
+                    { label: "Sắp hết hàng", value: "LOW_STOCK" },
+                    { label: "Hết hàng", value: "OUT_OF_STOCK" }
+                ]}
+                totalItemsLabel="Tổng số mặt hàng tồn"
+                columns={[
+                    { key: "Kệ", label: "Kệ" },
+                    { key: "Ảnh sản phẩm", label: "Ảnh sản phẩm" },
+                    { key: "Tên sản phẩm", label: "Tên sản phẩm" },
+                    { key: "Có thể bán", label: "Có thể bán", align: "right" }
+                ]}
+                renderCells={(item) => (
+                    <>
+                        <TableCell>{item["Kệ"]}</TableCell>
+                        <TableCell>
+                            {item["Ảnh sản phẩm"] ? (
+                                <img src={item["Ảnh sản phẩm"]} alt="" className="size-10 rounded-lg object-cover border border-pos-border" />
+                            ) : (
+                                <span className="grid size-10 place-items-center rounded-lg bg-neutral-100 text-gray-400">
+                                    -
+                                </span>
+                            )}
+                        </TableCell>
+                        <TableCell strong>{item["Tên sản phẩm"]}</TableCell>
+                        <TableCell className="text-right pr-[18px]">{formatQuantity(item["Có thể bán"])}</TableCell>
+                    </>
+                )}
+                renderDetail={(item) => (
+                    <dl className="grid gap-3 text-sm">
+                        {Object.entries(item)
+                            .filter(([key]) => !["id", "inventoryItemId", "locationId", "branchId", "Ảnh sản phẩm", "Tồn thực tế", "Tồn giữ chỗ", "Vị trí", "Tên mặt hàng", "Tên sản phẩm", "SKU", "Đơn vị"].includes(key))
+                            .map(([key, val]) => (
+                                <div key={key} className="flex justify-between py-2 border-b border-dashed border-neutral-200 last:border-0">
+                                    <dt className="text-gray-500 font-bold uppercase text-xs">{key}</dt>
+                                    <dd className="text-gray-900 font-semibold max-w-[240px] truncate text-right">
+                                        {key === "Ngày cập nhật"
+                                            ? formatInventoryDate(val)
+                                            : (key === "Giá nhập" || key === "Giá bán")
+                                            ? (typeof val === "number" ? `${formatQuantity(val)} đ` : String(val ?? "-"))
+                                            : typeof val === "number"
+                                            ? formatQuantity(val)
+                                            : String(val ?? "-")}
+                                    </dd>
+                                </div>
+                            ))}
+                    </dl>
+                )}
+                extraHeaderActions={
+                    <div className="flex items-center gap-3">
+                        <ActionButton
+                            variant="primary"
+                            onClick={() => setActiveModal("stock-in")}
                         >
-                            <DetailPanel title="Thông tin chi tiết" onClose={() => setSelectedRow(null)}>
-                                {selectedRow["Ảnh sản phẩm"] ? (
-                                    <img
-                                        src={selectedRow["Ảnh sản phẩm"]}
-                                        alt=""
-                                        className="h-40 w-full rounded-2xl object-cover mb-4 border border-pos-border"
-                                    />
-                                ) : null}
-
-                                <dl className="grid gap-3 border-b border-pos-border pb-4 mb-4 text-sm">
-                                    {/* Dynamically render all schema keys (adapts automatically to future schema additions) */}
-                                    {Object.entries(selectedRow)
-                                        .filter(([key]) => !["id", "inventoryItemId", "locationId", "branchId", "Ảnh sản phẩm", "Tồn thực tế", "Tồn giữ chỗ", "Vị trí"].includes(key))
-                                        .map(([key, val]) => (
-                                            <div key={key} className="flex justify-between py-1 border-b border-dashed border-neutral-100 last:border-0">
-                                                <dt className="text-gray-500 font-medium">{key}</dt>
-                                                <dd className="text-gray-900 font-semibold max-w-[200px] truncate text-right">
-                                                    {key === "Ngày cập nhật"
-                                                        ? formatInventoryDate(val)
-                                                        : (key === "Giá nhập" || key === "Giá bán")
-                                                        ? (typeof val === "number" ? `${formatQuantity(val)} đ` : String(val ?? "-"))
-                                                        : typeof val === "number"
-                                                        ? formatQuantity(val)
-                                                        : String(val ?? "-")}
-                                                </dd>
-                                            </div>
-                                        ))}
-                                </dl>
-                            </DetailPanel>
-                        </div>
+                            Nhập hàng
+                        </ActionButton>
+                        <ActionButton
+                            variant="secondary"
+                            onClick={() => setActiveModal("adjustment")}
+                        >
+                            Điều chỉnh kho
+                        </ActionButton>
+                        <ActionButton
+                            variant="secondary"
+                            onClick={() => setActiveModal("transfer")}
+                        >
+                            <ArrowLeftRight size={16} />
+                            Chuyển vị trí
+                        </ActionButton>
                     </div>
-                ) : null}
-            </div>
+                }
+                filters={[
+                    {
+                        label: "Kệ hàng",
+                        value: activeLocationId ?? "",
+                        options: [],
+                        onChange: () => {},
+                        render: (
+                            <SearchableDropdown
+                                value={activeLocationId ?? ""}
+                                onChange={(val) => {
+                                    setActiveLocationId(val);
+                                    setPage(1);
+                                }}
+                                options={shelfOptions}
+                                onSearch={setShelfSearchTerm}
+                                onLoadMore={handleLoadMoreShelves}
+                                hasMore={shelfHasMore}
+                                loading={shelfLoading}
+                                placeholder="Kệ hàng"
+                            />
+                        )
+                    },
+                    {
+                        label: "Đơn vị tính",
+                        value: filterUnitId,
+                        options: [],
+                        onChange: () => {},
+                        render: (
+                            <SearchableDropdown
+                                value={filterUnitId}
+                                onChange={(val) => {
+                                    setFilterUnitId(val);
+                                    setPage(1);
+                                }}
+                                options={unitOptions}
+                                onSearch={setUnitSearchTerm}
+                                onLoadMore={handleLoadMoreUnits}
+                                hasMore={unitHasMore}
+                                loading={unitLoading}
+                                placeholder="Đơn vị tính"
+                            />
+                        )
+                    },
+                    {
+                        label: "Sản phẩm",
+                        value: filterProductId,
+                        options: [],
+                        onChange: () => {},
+                        render: (
+                            <SearchableDropdown
+                                value={filterProductId}
+                                onChange={(val) => {
+                                    setFilterProductId(val);
+                                    const selectedName = productOptions.find(o => o.id === val)?.name || "";
+                                    setFilterProductName(selectedName);
+                                    setPage(1);
+                                }}
+                                options={productOptions}
+                                onSearch={setProductSearchTerm}
+                                onLoadMore={handleLoadMoreProducts}
+                                hasMore={productHasMore}
+                                loading={productLoading}
+                                placeholder="Sản phẩm"
+                            />
+                        )
+                    },
+                    {
+                        label: "Danh mục",
+                        value: filterCategoryId,
+                        options: [],
+                        onChange: () => {},
+                        render: (
+                            <SearchableDropdown
+                                value={filterCategoryId}
+                                onChange={(val) => {
+                                    setFilterCategoryId(val);
+                                    setPage(1);
+                                }}
+                                options={categoryOptions}
+                                onSearch={setCategorySearchTerm}
+                                onLoadMore={handleLoadMoreCategories}
+                                hasMore={categoryHasMore}
+                                loading={categoryLoading}
+                                placeholder="Danh mục"
+                            />
+                        )
+                    }
+                ]}
+            />
 
             {activeModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-0 md:p-6">
@@ -825,8 +568,7 @@ export function InventoryBalancePage() {
                     </div>
                 </div>
             )}
-
-        </section>
+        </div>
     );
 }
 

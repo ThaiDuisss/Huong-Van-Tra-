@@ -1,8 +1,11 @@
 import { Download, Upload, Plus } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
+import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
+import { categoryApi } from "../services/category.api";
 
 import { ExcelImportModal } from "../components/ExcelImportModal";
 import {
@@ -32,23 +35,98 @@ export function ProductVariantListPage() {
     const { productId } = useParams();
     const state = useCatalogPageState();
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+    const [filterCategoryId, setFilterCategoryId] = useState("");
+    const [filterProductId, setFilterProductId] = useState(productId && productId !== "ALL" ? productId : "");
+
+    // Searchable dropdown states for Category
+    const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
+    const [categoryPage, setCategoryPage] = useState(0);
+    const [categoryHasMore, setCategoryHasMore] = useState(true);
+    const [categoryLoading, setCategoryLoading] = useState(false);
+    const [categorySearchTerm, setCategorySearchTerm] = useState("");
+
+    // Searchable dropdown states for Product
+    const [productOptions, setProductOptions] = useState<LookupItem[]>([]);
+    const [productPage, setProductPage] = useState(0);
+    const [productHasMore, setProductHasMore] = useState(true);
+    const [productLoading, setProductLoading] = useState(false);
+    const [productSearchTerm, setProductSearchTerm] = useState("");
+
+    // Fetch category options with infinite scroll
+    const loadCategoryOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setCategoryLoading(true);
+            const res = await categoryApi.lookup(search, page, 20);
+            setCategoryOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setCategoryHasMore(!res.last);
+        } catch (err) {
+            console.error("Error loading categories", err);
+            setCategoryHasMore(false);
+        } finally {
+            setCategoryLoading(false);
+        }
+    }, []);
+
+    // Initial load and search change for categories
+    useEffect(() => {
+        setCategoryPage(0);
+        loadCategoryOptions(categorySearchTerm, 0);
+    }, [categorySearchTerm, loadCategoryOptions]);
+
+    const handleLoadMoreCategories = useCallback(() => {
+        if (!categoryLoading && categoryHasMore) {
+            const nextPage = categoryPage + 1;
+            setCategoryPage(nextPage);
+            loadCategoryOptions(categorySearchTerm, nextPage);
+        }
+    }, [categoryLoading, categoryHasMore, categoryPage, categorySearchTerm, loadCategoryOptions]);
+
+    // Fetch product options with infinite scroll
+    const loadProductOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setProductLoading(true);
+            const res = await productApi.lookup(search, page, 20);
+            setProductOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setProductHasMore(!res.last);
+        } catch (err) {
+            console.error("Error loading products", err);
+            setProductHasMore(false);
+        } finally {
+            setProductLoading(false);
+        }
+    }, []);
+
+    // Initial load and search change for products
+    useEffect(() => {
+        setProductPage(0);
+        loadProductOptions(productSearchTerm, 0);
+    }, [productSearchTerm, loadProductOptions]);
+
+    const handleLoadMoreProducts = useCallback(() => {
+        if (!productLoading && productHasMore) {
+            const nextPage = productPage + 1;
+            setProductPage(nextPage);
+            loadProductOptions(productSearchTerm, nextPage);
+        }
+    }, [productLoading, productHasMore, productPage, productSearchTerm, loadProductOptions]);
+
     const loadVariants = useCallback(
         () =>
             productVariantApi.list({
                 page: state.page - 1,
                 size: state.pageSize,
                 keyword: state.query || undefined,
-                productId:
-                    productId && productId !== "ALL"
-                        ? productId
-                        : undefined,
+                productId: filterProductId || undefined,
+                categoryId: filterCategoryId || undefined,
                 status:
                     state.status === "ALL"
                         ? undefined
                         : state.status
             }),
         [
-            productId,
+            filterProductId,
+            filterCategoryId,
             state.page,
             state.pageSize,
             state.query,
@@ -267,6 +345,50 @@ export function ProductVariantListPage() {
                     ).then(() => undefined)
                 }
                 onDelete={handleDelete}
+                filters={[
+                    {
+                        label: "Danh mục",
+                        value: filterCategoryId,
+                        options: [],
+                        onChange: setFilterCategoryId,
+                        render: (
+                            <SearchableDropdown
+                                value={filterCategoryId}
+                                onChange={(val) => {
+                                    setFilterCategoryId(val);
+                                    state.setPage(1);
+                                }}
+                                options={categoryOptions}
+                                onSearch={setCategorySearchTerm}
+                                onLoadMore={handleLoadMoreCategories}
+                                hasMore={categoryHasMore}
+                                loading={categoryLoading}
+                                placeholder="Chọn danh mục"
+                            />
+                        )
+                    },
+                    {
+                        label: "Sản phẩm",
+                        value: filterProductId,
+                        options: [],
+                        onChange: setFilterProductId,
+                        render: (
+                            <SearchableDropdown
+                                value={filterProductId}
+                                onChange={(val) => {
+                                    setFilterProductId(val);
+                                    state.setPage(1);
+                                }}
+                                options={productOptions}
+                                onSearch={setProductSearchTerm}
+                                onLoadMore={handleLoadMoreProducts}
+                                hasMore={productHasMore}
+                                loading={productLoading}
+                                placeholder="Chọn sản phẩm"
+                            />
+                        )
+                    }
+                ]}
                 getInitialValues={(item) => ({
                     productId: String(item.productId),
                     variantName: item.variantName,
@@ -380,7 +502,19 @@ export function ProductVariantListPage() {
                         options: products.map((product) => ({
                             label: product.name,
                             value: String(product.id)
-                        }))
+                        })),
+                        render: (value, onChange) => (
+                            <SearchableDropdown
+                                value={value}
+                                onChange={onChange}
+                                options={productOptions}
+                                onSearch={setProductSearchTerm}
+                                onLoadMore={handleLoadMoreProducts}
+                                hasMore={productHasMore}
+                                loading={productLoading}
+                                placeholder="Chọn sản phẩm"
+                            />
+                        )
                     },
                     {
                         name: "variantName",

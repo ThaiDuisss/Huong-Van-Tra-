@@ -6,11 +6,13 @@ import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.service.InventoryBalanceService;
+import org.hvtra.iventoryservice.shared.enums.StockType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
+
 
 @RestController
 @RequestMapping("/api/inventory/inventory-balances")
@@ -37,6 +39,7 @@ public class InventoryBalanceController {
 
     @GetMapping("/store")
     public PageResponse<InventoryBalanceViewResponse> findAllView(
+            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productCode", required = false) String productCode,
             @RequestParam(name = "productName", required = false) String productName,
@@ -45,8 +48,9 @@ public class InventoryBalanceController {
             @RequestParam(name = "unitId", required = false) UUID unitId,
             @RequestParam(name = "locationId", required = false) UUID locationId,
             @RequestParam(name = "branchId", required = false) UUID branchId,
+            @RequestParam(name = "status", required = false) StockType status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
-        return service.findAllView(sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, pageable);
+        return service.findAllView(keyword, sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, status, pageable);
     }
 
     @Tag(

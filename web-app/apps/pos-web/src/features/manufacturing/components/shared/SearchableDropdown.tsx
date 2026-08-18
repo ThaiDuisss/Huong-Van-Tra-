@@ -17,6 +17,7 @@ interface SearchableDropdownProps {
     placeholder?: string;
     emptyText?: string;
     allOptionText?: string;
+    disabled?: boolean;
 }
 
 export function SearchableDropdown({
@@ -29,7 +30,8 @@ export function SearchableDropdown({
     loading,
     placeholder = "Tìm kiếm...",
     emptyText = "Không có dữ liệu",
-    allOptionText
+    allOptionText,
+    disabled = false
 }: SearchableDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -102,14 +104,15 @@ export function SearchableDropdown({
             {/* Nút Toggle */}
             <button
                 type="button"
+                disabled={disabled}
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex h-10 w-full items-center justify-between rounded-xl border border-pos-border bg-white px-3 text-sm text-gray-700 outline-none hover:bg-neutral-50 focus:border-hvt-green-700 focus:ring-1 focus:ring-hvt-green-700 transition-all cursor-pointer"
+                className="flex h-10 w-full items-center justify-between rounded-xl border border-pos-border bg-white px-3 text-sm text-gray-700 outline-none hover:bg-neutral-50 focus:border-hvt-green-700 focus:ring-1 focus:ring-hvt-green-700 transition-all cursor-pointer disabled:bg-neutral-100 disabled:text-gray-400 disabled:cursor-not-allowed"
             >
                 <span className="truncate pr-2 font-medium">
                     {selectedOption.name}
                 </span>
                 <div className="flex items-center gap-1">
-                    {value !== "" && value !== "ALL" && !allOptionText && (
+                    {value !== "" && value !== "ALL" && !allOptionText && !disabled && (
                         <div 
                             className="p-0.5 hover:bg-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
                             onClick={(e) => {

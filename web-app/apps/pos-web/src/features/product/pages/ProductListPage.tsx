@@ -1,7 +1,9 @@
 import { Download, Package, Upload } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
+import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 
 import { ExcelImportModal } from "../components/ExcelImportModal";
 import {
@@ -25,6 +27,14 @@ import {
 import { formatCurrency } from "../utils/product-formatters";
 
 export function ProductListPage() {
+
+    // Searchable dropdown states for Category
+    const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
+    const [categoryPage, setCategoryPage] = useState(0);
+    const [categoryHasMore, setCategoryHasMore] = useState(true);
+    const [categoryLoading, setCategoryLoading] = useState(false);
+    const [categorySearchTerm, setCategorySearchTerm] = useState("");
+    const [filterCategoryId, setFilterCategoryId] = useState("");
     const state = useCatalogPageState();
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const loadProducts = useCallback(
@@ -47,7 +57,8 @@ export function ProductListPage() {
             state.pageSize,
             state.query,
             state.secondaryValue,
-            state.status
+            state.status,
+            filterCategoryId
         ]
     );
     const loadCategories = useCallback(
@@ -59,12 +70,39 @@ export function ProductListPage() {
     const products = resource.data?.content ?? [];
     const categories = categoryResource.data?.content ?? [];
 
+    const loadCategoryOptions = useCallback(async (search: string, page: number) => {
+        try {
+            setCategoryLoading(true);
+            const res = await categoryApi.lookup(search, page, 20);
+            setCategoryOptions(prev => page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]);
+            setCategoryHasMore(!res.last);
+        } catch (err) {
+            console.error("Error loading categories", err);
+            setCategoryHasMore(false);
+        } finally {
+            setCategoryLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        setCategoryPage(0);
+        loadCategoryOptions(categorySearchTerm, 0);
+    }, [categorySearchTerm, loadCategoryOptions]);
+
+    const handleLoadMoreCategories = useCallback(() => {
+        if (!categoryLoading && categoryHasMore) {
+            const nextPage = categoryPage + 1;
+            setCategoryPage(nextPage);
+            loadCategoryOptions(categorySearchTerm, nextPage);
+        }
+    }, [categoryLoading, categoryHasMore, categoryPage, categorySearchTerm, loadCategoryOptions]);
+
     async function submit(
         values: FormValues,
         editingItem: ProductSummary | null
     ) {
         const description = getString(values, "description");
-        
+
         const imageUrl = getString(values, "imageFile") || null;
         const fieldId = getString(values, "imageFileId") || null;
 
@@ -97,7 +135,7 @@ export function ProductListPage() {
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.setAttribute("href", url);
-            
+
             const now = new Date();
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -106,7 +144,7 @@ export function ProductListPage() {
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const seconds = String(now.getSeconds()).padStart(2, '0');
             const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
-            
+
             link.setAttribute("download", `Danh sách sản phẩm_${timestamp}.xlsx`);
             document.body.appendChild(link);
             link.click();
@@ -120,21 +158,21 @@ export function ProductListPage() {
     const validateProductRow = (row: any) => {
         const name = String(row["Tên sản phẩm"] || "").trim();
         const categoryCode = String(row["Mã danh mục"] || "").trim();
-        
+
         if (!name) {
             return { isValid: false, error: "Tên sản phẩm trống" };
         }
         if (!categoryCode) {
             return { isValid: false, error: "Mã danh mục trống" };
         }
-        
+
         const matched = categories.some(
             (cat) => cat.categoryCode.toLowerCase() === categoryCode.toLowerCase()
         );
         if (!matched) {
             return { isValid: false, error: "Mã danh mục không tồn tại" };
         }
-        
+
         return { isValid: true };
     };
 
@@ -167,7 +205,7 @@ export function ProductListPage() {
         <>
             <CatalogResourceManagement
                 title="Sản phẩm"
-                description="Quản lý thông tin nhóm sản phẩm và các Mặt hàng trực thuộc."
+                description="Quản lý thông tin nhóm sản phẩm trực thuộc."
                 createLabel="Tạo sản phẩm"
                 searchPlaceholder="Tìm tên sản phẩm..."
                 totalItemsLabel="Tổng số sản phẩm"
@@ -183,139 +221,148 @@ export function ProductListPage() {
                         </ActionButton>
                     </>
                 }
-            items={products}
-            loading={resource.loading}
-            error={resource.error}
-            query={state.query}
-            filters={[
-                {
-                    label: "Trạng thái",
-                    value: state.status,
-                    options: [
-                        { label: "Tất cả", value: "ALL" },
-                        { label: "Đang hoạt động", value: "ACTIVE" },
-                        { label: "Ngừng hoạt động", value: "INACTIVE" }
-                    ],
-                    onChange: (val) => state.setStatus(val as any)
-                },
-                {
-                    label: "Danh mục",
-                    value: state.secondaryValue,
-                    options: [
-                        { label: "Tất cả", value: "ALL" },
-                        ...categories.map((category) => ({
+                items={products}
+                loading={resource.loading}
+                error={resource.error}
+                query={state.query}
+                filters={[
+                    {
+                        label: "Trạng thái",
+                        value: state.status,
+                        options: [
+                            { label: "Tất cả", value: "ALL" },
+                            { label: "Đang hoạt động", value: "ACTIVE" },
+                            { label: "Ngừng hoạt động", value: "INACTIVE" }
+                        ],
+                        onChange: (val) => state.setStatus(val as any)
+                    },
+                    {
+                        label: "Danh mục",
+                        value: state.secondaryValue,
+                        options: [],
+                        onChange: state.setSecondaryValue,
+                        render: (
+                            <SearchableDropdown
+                                value={filterCategoryId}
+                                onChange={(val) => {
+                                    setFilterCategoryId(val);
+                                    state.setPage(1);
+                                }}
+                                options={categoryOptions}
+                                onSearch={setCategorySearchTerm}
+                                onLoadMore={handleLoadMoreCategories}
+                                hasMore={categoryHasMore}
+                                loading={categoryLoading}
+                                placeholder="Danh mục"
+                            />
+                        )
+                    }
+                ]}
+                page={(resource.data?.page ?? 0) + 1}
+                pageCount={resource.data?.totalPages ?? 1}
+                totalItems={resource.data?.totalElements ?? 0}
+                pageSize={state.pageSize}
+                onQueryChange={state.setQuery}
+                onPageChange={state.setPage}
+                onPageSizeChange={state.setPageSize}
+                onRefresh={resource.refresh}
+                onSubmit={submit}
+                onDelete={handleDelete}
+                onChangeStatus={(item) =>
+                    productApi.updateStatus(
+                        String(item.id),
+                        item.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
+                    ).then(() => undefined)
+                }
+                getInitialValues={(item) => ({
+                    categoryId: item.category?.id ? String(item.category.id) : "",
+                    name: item.name,
+                    description: "",
+                    imageFile: item.imageUrl ?? "",
+                    status: item.status
+                })}
+                columns={[
+                    { key: "image", label: "Ảnh" },
+                    { key: "name", label: "Tên sản phẩm" },
+                    { key: "category", label: "Danh mục" },
+                    // { key: "variants", label: "Số Mặt hàng" },
+                    { key: "status", label: "Trạng thái" }
+                ]}
+                renderCells={(item) => (
+                    <>
+                        <TableCell>
+                            {item.imageUrl ? (
+                                <img
+                                    src={item.imageUrl}
+                                    alt=""
+                                    className="size-12 rounded-xl object-cover"
+                                />
+                            ) : (
+                                <span className="grid size-12 place-items-center rounded-xl bg-neutral-100 text-gray-500">
+                                    <Package size={20} />
+                                </span>
+                            )}
+                        </TableCell>
+                        <TableCell className="font-bold text-gray-500">
+                            <span>{item.name}</span>
+                            <span className="text-gray-500 block text-[10px] font-normal">{item.productCode}</span>
+                        </TableCell>
+                        <TableCell>{item.category?.name || "—"}</TableCell>
+                        {/* <TableCell>{item.totalVariants}</TableCell> */}
+                        <TableCell>
+                            <CatalogStatusBadge status={item.status} />
+                        </TableCell>
+                    </>
+                )}
+                renderDetail={(item) => <ProductDetailContent productId={item.id} />}
+                formFields={[
+                    {
+                        name: "categoryId",
+                        label: "Danh mục",
+                        type: "select",
+                        required: true,
+                        options: categories.map((category) => ({
                             label: category.name,
                             value: String(category.id)
                         }))
-                    ],
-                    onChange: state.setSecondaryValue
-                }
-            ]}
-            page={(resource.data?.page ?? 0) + 1}
-            pageCount={resource.data?.totalPages ?? 1}
-            totalItems={resource.data?.totalElements ?? 0}
-            pageSize={state.pageSize}
-            onQueryChange={state.setQuery}
-            onPageChange={state.setPage}
-            onPageSizeChange={state.setPageSize}
-            onRefresh={resource.refresh}
-            onSubmit={submit}
-            onDelete={handleDelete}
-            onChangeStatus={(item) =>
-                productApi.updateStatus(
-                    String(item.id),
-                    item.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
-                ).then(() => undefined)
-            }
-            getInitialValues={(item) => ({
-                categoryId: String(item.category.id),
-                name: item.name,
-                description: "",
-                imageFile: item.imageUrl ?? "",
-                status: item.status
-            })}
-            columns={[
-                { key: "image", label: "Ảnh" },
-                { key: "name", label: "Tên sản phẩm" },
-                { key: "category", label: "Danh mục" },
-                // { key: "variants", label: "Số Mặt hàng" },
-                { key: "status", label: "Trạng thái" }
-            ]}
-            renderCells={(item) => (
-                <>
-                    <TableCell>
-                        {item.imageUrl ? (
-                            <img
-                                src={item.imageUrl}
-                                alt=""
-                                className="size-12 rounded-xl object-cover"
-                            />
-                        ) : (
-                            <span className="grid size-12 place-items-center rounded-xl bg-neutral-100 text-gray-500">
-                                <Package size={20} />
-                            </span>
-                        )}
-                    </TableCell>
-                    <TableCell className="font-bold text-gray-500">
-                        <span>{item.name}</span>
-                        <span className="text-gray-500 block text-[10px] font-normal">{item.productCode}</span>
-                    </TableCell>
-                    <TableCell>{item.category.name}</TableCell>
-                    {/* <TableCell>{item.totalVariants}</TableCell> */}
-                    <TableCell>
-                        <CatalogStatusBadge status={item.status} />
-                    </TableCell>
-                </>
-            )}
-            renderDetail={(item) => <ProductDetailContent productId={item.id} />}
-            formFields={[
-                {
-                    name: "categoryId",
-                    label: "Danh mục",
-                    type: "select",
-                    required: true,
-                    options: categories.map((category) => ({
-                        label: category.name,
-                        value: String(category.id)
-                    }))
-                },
-                {
-                    name: "name",
-                    label: "Tên sản phẩm",
-                    required: true
-                },
-                {
-                    name: "description",
-                    label: "Mô tả",
-                    type: "textarea"
-                },
-                {
-                    name: "imageFile",
-                    label: "Hình ảnh sản phẩm",
-                    type: "file",
-                    purpose: "PRODUCT_IMAGE"
-                },
-                {
-                    name: "status",
-                    label: "Trạng thái",
-                    type: "select",
-                    required: true,
-                    options: [
-                        { label: "Đang hoạt động", value: "ACTIVE" },
-                        { label: "Ngừng hoạt động", value: "INACTIVE" }
-                    ]
-                }
-            ]}
-        />
-        <ExcelImportModal
-            isOpen={isImportModalOpen}
-            onClose={() => setIsImportModalOpen(false)}
-            title="Nhập dữ liệu từ Excel"
-            description="Tải file mẫu hoặc chọn file Excel để nhập dữ liệu vào hệ thống."
-            onDownloadTemplate={handleDownloadTemplate}
-            onImport={handleImportExcel}
-            validateRow={validateProductRow}
-        />
+                    },
+                    {
+                        name: "name",
+                        label: "Tên sản phẩm",
+                        required: true
+                    },
+                    {
+                        name: "description",
+                        label: "Mô tả",
+                        type: "textarea"
+                    },
+                    {
+                        name: "imageFile",
+                        label: "Hình ảnh sản phẩm",
+                        type: "file",
+                        purpose: "PRODUCT_IMAGE"
+                    },
+                    {
+                        name: "status",
+                        label: "Trạng thái",
+                        type: "select",
+                        required: true,
+                        options: [
+                            { label: "Đang hoạt động", value: "ACTIVE" },
+                            { label: "Ngừng hoạt động", value: "INACTIVE" }
+                        ]
+                    }
+                ]}
+            />
+            <ExcelImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                title="Nhập dữ liệu từ Excel"
+                description="Tải file mẫu hoặc chọn file Excel để nhập dữ liệu vào hệ thống."
+                onDownloadTemplate={handleDownloadTemplate}
+                onImport={handleImportExcel}
+                validateRow={validateProductRow}
+            />
         </>
     );
 }
@@ -340,7 +387,7 @@ function ProductDetailContent({ productId }: { productId: string | number }) {
                     <Package size={34} />
                 </div>
             )}
-            
+
             <DetailList
                 items={[
                     { label: "Tên sản phẩm", value: product.name },
