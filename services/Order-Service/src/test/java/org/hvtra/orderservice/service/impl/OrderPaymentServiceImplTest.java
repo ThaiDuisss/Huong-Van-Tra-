@@ -133,6 +133,7 @@ class OrderPaymentServiceImplTest {
                 changedBy
         );
         inOrder.verify(orderPaymentSagaService).completeManualPaymentSaga(order, "PAY-001");
+        inOrder.verify(orderPaymentSagaService).markResourceConfirmationRequested(order, sagaId);
         inOrder.verify(orderCustomerService).updateCustomerPurchase(orderId);
         inOrder.verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(
                 order,

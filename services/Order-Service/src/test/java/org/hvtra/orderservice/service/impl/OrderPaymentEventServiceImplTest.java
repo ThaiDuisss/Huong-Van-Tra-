@@ -134,6 +134,7 @@ class OrderPaymentEventServiceImplTest {
                 null
         );
         inOrder.verify(orderPaymentSagaService).completePaymentSaga(order, event, event.getEventId());
+        inOrder.verify(orderPaymentSagaService).markResourceConfirmationRequested(order, sagaId);
         inOrder.verify(orderCustomerService).updateCustomerPurchase(orderId);
         inOrder.verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(
                 order,

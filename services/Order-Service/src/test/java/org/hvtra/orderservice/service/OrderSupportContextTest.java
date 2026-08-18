@@ -3,6 +3,7 @@ package org.hvtra.orderservice.service;
 import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
+import org.hvtra.orderservice.repository.OrderDiscountRepository;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
@@ -179,6 +180,11 @@ class OrderSupportContextTest {
         @Bean
         OrderRepository orderRepository() {
             return mock(OrderRepository.class);
+        }
+
+        @Bean
+        OrderDiscountRepository orderDiscountRepository() {
+            return mock(OrderDiscountRepository.class);
         }
 
         @Bean

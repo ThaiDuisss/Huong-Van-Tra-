@@ -47,7 +47,6 @@ public class OrderMapper {
         return Order.builder()
                 .orderCode(orderCode)
                 .tenantId(request.getTenantId())
-                .branchId(request.getBranchId())
                 .terminalId(request.getTerminalId())
                 .shiftId(request.getShiftId())
                 .customerId(request.getCustomerId())

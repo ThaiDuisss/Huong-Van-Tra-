@@ -58,6 +58,7 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
         );
 
         UUID sagaId = orderPaymentSagaService.completeManualPaymentSaga(savedOrder, request.getPaymentCode());
+        orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
         orderCustomerService.updateCustomerPurchase(savedOrder.getId());
         orderOutboxPublisher.publishPaymentCompletedOrchestration(
                 savedOrder,
