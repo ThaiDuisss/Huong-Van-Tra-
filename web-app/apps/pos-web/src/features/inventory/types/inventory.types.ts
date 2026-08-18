@@ -159,12 +159,14 @@ export interface InventoryBalanceQuery extends QueryParams {
     inventoryItemId?: EntityId;
     locationId?: EntityId;
     branchId?: EntityId;
+    keyword?: string;
     sku?: string;
     productCode?: string;
     productName?: string;
     categoryCode?: string;
     categoryId?: string;
     unitId?: string;
+    status?: string;
 }
 
 export interface InventoryBalanceViewResponse {

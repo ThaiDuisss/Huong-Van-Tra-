@@ -62,6 +62,7 @@ import { ProductVariantDetailPage } from "../features/product/pages/ProductVaria
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
+import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagementPage";
 import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
 import {
@@ -248,6 +249,10 @@ export function AppRouter() {
                 <Route
                     path="inventory/transactions"
                     element={<InventoryTransactionPage />}
+                />
+                <Route
+                    path="inventory/shelves"
+                    element={<ShelfManagementPage />}
                 />
                 <Route
                     path="inventory/balances"

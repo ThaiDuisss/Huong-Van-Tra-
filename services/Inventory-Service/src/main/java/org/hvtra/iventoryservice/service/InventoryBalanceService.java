@@ -4,6 +4,7 @@ import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.shared.enums.StockType;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
@@ -15,6 +16,7 @@ public interface InventoryBalanceService {
     InventoryBalanceResponse findById(UUID id);
     PageResponse<InventoryBalanceResponse> findByInventoryItem(UUID itemId, Pageable pageable);
     PageResponse<InventoryBalanceViewResponse> findAllView(
+            String keyword,
             String sku,
             String productCode,
             String productName,
@@ -23,6 +25,7 @@ public interface InventoryBalanceService {
             UUID unitId,
             UUID locationId,
             UUID branchId,
+            StockType status,
             Pageable pageable
     );
     List<InventoryBalanceWarehouseResponse> findWarehouseBalances(

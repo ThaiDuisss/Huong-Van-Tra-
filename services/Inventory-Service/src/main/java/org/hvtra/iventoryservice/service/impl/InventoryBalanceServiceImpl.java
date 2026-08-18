@@ -6,6 +6,7 @@ import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.dto.response.PageResponse;
 import org.hvtra.iventoryservice.entity.InventoryBalance;
+import org.hvtra.iventoryservice.shared.enums.StockType;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.mapper.InventoryBalanceMapper;
 import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
@@ -19,6 +20,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -92,6 +94,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
     @Override
     public PageResponse<InventoryBalanceViewResponse> findAllView(
+            String keyword,
             String sku,
             String productCode,
             String productName,
@@ -100,11 +103,13 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             UUID unitId,
             UUID locationId,
             UUID branchId,
+            StockType status,
             Pageable pageable
     ) {
         // 1. Resolve variant IDs if catalog filters are active
         List<UUID> matchingVariantIds = null;
-        boolean hasCatalogFilters = (sku != null && !sku.isBlank()) ||
+        boolean hasCatalogFilters = (keyword != null && !keyword.isBlank()) ||
+                                    (sku != null && !sku.isBlank()) ||
                                     (productCode != null && !productCode.isBlank()) ||
                                     (productName != null && !productName.isBlank()) ||
                                     (categoryCode != null && !categoryCode.isBlank()) ||
@@ -112,7 +117,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                                     unitId != null;
 
         if (hasCatalogFilters) {
-            matchingVariantIds = catalogClient.searchVariantIds(sku, productCode, productName, categoryCode, categoryId, unitId);
+            matchingVariantIds = catalogClient.searchVariantIds(keyword, sku, productCode, productName, categoryCode, categoryId, unitId);
             if (matchingVariantIds == null || matchingVariantIds.isEmpty()) {
                 return new PageResponse<>(
                         Collections.emptyList(),
@@ -163,6 +168,18 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
             if (branchId != null) {
                 predicates.add(cb.equal(root.get("location").get("branchId"), branchId));
+            }
+
+            if (status != null && status != StockType.ALL) {
+                if (status == StockType.LOW_STOCK) {
+                    predicates.add(cb.greaterThan(root.get("quantityOnHand"), BigDecimal.ZERO));
+                    predicates.add(cb.lessThanOrEqualTo(
+                            root.get("quantityOnHand"),
+                            cb.coalesce(root.get("inventoryItem").get("reorderPoint"), 5).as(BigDecimal.class)
+                    ));
+                } else if (status == StockType.OUT_OF_STOCK) {
+                    predicates.add(cb.lessThanOrEqualTo(root.get("quantityOnHand"), BigDecimal.ZERO));
+                }
             }
 
             return cb.and(predicates.toArray(Predicate[]::new));
@@ -267,6 +284,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         List<UUID> matchingVariantIds = null;
         if ((sku != null && !sku.isBlank()) || (productName != null && !productName.isBlank())) {
             matchingVariantIds = catalogClient.searchVariantIds(
+                    null,
                     sku != null ? sku.trim() : null,
                     null,
                     productName != null ? productName.trim() : null,
