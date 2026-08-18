@@ -1,17 +1,17 @@
-package org.hvtra.iventoryservice.service;
+package org.hvtra.iventoryservice.movement.service;
 
-import org.hvtra.iventoryservice.dto.request.StockAdjustmentRequest;
-import org.hvtra.iventoryservice.dto.request.StockInRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.movement.dto.request.StockAdjustmentRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StockInRequest;
+import org.hvtra.iventoryservice.movement.dto.response.InventoryTransactionResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
 import org.springframework.data.domain.Pageable;
 
-import org.hvtra.iventoryservice.dto.request.StoreStockAdjustmentRequest;
-import org.hvtra.iventoryservice.dto.request.StoreStockInRequest;
-import org.hvtra.iventoryservice.dto.request.StoreStockOutRequest;
-import org.hvtra.iventoryservice.dto.request.StoreTransferRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StoreStockAdjustmentRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StoreStockInRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StoreStockOutRequest;
+import org.hvtra.iventoryservice.movement.dto.request.StoreTransferRequest;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

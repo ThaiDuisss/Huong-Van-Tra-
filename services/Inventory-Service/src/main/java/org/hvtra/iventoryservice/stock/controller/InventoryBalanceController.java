@@ -1,11 +1,11 @@
-package org.hvtra.iventoryservice.controller;
+package org.hvtra.iventoryservice.stock.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
-import org.hvtra.iventoryservice.service.InventoryBalanceService;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
+import org.hvtra.iventoryservice.stock.service.InventoryBalanceService;
 import org.hvtra.iventoryservice.domain.enums.StockType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;

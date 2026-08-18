@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.repository;
+package org.hvtra.iventoryservice.reservation.repository;
 
 import org.hvtra.iventoryservice.domain.entity.InventoryReservation;
 import org.hvtra.iventoryservice.domain.enums.ReservationStatus;

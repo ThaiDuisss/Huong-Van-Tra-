@@ -1,6 +1,6 @@
-package org.hvtra.iventoryservice.repository;
+package org.hvtra.iventoryservice.movement.repository;
 
-import org.hvtra.iventoryservice.domain.entity.InventoryTransaction;
+import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;

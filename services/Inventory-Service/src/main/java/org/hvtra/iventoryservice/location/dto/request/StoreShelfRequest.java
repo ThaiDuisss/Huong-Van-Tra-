@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.request;
+package org.hvtra.iventoryservice.location.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -1,11 +1,11 @@
-package org.hvtra.iventoryservice.controller;
+package org.hvtra.iventoryservice.stock.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.iventoryservice.dto.request.StockBatchRequest;
-import org.hvtra.iventoryservice.dto.request.StockVariantBatchRequest;
-import org.hvtra.iventoryservice.dto.response.StockBatchResponse;
-import org.hvtra.iventoryservice.dto.response.StockVariantBatchResponse;
-import org.hvtra.iventoryservice.service.InventoryStockService;
+import org.hvtra.iventoryservice.stock.dto.request.StockBatchRequest;
+import org.hvtra.iventoryservice.stock.dto.request.StockVariantBatchRequest;
+import org.hvtra.iventoryservice.stock.dto.response.StockBatchResponse;
+import org.hvtra.iventoryservice.stock.dto.response.StockVariantBatchResponse;
+import org.hvtra.iventoryservice.stock.service.InventoryStockService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.response;
+package org.hvtra.iventoryservice.movement.dto.response;
 
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;

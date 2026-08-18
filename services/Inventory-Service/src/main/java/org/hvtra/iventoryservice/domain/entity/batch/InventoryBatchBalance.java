@@ -1,9 +1,10 @@
-package org.hvtra.iventoryservice.domain.entity;
+package org.hvtra.iventoryservice.domain.entity.batch;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 
 import java.math.BigDecimal;
 

@@ -1,10 +1,10 @@
-package org.hvtra.iventoryservice.controller;
+package org.hvtra.iventoryservice.location.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.iventoryservice.dto.request.InventoryLocationRequest;
-import org.hvtra.iventoryservice.dto.request.InventoryStatusRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryLocationResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
+import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.location.service.InventoryLocationService;

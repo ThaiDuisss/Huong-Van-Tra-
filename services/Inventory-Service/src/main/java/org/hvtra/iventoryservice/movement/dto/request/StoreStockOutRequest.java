@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.request;
+package org.hvtra.iventoryservice.movement.dto.request;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;

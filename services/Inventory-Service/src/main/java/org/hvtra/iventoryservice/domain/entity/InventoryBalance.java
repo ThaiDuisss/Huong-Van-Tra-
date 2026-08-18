@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.entity;
+package org.hvtra.iventoryservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -29,4 +29,13 @@ public class InventoryBalance extends BaseEntity {
 
     @Column(name = "quantity_reserved", nullable = false, precision = 18, scale = 2)
     private BigDecimal quantityReserved = BigDecimal.ZERO;
+
+    @Column(name = "quantity_blocked", nullable = false, precision = 18, scale = 2)
+    private BigDecimal quantityBlocked = BigDecimal.ZERO;
+
+    public BigDecimal getAvailableQuantity() {
+        return quantityOnHand
+                .subtract(quantityReserved)
+                .subtract(quantityBlocked);
+    }
 }

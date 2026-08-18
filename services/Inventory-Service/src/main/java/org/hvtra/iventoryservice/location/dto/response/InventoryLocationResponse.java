@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.response;
+package org.hvtra.iventoryservice.location.dto.response;
 
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;

@@ -1,9 +1,9 @@
-package org.hvtra.iventoryservice.service;
+package org.hvtra.iventoryservice.stock.service;
 
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceViewResponse;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceWarehouseResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.StockType;
 import org.springframework.data.domain.Pageable;
 

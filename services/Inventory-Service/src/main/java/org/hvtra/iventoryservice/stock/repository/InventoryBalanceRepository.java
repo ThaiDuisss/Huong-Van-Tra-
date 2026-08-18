@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.repository;
+package org.hvtra.iventoryservice.stock.repository;
 
 import jakarta.persistence.LockModeType;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;

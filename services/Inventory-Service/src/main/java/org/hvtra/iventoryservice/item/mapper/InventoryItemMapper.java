@@ -1,7 +1,7 @@
-package org.hvtra.iventoryservice.mapper;
+package org.hvtra.iventoryservice.item.mapper;
 
-import org.hvtra.iventoryservice.dto.request.InventoryItemRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryItemResponse;
+import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.springframework.stereotype.Component;
 

@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.integration.consumer;
+package org.hvtra.iventoryservice.integration.order.consumer;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

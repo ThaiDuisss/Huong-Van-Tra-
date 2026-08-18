@@ -1,11 +1,11 @@
-package org.hvtra.iventoryservice.entity;
+package org.hvtra.iventoryservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
-import org.hvtra.iventoryservice.shared.enums.InventoryLocationType;
-import org.hvtra.iventoryservice.shared.enums.InventoryStatus;
+import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 
 import java.util.ArrayList;
 import java.util.List;

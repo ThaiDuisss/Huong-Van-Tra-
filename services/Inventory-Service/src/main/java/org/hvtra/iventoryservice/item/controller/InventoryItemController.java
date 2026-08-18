@@ -1,15 +1,15 @@
-package org.hvtra.iventoryservice.controller;
+package org.hvtra.iventoryservice.item.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.iventoryservice.dto.request.InventoryItemRequest;
-import org.hvtra.iventoryservice.dto.request.InventoryStatusRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
-import org.hvtra.iventoryservice.dto.response.InventoryItemResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
-import org.hvtra.iventoryservice.service.InventoryBalanceService;
-import org.hvtra.iventoryservice.service.InventoryItemService;
+import org.hvtra.iventoryservice.stock.service.InventoryBalanceService;
+import org.hvtra.iventoryservice.item.service.InventoryItemService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;

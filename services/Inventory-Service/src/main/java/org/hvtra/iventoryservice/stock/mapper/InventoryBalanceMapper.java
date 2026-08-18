@@ -1,6 +1,6 @@
-package org.hvtra.iventoryservice.mapper;
+package org.hvtra.iventoryservice.stock.mapper;
 
-import org.hvtra.iventoryservice.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.springframework.stereotype.Component;
 

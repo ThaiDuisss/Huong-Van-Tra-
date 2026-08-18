@@ -1,8 +1,8 @@
-package org.hvtra.iventoryservice.service;
+package org.hvtra.iventoryservice.item.service;
 
-import org.hvtra.iventoryservice.dto.request.InventoryItemRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryItemResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.springframework.data.domain.Pageable;

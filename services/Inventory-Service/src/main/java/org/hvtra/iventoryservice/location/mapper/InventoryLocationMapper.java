@@ -1,7 +1,7 @@
-package org.hvtra.iventoryservice.mapper;
+package org.hvtra.iventoryservice.location.mapper;
 
-import org.hvtra.iventoryservice.dto.request.InventoryLocationRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryLocationResponse;
+import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
+import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.springframework.stereotype.Component;
 

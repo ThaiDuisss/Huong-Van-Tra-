@@ -1,19 +1,18 @@
-package org.hvtra.iventoryservice.service.impl;
+package org.hvtra.iventoryservice.stock.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.iventoryservice.client.CatalogClient;
-import org.hvtra.iventoryservice.dto.request.StockBatchRequest;
-import org.hvtra.iventoryservice.dto.request.StockVariantBatchRequest;
-import org.hvtra.iventoryservice.dto.response.StockBatchResponse;
-import org.hvtra.iventoryservice.dto.response.StockVariantBatchResponse;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
+import org.hvtra.iventoryservice.stock.dto.request.StockBatchRequest;
+import org.hvtra.iventoryservice.stock.dto.request.StockVariantBatchRequest;
+import org.hvtra.iventoryservice.stock.dto.response.StockBatchResponse;
+import org.hvtra.iventoryservice.stock.dto.response.StockVariantBatchResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
-import org.hvtra.iventoryservice.repository.InventoryBalanceRepository;
-import org.hvtra.iventoryservice.repository.InventoryItemRepository;
-import org.hvtra.iventoryservice.service.InventoryStockService;
+import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

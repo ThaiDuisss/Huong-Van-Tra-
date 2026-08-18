@@ -1,11 +1,11 @@
-package org.hvtra.iventoryservice.entity;
+package org.hvtra.iventoryservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
-import org.hvtra.iventoryservice.shared.enums.InventoryItemType;
-import org.hvtra.iventoryservice.shared.enums.InventoryStatus;
+import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 
 import java.util.UUID;
 
@@ -25,10 +25,6 @@ public class InventoryItem extends BaseEntity {
     @Column(name = "item_type", nullable = false, length = 50)
     private InventoryItemType itemType;
 
-    /**
-     * ID đơn vị lưu kho thực tế của nguyên liệu / Mặt hàng tại kho này.
-     * Ví dụ: lưu kho bằng Kg, Gram, Thùng...
-     */
     @Column(name = "unit_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID unitId;
 
@@ -38,4 +34,10 @@ public class InventoryItem extends BaseEntity {
 
     @Column(name = "reorder_point", nullable = false)
     private Integer reorderPoint;
+
+    @Column(name = "batch_tracking_enabled", nullable = false)
+    private Boolean batchTrackingEnabled = false;
+
+    @Column(name = "expiry_tracking_enabled", nullable = false)
+    private Boolean expiryTrackingEnabled = false;
 }

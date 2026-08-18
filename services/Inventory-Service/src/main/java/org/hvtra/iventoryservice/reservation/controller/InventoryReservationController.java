@@ -1,12 +1,12 @@
-package org.hvtra.iventoryservice.controller;
+package org.hvtra.iventoryservice.reservation.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.iventoryservice.dto.request.ApplyInventoryReservationRequest;
-import org.hvtra.iventoryservice.dto.request.ConfirmInventoryReservationOrderRequest;
-import org.hvtra.iventoryservice.dto.request.ReleaseInventoryReservationItemRequest;
-import org.hvtra.iventoryservice.dto.request.ReleaseInventoryReservationOrderRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryReservationResponse;
-import org.hvtra.iventoryservice.service.InventoryReservationService;
+import org.hvtra.iventoryservice.reservation.dto.request.ApplyInventoryReservationRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationItemRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationOrderRequest;
+import org.hvtra.iventoryservice.reservation.dto.response.InventoryReservationResponse;
+import org.hvtra.iventoryservice.reservation.service.InventoryReservationService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

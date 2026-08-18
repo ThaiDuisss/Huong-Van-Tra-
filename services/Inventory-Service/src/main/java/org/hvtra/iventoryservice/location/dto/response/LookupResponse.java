@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.dto.response;
+package org.hvtra.iventoryservice.location.dto.response;
 
 public record LookupResponse(
         String id,

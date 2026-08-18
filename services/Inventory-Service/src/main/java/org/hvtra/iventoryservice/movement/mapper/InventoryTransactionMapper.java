@@ -1,7 +1,7 @@
-package org.hvtra.iventoryservice.mapper;
+package org.hvtra.iventoryservice.movement.mapper;
 
-import org.hvtra.iventoryservice.dto.response.InventoryTransactionResponse;
-import org.hvtra.iventoryservice.domain.entity.InventoryTransaction;
+import org.hvtra.iventoryservice.movement.dto.response.InventoryTransactionResponse;
+import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.springframework.stereotype.Component;
 
 @Component

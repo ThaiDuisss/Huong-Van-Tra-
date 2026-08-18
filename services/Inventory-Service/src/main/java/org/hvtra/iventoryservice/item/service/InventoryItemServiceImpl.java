@@ -1,17 +1,16 @@
-package org.hvtra.iventoryservice.service.impl;
+package org.hvtra.iventoryservice.item.service;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.iventoryservice.dto.request.InventoryItemRequest;
-import org.hvtra.iventoryservice.dto.response.InventoryItemResponse;
-import org.hvtra.iventoryservice.dto.response.PageResponse;
+import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.mapper.InventoryItemMapper;
-import org.hvtra.iventoryservice.repository.InventoryItemRepository;
-import org.hvtra.iventoryservice.service.InventoryItemService;
+import org.hvtra.iventoryservice.item.mapper.InventoryItemMapper;
+import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;

@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.shared.enums;
+package org.hvtra.iventoryservice.domain.enums;
 
 public enum InventoryLocationType {
     WAREHOUSE,

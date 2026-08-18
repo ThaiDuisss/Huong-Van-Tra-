@@ -1,8 +1,7 @@
-package org.hvtra.iventoryservice.service.impl;
+package org.hvtra.iventoryservice.reservation.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.iventoryservice.service.InventoryReservationService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 

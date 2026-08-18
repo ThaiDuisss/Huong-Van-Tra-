@@ -1,8 +1,8 @@
-package org.hvtra.iventoryservice.integration.consumer;
+package org.hvtra.iventoryservice.integration.order.consumer;
 
 import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.kafka.event.DebeziumOutboxEventPayloadParser;
-import org.hvtra.iventoryservice.dto.event.OrderInventoryEventPayload;
+import org.hvtra.iventoryservice.integration.order.dto.OrderInventoryEventPayload;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
