@@ -33,12 +33,15 @@ public class PosProductServiceImpl implements PosProductService {
     }
 
     @Override
-    public List<PosProductVariantResponse> searchVariants(PosProductSearchRequest request) {
+    public PageResponse<PosProductVariantResponse> searchVariants(PosProductSearchRequest request) {
         String keyword = request != null ? request.keyword() : null;
         String sku = request != null ? request.sku() : null;
         String productName = request != null ? request.productName() : null;
+        int page = request != null ? request.page() : 0;
+        int size = (request != null && request.size() > 0) ? request.size() : 20;
 
-        log.debug("POS searching variants with keyword: {}, sku: {}, productName: {}", keyword, sku, productName);
+        log.debug("POS searching variants with keyword: {}, sku: {}, productName: {}, page: {}, size: {}",
+                keyword, sku, productName, page, size);
 
         String searchKeyword = (keyword != null && !keyword.isBlank()) ? keyword : productName;
 
@@ -50,12 +53,20 @@ public class PosProductServiceImpl implements PosProductService {
                 null,
                 null,
                 "ACTIVE",
-                0,
-                100
+                page,
+                size
         );
 
         if (pageResponse == null || pageResponse.content() == null || pageResponse.content().isEmpty()) {
-            return Collections.emptyList();
+            return new PageResponse<>(
+                    Collections.emptyList(),
+                    page,
+                    size,
+                    0,
+                    0,
+                    true,
+                    true
+            );
         }
 
         List<CatalogVariantResponse> variants = pageResponse.content();
@@ -66,9 +77,19 @@ public class PosProductServiceImpl implements PosProductService {
 
         Map<UUID, StockVariantBatchResponse> stockMap = loadStockMap(variantIds);
 
-        return variants.stream()
+        List<PosProductVariantResponse> posVariants = variants.stream()
                 .map(v -> toPosProductVariantResponse(v, stockMap.get(v.id())))
                 .toList();
+
+        return new PageResponse<>(
+                posVariants,
+                pageResponse.page(),
+                pageResponse.size(),
+                pageResponse.totalElements(),
+                pageResponse.totalPages(),
+                pageResponse.first(),
+                pageResponse.last()
+        );
     }
 
     @Override
