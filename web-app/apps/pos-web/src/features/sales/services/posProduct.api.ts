@@ -73,7 +73,7 @@ export const posProductApi = {
         }
 
         const variants = await apiClient.get<PosVariantResponse[]>(
-            "/catalog/product-variants/search-view-pos",
+            "/pos/products",
             {
                 query: {
                     keyword: query
@@ -90,7 +90,7 @@ export const posProductApi = {
 
     async getPosView(variantId: string) {
         const variant = await apiClient.get<PosVariantResponse>(
-            `/catalog/product-variants/${encodeURIComponent(variantId)}/pos-view`
+            `/pos/products/${encodeURIComponent(variantId)}`
         );
 
         return mapPosVariantToSaleProduct(variant);
