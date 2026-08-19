@@ -1,6 +1,11 @@
 package org.hvtra.iventoryservice.domain.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
@@ -20,6 +25,9 @@ public class InventoryItem extends BaseEntity {
 
     @Column(name = "reference_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID referenceId;
+
+    @Column(name = "reference_code", length = 100)
+    private String referenceCode;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "item_type", nullable = false, length = 50)

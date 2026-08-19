@@ -161,6 +161,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                         .status(savedVariant.getStatus().toString())
                         .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                         .referenceId(savedVariant.getId())
+                        .referenceCode(savedVariant.getSku())
                         .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                         .reorderPoint(reorderPoint)
                         .build());
@@ -391,7 +392,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                                 .status(savedVariant.getStatus().toString())
                                 .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                                 .referenceId(savedVariant.getId())
+                                .referenceCode(savedVariant.getSku())
                                 .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                                .reorderPoint(10)
                                 .build());
             }
         } catch (BadRequestException e) {

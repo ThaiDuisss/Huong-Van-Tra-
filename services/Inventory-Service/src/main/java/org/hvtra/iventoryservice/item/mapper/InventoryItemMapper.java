@@ -11,6 +11,7 @@ public class InventoryItemMapper {
         return new InventoryItemResponse(
                 item.getId(),
                 item.getReferenceId(),
+                item.getReferenceCode(),
                 item.getItemType(),
                 item.getUnitId(),
                 item.getStatus(),
@@ -20,6 +21,7 @@ public class InventoryItemMapper {
 
     public void update(InventoryItem item, InventoryItemRequest request) {
         item.setReferenceId(request.referenceId());
+        item.setReferenceCode(request.referenceCode());
         item.setItemType(request.itemType());
         item.setUnitId(request.unitId());
         item.setStatus(request.status());

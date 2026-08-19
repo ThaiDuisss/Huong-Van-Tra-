@@ -1,9 +1,22 @@
 package org.hvtra.catalog.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.hvtra.catalog.client.InventoryClient;
+import org.hvtra.catalog.client.InventoryClient.CreateInventoryItemRequest;
 import org.hvtra.catalog.dto.request.IngredientRequest;
 import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
+import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.entity.Ingredient;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
@@ -16,7 +29,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -26,47 +42,44 @@ public class IngredientServiceImpl implements IngredientService {
     private final IngredientRepository repository;
     private final IngredientMapper mapper;
     private final BusinessSequenceRepository businessSequenceRepository;
+    private final InventoryClient inventoryClient;
 
-    public IngredientServiceImpl(IngredientRepository repository, IngredientMapper mapper, BusinessSequenceRepository businessSequenceRepository) {
+    public IngredientServiceImpl(
+            IngredientRepository repository,
+            IngredientMapper mapper,
+            BusinessSequenceRepository businessSequenceRepository,
+            InventoryClient inventoryClient) {
         this.repository = repository;
         this.mapper = mapper;
         this.businessSequenceRepository = businessSequenceRepository;
+        this.inventoryClient = inventoryClient;
     }
 
     @Transactional
     public String generateIngredientCode(String ingredientName) {
-        // 1. Lấy hoặc tạo mới bộ đếm dùng chung duy nhất "INGREDIENT"
-        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository
-                .findBySequenceKeyWithLock("INGREDIENT") // Giữ nguyên key tổng của bạn
+        BusinessSequence seq = businessSequenceRepository
+                .findBySequenceKeyWithLock("INGREDIENT")
                 .orElseGet(() -> {
-                    var newSeq = new org.hvtra.catalog.entity.BusinessSequence();
+                    BusinessSequence newSeq = new BusinessSequence();
                     newSeq.setSequenceKey("INGREDIENT");
                     newSeq.setCurrentValue(0L);
                     return businessSequenceRepository.saveAndFlush(newSeq);
                 });
 
-        // 2. Tăng giá trị đếm tiếp theo
         long nextVal = seq.getCurrentValue() + 1;
         seq.setCurrentValue(nextVal);
         businessSequenceRepository.saveAndFlush(seq);
 
-        // 3. Trích xuất chữ cái đầu từ tên để ghép vào mã (Ví dụ: "Trà Xanh" -> "TX")
         String prefix = getInitials(ingredientName);
-
-        // 4. Trả về đúng định dạng: TX-01, TD-02, BS-03...
         return String.format("%s-%02d", prefix, nextVal);
     }
 
-    /**
-     * Hàm bổ trợ trích xuất chữ cái đầu viết hoa không dấu từ tên tiếng Việt
-     */
     private String getInitials(String name) {
         if (name == null || name.trim().isEmpty()) {
             return "NL";
         }
 
-        // Khử dấu tiếng Việt chuẩn hóa
-        String normalized = java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFD)
+        String normalized = Normalizer.normalize(name, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
                 .replace("Đ", "D")
                 .replace("đ", "d");
@@ -116,7 +129,19 @@ public class IngredientServiceImpl implements IngredientService {
         Ingredient ingredient = new Ingredient();
         mapper.update(ingredient, request);
         ingredient.setIngredientCode(code);
-        return mapper.toResponse(repository.save(ingredient));
+        Ingredient savedIngredient = repository.saveAndFlush(ingredient);
+
+        inventoryClient.createProductVariantItem(
+                CreateInventoryItemRequest.builder()
+                        .status(savedIngredient.getStatus().toString())
+                        .unitId(null)
+                        .referenceId(savedIngredient.getId())
+                        .referenceCode(savedIngredient.getIngredientCode())
+                        .itemType("INGREDIENT")
+                        .reorderPoint(0)
+                        .build());
+
+        return mapper.toResponse(savedIngredient);
     }
 
     @Override
@@ -167,27 +192,27 @@ public class IngredientServiceImpl implements IngredientService {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         var ingredients = repository.findAll(spec);
-        try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
-             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
              
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Danh sách Nguyên liệu");
+            Sheet sheet = workbook.createSheet("Danh sách Nguyên liệu");
             
-            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            Font headerFont = workbook.createFont();
             headerFont.setBold(true);
-            org.apache.poi.ss.usermodel.CellStyle headerStyle = workbook.createCellStyle();
+            CellStyle headerStyle = workbook.createCellStyle();
             headerStyle.setFont(headerFont);
             
             String[] headers = {"Mã nguyên liệu", "Tên nguyên liệu", "Trạng thái"};
-            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
-                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(headerStyle);
             }
             
             int rowIdx = 1;
             for (var ing : ingredients) {
-                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+                Row row = sheet.createRow(rowIdx++);
                 row.createCell(0).setCellValue(ing.getIngredientCode());
                 row.createCell(1).setCellValue(ing.getName());
                 row.createCell(2).setCellValue(ing.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
@@ -195,7 +220,7 @@ public class IngredientServiceImpl implements IngredientService {
             
             sheet.createFreezePane(0, 1);
             if (rowIdx > 1) {
-                sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
+                sheet.setAutoFilter(new CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
             }
             
             for (int i = 0; i < headers.length; i++) {
@@ -213,26 +238,25 @@ public class IngredientServiceImpl implements IngredientService {
 
     @Override
     public byte[] getImportTemplate() {
-        try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
-             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
              
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Mẫu nhập nguyên liệu");
+            Sheet sheet = workbook.createSheet("Mẫu nhập nguyên liệu");
             
-            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            Font headerFont = workbook.createFont();
             headerFont.setBold(true);
-            org.apache.poi.ss.usermodel.CellStyle headerStyle = workbook.createCellStyle();
+            CellStyle headerStyle = workbook.createCellStyle();
             headerStyle.setFont(headerFont);
             
             String[] headers = {"Mã nguyên liệu", "Tên nguyên liệu", "Trạng thái (Đang hoạt động / Ngừng hoạt động)"};
-            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
-                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(headerStyle);
             }
             
-            // Add a mock row as example
-            org.apache.poi.ss.usermodel.Row row = sheet.createRow(1);
+            Row row = sheet.createRow(1);
             row.createCell(0).setCellValue("NL001");
             row.createCell(1).setCellValue("Lá trà tươi ô long");
             row.createCell(2).setCellValue("Đang hoạt động");
@@ -253,13 +277,13 @@ public class IngredientServiceImpl implements IngredientService {
 
     @Override
     @Transactional
-    public void importFromExcel(org.springframework.web.multipart.MultipartFile file) {
-        try (org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(file.getInputStream())) {
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(0);
+    public void importFromExcel(MultipartFile file) {
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
             int rowCount = sheet.getPhysicalNumberOfRows();
             
             for (int r = 1; r < rowCount; r++) {
-                org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
+                Row row = sheet.getRow(r);
                 if (row == null) continue;
                 
                 String ingredientCode = getCellValueAsString(row.getCell(0));
@@ -283,23 +307,36 @@ public class IngredientServiceImpl implements IngredientService {
                     status = Status.INACTIVE;
                 }
                 
-                // Check if existing ingredient has same code (including soft-deleted ones)
                 var existingOpt = repository.findAll().stream()
                         .filter(i -> i.getIngredientCode().equalsIgnoreCase(ingredientCode))
                         .findFirst();
                         
                 Ingredient ingredient;
+                boolean isNew = false;
                 if (existingOpt.isPresent()) {
                     ingredient = existingOpt.get();
-                    ingredient.setIsDeleted(false); // Restore if it was soft-deleted
+                    ingredient.setIsDeleted(false);
                 } else {
                     ingredient = new Ingredient();
+                    isNew = true;
                 }
                 
                 ingredient.setIngredientCode(ingredientCode.trim());
                 ingredient.setName(name.trim());
                 ingredient.setStatus(status);
-                repository.save(ingredient);
+                Ingredient saved = repository.saveAndFlush(ingredient);
+
+                if (isNew) {
+                    inventoryClient.createProductVariantItem(
+                            CreateInventoryItemRequest.builder()
+                                    .status(saved.getStatus().toString())
+                                    .unitId(null)
+                                    .referenceId(saved.getId())
+                                    .referenceCode(saved.getIngredientCode())
+                                    .itemType("INGREDIENT")
+                                    .reorderPoint(0)
+                                    .build());
+                }
             }
         } catch (Exception e) {
             if (e instanceof BadRequestException) {
@@ -309,13 +346,13 @@ public class IngredientServiceImpl implements IngredientService {
         }
     }
 
-    private String getCellValueAsString(org.apache.poi.ss.usermodel.Cell cell) {
+    private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
         switch (cell.getCellType()) {
             case STRING:
                 return cell.getStringCellValue().trim();
             case NUMERIC:
-                if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell)) {
+                if (DateUtil.isCellDateFormatted(cell)) {
                     return cell.getDateCellValue().toString();
                 }
                 double val = cell.getNumericCellValue();
@@ -348,5 +385,3 @@ public class IngredientServiceImpl implements IngredientService {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Ingredient", id));
     }
 }
-
-

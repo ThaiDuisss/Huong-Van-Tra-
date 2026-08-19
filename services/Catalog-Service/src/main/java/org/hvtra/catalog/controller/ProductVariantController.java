@@ -123,7 +123,7 @@ public class ProductVariantController {
     @ResponseStatus(HttpStatus.OK)
     public void importVariants(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("productId") UUID productId) {
+            @RequestParam(name = "productId", required = false) UUID productId) {
         service.importFromExcel(file, productId);
     }
 

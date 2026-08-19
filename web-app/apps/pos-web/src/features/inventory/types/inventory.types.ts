@@ -61,9 +61,11 @@ export interface InventoryLocationRequest {
 export interface InventoryItemResponse {
     id: EntityId;
     referenceId: EntityId;
+    referenceCode?: string | null;
     itemType: InventoryItemType;
     unitId: EntityId;
     status: InventoryStatus;
+    reorderPoint?: number;
 }
 
 export interface InventoryBalanceResponse {
@@ -149,6 +151,7 @@ export interface InventoryItemQuery extends QueryParams {
     page?: number;
     size?: number;
     referenceId?: EntityId;
+    referenceCode?: string;
     itemType?: InventoryItemType;
     status?: InventoryStatus;
 }
