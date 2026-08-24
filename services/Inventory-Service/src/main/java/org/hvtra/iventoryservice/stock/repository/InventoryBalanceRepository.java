@@ -3,7 +3,11 @@ package org.hvtra.iventoryservice.stock.repository;
 import jakarta.persistence.LockModeType;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
-import org.springframework.data.jpa.repository.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
@@ -14,19 +18,28 @@ import java.util.UUID;
 
 public interface InventoryBalanceRepository
         extends JpaRepository<InventoryBalance, UUID>, JpaSpecificationExecutor<InventoryBalance> {
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select b from InventoryBalance b
-            where b.inventoryItem.id = :itemId and b.location.id = :locationId
+            where b.inventoryBatch.inventoryItem.id = :itemId and b.location.id = :locationId
             """)
     Optional<InventoryBalance> findForUpdate(
             @Param("itemId") UUID itemId, @Param("locationId") UUID locationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select b from InventoryBalance b
+            where b.inventoryBatch.id = :batchId and b.location.id = :locationId
+            """)
+    Optional<InventoryBalance> findForUpdateByBatchId(
+            @Param("batchId") UUID batchId, @Param("locationId") UUID locationId);
 
     @Modifying
     @Query("""
             update InventoryBalance b
             set b.quantityReserved = b.quantityReserved + :quantity
-            where b.inventoryItem.id = :inventoryItemId
+            where b.inventoryBatch.inventoryItem.id = :inventoryItemId
               and b.location.id = :locationId
               and (b.quantityOnHand - b.quantityReserved) >= :quantity
             """)
@@ -39,7 +52,7 @@ public interface InventoryBalanceRepository
     @Query("""
             update InventoryBalance b
             set b.quantityReserved = b.quantityReserved - :quantity
-            where b.inventoryItem.id = :inventoryItemId
+            where b.inventoryBatch.inventoryItem.id = :inventoryItemId
               and b.location.id = :locationId
               and b.quantityReserved >= :quantity
             """)
@@ -53,7 +66,7 @@ public interface InventoryBalanceRepository
             update InventoryBalance b
             set b.quantityOnHand = b.quantityOnHand - :quantity,
                 b.quantityReserved = b.quantityReserved - :quantity
-            where b.inventoryItem.id = :inventoryItemId
+            where b.inventoryBatch.inventoryItem.id = :inventoryItemId
               and b.location.id = :locationId
               and b.quantityReserved >= :quantity
               and b.quantityOnHand >= :quantity
@@ -65,7 +78,8 @@ public interface InventoryBalanceRepository
 
     @Query("""
             select b from InventoryBalance b
-            join fetch b.inventoryItem i
+            join fetch b.inventoryBatch batch
+            join fetch batch.inventoryItem i
             join fetch b.location l
             where i.referenceId in :variantIds
               and i.itemType = :itemType
@@ -78,7 +92,8 @@ public interface InventoryBalanceRepository
 
     @Query("""
             select b from InventoryBalance b
-            join fetch b.inventoryItem i
+            join fetch b.inventoryBatch batch
+            join fetch batch.inventoryItem i
             join fetch b.location l
             where i.id in :inventoryItemIds
               and (:warehouseId is null or l.id = :warehouseId)
@@ -89,15 +104,24 @@ public interface InventoryBalanceRepository
 
     @Query("""
             select b from InventoryBalance b
-            join fetch b.inventoryItem i
+            join fetch b.inventoryBatch batch
+            join fetch batch.inventoryItem i
             where i.id in :inventoryItemIds
             """)
     List<InventoryBalance> findActiveWarehouseBalancesByInventoryItemIds(
-            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds
-//            @Param("warehouseId") UUID warehouseId,
-//            @Param("locationType") InventoryLocationType locationType,
-//            @Param("locationStatus") InventoryStatus locationStatus
-    );
+            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds);
 
-    Optional<InventoryBalance> findByInventoryItemIdAndLocationId(UUID itemId, UUID newLocation);
+    @Query("""
+            select b from InventoryBalance b
+            where b.inventoryBatch.inventoryItem.id = :itemId and b.location.id = :locationId
+            """)
+    Optional<InventoryBalance> findByInventoryItemIdAndLocationId(
+            @Param("itemId") UUID itemId, @Param("locationId") UUID locationId);
+
+    @Query("""
+            select b from InventoryBalance b
+            where b.inventoryBatch.id = :batchId and b.location.id = :locationId
+            """)
+    Optional<InventoryBalance> findByInventoryBatchIdAndLocationId(
+            @Param("batchId") UUID batchId, @Param("locationId") UUID locationId);
 }

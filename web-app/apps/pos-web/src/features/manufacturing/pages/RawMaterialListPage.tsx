@@ -94,8 +94,8 @@ export function RawMaterialListPage() {
     };
 
     const validateIngredientRow = (row: any) => {
-        const code = String(row["Mã nguyên liệu"] || "").trim();
-        const name = String(row["Tên nguyên liệu"] || "").trim();
+        const code = String(row["Mã nguyên liệu"] || row["ingredientCode"] || row["code"] || "").trim();
+        const name = String(row["Tên nguyên liệu"] || row["name"] || "").trim();
         
         if (!code) {
             return { isValid: false, error: "Mã nguyên liệu trống" };

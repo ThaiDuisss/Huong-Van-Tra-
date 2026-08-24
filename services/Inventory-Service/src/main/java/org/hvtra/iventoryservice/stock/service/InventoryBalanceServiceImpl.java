@@ -1,18 +1,20 @@
 package org.hvtra.iventoryservice.stock.service;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
-import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
-import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
-import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
+import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
+import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.StockType;
-import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.stock.mapper.InventoryBalanceMapper;
-import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
-import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
+import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
+import org.hvtra.iventoryservice.stock.mapper.InventoryBalanceMapper;
+import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -21,14 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
-import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
-import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 
 @Service
@@ -80,7 +80,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         Specification<InventoryBalance> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (inventoryItemId != null) {
-                predicates.add(cb.equal(root.get("inventoryItem").get("id"), inventoryItemId));
+                predicates.add(cb.equal(root.get("inventoryBatch").get("inventoryItem").get("id"), inventoryItemId));
             }
             if (locationId != null) predicates.add(cb.equal(root.get("location").get("id"), locationId));
             if (branchId != null) {
@@ -131,7 +131,6 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         }
 
         // 2. Resolve default warehouse
-        // 2. Resolve default warehouse
         final InventoryLocation defaultWarehouse;
         InventoryLocation tempWarehouse = null;
         if (branchId != null) {
@@ -152,7 +151,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         Specification<InventoryBalance> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (hasCatalogFilters && finalMatchingVariantIds != null) {
-                predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
+                predicates.add(root.get("inventoryBatch").get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
             }
 
             // Always only display balances on locations where type = SHELF
@@ -174,7 +173,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                     predicates.add(cb.greaterThan(root.get("quantityOnHand"), BigDecimal.ZERO));
                     predicates.add(cb.lessThanOrEqualTo(
                             root.get("quantityOnHand"),
-                            cb.coalesce(root.get("inventoryItem").get("reorderPoint"), 5).as(BigDecimal.class)
+                            cb.coalesce(root.get("inventoryBatch").get("inventoryItem").get("reorderPoint"), 5).as(BigDecimal.class)
                     ));
                 } else if (status == StockType.OUT_OF_STOCK) {
                     predicates.add(cb.lessThanOrEqualTo(root.get("quantityOnHand"), BigDecimal.ZERO));
@@ -212,7 +211,11 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         Map<UUID, CatalogClient.ProductResponse> productMap = products.stream()
                 .collect(Collectors.toMap(CatalogClient.ProductResponse::id, p -> p, (p1, p2) -> p1));
 
-        List<UUID> unitIds = variants.stream().map(CatalogClient.VariantResponse::baseUnitId).distinct().toList();
+        List<UUID> unitIds = variants.stream()
+                .map(CatalogClient.VariantResponse::baseUnitId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
         List<CatalogClient.UnitResponse> units = catalogClient.getUnitsBatch(unitIds);
         Map<UUID, CatalogClient.UnitResponse> unitMap = units.stream()
                 .collect(Collectors.toMap(CatalogClient.UnitResponse::id, u -> u, (u1, u2) -> u1));
@@ -263,7 +266,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 balancePage.getTotalPages(),
                 balancePage.isFirst(),
                 balancePage.isLast()
-        );
+            );
     }
 
     @Override
@@ -302,7 +305,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("location").get("id"), warehouseLoc.getId()));
             if (finalMatchingVariantIds != null) {
-                predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
+                predicates.add(root.get("inventoryBatch").get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
@@ -339,7 +342,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             }
 
             UUID itemId = balance.getInventoryItem().getId();
-                Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
+            Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
 
             if (existingBalanceOpt.isPresent()) {
                 // If a balance already exists at the target location, merge the quantities and delete the old record
@@ -356,5 +359,3 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         }
     }
 }
-
-
