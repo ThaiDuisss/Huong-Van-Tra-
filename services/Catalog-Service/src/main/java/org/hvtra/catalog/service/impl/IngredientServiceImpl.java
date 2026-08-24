@@ -18,12 +18,14 @@ import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.entity.Ingredient;
+import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.IngredientMapper;
 import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.IngredientRepository;
+import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.IngredientService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -42,16 +44,19 @@ public class IngredientServiceImpl implements IngredientService {
     private final IngredientRepository repository;
     private final IngredientMapper mapper;
     private final BusinessSequenceRepository businessSequenceRepository;
+    private final UnitRepository unitRepository;
     private final InventoryClient inventoryClient;
 
     public IngredientServiceImpl(
             IngredientRepository repository,
             IngredientMapper mapper,
             BusinessSequenceRepository businessSequenceRepository,
+            UnitRepository unitRepository,
             InventoryClient inventoryClient) {
         this.repository = repository;
         this.mapper = mapper;
         this.businessSequenceRepository = businessSequenceRepository;
+        this.unitRepository = unitRepository;
         this.inventoryClient = inventoryClient;
     }
 
@@ -129,16 +134,23 @@ public class IngredientServiceImpl implements IngredientService {
         Ingredient ingredient = new Ingredient();
         mapper.update(ingredient, request);
         ingredient.setIngredientCode(code);
+        if (request.unitId() != null) {
+            Unit unit = unitRepository.findById(request.unitId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Unit", request.unitId()));
+            ingredient.setUnit(unit);
+        } else {
+            ingredient.setUnit(null);
+        }
         Ingredient savedIngredient = repository.saveAndFlush(ingredient);
 
         inventoryClient.createProductVariantItem(
                 CreateInventoryItemRequest.builder()
                         .status(savedIngredient.getStatus().toString())
-                        .unitId(null)
+                        .unitId(savedIngredient.getUnit() != null ? savedIngredient.getUnit().getId() : null)
                         .referenceId(savedIngredient.getId())
                         .referenceCode(savedIngredient.getIngredientCode())
                         .itemType("INGREDIENT")
-                        .reorderPoint(0)
+                        .reorderPoint(savedIngredient.getReorderPoint() != null ? savedIngredient.getReorderPoint() : 0)
                         .build());
 
         return mapper.toResponse(savedIngredient);
@@ -152,6 +164,13 @@ public class IngredientServiceImpl implements IngredientService {
             throw new ResourceNotFoundException("Ingredient", id);
         }
         mapper.update(ingredient, request);
+        if (request.unitId() != null) {
+            Unit unit = unitRepository.findById(request.unitId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Unit", request.unitId()));
+            ingredient.setUnit(unit);
+        } else {
+            ingredient.setUnit(null);
+        }
         return mapper.toResponse(repository.save(ingredient));
     }
 

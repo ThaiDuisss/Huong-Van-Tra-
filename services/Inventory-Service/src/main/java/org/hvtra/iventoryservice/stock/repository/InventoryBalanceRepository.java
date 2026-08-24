@@ -22,7 +22,7 @@ public interface InventoryBalanceRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select b from InventoryBalance b
-            where b.inventoryBatch.inventoryItem.id = :itemId and b.location.id = :locationId
+            where b.inventoryItem.id = :itemId and b.location.id = :locationId
             """)
     Optional<InventoryBalance> findForUpdate(
             @Param("itemId") UUID itemId, @Param("locationId") UUID locationId);
@@ -39,7 +39,7 @@ public interface InventoryBalanceRepository
     @Query("""
             update InventoryBalance b
             set b.quantityReserved = b.quantityReserved + :quantity
-            where b.inventoryBatch.inventoryItem.id = :inventoryItemId
+            where b.inventoryItem.id = :inventoryItemId
               and b.location.id = :locationId
               and (b.quantityOnHand - b.quantityReserved) >= :quantity
             """)
@@ -52,7 +52,7 @@ public interface InventoryBalanceRepository
     @Query("""
             update InventoryBalance b
             set b.quantityReserved = b.quantityReserved - :quantity
-            where b.inventoryBatch.inventoryItem.id = :inventoryItemId
+            where b.inventoryItem.id = :inventoryItemId
               and b.location.id = :locationId
               and b.quantityReserved >= :quantity
             """)
@@ -66,7 +66,7 @@ public interface InventoryBalanceRepository
             update InventoryBalance b
             set b.quantityOnHand = b.quantityOnHand - :quantity,
                 b.quantityReserved = b.quantityReserved - :quantity
-            where b.inventoryBatch.inventoryItem.id = :inventoryItemId
+            where b.inventoryItem.id = :inventoryItemId
               and b.location.id = :locationId
               and b.quantityReserved >= :quantity
               and b.quantityOnHand >= :quantity
@@ -78,8 +78,8 @@ public interface InventoryBalanceRepository
 
     @Query("""
             select b from InventoryBalance b
+            join fetch b.inventoryItem i
             join fetch b.inventoryBatch batch
-            join fetch batch.inventoryItem i
             join fetch b.location l
             where i.referenceId in :variantIds
               and i.itemType = :itemType
@@ -92,8 +92,8 @@ public interface InventoryBalanceRepository
 
     @Query("""
             select b from InventoryBalance b
+            join fetch b.inventoryItem i
             join fetch b.inventoryBatch batch
-            join fetch batch.inventoryItem i
             join fetch b.location l
             where i.id in :inventoryItemIds
               and (:warehouseId is null or l.id = :warehouseId)
@@ -104,8 +104,7 @@ public interface InventoryBalanceRepository
 
     @Query("""
             select b from InventoryBalance b
-            join fetch b.inventoryBatch batch
-            join fetch batch.inventoryItem i
+            join fetch b.inventoryItem i
             where i.id in :inventoryItemIds
             """)
     List<InventoryBalance> findActiveWarehouseBalancesByInventoryItemIds(
@@ -113,7 +112,7 @@ public interface InventoryBalanceRepository
 
     @Query("""
             select b from InventoryBalance b
-            where b.inventoryBatch.inventoryItem.id = :itemId and b.location.id = :locationId
+            where b.inventoryItem.id = :itemId and b.location.id = :locationId
             """)
     Optional<InventoryBalance> findByInventoryItemIdAndLocationId(
             @Param("itemId") UUID itemId, @Param("locationId") UUID locationId);

@@ -23,6 +23,7 @@ import java.math.BigDecimal;
                 columnNames = {"inventory_batch_id", "location_id"}
         ),
         indexes = {
+                @Index(name = "idx_inventory_balances_item", columnList = "inventory_item_id"),
                 @Index(name = "idx_inventory_balances_batch", columnList = "inventory_batch_id"),
                 @Index(name = "idx_inventory_balances_location", columnList = "location_id")
         }
@@ -30,6 +31,10 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 public class InventoryBalance extends BaseEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "inventory_item_id", nullable = false)
+    private InventoryItem inventoryItem;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "inventory_batch_id", nullable = false)
@@ -47,10 +52,6 @@ public class InventoryBalance extends BaseEntity {
 
     @Column(name = "quantity_blocked", nullable = false, precision = 18, scale = 2)
     private BigDecimal quantityBlocked = BigDecimal.ZERO;
-
-    public InventoryItem getInventoryItem() {
-        return inventoryBatch != null ? inventoryBatch.getInventoryItem() : null;
-    }
 
     public BigDecimal getAvailableQuantity() {
         return quantityOnHand

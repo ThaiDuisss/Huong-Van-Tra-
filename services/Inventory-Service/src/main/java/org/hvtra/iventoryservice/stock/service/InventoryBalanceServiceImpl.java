@@ -4,6 +4,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.StockType;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
@@ -22,14 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
-import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 
 @Service
 @Transactional(readOnly = true)
@@ -80,7 +75,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         Specification<InventoryBalance> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (inventoryItemId != null) {
-                predicates.add(cb.equal(root.get("inventoryBatch").get("inventoryItem").get("id"), inventoryItemId));
+                predicates.add(cb.equal(root.get("inventoryItem").get("id"), inventoryItemId));
             }
             if (locationId != null) predicates.add(cb.equal(root.get("location").get("id"), locationId));
             if (branchId != null) {
@@ -151,7 +146,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         Specification<InventoryBalance> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (hasCatalogFilters && finalMatchingVariantIds != null) {
-                predicates.add(root.get("inventoryBatch").get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
+                predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
             }
 
             // Always only display balances on locations where type = SHELF
@@ -173,7 +168,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                     predicates.add(cb.greaterThan(root.get("quantityOnHand"), BigDecimal.ZERO));
                     predicates.add(cb.lessThanOrEqualTo(
                             root.get("quantityOnHand"),
-                            cb.coalesce(root.get("inventoryBatch").get("inventoryItem").get("reorderPoint"), 5).as(BigDecimal.class)
+                            cb.coalesce(root.get("inventoryItem").get("reorderPoint"), 5).as(BigDecimal.class)
                     ));
                 } else if (status == StockType.OUT_OF_STOCK) {
                     predicates.add(cb.lessThanOrEqualTo(root.get("quantityOnHand"), BigDecimal.ZERO));
@@ -212,8 +207,8 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 .collect(Collectors.toMap(CatalogClient.ProductResponse::id, p -> p, (p1, p2) -> p1));
 
         List<UUID> unitIds = variants.stream()
-                .map(CatalogClient.VariantResponse::baseUnitId)
-                .filter(java.util.Objects::nonNull)
+                .map(CatalogClient.VariantResponse::unitId)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
         List<CatalogClient.UnitResponse> units = catalogClient.getUnitsBatch(unitIds);
@@ -226,7 +221,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                     CatalogClient.VariantResponse v = variantMap.get(b.getInventoryItem().getReferenceId());
                     CatalogClient.ProductResponse p = (v != null) ? productMap.get(v.productId()) : null;
                     CatalogClient.CategoryResponse cat = (p != null) ? p.category() : null;
-                    CatalogClient.UnitResponse u = (v != null) ? unitMap.get(v.baseUnitId()) : null;
+                    CatalogClient.UnitResponse u = (v != null) ? unitMap.get(v.unitId()) : null;
                     InventoryLocation loc = b.getLocation();
 
                     return InventoryBalanceViewResponse.builder()
@@ -241,7 +236,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                             .categoryId(cat != null ? cat.id() : null)
                             .categoryCode(cat != null ? cat.categoryCode() : null)
                             .categoryName(cat != null ? cat.name() : null)
-                            .unitId(u != null ? u.id() : (v != null ? v.baseUnitId() : null))
+                            .unitId(u != null ? u.id() : (v != null ? v.unitId() : null))
                             .unitName(u != null ? u.name() : null)
                             .unitSymbol(u != null ? u.symbol() : null)
                             .locationId(loc != null ? loc.getId() : null)
@@ -266,7 +261,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 balancePage.getTotalPages(),
                 balancePage.isFirst(),
                 balancePage.isLast()
-            );
+        );
     }
 
     @Override
@@ -305,7 +300,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("location").get("id"), warehouseLoc.getId()));
             if (finalMatchingVariantIds != null) {
-                predicates.add(root.get("inventoryBatch").get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
+                predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };

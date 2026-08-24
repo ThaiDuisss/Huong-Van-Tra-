@@ -33,7 +33,7 @@ public class InventoryItem extends BaseEntity {
     @Column(name = "item_type", nullable = false, length = 50)
     private InventoryItemType itemType;
 
-    @Column(name = "unit_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "unit_id", columnDefinition = "BINARY(16)")
     private UUID unitId;
 
     @Enumerated(EnumType.STRING)

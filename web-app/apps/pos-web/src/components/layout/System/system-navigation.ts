@@ -18,7 +18,6 @@ import {
     Ruler,
     Settings,
     ShoppingCart,
-    Store,
     Trash2,
     Truck,
     User,
@@ -180,90 +179,33 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         ]
     },
     {
-        key: "store",
-        label: "Cửa hàng",
-        icon: Store,
-        roles: INVENTORY_ROLES,
-        children: [
-            {
-                key: "store-balances",
-                label: "Tồn kho hiện tại",
-                icon: Store,
-                to: routePaths.inventoryBalances,
-                roles: INVENTORY_ROLES
-            },
-            {
-                key: "store-shelves",
-                label: "Quản lý kệ",
-                icon: MapPinned,
-                to: routePaths.inventoryShelves,
-                roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]
-            },
-            {
-                key: "store-receipts",
-                label: "Nhập hàng",
-                icon: Boxes,
-                to: routePaths.goodsReceipts,
-                roles: INVENTORY_OPERATION_ROLES
-            },
-            {
-                key: "store-transfers",
-                label: "Chuyển kho / Kệ",
-                icon: Truck,
-                to: routePaths.inventoryTransfers,
-                roles: INVENTORY_OPERATION_ROLES
-            },
-            {
-                key: "store-stocktakes",
-                label: "Kiểm kê cửa hàng",
-                icon: ClipboardCheck,
-                to: routePaths.inventoryStocktakes,
-                roles: INVENTORY_OPERATION_ROLES
-            },
-            {
-                key: "store-customer-returns",
-                label: "Khách trả hàng",
-                icon: RefreshCw,
-                to: routePaths.inventoryCustomerReturnList,
-                roles: ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF"]
-            },
-            {
-                key: "store-transactions",
-                label: "Lịch sử biến động",
-                icon: History,
-                to: routePaths.inventoryTransactions,
-                roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER", "ACCOUNTANT"]
-            }
-        ]
-    },
-    {
-        key: "central-warehouse",
-        label: "Kho tổng",
+        key: "inventory",
+        label: "Kho",
         icon: Warehouse,
         roles: INVENTORY_ROLES,
         children: [
             {
-                key: "warehouse-stock",
+                key: "inventory-stock",
                 label: "Tồn kho",
                 icon: Warehouse,
                 roles: INVENTORY_ROLES,
                 children: [
                     {
-                        key: "warehouse-balances",
+                        key: "inventory-balances",
                         label: "Tồn kho hiện tại",
                         icon: Warehouse,
                         to: routePaths.inventoryBalances,
                         roles: INVENTORY_ROLES
                     },
                     {
-                        key: "warehouse-reorder-policies",
+                        key: "inventory-reorder-policies",
                         label: "Chính sách bổ sung",
                         icon: Boxes,
                         to: routePaths.inventoryReorderPolicies,
                         roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]
                     },
                     {
-                        key: "warehouse-transactions",
+                        key: "inventory-transactions",
                         label: "Lịch sử biến động",
                         icon: History,
                         to: routePaths.inventoryTransactions,
@@ -272,20 +214,20 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 ]
             },
             {
-                key: "warehouse-inbound-outbound",
+                key: "inventory-inbound-outbound",
                 label: "Nhập / Xuất",
                 icon: FileText,
                 roles: INVENTORY_ROLES,
                 children: [
                     {
-                        key: "warehouse-receipts",
-                        label: "Nhập kho tổng",
+                        key: "inventory-receipts",
+                        label: "Nhập kho",
                         icon: Boxes,
                         to: routePaths.goodsReceipts,
                         roles: INVENTORY_OPERATION_ROLES
                     },
                     {
-                        key: "warehouse-documents",
+                        key: "inventory-documents",
                         label: "Chứng từ kho",
                         icon: FileText,
                         to: routePaths.inventoryDocuments,
@@ -294,27 +236,27 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 ]
             },
             {
-                key: "warehouse-transfers",
-                label: "Chuyển kho / Điều chuyển",
+                key: "inventory-transfers",
+                label: "Chuyển kho",
                 icon: Truck,
                 to: routePaths.inventoryTransfers,
                 roles: INVENTORY_OPERATION_ROLES
             },
             {
-                key: "warehouse-counting",
-                label: "Kiểm kê & Điều chỉnh",
+                key: "inventory-counting",
+                label: "Kiểm kê",
                 icon: ClipboardCheck,
                 roles: INVENTORY_OPERATION_ROLES,
                 children: [
                     {
-                        key: "warehouse-stocktakes",
+                        key: "inventory-stocktakes",
                         label: "Kỳ kiểm kê",
                         icon: ClipboardCheck,
                         to: routePaths.inventoryStocktakes,
                         roles: INVENTORY_OPERATION_ROLES
                     },
                     {
-                        key: "warehouse-adjustments",
+                        key: "inventory-adjustments",
                         label: "Điều chỉnh kho",
                         icon: ClipboardList,
                         to: routePaths.inventoryQuality,
@@ -323,27 +265,34 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 ]
             },
             {
-                key: "warehouse-handling",
+                key: "inventory-handling",
                 label: "Xử lý hàng",
                 icon: RefreshCw,
                 roles: INVENTORY_OPERATION_ROLES,
                 children: [
                     {
-                        key: "warehouse-supplier-returns",
+                        key: "inventory-customer-returns",
+                        label: "Khách trả hàng",
+                        icon: RefreshCw,
+                        to: routePaths.inventoryCustomerReturnList,
+                        roles: ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF"]
+                    },
+                    {
+                        key: "inventory-supplier-returns",
                         label: "Trả nhà cung cấp",
                         icon: RefreshCw,
                         to: routePaths.inventorySupplierReturnList,
                         roles: ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER"]
                     },
                     {
-                        key: "warehouse-disposals",
+                        key: "inventory-disposals",
                         label: "Hỏng / tiêu hủy",
                         icon: Trash2,
                         to: routePaths.inventoryDisposals,
                         roles: INVENTORY_OPERATION_ROLES
                     },
                     {
-                        key: "warehouse-alerts",
+                        key: "inventory-alerts",
                         label: "Cảnh báo tồn kho",
                         icon: ClipboardList,
                         to: routePaths.inventoryAlerts,
@@ -352,7 +301,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 ]
             },
             {
-                key: "warehouse-locations",
+                key: "inventory-shelves",
+                label: "Quản lý kệ",
+                icon: MapPinned,
+                to: routePaths.inventoryShelves,
+                roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]
+            },
+            {
+                key: "inventory-locations",
                 label: "Vị trí lưu kho",
                 icon: MapPinned,
                 to: routePaths.inventoryLocations,

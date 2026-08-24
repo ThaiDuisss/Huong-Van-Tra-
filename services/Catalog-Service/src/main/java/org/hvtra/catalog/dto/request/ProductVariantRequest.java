@@ -15,6 +15,7 @@ public record ProductVariantRequest(
         @NotNull @DecimalMin("0.00") BigDecimal sellingPrice,
         @NotNull @DecimalMin("0.00") BigDecimal costPrice,
         @NotNull UUID unitId,
+        Integer reorderPoint,
         @NotNull InventoryPolicy inventoryPolicy,
         @NotNull Status status
 ) {

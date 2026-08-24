@@ -152,9 +152,10 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         ProductVariant savedVariant = repository.saveAndFlush(variant);
 
         Category category = product.getCategory();
-        Integer reorderPoint = (category != null && category.getDefaultReorderPoint() != null)
+        Integer defaultReorder = (category != null && category.getDefaultReorderPoint() != null)
                 ? category.getDefaultReorderPoint()
                 : 10;
+        Integer reorderPoint = request.reorderPoint() != null ? request.reorderPoint() : defaultReorder;
 
         inventoryClient.createProductVariantItem(
                 InventoryClient.CreateInventoryItemRequest.builder()
