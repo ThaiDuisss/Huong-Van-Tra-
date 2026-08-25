@@ -8,6 +8,10 @@ public record IngredientResponse(
         UUID id,
         String ingredientCode,
         String name,
+        UUID unitId,
+        String unitName,
+        String unitSymbol,
+        Integer reorderPoint,
         Status status
 ) {
 }

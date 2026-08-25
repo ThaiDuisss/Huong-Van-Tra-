@@ -67,7 +67,7 @@ public interface CatalogClient {
             String variantName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
-            UUID baseUnitId,
+            UUID unitId,
             String status,
             String productStatus,
             boolean sellable

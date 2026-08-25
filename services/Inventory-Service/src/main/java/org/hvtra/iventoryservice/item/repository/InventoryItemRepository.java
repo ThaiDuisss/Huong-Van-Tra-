@@ -22,6 +22,10 @@ public interface InventoryItemRepository
 
     Optional<InventoryItem> findByReferenceIdAndItemType(UUID referenceId, InventoryItemType itemType);
 
+    Optional<InventoryItem> findByReferenceCode(String referenceCode);
+
+    Optional<InventoryItem> findByReferenceCodeAndItemType(String referenceCode, InventoryItemType itemType);
+
     List<InventoryItem> findByReferenceIdInAndItemType(Collection<UUID> referenceIds, InventoryItemType itemType);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

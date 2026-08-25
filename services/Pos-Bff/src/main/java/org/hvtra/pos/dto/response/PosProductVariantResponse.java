@@ -1,10 +1,13 @@
-package org.hvtra.catalog.dto.response;
+package org.hvtra.pos.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
+
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public record ProductVariantSearchViewResponse(
+@Builder
+public record PosProductVariantResponse(
         UUID productId,
         UUID variantId,
         String sku,
@@ -17,4 +20,5 @@ public record ProductVariantSearchViewResponse(
         BigDecimal availableQuantity,
         BigDecimal reservedQuantity,
         String stockStatus
-) {}
+) {
+}

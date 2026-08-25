@@ -18,8 +18,14 @@ public class Ingredient extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "unit_id")
+    private Unit unit;
+
+    @Column(name = "reorder_point", nullable = false)
+    private Integer reorderPoint = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private Status status = Status.ACTIVE;
 }
-

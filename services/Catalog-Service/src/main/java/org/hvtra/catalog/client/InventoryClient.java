@@ -1,7 +1,6 @@
 package org.hvtra.catalog.client;
 
 import lombok.Builder;
-import org.hvtra.catalog.enums.Status;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,6 +25,7 @@ public interface InventoryClient {
     @Builder
     record CreateInventoryItemRequest(
             UUID referenceId,
+            String referenceCode,
             String itemType,
             UUID unitId,
             String status,

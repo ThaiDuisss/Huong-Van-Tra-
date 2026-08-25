@@ -2,6 +2,7 @@ import {
     BarChart3,
     BadgePercent,
     Boxes,
+    Building2,
     CalendarDays,
     ClipboardCheck,
     ClipboardList,
@@ -167,6 +168,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 to: routePaths.ingredient,
                 icon: Layers3,
                 roles: MANUFACTURING_ROLES
+            },
+            {
+                key: "manufacturing-suppliers",
+                label: "Nhà cung cấp",
+                to: routePaths.supplier,
+                icon: Building2,
+                roles: MANUFACTURING_ROLES
             }
         ]
     },
@@ -297,6 +305,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
                 label: "Quản lý kệ",
                 icon: MapPinned,
                 to: routePaths.inventoryShelves,
+                roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]
+            },
+            {
+                key: "inventory-locations",
+                label: "Vị trí lưu kho",
+                icon: MapPinned,
+                to: routePaths.inventoryLocations,
                 roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]
             }
         ]
