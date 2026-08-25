@@ -66,4 +66,13 @@ public class InventoryDocumentLine extends BaseEntity {
         batchAllocations.add(allocation);
         allocation.setDocumentLine(this);
     }
+
+    // ====== Domain Methods ======
+
+    /**
+     * Đánh dấu dòng đã được xử lý (khi post).
+     */
+    public void markProcessed() {
+        this.processedQuantity = this.requestedQuantity;
+    }
 }

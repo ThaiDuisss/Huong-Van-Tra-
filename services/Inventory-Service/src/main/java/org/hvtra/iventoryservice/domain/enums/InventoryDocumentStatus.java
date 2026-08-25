@@ -5,5 +5,6 @@ public enum InventoryDocumentStatus {
     PENDING_APPROVAL,
     APPROVED,
     POSTED,
-    CANCELLED
+    CANCELLED,
+    REJECTED
 }

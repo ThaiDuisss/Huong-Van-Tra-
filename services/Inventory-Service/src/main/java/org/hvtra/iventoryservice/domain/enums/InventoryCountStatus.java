@@ -7,5 +7,6 @@ public enum InventoryCountStatus {
     RECONCILING,
     APPROVED,
     POSTED,
-    CANCELLED
+    CANCELLED,
+    COMPLETED
 }

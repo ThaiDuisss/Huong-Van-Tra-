@@ -8,6 +8,7 @@ import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
+import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -82,5 +83,51 @@ public class InventoryDocument extends BaseEntity {
     public void addLine(InventoryDocumentLine line) {
         lines.add(line);
         line.setDocument(this);
+    }
+
+    // ====== State Transition Methods ======
+
+    /**
+     * Phê duyệt phiếu: DRAFT → APPROVED.
+     */
+    public void approve(UUID approvedByUser) {
+        if (this.status != InventoryDocumentStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể phê duyệt phiếu ở trạng thái DRAFT");
+        }
+        this.status = InventoryDocumentStatus.APPROVED;
+        this.approvedBy = approvedByUser;
+        this.approvedAt = Instant.now();
+    }
+
+    /**
+     * Hạch toán phiếu: APPROVED → POSTED.
+     */
+    public void post() {
+        if (this.status != InventoryDocumentStatus.APPROVED) {
+            throw new BadRequestException("Chỉ có thể hạch toán phiếu đã được phê duyệt");
+        }
+        this.status = InventoryDocumentStatus.POSTED;
+        this.postedAt = Instant.now();
+    }
+
+    /**
+     * Từ chối phiếu: DRAFT/APPROVED → REJECTED.
+     */
+    public void reject() {
+        if (this.status == InventoryDocumentStatus.POSTED) {
+            throw new BadRequestException("Không thể từ chối phiếu đã hạch toán");
+        }
+        if (this.status == InventoryDocumentStatus.REJECTED) {
+            throw new BadRequestException("Phiếu đã bị từ chối");
+        }
+        this.status = InventoryDocumentStatus.REJECTED;
+    }
+
+    // ====== Validation Guards ======
+
+    public void validateCanPost() {
+        if (this.status != InventoryDocumentStatus.APPROVED) {
+            throw new BadRequestException("Chỉ có thể hạch toán phiếu đã được phê duyệt");
+        }
     }
 }

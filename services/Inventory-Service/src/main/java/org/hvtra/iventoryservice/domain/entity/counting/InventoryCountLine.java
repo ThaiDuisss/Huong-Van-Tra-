@@ -7,6 +7,7 @@ import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
+import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 
 import java.math.BigDecimal;
 
@@ -53,4 +54,43 @@ public class InventoryCountLine extends BaseEntity {
 
     @Column(name = "note", length = 500)
     private String note;
+
+    // ====== Domain Methods ======
+
+    /**
+     * Chụp snapshot số lượng tồn kho hiện tại.
+     */
+    public void takeSnapshot(BigDecimal currentQuantityOnHand) {
+        this.snapshotQuantity = currentQuantityOnHand;
+    }
+
+    /**
+     * Ghi nhận số lượng đếm được. Tự động tính variance.
+     */
+    public void recordCount(BigDecimal countedQuantity, String reasonCode, String note) {
+        if (countedQuantity.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Số lượng đếm không được âm");
+        }
+        this.countedQuantity = countedQuantity;
+        this.varianceQuantity = this.countedQuantity.subtract(this.snapshotQuantity);
+        this.reasonCode = reasonCode;
+        this.note = note;
+    }
+
+    /**
+     * Đảm bảo variance đã được tính (dùng khi finish).
+     */
+    public void finalizeVariance() {
+        if (this.countedQuantity != null) {
+            this.varianceQuantity = this.countedQuantity.subtract(this.snapshotQuantity);
+        }
+    }
+
+    /**
+     * Kiểm tra line đã được đếm chưa.
+     */
+    public boolean hasBeenCounted() {
+        return this.countedQuantity != null;
+    }
 }
+
