@@ -82,6 +82,6 @@ public class InventoryDocumentLine extends BaseEntity {
      * Đánh dấu dòng đã được xử lý (khi post).
      */
     public void markProcessed() {
-        this.processedQuantity = this.requestedQuantity;
+        this.receivedQuantity = this.orderedQuantity;
     }
 }

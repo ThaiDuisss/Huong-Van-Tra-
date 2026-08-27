@@ -9,6 +9,5 @@ public enum InventoryDocumentStatus {
     QC_PENDING,
     QC_COMPLETED,
     POSTED,
-    CANCELLED,
-    REJECTED
+    CANCELLED
 }

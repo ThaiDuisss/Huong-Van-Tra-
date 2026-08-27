@@ -123,4 +123,52 @@ public interface InventoryBalanceRepository
             """)
     Optional<InventoryBalance> findByInventoryBatchIdAndLocationId(
             @Param("batchId") UUID batchId, @Param("locationId") UUID locationId);
+
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.inventoryBatch batch
+            join fetch b.inventoryItem item
+            join fetch b.location location
+            where location.branchId = :branchId
+              and b.quantityOnHand > 0
+            """)
+    List<InventoryBalance> findByBranchWithPositiveBalance(
+            @Param("branchId") UUID branchId);
+
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.inventoryBatch batch
+            join fetch b.inventoryItem item
+            join fetch b.location location
+            where location.id in :locationIds
+              and b.quantityOnHand > 0
+            """)
+    List<InventoryBalance> findByLocationIdsWithPositiveBalance(
+            @Param("locationIds") Collection<UUID> locationIds);
+
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.inventoryBatch batch
+            join fetch b.inventoryItem item
+            join fetch b.location location
+            where item.id in :inventoryItemIds
+              and location.branchId = :branchId
+              and b.quantityOnHand > 0
+            """)
+    List<InventoryBalance> findByItemIdsAndBranchWithPositiveBalance(
+            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds,
+            @Param("branchId") UUID branchId);
+
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.inventoryBatch batch
+            join fetch b.inventoryItem item
+            join fetch b.location location
+            where batch.id in :batchIds
+              and location.branchId = :branchId
+              and b.quantityOnHand > 0
+            """)
+    List<InventoryBalance> findByBatchIdsAndBranchWithPositiveBalance(
+            @Param("batchIds") Collection<UUID> batchIds,
+            @Param("branchId") UUID branchId);
 }

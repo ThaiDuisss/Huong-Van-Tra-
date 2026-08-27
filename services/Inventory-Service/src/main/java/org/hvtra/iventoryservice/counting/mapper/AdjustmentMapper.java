@@ -35,8 +35,8 @@ public class AdjustmentMapper {
                 line.getLineNo(),
                 line.getInventoryItem().getId(),
                 line.getSourceLocation() != null ? line.getSourceLocation().getId() : null,
-                line.getRequestedQuantity(),
-                line.getProcessedQuantity(),
+                line.getOrderedQuantity(),
+                line.getReceivedQuantity(),
                 line.getNote()
         );
     }

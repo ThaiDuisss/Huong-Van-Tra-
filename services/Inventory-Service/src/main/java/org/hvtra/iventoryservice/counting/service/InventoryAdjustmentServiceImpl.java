@@ -5,7 +5,6 @@ import org.hvtra.iventoryservice.counting.dto.request.CreateAdjustmentRequest;
 import org.hvtra.iventoryservice.counting.dto.response.AdjustmentResponse;
 import org.hvtra.iventoryservice.counting.mapper.AdjustmentMapper;
 import org.hvtra.iventoryservice.counting.repository.InventoryCountRepository;
-import org.hvtra.iventoryservice.counting.repository.InventoryBatchBalanceRepository;
 import org.hvtra.iventoryservice.counting.repository.InventoryDocumentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -15,7 +14,6 @@ import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountLine;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentBatchAllocation;
-import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatchBalance;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
@@ -55,7 +53,6 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     private final InventoryDocumentRepository documentRepository;
     private final InventoryCountRepository countRepository;
     private final InventoryBalanceRepository balanceRepository;
-    private final InventoryBatchBalanceRepository batchBalanceRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryTransactionRepository transactionRepository;
@@ -65,7 +62,6 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
             InventoryDocumentRepository documentRepository,
             InventoryCountRepository countRepository,
             InventoryBalanceRepository balanceRepository,
-            InventoryBatchBalanceRepository batchBalanceRepository,
             InventoryItemRepository itemRepository,
             InventoryLocationRepository locationRepository,
             InventoryTransactionRepository transactionRepository,
@@ -73,7 +69,6 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
         this.documentRepository = documentRepository;
         this.countRepository = countRepository;
         this.balanceRepository = balanceRepository;
-        this.batchBalanceRepository = batchBalanceRepository;
         this.itemRepository = itemRepository;
         this.locationRepository = locationRepository;
         this.transactionRepository = transactionRepository;
@@ -142,7 +137,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
                 docLine.setInventoryItem(countLine.getInventoryItem());
                 docLine.setSourceLocation(countLine.getLocation());
                 docLine.setUnitId(countLine.getInventoryItem().getUnitId());
-                docLine.setRequestedQuantity(countLine.getVarianceQuantity());
+                docLine.setOrderedQuantity(countLine.getVarianceQuantity());
                 if (countLine.getInventoryBatch() != null) {
                     InventoryDocumentBatchAllocation allocation = new InventoryDocumentBatchAllocation();
                     allocation.setInventoryBatch(countLine.getInventoryBatch());
@@ -182,7 +177,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
                 docLine.setInventoryItem(item);
                 docLine.setSourceLocation(location);
                 docLine.setUnitId(item.getUnitId());
-                docLine.setRequestedQuantity(lineRequest.adjustmentQuantity());
+                docLine.setOrderedQuantity(lineRequest.adjustmentQuantity());
                 docLine.setNote(lineRequest.note());
                 document.addLine(docLine);
             }
@@ -192,7 +187,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
 
         // Determine document type based on net adjustment direction
         BigDecimal netQuantity = document.getLines().stream()
-                .map(InventoryDocumentLine::getRequestedQuantity)
+                .map(InventoryDocumentLine::getOrderedQuantity)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         document.setDocumentType(netQuantity.compareTo(BigDecimal.ZERO) >= 0
                 ? InventoryDocumentType.ADJUSTMENT_IN
@@ -246,7 +241,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
                                     + " tại vị trí " + docLine.getSourceLocation().getId()));
 
             BigDecimal before = balance.getQuantityOnHand();
-            BigDecimal after = before.add(docLine.getRequestedQuantity());
+            BigDecimal after = before.add(docLine.getOrderedQuantity());
 
             if (after.compareTo(BigDecimal.ZERO) < 0) {
                 throw new BadRequestException(
@@ -263,12 +258,13 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
             InventoryTransactionLine txLine = new InventoryTransactionLine();
             txLine.setInventoryItem(docLine.getInventoryItem());
             txLine.setLocation(docLine.getSourceLocation());
-            txLine.setQuantity(docLine.getRequestedQuantity());
+            txLine.setQuantity(docLine.getOrderedQuantity());
             txLine.setBeforeQuantity(before);
             txLine.setAfterQuantity(after);
             for (InventoryDocumentBatchAllocation allocation : docLine.getBatchAllocations()) {
-                InventoryBatchBalance batchBalance = batchBalanceRepository
-                        .findForUpdate(allocation.getInventoryBatch().getId(), docLine.getSourceLocation().getId())
+                InventoryBalance batchBalance = balanceRepository
+                        .findForUpdateByBatchId(
+                                allocation.getInventoryBatch().getId(), docLine.getSourceLocation().getId())
                         .orElseThrow(() -> new BadRequestException(
                                 "Không tìm thấy tồn kho lô " + allocation.getInventoryBatch().getBatchCode()));
                 BigDecimal beforeBatch = batchBalance.getQuantityOnHand();
@@ -278,7 +274,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
                             "Tồn kho lô không đủ để điều chỉnh giảm: " + allocation.getInventoryBatch().getBatchCode());
                 }
                 batchBalance.setQuantityOnHand(afterBatch);
-                batchBalanceRepository.save(batchBalance);
+                balanceRepository.save(batchBalance);
 
                 InventoryTransactionBatchAllocation txAllocation = new InventoryTransactionBatchAllocation();
                 txAllocation.setInventoryBatch(allocation.getInventoryBatch());

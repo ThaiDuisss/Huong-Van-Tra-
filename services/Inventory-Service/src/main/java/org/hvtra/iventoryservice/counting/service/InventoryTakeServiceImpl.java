@@ -6,13 +6,11 @@ import org.hvtra.iventoryservice.counting.dto.request.UpdateInventoryCountsReque
 import org.hvtra.iventoryservice.counting.dto.request.RequestInventoryRecountRequest;
 import org.hvtra.iventoryservice.counting.dto.response.InventoryTakeResponse;
 import org.hvtra.iventoryservice.counting.mapper.InventoryTakeMapper;
-import org.hvtra.iventoryservice.counting.repository.InventoryBatchBalanceRepository;
 import org.hvtra.iventoryservice.counting.repository.InventoryCountRepository;
 import org.hvtra.iventoryservice.counting.repository.InventoryCountApprovalPolicyRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
-import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatchBalance;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCount;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountLine;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountAssignment;
@@ -57,7 +55,6 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
 
     private final InventoryCountRepository countRepository;
     private final InventoryBalanceRepository balanceRepository;
-    private final InventoryBatchBalanceRepository batchBalanceRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryTakeMapper mapper;
@@ -68,7 +65,6 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     public InventoryTakeServiceImpl(
             InventoryCountRepository countRepository,
             InventoryBalanceRepository balanceRepository,
-            InventoryBatchBalanceRepository batchBalanceRepository,
             InventoryLocationRepository locationRepository,
             InventoryItemRepository itemRepository,
             InventoryTakeMapper mapper,
@@ -77,7 +73,6 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
             InventoryCountApprovalPolicyRepository approvalPolicyRepository) {
         this.countRepository = countRepository;
         this.balanceRepository = balanceRepository;
-        this.batchBalanceRepository = batchBalanceRepository;
         this.locationRepository = locationRepository;
         this.itemRepository = itemRepository;
         this.mapper = mapper;
@@ -174,8 +169,8 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
         // 1. Lines từ InventoryBalance (item × location, không phân biệt batch)
         List<InventoryBalance> balances = queryBalancesForScope(count);
 
-        // 2. Lines từ InventoryBatchBalance (item × location × batch)
-        List<InventoryBatchBalance> batchBalances = queryBatchBalancesForScope(count);
+        // 2. Lines tồn kho chi tiết theo lô (item × location × batch)
+        List<InventoryBalance> batchBalances = queryBatchBalancesForScope(count);
 
         if (balances.isEmpty() && batchBalances.isEmpty()) {
             throw new BadRequestException("Không tìm thấy tồn kho để kiểm kê");
@@ -202,7 +197,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
         }
 
         // Generate lines cho batch balances (1 line per item × location × batch)
-        for (InventoryBatchBalance batchBalance : batchBalances) {
+        for (InventoryBalance batchBalance : batchBalances) {
             InventoryCountLine line = new InventoryCountLine();
             line.setInventoryItem(batchBalance.getInventoryBatch().getInventoryItem());
             line.setLocation(batchBalance.getLocation());
@@ -599,19 +594,19 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
         return balanceRepository.findAll(spec);
     }
 
-    private List<InventoryBatchBalance> queryBatchBalancesForScope(InventoryCount count) {
+    private List<InventoryBalance> queryBatchBalancesForScope(InventoryCount count) {
         return switch (count.getScopeType()) {
-            case FULL, WAREHOUSE -> batchBalanceRepository
+            case FULL, WAREHOUSE -> balanceRepository
                     .findByBranchWithPositiveBalance(count.getBranchId());
-            case LOCATION -> batchBalanceRepository
+            case LOCATION -> balanceRepository
                     .findByLocationIdsWithPositiveBalance(count.getScopeLocationIds());
-            case PARTIAL, ITEM -> batchBalanceRepository
+            case PARTIAL, ITEM -> balanceRepository
                     .findByItemIdsAndBranchWithPositiveBalance(
                             count.getScopeInventoryItemIds(), count.getBranchId());
-            case BATCH -> batchBalanceRepository
+            case BATCH -> balanceRepository
                     .findByBatchIdsAndBranchWithPositiveBalance(
                             count.getScopeBatchIds(), count.getBranchId());
-            case MIXED -> batchBalanceRepository
+            case MIXED -> balanceRepository
                     .findByItemIdsAndBranchWithPositiveBalance(
                             count.getScopeInventoryItemIds(), count.getBranchId()).stream()
                     .filter(balance -> count.getScopeLocationIds().contains(balance.getLocation().getId()))
