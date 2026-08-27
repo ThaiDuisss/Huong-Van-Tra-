@@ -1,18 +1,21 @@
 package org.hvtra.iventoryservice.stock.service;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
-import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
-import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
-import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
+import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
+import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.StockType;
-import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.stock.mapper.InventoryBalanceMapper;
-import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
-import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
+import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
+import org.hvtra.iventoryservice.stock.mapper.InventoryBalanceMapper;
+import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -20,16 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
-import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
-import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
-import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 
 @Service
 @Transactional(readOnly = true)
@@ -131,7 +126,6 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         }
 
         // 2. Resolve default warehouse
-        // 2. Resolve default warehouse
         final InventoryLocation defaultWarehouse;
         InventoryLocation tempWarehouse = null;
         if (branchId != null) {
@@ -212,7 +206,11 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         Map<UUID, CatalogClient.ProductResponse> productMap = products.stream()
                 .collect(Collectors.toMap(CatalogClient.ProductResponse::id, p -> p, (p1, p2) -> p1));
 
-        List<UUID> unitIds = variants.stream().map(CatalogClient.VariantResponse::baseUnitId).distinct().toList();
+        List<UUID> unitIds = variants.stream()
+                .map(CatalogClient.VariantResponse::unitId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
         List<CatalogClient.UnitResponse> units = catalogClient.getUnitsBatch(unitIds);
         Map<UUID, CatalogClient.UnitResponse> unitMap = units.stream()
                 .collect(Collectors.toMap(CatalogClient.UnitResponse::id, u -> u, (u1, u2) -> u1));
@@ -223,7 +221,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                     CatalogClient.VariantResponse v = variantMap.get(b.getInventoryItem().getReferenceId());
                     CatalogClient.ProductResponse p = (v != null) ? productMap.get(v.productId()) : null;
                     CatalogClient.CategoryResponse cat = (p != null) ? p.category() : null;
-                    CatalogClient.UnitResponse u = (v != null) ? unitMap.get(v.baseUnitId()) : null;
+                    CatalogClient.UnitResponse u = (v != null) ? unitMap.get(v.unitId()) : null;
                     InventoryLocation loc = b.getLocation();
 
                     return InventoryBalanceViewResponse.builder()
@@ -238,7 +236,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                             .categoryId(cat != null ? cat.id() : null)
                             .categoryCode(cat != null ? cat.categoryCode() : null)
                             .categoryName(cat != null ? cat.name() : null)
-                            .unitId(u != null ? u.id() : (v != null ? v.baseUnitId() : null))
+                            .unitId(u != null ? u.id() : (v != null ? v.unitId() : null))
                             .unitName(u != null ? u.name() : null)
                             .unitSymbol(u != null ? u.symbol() : null)
                             .locationId(loc != null ? loc.getId() : null)
@@ -339,7 +337,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             }
 
             UUID itemId = balance.getInventoryItem().getId();
-                Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
+            Optional<InventoryBalance> existingBalanceOpt = repository.findByInventoryItemIdAndLocationId(itemId, newLocation.getId());
 
             if (existingBalanceOpt.isPresent()) {
                 // If a balance already exists at the target location, merge the quantities and delete the old record
@@ -356,5 +354,3 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         }
     }
 }
-
-

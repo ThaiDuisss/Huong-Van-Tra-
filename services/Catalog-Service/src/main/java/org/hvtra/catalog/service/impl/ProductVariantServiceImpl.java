@@ -1,6 +1,5 @@
 package org.hvtra.catalog.service.impl;
 
-import feign.FeignException;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +16,6 @@ import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.InventoryItemType;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
-import org.hvtra.catalog.exception.InventoryServiceUnavailableException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.ProductRepository;
@@ -25,12 +23,10 @@ import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.service.ProductVariantService;
-import org.hvtra.commonservice.exception.FeignClientException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,7 +37,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.Arrays;
 import java.util.Objects;
-import org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse;
 import org.hvtra.catalog.enums.InventoryPolicy;
 
 @Slf4j
@@ -157,15 +152,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         ProductVariant savedVariant = repository.saveAndFlush(variant);
 
         Category category = product.getCategory();
-        Integer reorderPoint = (category != null && category.getDefaultReorderPoint() != null)
+        Integer defaultReorder = (category != null && category.getDefaultReorderPoint() != null)
                 ? category.getDefaultReorderPoint()
                 : 10;
+        Integer reorderPoint = request.reorderPoint() != null ? request.reorderPoint() : defaultReorder;
 
         inventoryClient.createProductVariantItem(
                 InventoryClient.CreateInventoryItemRequest.builder()
                         .status(savedVariant.getStatus().toString())
                         .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                         .referenceId(savedVariant.getId())
+                        .referenceCode(savedVariant.getSku())
                         .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                         .reorderPoint(reorderPoint)
                         .build());
@@ -396,7 +393,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                                 .status(savedVariant.getStatus().toString())
                                 .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                                 .referenceId(savedVariant.getId())
+                                .referenceCode(savedVariant.getSku())
                                 .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                                .reorderPoint(10)
                                 .build());
             }
         } catch (BadRequestException e) {
@@ -561,60 +560,6 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    public List<ProductVariantSearchViewResponse> searchVariants(String keyword, String sku, String productName) {
-        Specification<ProductVariant> spec = (root, query, cb) -> {
-            var predicates = new ArrayList<Predicate>();
-            predicates.add(cb.equal(root.get("isDeleted"), false));
-            if (keyword != null && !keyword.isBlank()) {
-                String normalizedKeyword = "%" + keyword.toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("sku")), normalizedKeyword),
-                        cb.like(cb.lower(root.get("variantName")), normalizedKeyword),
-                        cb.like(cb.lower(root.get("product").get("name")), normalizedKeyword)
-                ));
-            }
-            if (sku != null && !sku.isBlank()) {
-                predicates.add(cb.like(cb.lower(root.get("sku")), "%" + sku.toLowerCase() + "%"));
-            }
-            if (productName != null && !productName.isBlank()) {
-                predicates.add(cb.like(cb.lower(root.get("product").get("name")), "%" + productName.toLowerCase() + "%"));
-            }
-            return cb.and(predicates.toArray(Predicate[]::new));
-        };
-
-        List<ProductVariant> variants = repository.findAll(spec);
-        Map<UUID, InventoryClient.StockVariantBatchResponse> stockMap = loadVariantStockMap(variants.stream()
-                .map(ProductVariant::getId)
-                .distinct()
-                .toList());
-        return variants.stream()
-                .map(v -> toPosSearchView(v, stockMap.get(v.getId())))
-                .toList();
-    }
-
-    @Override
-    public ProductVariantSearchViewResponse getPosView(UUID variantId) {
-        ProductVariantSearchViewResponse response = repository.findPosViewByVariantId(variantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Product variant", variantId));
-        InventoryClient.StockVariantBatchResponse stock = loadVariantStockMap(List.of(response.variantId()))
-                .get(response.variantId());
-        return new ProductVariantSearchViewResponse(
-                response.productId(),
-                response.variantId(),
-                response.sku(),
-                response.productName(),
-                response.variantName(),
-                response.categoryName(),
-                response.sellingPrice(),
-                response.imageUrl(),
-                stock != null ? stock.inventoryLocationId() : null,
-                stock != null ? stock.availableQuantity() : BigDecimal.ZERO,
-                stock != null ? stock.reservedQuantity() : BigDecimal.ZERO,
-                stock != null ? stock.stockStatus() : "OUT_OF_STOCK"
-        );
-    }
-
-    @Override
     public List<ProductVariantProductRefResponse> findRefsByProductIds(List<UUID> productIds) {
         if (productIds == null || productIds.isEmpty()) {
             return Collections.emptyList();
@@ -631,56 +576,6 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                         variant.getId(),
                         variant.getProduct().getId()))
                 .toList();
-    }
-
-    private Map<UUID, InventoryClient.StockBatchResponse> loadStockMap(List<UUID> productIds) {
-        if (productIds == null || productIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        try {
-            return inventoryClient.getStocksByProductIds(new InventoryClient.StockBatchRequest(productIds)).stream()
-                    .collect(Collectors.toMap(
-                            InventoryClient.StockBatchResponse::productId,
-                            Function.identity(),
-                            (left, ignored) -> left));
-        } catch (FeignClientException | FeignException exception) {
-            throw new InventoryServiceUnavailableException("Inventory service is temporarily unavailable", exception);
-        }
-    }
-
-    private Map<UUID, InventoryClient.StockVariantBatchResponse> loadVariantStockMap(List<UUID> variantIds) {
-        if (variantIds == null || variantIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-            Map<UUID, InventoryClient.StockVariantBatchResponse> a   = inventoryClient.getStocksByVariantIds(new InventoryClient.StockVariantBatchRequest(variantIds)).stream()
-                    .collect(Collectors.toMap(
-                            InventoryClient.StockVariantBatchResponse::variantId,
-                            Function.identity(),
-                            (left, ignored) -> left));
-            log.info("Loaded {} variant stocks", a);
-
-            return a;
-
-    }
-
-    private ProductVariantSearchViewResponse toPosSearchView(
-            ProductVariant variant,
-            InventoryClient.StockVariantBatchResponse stock) {
-        return new ProductVariantSearchViewResponse(
-                variant.getProduct().getId(),
-                variant.getId(),
-                variant.getSku(),
-                variant.getProduct().getName(),
-                variant.getVariantName(),
-                variant.getProduct().getCategory() != null ? variant.getProduct().getCategory().getName() : null,
-                variant.getSellingPrice(),
-                variant.getProduct().getImageUrl(),
-                stock != null ? stock.inventoryLocationId() : null,
-                stock != null ? stock.availableQuantity() : BigDecimal.ZERO,
-                stock != null ? stock.reservedQuantity() : BigDecimal.ZERO,
-                stock != null ? stock.stockStatus() : "OUT_OF_STOCK"
-        );
     }
 
     @Override

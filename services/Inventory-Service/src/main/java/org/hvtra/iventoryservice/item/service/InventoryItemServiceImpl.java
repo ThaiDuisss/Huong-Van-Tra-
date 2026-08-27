@@ -1,16 +1,17 @@
-package org.hvtra.iventoryservice.item.service;
+package org.hvtra.iventoryservice.item.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
-import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
-import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
-import org.hvtra.iventoryservice.shared.exception.BadRequestException;
-import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
 import org.hvtra.iventoryservice.item.mapper.InventoryItemMapper;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
+import org.hvtra.iventoryservice.item.service.InventoryItemService;
+import org.hvtra.iventoryservice.shared.exception.BadRequestException;
+import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -33,12 +34,16 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     @Override
     public PageResponse<InventoryItemResponse> findAll(
             UUID referenceId,
+            String referenceCode,
             InventoryItemType itemType,
             InventoryStatus status,
             Pageable pageable) {
         Specification<InventoryItem> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (referenceId != null) predicates.add(cb.equal(root.get("referenceId"), referenceId));
+            if (referenceCode != null && !referenceCode.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("referenceCode")), "%" + referenceCode.trim().toLowerCase() + "%"));
+            }
             if (itemType != null) predicates.add(cb.equal(root.get("itemType"), itemType));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             return cb.and(predicates.toArray(Predicate[]::new));
@@ -94,4 +99,3 @@ public class InventoryItemServiceImpl implements InventoryItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory item", id));
     }
 }
-

@@ -1,6 +1,7 @@
 import {
   BarChart3,
   BadgePercent,
+  Building2,
   Boxes,
   CalendarDays,
   ClipboardCheck,
@@ -166,6 +167,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Nguyên liệu",
         to: routePaths.ingredient,
         icon: Layers3,
+        roles: MANUFACTURING_ROLES,
+      },
+      {
+        key: "manufacturing-suppliers",
+        label: "Nhà cung cấp",
+        to: routePaths.supplier,
+        icon: Building2,
         roles: MANUFACTURING_ROLES,
       },
     ],

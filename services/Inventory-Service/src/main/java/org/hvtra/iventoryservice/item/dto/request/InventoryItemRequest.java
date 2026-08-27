@@ -8,10 +8,10 @@ import java.util.UUID;
 
 public record InventoryItemRequest(
         @NotNull UUID referenceId,
+        String referenceCode,
         @NotNull InventoryItemType itemType,
-        @NotNull UUID unitId,
+        UUID unitId,
         @NotNull InventoryStatus status,
-        @NotNull Integer reorderPoint
-
+        Integer reorderPoint
 ) {
 }

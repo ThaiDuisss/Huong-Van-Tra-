@@ -81,4 +81,5 @@ export const routePaths = {
   bomDetail: "/system/manufacturing/boms/:id",
   productionOrders: "/system/manufacturing/production-orders",
   ingredient: "/system/manufacturing/ingredients",
+  supplier: "/system/manufacturing/suppliers",
 } as const;

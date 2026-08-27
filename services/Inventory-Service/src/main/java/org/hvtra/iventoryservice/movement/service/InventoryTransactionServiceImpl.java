@@ -14,6 +14,9 @@ import org.hvtra.iventoryservice.movement.dto.response.InventoryTransactionRespo
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
+import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
+import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
 import org.hvtra.iventoryservice.movement.mapper.InventoryTransactionMapper;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
@@ -47,6 +50,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryBalanceRepository balanceRepository;
+    private final InventoryBatchRepository batchRepository;
     private final InventoryTransactionMapper mapper;
 
     public InventoryTransactionServiceImpl(
@@ -54,11 +58,13 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             InventoryItemRepository itemRepository,
             InventoryLocationRepository locationRepository,
             InventoryBalanceRepository balanceRepository,
+            InventoryBatchRepository batchRepository,
             InventoryTransactionMapper mapper) {
         this.transactionRepository = transactionRepository;
         this.itemRepository = itemRepository;
         this.locationRepository = locationRepository;
         this.balanceRepository = balanceRepository;
+        this.batchRepository = batchRepository;
         this.mapper = mapper;
     }
 
@@ -262,11 +268,22 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
     }
 
     private InventoryBalance newBalance(InventoryItem item, InventoryLocation location) {
+        InventoryBatch batch = batchRepository
+                .findFirstByInventoryItemId(item.getId())
+                .orElseGet(() -> {
+                    InventoryBatch newBatch = new InventoryBatch();
+                    newBatch.setInventoryItem(item);
+                    newBatch.setBatchCode("DEFAULT-" + item.getId().toString().substring(0, 8).toUpperCase());
+                    newBatch.setStatus(InventoryBatchStatus.AVAILABLE);
+                    return batchRepository.saveAndFlush(newBatch);
+                });
+
         InventoryBalance balance = new InventoryBalance();
-        balance.setInventoryItem(item);
+        balance.setInventoryBatch(batch);
         balance.setLocation(location);
         balance.setQuantityOnHand(BigDecimal.ZERO);
         balance.setQuantityReserved(BigDecimal.ZERO);
+        balance.setQuantityBlocked(BigDecimal.ZERO);
         return balance;
     }
 

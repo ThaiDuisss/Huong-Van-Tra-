@@ -6,6 +6,7 @@ import { BomListPage } from "../features/manufacturing/pages/BomListPage";
 import { BomDetailPage } from "../features/manufacturing/pages/BomDetailPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
+import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
@@ -259,6 +260,7 @@ export function AppRouter() {
           <Route path="manufacturing/boms/:id" element={<BomDetailPage />} />
           <Route path="manufacturing/production-orders" element={<ProductionOrderListPage />} />
           <Route path="manufacturing/ingredients" element={<RawMaterialListPage />} />
+          <Route path="manufacturing/suppliers" element={<SupplierListPage />} />
         </Route>
       </Route>
 

@@ -1,6 +1,8 @@
 package org.hvtra.catalog.mapper;
 
 import org.hvtra.catalog.dto.response.BomResponse;
+import org.hvtra.catalog.dto.response.IngredientResponse;
+import org.hvtra.catalog.dto.response.UnitResponse;
 import org.hvtra.catalog.entity.Bom;
 import org.springframework.stereotype.Component;
 
@@ -36,13 +38,25 @@ public class BomMapper {
                 bom.getEffectiveTo(),
                 bom.getCreatedAt(),
                 bom.getUpdatedAt(),
-                bom.getItems().stream().map(item -> new BomResponse.ItemResponse(
-                        item.getId(),
-                        ingredientMapper.toResponse(item.getIngredient()),
-                        item.getQuantity(),
-                        unitMapper.toResponse(item.getUnit()),
-                        item.getWasteRate()
-                )).toList()
+                bom.getItems() == null ? java.util.Collections.emptyList() : bom.getItems().stream().map(item -> {
+                    IngredientResponse ing = null;
+                    try {
+                        ing = item.getIngredient() != null ? ingredientMapper.toResponse(item.getIngredient()) : null;
+                    } catch (Exception ignored) {
+                    }
+                    UnitResponse unit = null;
+                    try {
+                        unit = item.getUnit() != null ? unitMapper.toResponse(item.getUnit()) : null;
+                    } catch (Exception ignored) {
+                    }
+                    return new BomResponse.ItemResponse(
+                            item.getId(),
+                            ing,
+                            item.getQuantity(),
+                            unit,
+                            item.getWasteRate()
+                    );
+                }).toList()
         );
     }
 }

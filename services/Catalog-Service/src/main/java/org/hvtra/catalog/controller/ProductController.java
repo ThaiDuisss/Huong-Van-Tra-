@@ -40,7 +40,7 @@ public class ProductController {
     }
 
     @GetMapping
-    public PageResponse<ProductSummaryResponse> findAll(
+    public PageResponse<ProductResponse> findAll(
             @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "status", required = false) Status status,

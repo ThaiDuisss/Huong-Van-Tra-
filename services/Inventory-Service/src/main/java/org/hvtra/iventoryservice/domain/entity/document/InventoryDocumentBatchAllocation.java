@@ -15,7 +15,10 @@ import java.math.BigDecimal;
                 name = "uq_doc_batch_alloc_line_batch",
                 columnNames = {"document_line_id", "inventory_batch_id"}
         ),
-        indexes = @Index(name = "idx_doc_batch_alloc_batch", columnList = "inventory_batch_id")
+        indexes = {
+                @Index(name = "idx_doc_batch_alloc_line", columnList = "document_line_id"),
+                @Index(name = "idx_doc_batch_alloc_batch", columnList = "inventory_batch_id")
+        }
 )
 @Getter
 @Setter
