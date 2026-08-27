@@ -1,5 +1,6 @@
 package org.hvtra.catalog.service.impl;
 
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -100,7 +101,7 @@ public class IngredientServiceImpl implements IngredientService {
     }
 
     @Override
-    public PageResponse<IngredientResponse> findAll(String search, Status status, Pageable pageable) {
+    public PageResponse<IngredientResponse> findAll(String search, Status status, Pageable pageable, UUID supplierId) {
         Specification<Ingredient> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
@@ -111,6 +112,15 @@ public class IngredientServiceImpl implements IngredientService {
                         cb.like(cb.lower(root.get("ingredientCode")), pattern)));
             }
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
+
+            if (supplierId != null) {
+                var supplierJoin = root.join("suppliers", JoinType.INNER);
+                predicates.add(cb.equal(supplierJoin.get("id"), supplierId));
+                if (query != null) {
+                    query.distinct(true);
+                }
+            }
+
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
@@ -183,6 +193,47 @@ public class IngredientServiceImpl implements IngredientService {
         }
         ingredient.setStatus(status);
         return mapper.toResponse(repository.save(ingredient));
+    }
+
+    @Override
+    public java.util.List<IngredientResponse> findByIds(java.util.List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return repository.findAllById(ids).stream()
+                .filter(i -> !Boolean.TRUE.equals(i.getIsDeleted()))
+                .map(mapper::toResponse)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    @Override
+    public java.util.List<UUID> searchIngredientIds(String keyword, String code, String name, UUID unitId) {
+        Specification<Ingredient> spec = (root, query, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
+
+            if (keyword != null && !keyword.isBlank()) {
+                String pattern = "%" + keyword.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("name")), pattern),
+                        cb.like(cb.lower(root.get("ingredientCode")), pattern)
+                ));
+            }
+            if (code != null && !code.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("ingredientCode")), "%" + code.toLowerCase() + "%"));
+            }
+            if (name != null && !name.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
+            }
+            if (unitId != null) {
+                predicates.add(cb.equal(root.get("unit").get("id"), unitId));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return repository.findAll(spec).stream()
+                .map(Ingredient::getId)
+                .toList();
     }
 
     @Override

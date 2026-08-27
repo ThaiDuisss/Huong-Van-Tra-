@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public record IngredientRequest(
         @NotBlank @Size(max = 255) String name,
+        @Size(max = 500) String imageUrl,
         UUID unitId,
         Integer reorderPoint,
         @NotNull Status status

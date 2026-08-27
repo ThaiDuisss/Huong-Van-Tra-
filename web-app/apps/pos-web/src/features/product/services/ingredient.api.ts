@@ -3,6 +3,7 @@ import type { CatalogQuery, PageResult, Ingredient, IngredientInput } from "../t
 
 export interface IngredientQuery extends CatalogQuery {
     search?: string;
+    supplierId?: string;
 }
 
 export const ingredientApi = {
@@ -10,9 +11,10 @@ export const ingredientApi = {
         return apiClient.get<PageResult<Ingredient>>("/catalog/ingredients", {
             query: {
                 page: query.page,
-                size: query.size,
                 search: query.search ?? query.keyword,
-                status: query.status
+                size: query.size,
+                status: query.status,
+                supplierId: query.supplierId
             }
         });
     },

@@ -17,8 +17,10 @@ public interface InventoryBalanceService {
     PageResponse<InventoryBalanceResponse> findByInventoryItem(UUID itemId, Pageable pageable);
     PageResponse<InventoryBalanceViewResponse> findAllView(
             String keyword,
+            String code,
             String sku,
             String productCode,
+            String name,
             String productName,
             String categoryCode,
             UUID categoryId,
@@ -26,6 +28,7 @@ public interface InventoryBalanceService {
             UUID locationId,
             UUID branchId,
             StockType status,
+            org.hvtra.iventoryservice.domain.enums.InventoryItemType itemType,
             Pageable pageable
     );
     List<InventoryBalanceWarehouseResponse> findWarehouseBalances(

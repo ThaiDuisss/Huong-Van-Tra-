@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.item.service.impl;
+package org.hvtra.iventoryservice.item.service;
 
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;

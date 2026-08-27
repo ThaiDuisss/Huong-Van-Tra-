@@ -8,6 +8,7 @@ public record IngredientResponse(
         UUID id,
         String ingredientCode,
         String name,
+        String imageUrl,
         UUID unitId,
         String unitName,
         String unitSymbol,

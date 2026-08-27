@@ -4,6 +4,8 @@ export interface IngredientLookup {
     id: string;
     ingredientCode: string;
     name: string;
+    unitName?: string | null;
+    unitSymbol?: string | null;
     status: SupplierStatus;
 }
 

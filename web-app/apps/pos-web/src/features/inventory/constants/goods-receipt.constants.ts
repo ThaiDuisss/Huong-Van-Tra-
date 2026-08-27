@@ -7,16 +7,20 @@ import type {
 } from "../types/goods-receipt.types";
 
 export const goodsReceiptStatusLabels: Record<GoodsReceiptStatus, string> = {
+    DRAFT: "Bản nháp",
+    PENDING_APPROVAL: "Chờ duyệt",
+    APPROVED: "Đã duyệt",
+    REJECTED: "Từ chối",
+    RECEIVING: "Đang tiếp nhận",
+    QC_PENDING: "Chờ kiểm định QC",
+    QC_COMPLETED: "Đã kiểm định QC",
+    POSTED: "Đã ghi sổ",
+    CANCELLED: "Đã hủy",
     AWAITING_COST: "Chờ xác nhận giá",
     AWAITING_QC: "Chờ QC",
-    CANCELLED: "Đã hủy",
-    DRAFT: "Nháp",
     PARTIALLY_PASSED: "Đạt một phần",
-    POSTED: "Đã post",
     READY_TO_POST: "Sẵn sàng post",
-    RECEIVING: "Đang tiếp nhận",
-    REJECTED: "Từ chối",
-    SUBMITTED: "Đã submit"
+    SUBMITTED: "Đã gửi duyệt"
 };
 
 export const qcResultLabels: Record<QcResult, string> = {

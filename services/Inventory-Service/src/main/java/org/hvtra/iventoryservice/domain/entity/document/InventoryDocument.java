@@ -24,7 +24,7 @@ import java.util.UUID;
         indexes = {
                 @Index(name = "idx_documents_branch_status", columnList = "branch_id,status"),
                 @Index(name = "idx_documents_type_status", columnList = "document_type,status"),
-                @Index(name = "idx_documents_warehouse", columnList = "warehouse_id"),
+                @Index(name = "idx_documents_location", columnList = "location_id"),
                 @Index(name = "idx_documents_supplier", columnList = "supplier_id"),
                 @Index(name = "idx_documents_reference", columnList = "reference_type,reference_id"),
                 @Index(name = "idx_documents_posted_at", columnList = "posted_at")
@@ -39,7 +39,7 @@ public class InventoryDocument extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "document_type", nullable = false, length = 50)
-    private InventoryDocumentType documentType;
+    private InventoryDocumentType documentType = InventoryDocumentType.PURCHASE_RECEIPT;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
@@ -48,12 +48,12 @@ public class InventoryDocument extends BaseEntity {
     @Column(name = "branch_id", columnDefinition = "BINARY(16)")
     private UUID branchId;
 
-    @Column(name = "warehouse_id", columnDefinition = "BINARY(16)")
-    private UUID warehouseId;
+    @Column(name = "location_id", columnDefinition = "BINARY(16)")
+    private UUID locationId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "warehouse_id", insertable = false, updatable = false)
-    private InventoryLocation warehouse;
+    @JoinColumn(name = "location_id", insertable = false, updatable = false)
+    private InventoryLocation location;
 
     @Column(name = "supplier_id", columnDefinition = "BINARY(16)")
     private UUID supplierId;

@@ -282,10 +282,45 @@ export function FormDialog({
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="mt-1 flex justify-center rounded-xl border-2 border-dashed border-pos-border px-6 pt-5 pb-6 hover:border-hvt-green-700 transition-colors cursor-pointer relative">
-                                            <div className="space-y-1 text-center">
+                                        <label className="mt-1 flex justify-center rounded-xl border-2 border-dashed border-pos-border px-6 pt-5 pb-6 hover:border-hvt-green-700 transition-colors cursor-pointer relative group">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="sr-only"
+                                                required={field.required && !initialValues[field.name]}
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const objectUrl = URL.createObjectURL(file);
+                                                        setFilePreviews(prev => ({ ...prev, [field.name]: objectUrl }));
+                                                        setDeletedFields(prev => ({ ...prev, [field.name]: false }));
+                                                        setUploadingField(field.name);
+                                                        try {
+                                                            const uploadRes = await fileApi.uploadFile(file, {
+                                                                purpose: (field.purpose as any) ?? "PRODUCT_IMAGE"
+                                                            });
+                                                            const url = uploadRes.publicUrl || "";
+                                                            if (url) {
+                                                                setFilePreviews(prev => ({ ...prev, [field.name]: url }));
+                                                            }
+                                                            setFormValues(prev => ({
+                                                                ...prev,
+                                                                [field.name]: url || objectUrl,
+                                                                [field.name + "Id"]: uploadRes.fileId
+                                                            }));
+                                                        } catch (err) {
+                                                            console.error("Upload error:", err);
+                                                            alert("Lỗi tải lên hình ảnh!");
+                                                            setFilePreviews(prev => ({ ...prev, [field.name]: "" }));
+                                                        } finally {
+                                                            setUploadingField(null);
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <div className="space-y-1 text-center pointer-events-none">
                                                 <svg
-                                                    className="mx-auto h-10 w-10 text-gray-400"
+                                                    className="mx-auto h-10 w-10 text-gray-400 group-hover:text-hvt-green-700 transition-colors"
                                                     stroke="currentColor"
                                                     fill="none"
                                                     viewBox="0 0 48 48"
@@ -299,44 +334,14 @@ export function FormDialog({
                                                     />
                                                 </svg>
                                                 <div className="flex text-sm text-gray-600 justify-center">
-                                                    <span className="relative cursor-pointer rounded-md font-semibold text-hvt-green-800 hover:text-hvt-green-900 focus-within:outline-none">
+                                                    <span className="relative rounded-md font-semibold text-hvt-green-800 group-hover:text-hvt-green-900 focus-within:outline-none">
                                                         <span>Chọn ảnh</span>
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            className="sr-only"
-                                                            required={field.required && !initialValues[field.name]}
-                                                            onChange={async (e) => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) {
-                                                                    setUploadingField(field.name);
-                                                                    try {
-                                                                        const uploadRes = await fileApi.uploadFile(file, {
-                                                                            purpose: (field.purpose as any) ?? "PRODUCT_IMAGE"
-                                                                        });
-                                                                        const url = uploadRes.publicUrl || "";
-                                                                        setFilePreviews(prev => ({ ...prev, [field.name]: url }));
-                                                                        setDeletedFields(prev => ({ ...prev, [field.name]: false }));
-                                                                        setFormValues(prev => ({
-                                                                            ...prev,
-                                                                            [field.name]: url,
-                                                                            [field.name + "Id"]: uploadRes.fileId
-                                                                        }));
-                                                                    } catch (err) {
-                                                                        console.error("Upload error:", err);
-                                                                        alert("Lỗi tải lên hình ảnh!");
-                                                                    } finally {
-                                                                        setUploadingField(null);
-                                                                    }
-                                                                }
-                                                            }}
-                                                        />
                                                     </span>
                                                     <p className="pl-1">hoặc kéo thả</p>
                                                 </div>
                                                 <p className="text-xs text-gray-500">Tối đa 5MB</p>
                                             </div>
-                                        </div>
+                                        </label>
                                     )}
                                 </div>
                             ) : (

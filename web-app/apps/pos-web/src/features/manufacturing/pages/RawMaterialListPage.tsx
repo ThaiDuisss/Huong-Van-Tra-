@@ -1,4 +1,4 @@
-import { Download, Upload } from "lucide-react";
+import { Download, Package, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
@@ -63,8 +63,10 @@ export function RawMaterialListPage() {
     ) {
         const unitIdVal = getString(values, "unitId");
         const reorderPointVal = getString(values, "reorderPoint");
+        const imageUrl = getString(values, "imageFile") || null;
         const input = {
             name: getString(values, "name"),
+            imageUrl: imageUrl,
             unitId: unitIdVal ? unitIdVal : null,
             reorderPoint: reorderPointVal ? Number(reorderPointVal) : 0,
             status: getString(values, "status") as CatalogStatus
@@ -198,11 +200,13 @@ export function RawMaterialListPage() {
                 onDelete={handleDelete}
                 getInitialValues={(item: Ingredient) => ({
                     name: item.name,
+                    imageFile: item.imageUrl ?? "",
                     unitId: item.unitId ? String(item.unitId) : "",
                     reorderPoint: item.reorderPoint != null ? String(item.reorderPoint) : "0",
                     status: item.status
                 })}
                 columns={[
+                    { key: "image", label: "Ảnh" },
                     { key: "ingredientCode", label: "Mã nguyên liệu" },
                     { key: "name", label: "Tên nguyên liệu" },
                     { key: "unit", label: "Đơn vị tính" },
@@ -211,6 +215,19 @@ export function RawMaterialListPage() {
                 ]}
                 renderCells={(item: Ingredient) => (
                     <>
+                        <TableCell>
+                            {item.imageUrl ? (
+                                <img
+                                    src={item.imageUrl}
+                                    alt=""
+                                    className="size-12 rounded-xl object-cover"
+                                />
+                            ) : (
+                                <span className="grid size-12 place-items-center rounded-xl bg-neutral-100 text-gray-500">
+                                    <Package size={20} />
+                                </span>
+                            )}
+                        </TableCell>
                         <TableCell className="font-bold text-gray-500">
                             {item.ingredientCode}
                         </TableCell>
@@ -229,18 +246,31 @@ export function RawMaterialListPage() {
                     </>
                 )}
                 renderDetail={(item: Ingredient) => (
-                    <DetailList
-                        items={[
-                            { label: "Mã nguyên liệu", value: item.ingredientCode },
-                            { label: "Tên nguyên liệu", value: item.name },
-                            { label: "Đơn vị tính", value: item.unitName ? `${item.unitName} (${item.unitSymbol || ""})` : "-" },
-                            { label: "Ngưỡng cảnh báo tồn", value: item.reorderPoint ?? 0 },
-                            {
-                                label: "Trạng thái",
-                                value: <CatalogStatusBadge status={item.status} />
-                            }
-                        ]}
-                    />
+                    <div className="grid gap-6">
+                        {item.imageUrl ? (
+                            <img
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className="h-40 w-full rounded-2xl object-cover"
+                            />
+                        ) : (
+                            <div className="grid h-40 place-items-center rounded-2xl bg-neutral-100 text-gray-500">
+                                <Package size={34} />
+                            </div>
+                        )}
+                        <DetailList
+                            items={[
+                                { label: "Mã nguyên liệu", value: item.ingredientCode },
+                                { label: "Tên nguyên liệu", value: item.name },
+                                { label: "Đơn vị tính", value: item.unitName ? `${item.unitName} (${item.unitSymbol || ""})` : "-" },
+                                { label: "Ngưỡng cảnh báo tồn", value: item.reorderPoint ?? 0 },
+                                {
+                                    label: "Trạng thái",
+                                    value: <CatalogStatusBadge status={item.status} />
+                                }
+                            ]}
+                        />
+                    </div>
                 )}
                 formFields={[
                     {
@@ -248,6 +278,12 @@ export function RawMaterialListPage() {
                         label: "Tên nguyên liệu",
                         required: true,
                         placeholder: "Nhập tên nguyên liệu..."
+                    },
+                    {
+                        name: "imageFile",
+                        label: "Hình ảnh nguyên liệu",
+                        type: "file",
+                        purpose: "PRODUCT_IMAGE"
                     },
                     {
                         name: "unitId",

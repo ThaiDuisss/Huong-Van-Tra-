@@ -1,55 +1,30 @@
-import { useEffect, useMemo, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import {
-    calculateFinalUnitCost,
-    calculateLineNetAmount
-} from "../constants/goods-receipt.constants";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptCreateInput,
-    GoodsReceiptCreateLineInput,
-    GoodsReceiptEvidence,
     GoodsReceiptMaterialOption,
     GoodsReceiptOptions
 } from "../types/goods-receipt.types";
-import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
+import { formatVietnamNumber } from "../utils/inventory-format";
+import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 
-interface WizardLine {
-    countryOfOrigin: string;
-    duplicateReason: string;
-    expiryDate: string;
-    initialDamagedQuantity: number;
-    manufacturedAt: string;
+interface CreateLine {
+    id: string;
     materialId: string;
+    note: string;
     orderedQuantity: number;
-    qualityCertificate: string;
-    receivedQuantity: number;
-    storageCondition: string;
-    supplierLot: string;
 }
 
-const steps = [
-    "Thông tin chung",
-    "Dòng nguyên liệu",
-    "Thông tin batch",
-    "Chứng từ và bằng chứng",
-    "Kiểm tra và xác nhận"
-];
-
-function emptyLine(materialId = ""): WizardLine {
+function emptyLine(materialId = ""): CreateLine {
     return {
-        countryOfOrigin: "Việt Nam",
-        duplicateReason: "",
-        expiryDate: "2026-12-31",
-        initialDamagedQuantity: 0,
-        manufacturedAt: "2026-07-01",
+        id: `line-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         materialId,
-        orderedQuantity: 10,
-        qualityCertificate: "",
-        receivedQuantity: 10,
-        storageCondition: "Khô ráo",
-        supplierLot: ""
+        note: "",
+        orderedQuantity: 10
     };
 }
 
@@ -60,171 +35,243 @@ export function GoodsReceiptCreatePage() {
         materials: [],
         suppliers: []
     });
-    const [step, setStep] = useState(0);
-    const [dirty, setDirty] = useState(false);
+    const [loadingOptions, setLoadingOptions] = useState(true);
+    const [loadingMaterials, setLoadingMaterials] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
-    const [confirmed, setConfirmed] = useState(false);
-    const [currentTime] = useState(() => Date.now());
-    const [general, setGeneral] = useState({
-        deliveryPerson: "",
-        invoiceNumber: "",
+
+    const [supplierSearch, setSupplierSearch] = useState("");
+    const [locationSearch, setLocationSearch] = useState("");
+    const [materialSearch, setMaterialSearch] = useState("");
+
+    const [form, setForm] = useState({
+        expectedDate: new Date().toISOString().split("T")[0],
         note: "",
-        outsidePo: false,
-        outsidePoReason: "",
         purchaseOrderCode: "",
-        receivedAt: "2026-08-02T09:00",
         receivingLocationId: "",
-        supplierId: "",
-        vehiclePlate: ""
+        supplierId: ""
     });
-    const [lines, setLines] = useState<WizardLine[]>([emptyLine()]);
-    const [evidence, setEvidence] = useState<GoodsReceiptEvidence[]>([]);
-    const [varianceNote, setVarianceNote] = useState("");
+
+    const [lines, setLines] = useState<CreateLine[]>([emptyLine()]);
+
+    const supplierLookupOptions = useMemo<LookupItem[]>(() => {
+        const q = supplierSearch.toLowerCase().trim();
+        return (options.suppliers || [])
+            .filter((s) => Boolean(s && s.id))
+            .filter((s) => !q || (s.name || "").toLowerCase().includes(q) || ((s.code || "").toLowerCase().includes(q)))
+            .map((s) => ({
+                id: String(s.id),
+                name: s.code ? `${s.name} (${s.code})` : s.name
+            }));
+    }, [options.suppliers, supplierSearch]);
+
+    const locationLookupOptions = useMemo<LookupItem[]>(() => {
+        const q = locationSearch.toLowerCase().trim();
+        return (options.locations || [])
+            .filter((l) => Boolean(l && l.id))
+            .filter((l) => !q || (l.name || "").toLowerCase().includes(q) || ((l.code || "").toLowerCase().includes(q)))
+            .map((l) => ({
+                id: String(l.id),
+                name: l.code ? `${l.name} (${l.code})` : l.name
+            }));
+    }, [options.locations, locationSearch]);
+
+    const materialLookupOptions = useMemo<LookupItem[]>(() => {
+        const q = materialSearch.toLowerCase().trim();
+        return (options.materials || [])
+            .filter((m) => Boolean(m && m.id))
+            .filter((m) => !q || (m.name || "").toLowerCase().includes(q) || ((m.skuCode || "").toLowerCase().includes(q)))
+            .map((m) => ({
+                id: String(m.id),
+                name: m.skuCode ? `${m.name} (${m.skuCode})` : m.name
+            }));
+    }, [options.materials, materialSearch]);
 
     useEffect(() => {
-        void goodsReceiptApi.getGoodsReceiptOptions().then((response) => {
-            setOptions(response);
-            setGeneral((current) => ({
-                ...current,
-                receivingLocationId:
-                    current.receivingLocationId || response.locations[0]?.id || "",
-                supplierId: current.supplierId || response.suppliers[0]?.id || ""
-            }));
-            setLines((current) =>
-                current.map((line) => ({
-                    ...line,
-                    materialId: line.materialId || response.materials[0]?.id || ""
-                }))
-            );
+        let active = true;
+        queueMicrotask(() => {
+            if (active) {
+                setLoadingOptions(true);
+            }
         });
+
+        void goodsReceiptApi
+            .getGoodsReceiptOptions()
+            .then((response) => {
+                if (!active) return;
+                setOptions(response);
+                setForm((cur) => ({
+                    ...cur,
+                    receivingLocationId:
+                        cur.receivingLocationId ||
+                        response.locations[0]?.id ||
+                        "",
+                    supplierId: ""
+                }));
+                setLines([emptyLine("")]);
+            })
+            .catch((err: unknown) => {
+                console.error("[GoodsReceiptCreatePage] Lỗi tải danh mục:", err);
+                if (active) {
+                    setError(
+                        err instanceof Error
+                            ? err.message
+                            : "Không thể tải danh sách nhà cung cấp/kho."
+                    );
+                }
+            })
+            .finally(() => {
+                if (active) setLoadingOptions(false);
+            });
+
+        return () => {
+            active = false;
+        };
     }, []);
 
-    useEffect(() => {
-        if (!dirty) {
+    const handleSupplierChange = useCallback((supplierId: string) => {
+        setForm((cur) => ({ ...cur, supplierId }));
+        setError("");
+
+        if (!supplierId) {
+            setOptions((cur) => ({
+                ...cur,
+                materials: []
+            }));
+            setLines([emptyLine("")]);
             return;
         }
 
-        function handleBeforeUnload(event: BeforeUnloadEvent) {
-            event.preventDefault();
-            event.returnValue = "";
-        }
+        setLoadingMaterials(true);
+        void goodsReceiptApi
+            .getGoodsReceiptOptions(supplierId)
+            .then((response) => {
+                setOptions((cur) => ({
+                    ...cur,
+                    materials: response.materials
+                }));
+                const validIds = new Set(response.materials.map((m) => m.id));
+                setLines((cur) =>
+                    cur.map((l) => ({
+                        ...l,
+                        materialId: validIds.has(l.materialId)
+                            ? l.materialId
+                            : response.materials[0]?.id || ""
+                    }))
+                );
+            })
+            .catch((err: unknown) => {
+                console.error("[GoodsReceiptCreatePage] Lỗi tải nguyên liệu của NCC:", err);
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "Không thể tải danh sách nguyên liệu của nhà cung cấp này."
+                );
+            })
+            .finally(() => {
+                setLoadingMaterials(false);
+            });
+    }, []);
 
-        window.addEventListener("beforeunload", handleBeforeUnload);
-        return () =>
-            window.removeEventListener("beforeunload", handleBeforeUnload);
-    }, [dirty]);
-
-    const selectedSupplier = options.suppliers.find(
-        (supplier) => supplier.id === general.supplierId
-    );
-    const selectedPo = general.outsidePo
-        ? "Nhập ngoài PO"
-        : general.purchaseOrderCode || "Chưa nhập PO";
     const totals = useMemo(() => {
-        const totalQuantity = lines.reduce(
-            (sum, line) => sum + line.receivedQuantity,
+        const totalOrderedQuantity = lines.reduce(
+            (sum, l) => sum + (Number(l.orderedQuantity) || 0),
             0
         );
-        const shortage = lines.filter(
-            (line) => line.orderedQuantity > line.receivedQuantity
-        ).length;
-        const surplus = lines.filter(
-            (line) => line.receivedQuantity > line.orderedQuantity
-        ).length;
-        const damaged = lines.filter(
-            (line) => line.initialDamagedQuantity > 0
-        ).length;
-
-        return { damaged, shortage, surplus, totalQuantity };
+        return {
+            totalLines: lines.length,
+            totalOrderedQuantity
+        };
     }, [lines]);
 
-    function markDirty() {
-        setDirty(true);
-        setError("");
+    function getMaterial(materialId: string): GoodsReceiptMaterialOption | undefined {
+        return options.materials.find((m) => m.id === materialId);
     }
 
-    function updateLine(index: number, patch: Partial<WizardLine>) {
-        setLines((current) =>
-            current.map((line, lineIndex) =>
-                lineIndex === index ? { ...line, ...patch } : line
-            )
-        );
-        markDirty();
-    }
-
-    function materialOf(line: WizardLine): GoodsReceiptMaterialOption | undefined {
-        return options.materials.find((item) => item.id === line.materialId);
-    }
-
-    function expiryWarning(line: WizardLine) {
-        const material = materialOf(line);
-        if (!material || !line.expiryDate) {
-            return "";
-        }
-
-        const remainingDays = Math.ceil(
-            (new Date(line.expiryDate).getTime() - currentTime) /
-                (24 * 60 * 60 * 1000)
-        );
-
-        return remainingDays < material.shelfLifeWarningDays
-            ? `Cảnh báo: hạn dùng còn ${remainingDays} ngày, thấp hơn ngưỡng ${material.shelfLifeWarningDays} ngày.`
-            : "";
-    }
-
-    function toInput(submit: boolean): GoodsReceiptCreateInput {
-        return {
-            deliveryPerson: general.deliveryPerson,
-            evidence,
-            invoiceNumber: general.invoiceNumber || undefined,
-            lines: lines.map<GoodsReceiptCreateLineInput>((line) => ({
-                countryOfOrigin: line.countryOfOrigin || undefined,
-                duplicateReason: line.duplicateReason || undefined,
-                expiryDate: line.expiryDate,
-                initialDamagedQuantity: line.initialDamagedQuantity,
-                manufacturedAt: line.manufacturedAt,
-                materialId: line.materialId,
-                orderedQuantity: general.outsidePo
-                    ? undefined
-                    : line.orderedQuantity,
-                qualityCertificate: line.qualityCertificate || undefined,
-                receivedQuantity: line.receivedQuantity,
-                storageCondition: line.storageCondition || undefined,
-                supplierLot: line.supplierLot
-            })),
-            note: varianceNote || general.note,
-            outsidePo: general.outsidePo,
-            outsidePoReason: general.outsidePoReason || undefined,
-            purchaseOrderCode: general.outsidePo
-                ? undefined
-                : general.purchaseOrderCode || undefined,
-            receivedAt: new Date(general.receivedAt).toISOString(),
-            receivingLocationId: general.receivingLocationId,
-            submit,
-            supplierId: general.supplierId,
-            vehiclePlate: general.vehiclePlate || undefined
-        };
-    }
-
-    async function save(submit: boolean) {
-        if (step === 4 && !confirmed) {
-            setError("Vui lòng xác nhận thông tin trước khi lưu.");
+    function addLine() {
+        if (!form.supplierId) {
+            setError("Vui lòng chọn Nhà cung cấp trước khi thêm nguyên liệu.");
             return;
         }
+        if (options.materials.length === 0) {
+            setError("Nhà cung cấp đã chọn chưa có nguyên liệu nào để thêm.");
+            return;
+        }
+        setLines((cur) => [
+            ...cur,
+            emptyLine(options.materials[0]?.id || "")
+        ]);
+    }
+
+    function removeLine(id: string) {
+        if (lines.length <= 1) return;
+        setLines((cur) => cur.filter((l) => l.id !== id));
+    }
+
+    function updateLine(id: string, patch: Partial<CreateLine>) {
+        setLines((cur) =>
+            cur.map((l) => (l.id === id ? { ...l, ...patch } : l))
+        );
+    }
+
+    async function handleSave(submit: boolean) {
+        setError("");
+
+        if (!form.supplierId) {
+            setError("Vui lòng chọn Nhà cung cấp.");
+            return;
+        }
+
+        if (!form.receivingLocationId) {
+            setError("Vui lòng chọn Kho nhận hàng.");
+            return;
+        }
+
+        if (lines.length === 0) {
+            setError("Vui lòng thêm ít nhất một nguyên liệu cần nhập.");
+            return;
+        }
+
+        for (const line of lines) {
+            if (!line.materialId) {
+                setError("Vui lòng chọn nguyên liệu cho tất cả các dòng.");
+                return;
+            }
+            if (!line.orderedQuantity || line.orderedQuantity <= 0) {
+                setError("Số lượng đặt của nguyên liệu phải lớn hơn 0.");
+                return;
+            }
+        }
+
+        const payload: GoodsReceiptCreateInput = {
+            deliveryPerson: "",
+            evidence: [],
+            lines: lines.map((l) => ({
+                countryOfOrigin: "Việt Nam",
+                expiryDate: "",
+                initialDamagedQuantity: 0,
+                manufacturedAt: "",
+                materialId: l.materialId,
+                orderedQuantity: l.orderedQuantity,
+                receivedQuantity: l.orderedQuantity,
+                supplierLot: l.note
+            })),
+            note: form.note || undefined,
+            outsidePo: !form.purchaseOrderCode,
+            purchaseOrderCode: form.purchaseOrderCode || undefined,
+            receivedAt: form.expectedDate,
+            receivingLocationId: form.receivingLocationId,
+            submit,
+            supplierId: form.supplierId
+        };
 
         try {
             setSubmitting(true);
-            const receipt = await goodsReceiptApi.createGoodsReceipt(
-                toInput(submit)
-            );
-            setDirty(false);
-            navigate(`/management/inventory/receipts/${receipt.id}`);
-        } catch (saveError) {
+            const created = await goodsReceiptApi.createGoodsReceipt(payload);
+            navigate(`/management/inventory/receipts/${created.id}`);
+        } catch (err) {
             setError(
-                saveError instanceof Error
-                    ? saveError.message
-                    : "Không thể lưu phiếu nhập."
+                err instanceof Error ? err.message : "Không thể tạo phiếu nhập nguyên liệu."
             );
         } finally {
             setSubmitting(false);
@@ -233,615 +280,295 @@ export function GoodsReceiptCreatePage() {
 
     return (
         <section className="grid gap-4">
-            <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div className="grid gap-1">
+            <header className="flex flex-col gap-2">
+                <div className="text-xs font-bold text-[#697684]">
+                    Kho vận › Phiếu nhập nguyên liệu từ Nhà cung cấp › Tạo mới
+                </div>
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h1 className="text-2xl font-black text-[#172317]">
+                            Tạo phiếu nhập nguyên liệu (DRAFT)
+                        </h1>
+                        <p className="text-sm font-semibold text-[#697684]">
+                            Giai đoạn 1: Lập kế hoạch tiếp nhận nguyên liệu từ Nhà cung cấp. Thông tin thực nhận, Lô và QC sẽ được ghi nhận khi hàng về kho.
+                        </p>
+                    </div>
                     <Link
-                        className="text-sm font-black text-[#159734] hover:underline"
+                        className="inline-flex h-9 items-center justify-center rounded-lg border border-[#dce5e1] px-4 text-xs font-bold text-[#536078] hover:bg-[#f7f8fb]"
                         to="/management/inventory/receipts"
                     >
-                        Quay lại danh sách
+                        Hủy & Quay lại
                     </Link>
-                    <h1 className="text-2xl font-black text-[#172317]">
-                        Tạo phiếu nhập nguyên liệu
-                    </h1>
-                    <p className="text-sm font-semibold text-[#697684]">
-                        Wizard giữ dữ liệu khi chuyển bước. Hàng vật lý được
-                        ghi nhận AWAITING_QC, available chỉ tăng sau QC và post.
-                    </p>
                 </div>
             </header>
 
-            <nav className="flex gap-2 overflow-x-auto">
-                {steps.map((label, index) => (
-                    <button
-                        className={`h-10 shrink-0 rounded-lg px-4 text-sm font-black ${
-                            step === index
-                                ? "bg-[#159734] text-white"
-                                : "bg-white text-[#536078]"
-                        }`}
-                        key={label}
-                        onClick={() => setStep(index)}
-                        type="button"
-                    >
-                        {index + 1}. {label}
-                    </button>
-                ))}
-            </nav>
-
             {error ? (
-                <div
-                    className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"
-                    role="alert"
-                >
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
                     {error}
                 </div>
             ) : null}
 
-            <div className="rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-                {step === 0 ? (
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <SelectField
-                            label="Kho nhận"
-                            onChange={(receivingLocationId) => {
-                                setGeneral((current) => ({
-                                    ...current,
-                                    receivingLocationId
-                                }));
-                                markDirty();
-                            }}
-                            options={options.locations.map((location) => ({
-                                label: location.name,
-                                value: location.id
-                            }))}
-                            value={general.receivingLocationId}
+            {/* THÔNG TIN CHUNG */}
+            <div className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">
+                <h2 className="text-base font-black text-[#172317] border-b border-[#eef2f0] pb-2">
+                    1. Thông tin phiếu nhập
+                </h2>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-1.5 text-xs font-black text-[#536078]">
+                        <span>Nhà cung cấp <span className="text-red-500">*</span></span>
+                        <SearchableDropdown
+                            value={form.supplierId}
+                            onChange={handleSupplierChange}
+                            options={supplierLookupOptions}
+                            onSearch={setSupplierSearch}
+                            onLoadMore={() => {}}
+                            hasMore={false}
+                            loading={loadingOptions}
+                            placeholder="Chọn nhà cung cấp..."
+                            emptyText="Không tìm thấy nhà cung cấp"
+                            disabled={loadingOptions}
                         />
-                        <SelectField
-                            label="Nhà cung cấp"
-                            onChange={(supplierId) => {
-                                setGeneral((current) => ({
-                                    ...current,
-                                    supplierId
-                                }));
-                                markDirty();
-                            }}
-                            options={options.suppliers.map((supplier) => ({
-                                label: supplier.name,
-                                value: supplier.id
-                            }))}
-                            value={general.supplierId}
-                        />
-                        <TextField
-                            label="Purchase Order"
-                            onChange={(purchaseOrderCode) => {
-                                setGeneral((current) => ({
-                                    ...current,
-                                    purchaseOrderCode
-                                }));
-                                markDirty();
-                            }}
-                            value={general.purchaseOrderCode}
-                        />
-                        <TextField
-                            label="Số hóa đơn nhà cung cấp"
-                            onChange={(invoiceNumber) => {
-                                setGeneral((current) => ({
-                                    ...current,
-                                    invoiceNumber
-                                }));
-                                markDirty();
-                            }}
-                            value={general.invoiceNumber}
-                        />
-                        <TextField
-                            label="Ngày giao hàng"
-                            onChange={(receivedAt) => {
-                                setGeneral((current) => ({
-                                    ...current,
-                                    receivedAt
-                                }));
-                                markDirty();
-                            }}
-                            type="datetime-local"
-                            value={general.receivedAt}
-                        />
-                        <TextField
-                            label="Người giao"
-                            onChange={(deliveryPerson) => {
-                                setGeneral((current) => ({
-                                    ...current,
-                                    deliveryPerson
-                                }));
-                                markDirty();
-                            }}
-                            value={general.deliveryPerson}
-                        />
-                        <TextField
-                            label="Biển số xe"
-                            onChange={(vehiclePlate) => {
-                                setGeneral((current) => ({
-                                    ...current,
-                                    vehiclePlate
-                                }));
-                                markDirty();
-                            }}
-                            value={general.vehiclePlate}
-                        />
-                        <label className="flex items-center gap-2 text-sm font-black text-[#536078]">
-                            <input
-                                checked={general.outsidePo}
-                                onChange={(event) => {
-                                    setGeneral((current) => ({
-                                        ...current,
-                                        outsidePo: event.currentTarget.checked
-                                    }));
-                                    markDirty();
-                                }}
-                                type="checkbox"
-                            />
-                            Nhập ngoài PO
-                        </label>
-                        {general.outsidePo ? (
-                            <TextField
-                                label="Lý do nhập ngoài PO"
-                                onChange={(outsidePoReason) => {
-                                    setGeneral((current) => ({
-                                        ...current,
-                                        outsidePoReason
-                                    }));
-                                    markDirty();
-                                }}
-                                value={general.outsidePoReason}
-                            />
-                        ) : null}
                     </div>
-                ) : null}
 
-                {step === 1 ? (
-                    <div className="grid gap-3">
-                        {lines.map((line, index) => {
-                            const material = materialOf(line);
-                            const diff =
-                                line.receivedQuantity - line.orderedQuantity;
-
-                            return (
-                                <div
-                                    className="grid gap-3 rounded-lg border border-[#e8eef0] p-3 md:grid-cols-3"
-                                    key={index}
-                                >
-                                    <SelectField
-                                        label="Material/SKU"
-                                        onChange={(materialId) =>
-                                            updateLine(index, { materialId })
-                                        }
-                                        options={options.materials.map(
-                                            (item) => ({
-                                                label: `${item.skuCode} - ${item.name}`,
-                                                value: item.id
-                                            })
-                                        )}
-                                        value={line.materialId}
-                                    />
-                                    <Info
-                                        label="Tên nguyên liệu"
-                                        value={material?.name ?? "-"}
-                                    />
-                                    <Info
-                                        label="UOM nhập"
-                                        value={material?.unit ?? "-"}
-                                    />
-                                    <NumberField
-                                        label="Số lượng đặt theo PO"
-                                        onChange={(orderedQuantity) =>
-                                            updateLine(index, {
-                                                orderedQuantity
-                                            })
-                                        }
-                                        value={line.orderedQuantity}
-                                    />
-                                    <NumberField
-                                        label="Số lượng thực nhận"
-                                        onChange={(receivedQuantity) =>
-                                            updateLine(index, {
-                                                receivedQuantity
-                                            })
-                                        }
-                                        value={line.receivedQuantity}
-                                    />
-                                    <NumberField
-                                        label="Số lượng hỏng ban đầu"
-                                        onChange={(initialDamagedQuantity) =>
-                                            updateLine(index, {
-                                                initialDamagedQuantity
-                                            })
-                                        }
-                                        value={line.initialDamagedQuantity}
-                                    />
-                                    <Info
-                                        label="Thiếu/thừa"
-                                        value={
-                                            diff > 0
-                                                ? `Thừa ${formatVietnamNumber(diff)}`
-                                                : diff < 0
-                                                  ? `Thiếu ${formatVietnamNumber(Math.abs(diff))}`
-                                                  : "Khớp"
-                                        }
-                                    />
-                                    <Info
-                                        label="Unit conversion preview"
-                                        value={`1 ${material?.unit ?? "UOM"} = 1 ${material?.unit ?? "UOM"} nhập kho`}
-                                    />
-                                    <button
-                                        className="h-10 self-end rounded-lg border border-red-200 px-3 text-sm font-black text-red-700 disabled:opacity-40"
-                                        disabled={lines.length === 1}
-                                        onClick={() => {
-                                            setLines((current) =>
-                                                current.filter(
-                                                    (_, lineIndex) =>
-                                                        lineIndex !== index
-                                                )
-                                            );
-                                            markDirty();
-                                        }}
-                                        type="button"
-                                    >
-                                        Xóa dòng
-                                    </button>
-                                </div>
-                            );
-                        })}
-                        <button
-                            className="h-10 justify-self-start rounded-lg border border-[#d8eadc] px-4 text-sm font-black text-[#159734]"
-                            onClick={() => {
-                                setLines((current) => [
-                                    ...current,
-                                    emptyLine(options.materials[0]?.id)
-                                ]);
-                                markDirty();
-                            }}
-                            type="button"
-                        >
-                            Thêm dòng
-                        </button>
+                    <div className="grid gap-1.5 text-xs font-black text-[#536078]">
+                        <span>Kho nhận hàng <span className="text-red-500">*</span></span>
+                        <SearchableDropdown
+                            value={form.receivingLocationId}
+                            onChange={(val) =>
+                                setForm((cur) => ({
+                                    ...cur,
+                                    receivingLocationId: val
+                                }))
+                            }
+                            options={locationLookupOptions}
+                            onSearch={setLocationSearch}
+                            onLoadMore={() => {}}
+                            hasMore={false}
+                            loading={loadingOptions}
+                            placeholder="Chọn kho nhận hàng..."
+                            emptyText="Không tìm thấy kho hàng"
+                            disabled={loadingOptions}
+                        />
                     </div>
-                ) : null}
 
-                {step === 2 ? (
-                    <div className="grid gap-3">
-                        {lines.map((line, index) => (
-                            <div
-                                className="grid gap-3 rounded-lg border border-[#e8eef0] p-3 md:grid-cols-3"
-                                key={index}
-                            >
-                                <TextField
-                                    label="Supplier lot number"
-                                    onChange={(supplierLot) =>
-                                        updateLine(index, { supplierLot })
-                                    }
-                                    value={line.supplierLot}
-                                />
-                                <Info
-                                    label="Internal batch code"
-                                    value={`HVT-${materialOf(line)?.skuCode ?? "SKU"}-PREVIEW`}
-                                />
-                                <TextField
-                                    label="Manufacturing date"
-                                    onChange={(manufacturedAt) =>
-                                        updateLine(index, { manufacturedAt })
-                                    }
-                                    type="date"
-                                    value={line.manufacturedAt}
-                                />
-                                <TextField
-                                    label="Expiry date"
-                                    onChange={(expiryDate) =>
-                                        updateLine(index, { expiryDate })
-                                    }
-                                    type="date"
-                                    value={line.expiryDate}
-                                />
-                                <Info
-                                    label="Received date"
-                                    value={formatVietnamDateTime(
-                                        new Date(general.receivedAt).toISOString()
-                                    )}
-                                />
-                                <TextField
-                                    label="Country/origin"
-                                    onChange={(countryOfOrigin) =>
-                                        updateLine(index, { countryOfOrigin })
-                                    }
-                                    value={line.countryOfOrigin}
-                                />
-                                <TextField
-                                    label="Quality certificate"
-                                    onChange={(qualityCertificate) =>
-                                        updateLine(index, {
-                                            qualityCertificate
-                                        })
-                                    }
-                                    value={line.qualityCertificate}
-                                />
-                                <TextField
-                                    label="Storage condition"
-                                    onChange={(storageCondition) =>
-                                        updateLine(index, {
-                                            storageCondition
-                                        })
-                                    }
-                                    value={line.storageCondition}
-                                />
-                                {expiryWarning(line) ? (
-                                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800 md:col-span-3">
-                                        {expiryWarning(line)}
-                                    </div>
-                                ) : null}
-                            </div>
-                        ))}
-                    </div>
-                ) : null}
+                    <label className="grid gap-1.5 text-xs font-black text-[#536078]">
+                        Ngày dự kiến giao
+                        <input
+                            className="h-10 rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#172317] outline-none focus:border-[#159734]"
+                            onChange={(e) =>
+                                setForm((cur) => ({
+                                    ...cur,
+                                    expectedDate: e.target.value
+                                }))
+                            }
+                            type="date"
+                            value={form.expectedDate}
+                        />
+                    </label>
 
-                {step === 3 ? (
-                    <div className="grid gap-3">
-                        <div className="grid gap-3 md:grid-cols-2">
-                            {[
-                                "Ảnh hàng",
-                                "Ảnh nhãn lô",
-                                "Phiếu giao hàng",
-                                "Hóa đơn",
-                                "Certificate"
-                            ].map((label) => (
-                                <label
-                                    className="grid min-h-24 place-items-center rounded-lg border border-dashed border-[#cfdad2] bg-[#f7f8fb] px-3 text-sm font-bold text-[#697684]"
-                                    key={label}
-                                >
-                                    {label}
-                                    <input
-                                        className="sr-only"
-                                        onChange={(event) => {
-                                            const file =
-                                                event.currentTarget.files?.[0];
-                                            if (!file) return;
-                                            setEvidence((current) => [
-                                                ...current,
-                                                {
-                                                    fileName: file.name,
-                                                    id: `ev-${Date.now()}`,
-                                                    type: "GOODS_PHOTO",
-                                                    uploadedAt:
-                                                        new Date().toISOString(),
-                                                    uploadedBy:
-                                                        "Người dùng mô phỏng"
-                                                }
-                                            ]);
-                                            markDirty();
-                                        }}
-                                        type="file"
-                                    />
-                                </label>
-                            ))}
-                        </div>
-                        <TextField
-                            label="Ghi chú chênh lệch"
-                            onChange={(value) => {
-                                setVarianceNote(value);
-                                markDirty();
-                            }}
-                            value={varianceNote}
+                    <label className="grid gap-1.5 text-xs font-black text-[#536078]">
+                        Mã đơn đặt hàng (PO)
+                        <input
+                            className="h-10 rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#172317] outline-none focus:border-[#159734]"
+                            placeholder="Ví dụ: PO-2026-001 (Nếu có)"
+                            onChange={(e) =>
+                                setForm((cur) => ({
+                                    ...cur,
+                                    purchaseOrderCode: e.target.value
+                                }))
+                            }
+                            value={form.purchaseOrderCode}
                         />
-                        {evidence.length > 0 ? (
-                            <ul className="grid gap-2 text-sm font-semibold text-[#536078]">
-                                {evidence.map((item) => (
-                                    <li key={item.id}>{item.fileName}</li>
-                                ))}
-                            </ul>
-                        ) : null}
-                    </div>
-                ) : null}
+                    </label>
 
-                {step === 4 ? (
-                    <div className="grid gap-3">
-                        <Info
-                            label="Supplier"
-                            value={selectedSupplier?.name ?? "-"}
+                    <label className="grid gap-1.5 text-xs font-black text-[#536078] md:col-span-2 lg:col-span-4">
+                        Ghi chú phiếu
+                        <input
+                            className="h-10 rounded-lg border border-[#dce5e1] px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
+                            placeholder="Ghi chú về lô hàng, phương thức vận chuyển hoặc điều kiện đặc biệt..."
+                            onChange={(e) =>
+                                setForm((cur) => ({
+                                    ...cur,
+                                    note: e.target.value
+                                }))
+                            }
+                            value={form.note}
                         />
-                        <Info label="PO" value={selectedPo} />
-                        <Info
-                            label="Tổng SKU"
-                            value={formatVietnamNumber(lines.length)}
-                        />
-                        <Info
-                            label="Tổng số lượng"
-                            value={formatVietnamNumber(totals.totalQuantity)}
-                        />
-                        <Info
-                            label="Dòng thiếu"
-                            value={formatVietnamNumber(totals.shortage)}
-                        />
-                        <Info
-                            label="Dòng thừa"
-                            value={formatVietnamNumber(totals.surplus)}
-                        />
-                        <Info
-                            label="Dòng hỏng"
-                            value={formatVietnamNumber(totals.damaged)}
-                        />
-                        <Info
-                            label="Batch và expiry"
-                            value={`${lines.length} batch đã khai báo`}
-                        />
-                        <label className="flex items-center gap-2 text-sm font-black text-[#536078]">
-                            <input
-                                checked={confirmed}
-                                onChange={(event) =>
-                                    setConfirmed(event.currentTarget.checked)
-                                }
-                                type="checkbox"
-                            />
-                            Tôi xác nhận thông tin phiếu nhập là đúng.
-                        </label>
-                        <div className="rounded-lg border border-[#d8eadc] bg-[#f4faf5] p-3 text-sm font-bold text-[#315f3c]">
-                            Cost preview:{" "}
-                            {formatVietnamNumber(
-                                calculateFinalUnitCost({
-                                    acceptedQuantity:
-                                        totals.totalQuantity || 1,
-                                    allocatedShippingCost: 0,
-                                    discount: 0,
-                                    otherCost: 0,
-                                    purchaseUnitPrice: 100000,
-                                    tax: 0
-                                })
-                            )}{" "}
-                            VND/UOM. Net amount mẫu:{" "}
-                            {formatVietnamNumber(
-                                calculateLineNetAmount({
-                                    acceptedQuantity: totals.totalQuantity,
-                                    allocatedShippingCost: 0,
-                                    discount: 0,
-                                    otherCost: 0,
-                                    purchaseUnitPrice: 100000,
-                                    tax: 0
-                                })
-                            )}
-                        </div>
-                    </div>
-                ) : null}
+                    </label>
+                </div>
             </div>
 
-            <footer className="flex flex-wrap justify-between gap-3">
-                <button
-                    className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]"
-                    disabled={step === 0}
-                    onClick={() => setStep((current) => Math.max(0, current - 1))}
-                    type="button"
+            {/* DANH SÁCH NGUYÊN LIỆU */}
+            <div className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">
+                <div className="flex items-center justify-between border-b border-[#eef2f0] pb-2">
+                    <div>
+                        <h2 className="text-base font-black text-[#172317]">
+                            2. Danh sách nguyên liệu dự kiến nhập
+                        </h2>
+                        <p className="text-xs font-semibold text-[#697684]">
+                            Chỉ chọn các nguyên liệu do nhà cung cấp đã chọn cung cấp.
+                        </p>
+                    </div>
+                    <button
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#edf8ef] px-3 text-xs font-black text-[#159734] hover:bg-[#e2f4e5] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                        disabled={!form.supplierId || loadingMaterials}
+                        onClick={addLine}
+                        type="button"
+                    >
+                        <Plus size={15} />
+                        Thêm dòng
+                    </button>
+                </div>
+
+                {!form.supplierId ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
+                        ⚠️ Vui lòng chọn <strong>Nhà cung cấp</strong> ở mục 1 trước để tải và chọn danh sách nguyên liệu.
+                    </div>
+                ) : loadingMaterials ? (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs font-bold text-blue-800">
+                        ⏳ Đang tải danh sách nguyên liệu từ nhà cung cấp...
+                    </div>
+                ) : options.materials.length === 0 ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+                        ⚠️ Nhà cung cấp này hiện chưa có nguyên liệu nào được liên kết trong hệ thống.
+                    </div>
+                ) : null}
+
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[750px] text-left text-sm">
+                        <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
+                            <tr>
+                                <th className="px-3 py-2.5 w-12">#</th>
+                                <th className="px-3 py-2.5 min-w-[280px]">Nguyên liệu <span className="text-red-500">*</span></th>
+                                <th className="px-3 py-2.5 w-20">ĐVT</th>
+                                <th className="px-3 py-2.5 text-right w-44">Số lượng đặt <span className="text-red-500">*</span></th>
+                                <th className="px-3 py-2.5">Ghi chú dòng</th>
+                                <th className="px-3 py-2.5 text-center w-16">Xóa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {lines.map((line, index) => {
+                                const material = getMaterial(line.materialId);
+                                const isMaterialDisabled = !form.supplierId || loadingMaterials || options.materials.length === 0;
+                                return (
+                                    <tr key={line.id} className="border-b border-[#edf0f4]">
+                                        <td className="px-3 py-2.5 text-xs font-bold text-[#697684]">
+                                            {index + 1}
+                                        </td>
+                                        <td className="px-3 py-2.5 min-w-[280px]">
+                                            <SearchableDropdown
+                                                value={line.materialId}
+                                                onChange={(val) =>
+                                                    updateLine(line.id, {
+                                                        materialId: val
+                                                    })
+                                                }
+                                                options={materialLookupOptions}
+                                                onSearch={setMaterialSearch}
+                                                onLoadMore={() => {}}
+                                                hasMore={false}
+                                                loading={loadingMaterials}
+                                                placeholder={
+                                                    !form.supplierId
+                                                        ? "Vui lòng chọn NCC trước"
+                                                        : loadingMaterials
+                                                        ? "Đang tải nguyên liệu..."
+                                                        : options.materials.length === 0
+                                                        ? "Không có nguyên liệu"
+                                                        : "Chọn nguyên liệu..."
+                                                }
+                                                emptyText="Không tìm thấy nguyên liệu"
+                                                disabled={isMaterialDisabled}
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2.5 text-sm font-bold text-[#536078]">
+                                            {material?.unit ?? "kg"}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-right">
+                                            <input
+                                                className="h-9 w-full rounded-lg border border-[#dce5e1] px-2.5 text-right text-sm font-bold text-[#172317] outline-none focus:border-[#159734] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                                disabled={isMaterialDisabled || !line.materialId}
+                                                min="0.01"
+                                                step="any"
+                                                type="number"
+                                                onChange={(e) =>
+                                                    updateLine(line.id, {
+                                                        orderedQuantity:
+                                                            Number(e.target.value) || 0
+                                                    })
+                                                }
+                                                value={line.orderedQuantity || ""}
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2.5">
+                                            <input
+                                                className="h-9 w-full rounded-lg border border-[#dce5e1] px-2.5 text-sm font-medium text-[#172317] outline-none focus:border-[#159734] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                                disabled={isMaterialDisabled || !line.materialId}
+                                                placeholder="Quy cách bao gói, yêu cầu..."
+                                                onChange={(e) =>
+                                                    updateLine(line.id, {
+                                                        note: e.target.value
+                                                    })
+                                                }
+                                                value={line.note}
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2.5 text-center">
+                                            <button
+                                                className="inline-flex size-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30"
+                                                disabled={lines.length <= 1}
+                                                onClick={() => removeLine(line.id)}
+                                                title="Xóa dòng"
+                                                type="button"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* TỔNG KẾT DÒNG */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#f8fbf8] p-3 border border-[#e8f2e9]">
+                    <span className="text-xs font-bold text-[#536078]">
+                        Tổng số dòng nguyên liệu: <strong className="text-[#172317]">{totals.totalLines}</strong>
+                    </span>
+                    <span className="text-sm font-bold text-[#315f3c]">
+                        Tổng số lượng đặt hàng: <strong className="text-base font-black text-[#159734]">{formatVietnamNumber(totals.totalOrderedQuantity)}</strong>
+                    </span>
+                </div>
+            </div>
+
+            {/* HÀNH ĐỘNG CUỐI TRANG */}
+            <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
+                <Link
+                    className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] hover:bg-[#f7f8fb] inline-flex items-center"
+                    to="/management/inventory/receipts"
                 >
-                    Quay lại
-                </button>
-                <div className="flex gap-2">
-                    {step === 4 ? (
-                        <>
-                            <button
-                                className="h-10 rounded-lg border border-[#d8eadc] px-4 text-sm font-black text-[#159734] disabled:opacity-60"
-                                disabled={submitting}
-                                onClick={() => void save(false)}
-                                type="button"
-                            >
-                                {submitting ? "Đang lưu..." : "Lưu Draft"}
-                            </button>
-                            <button
-                                className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
-                                disabled={submitting}
-                                onClick={() => void save(true)}
-                                type="button"
-                            >
-                                {submitting ? "Đang submit..." : "Submit"}
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white"
-                            onClick={() =>
-                                setStep((current) =>
-                                    Math.min(steps.length - 1, current + 1)
-                                )
-                            }
-                            type="button"
-                        >
-                            Tiếp tục
-                        </button>
-                    )}
+                    Hủy bỏ
+                </Link>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        className="h-10 rounded-lg border border-[#d8eadc] bg-white px-5 text-sm font-black text-[#159734] hover:bg-[#f4faf5] disabled:opacity-60"
+                        disabled={submitting}
+                        onClick={() => void handleSave(false)}
+                        type="button"
+                    >
+                        {submitting ? "Đang lưu..." : "Lưu bản nháp (DRAFT)"}
+                    </button>
+                    <button
+                        className="h-10 rounded-lg bg-[#159734] px-6 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-60"
+                        disabled={submitting}
+                        onClick={() => void handleSave(true)}
+                        type="button"
+                    >
+                        {submitting ? "Đang xử lý..." : "Lưu & Gửi duyệt (Submit)"}
+                    </button>
                 </div>
             </footer>
         </section>
-    );
-}
-
-function TextField({
-    label,
-    onChange,
-    type = "text",
-    value
-}: {
-    label: string;
-    onChange: (value: string) => void;
-    type?: string;
-    value: string;
-}) {
-    return (
-        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-            {label}
-            <input
-                aria-label={label}
-                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
-                onChange={(event) => onChange(event.currentTarget.value)}
-                type={type}
-                value={value}
-            />
-        </label>
-    );
-}
-
-function NumberField({
-    label,
-    onChange,
-    value
-}: {
-    label: string;
-    onChange: (value: number) => void;
-    value: number;
-}) {
-    return (
-        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-            {label}
-            <input
-                aria-label={label}
-                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
-                min={0}
-                onChange={(event) => onChange(Number(event.currentTarget.value))}
-                type="number"
-                value={value}
-            />
-        </label>
-    );
-}
-
-function SelectField({
-    label,
-    onChange,
-    options,
-    value
-}: {
-    label: string;
-    onChange: (value: string) => void;
-    options: Array<{ label: string; value: string }>;
-    value: string;
-}) {
-    return (
-        <label className="grid gap-1.5 text-xs font-black text-[#536078]">
-            {label}
-            <select
-                aria-label={label}
-                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
-                onChange={(event) => onChange(event.currentTarget.value)}
-                value={value}
-            >
-                {options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                        {option.label}
-                    </option>
-                ))}
-            </select>
-        </label>
-    );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="grid gap-1 rounded-lg bg-[#f7f8fb] px-3 py-2">
-            <span className="text-xs font-black text-[#697684]">{label}</span>
-            <strong className="text-sm font-black text-[#172317]">
-                {value}
-            </strong>
-        </div>
     );
 }
