@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.counting.service;
 
 import org.hvtra.iventoryservice.counting.dto.request.CreateInventoryTakeRequest;
 import org.hvtra.iventoryservice.counting.dto.request.UpdateInventoryCountsRequest;
+import org.hvtra.iventoryservice.counting.dto.request.RequestInventoryRecountRequest;
 import org.hvtra.iventoryservice.counting.dto.response.InventoryTakeResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountScopeType;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountStatus;
@@ -15,7 +16,16 @@ public interface InventoryTakeService {
                                                  InventoryCountScopeType scopeType, Pageable pageable);
     InventoryTakeResponse findById(UUID id);
     InventoryTakeResponse create(CreateInventoryTakeRequest request);
+    InventoryTakeResponse freeze(UUID id);
     InventoryTakeResponse start(UUID id);
     InventoryTakeResponse updateCounts(UUID id, UpdateInventoryCountsRequest request);
     InventoryTakeResponse finish(UUID id);
+    InventoryTakeResponse submitApproval(UUID id);
+    InventoryTakeResponse approve(UUID id);
+    InventoryTakeResponse returnForRecount(UUID id, String reason);
+    InventoryTakeResponse reopen(UUID id);
+    InventoryTakeResponse reject(UUID id, String reason);
+    InventoryTakeResponse cancel(UUID id, String reason);
+    InventoryTakeResponse close(UUID id);
+    InventoryTakeResponse requestRecount(UUID id, RequestInventoryRecountRequest request);
 }

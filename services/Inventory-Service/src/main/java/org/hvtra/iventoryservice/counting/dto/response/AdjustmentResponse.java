@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.counting.dto.response;
 
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
+import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,6 +14,8 @@ public record AdjustmentResponse(
         InventoryDocumentType documentType,
         InventoryDocumentStatus status,
         UUID branchId,
+        InventoryReferenceType referenceType,
+        String referenceId,
         String reasonCode,
         String note,
         UUID approvedBy,

@@ -26,8 +26,9 @@ public class InventoryAdjustmentController {
     public PageResponse<AdjustmentResponse> findAll(
             @RequestParam(required = false) UUID branchId,
             @RequestParam(required = false) InventoryDocumentStatus status,
+            @RequestParam(required = false) String keyword,
             Pageable pageable) {
-        return service.findAll(branchId, status, pageable);
+        return service.findAll(branchId, status, keyword, pageable);
     }
 
     @GetMapping("/{id}")

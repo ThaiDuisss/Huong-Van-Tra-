@@ -14,6 +14,10 @@ public record UpdateInventoryCountsRequest(
     public record CountLineUpdate(
             @NotNull UUID lineId,
             @NotNull @PositiveOrZero BigDecimal countedQuantity,
+            @PositiveOrZero BigDecimal goodQuantity,
+            @PositiveOrZero BigDecimal damagedQuantity,
+            @PositiveOrZero BigDecimal expiredQuantity,
+            @PositiveOrZero BigDecimal quarantinedQuantity,
             String reasonCode,
             String note
     ) {}

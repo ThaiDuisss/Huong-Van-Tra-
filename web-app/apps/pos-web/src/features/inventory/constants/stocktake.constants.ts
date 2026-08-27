@@ -1,37 +1,47 @@
 import type {
-    AdjustmentStatus,
-    StocktakeRole,
-    StocktakeScopeType,
-    StocktakeStatus
+  AdjustmentStatus,
+  StocktakeScopeType,
+  StocktakeStatus,
 } from "../types/stocktake.types";
 
 export const stocktakeStatusLabels: Record<StocktakeStatus, string> = {
-    COMPLETED: "Hoàn tất",
-    COUNTING: "Đang kiểm kê",
-    DRAFT: "Nháp"
+  APPROVED: "Đã duyệt",
+  CANCELLED: "Đã hủy",
+  COMPLETED: "Hoàn tất",
+  COUNTING: "Đang kiểm kê",
+  DRAFT: "Chưa bắt đầu",
+  FROZEN: "Đã xác nhận phạm vi",
+  PENDING_APPROVAL: "Đang chờ quản lý duyệt",
+  POSTED: "Đã cập nhật tồn kho",
+  RECONCILING: "Đang kiểm tra chênh lệch",
+  REJECTED: "Đã từ chối",
+  RETURNED: "Cần kiểm kê lại",
 };
 
 export const stocktakeScopeLabels: Record<StocktakeScopeType, string> = {
-    FULL: "Toàn bộ kho",
-    LOCATION: "Theo vị trí",
-    PARTIAL: "Theo danh sách"
-};
-
-export const stocktakeRoleLabels: Record<StocktakeRole, string> = {
-    ACCOUNTANT: "Kế toán",
-    ADMIN: "Quản trị viên",
-    BRANCH_MANAGER: "Quản lý chi nhánh",
-    DIRECTOR: "Giám đốc",
-    SALES_STAFF: "Nhân viên bán hàng",
-    WAREHOUSE: "Nhân viên kho"
+  FULL: "Toàn bộ kho",
+  LOCATION: "Theo vị trí",
+  PARTIAL: "Theo mặt hàng",
 };
 
 export const adjustmentStatusLabels: Record<AdjustmentStatus, string> = {
-    APPROVED: "Đã duyệt",
-    DRAFT: "Nháp",
-    POSTED: "Đã hạch toán",
-    REJECTED: "Đã từ chối"
+  APPROVED: "Đã duyệt",
+  DRAFT: "Chờ duyệt",
+  POSTED: "Đã cập nhật tồn kho",
+  REJECTED: "Đã từ chối",
 };
 
-export const stocktakeStatusOptions: StocktakeStatus[] = ["DRAFT", "COUNTING", "COMPLETED"];
+export const stocktakeStatusOptions: StocktakeStatus[] = [
+  "DRAFT",
+  "FROZEN",
+  "COUNTING",
+  "RECONCILING",
+  "PENDING_APPROVAL",
+  "RETURNED",
+  "REJECTED",
+  "APPROVED",
+  "POSTED",
+  "COMPLETED",
+  "CANCELLED",
+];
 export const stocktakeScopeOptions: StocktakeScopeType[] = ["FULL", "LOCATION", "PARTIAL"];

@@ -16,6 +16,8 @@ public class AdjustmentMapper {
                 document.getDocumentType(),
                 document.getStatus(),
                 document.getBranchId(),
+                document.getReferenceType(),
+                document.getReferenceId(),
                 document.getReasonCode(),
                 document.getNote(),
                 document.getApprovedBy(),

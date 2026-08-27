@@ -9,7 +9,8 @@ import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 public interface InventoryAdjustmentService {
-    PageResponse<AdjustmentResponse> findAll(UUID branchId, InventoryDocumentStatus status, Pageable pageable);
+    PageResponse<AdjustmentResponse> findAll(
+            UUID branchId, InventoryDocumentStatus status, String keyword, Pageable pageable);
     AdjustmentResponse findById(UUID id);
     AdjustmentResponse create(CreateAdjustmentRequest request);
     AdjustmentResponse approve(UUID id);
