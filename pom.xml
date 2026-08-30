@@ -45,7 +45,7 @@
         <module>services/Organization-Service</module>
         <module>services/Employee-Service</module>
         <module>services/File-Service</module>
-        <module>services/Delivery-Service</module>
+        <module>services/Delivery-service</module>
         <module>services/Pos-Bff</module>
 
     </modules>

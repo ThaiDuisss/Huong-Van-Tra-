@@ -39,8 +39,11 @@ import { PosCustomerReturnDetailPage } from "../features/inventory/pages/PosCust
 import { StockDocumentDetailPage } from "../features/inventory/pages/StockDocumentDetailPage";
 import { StockDocumentListPage } from "../features/inventory/pages/StockDocumentListPage";
 import { StocktakeCreatePage } from "../features/inventory/pages/StocktakeCreatePage";
+import { StocktakeAdjustmentPage } from "../features/inventory/pages/StocktakeAdjustmentPage";
+import { StocktakeAdjustmentListPage } from "../features/inventory/pages/StocktakeAdjustmentListPage";
 import { StocktakeDetailPage } from "../features/inventory/pages/StocktakeDetailPage";
 import { StocktakeListPage } from "../features/inventory/pages/StocktakeListPage";
+import { StocktakeReconciliationPage } from "../features/inventory/pages/StocktakeReconciliationPage";
 import { StockAlertDetailPage } from "../features/inventory/pages/StockAlertDetailPage";
 import { StockAlertListPage } from "../features/inventory/pages/StockAlertListPage";
 import { SupplierReturnCreatePage } from "../features/inventory/pages/SupplierReturnCreatePage";
@@ -67,496 +70,272 @@ import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagement
 import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
 import {
-    BACKOFFICE_ROLES,
-    INVENTORY_OPERATION_ROLES,
-    INVENTORY_ROLES,
-    MANUFACTURING_ROLES,
-    MARKETING_ROLES,
-    ORDER_ROLES,
-    POS_WORKSPACE_ROLES,
-    PRODUCT_ROLES,
-    getDefaultRouteForRoles,
-    type AppRole
+  BACKOFFICE_ROLES,
+  INVENTORY_OPERATION_ROLES,
+  INVENTORY_ROLES,
+  MANUFACTURING_ROLES,
+  MARKETING_ROLES,
+  ORDER_ROLES,
+  POS_WORKSPACE_ROLES,
+  PRODUCT_ROLES,
+  getDefaultRouteForRoles,
+  type AppRole,
 } from "../auth/role-utils";
 
 function RoleGate({ roles }: { roles: AppRole[] }) {
-    return (
-        <ProtectedRoute roles={roles}>
-            <Outlet />
-        </ProtectedRoute>
-    );
+  return (
+    <ProtectedRoute roles={roles}>
+      <Outlet />
+    </ProtectedRoute>
+  );
 }
 
 function RoleBasedRedirect() {
-    const { roles, user } = useAuth();
+  const { roles, user } = useAuth();
 
-    if (!user && !roles) {
-        return (
-            <main className="grid min-h-dvh place-items-center bg-[#f7f8fb] text-sm font-bold text-[#315f3c]">
-                Đang tải quyền truy cập...
-            </main>
-        );
-    }
-
+  if (!user && !roles) {
     return (
-        <Navigate
-            to={getDefaultRouteForRoles(roles)}
-            replace
-        />
+      <main className="grid min-h-dvh place-items-center bg-[#f7f8fb] text-sm font-bold text-[#315f3c]">
+        Đang tải quyền truy cập...
+      </main>
     );
+  }
+
+  return <Navigate to={getDefaultRouteForRoles(roles)} replace />;
 }
 
 export function AppRouter() {
-    return (
-        <Routes>
-            <Route
-                path={routePaths.home}
-                element={
-                    <ProtectedRoute>
-                        <RoleBasedRedirect />
-                    </ProtectedRoute>
-                }
-            />
+  return (
+    <Routes>
+      <Route
+        path={routePaths.home}
+        element={
+          <ProtectedRoute>
+            <RoleBasedRedirect />
+          </ProtectedRoute>
+        }
+      />
 
-            <Route
-                path={routePaths.posSales}
-                element={
-                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-                        <PosSalePage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path={routePaths.posCustomBundleCreate}
-                element={
-                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-                        <PosCustomBundleCreatePage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path={routePaths.posCustomBundleDetail}
-                element={
-                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-                        <PosCustomBundleDetailPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path={routePaths.posCustomerReturnCreate}
-                element={
-                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-                        <PosCustomerReturnCreatePage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path={routePaths.posCustomerReturnDetail}
-                element={
-                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-                        <PosCustomerReturnDetailPage />
-                    </ProtectedRoute>
-                }
-            />
+      <Route
+        path={routePaths.posSales}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosSalePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={routePaths.posCustomBundleCreate}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosCustomBundleCreatePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={routePaths.posCustomBundleDetail}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosCustomBundleDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={routePaths.posCustomerReturnCreate}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosCustomerReturnCreatePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={routePaths.posCustomerReturnDetail}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosCustomerReturnDetailPage />
+          </ProtectedRoute>
+        }
+      />
 
-            <Route
-                path={routePaths.salesHistory}
-                element={
-                    <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-                        <PosShell>
-                            <SalesHistoryPage />
-                        </PosShell>
-                    </ProtectedRoute>
-                }
-            />
+      <Route
+        path={routePaths.salesHistory}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosShell>
+              <SalesHistoryPage />
+            </PosShell>
+          </ProtectedRoute>
+        }
+      />
 
-            <Route
-                path={routePaths.system}
-                element={
-                    <ProtectedRoute roles={BACKOFFICE_ROLES}>
-                        <SystemShell />
-                    </ProtectedRoute>
-                }
-            >
-                <Route
-                    index
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryBalances}
-                            replace
-                        />
-                    }
-                />
-                <Route element={<RoleGate roles={ORDER_ROLES} />}>
-                <Route
-                    path="orders"
-                    element={<OrderListPage />}
-                />
-                <Route
-                    path="orders/invoices"
-                    element={<InvoiceListPage />}
-                />
-                <Route
-                    path="orders/invoices/:invoiceId"
-                    element={<InvoiceDetailPage />}
-                />
-                <Route
-                    path="orders/returns"
-                    element={<OrderListPage />}
-                />
-                <Route
-                    path="orders/refunds"
-                    element={<OrderListPage />}
-                />
-                </Route>
-                <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
-                <Route
-                    path="categories"
-                    element={<CategoryListPage />}
-                />
-                <Route
-                    path="units"
-                    element={<UnitListPage />}
-                />
-                <Route
-                    path="products"
-                    element={<ProductListPage />}
-                />
+      <Route
+        path={routePaths.system}
+        element={
+          <ProtectedRoute roles={BACKOFFICE_ROLES}>
+            <SystemShell />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to={routePaths.inventoryBalances} replace />} />
+        <Route element={<RoleGate roles={ORDER_ROLES} />}>
+          <Route path="orders" element={<OrderListPage />} />
+          <Route path="orders/invoices" element={<InvoiceListPage />} />
+          <Route path="orders/invoices/:invoiceId" element={<InvoiceDetailPage />} />
+          <Route path="orders/returns" element={<OrderListPage />} />
+          <Route path="orders/refunds" element={<OrderListPage />} />
+        </Route>
+        <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
+          <Route path="categories" element={<CategoryListPage />} />
+          <Route path="units" element={<UnitListPage />} />
+          <Route path="products" element={<ProductListPage />} />
 
-                <Route
-                    path="products/:productId/variants"
-                    element={<ProductVariantListPage />}
-                />
-                <Route
-                    path="product-variants"
-                    element={<ProductVariantListPage />}
-                />
-                <Route
-                    path="product-variants/:id"
-                    element={<ProductVariantDetailPage />}
-                />
+          <Route path="products/:productId/variants" element={<ProductVariantListPage />} />
+          <Route path="product-variants" element={<ProductVariantListPage />} />
+          <Route path="product-variants/:id" element={<ProductVariantDetailPage />} />
 
-                <Route
-                    path="price-lists"
-                    element={<PriceListPage />}
-                />
-                </Route>
+          <Route path="price-lists" element={<PriceListPage />} />
+        </Route>
 
-                <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
-                <Route
-                    path="inventory/locations"
-                    element={<InventoryLocationPage />}
-                />
-                <Route
-                    path="inventory/transactions"
-                    element={<InventoryTransactionPage />}
-                />
-                <Route
-                    path="inventory/shelves"
-                    element={<ShelfManagementPage />}
-                />
-                <Route
-                    path="inventory/balances"
-                    element={<InventoryBalancePage />}
-                />
-                <Route
-                    path="inventory/documents"
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryDocuments}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/raw-material-receipts"
-                    element={
-                        <Navigate
-                            to={routePaths.goodsReceipts}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/production-orders"
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryProductionOrderList}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/tea-bundles"
-                    element={
-                        <Navigate
-                            to={routePaths.customBundles}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/branch-transfers"
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryTransfers}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/stock-counts"
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryStocktakes}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/customer-returns"
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryCustomerReturnList}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/supplier-returns"
-                    element={
-                        <Navigate
-                            to={routePaths.inventorySupplierReturnList}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/waste-handling"
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryQuality}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/replenishment-alerts"
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryAlerts}
-                            replace
-                        />
-                    }
-                />
-                <Route
-                    path="inventory/:workspaceId"
-                    element={<InventoryManagementPage />}
-                />
-                </Route>
-                <Route element={<RoleGate roles={["ADMIN", "BRANCH_MANAGER"]} />}>
-                <Route
-                    path="customers"
-                    element={<CustomerListPage />}
-                />
-                <Route
-                    path="customers/groups"
-                    element={<CustomerListPage />}
-                />
-                <Route
-                    path="customers/tiers"
-                    element={<CustomerTierManagementPage />}
-                />
-                </Route>
-                <Route element={<RoleGate roles={MARKETING_ROLES} />}>
-                <Route
-                    path="marketing/events"
-                    element={<DiscountProgramListPage />}
-                />
-                <Route
-                    path="marketing/discount-programs"
-                    element={<PromotionPage />}
-                />
-                <Route
-                    path="marketing/discount-programs/:programId"
-                    element={<PromotionDetailPage />}
-                />
-                <Route
-                    path="marketing/discount-codes"
-                    element={<CouponListPage />}
-                />
-                <Route
-                    path="marketing/discount-history"
-                    element={<CouponUsageListPage />}
-                />
-                </Route>
-                <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
-                <Route
-                    path="manufacturing/boms"
-                    element={<BomListPage />}
-                />
-                <Route
-                    path="manufacturing/boms/:id"
-                    element={<BomDetailPage />}
-                />
-                <Route
-                    path="manufacturing/production-orders"
-                    element={<ProductionOrderListPage />}
-                />
-                <Route
-                    path="manufacturing/ingredients"
-                    element={<RawMaterialListPage />}
-                />
-                <Route
-                    path="manufacturing/suppliers"
-                    element={<SupplierListPage />}
-                />
-                </Route>
-            </Route>
+        <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
+          <Route path="inventory/locations" element={<InventoryLocationPage />} />
+          <Route path="inventory/transactions" element={<InventoryTransactionPage />} />
+          <Route path="inventory/shelves" element={<ShelfManagementPage />} />
+          <Route path="inventory/balances" element={<InventoryBalancePage />} />
+          <Route
+            path="inventory/documents"
+            element={<Navigate to={routePaths.inventoryDocuments} replace />}
+          />
+          <Route
+            path="inventory/raw-material-receipts"
+            element={<Navigate to={routePaths.goodsReceipts} replace />}
+          />
+          <Route
+            path="inventory/production-orders"
+            element={<Navigate to={routePaths.inventoryProductionOrderList} replace />}
+          />
+          <Route
+            path="inventory/tea-bundles"
+            element={<Navigate to={routePaths.customBundles} replace />}
+          />
+          <Route
+            path="inventory/branch-transfers"
+            element={<Navigate to={routePaths.inventoryTransfers} replace />}
+          />
+          <Route
+            path="inventory/stock-counts"
+            element={<Navigate to={routePaths.inventoryStocktakes} replace />}
+          />
+          <Route
+            path="inventory/customer-returns"
+            element={<Navigate to={routePaths.inventoryCustomerReturnList} replace />}
+          />
+          <Route
+            path="inventory/supplier-returns"
+            element={<Navigate to={routePaths.inventorySupplierReturnList} replace />}
+          />
+          <Route
+            path="inventory/waste-handling"
+            element={<Navigate to={routePaths.inventoryQuality} replace />}
+          />
+          <Route
+            path="inventory/replenishment-alerts"
+            element={<Navigate to={routePaths.inventoryAlerts} replace />}
+          />
+          <Route path="inventory/:workspaceId" element={<InventoryManagementPage />} />
+        </Route>
+        <Route element={<RoleGate roles={["ADMIN", "BRANCH_MANAGER"]} />}>
+          <Route path="customers" element={<CustomerListPage />} />
+          <Route path="customers/groups" element={<CustomerListPage />} />
+          <Route path="customers/tiers" element={<CustomerTierManagementPage />} />
+        </Route>
+        <Route element={<RoleGate roles={MARKETING_ROLES} />}>
+          <Route path="marketing/events" element={<DiscountProgramListPage />} />
+          <Route path="marketing/discount-programs" element={<PromotionPage />} />
+          <Route path="marketing/discount-programs/:programId" element={<PromotionDetailPage />} />
+          <Route path="marketing/discount-codes" element={<CouponListPage />} />
+          <Route path="marketing/discount-history" element={<CouponUsageListPage />} />
+        </Route>
+        <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
+          <Route path="manufacturing/boms" element={<BomListPage />} />
+          <Route path="manufacturing/boms/:id" element={<BomDetailPage />} />
+          <Route path="manufacturing/production-orders" element={<ProductionOrderListPage />} />
+          <Route path="manufacturing/ingredients" element={<RawMaterialListPage />} />
+          <Route path="manufacturing/suppliers" element={<SupplierListPage />} />
+        </Route>
+      </Route>
 
-            <Route
-                path={routePaths.management}
-                element={
-                    <ProtectedRoute roles={BACKOFFICE_ROLES}>
-                        <SystemShell />
-                    </ProtectedRoute>
-                }
-            >
-                <Route
-                    index
-                    element={
-                        <Navigate
-                            to={routePaths.inventoryDocuments}
-                            replace
-                        />
-                    }
-                />
-                <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
-                <Route
-                    path="inventory/documents"
-                    element={<StockDocumentListPage />}
-                />
-                <Route
-                    path="inventory/documents/:documentId"
-                    element={<StockDocumentDetailPage />}
-                />
-                </Route>
-                <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
-                <Route
-                    path="inventory/receipts"
-                    element={<GoodsReceiptListPage />}
-                />
-                <Route
-                    path="inventory/receipts/new"
-                    element={<GoodsReceiptCreatePage />}
-                />
-                <Route
-                    path="inventory/receipts/:receiptId"
-                    element={<GoodsReceiptDetailPage />}
-                />
-                </Route>
-                <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
-                <Route
-                    path="inventory/production-orders"
-                    element={<InventoryProductionOrderListPage />}
-                />
-                <Route
-                    path="inventory/production-orders/new"
-                    element={<ProductionOrderCreatePage />}
-                />
-                <Route
-                    path="inventory/production-orders/:productionOrderId"
-                    element={<ProductionOrderDetailPage />}
-                />
-                <Route
-                    path="inventory/custom-bundles"
-                    element={<CustomBundleManagementListPage />}
-                />
-                <Route
-                    path="inventory/custom-bundles/:bundleId"
-                    element={<CustomBundleManagementDetailPage />}
-                />
-                </Route>
-                <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
-                <Route
-                    path="inventory/transfers"
-                    element={<TransferListPage />}
-                />
-                <Route
-                    path="inventory/transfers/new"
-                    element={<TransferCreatePage />}
-                />
-                <Route
-                    path="inventory/transfers/:transferId"
-                    element={<TransferDetailPage />}
-                />
-                <Route
-                    path="inventory/stocktakes"
-                    element={<StocktakeListPage />}
-                />
-                <Route
-                    path="inventory/stocktakes/new"
-                    element={<StocktakeCreatePage />}
-                />
-                <Route
-                    path="inventory/stocktakes/:stocktakeId"
-                    element={<StocktakeDetailPage />}
-                />
-                <Route
-                    path="inventory/customer-returns"
-                    element={<CustomerReturnListPage />}
-                />
-                <Route
-                    path="inventory/customer-returns/:returnId"
-                    element={<CustomerReturnDetailPage />}
-                />
-                <Route
-                    path="inventory/supplier-returns"
-                    element={<SupplierReturnListPage />}
-                />
-                <Route
-                    path="inventory/supplier-returns/new"
-                    element={<SupplierReturnCreatePage />}
-                />
-                <Route
-                    path="inventory/supplier-returns/:supplierReturnId"
-                    element={<SupplierReturnDetailPage />}
-                />
-                <Route
-                    path="inventory/quality"
-                    element={<QualityDashboardPage />}
-                />
-                <Route
-                    path="inventory/quality/batches/:batchId"
-                    element={<QualityBatchDetailPage />}
-                />
-                <Route
-                    path="inventory/disposals"
-                    element={<DisposalListPage />}
-                />
-                <Route
-                    path="inventory/disposals/:disposalId"
-                    element={<DisposalDetailPage />}
-                />
-                <Route
-                    path="inventory/alerts"
-                    element={<StockAlertListPage />}
-                />
-                <Route
-                    path="inventory/alerts/:alertId"
-                    element={<StockAlertDetailPage />}
-                />
-                <Route
-                    path="inventory/reorder-policies"
-                    element={<ReorderPolicyPage />}
-                />
-                </Route>
-            </Route>
+      <Route
+        path={routePaths.management}
+        element={
+          <ProtectedRoute roles={BACKOFFICE_ROLES}>
+            <SystemShell />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to={routePaths.inventoryDocuments} replace />} />
+        <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
+          <Route path="inventory/documents" element={<StockDocumentListPage />} />
+          <Route path="inventory/documents/:documentId" element={<StockDocumentDetailPage />} />
+        </Route>
+        <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
+          <Route path="inventory/receipts" element={<GoodsReceiptListPage />} />
+          <Route path="inventory/receipts/new" element={<GoodsReceiptCreatePage />} />
+          <Route path="inventory/receipts/:receiptId" element={<GoodsReceiptDetailPage />} />
+        </Route>
+        <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
+          <Route
+            path="inventory/production-orders"
+            element={<InventoryProductionOrderListPage />}
+          />
+          <Route path="inventory/production-orders/new" element={<ProductionOrderCreatePage />} />
+          <Route
+            path="inventory/production-orders/:productionOrderId"
+            element={<ProductionOrderDetailPage />}
+          />
+          <Route path="inventory/custom-bundles" element={<CustomBundleManagementListPage />} />
+          <Route
+            path="inventory/custom-bundles/:bundleId"
+            element={<CustomBundleManagementDetailPage />}
+          />
+        </Route>
+        <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
+          <Route path="inventory/transfers" element={<TransferListPage />} />
+          <Route path="inventory/transfers/new" element={<TransferCreatePage />} />
+          <Route path="inventory/transfers/:transferId" element={<TransferDetailPage />} />
+          <Route path="inventory/stocktakes" element={<StocktakeListPage />} />
+          <Route path="inventory/stocktakes/new" element={<StocktakeCreatePage />} />
+          <Route path="inventory/stocktakes/:stocktakeId" element={<StocktakeDetailPage />} />
+          <Route
+            path="inventory/stocktakes/:stocktakeId/reconciliation"
+            element={<StocktakeReconciliationPage />}
+          />
+          <Route
+            path="inventory/stocktakes/:stocktakeId/adjustment"
+            element={<StocktakeAdjustmentPage />}
+          />
+          <Route path="inventory/stocktake-adjustments" element={<StocktakeAdjustmentListPage />} />
+          <Route path="inventory/customer-returns" element={<CustomerReturnListPage />} />
+          <Route
+            path="inventory/customer-returns/:returnId"
+            element={<CustomerReturnDetailPage />}
+          />
+          <Route path="inventory/supplier-returns" element={<SupplierReturnListPage />} />
+          <Route path="inventory/supplier-returns/new" element={<SupplierReturnCreatePage />} />
+          <Route
+            path="inventory/supplier-returns/:supplierReturnId"
+            element={<SupplierReturnDetailPage />}
+          />
+          <Route path="inventory/quality" element={<QualityDashboardPage />} />
+          <Route path="inventory/quality/batches/:batchId" element={<QualityBatchDetailPage />} />
+          <Route path="inventory/disposals" element={<DisposalListPage />} />
+          <Route path="inventory/disposals/:disposalId" element={<DisposalDetailPage />} />
+          <Route path="inventory/alerts" element={<StockAlertListPage />} />
+          <Route path="inventory/alerts/:alertId" element={<StockAlertDetailPage />} />
+          <Route path="inventory/reorder-policies" element={<ReorderPolicyPage />} />
+        </Route>
+      </Route>
 
-            <Route
-                path="*"
-                element={<NotFoundPage />}
-            />
-        </Routes >
-    );
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
 }
