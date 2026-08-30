@@ -5,14 +5,12 @@ import { Link } from "react-router-dom";
 import {
     transferDiscrepancyResolutionLabels,
     transferDiscrepancyTypeLabels,
-    transferRoleLabels,
     transferStatusLabels,
     transferStatusOptions
 } from "../constants/transfer.constants";
 import type {
     TransferDiscrepancy,
     TransferListQuery,
-    TransferRole,
     TransferStatus,
     TransferSummary
 } from "../types/transfer.types";
@@ -49,31 +47,6 @@ export function TransferStatusBadge({ status }: { status: TransferStatus }) {
             {statusIcon(status)}
             {transferStatusLabels[status]}
         </span>
-    );
-}
-
-export function TransferRoleSwitch({
-    onChange,
-    value
-}: {
-    onChange: (role: TransferRole) => void;
-    value: TransferRole;
-}) {
-    return (
-        <label className="grid gap-1 text-xs font-black text-[#536078]">
-            Vai trò mô phỏng
-            <select
-                className="h-10 rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black text-[#172317]"
-                onChange={(event) => onChange(event.currentTarget.value as TransferRole)}
-                value={value}
-            >
-                {Object.entries(transferRoleLabels).map(([role, label]) => (
-                    <option key={role} value={role}>
-                        {label}
-                    </option>
-                ))}
-            </select>
-        </label>
     );
 }
 

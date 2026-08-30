@@ -2,6 +2,8 @@ import { FileText, PackageCheck, Truck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
+import { useAuth } from "../../../auth/auth-context";
+import { hasAnyRole } from "../../../auth/role-utils";
 import {
     Dialog,
     DialogContent,
@@ -12,7 +14,6 @@ import {
 } from "../../../components/ui/dialog";
 import {
     TransferDiscrepancyPanel,
-    TransferRoleSwitch,
     TransferStatusBadge
 } from "../components/TransferComponents";
 import {
@@ -44,16 +45,9 @@ const tabs: Array<{ id: DetailTab; label: string }> = [
     { id: "audit", label: "Audit" }
 ];
 
-function readRole(): TransferRole {
-    const stored = window.localStorage.getItem("hvt.transfer.role");
-    return stored && ["BRANCH_MANAGER", "WAREHOUSE", "ADMIN", "DIRECTOR", "ACCOUNTANT", "SALES_STAFF"].includes(stored)
-        ? stored as TransferRole
-        : "WAREHOUSE";
-}
-
 export function TransferDetailPage() {
     const { transferId } = useParams();
-    const [role, setRole] = useState<TransferRole>(readRole);
+    const { roles } = useAuth();
     const [transfer, setTransfer] = useState<TransferDetail | null>(null);
     const [activeTab, setActiveTab] = useState<DetailTab>("overview");
     const [loading, setLoading] = useState(true);
@@ -71,6 +65,14 @@ export function TransferDetailPage() {
     });
     const [receiveEvidence, setReceiveEvidence] = useState("");
 
+    const effectiveRole: TransferRole = roles?.includes("ADMIN")
+        ? "ADMIN"
+        : roles?.includes("BRANCH_MANAGER")
+        ? "BRANCH_MANAGER"
+        : roles?.includes("ACCOUNTANT")
+        ? "ACCOUNTANT"
+        : "WAREHOUSE";
+
     const load = useCallback(() => {
         if (!transferId) return;
         let active = true;
@@ -84,10 +86,6 @@ export function TransferDetailPage() {
             .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
     }, [transferId]);
-
-    useEffect(() => {
-        window.localStorage.setItem("hvt.transfer.role", role);
-    }, [role]);
 
     useEffect(() => {
         let cleanup: void | (() => void);
@@ -119,7 +117,7 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.approveTransfer({
-                actorRole: role,
+                actorRole: effectiveRole,
                 lines: transfer.lines.map((line) => ({ approvedQuantity: line.requestedQuantity, lineId: line.id })),
                 note: approveNote,
                 transferId: transfer.id
@@ -132,7 +130,7 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.approveTransfer({
-                actorRole: role,
+                actorRole: effectiveRole,
                 lines: transfer.lines.map((line) => ({ approvedQuantity: Math.max(1, line.requestedQuantity - 1), lineId: line.id })),
                 note: approveNote,
                 transferId: transfer.id
@@ -145,7 +143,7 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.confirmTransferPicking({
-                actorRole: role,
+                actorRole: effectiveRole,
                 lines: transfer.lines.map((line) => ({
                     allocations: line.allocations.map((allocation) => ({
                         allocationId: allocation.id,
@@ -165,7 +163,7 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.shipTransfer({
-                actorRole: role,
+                actorRole: effectiveRole,
                 carrierName: shipForm.carrierName,
                 expectedArrivalAt: new Date(shipForm.expectedArrivalAt).toISOString(),
                 internalTrackingCode: shipForm.internalTrackingCode,
@@ -182,7 +180,7 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.receiveTransfer({
-                actorRole: role,
+                actorRole: effectiveRole,
                 lines: transfer.lines.map((line) => ({
                     batchCode: line.allocations[0]?.batchCode ?? "",
                     damagedQuantity: full ? 0 : 1,
@@ -201,8 +199,8 @@ export function TransferDetailPage() {
         setReceiveOpen(false);
     }
 
-    const canWarehouse = ["ADMIN", "WAREHOUSE"].includes(role);
-    const canBranchReceive = ["ADMIN", "BRANCH_MANAGER"].includes(role);
+    const canWarehouse = hasAnyRole(roles, ["ADMIN", "WAREHOUSE_STAFF", "WAREHOUSE"]);
+    const canBranchReceive = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "SALES_STAFF", "STAFF"]);
 
     return (
         <section className="grid gap-4">
@@ -212,7 +210,6 @@ export function TransferDetailPage() {
                     <h1 className="text-2xl font-black text-[#172317]">{transfer?.code ?? "Chuyển kho"}</h1>
                     {transfer ? <p className="text-sm font-semibold text-[#697684]">{transfer.sourceLocation.name} → {transfer.destinationLocation.name}</p> : null}
                 </div>
-                <TransferRoleSwitch onChange={setRole} value={role} />
             </header>
 
             {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold shadow-pos-card">Đang tải...</div> : null}
@@ -234,8 +231,8 @@ export function TransferDetailPage() {
                                         <button className="h-10 rounded-lg border border-amber-200 px-4 text-sm font-black text-amber-700" disabled={submitting} onClick={approveReduced} type="button">Approve giảm SL</button>
                                     </>
                                 ) : null}
-                                {transfer.status === "APPROVED" && canWarehouse ? <ActionButton disabled={submitting} label="Reserve FEFO" onClick={() => void runAction(() => transferApi.reserveTransfer({ actorRole: role, transferId: transfer.id }), "Không thể reserve.")} /> : null}
-                                {transfer.status === "RESERVED" && canWarehouse ? <ActionButton disabled={submitting} label="Bắt đầu picking" onClick={() => void runAction(() => transferApi.startPicking({ actorRole: role, transferId: transfer.id }), "Không thể bắt đầu picking.")} /> : null}
+                                {transfer.status === "APPROVED" && canWarehouse ? <ActionButton disabled={submitting} label="Reserve FEFO" onClick={() => void runAction(() => transferApi.reserveTransfer({ actorRole: effectiveRole, transferId: transfer.id }), "Không thể reserve.")} /> : null}
+                                {transfer.status === "RESERVED" && canWarehouse ? <ActionButton disabled={submitting} label="Bắt đầu picking" onClick={() => void runAction(() => transferApi.startPicking({ actorRole: effectiveRole, transferId: transfer.id }), "Không thể bắt đầu picking.")} /> : null}
                                 {transfer.status === "PICKING" && canWarehouse ? <ActionButton disabled={submitting} label="Confirm picking" onClick={confirmPickAll} /> : null}
                                 {transfer.status === "PICKING" && canWarehouse ? <ActionButton disabled={submitting} label="Ship" onClick={() => setShipOpen(true)} /> : null}
                                 {transfer.status === "SHIPPED" && canBranchReceive ? <ActionButton disabled={submitting} label="Nhận hàng" onClick={() => setReceiveOpen(true)} /> : null}

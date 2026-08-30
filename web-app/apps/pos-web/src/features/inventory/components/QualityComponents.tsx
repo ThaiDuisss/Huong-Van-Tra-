@@ -3,21 +3,15 @@ import { Link } from "react-router-dom";
 
 import {
     disposalStatusLabels,
-    disposalMethodLabels,
-    qualityRoleLabels
+    disposalMethodLabels
 } from "../constants/quality.constants";
 import { inventoryStatusMeta } from "../constants/inventory-status-meta.constants";
 import type {
     DisposalRequest,
     DisposalStatus,
-    QualityBatchStatus,
-    QualityRole
+    QualityBatchStatus
 } from "../types/quality.types";
 import { formatVietnamDateTime, formatVietnamNumber, formatVnd } from "../utils/inventory-format";
-
-export function QualityRoleSwitch({ onChange, value }: { onChange: (role: QualityRole) => void; value: QualityRole }) {
-    return <label className="grid gap-1 text-xs font-black text-[#536078]">Vai trò mô phỏng<select className="h-10 rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black" onChange={(event) => onChange(event.currentTarget.value as QualityRole)} value={value}>{Object.entries(qualityRoleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label>;
-}
 
 export function QualityStatusBadge({ status }: { status: QualityBatchStatus }) {
     const meta = inventoryStatusMeta[status];

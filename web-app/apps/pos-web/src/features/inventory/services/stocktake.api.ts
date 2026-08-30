@@ -145,9 +145,9 @@ export const stocktakeApi = {
         return {
           hasBatches: false,
           id: String(item.id),
-          itemCode: view?.sku ?? view?.productCode ?? String(item.referenceId),
+          itemCode: view?.code ?? view?.productCode ?? String(item.referenceId),
           itemName:
-            view?.variantName ?? view?.productName ?? `Mặt hàng ${String(item.id).slice(0, 8)}`,
+            view?.name ?? view?.productName ?? `Mặt hàng ${String(item.id).slice(0, 8)}`,
           trackingBatch: false,
           unit: view?.unitSymbol ?? view?.unitName ?? "",
         };
@@ -364,9 +364,9 @@ function toDetail(response: InventoryTakeApiResponse, enrichment: Enrichment): S
         expiryDate: line.expiryDate,
         id: line.id,
         inventoryBatchId: line.inventoryBatchId,
-        inventoryItemCode: view?.sku ?? view?.productCode ?? line.inventoryItemId.slice(0, 8),
+        inventoryItemCode: view?.code ?? view?.productCode ?? line.inventoryItemId.slice(0, 8),
         inventoryItemId: line.inventoryItemId,
-        inventoryItemName: view?.variantName ?? view?.productName ?? "Mặt hàng tồn kho",
+        inventoryItemName: view?.name ?? view?.productName ?? "Mặt hàng tồn kho",
         locationId: line.locationId,
         locationName: locationMap.get(line.locationId)?.name ?? line.locationId.slice(0, 8),
         note: line.note,

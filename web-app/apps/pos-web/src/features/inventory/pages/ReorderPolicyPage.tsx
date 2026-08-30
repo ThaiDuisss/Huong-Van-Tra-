@@ -2,9 +2,9 @@ import { Calculator, Layers3 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { useAuth } from "../../../auth/auth-context";
 import {
-    ReorderPolicyTable,
-    StockAlertRoleSwitch
+    ReorderPolicyTable
 } from "../components/StockAlertComponents";
 import { alertLocations, alertSkus } from "../mocks/stock-alerts.mock";
 import { inventoryMasterLocations } from "../mocks/inventory-master-data.mock";
@@ -17,11 +17,6 @@ import type {
 } from "../types/stock-alert.types";
 import { formatVietnamNumber } from "../utils/inventory-format";
 
-function readRole(): StockAlertRole {
-    const stored = window.localStorage.getItem("hvt.stockAlert.role");
-    return stored && ["WAREHOUSE", "BRANCH_MANAGER", "ADMIN", "ACCOUNTANT", "DIRECTOR", "SALES_STAFF"].includes(stored) ? stored as StockAlertRole : "ADMIN";
-}
-
 const initialQuery: ReorderPolicyQuery = {
     enabled: "ALL",
     locationId: "ALL",
@@ -29,7 +24,15 @@ const initialQuery: ReorderPolicyQuery = {
 };
 
 export function ReorderPolicyPage() {
-    const [role, setRole] = useState<StockAlertRole>(readRole);
+    const { roles } = useAuth();
+    const effectiveRole: StockAlertRole = roles?.includes("ADMIN")
+        ? "ADMIN"
+        : roles?.includes("BRANCH_MANAGER")
+        ? "BRANCH_MANAGER"
+        : roles?.includes("ACCOUNTANT")
+        ? "ACCOUNTANT"
+        : "WAREHOUSE";
+
     const [query, setQuery] = useState(initialQuery);
     const [policies, setPolicies] = useState<ReorderPolicy[]>([]);
     const [editing, setEditing] = useState<ReorderPolicy | null>(null);
@@ -39,8 +42,6 @@ export function ReorderPolicyPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
-
-    useEffect(() => { window.localStorage.setItem("hvt.stockAlert.role", role); }, [role]);
     useEffect(() => {
         let active = true;
         queueMicrotask(() => {
@@ -60,14 +61,14 @@ export function ReorderPolicyPage() {
 
     const autoReorderPoint = useMemo(() => {
         if (!form) return 0;
-        return Math.max(0, Math.round((form.averageDailyConsumption ?? 0) * (form.supplierLeadTimeDays ?? 0) - form.safetyStock));
+        return ((form.averageDailyConsumption ?? 0) * (form.supplierLeadTimeDays ?? 0)) + (form.safetyStock ?? 0);
     }, [form]);
 
     const overrideRequired = Boolean(form && form.reorderPoint !== autoReorderPoint && !form.overrideReason?.trim());
 
     function openEdit(policy: ReorderPolicy) {
         setEditing(policy);
-        setForm({ actorRole: role, enabled: policy.enabled, averageDailyConsumption: policy.averageDailyConsumption, maximumStock: policy.maximumStock, minimumStock: policy.minimumStock, overrideReason: policy.overrideReason ?? "", policyId: policy.id, reorderPoint: policy.reorderPoint, safetyStock: policy.safetyStock, standardReorderQuantity: policy.standardReorderQuantity, supplierLeadTimeDays: policy.supplierLeadTimeDays });
+        setForm({ actorRole: effectiveRole, enabled: policy.enabled, averageDailyConsumption: policy.averageDailyConsumption, maximumStock: policy.maximumStock, minimumStock: policy.minimumStock, overrideReason: policy.overrideReason ?? "", policyId: policy.id, reorderPoint: policy.reorderPoint, safetyStock: policy.safetyStock, standardReorderQuantity: policy.standardReorderQuantity, supplierLeadTimeDays: policy.supplierLeadTimeDays });
         setError("");
     }
 
@@ -76,7 +77,7 @@ export function ReorderPolicyPage() {
         setSubmitting(true);
         setError("");
         try {
-            await stockAlertApi.updateReorderPolicy({ ...form, actorRole: role });
+            await stockAlertApi.updateReorderPolicy({ ...form, actorRole: effectiveRole });
             setEditing(null);
             setForm(null);
             setPolicies(await stockAlertApi.listReorderPolicies(query));
@@ -92,7 +93,7 @@ export function ReorderPolicyPage() {
         setError("");
         try {
             const response = await stockAlertApi.bulkUpdateReorderPolicies({
-                actorRole: role,
+                actorRole: effectiveRole,
                 category: bulkCategory,
                 locationId: inventoryMasterLocations.branchCauGiay.id,
                 patch: { safetyStock: 5, standardReorderQuantity: 25 },
@@ -114,7 +115,6 @@ export function ReorderPolicyPage() {
                 <h1 className="text-2xl font-black text-[#172317]">Reorder Policies</h1>
                 <p className="text-sm font-semibold text-[#697684]">Quản lý minimum stock, safety stock, reorder point và standard reorder quantity. Không gọi là EOQ khi chưa dùng công thức EOQ thật.</p>
             </div>
-            <StockAlertRoleSwitch onChange={setRole} value={role} />
         </header>
 
         <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card md:grid-cols-3">

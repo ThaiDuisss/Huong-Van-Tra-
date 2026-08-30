@@ -12,7 +12,6 @@ import { Link } from "react-router-dom";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import {
     GoodsReceiptFilterBar,
-    GoodsReceiptRoleSwitch,
     GoodsReceiptSummaryCard,
     GoodsReceiptTable
 } from "../components/GoodsReceiptComponents";
@@ -21,22 +20,8 @@ import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptListResult,
     GoodsReceiptOptions,
-    GoodsReceiptRole,
     GoodsReceiptStatus
 } from "../types/goods-receipt.types";
-
-function readRole(): GoodsReceiptRole {
-    const stored = window.localStorage.getItem("hvt.goodsReceipt.role");
-    if (
-        stored &&
-        ["ADMIN", "WAREHOUSE", "QC_STAFF", "ACCOUNTANT", "BRANCH_MANAGER", "DIRECTOR"].includes(
-            stored
-        )
-    ) {
-        return stored as GoodsReceiptRole;
-    }
-    return "WAREHOUSE";
-}
 
 const statusTabs: Array<{ key: "ALL" | GoodsReceiptStatus; label: string }> = [
     { key: "ALL", label: "Tất cả" },
@@ -53,7 +38,6 @@ const statusTabs: Array<{ key: "ALL" | GoodsReceiptStatus; label: string }> = [
 
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
-    const [role, setRole] = useState<GoodsReceiptRole>(readRole);
     const [result, setResult] = useState<GoodsReceiptListResult | null>(null);
     const [options, setOptions] = useState<GoodsReceiptOptions>({
         locations: [],
@@ -63,10 +47,6 @@ export function GoodsReceiptListPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
-
-    useEffect(() => {
-        window.localStorage.setItem("hvt.goodsReceipt.role", role);
-    }, [role]);
 
     useEffect(() => {
         void goodsReceiptApi
@@ -138,7 +118,6 @@ export function GoodsReceiptListPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
-                    <GoodsReceiptRoleSwitch onChange={setRole} value={role} />
                     <Link
                         className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] shadow-sm"
                         to="/management/inventory/receipts/new"
