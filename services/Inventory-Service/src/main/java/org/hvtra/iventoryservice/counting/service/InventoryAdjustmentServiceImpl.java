@@ -5,7 +5,7 @@ import org.hvtra.iventoryservice.counting.dto.request.CreateAdjustmentRequest;
 import org.hvtra.iventoryservice.counting.dto.response.AdjustmentResponse;
 import org.hvtra.iventoryservice.counting.mapper.AdjustmentMapper;
 import org.hvtra.iventoryservice.counting.repository.InventoryCountRepository;
-import org.hvtra.iventoryservice.counting.repository.InventoryDocumentRepository;
+import org.hvtra.iventoryservice.document.repository.InventoryDocumentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
