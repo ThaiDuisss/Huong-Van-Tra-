@@ -6,14 +6,12 @@ import {
     supplierReturnReasonLabels,
     supplierReturnReasons,
     supplierReturnResolutionLabels,
-    supplierReturnRoleLabels,
     supplierReturnStatusLabels,
     supplierReturnStatuses
 } from "../constants/supplier-return.constants";
 import type {
     SupplierReturnListQuery,
     SupplierReturnOptions,
-    SupplierReturnRole,
     SupplierReturnStatus,
     SupplierReturnSummary
 } from "../types/supplier-return.types";
@@ -35,10 +33,6 @@ const tone: Record<SupplierReturnStatus, string> = {
 export function SupplierReturnStatusBadge({ status }: { status: SupplierReturnStatus }) {
     const icon = status === "COMPLETED" ? <CheckCircle2 size={14} /> : status === "REJECTED" ? <AlertTriangle size={14} /> : <Clock3 size={14} />;
     return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${tone[status]}`}>{icon}{supplierReturnStatusLabels[status]}</span>;
-}
-
-export function SupplierReturnRoleSwitch({ onChange, value }: { onChange: (role: SupplierReturnRole) => void; value: SupplierReturnRole }) {
-    return <label className="grid gap-1 text-xs font-black text-[#536078]">Vai trò mô phỏng<select className="h-10 rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black" onChange={(event) => onChange(event.currentTarget.value as SupplierReturnRole)} value={value}>{Object.entries(supplierReturnRoleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label>;
 }
 
 export function SupplierReturnSummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {

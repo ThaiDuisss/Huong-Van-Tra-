@@ -11,7 +11,6 @@ import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import {
     StockDocumentCreateDropdown,
     StockDocumentFilterBar,
-    StockDocumentRoleSwitch,
     StockDocumentSummaryCard,
     StockDocumentTable
 } from "../components/StockDocumentComponents";
@@ -20,28 +19,11 @@ import { useStockDocumentQueryState } from "../hooks/useStockDocumentQueryState"
 import { stockDocumentApi } from "../services/stockDocument.api";
 import type {
     StockDocumentListResult,
-    StockDocumentOptions,
-    StockDocumentRole
+    StockDocumentOptions
 } from "../types/stock-document.types";
-
-function readRole(): StockDocumentRole {
-    const stored = window.localStorage.getItem("hvt.stockDocument.role");
-
-    if (
-        stored &&
-        ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER", "ACCOUNTANT", "DIRECTOR", "QC_STAFF"].includes(
-            stored
-        )
-    ) {
-        return stored as StockDocumentRole;
-    }
-
-    return "ADMIN";
-}
 
 export function StockDocumentListPage() {
     const { query, resetQuery, setQuery } = useStockDocumentQueryState();
-    const [role, setRole] = useState<StockDocumentRole>(readRole);
     const [result, setResult] = useState<StockDocumentListResult | null>(null);
     const [options, setOptions] = useState<StockDocumentOptions>({
         locations: [],
@@ -50,10 +32,6 @@ export function StockDocumentListPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
-
-    useEffect(() => {
-        window.localStorage.setItem("hvt.stockDocument.role", role);
-    }, [role]);
 
     useEffect(() => {
         void stockDocumentApi.getStockDocumentOptions().then(setOptions);
@@ -118,20 +96,11 @@ export function StockDocumentListPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
-                    <StockDocumentRoleSwitch
-                        onChange={setRole}
-                        value={role}
-                    />
                     <StockDocumentCreateDropdown
                         links={stockBusinessCreationLinks}
                     />
                 </div>
             </header>
-
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">
-                Vai trò đang dùng chỉ mô phỏng nghiệp vụ hiển thị trong
-                Management. Frontend không phải lớp bảo mật thực sự.
-            </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <StockDocumentSummaryCard

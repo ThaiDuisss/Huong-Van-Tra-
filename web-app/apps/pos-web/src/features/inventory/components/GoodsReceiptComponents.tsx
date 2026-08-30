@@ -136,36 +136,6 @@ export function GoodsReceiptSummaryCard({
     );
 }
 
-export function GoodsReceiptRoleSwitch({
-    onChange,
-    value
-}: {
-    onChange: (role: GoodsReceiptRole) => void;
-    value: GoodsReceiptRole;
-}) {
-    return (
-        <label className="grid gap-1 text-xs font-black text-[#536078]">
-            Vai trò mô phỏng
-            <select
-                aria-label="Vai trò mô phỏng"
-                className="h-10 min-w-[210px] rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black text-[#172317] outline-none focus:border-[#159734]"
-                onChange={(event) =>
-                    onChange(event.currentTarget.value as GoodsReceiptRole)
-                }
-                value={value}
-            >
-                {Object.entries(goodsReceiptRoleLabels).map(
-                    ([role, label]) => (
-                        <option key={role} value={role}>
-                            {label}
-                        </option>
-                    )
-                )}
-            </select>
-        </label>
-    );
-}
-
 /**
  * Thanh tiến trình vòng đời (Lifecycle Stepper) trực quan
  */

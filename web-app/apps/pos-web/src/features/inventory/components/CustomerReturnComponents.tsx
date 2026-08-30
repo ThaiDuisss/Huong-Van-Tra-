@@ -5,13 +5,11 @@ import {
     customerReturnReasonLabels,
     customerReturnReasons,
     customerReturnRefundStatusLabels,
-    customerReturnRoleLabels,
     customerReturnStatusLabels,
     customerReturnStatuses
 } from "../constants/customer-return.constants";
 import type {
     CustomerReturnListQuery,
-    CustomerReturnRole,
     CustomerReturnStatus,
     CustomerReturnSummary
 } from "../types/customer-return.types";
@@ -44,17 +42,6 @@ function statusIcon(status: CustomerReturnStatus) {
 
 export function CustomerReturnStatusBadge({ status }: { status: CustomerReturnStatus }) {
     return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${statusTone[status]}`}>{statusIcon(status)}{customerReturnStatusLabels[status]}</span>;
-}
-
-export function CustomerReturnRoleSwitch({ onChange, value }: { onChange: (role: CustomerReturnRole) => void; value: CustomerReturnRole }) {
-    return (
-        <label className="grid gap-1 text-xs font-black text-[#536078]">
-            Vai trò mô phỏng
-            <select className="h-10 rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black" onChange={(event) => onChange(event.currentTarget.value as CustomerReturnRole)} value={value}>
-                {Object.entries(customerReturnRoleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}
-            </select>
-        </label>
-    );
 }
 
 export function CustomerReturnFilterBar({ branches, onChange, onReset, query }: { branches: InventoryLocationSummary[]; onChange: (patch: Partial<CustomerReturnListQuery>) => void; onReset: () => void; query: CustomerReturnListQuery }) {

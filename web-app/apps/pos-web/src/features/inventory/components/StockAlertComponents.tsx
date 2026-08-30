@@ -2,7 +2,6 @@ import { AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import {
-    stockAlertRoleLabels,
     stockAlertSeverityLabels,
     stockAlertStatusLabels,
     stockAlertTypeLabels
@@ -10,16 +9,11 @@ import {
 import type {
     ReorderPolicy,
     StockAlert,
-    StockAlertRole,
     StockAlertSeverity,
     StockAlertStatus
 } from "../types/stock-alert.types";
 import { alertLocations, alertSkus } from "../mocks/stock-alerts.mock";
 import { formatVietnamNumber } from "../utils/inventory-format";
-
-export function StockAlertRoleSwitch({ onChange, value }: { onChange: (role: StockAlertRole) => void; value: StockAlertRole }) {
-    return <label className="grid gap-1 text-xs font-black text-[#536078]">Vai trò mô phỏng<select className="h-10 rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black" onChange={(event) => onChange(event.currentTarget.value as StockAlertRole)} value={value}>{Object.entries(stockAlertRoleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label>;
-}
 
 export function StockAlertStatusBadge({ status }: { status: StockAlertStatus }) {
     const tone = status === "OPEN" ? "border-red-200 bg-red-50 text-red-700" : status === "RESOLVED" ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-700";

@@ -36,8 +36,6 @@ import {
 import {
     inventoryActionLabels,
     inventoryDocumentTypeLabels,
-    inventoryRoleDescriptions,
-    inventoryRoleLabels,
     inventoryWorkspaceConfigs
 } from "../constants/inventory-management.constants";
 import { useInventoryQueryState } from "../hooks/useInventoryQueryState";
@@ -70,9 +68,9 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 
-const workspaceIds = inventoryWorkspaceConfigs.map((config) => config.id);
+import { useAuth } from "../../../auth/auth-context";
 
-const defaultRole: InventoryRole = "INVENTORY_MANAGER";
+const workspaceIds = inventoryWorkspaceConfigs.map((config) => config.id);
 
 interface FormState {
     batchId: string;
@@ -95,21 +93,22 @@ function isWorkspaceId(value: string | undefined): value is InventoryWorkspaceId
     return Boolean(value && workspaceIds.includes(value as InventoryWorkspaceId));
 }
 
-function readStoredRole(): InventoryRole {
-    const stored = window.localStorage.getItem("hvt.inventory.role");
-
-    if (stored && Object.keys(inventoryRoleLabels).includes(stored)) {
-        return stored as InventoryRole;
-    }
-
-    return defaultRole;
-}
-
 export function InventoryManagementPage() {
     const params = useParams();
     const workspaceId = params.workspaceId;
+    const { roles } = useAuth();
+    const effectiveRole: InventoryRole =
+        roles?.includes("ADMIN") || roles?.includes("BRANCH_MANAGER")
+            ? "INVENTORY_MANAGER"
+            : roles?.includes("ACCOUNTANT") || roles?.includes("AUDITOR")
+            ? "AUDITOR"
+            : roles?.includes("WAREHOUSE_STAFF") || roles?.includes("WAREHOUSE")
+            ? "WAREHOUSE_STAFF"
+            : roles?.includes("SALES_STAFF") || roles?.includes("STAFF")
+            ? "BRANCH_STAFF"
+            : "INVENTORY_MANAGER";
+
     const { query, setQuery } = useInventoryQueryState();
-    const [role, setRole] = useState<InventoryRole>(readStoredRole);
     const [result, setResult] = useState<InventoryManagementListResult | null>(
         null
     );
@@ -160,10 +159,6 @@ export function InventoryManagementPage() {
         title: "",
         unit: "gói"
     });
-
-    useEffect(() => {
-        window.localStorage.setItem("hvt.inventory.role", role);
-    }, [role]);
 
     useEffect(() => {
         void inventoryManagementApi.getOptions().then(setOptions);
@@ -384,7 +379,7 @@ export function InventoryManagementPage() {
                 action: confirmAction.action,
                 note: "Xác nhận từ giao diện Inventory Management.",
                 recordId: confirmAction.record.id,
-                role
+                role: effectiveRole
             });
             showToast(
                 `${inventoryActionLabels[confirmAction.action]} thành công.`,
@@ -415,32 +410,10 @@ export function InventoryManagementPage() {
                 title={config.title}
                 actions={
                     <>
-                        <label className="grid gap-1 text-xs font-black text-[#536078]">
-                            Vai trò mô phỏng
-                            <select
-                                aria-label="Chọn vai trò mô phỏng"
-                                className="h-10 min-w-[210px] rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black text-[#172317] outline-none focus:border-[#159734]"
-                                onChange={(event) =>
-                                    setRole(
-                                        event.currentTarget
-                                            .value as InventoryRole
-                                    )
-                                }
-                                value={role}
-                            >
-                                {Object.entries(inventoryRoleLabels).map(
-                                    ([value, label]) => (
-                                        <option key={value} value={value}>
-                                            {label}
-                                        </option>
-                                    )
-                                )}
-                            </select>
-                        </label>
                         {config.createLabel ? (
                             <RoleRestrictedAction
                                 allowedRoles={createAllowedRoles}
-                                currentRole={role}
+                                currentRole={effectiveRole}
                             >
                                 <button
                                     className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-pos-card hover:bg-[#0f7d2b]"
@@ -455,13 +428,6 @@ export function InventoryManagementPage() {
                     </>
                 }
             />
-
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">
-                Role switcher chỉ mô phỏng luồng nghiệp vụ và trạng thái nút
-                thao tác. Frontend không được xem là lớp bảo mật thực sự.
-                Vai trò hiện tại: {inventoryRoleLabels[role]} -{" "}
-                {inventoryRoleDescriptions[role]}
-            </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <InventorySummaryCard
@@ -587,7 +553,7 @@ export function InventoryManagementPage() {
 
                     <QuickViewPanel
                         actionAllowedRoles={actionAllowedRoles}
-                        currentRole={role}
+                        currentRole={effectiveRole}
                         onAction={(action, record) =>
                             setConfirmAction({ action, record })
                         }
