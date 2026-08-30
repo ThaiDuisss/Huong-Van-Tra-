@@ -40,8 +40,10 @@ public class InventoryBalanceController {
     @GetMapping("/store")
     public PageResponse<InventoryBalanceViewResponse> findAllView(
             @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "code", required = false) String code,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productCode", required = false) String productCode,
+            @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "productName", required = false) String productName,
             @RequestParam(name = "categoryCode", required = false) String categoryCode,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
@@ -49,8 +51,11 @@ public class InventoryBalanceController {
             @RequestParam(name = "locationId", required = false) UUID locationId,
             @RequestParam(name = "branchId", required = false) UUID branchId,
             @RequestParam(name = "status", required = false) StockType status,
+            @RequestParam(name = "type", required = false) org.hvtra.iventoryservice.domain.enums.InventoryItemType type,
+            @RequestParam(name = "itemType", required = false) org.hvtra.iventoryservice.domain.enums.InventoryItemType itemType,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
-        return service.findAllView(keyword, sku, productCode, productName, categoryCode, categoryId, unitId, locationId, branchId, status, pageable);
+        org.hvtra.iventoryservice.domain.enums.InventoryItemType resolvedType = itemType != null ? itemType : type;
+        return service.findAllView(keyword, code, sku, productCode, name, productName, categoryCode, categoryId, unitId, locationId, branchId, status, resolvedType, pageable);
     }
 
     @Tag(

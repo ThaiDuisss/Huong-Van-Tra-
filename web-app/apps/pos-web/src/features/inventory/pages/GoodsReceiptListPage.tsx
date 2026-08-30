@@ -2,8 +2,9 @@ import {
     CheckCircle2,
     ClipboardList,
     Clock3,
+    FileCheck2,
     PackageCheck,
-    Scale
+    Truck
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -20,12 +21,12 @@ import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptListResult,
     GoodsReceiptOptions,
-    GoodsReceiptRole
+    GoodsReceiptRole,
+    GoodsReceiptStatus
 } from "../types/goods-receipt.types";
 
 function readRole(): GoodsReceiptRole {
     const stored = window.localStorage.getItem("hvt.goodsReceipt.role");
-
     if (
         stored &&
         ["ADMIN", "WAREHOUSE", "QC_STAFF", "ACCOUNTANT", "BRANCH_MANAGER", "DIRECTOR"].includes(
@@ -34,9 +35,21 @@ function readRole(): GoodsReceiptRole {
     ) {
         return stored as GoodsReceiptRole;
     }
-
     return "WAREHOUSE";
 }
+
+const statusTabs: Array<{ key: "ALL" | GoodsReceiptStatus; label: string }> = [
+    { key: "ALL", label: "Tất cả" },
+    { key: "DRAFT", label: "Bản nháp" },
+    { key: "PENDING_APPROVAL", label: "Chờ duyệt" },
+    { key: "APPROVED", label: "Đã duyệt (Chờ giao)" },
+    { key: "RECEIVING", label: "Đang tiếp nhận" },
+    { key: "QC_PENDING", label: "Chờ QC" },
+    { key: "QC_COMPLETED", label: "Chờ ghi sổ" },
+    { key: "POSTED", label: "Đã nhập kho" },
+    { key: "REJECTED", label: "Từ chối" },
+    { key: "CANCELLED", label: "Đã hủy" }
+];
 
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
@@ -56,7 +69,15 @@ export function GoodsReceiptListPage() {
     }, [role]);
 
     useEffect(() => {
-        void goodsReceiptApi.getGoodsReceiptOptions().then(setOptions);
+        void goodsReceiptApi
+            .getGoodsReceiptOptions()
+            .then((res) => {
+                console.log("[GoodsReceiptListPage] setOptions với:", res);
+                setOptions(res);
+            })
+            .catch((err: unknown) => {
+                console.error("[GoodsReceiptListPage] Lỗi tải danh mục (nhà cung cấp/kho):", err);
+            });
     }, []);
 
     useEffect(() => {
@@ -106,59 +127,91 @@ export function GoodsReceiptListPage() {
         <section className="grid gap-4">
             <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div className="grid gap-1">
-                    <p className="text-xs font-black uppercase tracking-normal text-[#159734]">
-                        Management / Inventory
+                    <p className="text-xs font-black uppercase tracking-wider text-[#159734]">
+                        Quản lý Kho vận › Quy trình nhập nguyên liệu
                     </p>
                     <h1 className="text-2xl font-black text-[#172317]">
-                        Nhập nguyên liệu
+                        Phiếu nhập kho từ Nhà cung cấp
                     </h1>
                     <p className="max-w-3xl text-sm font-semibold leading-6 text-[#697684]">
-                        Tiếp nhận nguyên liệu, kiểm tra QC, xác nhận giá nhập
-                        và post batch vào tồn kho khả dụng.
+                        Quản lý toàn bộ 5 giai đoạn vòng đời: Lập kế hoạch (Draft) → Phê duyệt → Tiếp nhận kiểm đếm → Kiểm định QC & Lô → Ghi sổ nhập kho khả dụng.
                     </p>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
-                    <GoodsReceiptRoleSwitch
-                        onChange={setRole}
-                        value={role}
-                    />
+                    <GoodsReceiptRoleSwitch onChange={setRole} value={role} />
                     <Link
-                        className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-pos-card"
+                        className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] shadow-sm"
                         to="/management/inventory/receipts/new"
                     >
-                        Tạo phiếu nhập
+                        + Tạo phiếu nhập mới
                     </Link>
                 </div>
             </header>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {/* THẺ CHỈ SỐ THEO VÒNG ĐỜI */}
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
                 <GoodsReceiptSummaryCard
                     icon={<ClipboardList size={18} aria-hidden="true" />}
-                    label="Draft"
+                    label="1. Bản nháp"
                     value={result?.summary.draft ?? 0}
+                    active={query.status === "DRAFT"}
+                    onClick={() => setQuery({ page: 0, status: "DRAFT" })}
                 />
                 <GoodsReceiptSummaryCard
                     icon={<Clock3 size={18} aria-hidden="true" />}
-                    label="Chờ QC"
-                    value={result?.summary.awaitingQc ?? 0}
+                    label="2. Chờ duyệt"
+                    value={receipts.filter((r) => r.status === "PENDING_APPROVAL").length}
+                    active={query.status === "PENDING_APPROVAL"}
+                    onClick={() => setQuery({ page: 0, status: "PENDING_APPROVAL" })}
                 />
                 <GoodsReceiptSummaryCard
-                    icon={<Scale size={18} aria-hidden="true" />}
-                    label="Chờ xác nhận giá"
-                    value={result?.summary.awaitingCost ?? 0}
+                    icon={<Truck size={18} aria-hidden="true" />}
+                    label="3. Đang tiếp nhận"
+                    value={receipts.filter((r) => r.status === "RECEIVING" || r.status === "APPROVED").length}
+                    active={query.status === "RECEIVING"}
+                    onClick={() => setQuery({ page: 0, status: "RECEIVING" })}
+                />
+                <GoodsReceiptSummaryCard
+                    icon={<FileCheck2 size={18} aria-hidden="true" />}
+                    label="4. Chờ QC"
+                    value={result?.summary.awaitingQc ?? 0}
+                    active={query.status === "QC_PENDING"}
+                    onClick={() => setQuery({ page: 0, status: "QC_PENDING" })}
                 />
                 <GoodsReceiptSummaryCard
                     icon={<PackageCheck size={18} aria-hidden="true" />}
-                    label="Sẵn sàng post"
+                    label="5. Sẵn sàng post"
                     value={result?.summary.readyToPost ?? 0}
+                    active={query.status === "QC_COMPLETED"}
+                    onClick={() => setQuery({ page: 0, status: "QC_COMPLETED" })}
                 />
                 <GoodsReceiptSummaryCard
                     icon={<CheckCircle2 size={18} aria-hidden="true" />}
-                    label="Đã post hôm nay"
+                    label="Đã nhập kho"
                     value={result?.summary.postedToday ?? 0}
+                    active={query.status === "POSTED"}
+                    onClick={() => setQuery({ page: 0, status: "POSTED" })}
                 />
             </div>
 
+            {/* TAB LỌC NHANH TRẠNG THÁI */}
+            <div className="flex gap-2 overflow-x-auto border-b border-[#e8eef0] pb-2">
+                {statusTabs.map((tab) => (
+                    <button
+                        key={tab.key}
+                        className={`h-9 shrink-0 rounded-lg px-4 text-xs font-black transition-all ${query.status === tab.key
+                            ? "bg-[#159734] text-white shadow-sm"
+                            : "bg-white text-[#536078] hover:bg-[#f4faf5] border border-[#e8eef0]"
+                            }`}
+                        onClick={() => setQuery({ page: 0, status: tab.key })}
+                        type="button"
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* BỘ LỌC TÌM KIẾM */}
             <GoodsReceiptFilterBar
                 locations={options.locations}
                 onChange={setQuery}
@@ -169,7 +222,7 @@ export function GoodsReceiptListPage() {
 
             {loading ? (
                 <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-                    {Array.from({ length: 7 }, (_, index) => (
+                    {Array.from({ length: 6 }, (_, index) => (
                         <div
                             className="h-11 animate-pulse rounded-lg bg-[#eef3ef]"
                             key={index}
@@ -182,7 +235,7 @@ export function GoodsReceiptListPage() {
                 <div className="grid place-items-center rounded-xl border border-red-100 bg-red-50 px-6 py-12 text-center">
                     <div className="grid max-w-sm gap-3 justify-items-center">
                         <strong className="text-base font-black text-red-800">
-                            Không thể tải dữ liệu
+                            Không thể tải danh sách phiếu nhập
                         </strong>
                         <p className="text-sm font-semibold leading-6 text-red-700">
                             {error}
@@ -202,10 +255,10 @@ export function GoodsReceiptListPage() {
                 <div className="grid place-items-center rounded-xl border border-dashed border-[#cfdad2] bg-white px-6 py-14 text-center">
                     <div className="grid max-w-sm gap-2">
                         <strong className="text-base font-black text-[#172317]">
-                            Không có phiếu nhập phù hợp
+                            Không tìm thấy phiếu nhập phù hợp
                         </strong>
                         <p className="text-sm font-semibold leading-6 text-[#697684]">
-                            Hãy đổi bộ lọc hoặc tạo phiếu nhập nguyên liệu mới.
+                            Thử thay đổi điều kiện lọc hoặc tạo phiếu nhập nguyên liệu mới.
                         </p>
                     </div>
                 </div>

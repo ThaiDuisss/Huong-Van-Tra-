@@ -1,5 +1,6 @@
 package org.hvtra.catalog.mapper;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.hvtra.catalog.dto.request.SupplierRequest;
 import org.hvtra.catalog.dto.response.IngredientLookupResponse;
 import org.hvtra.catalog.dto.response.SupplierResponse;
@@ -18,12 +19,27 @@ public class SupplierMapper {
                 ? Collections.emptyList()
                 : supplier.getIngredients().stream()
                 .filter(ing -> !Boolean.TRUE.equals(ing.getIsDeleted()))
-                .map(ing -> new IngredientLookupResponse(
-                        ing.getId(),
-                        ing.getIngredientCode(),
-                        ing.getName(),
-                        ing.getStatus()
-                ))
+                .map(ing -> {
+                    String unitName = null;
+                    String unitSymbol = null;
+                    try {
+                        if (ing.getUnit() != null) {
+                            unitName = ing.getUnit().getName();
+                            unitSymbol = ing.getUnit().getSymbol();
+                        }
+                    } catch (EntityNotFoundException e) {
+                        // Unit record was deleted/not found in database
+                    }
+                    return new IngredientLookupResponse(
+                            ing.getId(),
+                            ing.getIngredientCode(),
+                            ing.getName(),
+                            ing.getImageUrl(),
+                            unitName,
+                            unitSymbol,
+                            ing.getStatus()
+                    );
+                })
                 .collect(Collectors.toList());
 
         return new SupplierResponse(

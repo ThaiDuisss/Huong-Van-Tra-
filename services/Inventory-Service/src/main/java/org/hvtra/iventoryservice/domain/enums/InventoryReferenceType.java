@@ -6,8 +6,8 @@ public enum InventoryReferenceType {
     RETURN_ORDER,
     STOCK_TRANSFER,
     STOCK_COUNT,
-
     PURCHASE_ORDER,
+    PURCHASE_RECEIPT,
     PRODUCTION_ORDER,
     CUSTOMER_RETURN,
     SUPPLIER_RETURN,

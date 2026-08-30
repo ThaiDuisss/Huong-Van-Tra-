@@ -1,12 +1,10 @@
 import {
     Building2,
-    CheckCircle2,
     Eye,
     Pencil,
     Plus,
     Search,
-    Trash2,
-    XCircle
+    Trash2
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -57,9 +55,10 @@ export function SupplierListPage() {
                 status: statusFilter,
                 ingredientId: ingredientFilter
             });
-            setSuppliers(res.content || []);
-            setTotalElements(res.totalElements || 0);
-            setTotalPages(res.totalPages || 1);
+            const content = Array.isArray(res?.content) ? res.content : [];
+            setSuppliers(content.filter((item): item is SupplierResponse => Boolean(item && item.id)));
+            setTotalElements(res?.totalElements || 0);
+            setTotalPages(res?.totalPages || 1);
         } catch (err: unknown) {
             console.error("Lỗi tải danh sách nhà cung cấp:", err);
             setError(err instanceof Error ? err.message : "Không thể tải danh sách nhà cung cấp");
@@ -72,7 +71,10 @@ export function SupplierListPage() {
     useEffect(() => {
         ingredientApi
             .list({ page: 0, size: 200, status: "ACTIVE" })
-            .then((res) => setAllIngredients(res.content || []))
+            .then((res) => {
+                const content = Array.isArray(res?.content) ? res.content : [];
+                setAllIngredients(content.filter((item): item is Ingredient => Boolean(item && item.id)));
+            })
             .catch((err) => console.error("Lỗi tải nguyên liệu:", err));
     }, []);
 
@@ -114,10 +116,6 @@ export function SupplierListPage() {
         }
     };
 
-    // Calculate quick stats
-    const activeCount = suppliers.filter((s) => s.status === "ACTIVE").length;
-    const inactiveCount = suppliers.filter((s) => s.status === "INACTIVE").length;
-
     return (
         <div className="flex flex-col gap-6 p-6">
             {/* Page Header */}
@@ -137,45 +135,6 @@ export function SupplierListPage() {
                     <Plus size={18} />
                     Thêm nhà cung cấp
                 </button>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="flex items-center gap-4 rounded-2xl border border-neutral-200/80 bg-white p-4.5 shadow-xs">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                        <Building2 size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                            Tổng nhà cung cấp
-                        </p>
-                        <p className="text-2xl font-black text-neutral-800">{totalElements}</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-4 rounded-2xl border border-neutral-200/80 bg-white p-4.5 shadow-xs">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                        <CheckCircle2 size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                            Đang hoạt động (Trang này)
-                        </p>
-                        <p className="text-2xl font-black text-emerald-600">{activeCount}</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-4 rounded-2xl border border-neutral-200/80 bg-white p-4.5 shadow-xs">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-100 text-neutral-500">
-                        <XCircle size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                            Ngừng hoạt động (Trang này)
-                        </p>
-                        <p className="text-2xl font-black text-neutral-500">{inactiveCount}</p>
-                    </div>
-                </div>
             </div>
 
             {/* Filters Bar */}
@@ -219,9 +178,9 @@ export function SupplierListPage() {
                     className="h-10 rounded-xl border border-neutral-200 px-3.5 text-sm font-bold text-neutral-700 bg-white focus:border-emerald-500 focus:outline-hidden transition-all cursor-pointer"
                 >
                     <option value="ALL">Tất cả nguyên liệu</option>
-                    {allIngredients.map((ing) => (
+                    {allIngredients.filter(Boolean).map((ing) => (
                         <option key={ing.id} value={String(ing.id)}>
-                            {ing.name} ({ing.ingredientCode})
+                            {ing.name || "Nguyên liệu"} ({ing.ingredientCode || (ing as any).code || "NL"})
                         </option>
                     ))}
                 </select>
@@ -271,7 +230,7 @@ export function SupplierListPage() {
                                     </td>
                                 </tr>
                             ) : (
-                                suppliers.map((sup) => (
+                                suppliers.filter(Boolean).map((sup) => (
                                     <tr key={sup.id} className="hover:bg-neutral-50/70 transition-colors">
                                         {/* Code */}
                                         <td className="px-5 py-4 font-mono text-xs font-bold text-emerald-700 whitespace-nowrap">
@@ -311,7 +270,7 @@ export function SupplierListPage() {
                                                 <span className="text-xs text-neutral-300 font-medium">Chưa có</span>
                                             ) : (
                                                 <div className="flex flex-wrap items-center gap-1.5 max-w-xs">
-                                                    {sup.ingredients.slice(0, 2).map((ing) => (
+                                                    {sup.ingredients.filter(Boolean).slice(0, 2).map((ing) => (
                                                         <span
                                                             key={ing.id}
                                                             className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-700"
@@ -319,9 +278,9 @@ export function SupplierListPage() {
                                                             {ing.name}
                                                         </span>
                                                     ))}
-                                                    {sup.ingredients.length > 2 && (
+                                                    {sup.ingredients.filter(Boolean).length > 2 && (
                                                         <span className="inline-flex items-center rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-black text-emerald-700">
-                                                            +{sup.ingredients.length - 2}
+                                                            +{sup.ingredients.filter(Boolean).length - 2}
                                                         </span>
                                                     )}
                                                 </div>

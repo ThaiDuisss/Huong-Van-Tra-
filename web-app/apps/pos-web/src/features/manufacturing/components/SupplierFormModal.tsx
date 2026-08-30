@@ -44,7 +44,8 @@ export function SupplierFormModal({
         ingredientApi
             .list({ page: 0, size: 200, status: "ACTIVE" })
             .then((res) => {
-                setAllIngredients(res.content || []);
+                const content = Array.isArray(res?.content) ? res.content : [];
+                setAllIngredients(content.filter((item): item is Ingredient => Boolean(item && item.id)));
             })
             .catch((err) => {
                 console.error("Lỗi tải danh sách nguyên liệu:", err);
@@ -65,7 +66,11 @@ export function SupplierFormModal({
             setTaxCode(supplier.taxCode || "");
             setNotes(supplier.notes || "");
             setStatus(supplier.status || "ACTIVE");
-            setSelectedIngredientIds(supplier.ingredients ? supplier.ingredients.map((i) => i.id) : []);
+            setSelectedIngredientIds(
+                Array.isArray(supplier.ingredients)
+                    ? supplier.ingredients.filter(Boolean).map((i) => String(i.id))
+                    : []
+            );
         } else {
             setName("");
             setContactName("");
@@ -83,13 +88,12 @@ export function SupplierFormModal({
 
     if (!isOpen) return null;
 
-    const filteredIngredients = allIngredients.filter((ing) => {
+    const filteredIngredients = allIngredients.filter(Boolean).filter((ing) => {
         const query = ingredientSearch.toLowerCase().trim();
         if (!query) return true;
-        return (
-            ing.name.toLowerCase().includes(query) ||
-            ing.ingredientCode.toLowerCase().includes(query)
-        );
+        const name = (ing.name || "").toLowerCase();
+        const code = (ing.ingredientCode || (ing as any).code || "").toLowerCase();
+        return name.includes(query) || code.includes(query);
     });
 
     const toggleIngredient = (id: string) => {

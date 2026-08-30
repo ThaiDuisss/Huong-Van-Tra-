@@ -163,30 +163,36 @@ export interface InventoryBalanceQuery extends QueryParams {
     locationId?: EntityId;
     branchId?: EntityId;
     keyword?: string;
+    code?: string;
     sku?: string;
     productCode?: string;
+    name?: string;
     productName?: string;
     categoryCode?: string;
     categoryId?: string;
     unitId?: string;
     status?: string;
+    itemType?: "PRODUCT_VARIANT" | "INGREDIENT" | "COMBO";
+    type?: "PRODUCT_VARIANT" | "INGREDIENT" | "COMBO";
 }
 
 export interface InventoryBalanceViewResponse {
+    id?: string;
     inventoryBalanceId: string;
     inventoryItemId: string;
-    productId: string;
-    productCode: string;
-    productName: string;
-    variantId: string;
-    variantName: string;
-    sku: string;
-    categoryId: string;
-    categoryCode: string;
-    categoryName: string;
-    unitId: string;
-    unitName: string;
-    unitSymbol: string;
+    referenceId?: string;
+    itemType?: "PRODUCT_VARIANT" | "INGREDIENT" | "COMBO";
+    code?: string;
+    name?: string;
+    productId?: string;
+    productCode?: string;
+    productName?: string;
+    categoryId?: string;
+    categoryCode?: string;
+    categoryName?: string;
+    unitId?: string;
+    unitName?: string;
+    unitSymbol?: string;
     locationId: string;
     locationName: string;
     branchId: string;

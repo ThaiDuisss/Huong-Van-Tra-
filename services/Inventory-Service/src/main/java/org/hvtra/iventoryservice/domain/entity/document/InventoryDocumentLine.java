@@ -8,8 +8,8 @@ import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -69,7 +69,7 @@ public class InventoryDocumentLine extends BaseEntity {
     private String note;
 
     @OneToMany(mappedBy = "documentLine", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<InventoryDocumentBatchAllocation> batchAllocations = new ArrayList<>();
+    private Set<InventoryDocumentBatchAllocation> batchAllocations = new HashSet<>();
 
     public void addBatchAllocation(InventoryDocumentBatchAllocation allocation) {
         batchAllocations.add(allocation);

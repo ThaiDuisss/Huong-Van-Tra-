@@ -182,7 +182,7 @@ export function SupplierDetailDrawer({
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {supplier.ingredients.map((ing) => (
+                                {supplier.ingredients.filter(Boolean).map((ing) => (
                                     <div
                                         key={ing.id}
                                         className="flex items-center justify-between rounded-xl border border-neutral-100 bg-neutral-50/50 p-3"

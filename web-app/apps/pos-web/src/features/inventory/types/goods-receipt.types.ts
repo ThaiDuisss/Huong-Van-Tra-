@@ -6,15 +6,19 @@ import type {
 
 export type GoodsReceiptStatus =
     | "DRAFT"
-    | "SUBMITTED"
+    | "PENDING_APPROVAL"
+    | "APPROVED"
+    | "REJECTED"
     | "RECEIVING"
+    | "QC_PENDING"
+    | "QC_COMPLETED"
+    | "POSTED"
+    | "CANCELLED"
+    | "SUBMITTED"
     | "AWAITING_QC"
     | "PARTIALLY_PASSED"
     | "AWAITING_COST"
-    | "READY_TO_POST"
-    | "POSTED"
-    | "REJECTED"
-    | "CANCELLED";
+    | "READY_TO_POST";
 
 export type QcResult =
     | "PENDING"
@@ -135,12 +139,12 @@ export interface GoodsReceiptCostLine {
 export interface GoodsReceiptEvidence {
     id: string;
     type:
-        | "GOODS_PHOTO"
-        | "BATCH_LABEL"
-        | "DELIVERY_NOTE"
-        | "INVOICE"
-        | "CERTIFICATE"
-        | "VARIANCE_NOTE";
+    | "GOODS_PHOTO"
+    | "BATCH_LABEL"
+    | "DELIVERY_NOTE"
+    | "INVOICE"
+    | "CERTIFICATE"
+    | "VARIANCE_NOTE";
     fileName: string;
     uploadedAt: string;
     uploadedBy: string;
@@ -281,6 +285,19 @@ export interface GoodsReceiptApi {
     submitGoodsReceipt(
         input: GoodsReceiptActionInput
     ): Promise<GoodsReceiptDetail>;
+    approveGoodsReceipt(
+        input: GoodsReceiptActionInput
+    ): Promise<GoodsReceiptDetail>;
+    rejectGoodsReceipt(
+        input: GoodsReceiptActionInput & { reason: string }
+    ): Promise<GoodsReceiptDetail>;
+    startReceivingGoodsReceipt(
+        input: GoodsReceiptActionInput
+    ): Promise<GoodsReceiptDetail>;
+    confirmReceivingGoodsReceipt(
+        receiptId: string,
+        items: Array<{ lineId: string; receivedQuantity: number; note?: string }>
+    ): Promise<GoodsReceiptDetail>;
     performGoodsReceiptQc(
         input: GoodsReceiptQcInput
     ): Promise<GoodsReceiptDetail>;
@@ -296,5 +313,5 @@ export interface GoodsReceiptApi {
     cancelGoodsReceipt(
         input: GoodsReceiptActionInput
     ): Promise<GoodsReceiptDetail>;
-    getGoodsReceiptOptions(): Promise<GoodsReceiptOptions>;
+    getGoodsReceiptOptions(supplierId?: string): Promise<GoodsReceiptOptions>;
 }

@@ -107,7 +107,20 @@ features/<feature_name>/
    }
    ```
 
-2. **Xử lý các trạng thái giao diện:**
+2. **Quy tắc hiển thị dữ liệu chọn lựa (Dropdown / Select / Autocomplete):**
+   > [!IMPORTANT]
+   > - **TUYỆT ĐỐI KHÔNG hiển thị ID (UUID / Technical ID thô) cho người dùng chọn trên giao diện UI.**
+   > - Người dùng chỉ được nhìn thấy **Tên (Name)**, **Mã nghiệp vụ (Code / SKU / Barcode)** (ví dụ: `Trà Ô Long Túi Lọc (NL-OL-01)`, `Kho tổng Hương Vân Trà`).
+   > - `id` (UUID) chỉ được giữ ngầm làm `value` của dropdown/select, không bao giờ render thô lên text hiển thị (tránh các chuỗi như `Item #123e4567-e89b...` hoặc `ID: 00000000-...`).
+
+3. **Quy chuẩn gọi API Lookup giữa các Service:**
+   > [!IMPORTANT]
+   > - Khi cần dữ liệu phục vụ dropdown/select/autocomplete từ một microservice:
+   >   1. **Kiểm tra trước:** Tìm xem service mục tiêu đã có endpoint `lookup` (ví dụ: `GET /api/.../lookup`) hay chưa.
+   >   2. **Nếu chưa có:** **Bắt buộc tạo mới API lookup** tinh gọn ở backend service tương ứng, chỉ trả về các trường tối thiểu cần thiết cho dropdown (thường là `id`, `name`, `code` qua `LookupResponse`).
+   >   3. **Tránh:** Tuyệt đối không gọi các API `findAll` đầy đủ dữ liệu cồng kềnh với hàng chục quan hệ JPA chỉ để phục vụ render 1 danh sách dropdown nhỏ.
+
+4. **Xử lý các trạng thái giao diện:**
    - **Loading:** Hiển thị skeleton hoặc spinner mượt mà, disable nút submit để tránh duplicate requests.
    - **Empty:** Khi không có dữ liệu, sử dụng component `EmptyState` (`@/components/common/EmptyState` hoặc `@/components/EmptyState`).
    - **Error:** Bắt lỗi từ API và hiển thị toast/alert bằng Tiếng Việt thân thiện.
