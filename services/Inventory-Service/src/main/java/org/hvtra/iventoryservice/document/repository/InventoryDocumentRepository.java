@@ -23,4 +23,6 @@ public interface InventoryDocumentRepository extends JpaRepository<InventoryDocu
 
     @Query("SELECT DISTINCT d FROM InventoryDocument d LEFT JOIN FETCH d.lines l LEFT JOIN FETCH l.batchAllocations WHERE d.id = :id")
     Optional<InventoryDocument> findByIdWithDetails(UUID id);
+
+    Optional<InventoryDocument> findByIdAndIsDeletedFalse(UUID id);
 }
