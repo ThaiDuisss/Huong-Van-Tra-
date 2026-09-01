@@ -116,11 +116,10 @@ export function GoodsReceiptSummaryCard({
 }) {
     return (
         <article
-            className={`grid min-h-[90px] gap-2 rounded-xl border p-4 shadow-pos-card transition-all ${
-                active
+            className={`grid min-h-[90px] gap-2 rounded-xl border p-4 shadow-pos-card transition-all ${active
                     ? "border-[#159734] bg-[#f4faf5] ring-2 ring-[#159734]/20"
                     : "border-[#e8eef0] bg-white hover:border-[#159734]/40"
-            } ${onClick ? "cursor-pointer" : ""}`}
+                } ${onClick ? "cursor-pointer" : ""}`}
             onClick={onClick}
         >
             <div className="flex items-center gap-2 text-sm font-black text-[#315f3c]">
@@ -200,13 +199,12 @@ export function GoodsReceiptLifecycleStepper({
                     return (
                         <div
                             key={step.key}
-                            className={`flex flex-col justify-between rounded-lg border p-2.5 transition-all ${
-                                isCurrent
+                            className={`flex flex-col justify-between rounded-lg border p-2.5 transition-all ${isCurrent
                                     ? "border-[#159734] bg-[#f4faf5] text-[#159734] ring-2 ring-[#159734]/20"
                                     : isPassed
-                                      ? "border-[#d8eadc] bg-[#fafdfa] text-[#315f3c]"
-                                      : "border-[#eef2f0] bg-slate-50 text-[#8c9ba5]"
-                            }`}
+                                        ? "border-[#d8eadc] bg-[#fafdfa] text-[#315f3c]"
+                                        : "border-[#eef2f0] bg-slate-50 text-[#8c9ba5]"
+                                }`}
                         >
                             <div className="flex items-center justify-between">
                                 <span className={`text-xs font-black ${isCurrent ? "text-[#159734]" : isPassed ? "text-[#315f3c]" : "text-[#697684]"}`}>
@@ -505,8 +503,8 @@ export function GoodsReceiptLineTable({
                         <TableHead align="right">Số nhận</TableHead>
                         <TableHead align="right">Thiếu/thừa</TableHead>
                         <TableHead align="right">Đạt QC</TableHead>
-                        <TableHead align="right">Quarantine</TableHead>
-                        <TableHead align="right">Failed</TableHead>
+                        <TableHead align="right">Cách ly</TableHead>
+                        <TableHead align="right">Không đạt</TableHead>
                         <TableHead>Batch</TableHead>
                         <TableHead>Hạn sử dụng</TableHead>
                         <TableHead>Trạng thái batch</TableHead>
@@ -704,15 +702,15 @@ export function GoodsReceiptMovementPanel({
     return (
         <div className="grid gap-3 rounded-xl border border-[#d8eadc] bg-[#f4faf5] p-4 md:grid-cols-4">
             <MovementItem
-                label="AVAILABLE"
+                label="Tồn khả dụng"
                 value={receipt.movementSummary.availableQuantity}
             />
             <MovementItem
-                label="QUARANTINE"
+                label="Tồn cách ly"
                 value={receipt.movementSummary.quarantineQuantity}
             />
             <MovementItem
-                label="RETURN_TO_SUPPLIER"
+                label="Trả nhà cung cấp"
                 value={receipt.movementSummary.returnToSupplierQuantity}
             />
             <MovementItem
@@ -847,9 +845,9 @@ export function GoodsReceiptPostPreview({
         <div className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">
             <span className="inline-flex items-center gap-2">
                 <PackageCheck size={16} aria-hidden="true" />
-                Batch đưa vào AVAILABLE: {formatVietnamNumber(available)}
+                Lô đưa vào tồn khả dụng: {formatVietnamNumber(available)}
             </span>
-            <span>Batch đưa vào QUARANTINE: {formatVietnamNumber(quarantine)}</span>
+            <span>Lô đưa vào khu cách ly: {formatVietnamNumber(quarantine)}</span>
             <span>Tổng giá trị nhập: {formatVnd(totalValue)}</span>
             <span>Chứng từ PNK sẽ được tạo sau khi xác nhận post.</span>
         </div>
