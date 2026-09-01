@@ -323,7 +323,9 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                     if (itemTypeVal == InventoryItemType.INGREDIENT) {
                         CatalogClient.IngredientResponse ing = ingredientMap.get(agg.inventoryItem.getReferenceId());
                         String ingCode = ing != null ? ing.ingredientCode() : agg.inventoryItem.getReferenceCode();
-                        String ingName = ing != null ? ing.name() : (agg.inventoryItem.getReferenceCode() != null ? agg.inventoryItem.getReferenceCode() : "N/A");
+                        String ingName = agg.inventoryItem.getName() != null && !agg.inventoryItem.getName().isBlank()
+                                ? agg.inventoryItem.getName()
+                                : (ing != null ? ing.name() : (agg.inventoryItem.getReferenceCode() != null ? agg.inventoryItem.getReferenceCode() : "N/A"));
                         String ingImage = ing != null ? ing.imageUrl() : null;
                         UUID uId = ing != null ? ing.unitId() : agg.inventoryItem.getUnitId();
                         String uName = ing != null ? ing.unitName() : null;
@@ -365,7 +367,9 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                         CatalogClient.UnitResponse u = (v != null && v.unitId() != null) ? unitMap.get(v.unitId()) : null;
 
                         String codeVal = v != null ? (v.sku() != null ? v.sku() : v.productCode()) : agg.inventoryItem.getReferenceCode();
-                        String nameVal = v != null && v.variantName() != null ? v.variantName() : (p != null ? p.name() : (v != null ? v.productName() : "N/A"));
+                        String nameVal = agg.inventoryItem.getName() != null && !agg.inventoryItem.getName().isBlank()
+                                ? agg.inventoryItem.getName()
+                                : (v != null && v.variantName() != null ? v.variantName() : (p != null ? p.name() : (v != null ? v.productName() : "N/A")));
 
                         return InventoryBalanceViewResponse.builder()
                                 .id(agg.representativeBalanceId)

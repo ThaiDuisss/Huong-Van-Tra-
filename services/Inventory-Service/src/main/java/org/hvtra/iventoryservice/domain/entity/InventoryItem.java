@@ -29,6 +29,9 @@ public class InventoryItem extends BaseEntity {
     @Column(name = "reference_code", length = 100)
     private String referenceCode;
 
+    @Column(name = "name", length = 255)
+    private String name;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "item_type", nullable = false, length = 50)
     private InventoryItemType itemType;

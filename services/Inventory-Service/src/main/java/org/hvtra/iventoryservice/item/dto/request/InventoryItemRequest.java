@@ -9,6 +9,7 @@ import java.util.UUID;
 public record InventoryItemRequest(
         @NotNull UUID referenceId,
         String referenceCode,
+        String name,
         @NotNull InventoryItemType itemType,
         UUID unitId,
         @NotNull InventoryStatus status,

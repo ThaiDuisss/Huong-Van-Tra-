@@ -8,8 +8,9 @@ import {
     PackageCheck,
     XCircle
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Pagination } from "../../manufacturing/components/shared/Pagination";
 
 import {
     costStatusLabels,
@@ -492,62 +493,82 @@ export function GoodsReceiptLineTable({
 }: {
     receipt: GoodsReceiptDetail;
 }) {
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+
+    const totalLines = receipt.lines.length;
+    const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
+    const pagedLines = receipt.lines.slice(
+        (page - 1) * pageSize,
+        page * pageSize
+    );
+
     return (
-        <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
-            <table className="w-full min-w-[1120px] text-left text-sm">
-                <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
-                    <tr>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>Nguyên liệu</TableHead>
-                        <TableHead align="right">Số đặt</TableHead>
-                        <TableHead align="right">Số nhận</TableHead>
-                        <TableHead align="right">Thiếu/thừa</TableHead>
-                        <TableHead align="right">Đạt QC</TableHead>
-                        <TableHead align="right">Cách ly</TableHead>
-                        <TableHead align="right">Không đạt</TableHead>
-                        <TableHead>Batch</TableHead>
-                        <TableHead>Hạn sử dụng</TableHead>
-                        <TableHead>Trạng thái batch</TableHead>
-                    </tr>
-                </thead>
-                <tbody>
-                    {receipt.lines.map((line) => (
-                        <tr key={line.id}>
-                            <TableCell strong>{line.skuCode}</TableCell>
-                            <TableCell>{line.materialName}</TableCell>
-                            <TableCell align="right">
-                                {line.orderedQuantity ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                                {formatVietnamNumber(line.receivedQuantity)}
-                            </TableCell>
-                            <TableCell align="right">
-                                {line.surplusQuantity > 0
-                                    ? `+${formatVietnamNumber(line.surplusQuantity)}`
-                                    : line.shortageQuantity > 0
-                                        ? `-${formatVietnamNumber(line.shortageQuantity)}`
-                                        : "0"}
-                            </TableCell>
-                            <TableCell align="right">
-                                {formatVietnamNumber(line.qc.passedQuantity)}
-                            </TableCell>
-                            <TableCell align="right">
-                                {formatVietnamNumber(
-                                    line.qc.quarantinedQuantity
-                                )}
-                            </TableCell>
-                            <TableCell align="right">
-                                {formatVietnamNumber(line.qc.failedQuantity)}
-                            </TableCell>
-                            <TableCell>{line.internalBatchCode}</TableCell>
-                            <TableCell>
-                                {formatVietnamDateTime(line.expiryDate)}
-                            </TableCell>
-                            <TableCell>{line.batchStatus}</TableCell>
+        <div className="grid gap-3">
+            <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                    <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
+                        <tr>
+                            <TableHead>Tên nguyên liệu</TableHead>
+                            <TableHead align="right">Số đặt</TableHead>
+                            <TableHead align="right">Số nhận</TableHead>
+                            <TableHead align="right">Thiếu/thừa</TableHead>
+                            <TableHead align="right">Đạt QC</TableHead>
+                            <TableHead align="right">Cách ly</TableHead>
+                            <TableHead align="right">Không đạt</TableHead>
+                            <TableHead>Hạn sử dụng</TableHead>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {pagedLines.map((line) => (
+                            <tr key={line.id}>
+                                <TableCell strong>{line.materialName}</TableCell>
+                                <TableCell align="right">
+                                    {line.orderedQuantity ?? "-"}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {formatVietnamNumber(line.receivedQuantity)}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {line.surplusQuantity > 0
+                                        ? `+${formatVietnamNumber(line.surplusQuantity)}`
+                                        : line.shortageQuantity > 0
+                                            ? `-${formatVietnamNumber(line.shortageQuantity)}`
+                                            : "0"}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {formatVietnamNumber(line.qc.passedQuantity)}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {formatVietnamNumber(
+                                        line.qc.quarantinedQuantity
+                                    )}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {formatVietnamNumber(line.qc.failedQuantity)}
+                                </TableCell>
+                                <TableCell>
+                                    {formatVietnamDateTime(line.expiryDate)}
+                                </TableCell>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {totalLines > pageSize ? (
+                <Pagination
+                    onPageChange={(p: number) => setPage(p)}
+                    onPageSizeChange={(s: number) => {
+                        setPageSize(s);
+                        setPage(1);
+                    }}
+                    page={page}
+                    pageCount={totalPages}
+                    pageSize={pageSize}
+                    totalItems={totalLines}
+                    totalItemsLabel="Tổng số mặt hàng"
+                />
+            ) : null}
         </div>
     );
 }
@@ -562,7 +583,7 @@ export function GoodsReceiptCostTable({
             <table className="w-full min-w-[1080px] text-left text-sm">
                 <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
                     <tr>
-                        <TableHead>SKU</TableHead>
+                        <TableHead>Tên nguyên liệu</TableHead>
                         <TableHead align="right">Đơn giá nhập</TableHead>
                         <TableHead align="right">Accepted</TableHead>
                         <TableHead align="right">Discount</TableHead>
@@ -577,7 +598,7 @@ export function GoodsReceiptCostTable({
                 <tbody>
                     {receipt.lines.map((line) => (
                         <tr key={line.id}>
-                            <TableCell strong>{line.skuCode}</TableCell>
+                            <TableCell strong>{line.materialName}</TableCell>
                             <TableCell align="right">
                                 {formatVnd(line.cost.purchaseUnitPrice)}
                             </TableCell>

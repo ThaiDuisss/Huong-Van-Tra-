@@ -92,13 +92,16 @@ public class InventoryDocumentMapper {
                 : Collections.emptyList();
 
         String refCode = line.getInventoryItem() != null ? line.getInventoryItem().getReferenceCode() : null;
+        String itemName = line.getInventoryItem() != null && line.getInventoryItem().getName() != null
+                ? line.getInventoryItem().getName()
+                : refCode;
 
         return new InventoryDocumentLineResponse(
                 line.getId(),
                 line.getLineNo(),
                 line.getInventoryItem() != null ? line.getInventoryItem().getId() : null,
                 refCode,
-                refCode,
+                itemName,
                 line.getUnitId(),
                 null,
                 line.getOrderedQuantity(),

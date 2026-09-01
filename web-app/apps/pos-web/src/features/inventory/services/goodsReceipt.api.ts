@@ -137,6 +137,24 @@ function mapDocToSummary(doc: InventoryDocumentBackendResponse): GoodsReceiptSum
     };
 }
 
+const globalIngredientNameMap = new Map<string, string>();
+
+function resolveMaterialName(name?: string, sku?: string, id?: string): string {
+    if (id && globalIngredientNameMap.has(String(id))) {
+        return globalIngredientNameMap.get(String(id))!;
+    }
+    if (sku && globalIngredientNameMap.has(String(sku))) {
+        return globalIngredientNameMap.get(String(sku))!;
+    }
+    if (name && globalIngredientNameMap.has(String(name))) {
+        return globalIngredientNameMap.get(String(name))!;
+    }
+    if (name && !name.startsWith("NL-") && !name.startsWith("MAT-") && !name.startsWith("PKG-") && !name.startsWith("FG-")) {
+        return name;
+    }
+    return name || sku || "Nguyên liệu";
+}
+
 function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDetail {
     const summary = mapDocToSummary(doc);
     const lines: GoodsReceiptLine[] = (doc.lines || []).map((line, index) => {
@@ -163,7 +181,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             internalBatchCode: batchAlloc?.batchCode || "",
             manufacturedAt: batchAlloc?.manufactureDate || "",
             materialId: line.inventoryItemId,
-            materialName: line.itemName || line.itemSku || "Nguyên liệu",
+            materialName: resolveMaterialName(line.itemName, line.itemSku, line.inventoryItemId),
             orderedQuantity: line.orderedQuantity,
             qc: {
                 failedQuantity: line.rejectedQuantity || 0,
@@ -392,6 +410,13 @@ export const goodsReceiptApi: GoodsReceiptApi = {
     },
 
     async getGoodsReceipt(receiptId: string): Promise<GoodsReceiptDetail> {
+        if (globalIngredientNameMap.size === 0) {
+            try {
+                await goodsReceiptApi.getGoodsReceiptOptions();
+            } catch {
+                // ignore
+            }
+        }
         const res = await apiClient.get<InventoryDocumentBackendResponse>(
             `/inventory/documents/${encodeURIComponent(receiptId)}`
         );
@@ -750,6 +775,20 @@ export const goodsReceiptApi: GoodsReceiptApi = {
             materials,
             suppliers
         };
+
+        materials.forEach((m) => {
+            if (m.id) globalIngredientNameMap.set(String(m.id), m.name);
+            if (m.skuCode) globalIngredientNameMap.set(String(m.skuCode), m.name);
+        });
+        rawIngredients.forEach((ing) => {
+            const id = ing.id !== undefined && ing.id !== null ? String(ing.id) : undefined;
+            const code = ing.ingredientCode || ing.code;
+            const name = ing.name;
+            if (name) {
+                if (id) globalIngredientNameMap.set(id, String(name));
+                if (code) globalIngredientNameMap.set(String(code), String(name));
+            }
+        });
 
         console.log("[GoodsReceipt API] Options loaded:", {
             suppRes,

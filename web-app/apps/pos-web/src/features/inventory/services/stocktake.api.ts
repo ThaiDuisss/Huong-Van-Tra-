@@ -313,10 +313,10 @@ function toSummary(response: InventoryTakeApiResponse, enrichment: Enrichment): 
     approvedAt: response.adjustmentDocument?.approvedAt ?? null,
     approvedBy: response.adjustmentDocument?.approvedBy
       ? {
-          id: response.adjustmentDocument.approvedBy,
-          name: response.adjustmentDocument.approvedBy,
-          role: "INVENTORY_STAFF",
-        }
+        id: response.adjustmentDocument.approvedBy,
+        name: response.adjustmentDocument.approvedBy,
+        role: "INVENTORY_STAFF",
+      }
       : null,
     branch: enrichment.branches.find((branch) => branch.id === response.branchId) ?? {
       branchCode: "",
