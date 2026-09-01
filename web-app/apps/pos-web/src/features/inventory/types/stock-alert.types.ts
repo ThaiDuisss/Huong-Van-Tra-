@@ -154,7 +154,6 @@ export interface ReorderPolicyQuery {
 
 export interface StockAlertActionInput {
     alertId: string;
-    actorRole: StockAlertRole;
     note?: string;
     reason?: string;
     dismissUntil?: string;
@@ -162,7 +161,6 @@ export interface StockAlertActionInput {
 }
 
 export interface ReorderPolicyUpdateInput {
-    actorRole: StockAlertRole;
     policyId: string;
     minimumStock: number;
     safetyStock: number;
@@ -176,10 +174,9 @@ export interface ReorderPolicyUpdateInput {
 }
 
 export interface ReorderPolicyBulkUpdateInput {
-    actorRole: StockAlertRole;
     category: string;
     locationId: string;
-    patch: Partial<Omit<ReorderPolicyUpdateInput, "actorRole" | "policyId">>;
+    patch: Partial<Omit<ReorderPolicyUpdateInput, "policyId">>;
     previewOnly: boolean;
 }
 
@@ -198,7 +195,7 @@ export interface PurchaseRequestDraft {
 
 export interface StockAlertApi {
     listStockAlerts(query: StockAlertListQuery): Promise<StockAlertListResult>;
-    getStockAlert(alertId: string, role: StockAlertRole): Promise<StockAlertDetail>;
+    getStockAlert(alertId: string, role?: StockAlertRole): Promise<StockAlertDetail>;
     acknowledgeStockAlert(input: StockAlertActionInput): Promise<StockAlertDetail>;
     dismissStockAlert(input: StockAlertActionInput): Promise<StockAlertDetail>;
     resolveStockAlert(input: StockAlertActionInput): Promise<StockAlertDetail>;

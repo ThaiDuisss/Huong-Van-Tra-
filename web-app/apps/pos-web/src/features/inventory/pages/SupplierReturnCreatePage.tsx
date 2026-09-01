@@ -11,8 +11,7 @@ import { supplierReturnApi } from "../services/supplierReturn.api";
 import type {
     SupplierReturnOptions,
     SupplierReturnReason,
-    SupplierReturnResolution,
-    SupplierReturnRole
+    SupplierReturnResolution
 } from "../types/supplier-return.types";
 import { formatVietnamNumber, formatVnd } from "../utils/inventory-format";
 
@@ -23,14 +22,8 @@ interface DraftLine {
     evidence: string;
 }
 
-function readRole(): SupplierReturnRole {
-    const stored = window.localStorage.getItem("hvt.supplierReturn.role");
-    return stored && ["WAREHOUSE", "QC_STAFF", "ACCOUNTANT", "ADMIN", "DIRECTOR"].includes(stored) ? stored as SupplierReturnRole : "WAREHOUSE";
-}
-
 export function SupplierReturnCreatePage() {
     const navigate = useNavigate();
-    const [role] = useState<SupplierReturnRole>(readRole);
     const [options, setOptions] = useState<SupplierReturnOptions>({ batches: [], suppliers: [], users: [] });
     const [form, setForm] = useState({ note: "", pickupMethod: "NCC đến lấy", reason: "SUP-01" as SupplierReturnReason, receiptId: "", resolutionRequested: "CREDIT_NOTE" as SupplierReturnResolution, supplierId: "", supplierInvoiceCode: "" });
     const [lines, setLines] = useState<DraftLine[]>([]);
@@ -45,8 +38,8 @@ export function SupplierReturnCreatePage() {
         });
     }, []);
 
-    const availableBatches = useMemo(() => options.batches.filter((batch) => batch.supplierId === form.supplierId && batch.receiptId === form.receiptId), [form.receiptId, form.supplierId, options.batches]);
-    const selectedLines = lines.map((line) => ({ ...line, batch: options.batches.find((batch) => batch.id === line.batchId) })).filter((line): line is DraftLine & { batch: SupplierReturnOptions["batches"][number] } => Boolean(line.batch));
+    const availableBatches = useMemo(() => options.batches.filter((item) => item.supplierId === form.supplierId && (!form.receiptId || item.receiptId === form.receiptId)), [form.receiptId, form.supplierId, options.batches]);
+    const selectedLines = useMemo(() => lines.map((line) => ({ ...line, batch: options.batches.find((item) => item.id === line.batchId) })).filter((item): item is DraftLine & { batch: SupplierReturnOptions["batches"][number] } => Boolean(item.batch)), [lines, options.batches]);
     const totalValue = selectedLines.reduce((sum, line) => sum + line.returnQuantity * line.batch.unitCost, 0);
 
     function addLine() {
@@ -58,7 +51,7 @@ export function SupplierReturnCreatePage() {
         try {
             setSubmitting(true);
             setError("");
-            const created = await supplierReturnApi.createSupplierReturn({ actorRole: role, lines: selectedLines.map((line) => ({ batchId: line.batchId, evidence: line.evidence ? [line.evidence] : [], reason: line.reason, returnQuantity: line.returnQuantity })), note: form.note, pickupMethod: form.pickupMethod, reason: form.reason, receiptId: form.receiptId, resolutionRequested: form.resolutionRequested, submit, supplierId: form.supplierId, supplierInvoiceCode: form.supplierInvoiceCode });
+            const created = await supplierReturnApi.createSupplierReturn({ lines: selectedLines.map((line) => ({ batchId: line.batchId, evidence: line.evidence ? [line.evidence] : [], reason: line.reason, returnQuantity: line.returnQuantity })), note: form.note, pickupMethod: form.pickupMethod, reason: form.reason, receiptId: form.receiptId, resolutionRequested: form.resolutionRequested, submit, supplierId: form.supplierId, supplierInvoiceCode: form.supplierInvoiceCode });
             navigate(`/management/inventory/supplier-returns/${created.id}`);
         } catch (createError) {
             setError(createError instanceof Error ? createError.message : "Không thể tạo phiếu trả NCC.");

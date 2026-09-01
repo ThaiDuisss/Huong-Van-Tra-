@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { useAuth } from "../../../auth/auth-context";
 import {
     StockAlertTable
 } from "../components/StockAlertComponents";
@@ -19,8 +18,7 @@ import { stockAlertApi } from "../services/stockAlert.api";
 import { inventoryMasterLocations } from "../mocks/inventory-master-data.mock";
 import type {
     StockAlertListQuery,
-    StockAlertListResult,
-    StockAlertRole
+    StockAlertListResult
 } from "../types/stock-alert.types";
 import { formatVietnamNumber } from "../utils/inventory-format";
 
@@ -29,7 +27,7 @@ const initialQuery: StockAlertListQuery = {
     hasAction: "ALL",
     locationId: "ALL",
     page: 0,
-    role: "WAREHOUSE",
+    role: "ADMIN",
     severity: "ALL",
     size: 10,
     skuOrCategory: "",
@@ -38,23 +36,10 @@ const initialQuery: StockAlertListQuery = {
 };
 
 export function StockAlertListPage() {
-    const { roles } = useAuth();
-    const effectiveRole: StockAlertRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : "WAREHOUSE";
-
-    const [query, setQuery] = useState<StockAlertListQuery>({ ...initialQuery, role: effectiveRole });
+    const [query, setQuery] = useState<StockAlertListQuery>(initialQuery);
     const [result, setResult] = useState<StockAlertListResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-
-    useEffect(() => {
-        setQuery((current) => ({ ...current, page: 0, role: effectiveRole }));
-    }, [effectiveRole]);
 
     useEffect(() => {
         let active = true;

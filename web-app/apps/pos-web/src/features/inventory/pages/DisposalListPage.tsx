@@ -17,8 +17,7 @@ import type {
     DisposalCreateInput,
     DisposalListQuery,
     DisposalListResult,
-    QualityBatchSummary,
-    QualityRole
+    QualityBatchSummary
 } from "../types/quality.types";
 import { formatVietnamNumber, formatVnd } from "../utils/inventory-format";
 
@@ -44,13 +43,6 @@ const initialForm = {
 
 export function DisposalListPage() {
     const navigate = useNavigate();
-    const { roles } = useAuth();
-    const effectiveRole: QualityRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("QC_STAFF")
-        ? "QC_STAFF"
-        : "WAREHOUSE";
-
     const [query, setQuery] = useState<DisposalListQuery>(initialQuery);
     const [result, setResult] = useState<DisposalListResult | null>(null);
     const [candidateBatches, setCandidateBatches] = useState<QualityBatchSummary[]>([]);
@@ -116,7 +108,6 @@ export function DisposalListPage() {
         setError("");
         try {
             const created = await qualityApi.createDisposalRequest({
-                actorRole: effectiveRole,
                 lines: [{
                     batchId: selectedBatch.id,
                     evidence: form.evidence.split(",").map((item) => item.trim()).filter(Boolean),

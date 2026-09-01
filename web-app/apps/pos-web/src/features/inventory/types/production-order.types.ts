@@ -218,7 +218,6 @@ export interface ProductionOrderCreateInput {
 
 export interface ProductionCompletionInput {
     productionOrderId: string;
-    actorRole: ProductionRole;
     idempotencyKey: string;
     goodQuantity: number;
     rejectedQuantity: number;
@@ -233,7 +232,6 @@ export interface ProductionCompletionInput {
 
 export interface ProductionActionInput {
     productionOrderId: string;
-    actorRole: ProductionRole;
     note?: string;
 }
 

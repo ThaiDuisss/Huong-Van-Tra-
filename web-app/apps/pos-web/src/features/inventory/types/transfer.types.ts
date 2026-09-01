@@ -185,7 +185,6 @@ export interface TransferOptions {
 }
 
 export interface TransferCreateInput {
-    actorRole: TransferRole;
     sourceLocationId: string;
     destinationLocationId: string;
     expectedReceiveAt: string;
@@ -200,7 +199,6 @@ export interface TransferCreateInput {
 }
 
 export interface TransferActionInput {
-    actorRole: TransferRole;
     transferId: string;
     note?: string;
 }

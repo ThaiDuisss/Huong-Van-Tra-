@@ -55,7 +55,6 @@ export function PosCustomerReturnCreatePage() {
             setSubmitting(true);
             setError("");
             const created = await customerReturnApi.createCustomerReturn({
-                actorRole: "SALES_STAFF",
                 customerNote: note,
                 desiredResolution: resolution,
                 evidence: evidence ? [evidence] : [],

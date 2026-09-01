@@ -155,7 +155,6 @@ export interface SupplierReturnOptions {
 }
 
 export interface SupplierReturnCreateInput {
-    actorRole: SupplierReturnRole;
     supplierId: string;
     receiptId: string;
     supplierInvoiceCode: string;
@@ -173,7 +172,6 @@ export interface SupplierReturnCreateInput {
 }
 
 export interface SupplierReturnActionInput {
-    actorRole: SupplierReturnRole;
     supplierReturnId: string;
     note?: string;
 }

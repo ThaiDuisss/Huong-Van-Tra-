@@ -24,8 +24,7 @@ import {
 import { transferApi } from "../services/transfer.api";
 import type {
     TransferDetail,
-    TransferDiscrepancyResolutionStatus,
-    TransferRole
+    TransferDiscrepancyResolutionStatus
 } from "../types/transfer.types";
 import {
     formatVietnamDateTime,
@@ -64,14 +63,6 @@ export function TransferDetailPage() {
         vehiclePlate: ""
     });
     const [receiveEvidence, setReceiveEvidence] = useState("");
-
-    const effectiveRole: TransferRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : "WAREHOUSE";
 
     const load = useCallback(() => {
         if (!transferId) return;
@@ -117,7 +108,6 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.approveTransfer({
-                actorRole: effectiveRole,
                 lines: transfer.lines.map((line) => ({ approvedQuantity: line.requestedQuantity, lineId: line.id })),
                 note: approveNote,
                 transferId: transfer.id
@@ -130,7 +120,6 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.approveTransfer({
-                actorRole: effectiveRole,
                 lines: transfer.lines.map((line) => ({ approvedQuantity: Math.max(1, line.requestedQuantity - 1), lineId: line.id })),
                 note: approveNote,
                 transferId: transfer.id
@@ -143,7 +132,6 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.confirmTransferPicking({
-                actorRole: effectiveRole,
                 lines: transfer.lines.map((line) => ({
                     allocations: line.allocations.map((allocation) => ({
                         allocationId: allocation.id,
@@ -163,7 +151,6 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.shipTransfer({
-                actorRole: effectiveRole,
                 carrierName: shipForm.carrierName,
                 expectedArrivalAt: new Date(shipForm.expectedArrivalAt).toISOString(),
                 internalTrackingCode: shipForm.internalTrackingCode,
@@ -180,7 +167,6 @@ export function TransferDetailPage() {
         if (!transfer) return;
         void runAction(
             () => transferApi.receiveTransfer({
-                actorRole: effectiveRole,
                 lines: transfer.lines.map((line) => ({
                     batchCode: line.allocations[0]?.batchCode ?? "",
                     damagedQuantity: full ? 0 : 1,
@@ -231,8 +217,8 @@ export function TransferDetailPage() {
                                         <button className="h-10 rounded-lg border border-amber-200 px-4 text-sm font-black text-amber-700" disabled={submitting} onClick={approveReduced} type="button">Approve giảm SL</button>
                                     </>
                                 ) : null}
-                                {transfer.status === "APPROVED" && canWarehouse ? <ActionButton disabled={submitting} label="Reserve FEFO" onClick={() => void runAction(() => transferApi.reserveTransfer({ actorRole: effectiveRole, transferId: transfer.id }), "Không thể reserve.")} /> : null}
-                                {transfer.status === "RESERVED" && canWarehouse ? <ActionButton disabled={submitting} label="Bắt đầu picking" onClick={() => void runAction(() => transferApi.startPicking({ actorRole: effectiveRole, transferId: transfer.id }), "Không thể bắt đầu picking.")} /> : null}
+                                {transfer.status === "APPROVED" && canWarehouse ? <ActionButton disabled={submitting} label="Reserve FEFO" onClick={() => void runAction(() => transferApi.reserveTransfer({ transferId: transfer.id }), "Không thể reserve.")} /> : null}
+                                {transfer.status === "RESERVED" && canWarehouse ? <ActionButton disabled={submitting} label="Bắt đầu picking" onClick={() => void runAction(() => transferApi.startPicking({ transferId: transfer.id }), "Không thể bắt đầu picking.")} /> : null}
                                 {transfer.status === "PICKING" && canWarehouse ? <ActionButton disabled={submitting} label="Confirm picking" onClick={confirmPickAll} /> : null}
                                 {transfer.status === "PICKING" && canWarehouse ? <ActionButton disabled={submitting} label="Ship" onClick={() => setShipOpen(true)} /> : null}
                                 {transfer.status === "SHIPPED" && canBranchReceive ? <ActionButton disabled={submitting} label="Nhận hàng" onClick={() => setReceiveOpen(true)} /> : null}

@@ -23,8 +23,7 @@ import {
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptDetail,
-    GoodsReceiptQcInput,
-    GoodsReceiptRole
+    GoodsReceiptQcInput
 } from "../types/goods-receipt.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
@@ -33,23 +32,25 @@ type ReceiptTab = "lines" | "overview" | "cost" | "documents" | "evidence" | "au
 interface ReceiveDraftLine {
     lineId: string;
     materialName: string;
-    note: string;
     orderedQuantity: number;
     receivedQuantity: number;
-    unit: string;
+    initialDamagedQuantity: number;
+    supplierLot: string;
+    manufactureDate: string;
+    expiryDate: string;
 }
 
 interface QcDraftLine {
-    acceptedQuantity: number;
-    batchCode: string;
-    expiryDate: string;
     lineId: string;
-    manufactureDate: string;
     materialName: string;
     receivedQuantity: number;
+    acceptedQuantity: number;
     rejectedQuantity: number;
     supplierLot: string;
-    unit: string;
+    batchCode: string;
+    manufactureDate: string;
+    expiryDate: string;
+    note: string;
 }
 
 export function GoodsReceiptDetailPage() {
@@ -61,7 +62,10 @@ export function GoodsReceiptDetailPage() {
     const [tab, setTab] = useState<ReceiptTab>("lines");
     const [toast, setToast] = useState<{ message: string; success: boolean } | null>(null);
 
-    // Modals
+    // Dialog state
+    const [rejectOpen, setRejectOpen] = useState(false);
+    const [rejectionReason, setRejectionReason] = useState("");
+
     const [receiveOpen, setReceiveOpen] = useState(false);
     const [receiveDraft, setReceiveDraft] = useState<ReceiveDraftLine[]>([]);
 
@@ -69,22 +73,10 @@ export function GoodsReceiptDetailPage() {
     const [qcDraft, setQcDraft] = useState<QcDraftLine[]>([]);
 
     const [postOpen, setPostOpen] = useState(false);
-    const [rejectOpen, setRejectOpen] = useState(false);
-    const [rejectionReason, setRejectionReason] = useState("");
     const [cancelOpen, setCancelOpen] = useState(false);
     const [cancelNote, setCancelNote] = useState("");
 
     const [mutationLoading, setMutationLoading] = useState(false);
-
-    const effectiveRole: GoodsReceiptRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("QC_STAFF")
-        ? "QC_STAFF"
-        : "WAREHOUSE";
 
     const loadReceipt = useCallback(() => {
         if (!receiptId) return;
@@ -135,7 +127,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.submitGoodsReceipt({
-                actorRole: effectiveRole,
                 receiptId: receipt.id
             });
             setReceipt(updated);
@@ -153,7 +144,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.approveGoodsReceipt({
-                actorRole: effectiveRole,
                 note: "Quản lý kho đã duyệt kế hoạch nhập nguyên liệu",
                 receiptId: receipt.id
             });
@@ -176,7 +166,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.rejectGoodsReceipt({
-                actorRole: effectiveRole,
                 reason: rejectionReason.trim(),
                 receiptId: receipt.id
             });
@@ -196,7 +185,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.startReceivingGoodsReceipt({
-                actorRole: effectiveRole,
                 receiptId: receipt.id
             });
             setReceipt(updated);
@@ -293,7 +281,6 @@ export function GoodsReceiptDetailPage() {
         }
 
         const input: GoodsReceiptQcInput = {
-            actorRole: effectiveRole,
             lines: qcDraft.map((l) => ({
                 acceptedQuantity: l.acceptedQuantity,
                 batches: l.acceptedQuantity > 0
@@ -335,7 +322,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.postGoodsReceipt({
-                actorRole: effectiveRole,
                 receiptId: receipt.id
             });
             setReceipt(updated);
@@ -354,7 +340,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.cancelGoodsReceipt({
-                actorRole: effectiveRole,
                 note: cancelNote,
                 receiptId: receipt.id
             });

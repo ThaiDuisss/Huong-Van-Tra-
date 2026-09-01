@@ -158,16 +158,14 @@ function validatePolicy(input: ReorderPolicyUpdateInput) {
 
 export const stockAlertApi: StockAlertApi = {
     acknowledgeStockAlert(input: StockAlertActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER"]);
-        const alert = findAlert(input.alertId, input.actorRole);
+        const alert = findAlert(input.alertId, "ADMIN");
         alert.status = "ACKNOWLEDGED";
         alert.acknowledgedAt = new Date().toISOString();
-        alert.acknowledgedBy = user(input.actorRole);
+        alert.acknowledgedBy = user("ADMIN");
         return wait(makeAlertDetail(cloneAlert(alert)));
     },
 
     bulkUpdateReorderPolicies(input: ReorderPolicyBulkUpdateInput) {
-        assertRole(input.actorRole, ["ADMIN"]);
         const policies = reorderPolicies.filter((policy) => {
             const sku = alertSkus.find((item) => item.id === policy.skuId);
             return policy.locationId === input.locationId && sku?.category === input.category;
@@ -179,8 +177,7 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     createPurchaseRequestFromAlert(input: StockAlertActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE"]);
-        const alert = findAlert(input.alertId, input.actorRole);
+        const alert = findAlert(input.alertId, "ADMIN");
         const id = `purchase-draft-${Date.now()}`;
         const code = `PR-DRAFT-${String(purchaseRequestDrafts.length + 1).padStart(3, "0")}`;
         purchaseRequestDrafts.unshift({ alertId: alert.id, code, id, status: "DRAFT" });
@@ -190,8 +187,7 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     createTransferFromAlert(input: StockAlertActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER"]);
-        const alert = findAlert(input.alertId, input.actorRole);
+        const alert = findAlert(input.alertId, "ADMIN");
         const id = `transfer-draft-${Date.now()}`;
         const code = `TRF-DRAFT-${String(stockAlerts.filter((item) => item.actionReference?.type === "TRANSFER_REQUEST").length + 1).padStart(3, "0")}`;
         const source = balances.find((item) => item.locationId !== alert.location.id && item.skuId === alert.sku.id && item.balance.available > alert.suggestedQuantity + 20);
@@ -203,9 +199,8 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     dismissStockAlert(input: StockAlertActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER"]);
         if (!input.reason?.trim()) return Promise.reject(new Error("Dismiss bắt buộc nhập lý do."));
-        const alert = findAlert(input.alertId, input.actorRole);
+        const alert = findAlert(input.alertId, "ADMIN");
         alert.status = "DISMISSED";
         alert.dismissedAt = new Date().toISOString();
         alert.dismissedReason = input.reason;
@@ -213,8 +208,8 @@ export const stockAlertApi: StockAlertApi = {
         return wait(makeAlertDetail(cloneAlert(alert)));
     },
 
-    getStockAlert(alertId: string, role: StockAlertRole) {
-        return wait(makeAlertDetail(cloneAlert(findAlert(alertId, role))));
+    getStockAlert(alertId: string, role?: StockAlertRole) {
+        return wait(makeAlertDetail(cloneAlert(findAlert(alertId, role ?? "ADMIN"))));
     },
 
     listReorderPolicies(query: ReorderPolicyQuery) {
@@ -256,9 +251,8 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     resolveStockAlert(input: StockAlertActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER"]);
-        const alert = findAlert(input.alertId, input.actorRole);
-        if (alert.balance.available <= alert.policy.reorderPoint && !(input.actorRole === "ADMIN" && input.adminOverride)) {
+        const alert = findAlert(input.alertId, "ADMIN");
+        if (alert.balance.available <= alert.policy.reorderPoint && !input.adminOverride) {
             return Promise.reject(new Error("Chỉ resolve khi available vượt threshold hoặc ADMIN override."));
         }
         alert.status = "RESOLVED";
@@ -268,7 +262,6 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     updateReorderPolicy(input: ReorderPolicyUpdateInput) {
-        assertRole(input.actorRole, ["ADMIN"]);
         validatePolicy(input);
         const policy = reorderPolicies.find((item) => item.id === input.policyId);
         if (!policy) return Promise.reject(new Error("Không tìm thấy reorder policy."));

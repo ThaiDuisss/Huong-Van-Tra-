@@ -22,7 +22,6 @@ import { stockDocumentApi } from "../services/stockDocument.api";
 import type {
     StockDocumentAction,
     StockDocumentDetail,
-    StockDocumentRole,
     StockDocumentStatus
 } from "../types/stock-document.types";
 import { formatVietnamDateTime } from "../utils/inventory-format";
@@ -104,16 +103,6 @@ function originalBusinessPath(document: StockDocumentDetail) {
 export function StockDocumentDetailPage() {
     const { documentId } = useParams();
     const { roles } = useAuth();
-    const effectiveRole: StockDocumentRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("QC_STAFF")
-        ? "QC_STAFF"
-        : "WAREHOUSE";
-
     const canViewCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "DIRECTOR"]);
     const [document, setDocument] = useState<StockDocumentDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -188,7 +177,6 @@ export function StockDocumentDetailPage() {
         }
 
         const input = {
-            actorRole: effectiveRole,
             documentId: document.id,
             note,
             reason

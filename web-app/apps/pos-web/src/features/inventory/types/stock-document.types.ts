@@ -185,7 +185,6 @@ export interface StockDocumentOptions {
 
 export interface StockDocumentMutationInput {
     documentId: string;
-    actorRole: StockDocumentRole;
     note?: string;
     reason?: string;
 }

@@ -194,7 +194,6 @@ export interface DisposalListResult {
 }
 
 export interface DisposalCreateInput {
-    actorRole: QualityRole;
     locationId: string;
     reason: string;
     method: DisposalMethod;
@@ -205,14 +204,12 @@ export interface DisposalCreateInput {
 }
 
 export interface QualityActionInput {
-    actorRole: QualityRole;
     batchId: string;
     note?: string;
     adminOverride?: boolean;
 }
 
 export interface DisposalActionInput {
-    actorRole: QualityRole;
     disposalId: string;
     reason?: string;
 }

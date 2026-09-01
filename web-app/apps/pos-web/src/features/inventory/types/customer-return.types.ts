@@ -187,7 +187,6 @@ export interface CustomerReturnOptions {
 }
 
 export interface CreateCustomerReturnInput {
-    actorRole: CustomerReturnRole;
     orderId: string;
     desiredResolution: CustomerReturnResolution;
     customerNote?: string;
@@ -202,7 +201,6 @@ export interface CreateCustomerReturnInput {
 }
 
 export interface CustomerReturnActionInput {
-    actorRole: CustomerReturnRole;
     returnId: string;
     note?: string;
 }

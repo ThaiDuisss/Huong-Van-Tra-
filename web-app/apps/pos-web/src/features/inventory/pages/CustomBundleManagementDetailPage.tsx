@@ -1,20 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
+import { useAuth } from "../../../auth/auth-context";
+import { hasAnyRole } from "../../../auth/role-utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
-import { bundlePaymentStatusLabels, bundleReservationLabels, customBundleRoleLabels, customBundleStatusLabels } from "../constants/custom-bundle.constants";
+import { bundlePaymentStatusLabels, bundleReservationLabels, customBundleStatusLabels } from "../constants/custom-bundle.constants";
 import { customBundleApi } from "../services/customBundle.api";
-import type { BundlePackingInput, CustomBundleDetail, CustomBundleRole } from "../types/custom-bundle.types";
+import type { BundlePackingInput, CustomBundleDetail } from "../types/custom-bundle.types";
 import { formatVietnamDateTime, formatVietnamNumber, formatVnd } from "../utils/inventory-format";
-
-function readRole(): CustomBundleRole {
-    const stored = window.localStorage.getItem("hvt.customBundle.role");
-    return stored && ["SALES_STAFF","BRANCH_MANAGER","WAREHOUSE","ADMIN","ACCOUNTANT","QC_STAFF"].includes(stored) ? stored as CustomBundleRole : "BRANCH_MANAGER";
-}
 
 export function CustomBundleManagementDetailPage() {
     const { bundleId } = useParams();
-    const [role, setRole] = useState<CustomBundleRole>(readRole);
+    const { roles } = useAuth();
     const [bundle, setBundle] = useState<CustomBundleDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -22,7 +19,6 @@ export function CustomBundleManagementDetailPage() {
     const [submitting, setSubmitting] = useState(false);
     const [draft, setDraft] = useState({ actualTotalWeight: 0, numberOfPackages: 1, packagingType: "", packingNote: "", lines: [] as Array<{ lineId: string; actualPackedQuantity: number; picked: boolean; reason: string }> });
 
-    useEffect(() => { window.localStorage.setItem("hvt.customBundle.role", role); }, [role]);
     const load = useCallback(() => {
         if (!bundleId) return;
         let active = true;
@@ -45,15 +41,16 @@ export function CustomBundleManagementDetailPage() {
     if (!bundleId) return <Navigate to="/management/inventory/custom-bundles" replace />;
 
     function canPack(current: CustomBundleDetail) {
-        if (!["ADMIN","BRANCH_MANAGER","WAREHOUSE"].includes(role)) return false;
-        return ["PAID","PACKING"].includes(current.status);
+        if (!hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE"])) return false;
+        return ["PAID", "PACKING"].includes(current.status);
     }
 
     async function startPacking() {
         if (!bundle) return;
+        setError("");
         try {
             setSubmitting(true);
-            const updated = await customBundleApi.startCustomBundlePacking(bundle.id, role);
+            const updated = await customBundleApi.startCustomBundlePacking(bundle.id);
             setBundle(updated);
             setDraft({ actualTotalWeight: updated.totalWeight, numberOfPackages: 1, packagingType: updated.packagingType, packingNote: updated.packingNote ?? "", lines: updated.lines.map((line)=>({ actualPackedQuantity: line.quantity, lineId: line.id, picked: false, reason: "" })) });
             setPackingOpen(true);
@@ -66,7 +63,7 @@ export function CustomBundleManagementDetailPage() {
 
     async function confirmPacking() {
         if (!bundle) return;
-        const input: BundlePackingInput = { actorRole: role, bundleId: bundle.id, operationId: `CUSTOM_BUNDLE_PACK:${bundle.id}`, ...draft };
+        const input: BundlePackingInput = { bundleId: bundle.id, operationId: `CUSTOM_BUNDLE_PACK:${bundle.id}`, ...draft };
         try {
             setSubmitting(true);
             const updated = await customBundleApi.confirmCustomBundlePacking(input);
@@ -81,11 +78,11 @@ export function CustomBundleManagementDetailPage() {
 
     async function cancelBundle() {
         if (!bundle) return;
-        setBundle(await customBundleApi.cancelCustomBundle(bundle.id, role));
+        setBundle(await customBundleApi.cancelCustomBundle(bundle.id));
     }
 
     return <section className="grid gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3"><Link className="text-sm font-black text-[#159734]" to="/management/inventory/custom-bundles">Quay lại danh sách</Link><label className="grid gap-1 text-xs font-black text-[#536078]">Vai trò<select className="h-10 rounded-lg border border-[#d8eadc] px-3 text-sm font-black" onChange={(e)=>setRole(e.currentTarget.value as CustomBundleRole)} value={role}>{Object.entries(customBundleRoleLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><Link className="text-sm font-black text-[#159734]" to="/management/inventory/custom-bundles">Quay lại danh sách</Link></div>
         {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}
         {error ? <div className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : null}
         {bundle ? <>

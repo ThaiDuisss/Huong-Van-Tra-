@@ -237,7 +237,6 @@ export interface GoodsReceiptCreateLineInput {
 
 export interface GoodsReceiptQcInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     lines: Array<{
         lineId: string;
         receivedQuantity: number;
@@ -251,7 +250,6 @@ export interface GoodsReceiptQcInput {
 
 export interface GoodsReceiptCostInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     finalize: boolean;
     lines: Array<{
         lineId: string;
@@ -266,7 +264,6 @@ export interface GoodsReceiptCostInput {
 
 export interface GoodsReceiptActionInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     note?: string;
 }
 

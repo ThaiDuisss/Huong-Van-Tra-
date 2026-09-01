@@ -56,7 +56,7 @@ function audit(
     note?: string,
     reason?: string
 ): InventoryAuditEvent {
-    const actor = productionActor(input.actorRole);
+    const actor = productionActor("ADMIN");
     return {
         actor,
         happenedAt: new Date().toISOString(),
@@ -200,12 +200,6 @@ export const productionOrderApi: ProductionOrderApi = {
             ) {
                 throw new Error("Hao hụt vượt tolerance phải có lý do.");
             }
-            if (
-                variancePercent > productionCompletionTolerancePercent * 2 &&
-                !["ADMIN", "DIRECTOR"].includes(input.actorRole)
-            ) {
-                throw new Error("Variance vượt ngưỡng cần ADMIN hoặc DIRECTOR duyệt.");
-            }
             if (new Date(input.expiryDate) <= new Date(input.manufacturingDate)) {
                 throw new Error("Batch expiry phải sau manufacturing date.");
             }
@@ -215,7 +209,7 @@ export const productionOrderApi: ProductionOrderApi = {
                 ...order.completions,
                 {
                     completedAt: new Date().toISOString(),
-                    completedBy: productionActor(input.actorRole),
+                    completedBy: productionActor("ADMIN"),
                     completionNumber,
                     expiryDate: input.expiryDate,
                     goodQuantity: input.goodQuantity,
@@ -314,7 +308,7 @@ export const productionOrderApi: ProductionOrderApi = {
         const order: ProductionOrder = {
             auditEvents: [
                 audit(
-                    { actorRole: "WAREHOUSE", productionOrderId: "new" },
+                    { productionOrderId: "new" },
                     "CREATE_DRAFT",
                     input.submit ? "Tạo và submit LSX." : "Lưu draft LSX."
                 )
