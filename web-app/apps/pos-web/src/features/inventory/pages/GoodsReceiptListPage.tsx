@@ -3,6 +3,7 @@ import {
     ClipboardList,
     Clock3,
     FileCheck2,
+    Filter,
     PackageCheck,
     Truck
 } from "lucide-react";
@@ -38,7 +39,23 @@ const statusTabs: Array<{ key: "ALL" | GoodsReceiptStatus; label: string }> = [
 
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
+    const [showFilters, setShowFilters] = useState(false);
     const [result, setResult] = useState<GoodsReceiptListResult | null>(null);
+    const [summaryCounts, setSummaryCounts] = useState<{
+        draft: number;
+        pendingApproval: number;
+        receiving: number;
+        awaitingQc: number;
+        readyToPost: number;
+        postedToday: number;
+    }>({
+        awaitingQc: 0,
+        draft: 0,
+        pendingApproval: 0,
+        postedToday: 0,
+        readyToPost: 0,
+        receiving: 0
+    });
     const [options, setOptions] = useState<GoodsReceiptOptions>({
         locations: [],
         materials: [],
@@ -59,6 +76,17 @@ export function GoodsReceiptListPage() {
                 console.error("[GoodsReceiptListPage] Lỗi tải danh mục (nhà cung cấp/kho):", err);
             });
     }, []);
+
+    useEffect(() => {
+        void goodsReceiptApi
+            .getGoodsReceiptSummaryCounts()
+            .then((counts) => {
+                setSummaryCounts(counts);
+            })
+            .catch((err: unknown) => {
+                console.error("[GoodsReceiptListPage] Lỗi tải tổng số đếm phiếu nhập:", err);
+            });
+    }, [refreshKey]);
 
     useEffect(() => {
         let active = true;
@@ -102,22 +130,46 @@ export function GoodsReceiptListPage() {
     }, []);
 
     const receipts = result?.content ?? [];
+    const activeFilterCount = [
+        Boolean(query.receiptCode),
+        query.supplierId !== "ALL",
+        query.receivingLocationId !== "ALL",
+        Boolean(query.purchaseOrderCode),
+        query.qcResult !== "ALL",
+        query.costStatus !== "ALL",
+        query.hasVariance !== "ALL",
+        Boolean(query.receivedFrom),
+        Boolean(query.receivedTo)
+    ].filter(Boolean).length;
 
     return (
         <section className="grid gap-4">
             <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div className="grid gap-1">
-                    <p className="text-xs font-black uppercase tracking-wider text-[#159734]">
-                        Quản lý Kho vận › Quy trình nhập nguyên liệu
-                    </p>
                     <h1 className="text-2xl font-black text-[#172317]">
                         Phiếu nhập kho từ Nhà cung cấp
                     </h1>
                     <p className="max-w-3xl text-sm font-semibold leading-6 text-[#697684]">
-                        Quản lý toàn bộ 5 giai đoạn vòng đời: Lập kế hoạch (Draft) → Phê duyệt → Tiếp nhận kiểm đếm → Kiểm định QC & Lô → Ghi sổ nhập kho khả dụng.
+                        Quản lý vòng đời phiếu nhập
                     </p>
                 </div>
-                <div className="flex flex-wrap items-end gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-black transition-all ${showFilters
+                            ? "border-[#159734] bg-[#f4faf5] text-[#159734]"
+                            : "border-[#e8eef0] bg-white text-[#536078] hover:bg-[#f7f8fb]"
+                            }`}
+                        onClick={() => setShowFilters((prev) => !prev)}
+                        type="button"
+                    >
+                        <Filter size={16} aria-hidden="true" />
+                        <span>{showFilters ? "Ẩn bộ lọc" : "Hiện bộ lọc"}</span>
+                        {activeFilterCount > 0 ? (
+                            <span className="grid size-5 place-items-center rounded-full bg-[#159734] text-[11px] font-black text-white">
+                                {activeFilterCount}
+                            </span>
+                        ) : null}
+                    </button>
                     <Link
                         className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] shadow-sm"
                         to="/management/inventory/receipts/new"
@@ -127,47 +179,47 @@ export function GoodsReceiptListPage() {
                 </div>
             </header>
 
-            {/* THẺ CHỈ SỐ THEO VÒNG ĐỜI */}
+            {/* THẺ CHỈ SỐ THEO VÒNG ĐỜI (TÍNH TOÁN ĐỘC LẬP VỚI BỘ LỌC) */}
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
                 <GoodsReceiptSummaryCard
                     icon={<ClipboardList size={18} aria-hidden="true" />}
                     label="1. Bản nháp"
-                    value={result?.summary.draft ?? 0}
+                    value={summaryCounts.draft}
                     active={query.status === "DRAFT"}
                     onClick={() => setQuery({ page: 0, status: "DRAFT" })}
                 />
                 <GoodsReceiptSummaryCard
                     icon={<Clock3 size={18} aria-hidden="true" />}
                     label="2. Chờ duyệt"
-                    value={receipts.filter((r) => r.status === "PENDING_APPROVAL").length}
+                    value={summaryCounts.pendingApproval}
                     active={query.status === "PENDING_APPROVAL"}
                     onClick={() => setQuery({ page: 0, status: "PENDING_APPROVAL" })}
                 />
                 <GoodsReceiptSummaryCard
                     icon={<Truck size={18} aria-hidden="true" />}
                     label="3. Đang tiếp nhận"
-                    value={receipts.filter((r) => r.status === "RECEIVING" || r.status === "APPROVED").length}
-                    active={query.status === "RECEIVING"}
+                    value={summaryCounts.receiving}
+                    active={query.status === "RECEIVING" || query.status === "APPROVED"}
                     onClick={() => setQuery({ page: 0, status: "RECEIVING" })}
                 />
                 <GoodsReceiptSummaryCard
                     icon={<FileCheck2 size={18} aria-hidden="true" />}
                     label="4. Chờ QC"
-                    value={result?.summary.awaitingQc ?? 0}
-                    active={query.status === "QC_PENDING"}
+                    value={summaryCounts.awaitingQc}
+                    active={query.status === "QC_PENDING" || query.status === "AWAITING_QC"}
                     onClick={() => setQuery({ page: 0, status: "QC_PENDING" })}
                 />
                 <GoodsReceiptSummaryCard
                     icon={<PackageCheck size={18} aria-hidden="true" />}
-                    label="5. Sẵn sàng post"
-                    value={result?.summary.readyToPost ?? 0}
-                    active={query.status === "QC_COMPLETED"}
+                    label="5. Chờ ghi sổ"
+                    value={summaryCounts.readyToPost}
+                    active={query.status === "QC_COMPLETED" || query.status === "READY_TO_POST"}
                     onClick={() => setQuery({ page: 0, status: "QC_COMPLETED" })}
                 />
                 <GoodsReceiptSummaryCard
                     icon={<CheckCircle2 size={18} aria-hidden="true" />}
                     label="Đã nhập kho"
-                    value={result?.summary.postedToday ?? 0}
+                    value={summaryCounts.postedToday}
                     active={query.status === "POSTED"}
                     onClick={() => setQuery({ page: 0, status: "POSTED" })}
                 />
@@ -190,14 +242,16 @@ export function GoodsReceiptListPage() {
                 ))}
             </div>
 
-            {/* BỘ LỌC TÌM KIẾM */}
-            <GoodsReceiptFilterBar
-                locations={options.locations}
-                onChange={setQuery}
-                onReset={resetQuery}
-                query={query}
-                suppliers={options.suppliers}
-            />
+            {/* BỘ LỌC TÌM KIẾM CHI TIẾT (MẶC ĐỊNH ẨN) */}
+            {showFilters ? (
+                <GoodsReceiptFilterBar
+                    locations={options.locations}
+                    onChange={setQuery}
+                    onReset={resetQuery}
+                    query={query}
+                    suppliers={options.suppliers}
+                />
+            ) : null}
 
             {loading ? (
                 <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">

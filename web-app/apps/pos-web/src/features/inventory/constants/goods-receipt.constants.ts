@@ -13,13 +13,13 @@ export const goodsReceiptStatusLabels: Record<GoodsReceiptStatus, string> = {
     REJECTED: "Từ chối",
     RECEIVING: "Đang tiếp nhận",
     QC_PENDING: "Chờ kiểm định QC",
-    QC_COMPLETED: "Đã kiểm định QC",
-    POSTED: "Đã ghi sổ",
+    QC_COMPLETED: "Chờ ghi sổ",
+    POSTED: "Đã nhập kho",
     CANCELLED: "Đã hủy",
     AWAITING_COST: "Chờ xác nhận giá",
     AWAITING_QC: "Chờ QC",
     PARTIALLY_PASSED: "Đạt một phần",
-    READY_TO_POST: "Sẵn sàng post",
+    READY_TO_POST: "Chờ ghi sổ",
     SUBMITTED: "Đã gửi duyệt"
 };
 
@@ -41,8 +41,9 @@ export const goodsReceiptRoleLabels: Record<GoodsReceiptRole, string> = {
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
-    QC_STAFF: "Nhân viên QC",
-    WAREHOUSE: "Nhân viên kho"
+    INVENTORY_MANAGER: "Quản lý kho",
+    INVENTORY_STAFF: "Nhân viên kho",
+    QC_STAFF: "Nhân viên QC"
 };
 
 export const qcReasonLabels: Record<GoodsReceiptQcReasonCode, string> = {
@@ -57,15 +58,19 @@ export const qcReasonLabels: Record<GoodsReceiptQcReasonCode, string> = {
 
 export const goodsReceiptStatusOptions: GoodsReceiptStatus[] = [
     "DRAFT",
-    "SUBMITTED",
+    "PENDING_APPROVAL",
+    "APPROVED",
     "RECEIVING",
+    "QC_PENDING",
+    "QC_COMPLETED",
+    "POSTED",
+    "REJECTED",
+    "CANCELLED",
+    "SUBMITTED",
     "AWAITING_QC",
     "PARTIALLY_PASSED",
     "AWAITING_COST",
-    "READY_TO_POST",
-    "POSTED",
-    "REJECTED",
-    "CANCELLED"
+    "READY_TO_POST"
 ];
 
 export const qcResultOptions: QcResult[] = [

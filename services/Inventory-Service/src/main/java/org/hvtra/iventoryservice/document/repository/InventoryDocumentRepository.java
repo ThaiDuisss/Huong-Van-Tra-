@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,4 +26,7 @@ public interface InventoryDocumentRepository extends JpaRepository<InventoryDocu
     Optional<InventoryDocument> findByIdWithDetails(UUID id);
 
     Optional<InventoryDocument> findByIdAndIsDeletedFalse(UUID id);
+
+    @Query("SELECT d.status, COUNT(d) FROM InventoryDocument d WHERE d.documentType = :type AND d.isDeleted = false GROUP BY d.status")
+    List<Object[]> countByStatusGroupByDocumentType(InventoryDocumentType type);
 }

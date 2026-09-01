@@ -11,7 +11,7 @@ const hours = (value: number) => new Date(now + value * 60 * 60 * 1000).toISOStr
 export const bundleUsers: UserSnapshot[] = [
     { id: "bundle-sales", name: "Mai Anh", role: "SALES_STAFF" },
     { id: "bundle-branch", name: "Trần Bảo Ngọc", role: "BRANCH_MANAGER" },
-    { id: "bundle-warehouse", name: "Nguyễn Minh Anh", role: "WAREHOUSE" },
+    { id: "bundle-warehouse", name: "Nguyễn Minh Anh", role: "INVENTORY_STAFF" },
     { id: "bundle-admin", name: "Phạm Thu Hương", role: "ADMIN" },
     { id: "bundle-accountant", name: "Lê Hoài Nam", role: "ACCOUNTANT" }
 ];

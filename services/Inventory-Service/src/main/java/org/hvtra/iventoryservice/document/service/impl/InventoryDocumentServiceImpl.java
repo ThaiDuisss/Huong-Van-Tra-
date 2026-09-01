@@ -1,9 +1,12 @@
 package org.hvtra.iventoryservice.document.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
+import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.dto.request.*;
+import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.hvtra.iventoryservice.document.mapper.InventoryDocumentMapper;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentBatchAllocationRepository;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentLineRepository;
@@ -134,10 +137,57 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     }
 
     @Override
+    public GoodsReceiptSummaryCountResponse getSummaryCounts(InventoryDocumentType documentType) {
+        InventoryDocumentType type = documentType != null ? documentType : InventoryDocumentType.PURCHASE_RECEIPT;
+        List<Object[]> rows = documentRepository.countByStatusGroupByDocumentType(type);
+
+        Map<InventoryDocumentStatus, Long> statusCounts = new EnumMap<>(InventoryDocumentStatus.class);
+        long total = 0;
+        for (Object[] row : rows) {
+            if (row != null && row.length >= 2 && row[0] instanceof InventoryDocumentStatus s && row[1] instanceof Number count) {
+                statusCounts.put(s, count.longValue());
+                total += count.longValue();
+            }
+        }
+
+        long draft = statusCounts.getOrDefault(InventoryDocumentStatus.DRAFT, 0L);
+        long pendingApproval = statusCounts.getOrDefault(InventoryDocumentStatus.PENDING_APPROVAL, 0L);
+        long receiving = statusCounts.getOrDefault(InventoryDocumentStatus.RECEIVING, 0L)
+                + statusCounts.getOrDefault(InventoryDocumentStatus.APPROVED, 0L);
+        long awaitingQc = statusCounts.getOrDefault(InventoryDocumentStatus.QC_PENDING, 0L);
+        long readyToPost = statusCounts.getOrDefault(InventoryDocumentStatus.QC_COMPLETED, 0L);
+        long postedToday = statusCounts.getOrDefault(InventoryDocumentStatus.POSTED, 0L);
+
+        return new GoodsReceiptSummaryCountResponse(
+                draft,
+                pendingApproval,
+                receiving,
+                awaitingQc,
+                readyToPost,
+                postedToday,
+                total
+        );
+    }
+
+    @Override
     public InventoryDocumentResponse findById(UUID id) {
         InventoryDocument document = documentRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("InventoryDocument", id));
         return mapper.toResponse(document);
+    }
+
+    private UUID getCurrentUserId() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof InternalUserPrincipal principal) {
+            String userId = principal.userId();
+            if (userId != null && !userId.isBlank()) {
+                try {
+                    return UUID.fromString(userId);
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+        }
+        return null;
     }
 
     @Override
@@ -150,6 +200,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         document.setDocumentCode(generateDocumentCode(InventoryDocumentType.PURCHASE_RECEIPT));
         document.setDocumentType(InventoryDocumentType.PURCHASE_RECEIPT);
         document.setStatus(InventoryDocumentStatus.DRAFT);
+        document.setCreatedBy(getCurrentUserId());
         document.setLocationId(location.getId());
         document.setDestinationLocation(location);
         document.setBranchId(request.branchId() != null ? request.branchId() : location.getBranchId());
@@ -256,6 +307,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         document.setStatus(InventoryDocumentStatus.APPROVED);
+        document.setApprovedBy(getCurrentUserId());
         document.setApprovedAt(Instant.now());
         if (request != null && request.approvalNote() != null) {
             document.setApprovalNote(request.approvalNote());
@@ -274,6 +326,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         document.setStatus(InventoryDocumentStatus.REJECTED);
+        document.setRejectedBy(getCurrentUserId());
         document.setRejectedAt(Instant.now());
         document.setRejectionReason(request.rejectionReason());
 
@@ -290,6 +343,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         document.setStatus(InventoryDocumentStatus.RECEIVING);
+        document.setReceivedBy(getCurrentUserId());
         document.setReceivedAt(Instant.now());
 
         return mapper.toResponse(documentRepository.save(document));
@@ -302,6 +356,13 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
 
         if (document.getStatus() != InventoryDocumentStatus.RECEIVING) {
             throw new BadRequestException("Only RECEIVING documents can be confirmed");
+        }
+
+        if (document.getReceivedBy() == null) {
+            document.setReceivedBy(getCurrentUserId());
+        }
+        if (document.getReceivedAt() == null) {
+            document.setReceivedAt(Instant.now());
         }
 
         boolean hasShortage = false;
@@ -448,6 +509,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         document.setStatus(InventoryDocumentStatus.QC_COMPLETED);
+        document.setQcBy(getCurrentUserId());
         document.setQcAt(Instant.now());
         return mapper.toResponse(documentRepository.save(document));
     }
@@ -549,6 +611,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         transactionRepository.save(transaction);
 
         document.setStatus(InventoryDocumentStatus.POSTED);
+        document.setPostedBy(getCurrentUserId());
         document.setPostedAt(Instant.now());
 
         return mapper.toResponse(documentRepository.save(document));

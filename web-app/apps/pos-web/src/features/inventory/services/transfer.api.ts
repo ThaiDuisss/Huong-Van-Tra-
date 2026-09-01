@@ -45,12 +45,6 @@ function findTransfer(transferId: string) {
     return transfer;
 }
 
-function assertRole(role: TransferActionInput["actorRole"], allowed: TransferActionInput["actorRole"][]) {
-    if (!allowed.includes(role)) {
-        throw new Error("Vai trò hiện tại không được thao tác nghiệp vụ này.");
-    }
-}
-
 function summaryOf(transfer: TransferDetail) {
     return {
         code: transfer.code,
@@ -129,7 +123,6 @@ function discrepancyId(lineId: string, type: string) {
 
 export const transferApi: TransferApi = {
     approveTransfer(input: TransferApproveInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "DIRECTOR"]);
         const transfer = findTransfer(input.transferId);
         if (transfer.status !== "REQUESTED") {
             return Promise.reject(new Error("Chỉ duyệt yêu cầu đang chờ duyệt."));
@@ -151,28 +144,26 @@ export const transferApi: TransferApi = {
         transfer.status = "APPROVED";
         recalculate(transfer);
         transfer.auditEvents = [
-            transferAudit("APPROVE", input.actorRole, input.note ?? "Duyệt yêu cầu chuyển kho."),
+            transferAudit("APPROVE", "ADMIN", input.note ?? "Duyệt yêu cầu chuyển kho."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     cancelTransfer(input: TransferActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE"]);
         const transfer = findTransfer(input.transferId);
         if (["SHIPPED", "RECEIVED", "PARTIALLY_RECEIVED"].includes(transfer.status)) {
             return Promise.reject(new Error("Không thể hủy yêu cầu đã xuất/nhận hàng."));
         }
         transfer.status = "CANCELLED";
         transfer.auditEvents = [
-            transferAudit("CANCEL", input.actorRole, input.note ?? "Hủy yêu cầu chuyển kho."),
+            transferAudit("CANCEL", "ADMIN", input.note ?? "Hủy yêu cầu chuyển kho."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     confirmTransferPicking(input: TransferPickingInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE"]);
         const transfer = findTransfer(input.transferId);
         if (transfer.status !== "PICKING") {
             return Promise.reject(new Error("Chỉ confirm picking khi đang PICKING."));
@@ -206,16 +197,13 @@ export const transferApi: TransferApi = {
             return Promise.reject(new Error("Tổng actual picked phải bằng số lượng đã duyệt."));
         }
         transfer.auditEvents = [
-            transferAudit("APPROVE", input.actorRole, "Confirm picking theo FEFO."),
+            transferAudit("APPROVE", "ADMIN", "Confirm picking theo FEFO."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     createTransfer(input: TransferCreateInput) {
-        if (!["ADMIN", "BRANCH_MANAGER"].includes(input.actorRole)) {
-            return Promise.reject(new Error("Chỉ quản lý chi nhánh hoặc admin được tạo yêu cầu."));
-        }
         if (input.sourceLocationId === input.destinationLocationId) {
             return Promise.reject(new Error("Kho nguồn và kho đích không được trùng nhau."));
         }
@@ -228,9 +216,6 @@ export const transferApi: TransferApi = {
         );
         if (!source || !destination) {
             return Promise.reject(new Error("Vui lòng chọn kho nguồn và kho đích."));
-        }
-        if (input.actorRole === "BRANCH_MANAGER" && destination.id !== "loc-q1") {
-            return Promise.reject(new Error("Quản lý chi nhánh chỉ được chọn kho đích thuộc chi nhánh của mình."));
         }
         const lines = input.lines.map((lineInput, index) => {
             const sku = transferMockOptions.skus.find((item) => item.id === lineInput.skuId);
@@ -262,7 +247,7 @@ export const transferApi: TransferApi = {
             auditEvents: [
                 transferAudit(
                     input.submit ? "SUBMIT" : "CREATE_DRAFT",
-                    input.actorRole,
+                    "ADMIN",
                     input.submit ? "Tạo và submit yêu cầu chuyển kho." : "Lưu nháp yêu cầu chuyển kho."
                 )
             ],
@@ -276,7 +261,7 @@ export const transferApi: TransferApi = {
             priority: input.priority,
             reason: input.reason,
             requestedAt: new Date().toISOString(),
-            requestedBy: transferMockOptions.users.find((item) => item.role === input.actorRole) ?? transferMockOptions.users[0],
+            requestedBy: transferMockOptions.users[0],
             sourceLocation: source,
             status: input.submit ? "REQUESTED" : "DRAFT",
             totalQuantity: 0,
@@ -298,29 +283,46 @@ export const transferApi: TransferApi = {
 
     listTransfers(query: TransferListQuery) {
         const filtered = transferCache.filter((transfer) => {
-            const text = `${transfer.code} ${transfer.requestedBy.name}`.toLowerCase();
-            const matchesCode = !query.code || text.includes(query.code.toLowerCase());
-            const matchesSource = query.sourceLocationId === "ALL" || transfer.sourceLocation.id === query.sourceLocationId;
-            const matchesDestination = query.destinationLocationId === "ALL" || transfer.destinationLocation.id === query.destinationLocationId;
-            const matchesStatus = query.status === "ALL" || transfer.status === query.status;
-            const matchesUser = query.requestedById === "ALL" || transfer.requestedBy.id === query.requestedById;
-            const matchesDiscrepancy = query.hasDiscrepancy === "ALL" || (query.hasDiscrepancy === "YES" ? transfer.hasDiscrepancy : !transfer.hasDiscrepancy);
-            return matchesCode && matchesSource && matchesDestination && matchesStatus && matchesUser && matchesDiscrepancy && tabMatches(query, transfer.status, transfer.hasDiscrepancy);
+            const matchesText =
+                !query.code ||
+                transfer.code.toLowerCase().includes(query.code.toLowerCase()) ||
+                transfer.lines.some((line) =>
+                    line.skuCode.toLowerCase().includes(query.code.toLowerCase())
+                );
+            const matchesSource =
+                query.sourceLocationId === "ALL" ||
+                transfer.sourceLocation.id === query.sourceLocationId;
+            const matchesDestination =
+                query.destinationLocationId === "ALL" ||
+                transfer.destinationLocation.id === query.destinationLocationId;
+            const matchesStatus =
+                query.status === "ALL" || transfer.status === query.status;
+            const matchesTab = tabMatches(query, transfer.status, transfer.hasDiscrepancy);
+            const matchesDiscrepancy =
+                query.hasDiscrepancy === "ALL" ||
+                (query.hasDiscrepancy === "YES" ? transfer.hasDiscrepancy : !transfer.hasDiscrepancy);
+            return (
+                matchesText &&
+                matchesSource &&
+                matchesDestination &&
+                matchesStatus &&
+                matchesTab &&
+                matchesDiscrepancy
+            );
         });
         const start = query.page * query.size;
-        const content = filtered.slice(start, start + query.size).map(summaryOf);
-        const now = Date.now();
+        const now = new Date();
         return wait({
-            content,
+            content: filtered.slice(start, start + query.size).map(summaryOf),
             first: query.page === 0,
             last: start + query.size >= filtered.length,
             page: query.page,
             size: query.size,
             summary: {
-                discrepancy: transferCache.filter((item) => item.hasDiscrepancy).length,
-                inTransit: transferCache.filter((item) => item.status === "SHIPPED").length,
-                newRequests: transferCache.filter((item) => item.status === "REQUESTED").length,
-                overdue: transferCache.filter((item) => item.status === "SHIPPED" && new Date(item.expectedReceiveAt).getTime() < now).length
+                discrepancy: transferCache.filter((t) => t.hasDiscrepancy).length,
+                inTransit: transferCache.filter((t) => t.status === "SHIPPED").length,
+                newRequests: transferCache.filter((t) => t.status === "REQUESTED").length,
+                overdue: transferCache.filter((t) => new Date(t.expectedReceiveAt) < now && !["RECEIVED", "CANCELLED"].includes(t.status)).length
             },
             totalElements: filtered.length,
             totalPages: Math.max(1, Math.ceil(filtered.length / query.size))
@@ -328,10 +330,9 @@ export const transferApi: TransferApi = {
     },
 
     receiveTransfer(input: TransferReceiveInput) {
-        assertRole(input.actorRole, ["ADMIN", "BRANCH_MANAGER"]);
         const transfer = findTransfer(input.transferId);
         if (transfer.status !== "SHIPPED") {
-            return Promise.reject(new Error("Chỉ nhận hàng khi transfer đang SHIPPED."));
+            return Promise.reject(new Error("Chỉ nhận hàng khi trạng thái là SHIPPED."));
         }
         input.lines.forEach((lineInput) => {
             const line = transfer.lines.find((item) => item.id === lineInput.lineId);
@@ -385,28 +386,26 @@ export const transferApi: TransferApi = {
         recalculate(transfer);
         transfer.status = transfer.hasDiscrepancy ? "PARTIALLY_RECEIVED" : "RECEIVED";
         transfer.auditEvents = [
-            transferAudit("POST", input.actorRole, "Nhận hàng, giảm IN_TRANSIT và tạo PNK TRANSFER_RECEIPT."),
+            transferAudit("POST", "ADMIN", "Nhận hàng, giảm IN_TRANSIT và tạo PNK TRANSFER_RECEIPT."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     rejectTransfer(input: TransferActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "DIRECTOR"]);
         const transfer = findTransfer(input.transferId);
         if (transfer.status !== "REQUESTED") {
             return Promise.reject(new Error("Chỉ từ chối yêu cầu đang chờ duyệt."));
         }
         transfer.status = "REJECTED";
         transfer.auditEvents = [
-            transferAudit("REJECT", input.actorRole, input.note ?? "Từ chối yêu cầu chuyển kho."),
+            transferAudit("REJECT", "ADMIN", input.note ?? "Từ chối yêu cầu chuyển kho."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     reserveTransfer(input: TransferActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE"]);
         const transfer = findTransfer(input.transferId);
         if (transfer.status !== "APPROVED") {
             return Promise.reject(new Error("Chỉ reserve sau khi đã duyệt."));
@@ -414,14 +413,13 @@ export const transferApi: TransferApi = {
         transfer.lines.forEach(assignFefo);
         transfer.status = "RESERVED";
         transfer.auditEvents = [
-            transferAudit("APPROVE", input.actorRole, "Giữ tồn kho nguồn theo FEFO."),
+            transferAudit("APPROVE", "ADMIN", "Giữ tồn kho nguồn theo FEFO."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     resolveTransferDiscrepancy(input: TransferDiscrepancyResolveInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER"]);
         const transfer = findTransfer(input.transferId);
         const discrepancy = transfer.discrepancies.find((item) => item.id === input.discrepancyId);
         if (!discrepancy) return Promise.reject(new Error("Không tìm thấy discrepancy."));
@@ -429,14 +427,13 @@ export const transferApi: TransferApi = {
         discrepancy.adminNote = input.adminNote;
         recalculate(transfer);
         transfer.auditEvents = [
-            transferAudit("APPROVE", input.actorRole, "Cập nhật xử lý chênh lệch chuyển kho."),
+            transferAudit("APPROVE", "ADMIN", "Cập nhật xử lý chênh lệch chuyển kho."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     shipTransfer(input: TransferShipInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE"]);
         const transfer = findTransfer(input.transferId);
         if (transfer.status !== "PICKING") {
             return Promise.reject(new Error("Chỉ ship khi đang PICKING và đã confirm picking."));
@@ -460,35 +457,32 @@ export const transferApi: TransferApi = {
         };
         transfer.status = "SHIPPED";
         transfer.auditEvents = [
-            transferAudit("POST", input.actorRole, "Xuất kho nguồn, On Hand giảm và IN_TRANSIT tăng."),
+            transferAudit("POST", "ADMIN", "Xuất kho nguồn, On Hand giảm và IN_TRANSIT tăng."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     startPicking(input: TransferActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE"]);
         const transfer = findTransfer(input.transferId);
         if (transfer.status !== "RESERVED") {
             return Promise.reject(new Error("Chỉ bắt đầu picking khi đã reserve."));
         }
         transfer.status = "PICKING";
         transfer.auditEvents = [
-            transferAudit("APPROVE", input.actorRole, "Bắt đầu picking theo batch allocation."),
+            transferAudit("APPROVE", "ADMIN", "Bắt đầu picking theo batch allocation."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));
     },
 
     submitTransfer(input: TransferActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "BRANCH_MANAGER"]);
         const transfer = findTransfer(input.transferId);
         if (transfer.status !== "DRAFT") {
             return Promise.reject(new Error("Chỉ submit yêu cầu nháp."));
         }
         transfer.status = "REQUESTED";
         transfer.auditEvents = [
-            transferAudit("SUBMIT", input.actorRole, input.note ?? "Submit yêu cầu chuyển kho."),
             ...transfer.auditEvents
         ];
         return wait(copy(transfer));

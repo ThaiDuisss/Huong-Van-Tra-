@@ -23,7 +23,7 @@ function dateHoursAgo(hours: number) {
 
 export const goodsReceiptUsers: UserSnapshot[] = [
     { id: "gr-admin", name: "Phạm Thu Hương", role: "ADMIN" },
-    { id: "gr-warehouse", name: "Nguyễn Minh Anh", role: "WAREHOUSE" },
+    { id: "gr-warehouse", name: "Nguyễn Minh Anh", role: "INVENTORY_STAFF" },
     { id: "gr-qc", name: "Đặng Mai Chi", role: "QC_STAFF" },
     { id: "gr-accountant", name: "Lê Hoài Nam", role: "ACCOUNTANT" },
     { id: "gr-branch", name: "Trần Bảo Ngọc", role: "BRANCH_MANAGER" },
@@ -242,18 +242,18 @@ function detail(
 
     return {
         auditEvents: [
-            audit("CREATE_DRAFT", "WAREHOUSE", 72 - index, "Tạo phiếu nhập nguyên liệu."),
+            audit("CREATE_DRAFT", "INVENTORY_STAFF", 72 - index, "Tạo phiếu nhập nguyên liệu."),
             ...(status !== "DRAFT"
-                ? [audit("SUBMIT", "WAREHOUSE", 70 - index, "Submit phiếu nhập.")]
+                ? [audit("SUBMIT", "INVENTORY_STAFF", 70 - index, "Submit phiếu nhập.")]
                 : []),
             ...(qcResult !== "PENDING"
-                ? [audit("APPROVE", "QC_STAFF", 48 - index, "Hoàn tất kiểm tra QC.")]
+                ? [audit("APPROVE", "QC_STAFF", 48 - index, "Hoạt tất kiểm tra QC.")]
                 : []),
             ...(costStatus !== "PENDING"
                 ? [audit("APPROVE", "ACCOUNTANT", 30 - index, "Xác nhận giá nhập.")]
                 : []),
             ...(posted
-                ? [audit("POST", "WAREHOUSE", 8 - index, "Post receipt và tạo chứng từ PNK.")]
+                ? [audit("POST", "INVENTORY_STAFF", 8 - index, "Post receipt và tạo chứng từ PNK.")]
                 : []),
             ...(rejected
                 ? [audit("REJECT", "QC_STAFF", 46 - index, undefined, "Nguyên liệu ẩm/mốc.")]
@@ -261,7 +261,7 @@ function detail(
         ],
         code: `GR-2026-${String(index + 1).padStart(5, "0")}`,
         costStatus,
-        createdBy: actor("WAREHOUSE"),
+        createdBy: actor("INVENTORY_STAFF"),
         deliveryPerson: index % 2 === 0 ? "Nguyễn Văn Giao" : "Trần Văn Lâm",
         evidence: [
             {

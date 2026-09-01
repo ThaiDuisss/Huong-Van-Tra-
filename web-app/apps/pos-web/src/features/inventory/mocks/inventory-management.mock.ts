@@ -105,7 +105,7 @@ function createApprovals(status: InventoryRecordStatus): InventoryApprovalStep[]
             at: status === "COMPLETED" ? "2026-08-02T08:35:00+07:00" : undefined,
             id: "approval-operator",
             label: "Xác nhận xử lý kho",
-            role: "WAREHOUSE_STAFF",
+            role: "INVENTORY_STAFF",
             status: status === "COMPLETED" ? "APPROVED" : "WAITING"
         }
     ];

@@ -19,7 +19,7 @@ import { stocktakeApi } from "../services/stocktake.api";
 import type { StocktakeDetail } from "../types/stocktake.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
-const operationRoles = ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER"];
+const operationRoles = ["ADMIN", "BRANCH_MANAGER", "INVENTORY_STAFF", "INVENTORY_MANAGER"];
 const approvalRoles = ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"];
 
 export function StocktakeAdjustmentPage() {

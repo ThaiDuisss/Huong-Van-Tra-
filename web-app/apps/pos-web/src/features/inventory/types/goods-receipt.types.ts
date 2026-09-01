@@ -30,7 +30,8 @@ export type CostStatus = "PENDING" | "PROVISIONAL" | "FINAL";
 
 export type GoodsReceiptRole =
     | "ADMIN"
-    | "WAREHOUSE"
+    | "INVENTORY_STAFF"
+    | "INVENTORY_MANAGER"
     | "QC_STAFF"
     | "ACCOUNTANT"
     | "BRANCH_MANAGER"
@@ -174,10 +175,13 @@ export interface GoodsReceiptListQuery {
 
 export interface GoodsReceiptDashboardSummary {
     draft: number;
+    pendingApproval: number;
+    receiving: number;
     awaitingQc: number;
     awaitingCost: number;
     readyToPost: number;
     postedToday: number;
+    total: number;
 }
 
 export interface GoodsReceiptListResult {
@@ -237,7 +241,6 @@ export interface GoodsReceiptCreateLineInput {
 
 export interface GoodsReceiptQcInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     lines: Array<{
         lineId: string;
         receivedQuantity: number;
@@ -251,7 +254,6 @@ export interface GoodsReceiptQcInput {
 
 export interface GoodsReceiptCostInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     finalize: boolean;
     lines: Array<{
         lineId: string;
@@ -266,11 +268,11 @@ export interface GoodsReceiptCostInput {
 
 export interface GoodsReceiptActionInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     note?: string;
 }
 
 export interface GoodsReceiptApi {
+    getGoodsReceiptSummaryCounts(): Promise<GoodsReceiptDashboardSummary>;
     listGoodsReceipts(
         query: GoodsReceiptListQuery
     ): Promise<GoodsReceiptListResult>;

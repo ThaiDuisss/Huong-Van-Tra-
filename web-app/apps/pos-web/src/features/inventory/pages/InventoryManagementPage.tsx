@@ -98,13 +98,13 @@ export function InventoryManagementPage() {
     const workspaceId = params.workspaceId;
     const { roles } = useAuth();
     const effectiveRole: InventoryRole =
-        roles?.includes("ADMIN") || roles?.includes("BRANCH_MANAGER")
+        roles?.includes("ADMIN") || roles?.includes("BRANCH_MANAGER") || roles?.includes("INVENTORY_MANAGER")
             ? "INVENTORY_MANAGER"
             : roles?.includes("ACCOUNTANT") || roles?.includes("AUDITOR")
             ? "AUDITOR"
-            : roles?.includes("WAREHOUSE_STAFF") || roles?.includes("WAREHOUSE")
-            ? "WAREHOUSE_STAFF"
-            : roles?.includes("SALES_STAFF") || roles?.includes("STAFF")
+            : roles?.includes("INVENTORY_STAFF") || roles?.includes("WAREHOUSE_STAFF") || roles?.includes("WAREHOUSE")
+            ? "INVENTORY_STAFF"
+            : roles?.includes("POS_STAFF") || roles?.includes("SALES_STAFF") || roles?.includes("STAFF")
             ? "BRANCH_STAFF"
             : "INVENTORY_MANAGER";
 

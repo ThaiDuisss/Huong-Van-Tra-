@@ -38,9 +38,9 @@ export const stockDocumentRoleLabels: Record<StockDocumentRole, string> = {
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
+    INVENTORY_STAFF: "Nhân viên kho",
     QC_STAFF: "Nhân viên QC",
-    SALES_STAFF: "Nhân viên bán hàng",
-    WAREHOUSE: "Nhân viên kho"
+    SALES_STAFF: "Nhân viên bán hàng"
 };
 
 export const stockDocumentActionLabels: Record<StockDocumentAction, string> = {

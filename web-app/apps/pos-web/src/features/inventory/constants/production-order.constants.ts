@@ -27,8 +27,8 @@ export const productionRoleLabels: Record<ProductionRole, string> = {
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
-    QC_STAFF: "Nhân viên QC",
-    WAREHOUSE: "Nhân viên kho"
+    INVENTORY_STAFF: "Nhân viên kho",
+    QC_STAFF: "Nhân viên QC"
 };
 
 export const productionStatusOptions: ProductionOrderStatus[] = [

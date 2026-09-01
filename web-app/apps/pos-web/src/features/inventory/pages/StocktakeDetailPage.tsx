@@ -20,7 +20,7 @@ import type { StocktakeDetail } from "../types/stocktake.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
 type CountDraft = { quantity: string; reasonCode: string; note: string };
-const operationRoles = ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER"];
+const operationRoles = ["ADMIN", "BRANCH_MANAGER", "INVENTORY_STAFF", "INVENTORY_MANAGER"];
 const approvalRoles = ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"];
 
 export function StocktakeDetailPage() {

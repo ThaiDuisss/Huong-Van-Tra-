@@ -18,7 +18,7 @@ export type CustomBundleStatus =
 
 export type BundlePaymentStatus = "PENDING" | "SUCCESS" | "FAILED" | "REFUND_REQUIRED";
 export type BundleReservationStatus = "NONE" | "RESERVED" | "FAILED" | "RELEASED" | "COMMITTED" | "EXPIRED";
-export type CustomBundleRole = "SALES_STAFF" | "BRANCH_MANAGER" | "WAREHOUSE" | "ADMIN" | "ACCOUNTANT" | "QC_STAFF";
+export type CustomBundleRole = "SALES_STAFF" | "BRANCH_MANAGER" | "INVENTORY_STAFF" | "ADMIN" | "ACCOUNTANT" | "QC_STAFF";
 
 export interface BundleIngredientOption {
     id: string;
@@ -129,7 +129,6 @@ export interface CustomBundleCreateInput {
 
 export interface BundlePackingInput {
     bundleId: string;
-    actorRole: CustomBundleRole;
     operationId: string;
     packagingType: string;
     numberOfPackages: number;
@@ -155,9 +154,9 @@ export interface CustomBundleApi {
     releaseCustomBundleReservation(bundleId: string): Promise<CustomBundleDetail>;
     listCustomBundles(query: CustomBundleListQuery): Promise<CustomBundleListResult>;
     getCustomBundle(bundleId: string): Promise<CustomBundleDetail>;
-    startCustomBundlePacking(bundleId: string, actorRole: CustomBundleRole): Promise<CustomBundleDetail>;
+    startCustomBundlePacking(bundleId: string, actorRole?: CustomBundleRole): Promise<CustomBundleDetail>;
     confirmCustomBundlePacking(input: BundlePackingInput): Promise<CustomBundleDetail>;
-    cancelCustomBundle(bundleId: string, actorRole: CustomBundleRole): Promise<CustomBundleDetail>;
+    cancelCustomBundle(bundleId: string, actorRole?: CustomBundleRole): Promise<CustomBundleDetail>;
     getCustomBundleOptions(): Promise<CustomBundleOptions>;
     mockPaymentResult(bundleId: string, success: boolean): Promise<CustomBundleDetail>;
 }

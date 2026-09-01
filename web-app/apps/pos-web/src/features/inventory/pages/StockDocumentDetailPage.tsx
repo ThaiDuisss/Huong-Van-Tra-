@@ -22,7 +22,6 @@ import { stockDocumentApi } from "../services/stockDocument.api";
 import type {
     StockDocumentAction,
     StockDocumentDetail,
-    StockDocumentRole,
     StockDocumentStatus
 } from "../types/stock-document.types";
 import { formatVietnamDateTime } from "../utils/inventory-format";
@@ -34,31 +33,31 @@ function allowedRolesForAction(
     document: StockDocumentDetail
 ): string[] {
     if (action === "SUBMIT") {
-        return ["ADMIN", "WAREHOUSE_STAFF", "WAREHOUSE", "BRANCH_MANAGER"];
+        return ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"];
     }
 
     if (action === "APPROVE") {
         return document.totalQuantity > 80
-            ? ["ADMIN", "DIRECTOR"]
-            : ["ADMIN", "DIRECTOR", "WAREHOUSE_STAFF", "WAREHOUSE"];
+            ? ["ADMIN", "INVENTORY_MANAGER", "BRANCH_MANAGER"]
+            : ["ADMIN", "INVENTORY_MANAGER", "INVENTORY_STAFF", "BRANCH_MANAGER"];
     }
 
     if (action === "REJECT") {
-        return ["ADMIN", "DIRECTOR", "WAREHOUSE_STAFF", "WAREHOUSE"];
+        return ["ADMIN", "INVENTORY_MANAGER", "INVENTORY_STAFF", "BRANCH_MANAGER"];
     }
 
     if (action === "POST") {
         return document.sourceLocation?.isCentral ||
             document.destinationLocation?.isCentral
-            ? ["ADMIN", "WAREHOUSE_STAFF", "WAREHOUSE", "ACCOUNTANT"]
-            : ["ADMIN", "BRANCH_MANAGER", "ACCOUNTANT"];
+            ? ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "ACCOUNTANT"]
+            : ["ADMIN", "BRANCH_MANAGER", "ACCOUNTANT", "INVENTORY_MANAGER"];
     }
 
     if (action === "CANCEL") {
-        return ["ADMIN", "WAREHOUSE_STAFF", "WAREHOUSE"];
+        return ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"];
     }
 
-    return ["ADMIN", "ACCOUNTANT"];
+    return ["ADMIN", "ACCOUNTANT", "INVENTORY_MANAGER"];
 }
 
 function actionsForStatus(status: StockDocumentStatus): StockDocumentAction[] {
@@ -104,16 +103,6 @@ function originalBusinessPath(document: StockDocumentDetail) {
 export function StockDocumentDetailPage() {
     const { documentId } = useParams();
     const { roles } = useAuth();
-    const effectiveRole: StockDocumentRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("QC_STAFF")
-        ? "QC_STAFF"
-        : "WAREHOUSE";
-
     const canViewCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "DIRECTOR"]);
     const [document, setDocument] = useState<StockDocumentDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -188,7 +177,6 @@ export function StockDocumentDetailPage() {
         }
 
         const input = {
-            actorRole: effectiveRole,
             documentId: document.id,
             note,
             reason

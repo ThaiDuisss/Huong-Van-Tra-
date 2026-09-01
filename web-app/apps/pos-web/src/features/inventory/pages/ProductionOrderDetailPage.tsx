@@ -24,8 +24,7 @@ import {
 import { productionOrderApi } from "../services/productionOrder.api";
 import type {
     ProductionCompletionInput,
-    ProductionOrder,
-    ProductionRole
+    ProductionOrder
 } from "../types/production-order.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
@@ -53,19 +52,9 @@ export function ProductionOrderDetailPage() {
         wasteQuantity: 1
     });
 
-    const effectiveRole: ProductionRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("QC_STAFF")
-        ? "QC_STAFF"
-        : "WAREHOUSE";
-
-    const canWarehouse = hasAnyRole(roles, ["ADMIN", "WAREHOUSE_STAFF", "WAREHOUSE"]);
-    const canApprove = hasAnyRole(roles, ["ADMIN", "DIRECTOR", "BRANCH_MANAGER"]);
-    const canFullCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "DIRECTOR"]);
+    const canWarehouse = hasAnyRole(roles, ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"]);
+    const canApprove = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
+    const canFullCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "INVENTORY_MANAGER"]);
 
     const loadOrder = useCallback(() => {
         if (!productionOrderId) return;
@@ -108,7 +97,7 @@ export function ProductionOrderDetailPage() {
 
     async function runAction(action: "submit" | "approve" | "release" | "start" | "cancel" | "close") {
         if (!order) return;
-        const input = { actorRole: effectiveRole, productionOrderId: order.id };
+        const input = { productionOrderId: order.id };
         const actionMap = {
             approve: productionOrderApi.approveProductionOrder,
             cancel: productionOrderApi.cancelProductionOrder,
@@ -133,7 +122,6 @@ export function ProductionOrderDetailPage() {
         if (!order) return;
         const completionNumber = order.completions.length + 1;
         const input: ProductionCompletionInput = {
-            actorRole: effectiveRole,
             actualMaterialConsumption: completeDraft.actualMaterialConsumption,
             expiryDate: new Date(completeDraft.expiryDate).toISOString(),
             goodQuantity: completeDraft.goodQuantity,

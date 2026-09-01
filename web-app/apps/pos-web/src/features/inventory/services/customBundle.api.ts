@@ -58,7 +58,7 @@ export const customBundleApi: CustomBundleApi = {
             } else {
                 bundle.reservationStatus = "RELEASED";
             }
-            bundle.auditEvents = [customBundleAudit("CANCEL", actorRole, "Hủy bundle và cập nhật reservation/refund."), ...bundle.auditEvents];
+            bundle.auditEvents = [customBundleAudit("CANCEL", actorRole ?? "ADMIN", "Hủy bundle và cập nhật reservation/refund."), ...bundle.auditEvents];
             return wait(clone(bundle));
         } catch (error) {
             return Promise.reject(error);
@@ -94,7 +94,7 @@ export const customBundleApi: CustomBundleApi = {
                     committedQuantity: allocation.reservedQuantity
                 }))
             }));
-            bundle.auditEvents = [customBundleAudit("POST", input.actorRole, "Confirm Packing, commit reservation và tạo PXK CUSTOM_BUNDLE_ISSUE."), ...bundle.auditEvents];
+            bundle.auditEvents = [customBundleAudit("POST", "ADMIN", "Confirm Packing, commit reservation và tạo PXK CUSTOM_BUNDLE_ISSUE."), ...bundle.auditEvents];
             packedOperations.add(input.operationId);
             return wait(clone(bundle));
         } catch (error) {
@@ -245,7 +245,7 @@ export const customBundleApi: CustomBundleApi = {
             const bundle = findBundle(bundleId);
             if (bundle.paymentStatus !== "SUCCESS") throw new Error("PAID mới cho phép bắt đầu packing.");
             bundle.status = "PACKING";
-            bundle.auditEvents = [customBundleAudit("APPROVE", actorRole, "Bắt đầu đóng gói bundle."), ...bundle.auditEvents];
+            bundle.auditEvents = [customBundleAudit("APPROVE", actorRole ?? "ADMIN", "Bắt đầu đóng gói bundle."), ...bundle.auditEvents];
             return wait(clone(bundle));
         } catch (error) {
             return Promise.reject(error);

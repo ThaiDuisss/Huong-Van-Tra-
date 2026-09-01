@@ -38,8 +38,8 @@ export const supplierReturnRoleLabels: Record<SupplierReturnRole, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
     DIRECTOR: "Giám đốc",
-    QC_STAFF: "Nhân viên QC",
-    WAREHOUSE: "Nhân viên kho"
+    INVENTORY_STAFF: "Nhân viên kho",
+    QC_STAFF: "Nhân viên QC"
 };
 
 export const supplierReturnReasons = Object.keys(supplierReturnReasonLabels) as SupplierReturnReason[];

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
-import { useAuth } from "../../../auth/auth-context";
-import { hasAnyRole } from "../../../auth/role-utils";
+import { useAuthorization } from "../../../auth/role-utils";
 import {
     Dialog,
     DialogContent,
@@ -23,8 +22,7 @@ import {
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptDetail,
-    GoodsReceiptQcInput,
-    GoodsReceiptRole
+    GoodsReceiptQcInput
 } from "../types/goods-receipt.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
@@ -33,35 +31,37 @@ type ReceiptTab = "lines" | "overview" | "cost" | "documents" | "evidence" | "au
 interface ReceiveDraftLine {
     lineId: string;
     materialName: string;
-    note: string;
+    unit: string;
     orderedQuantity: number;
     receivedQuantity: number;
-    unit: string;
+    note: string;
 }
 
 interface QcDraftLine {
-    acceptedQuantity: number;
-    batchCode: string;
-    expiryDate: string;
     lineId: string;
-    manufactureDate: string;
     materialName: string;
+    unit: string;
     receivedQuantity: number;
+    acceptedQuantity: number;
     rejectedQuantity: number;
     supplierLot: string;
-    unit: string;
+    manufactureDate: string;
+    expiryDate: string;
+    note?: string;
 }
 
 export function GoodsReceiptDetailPage() {
     const { receiptId } = useParams();
-    const { roles } = useAuth();
     const [receipt, setReceipt] = useState<GoodsReceiptDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [tab, setTab] = useState<ReceiptTab>("lines");
     const [toast, setToast] = useState<{ message: string; success: boolean } | null>(null);
 
-    // Modals
+    // Dialog state
+    const [rejectOpen, setRejectOpen] = useState(false);
+    const [rejectionReason, setRejectionReason] = useState("");
+
     const [receiveOpen, setReceiveOpen] = useState(false);
     const [receiveDraft, setReceiveDraft] = useState<ReceiveDraftLine[]>([]);
 
@@ -69,22 +69,10 @@ export function GoodsReceiptDetailPage() {
     const [qcDraft, setQcDraft] = useState<QcDraftLine[]>([]);
 
     const [postOpen, setPostOpen] = useState(false);
-    const [rejectOpen, setRejectOpen] = useState(false);
-    const [rejectionReason, setRejectionReason] = useState("");
     const [cancelOpen, setCancelOpen] = useState(false);
     const [cancelNote, setCancelNote] = useState("");
 
     const [mutationLoading, setMutationLoading] = useState(false);
-
-    const effectiveRole: GoodsReceiptRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("QC_STAFF")
-        ? "QC_STAFF"
-        : "WAREHOUSE";
 
     const loadReceipt = useCallback(() => {
         if (!receiptId) return;
@@ -120,6 +108,8 @@ export function GoodsReceiptDetailPage() {
         };
     }, [receiptId]);
 
+    const { hasAnyRole, isAdmin, isBranchManager, isInventoryManager, isInventoryStaff, isQc } = useAuthorization();
+
     useEffect(() => loadReceipt(), [loadReceipt]);
 
     function showToast(message: string, success: boolean) {
@@ -127,7 +117,7 @@ export function GoodsReceiptDetailPage() {
         window.setTimeout(() => setToast(null), 3000);
     }
 
-    const canShowCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "DIRECTOR", "BRANCH_MANAGER"]);
+    const canShowCost = hasAnyRole(["ADMIN", "ACCOUNTANT", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
 
     // 1. Submit for Approval (DRAFT -> PENDING_APPROVAL)
     async function submitReceipt() {
@@ -135,7 +125,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.submitGoodsReceipt({
-                actorRole: effectiveRole,
                 receiptId: receipt.id
             });
             setReceipt(updated);
@@ -153,7 +142,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.approveGoodsReceipt({
-                actorRole: effectiveRole,
                 note: "Quản lý kho đã duyệt kế hoạch nhập nguyên liệu",
                 receiptId: receipt.id
             });
@@ -176,7 +164,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.rejectGoodsReceipt({
-                actorRole: effectiveRole,
                 reason: rejectionReason.trim(),
                 receiptId: receipt.id
             });
@@ -196,7 +183,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.startReceivingGoodsReceipt({
-                actorRole: effectiveRole,
                 receiptId: receipt.id
             });
             setReceipt(updated);
@@ -255,14 +241,13 @@ export function GoodsReceiptDetailPage() {
         const nextYear = new Date(now.setFullYear(now.getFullYear() + 1)).toISOString().split("T")[0];
 
         setQcDraft(
-            receipt.lines.map((l, index) => {
+            receipt.lines.map((l) => {
                 const received = l.receivedQuantity || 0;
                 const accepted = l.qc.passedQuantity || received;
                 const rejected = l.qc.failedQuantity || 0;
 
                 return {
                     acceptedQuantity: accepted,
-                    batchCode: l.internalBatchCode || `LOT-${receipt.code}-${index + 1}`,
                     expiryDate: l.expiryDate || nextYear,
                     lineId: l.id,
                     manufactureDate: l.manufacturedAt || mfg,
@@ -286,26 +271,24 @@ export function GoodsReceiptDetailPage() {
                 showToast(`Dòng ${line.materialName}: Tổng SL Đạt + Lỗi phải bằng Thực nhận (${line.receivedQuantity}).`, false);
                 return;
             }
-            if (line.acceptedQuantity > 0 && (!line.batchCode || !line.manufactureDate || !line.expiryDate)) {
+            if (line.acceptedQuantity > 0 && (!line.manufactureDate || !line.expiryDate)) {
                 showToast(`Dòng ${line.materialName}: Vui lòng nhập đầy đủ thông tin lô hàng đạt chuẩn.`, false);
                 return;
             }
         }
 
         const input: GoodsReceiptQcInput = {
-            actorRole: effectiveRole,
             lines: qcDraft.map((l) => ({
                 acceptedQuantity: l.acceptedQuantity,
                 batches: l.acceptedQuantity > 0
                     ? [
-                          {
-                              batchCode: l.batchCode,
-                              expiryDate: l.expiryDate,
-                              manufactureDate: l.manufactureDate,
-                              quantity: l.acceptedQuantity,
-                              supplierLot: l.supplierLot
-                          }
-                      ]
+                        {
+                            expiryDate: l.expiryDate,
+                            manufactureDate: l.manufactureDate,
+                            quantity: l.acceptedQuantity,
+                            supplierLot: l.supplierLot
+                        }
+                    ]
                     : [],
                 failedQuantity: l.rejectedQuantity,
                 lineId: l.lineId,
@@ -335,12 +318,11 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.postGoodsReceipt({
-                actorRole: effectiveRole,
                 receiptId: receipt.id
             });
             setReceipt(updated);
             setPostOpen(false);
-            showToast("Đã ghi sổ nhập kho thành công.", true);
+            showToast("Đã nhập kho nhập kho thành công.", true);
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Ghi sổ nhập kho thất bại.", false);
         } finally {
@@ -354,7 +336,6 @@ export function GoodsReceiptDetailPage() {
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.cancelGoodsReceipt({
-                actorRole: effectiveRole,
                 note: cancelNote,
                 receiptId: receipt.id
             });
@@ -401,9 +382,8 @@ export function GoodsReceiptDetailPage() {
         <section className="grid gap-4">
             {toast ? (
                 <div
-                    className={`fixed right-6 top-6 z-50 rounded-xl px-5 py-3 text-sm font-black text-white shadow-2xl transition-all ${
-                        toast.success ? "bg-[#159734]" : "bg-red-600"
-                    }`}
+                    className={`fixed right-6 top-6 z-50 rounded-xl px-5 py-3 text-sm font-black text-white shadow-2xl transition-all ${toast.success ? "bg-[#159734]" : "bg-red-600"
+                        }`}
                 >
                     {toast.message}
                 </div>
@@ -453,7 +433,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "PENDING_APPROVAL" ? (
+                        {receipt.status === "PENDING_APPROVAL" && (isInventoryManager() || isAdmin() || isBranchManager()) ? (
                             <>
                                 <button
                                     className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
@@ -474,7 +454,7 @@ export function GoodsReceiptDetailPage() {
                             </>
                         ) : null}
 
-                        {receipt.status === "APPROVED" ? (
+                        {receipt.status === "APPROVED" && (isInventoryStaff() || isInventoryManager() || isAdmin() || isBranchManager()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -485,7 +465,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "RECEIVING" ? (
+                        {receipt.status === "RECEIVING" && (isInventoryStaff() || isInventoryManager() || isAdmin() || isBranchManager()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -496,7 +476,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "QC_PENDING" ? (
+                        {receipt.status === "QC_PENDING" && (isQc() || isInventoryManager() || isAdmin()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -507,7 +487,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "QC_COMPLETED" ? (
+                        {receipt.status === "QC_COMPLETED" && (isInventoryManager() || isAdmin() || isBranchManager()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -519,8 +499,9 @@ export function GoodsReceiptDetailPage() {
                         ) : null}
 
                         {receipt.status !== "POSTED" &&
-                        receipt.status !== "CANCELLED" &&
-                        receipt.status !== "REJECTED" ? (
+                            receipt.status !== "CANCELLED" &&
+                            receipt.status !== "REJECTED" &&
+                            (isAdmin() || isInventoryManager() || isBranchManager()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg border border-[#e8eef0] bg-white px-3 text-sm font-bold text-[#697684] hover:bg-[#f7f8fb] disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -753,18 +734,7 @@ export function GoodsReceiptDetailPage() {
                                 </div>
 
                                 {line.acceptedQuantity > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[#f4faf5] p-3 rounded-lg border border-[#d8eadc]">
-                                        <div>
-                                            <label className="text-xs font-bold text-[#315f3c]">Mã Lô (Batch Code) *:</label>
-                                            <input
-                                                className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-bold font-mono"
-                                                value={line.batchCode}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setQcDraft((cur) => cur.map((item, idx) => (idx === index ? { ...item, batchCode: val } : item)));
-                                                }}
-                                            />
-                                        </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-[#f4faf5] p-3 rounded-lg border border-[#d8eadc]">
                                         <div>
                                             <label className="text-xs font-bold text-[#315f3c]">Ngày sản xuất (MFG) *:</label>
                                             <input

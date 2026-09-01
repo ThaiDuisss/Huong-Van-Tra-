@@ -9,8 +9,8 @@ const users: Record<SupplierReturnRole, UserSnapshot> = {
     ACCOUNTANT: { id: "sr-accountant", name: "Lan Kế toán", role: "ACCOUNTANT" },
     ADMIN: { id: "sr-admin", name: "Admin Hương Vân", role: "ADMIN" },
     DIRECTOR: { id: "sr-director", name: "Hà Giám đốc", role: "DIRECTOR" },
-    QC_STAFF: { id: "sr-qc", name: "Vy QC", role: "QC_STAFF" },
-    WAREHOUSE: { id: "sr-warehouse", name: "Kho Trung tâm", role: "WAREHOUSE" }
+    INVENTORY_STAFF: { id: "sr-warehouse", name: "Kho Trung tâm", role: "INVENTORY_STAFF" },
+    QC_STAFF: { id: "sr-qc", name: "Vy QC", role: "QC_STAFF" }
 };
 
 const suppliers = [
@@ -41,10 +41,10 @@ export function supplierReturnAudit(type: InventoryAuditEvent["type"], role: Sup
 
 export const supplierReturnMockData: SupplierReturnDetail[] = [
     {
-        auditEvents: [supplierReturnAudit("SUBMIT", "WAREHOUSE", "Tạo yêu cầu trả NCC từ batch QC không đạt.")],
+        auditEvents: [supplierReturnAudit("SUBMIT", "INVENTORY_STAFF", "Tạo yêu cầu trả NCC từ batch QC không đạt.")],
         code: "SRT-20260802-001",
         createdAt: "2026-08-02T09:00:00.000Z",
-        createdBy: users.WAREHOUSE,
+        createdBy: users.INVENTORY_STAFF,
         id: "supplier-return-1",
         lines: [
             { batchCode: "BATCH-SEN-2606", batchId: "sr-batch-1", currentAvailableQuantity: 50, currentQuarantineQuantity: 8, estimatedValue: 1800000, evidence: ["qc-mau-am-moc.jpg"], id: "sr-line-1", preparedQuantity: 0, qcResult: "FAILED", reason: "SUP-01", receivedQuantity: 80, returnQuantity: 10, returnableQuantity: 58, skuCode: "TEA-SEN-RAW", skuId: "sku-sen-raw", skuName: "Nguyên liệu trà sen", unit: "kg", unitCost: 180000 }
@@ -63,13 +63,13 @@ export const supplierReturnMockData: SupplierReturnDetail[] = [
         totalValue: 1800000
     },
     {
-        auditEvents: [supplierReturnAudit("POST", "WAREHOUSE", "Đã ship trả NCC, chờ hàng thay thế.")],
+        auditEvents: [supplierReturnAudit("POST", "INVENTORY_STAFF", "Đã ship trả NCC, chờ hàng thay thế.")],
         approvedAt: "2026-08-01T10:00:00.000Z",
         approvedBy: users.ADMIN,
         carrier: "Giao nhận nội bộ",
         code: "SRT-20260801-002",
         createdAt: "2026-08-01T08:00:00.000Z",
-        createdBy: users.WAREHOUSE,
+        createdBy: users.INVENTORY_STAFF,
         id: "supplier-return-2",
         lines: [
             { batchCode: "BATCH-OLG-2609", batchId: "sr-batch-3", currentAvailableQuantity: 60, currentQuarantineQuantity: 0, estimatedValue: 1050000, evidence: ["sai-lot.jpg"], id: "sr-line-2", preparedQuantity: 5, qcResult: "FAILED", reason: "SUP-06", receivedQuantity: 64, returnQuantity: 5, returnableQuantity: 60, skuCode: "TEA-OLG-RAW", skuId: "sku-olg-raw", skuName: "Nguyên liệu ô long", unit: "kg", unitCost: 210000 }

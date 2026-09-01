@@ -16,7 +16,7 @@ export type SupplierReturnStatus =
     | "CANCELLED";
 
 export type SupplierReturnRole =
-    | "WAREHOUSE"
+    | "INVENTORY_STAFF"
     | "QC_STAFF"
     | "ACCOUNTANT"
     | "ADMIN"
@@ -155,7 +155,6 @@ export interface SupplierReturnOptions {
 }
 
 export interface SupplierReturnCreateInput {
-    actorRole: SupplierReturnRole;
     supplierId: string;
     receiptId: string;
     supplierInvoiceCode: string;
@@ -173,7 +172,6 @@ export interface SupplierReturnCreateInput {
 }
 
 export interface SupplierReturnActionInput {
-    actorRole: SupplierReturnRole;
     supplierReturnId: string;
     note?: string;
 }

@@ -2,7 +2,6 @@ import { Calculator, Layers3 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { useAuth } from "../../../auth/auth-context";
 import {
     ReorderPolicyTable
 } from "../components/StockAlertComponents";
@@ -12,8 +11,7 @@ import { stockAlertApi } from "../services/stockAlert.api";
 import type {
     ReorderPolicy,
     ReorderPolicyQuery,
-    ReorderPolicyUpdateInput,
-    StockAlertRole
+    ReorderPolicyUpdateInput
 } from "../types/stock-alert.types";
 import { formatVietnamNumber } from "../utils/inventory-format";
 
@@ -24,15 +22,6 @@ const initialQuery: ReorderPolicyQuery = {
 };
 
 export function ReorderPolicyPage() {
-    const { roles } = useAuth();
-    const effectiveRole: StockAlertRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : "WAREHOUSE";
-
     const [query, setQuery] = useState(initialQuery);
     const [policies, setPolicies] = useState<ReorderPolicy[]>([]);
     const [editing, setEditing] = useState<ReorderPolicy | null>(null);
@@ -68,7 +57,7 @@ export function ReorderPolicyPage() {
 
     function openEdit(policy: ReorderPolicy) {
         setEditing(policy);
-        setForm({ actorRole: effectiveRole, enabled: policy.enabled, averageDailyConsumption: policy.averageDailyConsumption, maximumStock: policy.maximumStock, minimumStock: policy.minimumStock, overrideReason: policy.overrideReason ?? "", policyId: policy.id, reorderPoint: policy.reorderPoint, safetyStock: policy.safetyStock, standardReorderQuantity: policy.standardReorderQuantity, supplierLeadTimeDays: policy.supplierLeadTimeDays });
+        setForm({ enabled: policy.enabled, averageDailyConsumption: policy.averageDailyConsumption, maximumStock: policy.maximumStock, minimumStock: policy.minimumStock, overrideReason: policy.overrideReason ?? "", policyId: policy.id, reorderPoint: policy.reorderPoint, safetyStock: policy.safetyStock, standardReorderQuantity: policy.standardReorderQuantity, supplierLeadTimeDays: policy.supplierLeadTimeDays });
         setError("");
     }
 
@@ -77,7 +66,7 @@ export function ReorderPolicyPage() {
         setSubmitting(true);
         setError("");
         try {
-            await stockAlertApi.updateReorderPolicy({ ...form, actorRole: effectiveRole });
+            await stockAlertApi.updateReorderPolicy(form);
             setEditing(null);
             setForm(null);
             setPolicies(await stockAlertApi.listReorderPolicies(query));
@@ -93,7 +82,6 @@ export function ReorderPolicyPage() {
         setError("");
         try {
             const response = await stockAlertApi.bulkUpdateReorderPolicies({
-                actorRole: effectiveRole,
                 category: bulkCategory,
                 locationId: inventoryMasterLocations.branchCauGiay.id,
                 patch: { safetyStock: 5, standardReorderQuantity: 25 },

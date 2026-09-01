@@ -2,7 +2,7 @@ import type { EntityId, PageResponse } from "./inventory.types";
 
 export type InventoryRole =
     | "INVENTORY_MANAGER"
-    | "WAREHOUSE_STAFF"
+    | "INVENTORY_STAFF"
     | "PRODUCTION_STAFF"
     | "BRANCH_STAFF"
     | "AUDITOR";
@@ -174,7 +174,7 @@ export interface InventoryCreateDraftInput {
 export interface InventoryActionInput {
     recordId: EntityId;
     action: InventoryActionType;
-    role: InventoryRole;
+    role?: InventoryRole;
     note: string;
 }
 
