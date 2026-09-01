@@ -2,9 +2,9 @@ import { FileText } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
-import { useAuth } from "../../../auth/auth-context";
-import { hasAnyRole } from "../../../auth/role-utils";
-import { CustomerReturnStatusBadge } from "../components/CustomerReturnComponents";
+import {
+    CustomerReturnStatusBadge
+} from "../components/CustomerReturnComponents";
 import {
     customerReturnConditionLabels,
     customerReturnRefundStatusLabels,
@@ -34,9 +34,16 @@ const tabs: Array<{ id: DetailTab; label: string }> = [
     { id: "audit", label: "Audit" }
 ];
 
+function readRole(): CustomerReturnRole {
+    const stored = window.localStorage.getItem("hvt.customerReturn.role");
+    return stored && ["SALES_STAFF", "BRANCH_MANAGER", "QC_STAFF", "ADMIN", "ACCOUNTANT", "WAREHOUSE"].includes(stored)
+        ? stored as CustomerReturnRole
+        : "BRANCH_MANAGER";
+}
+
 export function CustomerReturnDetailPage() {
     const { returnId } = useParams();
-    const { roles } = useAuth();
+    const [role, setRole] = useState<CustomerReturnRole>(readRole);
     const [detail, setDetail] = useState<CustomerReturnDetail | null>(null);
     const [activeTab, setActiveTab] = useState<DetailTab>("summary");
     const [loading, setLoading] = useState(true);
@@ -44,18 +51,6 @@ export function CustomerReturnDetailPage() {
     const [submitting, setSubmitting] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
     const [quantityReason, setQuantityReason] = useState("");
-
-    const effectiveRole: CustomerReturnRole = roles?.includes("ADMIN")
-        ? "ADMIN"
-        : roles?.includes("BRANCH_MANAGER")
-        ? "BRANCH_MANAGER"
-        : roles?.includes("QC_STAFF")
-        ? "QC_STAFF"
-        : roles?.includes("ACCOUNTANT")
-        ? "ACCOUNTANT"
-        : roles?.includes("WAREHOUSE_STAFF")
-        ? "WAREHOUSE"
-        : "BRANCH_MANAGER";
 
     const load = useCallback(() => {
         if (!returnId) return;
@@ -68,6 +63,7 @@ export function CustomerReturnDetailPage() {
         return () => { active = false; };
     }, [returnId]);
 
+    useEffect(() => { window.localStorage.setItem("hvt.customerReturn.role", role); }, [role]);
     useEffect(() => {
         let cleanup: void | (() => void);
         let cancelled = false;
@@ -89,10 +85,10 @@ export function CustomerReturnDetailPage() {
         }
     }
 
-    const canManager = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER"]);
-    const canQc = hasAnyRole(roles, ["ADMIN", "QC_STAFF", "WAREHOUSE_STAFF", "INVENTORY_MANAGER"]);
+    const canManager = ["ADMIN", "BRANCH_MANAGER"].includes(role);
+    const canQc = ["ADMIN", "QC_STAFF"].includes(role);
 
-    return <section className="grid gap-4"><header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><Link className="text-sm font-black text-[#159734]" to="/management/inventory/customer-returns">Quay lại danh sách</Link><h1 className="text-2xl font-black text-[#172317]">{detail?.code ?? "Khách trả hàng"}</h1>{detail ? <p className="text-sm font-semibold text-[#697684]">{detail.customerName} · {detail.orderCode}</p> : null}</div></header>{loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}{error ? <div className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : null}{detail ? <><section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="grid gap-2"><CustomerReturnStatusBadge status={detail.status} /><p className="text-sm font-semibold text-[#536078]">Resolution: {customerReturnResolutionLabels[detail.desiredResolution]} · Value {formatVnd(detail.totalValue)}</p></div><div className="flex flex-wrap gap-2">{detail.status === "PENDING_MANAGER_REVIEW" && canManager ? <><button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.reviewCustomerReturn({ accepted: true, actorRole: effectiveRole, lines: detail.lines.map((line) => ({ acceptedQuantity: line.requestedQuantity, lineId: line.id })), note: "Đủ điều kiện đổi trả.", quantityChangeReason: quantityReason, returnId: detail.id }), "Không thể accept.")} type="button">Accept</button><input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(event) => setRejectReason(event.currentTarget.value)} placeholder="Lý do reject" value={rejectReason} /><button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.reviewCustomerReturn({ accepted: false, actorRole: effectiveRole, lines: [], rejectReason, returnId: detail.id }), "Không thể reject.")} type="button">Reject</button></> : null}{detail.status === "ACCEPTED" && canManager ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.receiveCustomerReturn({ actorRole: effectiveRole, lines: detail.lines.map((line) => ({ lineId: line.id, receivedCondition: line.condition, receivedQuantity: line.acceptedQuantity })), note: "Nhận vào CUSTOMER_RETURN_QUARANTINE.", returnId: detail.id }), "Không thể nhận hàng.")} type="button">Nhận vào quarantine</button> : null}{["RECEIVED_IN_QUARANTINE", "PENDING_QC"].includes(detail.status) && canQc ? <><button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.inspectCustomerReturn({ actorRole: effectiveRole, evidence: "qc-evidence.jpg", lines: detail.lines.map((line) => ({ failedQuantity: 0, lineId: line.id, passedQuantity: line.receivedQuantity, qcCondition: "SEALED" as CustomerReturnCondition })), remainingShelfLifeDays: 90, returnId: detail.id, sealStatus: "SEALED" }), "Không thể QC pass.")} type="button">QC đạt</button><button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.inspectCustomerReturn({ actorRole: effectiveRole, evidence: "qc-fail.jpg", lines: detail.lines.map((line) => ({ failedQuantity: line.receivedQuantity, lineId: line.id, passedQuantity: 0, qcCondition: "DAMAGED" as CustomerReturnCondition })), remainingShelfLifeDays: 0, returnId: detail.id, sealStatus: "BROKEN" }), "Không thể QC fail.")} type="button">QC không đạt</button></> : null}{detail.status === "RESTOCK_APPROVED" && canQc ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.approveCustomerReturnRestock({ actorRole: effectiveRole, returnId: detail.id }), "Không thể tạo PNK.")} type="button">Tạo PNK restock</button> : null}{detail.status === "DISPOSAL_REQUIRED" && canQc ? <button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.requestCustomerReturnDisposal({ actorRole: effectiveRole, returnId: detail.id }), "Không thể tạo disposal.")} type="button">Tạo Disposal Request</button> : null}</div></div></section><nav className="flex gap-2 overflow-x-auto">{tabs.map((tab) => <button className={`h-10 shrink-0 rounded-lg px-4 text-sm font-black ${activeTab === tab.id ? "bg-[#159734] text-white" : "bg-white text-[#536078] shadow-pos-card"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} type="button">{tab.label}</button>)}</nav>{activeTab === "summary" ? <Summary detail={detail} /> : null}{activeTab === "lines" ? <Lines detail={detail} /> : null}{activeTab === "manager" ? <Manager detail={detail} quantityReason={quantityReason} setQuantityReason={setQuantityReason} /> : null}{activeTab === "receiving" ? <Receiving detail={detail} /> : null}{activeTab === "qc" ? <Qc detail={detail} /> : null}{activeTab === "refund" ? <Refund detail={detail} /> : null}{activeTab === "documents" ? <Documents detail={detail} /> : null}{activeTab === "audit" ? <Audit detail={detail} /> : null}</> : null}</section>;
+    return <section className="grid gap-4"><header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><Link className="text-sm font-black text-[#159734]" to="/management/inventory/customer-returns">Quay lại danh sách</Link><h1 className="text-2xl font-black text-[#172317]">{detail?.code ?? "Khách trả hàng"}</h1>{detail ? <p className="text-sm font-semibold text-[#697684]">{detail.customerName} · {detail.orderCode}</p> : null}</div><CustomerReturnRoleSwitch onChange={setRole} value={role} /></header>{loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}{error ? <div className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : null}{detail ? <><section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="grid gap-2"><CustomerReturnStatusBadge status={detail.status} /><p className="text-sm font-semibold text-[#536078]">Resolution: {customerReturnResolutionLabels[detail.desiredResolution]} · Value {formatVnd(detail.totalValue)}</p></div><div className="flex flex-wrap gap-2">{detail.status === "PENDING_MANAGER_REVIEW" && canManager ? <><button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.reviewCustomerReturn({ accepted: true, actorRole: role, lines: detail.lines.map((line) => ({ acceptedQuantity: line.requestedQuantity, lineId: line.id })), note: "Đủ điều kiện đổi trả.", quantityChangeReason: quantityReason, returnId: detail.id }), "Không thể accept.")} type="button">Accept</button><input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(event) => setRejectReason(event.currentTarget.value)} placeholder="Lý do reject" value={rejectReason} /><button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.reviewCustomerReturn({ accepted: false, actorRole: role, lines: [], rejectReason, returnId: detail.id }), "Không thể reject.")} type="button">Reject</button></> : null}{detail.status === "ACCEPTED" && canManager ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.receiveCustomerReturn({ actorRole: role, lines: detail.lines.map((line) => ({ lineId: line.id, receivedCondition: line.condition, receivedQuantity: line.acceptedQuantity })), note: "Nhận vào CUSTOMER_RETURN_QUARANTINE.", returnId: detail.id }), "Không thể nhận hàng.")} type="button">Nhận vào quarantine</button> : null}{["RECEIVED_IN_QUARANTINE", "PENDING_QC"].includes(detail.status) && canQc ? <><button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.inspectCustomerReturn({ actorRole: role, evidence: "qc-evidence.jpg", lines: detail.lines.map((line) => ({ failedQuantity: 0, lineId: line.id, passedQuantity: line.receivedQuantity, qcCondition: "SEALED" as CustomerReturnCondition })), remainingShelfLifeDays: 90, returnId: detail.id, sealStatus: "SEALED" }), "Không thể QC pass.")} type="button">QC đạt</button><button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.inspectCustomerReturn({ actorRole: role, evidence: "qc-fail.jpg", lines: detail.lines.map((line) => ({ failedQuantity: line.receivedQuantity, lineId: line.id, passedQuantity: 0, qcCondition: "DAMAGED" as CustomerReturnCondition })), remainingShelfLifeDays: 0, returnId: detail.id, sealStatus: "BROKEN" }), "Không thể QC fail.")} type="button">QC không đạt</button></> : null}{detail.status === "RESTOCK_APPROVED" && canQc ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.approveCustomerReturnRestock({ actorRole: role, returnId: detail.id }), "Không thể tạo PNK.")} type="button">Tạo PNK restock</button> : null}{detail.status === "DISPOSAL_REQUIRED" && canQc ? <button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.requestCustomerReturnDisposal({ actorRole: role, returnId: detail.id }), "Không thể tạo disposal.")} type="button">Tạo Disposal Request</button> : null}</div></div></section><nav className="flex gap-2 overflow-x-auto">{tabs.map((tab) => <button className={`h-10 shrink-0 rounded-lg px-4 text-sm font-black ${activeTab === tab.id ? "bg-[#159734] text-white" : "bg-white text-[#536078] shadow-pos-card"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} type="button">{tab.label}</button>)}</nav>{activeTab === "summary" ? <Summary detail={detail} /> : null}{activeTab === "lines" ? <Lines detail={detail} /> : null}{activeTab === "manager" ? <Manager detail={detail} quantityReason={quantityReason} setQuantityReason={setQuantityReason} /> : null}{activeTab === "receiving" ? <Receiving detail={detail} /> : null}{activeTab === "qc" ? <Qc detail={detail} /> : null}{activeTab === "refund" ? <Refund detail={detail} /> : null}{activeTab === "documents" ? <Documents detail={detail} /> : null}{activeTab === "audit" ? <Audit detail={detail} /> : null}</> : null}</section>;
 }
 
 function Summary({ detail }: { detail: CustomerReturnDetail }) {
