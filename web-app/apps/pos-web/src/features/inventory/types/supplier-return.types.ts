@@ -16,7 +16,7 @@ export type SupplierReturnStatus =
     | "CANCELLED";
 
 export type SupplierReturnRole =
-    | "WAREHOUSE"
+    | "INVENTORY_STAFF"
     | "QC_STAFF"
     | "ACCOUNTANT"
     | "ADMIN"

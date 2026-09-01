@@ -27,7 +27,7 @@ export type StockDocumentDirection = "ALL" | "IN" | "OUT";
 
 export type StockDocumentRole =
     | "ADMIN"
-    | "WAREHOUSE"
+    | "INVENTORY_STAFF"
     | "BRANCH_MANAGER"
     | "ACCOUNTANT"
     | "DIRECTOR"

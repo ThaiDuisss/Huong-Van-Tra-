@@ -200,7 +200,7 @@ export const inventoryManagementApi: InventoryManagementApi = {
         record.updatedAt = new Date().toISOString();
         record.activities = [
             {
-                actor: `Vai trò ${input.role}`,
+                actor: input.role ? `Vai trò ${input.role}` : "Quản trị viên",
                 at: record.updatedAt,
                 description: input.note || "Thao tác được ghi nhận từ mock API.",
                 id: `act-${Date.now()}`,

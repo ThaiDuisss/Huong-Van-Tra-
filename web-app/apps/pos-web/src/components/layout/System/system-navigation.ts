@@ -275,14 +275,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             label: "Khách trả hàng",
             icon: RefreshCw,
             to: routePaths.inventoryCustomerReturnList,
-            roles: ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF"],
+            roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_STAFF", "INVENTORY_MANAGER"],
           },
           {
             key: "inventory-supplier-returns",
             label: "Trả nhà cung cấp",
             icon: RefreshCw,
             to: routePaths.inventorySupplierReturnList,
-            roles: ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER"],
+            roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_STAFF", "INVENTORY_MANAGER"],
           },
           {
             key: "inventory-disposals",

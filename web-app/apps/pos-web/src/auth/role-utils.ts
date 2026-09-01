@@ -1,14 +1,12 @@
-export const APP_ROLES = [
-    "ADMIN",
-    "BRANCH_MANAGER",
-    "POS_STAFF",
-    "WAREHOUSE_STAFF",
-    "INVENTORY_MANAGER",
-    "ACCOUNTANT",
-    "SHIPPER"
-] as const;
+import { hasAllRoles, hasAnyRole, hasRole, normalizeRole } from "./auth.utils";
+import { ROLES, type Role } from "./roles";
+import { useAuthorization } from "./useAuthorization";
 
-export type AppRole = (typeof APP_ROLES)[number];
+export { ROLES, type Role, hasRole, hasAnyRole, hasAllRoles, normalizeRole, useAuthorization };
+
+export const APP_ROLES = Object.values(ROLES);
+
+export type AppRole = Role;
 
 export const POS_WORKSPACE_ROLES: AppRole[] = [
     "ADMIN",
@@ -19,44 +17,49 @@ export const POS_WORKSPACE_ROLES: AppRole[] = [
 export const BACKOFFICE_ROLES: AppRole[] = [
     "ADMIN",
     "BRANCH_MANAGER",
-    "WAREHOUSE_STAFF",
     "INVENTORY_MANAGER",
+    "INVENTORY_STAFF",
+    "QC",
     "ACCOUNTANT"
 ];
 
 export const ORDER_ROLES: AppRole[] = [
     "ADMIN",
     "BRANCH_MANAGER",
-    "ACCOUNTANT"
+    "ACCOUNTANT",
+    "POS_STAFF"
 ];
 
 export const PRODUCT_ROLES: AppRole[] = [
     "ADMIN",
     "BRANCH_MANAGER",
-    "WAREHOUSE_STAFF",
-    "INVENTORY_MANAGER"
+    "INVENTORY_MANAGER",
+    "INVENTORY_STAFF"
 ];
 
 export const MANUFACTURING_ROLES: AppRole[] = [
     "ADMIN",
     "BRANCH_MANAGER",
-    "WAREHOUSE_STAFF",
-    "INVENTORY_MANAGER"
+    "INVENTORY_MANAGER",
+    "INVENTORY_STAFF",
+    "QC"
 ];
 
 export const INVENTORY_ROLES: AppRole[] = [
     "ADMIN",
     "BRANCH_MANAGER",
-    "WAREHOUSE_STAFF",
     "INVENTORY_MANAGER",
+    "INVENTORY_STAFF",
+    "QC",
     "ACCOUNTANT"
 ];
 
 export const INVENTORY_OPERATION_ROLES: AppRole[] = [
     "ADMIN",
     "BRANCH_MANAGER",
-    "WAREHOUSE_STAFF",
-    "INVENTORY_MANAGER"
+    "INVENTORY_MANAGER",
+    "INVENTORY_STAFF",
+    "QC"
 ];
 
 export const MARKETING_ROLES: AppRole[] = [
@@ -71,56 +74,37 @@ export const REPORT_ROLES: AppRole[] = [
     "ACCOUNTANT"
 ];
 
-export const SETTINGS_ROLES: AppRole[] = ["ADMIN"];
+export const SETTINGS_ROLES: AppRole[] = [ROLES.ADMIN];
 
-const DEFAULT_ROUTE_BY_ROLE: Record<AppRole, string> = {
-    ADMIN: "/system/inventory/balances",
-    BRANCH_MANAGER: "/system/orders",
-    INVENTORY_MANAGER: "/system/inventory/balances",
-    ACCOUNTANT: "/system/orders/invoices",
-    WAREHOUSE_STAFF: "/system/inventory/balances",
-    POS_STAFF: "/pos/sales",
-    SHIPPER: "/pos/sales"
+const DEFAULT_ROUTE_BY_ROLE: Record<string, string> = {
+    [ROLES.ADMIN]: "/system/inventory/balances",
+    [ROLES.BRANCH_MANAGER]: "/system/orders",
+    [ROLES.INVENTORY_MANAGER]: "/system/inventory/balances",
+    [ROLES.INVENTORY_STAFF]: "/system/inventory/balances",
+    [ROLES.QC]: "/system/inventory/quality",
+    [ROLES.ACCOUNTANT]: "/system/orders/invoices",
+    [ROLES.POS_STAFF]: "/pos/sales",
+    [ROLES.DELIVERY]: "/pos/sales",
+    [ROLES.CUSTOMER]: "/"
 };
 
-const ROLE_PRIORITY: AppRole[] = [
-    "ADMIN",
-    "BRANCH_MANAGER",
-    "INVENTORY_MANAGER",
-    "ACCOUNTANT",
-    "WAREHOUSE_STAFF",
-    "POS_STAFF",
-    "SHIPPER"
+const ROLE_PRIORITY: Role[] = [
+    ROLES.ADMIN,
+    ROLES.BRANCH_MANAGER,
+    ROLES.INVENTORY_MANAGER,
+    ROLES.QC,
+    ROLES.ACCOUNTANT,
+    ROLES.INVENTORY_STAFF,
+    ROLES.POS_STAFF,
+    ROLES.DELIVERY,
+    ROLES.CUSTOMER
 ];
-
-export function normalizeRole(role: string) {
-    return role.replace(/^ROLE_/i, "").trim().toUpperCase();
-}
-
-export function hasAnyRole(
-    userRoles: readonly string[] | undefined,
-    allowedRoles?: readonly string[]
-) {
-    if (!allowedRoles || allowedRoles.length === 0) {
-        return true;
-    }
-
-    if (!userRoles || userRoles.length === 0) {
-        return false;
-    }
-
-    const normalizedUserRoles = new Set(userRoles.map(normalizeRole));
-
-    return allowedRoles.some((role) =>
-        normalizedUserRoles.has(normalizeRole(role))
-    );
-}
 
 export function getDefaultRouteForRoles(
     userRoles: readonly string[] | undefined
 ) {
     if (!userRoles || userRoles.length === 0) {
-        return DEFAULT_ROUTE_BY_ROLE.POS_STAFF;
+        return DEFAULT_ROUTE_BY_ROLE[ROLES.POS_STAFF];
     }
 
     const normalizedUserRoles = new Set(userRoles.map(normalizeRole));
@@ -130,5 +114,5 @@ export function getDefaultRouteForRoles(
 
     return matchedRole
         ? DEFAULT_ROUTE_BY_ROLE[matchedRole]
-        : DEFAULT_ROUTE_BY_ROLE.POS_STAFF;
+        : DEFAULT_ROUTE_BY_ROLE[ROLES.POS_STAFF];
 }

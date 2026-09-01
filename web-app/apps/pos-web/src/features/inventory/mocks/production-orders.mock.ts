@@ -27,7 +27,7 @@ function dateHoursAhead(hours: number) {
 
 export const productionUsers: UserSnapshot[] = [
     { id: "po-admin", name: "Phạm Thu Hương", role: "ADMIN" },
-    { id: "po-warehouse", name: "Nguyễn Minh Anh", role: "WAREHOUSE" },
+    { id: "po-warehouse", name: "Nguyễn Minh Anh", role: "INVENTORY_STAFF" },
     { id: "po-accountant", name: "Lê Hoài Nam", role: "ACCOUNTANT" },
     { id: "po-director", name: "Vũ Thanh Hà", role: "DIRECTOR" },
     { id: "po-qc", name: "Đặng Mai Chi", role: "QC_STAFF" }
@@ -229,15 +229,15 @@ function order(
 
     return {
         auditEvents: [
-            audit("CREATE_DRAFT", "WAREHOUSE", 72 - index, "Tạo lệnh sản xuất."),
+            audit("CREATE_DRAFT", "INVENTORY_STAFF", 72 - index, "Tạo lệnh sản xuất."),
             ...(status !== "DRAFT"
-                ? [audit("SUBMIT", "WAREHOUSE", 68 - index, "Submit for Approval.")]
+                ? [audit("SUBMIT", "INVENTORY_STAFF", 68 - index, "Submit for Approval.")]
                 : []),
             ...(status !== "DRAFT" && status !== "PENDING_APPROVAL"
                 ? [audit("APPROVE", "DIRECTOR", 60 - index, "Duyệt lệnh sản xuất.")]
                 : []),
             ...(status === "COMPLETED"
-                ? [audit("POST", "WAREHOUSE", 12 - index, "Hoàn thành sản xuất.")]
+                ? [audit("POST", "INVENTORY_STAFF", 12 - index, "Hoàn thành sản xuất.")]
                 : [])
         ],
         code: `LSX-2026-${String(index + 1).padStart(5, "0")}`,
@@ -246,7 +246,7 @@ function order(
                 ? [
                       {
                           completedAt: dateHoursAgo(10 - index),
-                          completedBy: user("WAREHOUSE"),
+                          completedBy: user("INVENTORY_STAFF"),
                           completionNumber: 1,
                           expiryDate: dateHoursAhead(24 * 180),
                           goodQuantity: completedTotal || 50,
@@ -272,7 +272,7 @@ function order(
                 (13000000 + index * 250000) / costGoodOutput
         },
         createdAt: dateHoursAgo(80 - index),
-        createdBy: user("WAREHOUSE"),
+        createdBy: user("INVENTORY_STAFF"),
         dueAt: index === 6 ? dateHoursAgo(2) : dateHoursAhead(24 * (index + 2)),
         finishedReceiptDocumentCode:
             status === "COMPLETED" ? `PNK-SX-${index + 1}` : undefined,
@@ -288,7 +288,7 @@ function order(
         materials: materials(index, shortage),
         note: "Make-to-Stock từ BOM active, giữ nguyên liệu theo FEFO.",
         outputs: orderOutputs,
-        owner: user("WAREHOUSE"),
+        owner: user("INVENTORY_STAFF"),
         plannedStartAt: dateHoursAgo(24 - index),
         priority,
         progressPercent: Math.min(100, Math.round((completedTotal / plannedTotal) * 100)),

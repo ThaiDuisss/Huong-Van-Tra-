@@ -11,7 +11,7 @@ const users: Record<CustomerReturnRole, UserSnapshot> = {
     BRANCH_MANAGER: { id: "cr-branch", name: "Minh Quản lý CN", role: "BRANCH_MANAGER" },
     QC_STAFF: { id: "cr-qc", name: "Vy QC", role: "QC_STAFF" },
     SALES_STAFF: { id: "cr-sales", name: "An Thu ngân", role: "SALES_STAFF" },
-    WAREHOUSE: { id: "cr-warehouse", name: "Kho Trung tâm", role: "WAREHOUSE" }
+    INVENTORY_STAFF: { id: "cr-warehouse", name: "Kho Trung tâm", role: "INVENTORY_STAFF" }
 };
 
 export const customerReturnBranches = [

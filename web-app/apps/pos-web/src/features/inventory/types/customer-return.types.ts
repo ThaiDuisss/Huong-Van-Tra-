@@ -23,7 +23,7 @@ export type CustomerReturnRole =
     | "QC_STAFF"
     | "ADMIN"
     | "ACCOUNTANT"
-    | "WAREHOUSE";
+    | "INVENTORY_STAFF";
 
 export type CustomerReturnReason =
     | "CHANGE_MIND"

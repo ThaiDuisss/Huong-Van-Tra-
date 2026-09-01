@@ -43,8 +43,8 @@ export const stockAlertRoleLabels: Record<StockAlertRole, string> = {
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
-    SALES_STAFF: "Nhân viên bán hàng",
-    WAREHOUSE: "Nhân viên kho"
+    INVENTORY_STAFF: "Nhân viên kho",
+    SALES_STAFF: "Nhân viên bán hàng"
 };
 
 export const stockAlertTypes = Object.keys(stockAlertTypeLabels) as StockAlertType[];

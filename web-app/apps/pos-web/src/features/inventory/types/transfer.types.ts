@@ -18,7 +18,7 @@ export type TransferStatus =
 
 export type TransferRole =
     | "BRANCH_MANAGER"
-    | "WAREHOUSE"
+    | "INVENTORY_STAFF"
     | "ADMIN"
     | "DIRECTOR"
     | "ACCOUNTANT"

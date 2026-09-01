@@ -21,7 +21,7 @@ export type StockAlertStatus =
     | "DISMISSED";
 
 export type StockAlertSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-export type StockAlertRole = "WAREHOUSE" | "BRANCH_MANAGER" | "ADMIN" | "ACCOUNTANT" | "DIRECTOR" | "SALES_STAFF";
+export type StockAlertRole = "INVENTORY_STAFF" | "BRANCH_MANAGER" | "ADMIN" | "ACCOUNTANT" | "DIRECTOR" | "SALES_STAFF";
 export type SuggestedActionType = "TRANSFER" | "PURCHASE" | "NONE";
 
 export interface StockSkuSummary {

@@ -58,9 +58,9 @@ export const customerReturnRoleLabels: Record<CustomerReturnRole, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",
+    INVENTORY_STAFF: "Nhân viên kho",
     QC_STAFF: "Nhân viên QC",
-    SALES_STAFF: "Nhân viên bán hàng",
-    WAREHOUSE: "Nhân viên kho"
+    SALES_STAFF: "Nhân viên bán hàng"
 };
 
 export const customerReturnReasons = Object.keys(customerReturnReasonLabels) as CustomerReturnReason[];

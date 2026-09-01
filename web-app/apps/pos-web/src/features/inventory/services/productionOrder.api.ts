@@ -8,7 +8,6 @@ import {
 } from "../mocks/production-orders.mock";
 import type {
     ProductionActionInput,
-    ProductionCompletionInput,
     ProductionOrder,
     ProductionOrderApi,
     ProductionOrderCreateInput,
@@ -51,7 +50,6 @@ function findOrder(id: string) {
 }
 
 function audit(
-    input: ProductionActionInput | ProductionCompletionInput,
     type: InventoryAuditEvent["type"],
     note?: string,
     reason?: string
@@ -97,7 +95,7 @@ function setStatus(
 ) {
     const order = findOrder(input.productionOrderId);
     order.status = status;
-    order.auditEvents = [audit(input, "APPROVE", note), ...order.auditEvents];
+    order.auditEvents = [audit("APPROVE", note), ...order.auditEvents];
     return wait(clone(order));
 }
 
@@ -256,7 +254,7 @@ export const productionOrderApi: ProductionOrderApi = {
                 order.finishedReceiptDocumentCode = `PNK-SX-${order.code}`;
             }
             order.auditEvents = [
-                audit(input, "POST", "Complete Production."),
+                audit("POST", "Complete Production."),
                 ...order.auditEvents
             ];
             completedOperations.add(input.idempotencyKey);
@@ -308,7 +306,6 @@ export const productionOrderApi: ProductionOrderApi = {
         const order: ProductionOrder = {
             auditEvents: [
                 audit(
-                    { productionOrderId: "new" },
                     "CREATE_DRAFT",
                     input.submit ? "Tạo và submit LSX." : "Lưu draft LSX."
                 )
@@ -325,7 +322,7 @@ export const productionOrderApi: ProductionOrderApi = {
                 unitProductionCost: 0
             },
             createdAt: new Date().toISOString(),
-            createdBy: productionActor("WAREHOUSE"),
+            createdBy: productionActor("INVENTORY_STAFF"),
             dueAt: input.dueAt,
             hasShortage: false,
             id: `production-order-${Date.now()}`,
@@ -433,7 +430,7 @@ export const productionOrderApi: ProductionOrderApi = {
         }));
         order.status = "RELEASED";
         order.auditEvents = [
-            audit(input, "APPROVE", "Release và reservation nguyên liệu."),
+            audit("APPROVE", "Release và reservation nguyên liệu."),
             ...order.auditEvents
         ];
         return wait(clone(order));

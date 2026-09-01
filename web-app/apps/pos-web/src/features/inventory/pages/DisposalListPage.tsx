@@ -2,8 +2,6 @@ import { AlertTriangle, CheckCircle2, PackageX, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-import { useAuth } from "../../../auth/auth-context";
 import {
     DisposalTable
 } from "../components/QualityComponents";

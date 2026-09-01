@@ -52,9 +52,9 @@ export function ProductionOrderDetailPage() {
         wasteQuantity: 1
     });
 
-    const canWarehouse = hasAnyRole(roles, ["ADMIN", "WAREHOUSE_STAFF", "WAREHOUSE"]);
-    const canApprove = hasAnyRole(roles, ["ADMIN", "DIRECTOR", "BRANCH_MANAGER"]);
-    const canFullCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "DIRECTOR"]);
+    const canWarehouse = hasAnyRole(roles, ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"]);
+    const canApprove = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
+    const canFullCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "INVENTORY_MANAGER"]);
 
     const loadOrder = useCallback(() => {
         if (!productionOrderId) return;

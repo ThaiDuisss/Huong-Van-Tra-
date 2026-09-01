@@ -19,8 +19,8 @@ export const stockAlertUsers: Record<StockAlertRole, UserSnapshot> = {
     ADMIN: inventoryMasterUsers.admin,
     BRANCH_MANAGER: inventoryMasterUsers.branchManager,
     DIRECTOR: inventoryMasterUsers.director,
-    SALES_STAFF: inventoryMasterUsers.sales,
-    WAREHOUSE: inventoryMasterUsers.warehouse
+    INVENTORY_STAFF: inventoryMasterUsers.warehouse,
+    SALES_STAFF: inventoryMasterUsers.sales
 };
 
 export const alertLocations: InventoryLocationSummary[] = [

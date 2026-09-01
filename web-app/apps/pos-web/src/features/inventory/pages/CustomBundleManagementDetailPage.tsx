@@ -41,7 +41,7 @@ export function CustomBundleManagementDetailPage() {
     if (!bundleId) return <Navigate to="/management/inventory/custom-bundles" replace />;
 
     function canPack(current: CustomBundleDetail) {
-        if (!hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "WAREHOUSE"])) return false;
+        if (!hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "INVENTORY_STAFF", "INVENTORY_MANAGER"])) return false;
         return ["PAID", "PACKING"].includes(current.status);
     }
 

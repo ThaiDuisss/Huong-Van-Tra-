@@ -185,8 +185,8 @@ export function TransferDetailPage() {
         setReceiveOpen(false);
     }
 
-    const canWarehouse = hasAnyRole(roles, ["ADMIN", "WAREHOUSE_STAFF", "WAREHOUSE"]);
-    const canBranchReceive = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "SALES_STAFF", "STAFF"]);
+    const canWarehouse = hasAnyRole(roles, ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"]);
+    const canBranchReceive = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "POS_STAFF", "INVENTORY_STAFF"]);
 
     return (
         <section className="grid gap-4">

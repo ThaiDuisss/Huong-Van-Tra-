@@ -1,11 +1,7 @@
 package org.hvtra.iventoryservice.document.service;
 
-import org.hvtra.iventoryservice.document.dto.request.ApproveReceiptRequest;
-import org.hvtra.iventoryservice.document.dto.request.CreatePurchaseReceiptRequest;
-import org.hvtra.iventoryservice.document.dto.request.QcReceiptRequest;
-import org.hvtra.iventoryservice.document.dto.request.ReceiveReceiptRequest;
-import org.hvtra.iventoryservice.document.dto.request.RejectReceiptRequest;
-import org.hvtra.iventoryservice.document.dto.request.UpdatePurchaseReceiptRequest;
+import org.hvtra.iventoryservice.document.dto.request.*;
+import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
@@ -27,6 +23,8 @@ public interface InventoryDocumentService {
             Instant toDate,
             Pageable pageable
     );
+
+    GoodsReceiptSummaryCountResponse getSummaryCounts(InventoryDocumentType documentType);
 
     InventoryDocumentResponse findById(UUID id);
 

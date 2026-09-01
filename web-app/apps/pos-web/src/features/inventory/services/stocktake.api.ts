@@ -315,7 +315,7 @@ function toSummary(response: InventoryTakeApiResponse, enrichment: Enrichment): 
       ? {
           id: response.adjustmentDocument.approvedBy,
           name: response.adjustmentDocument.approvedBy,
-          role: "WAREHOUSE",
+          role: "INVENTORY_STAFF",
         }
       : null,
     branch: enrichment.branches.find((branch) => branch.id === response.branchId) ?? {
@@ -329,7 +329,7 @@ function toSummary(response: InventoryTakeApiResponse, enrichment: Enrichment): 
     countedLines: response.lines.filter((line) => line.countedQuantity !== null).length,
     countingCompletedAt: response.countingCompletedAt,
     countingStartedAt: response.countingStartedAt,
-    createdBy: { id: response.createdBy ?? "", name: response.createdBy ?? "-", role: "WAREHOUSE" },
+    createdBy: { id: response.createdBy ?? "", name: response.createdBy ?? "-", role: "INVENTORY_STAFF" },
     id: response.id,
     note: response.note,
     blindCount: response.blindCount,
@@ -395,7 +395,7 @@ function toAdjustmentSummary(
   return {
     approvedAt: response.approvedAt,
     approvedBy: response.approvedBy
-      ? { id: response.approvedBy, name: response.approvedBy, role: "WAREHOUSE" }
+      ? { id: response.approvedBy, name: response.approvedBy, role: "INVENTORY_STAFF" }
       : null,
     documentCode: response.documentCode,
     documentType: response.documentType,

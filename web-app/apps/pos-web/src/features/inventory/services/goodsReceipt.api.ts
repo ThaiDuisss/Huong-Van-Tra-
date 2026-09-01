@@ -8,6 +8,7 @@ import type {
     GoodsReceiptApi,
     GoodsReceiptCostInput,
     GoodsReceiptCreateInput,
+    GoodsReceiptDashboardSummary,
     GoodsReceiptDetail,
     GoodsReceiptLine,
     GoodsReceiptListQuery,
@@ -108,7 +109,7 @@ function mapDocToSummary(doc: InventoryDocumentBackendResponse): GoodsReceiptSum
         createdBy: {
             id: doc.createdBy || "staff",
             name: doc.createdBy || "Nhân viên kho",
-            role: "WAREHOUSE"
+            role: "INVENTORY_STAFF"
         },
         hasVariance: (doc.lines || []).some(
             (l) => (l.shortageQuantity || 0) > 0 || (l.excessQuantity || 0) > 0 || (l.rejectedQuantity || 0) > 0
@@ -197,7 +198,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             happenedAt: doc.createdAt,
             id: `create-${doc.id}`,
             note: doc.note || "Tạo phiếu nhập",
-            roleSnapshot: "WAREHOUSE",
+            roleSnapshot: "INVENTORY_STAFF",
             type: "CREATE_DRAFT"
         });
     }
@@ -235,12 +236,12 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             actor: {
                 id: doc.receivedBy || "staff",
                 name: "Nhân viên kho",
-                role: "WAREHOUSE"
+                role: "INVENTORY_STAFF"
             },
             happenedAt: doc.receivedAt,
             id: `receive-${doc.id}`,
             note: "Kiểm đếm thực tế hoàn tất",
-            roleSnapshot: "WAREHOUSE",
+            roleSnapshot: "INVENTORY_STAFF",
             type: "SUBMIT"
         });
     }
@@ -264,7 +265,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             happenedAt: doc.postedAt,
             id: `post-${doc.id}`,
             note: "Ghi sổ nhập kho thành công - Cập nhật tồn khả dụng",
-            roleSnapshot: "WAREHOUSE",
+            roleSnapshot: "INVENTORY_STAFF",
             type: "POST"
         });
     }
@@ -283,6 +284,44 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
 }
 
 export const goodsReceiptApi: GoodsReceiptApi = {
+    async getGoodsReceiptSummaryCounts(): Promise<GoodsReceiptDashboardSummary> {
+        try {
+            const res = await apiClient.get<{
+                draft: number;
+                pendingApproval: number;
+                receiving: number;
+                awaitingQc: number;
+                readyToPost: number;
+                postedToday: number;
+                total: number;
+            }>("/inventory/documents/summary-counts", {
+                query: { documentType: "PURCHASE_RECEIPT" }
+            });
+            return {
+                awaitingCost: 0,
+                awaitingQc: Number(res.awaitingQc || 0),
+                draft: Number(res.draft || 0),
+                pendingApproval: Number(res.pendingApproval || 0),
+                postedToday: Number(res.postedToday || 0),
+                readyToPost: Number(res.readyToPost || 0),
+                receiving: Number(res.receiving || 0),
+                total: Number(res.total || 0)
+            };
+        } catch (error) {
+            console.error("Failed to get goods receipts summary counts:", error);
+            return {
+                awaitingCost: 0,
+                awaitingQc: 0,
+                draft: 0,
+                pendingApproval: 0,
+                postedToday: 0,
+                readyToPost: 0,
+                receiving: 0,
+                total: 0
+            };
+        }
+    },
+
     async listGoodsReceipts(query: GoodsReceiptListQuery): Promise<GoodsReceiptListResult> {
         const params: Record<string, string | number | boolean | undefined> = {
             documentType: "PURCHASE_RECEIPT",
@@ -328,8 +367,11 @@ export const goodsReceiptApi: GoodsReceiptApi = {
                     awaitingCost: 0,
                     awaitingQc: content.filter((r) => r.status === "QC_PENDING" || r.status === "AWAITING_QC").length,
                     draft: content.filter((r) => r.status === "DRAFT").length,
+                    pendingApproval: content.filter((r) => r.status === "PENDING_APPROVAL").length,
                     postedToday: content.filter((r) => r.status === "POSTED").length,
-                    readyToPost: content.filter((r) => r.status === "QC_COMPLETED" || r.status === "READY_TO_POST").length
+                    readyToPost: content.filter((r) => r.status === "QC_COMPLETED" || r.status === "READY_TO_POST").length,
+                    receiving: content.filter((r) => r.status === "RECEIVING" || r.status === "APPROVED").length,
+                    total: res.totalElements || content.length
                 },
                 totalElements: res.totalElements,
                 totalPages: res.totalPages
@@ -342,7 +384,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
                 last: true,
                 page: 0,
                 size: query.size,
-                summary: { awaitingCost: 0, awaitingQc: 0, draft: 0, postedToday: 0, readyToPost: 0 },
+                summary: { awaitingCost: 0, awaitingQc: 0, draft: 0, pendingApproval: 0, postedToday: 0, readyToPost: 0, receiving: 0, total: 0 },
                 totalElements: 0,
                 totalPages: 0
             };

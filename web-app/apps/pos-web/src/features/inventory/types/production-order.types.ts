@@ -18,7 +18,7 @@ export type ProductionPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 
 export type ProductionRole =
     | "ADMIN"
-    | "WAREHOUSE"
+    | "INVENTORY_STAFF"
     | "BRANCH_MANAGER"
     | "ACCOUNTANT"
     | "DIRECTOR"

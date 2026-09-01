@@ -297,25 +297,33 @@ export const transferApi: TransferApi = {
                 transfer.destinationLocation.id === query.destinationLocationId;
             const matchesStatus =
                 query.status === "ALL" || transfer.status === query.status;
-            const matchesPriority =
-                query.priority === "ALL" || transfer.priority === query.priority;
-            const matchesTab = matchesTransferTab(query.tab, transfer);
+            const matchesTab = tabMatches(query, transfer.status, transfer.hasDiscrepancy);
+            const matchesDiscrepancy =
+                query.hasDiscrepancy === "ALL" ||
+                (query.hasDiscrepancy === "YES" ? transfer.hasDiscrepancy : !transfer.hasDiscrepancy);
             return (
                 matchesText &&
                 matchesSource &&
                 matchesDestination &&
                 matchesStatus &&
-                matchesPriority &&
-                matchesTab
+                matchesTab &&
+                matchesDiscrepancy
             );
         });
         const start = query.page * query.size;
+        const now = new Date();
         return wait({
             content: filtered.slice(start, start + query.size).map(summaryOf),
             first: query.page === 0,
             last: start + query.size >= filtered.length,
             page: query.page,
             size: query.size,
+            summary: {
+                discrepancy: transferCache.filter((t) => t.hasDiscrepancy).length,
+                inTransit: transferCache.filter((t) => t.status === "SHIPPED").length,
+                newRequests: transferCache.filter((t) => t.status === "REQUESTED").length,
+                overdue: transferCache.filter((t) => new Date(t.expectedReceiveAt) < now && !["RECEIVED", "CANCELLED"].includes(t.status)).length
+            },
             totalElements: filtered.length,
             totalPages: Math.max(1, Math.ceil(filtered.length / query.size))
         });

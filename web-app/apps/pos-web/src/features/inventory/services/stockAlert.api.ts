@@ -32,13 +32,9 @@ function user(role: StockAlertRole) {
     return stockAlertUsers[role];
 }
 
-function assertRole(role: StockAlertRole, allowed: StockAlertRole[]) {
-    if (!allowed.includes(role)) throw new Error("Vai trò hiện tại không được thao tác này.");
-}
-
 function canSeeLocation(role: StockAlertRole, locationId: string) {
     if (role === "ADMIN" || role === "ACCOUNTANT" || role === "DIRECTOR") return true;
-    if (role === "WAREHOUSE") return locationId === "loc-central";
+    if (role === "INVENTORY_STAFF") return locationId === "loc-central";
     if (role === "BRANCH_MANAGER") return locationId === inventoryMasterLocations.branchCauGiay.id;
     return false;
 }

@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { transferPriorityLabels, transferPriorityOptions } from "../constants/transfer.constants";
-import { inventoryMasterLocations } from "../mocks/inventory-master-data.mock";
 import { transferApi } from "../services/transfer.api";
 import type { TransferCreateInput, TransferOptions, TransferPriority } from "../types/transfer.types";
 import { formatVietnamNumber, formatVnd } from "../utils/inventory-format";
@@ -49,7 +48,6 @@ export function TransferCreatePage() {
         });
     }, [searchParams]);
 
-    const availableSkus = useMemo(() => options.skus, [options.skus]);
     const selectedLines = useMemo(() => lines
         .map((line) => ({ ...line, sku: options.skus.find((item) => item.id === line.skuId) }))
         .filter((item): item is DraftLine & { sku: TransferOptions["skus"][number] } => Boolean(item.sku)), [lines, options.skus]);
@@ -94,9 +92,6 @@ export function TransferCreatePage() {
                     <Link className="text-sm font-black text-[#159734]" to="/management/inventory/transfers">Quay lại danh sách</Link>
                     <h1 className="text-2xl font-black text-[#172317]">Tạo yêu cầu chuyển kho</h1>
                     <p className="text-sm font-semibold text-[#697684]">Source mặc định là kho trung tâm. Nếu tạo từ cảnh báo tồn, các dòng có thể được prefill bằng cùng payload mock.</p>
-                </div>
-                <div className="rounded-lg bg-[#f4faf5] px-3 py-2 text-sm font-black text-[#315f3c]">
-                    Vai trò: {role}
                 </div>
             </header>
 

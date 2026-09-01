@@ -83,7 +83,7 @@ function updateStatus(
             id: `${auditTypeByAction[action]}-${Date.now()}`,
             note: input.note,
             reason: input.reason,
-            roleSnapshot: "ADMIN",
+            roleSnapshot: "ADMIN" as const,
             type: auditTypeByAction[action]
         },
         ...document.auditEvents
@@ -114,7 +114,7 @@ function updateStatus(
                     id: `CREATE_DRAFT-${Date.now()}-reversal`,
                     note: "Chứng từ đảo được tạo tự động từ chứng từ gốc.",
                     reason: input.reason,
-                    roleSnapshot: "ADMIN",
+                    roleSnapshot: "ADMIN" as const,
                     type: "REVERSE" as const
                 }
             ],

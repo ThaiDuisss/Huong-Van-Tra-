@@ -12,8 +12,8 @@ const users: Record<TransferRole, UserSnapshot> = {
     ADMIN: inventoryMasterUsers.admin,
     BRANCH_MANAGER: inventoryMasterUsers.branchManager,
     DIRECTOR: inventoryMasterUsers.director,
-    SALES_STAFF: inventoryMasterUsers.sales,
-    WAREHOUSE: inventoryMasterUsers.warehouse
+    INVENTORY_STAFF: inventoryMasterUsers.warehouse,
+    SALES_STAFF: inventoryMasterUsers.sales
 };
 
 export const transferLocations = [
@@ -136,7 +136,7 @@ export const transferMockData: TransferDetail[] = [
         totalValue: 3920000
     },
     {
-        auditEvents: [transferAudit("POST", "WAREHOUSE", "Đã xuất kho nguồn, hàng đang IN_TRANSIT.")],
+        auditEvents: [transferAudit("POST", "INVENTORY_STAFF", "Đã xuất kho nguồn, hàng đang IN_TRANSIT.")],
         code: "TRF-20260801-004",
         destinationLocation: transferLocations[2],
         discrepancies: [],

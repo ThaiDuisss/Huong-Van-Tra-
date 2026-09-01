@@ -15,7 +15,7 @@ export type QualityBatchStatus =
 
 export type QualityRole =
     | "QC_STAFF"
-    | "WAREHOUSE"
+    | "INVENTORY_STAFF"
     | "BRANCH_MANAGER"
     | "ADMIN"
     | "DIRECTOR"

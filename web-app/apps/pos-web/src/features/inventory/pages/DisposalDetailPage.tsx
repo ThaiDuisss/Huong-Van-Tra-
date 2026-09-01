@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
-import { useAuth } from "../../../auth/auth-context";
 import {
     DisposalStatusBadge
 } from "../components/QualityComponents";
@@ -16,7 +15,6 @@ import { formatVietnamDateTime, formatVietnamNumber, formatVnd } from "../utils/
 
 export function DisposalDetailPage() {
     const { disposalId } = useParams();
-    const { roles } = useAuth();
     const [disposal, setDisposal] = useState<DisposalRequest | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);

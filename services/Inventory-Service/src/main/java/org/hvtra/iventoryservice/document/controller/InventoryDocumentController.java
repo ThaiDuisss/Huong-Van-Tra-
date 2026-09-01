@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.document.controller;
 
 import jakarta.validation.Valid;
 import org.hvtra.iventoryservice.document.dto.request.*;
+import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
 import org.hvtra.iventoryservice.document.service.InventoryDocumentService;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
@@ -40,6 +41,13 @@ public class InventoryDocumentController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return ResponseEntity.ok(service.findAll(documentType, status, locationId, supplierId, query, fromDate, toDate, pageable));
+    }
+
+    @GetMapping("/summary-counts")
+    public ResponseEntity<GoodsReceiptSummaryCountResponse> getSummaryCounts(
+            @RequestParam(required = false, defaultValue = "PURCHASE_RECEIPT") InventoryDocumentType documentType
+    ) {
+        return ResponseEntity.ok(service.getSummaryCounts(documentType));
     }
 
     @GetMapping("/{id}")
