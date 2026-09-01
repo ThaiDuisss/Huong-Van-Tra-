@@ -8,7 +8,6 @@ import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
 import org.hvtra.iventoryservice.item.mapper.InventoryItemMapper;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
-import org.hvtra.iventoryservice.item.service.InventoryItemService;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
@@ -26,7 +25,10 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private final InventoryItemRepository repository;
     private final InventoryItemMapper mapper;
 
-    public InventoryItemServiceImpl(InventoryItemRepository repository, InventoryItemMapper mapper) {
+    public InventoryItemServiceImpl(
+            InventoryItemRepository repository,
+            InventoryItemMapper mapper
+    ) {
         this.repository = repository;
         this.mapper = mapper;
     }
@@ -71,6 +73,23 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         validateUnique(request, id);
         InventoryItem item = get(id);
         mapper.update(item, request);
+        return mapper.toResponse(repository.save(item));
+    }
+
+    @Override
+    @Transactional
+    public InventoryItemResponse updateByReference(
+            UUID referenceId, InventoryItemType itemType, InventoryItemRequest request) {
+        InventoryItem item = repository.findByReferenceIdAndItemType(referenceId, itemType)
+                .orElseGet(() -> {
+                    InventoryItem newItem = new InventoryItem();
+                    newItem.setReferenceId(referenceId);
+                    newItem.setItemType(itemType);
+                    return newItem;
+                });
+        mapper.update(item, request);
+        item.setReferenceId(referenceId);
+        item.setItemType(itemType);
         return mapper.toResponse(repository.save(item));
     }
 

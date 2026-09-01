@@ -21,5 +21,6 @@ public interface InventoryItemService {
     InventoryItemResponse findById(UUID id);
     InventoryItemResponse create(InventoryItemRequest request);
     InventoryItemResponse update(UUID id, InventoryItemRequest request);
+    InventoryItemResponse updateByReference(UUID referenceId, InventoryItemType itemType, InventoryItemRequest request);
     InventoryItemResponse updateStatus(UUID id, InventoryStatus status);
 }

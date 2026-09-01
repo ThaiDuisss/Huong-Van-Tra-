@@ -157,12 +157,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 : 10;
         Integer reorderPoint = request.reorderPoint() != null ? request.reorderPoint() : defaultReorder;
 
+        String variantDisplayName = (savedVariant.getVariantName() != null && !savedVariant.getVariantName().isBlank())
+                ? product.getName() + " - " + savedVariant.getVariantName()
+                : product.getName();
+
         inventoryClient.createProductVariantItem(
                 InventoryClient.CreateInventoryItemRequest.builder()
                         .status(savedVariant.getStatus().toString())
                         .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                         .referenceId(savedVariant.getId())
                         .referenceCode(savedVariant.getSku())
+                        .name(variantDisplayName)
                         .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                         .reorderPoint(reorderPoint)
                         .build());
@@ -174,7 +179,11 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     public ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request) {
         ProductVariant variant = get(id);
         apply(variant, request);
-        return mapper.toVariantResponse(repository.save(variant));
+        ProductVariant savedVariant = repository.save(variant);
+
+        syncInventoryItem(savedVariant);
+
+        return mapper.toVariantResponse(savedVariant);
     }
 
     @Override
@@ -182,7 +191,40 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     public ProductResponse.VariantResponse updateStatus(UUID id, Status status) {
         ProductVariant variant = get(id);
         variant.setStatus(status);
-        return mapper.toVariantResponse(repository.save(variant));
+        ProductVariant savedVariant = repository.save(variant);
+
+        syncInventoryItem(savedVariant);
+
+        return mapper.toVariantResponse(savedVariant);
+    }
+
+    private void syncInventoryItem(ProductVariant variant) {
+        if (variant == null || variant.getId() == null) {
+            return;
+        }
+        try {
+            Product product = variant.getProduct();
+            String productName = product != null ? product.getName() : "";
+            String variantDisplayName = (variant.getVariantName() != null && !variant.getVariantName().isBlank() && !productName.isBlank())
+                    ? productName + " - " + variant.getVariantName()
+                    : (!productName.isBlank() ? productName : variant.getVariantName());
+
+            inventoryClient.updateInventoryItemByReference(
+                    InventoryItemType.PRODUCT_VARIANT.toString(),
+                    variant.getId(),
+                    InventoryClient.CreateInventoryItemRequest.builder()
+                            .referenceId(variant.getId())
+                            .referenceCode(variant.getSku())
+                            .name(variantDisplayName)
+                            .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                            .unitId(variant.getUnit() != null ? variant.getUnit().getId() : null)
+                            .status(variant.getStatus() != null ? variant.getStatus().toString() : "ACTIVE")
+                            .reorderPoint(10)
+                            .build()
+            );
+        } catch (Exception e) {
+            // Log/gracefully continue
+        }
     }
 
     private ProductVariant get(UUID id) {
@@ -388,12 +430,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 
                 ProductVariant savedVariant = repository.saveAndFlush(variant);
                 
+                String variantDisplayName = (savedVariant.getVariantName() != null && !savedVariant.getVariantName().isBlank())
+                        ? product.getName() + " - " + savedVariant.getVariantName()
+                        : product.getName();
+
                 inventoryClient.createProductVariantItem(
                         InventoryClient.CreateInventoryItemRequest.builder()
                                 .status(savedVariant.getStatus().toString())
                                 .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                                 .referenceId(savedVariant.getId())
                                 .referenceCode(savedVariant.getSku())
+                                .name(variantDisplayName)
                                 .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                                 .reorderPoint(10)
                                 .build());

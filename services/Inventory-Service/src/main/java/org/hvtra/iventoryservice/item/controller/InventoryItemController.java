@@ -63,6 +63,14 @@ public class InventoryItemController {
         return service.update(id, request);
     }
 
+    @PutMapping("/by-reference/{itemType}/{referenceId}")
+    public InventoryItemResponse updateByReference(
+            @PathVariable("itemType") InventoryItemType itemType,
+            @PathVariable("referenceId") UUID referenceId,
+            @Valid @RequestBody InventoryItemRequest request) {
+        return service.updateByReference(referenceId, itemType, request);
+    }
+
     @PatchMapping("/{id}/status")
     public InventoryItemResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody InventoryStatusRequest request) {

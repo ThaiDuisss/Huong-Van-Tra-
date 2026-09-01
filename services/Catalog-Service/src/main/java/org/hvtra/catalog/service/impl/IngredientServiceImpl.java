@@ -159,6 +159,7 @@ public class IngredientServiceImpl implements IngredientService {
                         .unitId(savedIngredient.getUnit() != null ? savedIngredient.getUnit().getId() : null)
                         .referenceId(savedIngredient.getId())
                         .referenceCode(savedIngredient.getIngredientCode())
+                        .name(savedIngredient.getName())
                         .itemType("INGREDIENT")
                         .reorderPoint(savedIngredient.getReorderPoint() != null ? savedIngredient.getReorderPoint() : 0)
                         .build());
@@ -181,7 +182,11 @@ public class IngredientServiceImpl implements IngredientService {
         } else {
             ingredient.setUnit(null);
         }
-        return mapper.toResponse(repository.save(ingredient));
+        Ingredient saved = repository.save(ingredient);
+
+        syncInventoryItem(saved);
+
+        return mapper.toResponse(saved);
     }
 
     @Override
@@ -192,7 +197,34 @@ public class IngredientServiceImpl implements IngredientService {
             throw new ResourceNotFoundException("Ingredient", id);
         }
         ingredient.setStatus(status);
-        return mapper.toResponse(repository.save(ingredient));
+        Ingredient saved = repository.save(ingredient);
+
+        syncInventoryItem(saved);
+
+        return mapper.toResponse(saved);
+    }
+
+    private void syncInventoryItem(Ingredient ingredient) {
+        if (ingredient == null || ingredient.getId() == null) {
+            return;
+        }
+        try {
+            inventoryClient.updateInventoryItemByReference(
+                    "INGREDIENT",
+                    ingredient.getId(),
+                    CreateInventoryItemRequest.builder()
+                            .referenceId(ingredient.getId())
+                            .referenceCode(ingredient.getIngredientCode())
+                            .name(ingredient.getName())
+                            .itemType("INGREDIENT")
+                            .unitId(ingredient.getUnit() != null ? ingredient.getUnit().getId() : null)
+                            .status(ingredient.getStatus() != null ? ingredient.getStatus().toString() : "ACTIVE")
+                            .reorderPoint(ingredient.getReorderPoint() != null ? ingredient.getReorderPoint() : 0)
+                            .build()
+            );
+        } catch (Exception e) {
+            // Log/gracefully continue
+        }
     }
 
     @Override
@@ -403,6 +435,7 @@ public class IngredientServiceImpl implements IngredientService {
                                     .unitId(null)
                                     .referenceId(saved.getId())
                                     .referenceCode(saved.getIngredientCode())
+                                    .name(saved.getName())
                                     .itemType("INGREDIENT")
                                     .reorderPoint(0)
                                     .build());
