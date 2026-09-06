@@ -9,6 +9,10 @@ import java.util.UUID;
 public interface OrderReturnService {
     OrderReturnResponse createReturn(UUID orderId, CreateOrderReturnRequest request);
 
+    OrderReturnResponse completeReturn(UUID returnId);
+
+    OrderReturnResponse cancelReturn(UUID returnId);
+
     List<OrderReturnResponse> getReturnsByOrder(UUID orderId);
 
     OrderReturnResponse getReturnById(UUID returnId);

@@ -195,6 +195,18 @@ public class OrderController {
         return orderReturnService.getReturnById(returnId);
     }
 
+    @Operation(summary = "xac nhan phieu hoan hang da hoan tat")
+    @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/complete")
+    public OrderReturnResponse completeReturn(@PathVariable UUID returnId) {
+        return orderReturnService.completeReturn(returnId);
+    }
+
+    @Operation(summary = "huy phieu hoan hang chua hoan tat")
+    @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/cancel")
+    public OrderReturnResponse cancelReturn(@PathVariable UUID returnId) {
+        return orderReturnService.cancelReturn(returnId);
+    }
+
     @GetMapping
     public Page<OrderSummaryResponse> getOrders(
             @RequestParam(required = false) String keyword,

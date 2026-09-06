@@ -94,6 +94,30 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     }
 
     @Override
+    @Transactional
+    public OrderReturnResponse completeReturn(UUID returnId) {
+        OrderReturn orderReturn = getExistingReturnForUpdate(returnId);
+        if (ReturnStatus.CREATED != orderReturn.getStatus()) {
+            throw new InvalidOrderReturnException("Only created returns can be completed");
+        }
+
+        orderReturn.setStatus(ReturnStatus.COMPLETED);
+        return orderReturnMapper.toResponse(orderReturnRepository.save(orderReturn));
+    }
+
+    @Override
+    @Transactional
+    public OrderReturnResponse cancelReturn(UUID returnId) {
+        OrderReturn orderReturn = getExistingReturnForUpdate(returnId);
+        if (ReturnStatus.CREATED != orderReturn.getStatus()) {
+            throw new InvalidOrderReturnException("Only created returns can be cancelled");
+        }
+
+        orderReturn.setStatus(ReturnStatus.CANCELLED);
+        return orderReturnMapper.toResponse(orderReturnRepository.save(orderReturn));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<OrderReturnResponse> getReturnsByOrder(UUID orderId) {
         if (!orderRepository.findByIdAndIsDeletedFalse(orderId).isPresent()) {
@@ -112,6 +136,11 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalse(returnId)
                 .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
         return orderReturnMapper.toResponse(orderReturn);
+    }
+
+    private OrderReturn getExistingReturnForUpdate(UUID returnId) {
+        return orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)
+                .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
     }
 
     private void validateOrderEligibility(Order order) {

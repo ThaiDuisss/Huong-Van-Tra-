@@ -3,6 +3,7 @@ package org.hvtra.orderservice.service.impl;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -331,6 +333,149 @@ class OrderReturnServiceImplTest {
         assertEquals("Duplicate order item in return request", exception.getMessage());
     }
 
+    @Test
+    void completeReturnMovesCreatedReturnToCompleted() {
+        UUID returnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.CREATED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(orderReturnRepository.save(orderReturn)).thenReturn(orderReturn);
+
+        OrderReturnResponse response = service.completeReturn(returnId);
+
+        assertEquals(ReturnStatus.COMPLETED, orderReturn.getStatus());
+        assertEquals(ReturnStatus.COMPLETED, response.getStatus());
+        verify(orderReturnRepository).save(orderReturn);
+    }
+
+    @Test
+    void cancelReturnMovesCreatedReturnToCancelled() {
+        UUID returnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.CREATED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(orderReturnRepository.save(orderReturn)).thenReturn(orderReturn);
+
+        OrderReturnResponse response = service.cancelReturn(returnId);
+
+        assertEquals(ReturnStatus.CANCELLED, orderReturn.getStatus());
+        assertEquals(ReturnStatus.CANCELLED, response.getStatus());
+        verify(orderReturnRepository).save(orderReturn);
+    }
+
+    @Test
+    void cancelReturnRejectsCompletedReturn() {
+        UUID returnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.COMPLETED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.cancelReturn(returnId)
+        );
+
+        assertEquals("Only created returns can be cancelled", exception.getMessage());
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    void completeReturnRejectsCancelledReturn() {
+        UUID returnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.CANCELLED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.completeReturn(returnId)
+        );
+
+        assertEquals("Only created returns can be completed", exception.getMessage());
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    void completeReturnRejectsCompletedReturnWhenCalledAgain() {
+        UUID returnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.COMPLETED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.completeReturn(returnId)
+        );
+
+        assertEquals("Only created returns can be completed", exception.getMessage());
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelReturnRejectsCancelledReturnWhenCalledAgain() {
+        UUID returnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.CANCELLED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.cancelReturn(returnId)
+        );
+
+        assertEquals("Only created returns can be cancelled", exception.getMessage());
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    void createReturnCountsCreatedAndCompletedReturnsAsPreviouslyReturnedQuantity() {
+        stubEligibleOrder(new BigDecimal("2.000"));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.createReturn(
+                        orderId,
+                        request(orderItemId, "2.000", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null)
+                )
+        );
+
+        assertEquals("Return quantity exceeds remaining returnable quantity", exception.getMessage());
+        verify(orderReturnItemRepository).sumReturnedQuantity(
+                eq(orderItemId),
+                argThat(statuses -> statuses.contains(ReturnStatus.CREATED)
+                        && statuses.contains(ReturnStatus.COMPLETED)
+                        && statuses.size() == 2)
+        );
+    }
+
+    @Test
+    void createReturnDoesNotCountCancelledReturnsAsPreviouslyReturnedQuantity() {
+        stubEligibleOrder(new BigDecimal("2.000"));
+
+        assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.createReturn(
+                        orderId,
+                        request(orderItemId, "2.000", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null)
+                )
+        );
+
+        verify(orderReturnItemRepository).sumReturnedQuantity(
+                eq(orderItemId),
+                argThat(statuses -> !statuses.contains(ReturnStatus.CANCELLED))
+        );
+    }
+
+    @Test
+    void createReturnAllowsFullQuantityAgainAfterCancelledReturnIsNotCounted() {
+        stubEligibleOrder(BigDecimal.ZERO);
+        when(orderCodeGenerator.generateReturnCode()).thenReturn("RET-AFTER-CANCEL");
+        when(orderReturnRepository.existsByReturnCode("RET-AFTER-CANCEL")).thenReturn(false);
+        when(orderReturnRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderReturnResponse response = service.createReturn(
+                orderId,
+                request(orderItemId, "3.000", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null)
+        );
+
+        assertEquals(ReturnStatus.CREATED, response.getStatus());
+        assertEquals(new BigDecimal("3.000"), response.getItems().getFirst().getQuantity());
+    }
+
     private void stubEligibleOrder(BigDecimal returnedQuantity) {
         stubEligibleOrder(returnedQuantity, Instant.now().minusSeconds(60));
     }
@@ -359,6 +504,23 @@ class OrderReturnServiceImplTest {
 
     private void stubReturnedQuantity(BigDecimal returnedQuantity) {
         when(orderReturnItemRepository.sumReturnedQuantity(eq(orderItemId), any())).thenReturn(returnedQuantity);
+    }
+
+    private OrderReturn orderReturn(UUID returnId, ReturnStatus status) {
+        OrderReturn value = OrderReturn.builder()
+                .returnCode("RET-001")
+                .order(order)
+                .status(status)
+                .build();
+        value.setId(returnId);
+        value.setIsDeleted(false);
+        value.addItem(OrderReturnItem.builder()
+                .orderItem(orderItem)
+                .quantity(BigDecimal.ONE)
+                .reason(ReturnReason.QUALITY_ISSUE)
+                .condition(ReturnCondition.OPENED)
+                .build());
+        return value;
     }
 
     private CreateOrderReturnRequest request(
