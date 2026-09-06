@@ -9,17 +9,20 @@ import org.hvtra.orderservice.dto.request.CancelOrderRequest;
 import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
 import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
+import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
 import org.hvtra.orderservice.service.OrderExportService;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
+import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -32,6 +35,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -45,6 +49,7 @@ public class OrderController {
 
     private final OrderService orderService;
     private final OrderExportService orderExportService;
+    private final OrderReturnService orderReturnService;
 
     @Operation(summary = "checkout hoa don POS da tao draft")
     @PostMapping("/pos/checkout")
@@ -167,6 +172,29 @@ public class OrderController {
     ) {
         return orderService.markOrderPaid(orderId, request);
     }
+
+    @Operation(summary = "tao yeu cau hoan hang cho don hang")
+    @PostMapping("/" + UUID_PATH + "/returns")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderReturnResponse createReturn(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody CreateOrderReturnRequest request
+    ) {
+        return orderReturnService.createReturn(orderId, request);
+    }
+
+    @Operation(summary = "lay danh sach hoan hang cua don hang")
+    @GetMapping("/" + UUID_PATH + "/returns")
+    public List<OrderReturnResponse> getReturnsByOrder(@PathVariable UUID orderId) {
+        return orderReturnService.getReturnsByOrder(orderId);
+    }
+
+    @Operation(summary = "lay chi tiet hoan hang")
+    @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}")
+    public OrderReturnResponse getReturnById(@PathVariable UUID returnId) {
+        return orderReturnService.getReturnById(returnId);
+    }
+
     @GetMapping
     public Page<OrderSummaryResponse> getOrders(
             @RequestParam(required = false) String keyword,

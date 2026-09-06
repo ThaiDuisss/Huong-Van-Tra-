@@ -2,6 +2,7 @@ package org.hvtra.orderservice.controller;
 
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.service.OrderExportService;
+import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,11 +36,14 @@ class OrderControllerExportTest {
     @Mock
     private OrderExportService orderExportService;
 
+    @Mock
+    private OrderReturnService orderReturnService;
+
     private OrderController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new OrderController(orderService, orderExportService);
+        controller = new OrderController(orderService, orderExportService, orderReturnService);
     }
 
     @Test
