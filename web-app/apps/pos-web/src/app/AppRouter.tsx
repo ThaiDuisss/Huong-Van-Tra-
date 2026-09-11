@@ -12,6 +12,7 @@ import { CustomerTierManagementPage } from "../features/customer/pages/CustomerT
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
+import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
@@ -181,7 +182,7 @@ export function AppRouter() {
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />
           <Route path="orders/invoices/:invoiceId" element={<InvoiceDetailPage />} />
-          <Route path="orders/returns" element={<OrderListPage />} />
+          <Route path="orders/returns" element={<OrderReturnPage />} />
           <Route path="orders/refunds" element={<OrderListPage />} />
         </Route>
         <Route element={<RoleGate roles={PRODUCT_ROLES} />}>

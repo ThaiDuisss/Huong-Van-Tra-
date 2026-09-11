@@ -1,18 +1,89 @@
 package org.hvtra.orderservice.repository;
 
 import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.enums.ReturnStatus;
+import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> {
     boolean existsByReturnCode(String returnCode);
+
+    @Query(
+            value = """
+                    select new org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse(
+                        orderReturn.id,
+                        orderReturn.returnCode,
+                        orders.id,
+                        orders.orderCode,
+                        orderReturn.status,
+                        orderReturn.createdAt,
+                        orderReturn.updatedAt,
+                        count(items.id),
+                        orders.customerNameSnapshot,
+                        orders.customerPhoneSnapshot
+                    )
+                    from OrderReturn orderReturn
+                    join orderReturn.order orders
+                    left join orderReturn.items items on items.isDeleted = false
+                    where orderReturn.isDeleted = false
+                      and orders.isDeleted = false
+                      and (:status is null or orderReturn.status = :status)
+                      and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+                      and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+                      and (
+                          :keywordPattern is null
+                          or lower(orderReturn.returnCode) like :keywordPattern
+                          or lower(orders.orderCode) like :keywordPattern
+                          or lower(orders.customerNameSnapshot) like :keywordPattern
+                          or lower(orders.customerPhoneSnapshot) like :keywordPattern
+                      )
+                    group by
+                        orderReturn.id,
+                        orderReturn.returnCode,
+                        orders.id,
+                        orders.orderCode,
+                        orderReturn.status,
+                        orderReturn.createdAt,
+                        orderReturn.updatedAt,
+                        orders.customerNameSnapshot,
+                        orders.customerPhoneSnapshot
+                    """,
+            countQuery = """
+                    select count(orderReturn.id)
+                    from OrderReturn orderReturn
+                    join orderReturn.order orders
+                    where orderReturn.isDeleted = false
+                      and orders.isDeleted = false
+                      and (:status is null or orderReturn.status = :status)
+                      and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+                      and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+                      and (
+                          :keywordPattern is null
+                          or lower(orderReturn.returnCode) like :keywordPattern
+                          or lower(orders.orderCode) like :keywordPattern
+                          or lower(orders.customerNameSnapshot) like :keywordPattern
+                          or lower(orders.customerPhoneSnapshot) like :keywordPattern
+                      )
+                    """
+    )
+    Page<OrderReturnSummaryResponse> findReturnSummaries(
+            @Param("keywordPattern") String keywordPattern,
+            @Param("status") ReturnStatus status,
+            @Param("fromCreatedAt") Instant fromCreatedAt,
+            @Param("toCreatedBefore") Instant toCreatedBefore,
+            Pageable pageable
+    );
 
     @Query("""
             select distinct orderReturn

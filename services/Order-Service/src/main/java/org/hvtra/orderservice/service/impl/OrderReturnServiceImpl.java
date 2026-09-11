@@ -13,6 +13,7 @@ import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.exception.InvalidOrderReturnException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.repository.OrderRepository;
@@ -22,14 +23,20 @@ import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -40,7 +47,7 @@ import java.util.stream.Collectors;
 public class OrderReturnServiceImpl implements OrderReturnService {
 
     private static final List<ReturnStatus> ACTIVE_RETURN_STATUSES =
-            List.of(ReturnStatus.CREATED, ReturnStatus.COMPLETED);
+            List.of(ReturnStatus.CREATED, ReturnStatus.RECEIVED);
     private static final Duration DEFAULT_CHANGE_OF_MIND_WINDOW = Duration.ofDays(7);
     private static final Duration DEFAULT_QUALITY_WINDOW = Duration.ofDays(14);
 
@@ -95,13 +102,13 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
     @Override
     @Transactional
-    public OrderReturnResponse completeReturn(UUID returnId) {
+    public OrderReturnResponse receiveReturn(UUID returnId) {
         OrderReturn orderReturn = getExistingReturnForUpdate(returnId);
         if (ReturnStatus.CREATED != orderReturn.getStatus()) {
-            throw new InvalidOrderReturnException("Only created returns can be completed");
+            throw new InvalidOrderReturnException("Only created returns can be received");
         }
 
-        orderReturn.setStatus(ReturnStatus.COMPLETED);
+        orderReturn.setStatus(ReturnStatus.RECEIVED);
         return orderReturnMapper.toResponse(orderReturnRepository.save(orderReturn));
     }
 
@@ -115,6 +122,26 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
         orderReturn.setStatus(ReturnStatus.CANCELLED);
         return orderReturnMapper.toResponse(orderReturnRepository.save(orderReturn));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrderReturnSummaryResponse> getReturns(
+            String keyword,
+            ReturnStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    ) {
+        return orderReturnRepository.findReturnSummaries(
+                keywordPattern(keyword),
+                status,
+                startOfDay(fromDate),
+                startOfDay(nextDay(toDate)),
+                returnPageRequest(page, size, sort)
+        );
     }
 
     @Override
@@ -239,6 +266,56 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
     private String normalizeBlank(String value) {
         return isBlank(value) ? null : value.trim();
+    }
+
+    private String keywordPattern(String keyword) {
+        if (isBlank(keyword)) {
+            return null;
+        }
+
+        return "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+    }
+
+    private PageRequest returnPageRequest(int page, int size, String sort) {
+        return PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 200),
+                returnSort(sort)
+        );
+    }
+
+    private Sort returnSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
+        }
+
+        String[] parts = sort.trim().split(",", 2);
+        String property = normalizeReturnSortProperty(parts[0]);
+        Sort.Direction direction = parts.length > 1 && "asc".equalsIgnoreCase(parts[1].trim())
+                ? Sort.Direction.ASC
+                : Sort.Direction.DESC;
+
+        return Sort.by(new Sort.Order(direction, property), Sort.Order.desc("id"));
+    }
+
+    private String normalizeReturnSortProperty(String property) {
+        if (property == null || property.isBlank()) {
+            return "createdAt";
+        }
+
+        return switch (property.trim()) {
+            case "updatedAt" -> "updatedAt";
+            case "returnCode" -> "returnCode";
+            default -> "createdAt";
+        };
+    }
+
+    private Instant startOfDay(LocalDate date) {
+        return date == null ? null : date.atStartOfDay(ZoneId.systemDefault()).toInstant();
+    }
+
+    private LocalDate nextDay(LocalDate date) {
+        return date == null ? null : date.plusDays(1);
     }
 
     private boolean isBlank(String value) {

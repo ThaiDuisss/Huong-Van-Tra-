@@ -3,8 +3,10 @@ package org.hvtra.orderservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.*;
+import org.hvtra.orderservice.domain.enums.OrderReturnEligibility;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
 import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
 import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
@@ -15,7 +17,9 @@ import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
@@ -189,16 +193,30 @@ public class OrderController {
         return orderReturnService.getReturnsByOrder(orderId);
     }
 
+    @Operation(summary = "lay danh sach phieu hoan hang toan he thong")
+    @GetMapping("/returns")
+    public Page<OrderReturnSummaryResponse> getReturns(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) ReturnStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return orderReturnService.getReturns(keyword, status, fromDate, toDate, sort, page, size);
+    }
+
     @Operation(summary = "lay chi tiet hoan hang")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderReturnResponse getReturnById(@PathVariable UUID returnId) {
         return orderReturnService.getReturnById(returnId);
     }
 
-    @Operation(summary = "xac nhan phieu hoan hang da hoan tat")
-    @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/complete")
-    public OrderReturnResponse completeReturn(@PathVariable UUID returnId) {
-        return orderReturnService.completeReturn(returnId);
+    @Operation(summary = "xac nhan cua hang da nhan hang tra lai")
+    @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/receive")
+    public OrderReturnResponse receiveReturn(@PathVariable UUID returnId) {
+        return orderReturnService.receiveReturn(returnId);
     }
 
     @Operation(summary = "huy phieu hoan hang chua hoan tat")
@@ -215,6 +233,7 @@ public class OrderController {
             @RequestParam(required = false) String orderType,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) OrderReturnEligibility returnEligibility,
             @RequestParam(defaultValue = "businessStatus") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
@@ -226,10 +245,18 @@ public class OrderController {
                 orderType,
                 fromDate,
                 toDate,
+                returnEligibility,
                 sort,
                 page,
                 size
         );
+    }
+
+    @GetMapping("/return-eligibility-stats")
+    public OrderReturnEligibilityStatsResponse getOrderReturnEligibilityStats(
+            @RequestParam(required = false) String keyword
+    ) {
+        return orderService.getOrderReturnEligibilityStats(keyword);
     }
 
     @GetMapping("/today-sales")

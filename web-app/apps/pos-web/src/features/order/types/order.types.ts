@@ -13,10 +13,13 @@ export interface OrderQueryParams {
     orderType?: string;
     fromDate?: string;
     toDate?: string;
+    returnEligibility?: OrderReturnEligibility;
     sort?: "businessStatus" | "invoicePayment";
     page?: number;
     size?: number;
 }
+
+export type OrderReturnEligibility = "ALL" | "ELIGIBLE" | "INELIGIBLE";
 
 export interface OrderSummaryResponse {
     id: string;
@@ -111,6 +114,12 @@ export interface OrderStatsResponse {
     returnedOrRefunded?: number | null;
     unpaidInvoices?: number | null;
     paidInvoices?: number | null;
+}
+
+export interface OrderReturnEligibilityStatsResponse {
+    total?: number | null;
+    eligible?: number | null;
+    ineligible?: number | null;
 }
 
 export interface UpdateOrderStatusRequest {

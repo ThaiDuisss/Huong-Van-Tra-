@@ -21,6 +21,7 @@ import org.hvtra.orderservice.dto.response.CustomerResponse;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
 import org.hvtra.orderservice.dto.response.PaymentResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderStatusHistoryResponse;
@@ -950,6 +951,7 @@ public class OrderServiceImpl implements OrderService {
             String orderType,
             LocalDate fromDate,
             LocalDate toDate,
+            OrderReturnEligibility returnEligibility,
             String sort,
             int page,
             int size
@@ -967,10 +969,21 @@ public class OrderServiceImpl implements OrderService {
                         orderType,
                         fromDate,
                         toDate,
+                        returnEligibility,
                         sort == null || sort.isBlank() ? SORT_BUSINESS_STATUS : sort
                 ),
                 pageRequest
         ).map(this::toSummaryResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderReturnEligibilityStatsResponse getOrderReturnEligibilityStats(String keyword) {
+        return OrderReturnEligibilityStatsResponse.builder()
+                .total(countOrdersByReturnEligibility(keyword, OrderReturnEligibility.ALL))
+                .eligible(countOrdersByReturnEligibility(keyword, OrderReturnEligibility.ELIGIBLE))
+                .ineligible(countOrdersByReturnEligibility(keyword, OrderReturnEligibility.INELIGIBLE))
+                .build();
     }
 
     @Override
@@ -1255,10 +1268,32 @@ public class OrderServiceImpl implements OrderService {
             LocalDate toDate,
             String sort
     ) {
+        return orderSpecification(
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate,
+                null,
+                sort
+        );
+    }
+
+    private Specification<Order> orderSpecification(
+            String keyword,
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String orderType,
+            LocalDate fromDate,
+            LocalDate toDate,
+            OrderReturnEligibility returnEligibility,
+            String sort
+    ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.isFalse(root.get("isDeleted")));
-            applyDefaultOrder(root, query, criteriaBuilder, sort);
+            applyDefaultOrder(root, query, criteriaBuilder, sort, returnEligibility);
 
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
@@ -1278,6 +1313,7 @@ public class OrderServiceImpl implements OrderService {
                     predicates.add(criteriaBuilder.equal(root.get("paymentStatus"), paymentStatus));
                 }
             }
+            applyReturnEligibilityFilter(predicates, root, criteriaBuilder, returnEligibility);
             if (orderType != null && !orderType.isBlank()) {
                 predicates.add(criteriaBuilder.equal(root.get("orderType"), normalizeOrderType(orderType)));
             }
@@ -1290,6 +1326,19 @@ public class OrderServiceImpl implements OrderService {
 
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    private long countOrdersByReturnEligibility(String keyword, OrderReturnEligibility returnEligibility) {
+        return orderRepository.count(orderSpecification(
+                keyword,
+                null,
+                null,
+                null,
+                null,
+                null,
+                returnEligibility,
+                null
+        ));
     }
 
     private Specification<Order> orderSpecification(
@@ -1388,6 +1437,16 @@ public class OrderServiceImpl implements OrderService {
             CriteriaBuilder criteriaBuilder,
             String sort
     ) {
+        applyDefaultOrder(root, query, criteriaBuilder, sort, null);
+    }
+
+    private void applyDefaultOrder(
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder,
+            String sort,
+            OrderReturnEligibility returnEligibility
+    ) {
         if (sort == null || sort.isBlank() || isCountQuery(query)) {
             return;
         }
@@ -1396,10 +1455,51 @@ public class OrderServiceImpl implements OrderService {
                 ? invoicePaymentPriority(root, criteriaBuilder)
                 : orderStatusPriority(root, criteriaBuilder);
 
+        if (OrderReturnEligibility.ALL == returnEligibility) {
+            query.orderBy(
+                    criteriaBuilder.asc(returnEligibilityPriority(root, criteriaBuilder)),
+                    criteriaBuilder.asc(priority),
+                    criteriaBuilder.desc(root.get("createdAt"))
+            );
+            return;
+        }
+
         query.orderBy(
                 criteriaBuilder.asc(priority),
                 criteriaBuilder.desc(root.get("createdAt"))
         );
+    }
+
+    private void applyReturnEligibilityFilter(
+            List<Predicate> predicates,
+            Root<Order> root,
+            CriteriaBuilder criteriaBuilder,
+            OrderReturnEligibility returnEligibility
+    ) {
+        if (returnEligibility == null || OrderReturnEligibility.ALL == returnEligibility) {
+            return;
+        }
+
+        Predicate eligible = returnEligiblePredicate(root, criteriaBuilder);
+        if (OrderReturnEligibility.ELIGIBLE == returnEligibility) {
+            predicates.add(eligible);
+            return;
+        }
+
+        predicates.add(criteriaBuilder.not(eligible));
+    }
+
+    private Predicate returnEligiblePredicate(Root<Order> root, CriteriaBuilder criteriaBuilder) {
+        return criteriaBuilder.and(
+                criteriaBuilder.equal(root.get("status"), OrderStatus.COMPLETED),
+                criteriaBuilder.equal(root.get("paymentStatus"), PaymentStatus.PAID)
+        );
+    }
+
+    private Expression<Integer> returnEligibilityPriority(Root<Order> root, CriteriaBuilder criteriaBuilder) {
+        return criteriaBuilder.<Integer>selectCase()
+                .when(returnEligiblePredicate(root, criteriaBuilder), 0)
+                .otherwise(1);
     }
 
     private boolean isCountQuery(CriteriaQuery<?> query) {

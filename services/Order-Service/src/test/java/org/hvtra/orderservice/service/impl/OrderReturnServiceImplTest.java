@@ -13,6 +13,7 @@ import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.exception.InvalidOrderReturnException;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.repository.OrderReturnItemRepository;
@@ -26,9 +27,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,11 +44,14 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -334,16 +345,16 @@ class OrderReturnServiceImplTest {
     }
 
     @Test
-    void completeReturnMovesCreatedReturnToCompleted() {
+    void receiveReturnMovesCreatedReturnToReceived() {
         UUID returnId = UUID.randomUUID();
         OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.CREATED);
         when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
         when(orderReturnRepository.save(orderReturn)).thenReturn(orderReturn);
 
-        OrderReturnResponse response = service.completeReturn(returnId);
+        OrderReturnResponse response = service.receiveReturn(returnId);
 
-        assertEquals(ReturnStatus.COMPLETED, orderReturn.getStatus());
-        assertEquals(ReturnStatus.COMPLETED, response.getStatus());
+        assertEquals(ReturnStatus.RECEIVED, orderReturn.getStatus());
+        assertEquals(ReturnStatus.RECEIVED, response.getStatus());
         verify(orderReturnRepository).save(orderReturn);
     }
 
@@ -362,9 +373,9 @@ class OrderReturnServiceImplTest {
     }
 
     @Test
-    void cancelReturnRejectsCompletedReturn() {
+    void cancelReturnRejectsReceivedReturn() {
         UUID returnId = UUID.randomUUID();
-        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.COMPLETED);
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.RECEIVED);
         when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
 
         InvalidOrderReturnException exception = assertThrows(
@@ -377,32 +388,32 @@ class OrderReturnServiceImplTest {
     }
 
     @Test
-    void completeReturnRejectsCancelledReturn() {
+    void receiveReturnRejectsCancelledReturn() {
         UUID returnId = UUID.randomUUID();
         OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.CANCELLED);
         when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
 
         InvalidOrderReturnException exception = assertThrows(
                 InvalidOrderReturnException.class,
-                () -> service.completeReturn(returnId)
+                () -> service.receiveReturn(returnId)
         );
 
-        assertEquals("Only created returns can be completed", exception.getMessage());
+        assertEquals("Only created returns can be received", exception.getMessage());
         verify(orderReturnRepository, never()).save(any());
     }
 
     @Test
-    void completeReturnRejectsCompletedReturnWhenCalledAgain() {
+    void receiveReturnRejectsReceivedReturnWhenCalledAgain() {
         UUID returnId = UUID.randomUUID();
-        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.COMPLETED);
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.RECEIVED);
         when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
 
         InvalidOrderReturnException exception = assertThrows(
                 InvalidOrderReturnException.class,
-                () -> service.completeReturn(returnId)
+                () -> service.receiveReturn(returnId)
         );
 
-        assertEquals("Only created returns can be completed", exception.getMessage());
+        assertEquals("Only created returns can be received", exception.getMessage());
         verify(orderReturnRepository, never()).save(any());
     }
 
@@ -422,7 +433,7 @@ class OrderReturnServiceImplTest {
     }
 
     @Test
-    void createReturnCountsCreatedAndCompletedReturnsAsPreviouslyReturnedQuantity() {
+    void createReturnCountsCreatedAndReceivedReturnsAsPreviouslyReturnedQuantity() {
         stubEligibleOrder(new BigDecimal("2.000"));
 
         InvalidOrderReturnException exception = assertThrows(
@@ -437,7 +448,7 @@ class OrderReturnServiceImplTest {
         verify(orderReturnItemRepository).sumReturnedQuantity(
                 eq(orderItemId),
                 argThat(statuses -> statuses.contains(ReturnStatus.CREATED)
-                        && statuses.contains(ReturnStatus.COMPLETED)
+                        && statuses.contains(ReturnStatus.RECEIVED)
                         && statuses.size() == 2)
         );
     }
@@ -474,6 +485,268 @@ class OrderReturnServiceImplTest {
 
         assertEquals(ReturnStatus.CREATED, response.getStatus());
         assertEquals(new BigDecimal("3.000"), response.getItems().getFirst().getQuantity());
+    }
+
+    @Test
+    void getReturnsReturnsAllReturnsWhenNoFilter() {
+        OrderReturnSummaryResponse summary = summary("RET-ALL", ReturnStatus.CREATED, 1L);
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        when(orderReturnRepository.findReturnSummaries(null, null, null, null, expectedPageRequest))
+                .thenReturn(new PageImpl<>(List.of(summary), expectedPageRequest, 1));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns(null, null, null, null, null, 0, 20);
+
+        assertEquals(List.of(summary), result.getContent());
+        assertEquals(1, result.getTotalElements());
+        verify(orderReturnRepository).findReturnSummaries(null, null, null, null, expectedPageRequest);
+    }
+
+    @Test
+    void getReturnsFiltersCreatedReturns() {
+        assertStatusFilter(ReturnStatus.CREATED);
+    }
+
+    @Test
+    void getReturnsFiltersReceivedReturns() {
+        assertStatusFilter(ReturnStatus.RECEIVED);
+    }
+
+    @Test
+    void getReturnsFiltersCancelledReturns() {
+        assertStatusFilter(ReturnStatus.CANCELLED);
+    }
+
+    @Test
+    void getReturnsSearchesByReturnCodePattern() {
+        assertKeywordPattern("RET00001", "%ret00001%");
+    }
+
+    @Test
+    void getReturnsSearchesByOrderCodePattern() {
+        assertKeywordPattern("ORD00001", "%ord00001%");
+    }
+
+    @Test
+    void getReturnsSearchesByCustomerPatternWhenSupportedByQuery() {
+        assertKeywordPattern("Nguyen Van A", "%nguyen van a%");
+    }
+
+    @Test
+    void getReturnsFiltersOneDayByReturnCreatedAt() {
+        LocalDate date = LocalDate.of(2026, 9, 10);
+        Instant fromCreatedAt = startOfDay(date);
+        Instant toCreatedBefore = startOfDay(date.plusDays(1));
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        OrderReturnSummaryResponse summary = summary("RET-DAY", ReturnStatus.CREATED, 1L);
+        when(orderReturnRepository.findReturnSummaries(null, null, fromCreatedAt, toCreatedBefore, expectedPageRequest))
+                .thenReturn(new PageImpl<>(List.of(summary), expectedPageRequest, 1));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns(null, null, date, date, null, 0, 20);
+
+        assertEquals(List.of(summary), result.getContent());
+        verify(orderReturnRepository).findReturnSummaries(null, null, fromCreatedAt, toCreatedBefore, expectedPageRequest);
+    }
+
+    @Test
+    void getReturnsFiltersMonthRangeByReturnCreatedAt() {
+        LocalDate fromDate = LocalDate.of(2026, 9, 1);
+        LocalDate toDate = LocalDate.of(2026, 9, 30);
+        Instant fromCreatedAt = startOfDay(fromDate);
+        Instant toCreatedBefore = startOfDay(toDate.plusDays(1));
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        OrderReturnSummaryResponse summary = summary("RET-MONTH", ReturnStatus.RECEIVED, 1L);
+        when(orderReturnRepository.findReturnSummaries(null, null, fromCreatedAt, toCreatedBefore, expectedPageRequest))
+                .thenReturn(new PageImpl<>(List.of(summary), expectedPageRequest, 1));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns(null, null, fromDate, toDate, null, 0, 20);
+
+        assertEquals(ReturnStatus.RECEIVED, result.getContent().getFirst().getStatus());
+        verify(orderReturnRepository).findReturnSummaries(null, null, fromCreatedAt, toCreatedBefore, expectedPageRequest);
+    }
+
+    @Test
+    void getReturnsReturnsEmptyPageWhenDateRangeHasNoData() {
+        LocalDate fromDate = LocalDate.of(2026, 8, 1);
+        LocalDate toDate = LocalDate.of(2026, 8, 31);
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        when(orderReturnRepository.findReturnSummaries(
+                null,
+                null,
+                startOfDay(fromDate),
+                startOfDay(toDate.plusDays(1)),
+                expectedPageRequest
+        )).thenReturn(new PageImpl<>(List.of(), expectedPageRequest, 0));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns(null, null, fromDate, toDate, null, 0, 20);
+
+        assertTrue(result.isEmpty());
+        assertEquals(0, result.getTotalElements());
+    }
+
+    @Test
+    void getReturnsCombinesDateAndStatusFilters() {
+        LocalDate fromDate = LocalDate.of(2026, 9, 1);
+        LocalDate toDate = LocalDate.of(2026, 9, 30);
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        OrderReturnSummaryResponse summary = summary("RET-STATUS-DATE", ReturnStatus.RECEIVED, 1L);
+        when(orderReturnRepository.findReturnSummaries(
+                null,
+                ReturnStatus.RECEIVED,
+                startOfDay(fromDate),
+                startOfDay(toDate.plusDays(1)),
+                expectedPageRequest
+        )).thenReturn(new PageImpl<>(List.of(summary), expectedPageRequest, 1));
+
+        Page<OrderReturnSummaryResponse> result =
+                service.getReturns(null, ReturnStatus.RECEIVED, fromDate, toDate, null, 0, 20);
+
+        assertEquals(ReturnStatus.RECEIVED, result.getContent().getFirst().getStatus());
+        verify(orderReturnRepository).findReturnSummaries(
+                null,
+                ReturnStatus.RECEIVED,
+                startOfDay(fromDate),
+                startOfDay(toDate.plusDays(1)),
+                expectedPageRequest
+        );
+    }
+
+    @Test
+    void getReturnsCombinesDateAndKeywordFilters() {
+        LocalDate fromDate = LocalDate.of(2026, 9, 1);
+        LocalDate toDate = LocalDate.of(2026, 9, 30);
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        OrderReturnSummaryResponse summary = summary("RET-KEYWORD-DATE", ReturnStatus.CREATED, 1L);
+        when(orderReturnRepository.findReturnSummaries(
+                "%rtn%",
+                null,
+                startOfDay(fromDate),
+                startOfDay(toDate.plusDays(1)),
+                expectedPageRequest
+        )).thenReturn(new PageImpl<>(List.of(summary), expectedPageRequest, 1));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns("RTN", null, fromDate, toDate, null, 0, 20);
+
+        assertEquals("RET-KEYWORD-DATE", result.getContent().getFirst().getReturnCode());
+        verify(orderReturnRepository).findReturnSummaries(
+                "%rtn%",
+                null,
+                startOfDay(fromDate),
+                startOfDay(toDate.plusDays(1)),
+                expectedPageRequest
+        );
+    }
+
+    @Test
+    void getReturnsUsesServerPaginationAfterDateFilter() {
+        LocalDate fromDate = LocalDate.of(2026, 9, 1);
+        LocalDate toDate = LocalDate.of(2026, 9, 30);
+        PageRequest expectedPageRequest = PageRequest.of(
+                1,
+                2,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        OrderReturnSummaryResponse summary = summary("RET-PAGE", ReturnStatus.CREATED, 1L);
+        when(orderReturnRepository.findReturnSummaries(
+                null,
+                null,
+                startOfDay(fromDate),
+                startOfDay(toDate.plusDays(1)),
+                expectedPageRequest
+        ))
+                .thenReturn(new PageImpl<>(List.of(summary), expectedPageRequest, 5));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns(null, null, fromDate, toDate, null, 1, 2);
+
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getSize());
+        assertEquals(5, result.getTotalElements());
+        assertEquals(3, result.getTotalPages());
+    }
+
+    @Test
+    void getReturnsDefaultsToCreatedAtDescendingSort() {
+        when(orderReturnRepository.findReturnSummaries(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+
+        service.getReturns(null, null, null, null, null, 0, 20);
+
+        verify(orderReturnRepository).findReturnSummaries(isNull(), isNull(), isNull(), isNull(), captor.capture());
+        Sort sort = captor.getValue().getSort();
+        assertEquals(Sort.Direction.DESC, sort.getOrderFor("createdAt").getDirection());
+        assertEquals(Sort.Direction.DESC, sort.getOrderFor("id").getDirection());
+    }
+
+    @Test
+    void getReturnsHandlesEmptyPage() {
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        when(orderReturnRepository.findReturnSummaries(null, null, null, null, expectedPageRequest))
+                .thenReturn(new PageImpl<>(List.of(), expectedPageRequest, 0));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns(null, null, null, null, null, 0, 20);
+
+        assertTrue(result.isEmpty());
+        assertEquals(0, result.getTotalElements());
+    }
+
+    @Test
+    void getReturnsPreservesProjectedItemCount() {
+        OrderReturnSummaryResponse summary = summary("RET-COUNT", ReturnStatus.CREATED, 3L);
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        when(orderReturnRepository.findReturnSummaries(null, null, null, null, expectedPageRequest))
+                .thenReturn(new PageImpl<>(List.of(summary), expectedPageRequest, 1));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns(null, null, null, null, null, 0, 20);
+
+        assertEquals(3L, result.getContent().getFirst().getItemCount());
+    }
+
+    @Test
+    void getReturnsUsesSingleSummaryQueryWithoutOrderOrItemLookups() {
+        when(orderReturnRepository.findReturnSummaries(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.getReturns(null, null, null, null, "createdAt,desc", 0, 20);
+
+        verify(orderReturnRepository).findReturnSummaries(isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+        verifyNoInteractions(
+                orderRepository,
+                orderReturnItemRepository,
+                orderStatusHistoryRepository,
+                orderCodeGenerator
+        );
     }
 
     private void stubEligibleOrder(BigDecimal returnedQuantity) {
@@ -574,5 +847,52 @@ class OrderReturnServiceImplTest {
         value.setId(itemId);
         value.setIsDeleted(false);
         return value;
+    }
+
+    private void assertStatusFilter(ReturnStatus status) {
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        OrderReturnSummaryResponse summary = summary("RET-" + status, status, 1L);
+        when(orderReturnRepository.findReturnSummaries(null, status, null, null, expectedPageRequest))
+                .thenReturn(new PageImpl<>(List.of(summary), expectedPageRequest, 1));
+
+        Page<OrderReturnSummaryResponse> result = service.getReturns(null, status, null, null, null, 0, 20);
+
+        assertEquals(status, result.getContent().getFirst().getStatus());
+        verify(orderReturnRepository).findReturnSummaries(null, status, null, null, expectedPageRequest);
+    }
+
+    private void assertKeywordPattern(String keyword, String expectedPattern) {
+        PageRequest expectedPageRequest = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+        when(orderReturnRepository.findReturnSummaries(expectedPattern, null, null, null, expectedPageRequest))
+                .thenReturn(new PageImpl<>(List.of(summary("RET-SEARCH", ReturnStatus.CREATED, 1L))));
+
+        service.getReturns(keyword, null, null, null, null, 0, 20);
+
+        verify(orderReturnRepository).findReturnSummaries(expectedPattern, null, null, null, expectedPageRequest);
+    }
+
+    private Instant startOfDay(LocalDate date) {
+        return date.atStartOfDay(ZoneId.systemDefault()).toInstant();
+    }
+
+    private OrderReturnSummaryResponse summary(String returnCode, ReturnStatus status, Long itemCount) {
+        return OrderReturnSummaryResponse.builder()
+                .id(UUID.randomUUID())
+                .returnCode(returnCode)
+                .orderId(orderId)
+                .orderCode("ORD-001")
+                .status(status)
+                .itemCount(itemCount)
+                .customerName("Nguyen Van A")
+                .customerPhone("0900000000")
+                .build();
     }
 }

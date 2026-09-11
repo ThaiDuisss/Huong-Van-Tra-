@@ -4,6 +4,7 @@ import type {
     OrderDetailResponse,
     OrderPageResponse,
     OrderQueryParams,
+    OrderReturnEligibilityStatsResponse,
     OrderStatsResponse,
     OrderSummaryResponse,
     UpdateOrderStatusRequest
@@ -31,6 +32,15 @@ export function getOrders(params: OrderQueryParams = {}) {
     return apiClient.get<OrderPageResponse<OrderSummaryResponse>>("/orders", {
         query: compactQuery(params)
     });
+}
+
+export function getOrderReturnEligibilityStats(keyword?: string) {
+    return apiClient.get<OrderReturnEligibilityStatsResponse>(
+        "/orders/return-eligibility-stats",
+        {
+            query: compactQuery({ keyword })
+        }
+    );
 }
 
 export function exportOrders(params: OrderExportQueryParams = {}) {
@@ -78,6 +88,7 @@ export function cancelOrder(orderId: string, body: CancelOrderRequest) {
 
 export const orderApi = {
     getOrders,
+    getOrderReturnEligibilityStats,
     exportOrders,
     exportInvoices,
     getOrderById,
