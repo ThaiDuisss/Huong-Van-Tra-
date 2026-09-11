@@ -10,6 +10,7 @@ import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
+import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
@@ -91,12 +92,10 @@ public class InventoryStockServiceImpl implements InventoryStockService {
                     .toList();
         }
 
-        List<InventoryBalance> balances = balanceRepository.findActiveWarehouseBalancesByInventoryItemIds(
-                itemByVariantId.values().stream().map(InventoryItem::getId).toList()
-//                ,
-//                request.warehouseId(),
-//                InventoryLocationType.WAREHOUSE,
-//                InventoryStatus.ACTIVE
+        List<InventoryBalance> balances = balanceRepository.findSaleableBalancesByInventoryItemIds(
+                itemByVariantId.values().stream().map(InventoryItem::getId).toList(),
+                InventoryStatus.ACTIVE,
+                InventoryLocationSaleability.nonSaleableTypes()
         );
 
         Map<UUID, UUID> itemIdToProductId = itemByVariantId.values().stream()
@@ -111,8 +110,13 @@ public class InventoryStockServiceImpl implements InventoryStockService {
             if (productId == null) {
                 continue;
             }
-            totalsByProductId.computeIfAbsent(productId, ignored -> new Totals())
-                    .add(balance.getQuantityOnHand(), balance.getQuantityReserved());
+            if (InventoryLocationSaleability.isSaleable(balance.getLocation())) {
+                totalsByProductId.computeIfAbsent(productId, ignored -> new Totals())
+                        .add(
+                                balance.getQuantityOnHand(),
+                                balance.getQuantityReserved(),
+                                balance.getQuantityBlocked());
+            }
         }
 
         return productIds.stream()
@@ -161,11 +165,10 @@ public class InventoryStockServiceImpl implements InventoryStockService {
 
 
 
-        List<InventoryBalance> balances = balanceRepository.findActiveWarehouseBalancesByInventoryItemIds(
-                itemByVariantId.values().stream().map(InventoryItem::getId).toList()
-//                request.warehouseId(),
-//                InventoryLocationType.WAREHOUSE,
-//                InventoryStatus.ACTIVE
+        List<InventoryBalance> balances = balanceRepository.findSaleableBalancesByInventoryItemIds(
+                itemByVariantId.values().stream().map(InventoryItem::getId).toList(),
+                InventoryStatus.ACTIVE,
+                InventoryLocationSaleability.nonSaleableTypes()
         );
 
 
@@ -184,7 +187,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
         if (totals == null) {
             return new StockBatchResponse(productId, ZERO, ZERO, "OUT_OF_STOCK");
         }
-        BigDecimal available = totals.onHand.subtract(totals.reserved);
+        BigDecimal available = totals.onHand.subtract(totals.reserved).subtract(totals.blocked);
         if (available.compareTo(ZERO) < 0) {
             available = ZERO;
         }
@@ -200,11 +203,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
             return new StockVariantBatchResponse(variantId, warehouseId, ZERO, ZERO, "OUT_OF_STOCK");
         }
         BigDecimal reserved = balance.getQuantityReserved() != null ? balance.getQuantityReserved() : ZERO;
-        BigDecimal available = (balance.getQuantityOnHand() != null ? balance.getQuantityOnHand() : ZERO)
-                .subtract(reserved);
-        if (available.compareTo(ZERO) < 0) {
-            available = ZERO;
-        }
+        BigDecimal available = balance.getAvailableQuantity();
         return new StockVariantBatchResponse(
                 variantId,
                 balance.getLocation().getId(),
@@ -215,6 +214,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
 
     private Map<UUID, InventoryBalance> selectBestBalanceByItemId(List<InventoryBalance> balances) {
         return balances.stream()
+                .filter(balance -> InventoryLocationSaleability.isSaleable(balance.getLocation()))
                 .collect(Collectors.toMap(
                         balance -> balance.getInventoryItem().getId(),
                         balance -> balance,
@@ -231,19 +231,21 @@ public class InventoryStockServiceImpl implements InventoryStockService {
         if (balance == null) {
             return ZERO;
         }
-        BigDecimal onHand = balance.getQuantityOnHand() != null ? balance.getQuantityOnHand() : ZERO;
-        BigDecimal reserved = balance.getQuantityReserved() != null ? balance.getQuantityReserved() : ZERO;
-        BigDecimal available = onHand.subtract(reserved);
-        return available.compareTo(ZERO) < 0 ? ZERO : available;
+        return balance.getAvailableQuantity();
     }
 
     private static class Totals {
         private BigDecimal onHand = ZERO;
         private BigDecimal reserved = ZERO;
+        private BigDecimal blocked = ZERO;
 
-        private Totals add(BigDecimal quantityOnHand, BigDecimal quantityReserved) {
+        private Totals add(
+                BigDecimal quantityOnHand,
+                BigDecimal quantityReserved,
+                BigDecimal quantityBlocked) {
             onHand = onHand.add(quantityOnHand != null ? quantityOnHand : ZERO);
             reserved = reserved.add(quantityReserved != null ? quantityReserved : ZERO);
+            blocked = blocked.add(quantityBlocked != null ? quantityBlocked : ZERO);
             return this;
         }
     }

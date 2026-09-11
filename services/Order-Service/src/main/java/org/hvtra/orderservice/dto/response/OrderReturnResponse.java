@@ -14,6 +14,8 @@ public class OrderReturnResponse {
     private UUID id;
     private String returnCode;
     private UUID orderId;
+    private String orderCode;
+    private UUID branchId;
     private ReturnStatus status;
     private String note;
     private Instant createdAt;

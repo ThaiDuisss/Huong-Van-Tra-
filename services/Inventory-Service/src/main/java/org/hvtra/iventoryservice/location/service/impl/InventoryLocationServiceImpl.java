@@ -98,6 +98,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
             case STORAGE   -> "KC";
             case DAMAGED   -> "HL";
             case SHELF     -> "KE";
+            case QUARANTINE -> "CL";
         };
         String suffix = UUID.randomUUID().toString()
                 .replace("-", "")

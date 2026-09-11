@@ -13,6 +13,7 @@ import java.util.UUID;
 public class OrderReturnItemResponse {
     private UUID id;
     private UUID orderItemId;
+    private UUID productVariantId;
     private BigDecimal quantity;
     private ReturnReason reason;
     private ReturnCondition condition;

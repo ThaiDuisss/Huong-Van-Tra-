@@ -8,6 +8,7 @@ import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.StockType;
+import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
@@ -32,6 +33,8 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly = true)
 public class InventoryBalanceServiceImpl implements InventoryBalanceService {
+    private static final BigDecimal ZERO = BigDecimal.ZERO;
+
     private final InventoryBalanceRepository repository;
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
@@ -317,7 +320,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         List<InventoryBalanceViewResponse> mappedList = pagedAggregated.stream()
                 .map(agg -> {
                     InventoryLocation loc = agg.location;
-                    BigDecimal available = agg.quantityOnHand.subtract(agg.quantityReserved).subtract(agg.quantityBlocked);
+                    BigDecimal available = saleableAvailable(agg.quantityOnHand, agg.quantityReserved, agg.quantityBlocked);
                     InventoryItemType itemTypeVal = agg.inventoryItem.getItemType();
 
                     if (itemTypeVal == InventoryItemType.INGREDIENT) {
@@ -422,7 +425,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
     ) {
         // 1. Get first location whose type is WAREHOUSE
         Optional<InventoryLocation> warehouseLocOpt =
-                locationRepository.findFirstByType(InventoryLocationType.WAREHOUSE);
+                locationRepository.findFirstByTypeAndStatus(InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE);
         if (warehouseLocOpt.isEmpty()) {
             return Collections.emptyList();
         }
@@ -453,6 +456,8 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                     cb.equal(root.get("location").get("id"), warehouseLoc.getId()),
                     cb.equal(root.get("location").get("parentLocation").get("id"), warehouseLoc.getId())
             ));
+            predicates.add(cb.equal(root.get("location").get("status"), InventoryStatus.ACTIVE));
+            predicates.add(cb.not(root.get("location").get("type").in(InventoryLocationSaleability.nonSaleableTypes())));
             if (finalMatchingVariantIds != null) {
                 predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
             }
@@ -461,45 +466,42 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
         List<InventoryBalance> balances = repository.findAll(spec);
 
-        // Aggregate across batches by inventoryItemId
-        Map<UUID, InventoryBalanceWarehouseResponse> aggregatedMap = new LinkedHashMap<>();
+        Map<UUID, AggregatedBalance> aggregatedMap = new LinkedHashMap<>();
         for (InventoryBalance b : balances) {
-            if (b.getInventoryItem() == null) continue;
+            if (b.getInventoryItem() == null || !InventoryLocationSaleability.isSaleable(b.getLocation())) continue;
             UUID itemId = b.getInventoryItem().getId();
 
-            InventoryBalanceWarehouseResponse existing = aggregatedMap.get(itemId);
-            if (existing == null) {
-                BigDecimal available = b.getQuantityOnHand().subtract(b.getQuantityReserved());
-                aggregatedMap.put(itemId, new InventoryBalanceWarehouseResponse(
-                        b.getId(),
-                        b.getLocation().getId(),
-                        b.getInventoryItem().getId(),
-                        b.getInventoryItem().getReferenceId(),
-                        b.getInventoryItem().getItemType(),
-                        b.getQuantityOnHand(),
-                        b.getQuantityReserved(),
-                        available,
-                        b.getInventoryItem().getStatus()
-                ));
-            } else {
-                BigDecimal newOnHand = existing.quantityOnHand().add(b.getQuantityOnHand());
-                BigDecimal newReserved = existing.quantityReserved().add(b.getQuantityReserved());
-                BigDecimal newAvailable = newOnHand.subtract(newReserved);
-                aggregatedMap.put(itemId, new InventoryBalanceWarehouseResponse(
-                        existing.id(),
-                        existing.locationId(),
-                        existing.inventoryItemId(),
-                        existing.variantId(),
-                        existing.itemType(),
-                        newOnHand,
-                        newReserved,
-                        newAvailable,
-                        existing.status()
-                ));
+            AggregatedBalance agg = aggregatedMap.computeIfAbsent(itemId, ignored -> {
+                AggregatedBalance a = new AggregatedBalance();
+                a.representativeBalanceId = b.getId();
+                a.inventoryItem = b.getInventoryItem();
+                a.location = b.getLocation();
+                return a;
+            });
+            if (b.getQuantityOnHand() != null) {
+                agg.quantityOnHand = agg.quantityOnHand.add(b.getQuantityOnHand());
+            }
+            if (b.getQuantityReserved() != null) {
+                agg.quantityReserved = agg.quantityReserved.add(b.getQuantityReserved());
+            }
+            if (b.getQuantityBlocked() != null) {
+                agg.quantityBlocked = agg.quantityBlocked.add(b.getQuantityBlocked());
             }
         }
 
-        return new ArrayList<>(aggregatedMap.values());
+        return aggregatedMap.values().stream()
+                .map(agg -> new InventoryBalanceWarehouseResponse(
+                        agg.representativeBalanceId,
+                        agg.location.getId(),
+                        agg.inventoryItem.getId(),
+                        agg.inventoryItem.getReferenceId(),
+                        agg.inventoryItem.getItemType(),
+                        agg.quantityOnHand,
+                        agg.quantityReserved,
+                        saleableAvailable(agg.quantityOnHand, agg.quantityReserved, agg.quantityBlocked),
+                        agg.inventoryItem.getStatus()
+                ))
+                .toList();
     }
 
     @Override
@@ -532,5 +534,15 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 repository.save(balance);
             }
         }
+    }
+
+    private BigDecimal saleableAvailable(
+            BigDecimal quantityOnHand,
+            BigDecimal quantityReserved,
+            BigDecimal quantityBlocked) {
+        BigDecimal available = (quantityOnHand != null ? quantityOnHand : ZERO)
+                .subtract(quantityReserved != null ? quantityReserved : ZERO)
+                .subtract(quantityBlocked != null ? quantityBlocked : ZERO);
+        return available.compareTo(ZERO) < 0 ? ZERO : available;
     }
 }
