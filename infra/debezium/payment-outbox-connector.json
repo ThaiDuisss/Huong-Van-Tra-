@@ -3,7 +3,7 @@
   "config": {
     "connector.class": "io.debezium.connector.mysql.MySqlConnector",
     "tasks.max": "1",
-    "database.hostname": "100.89.77.53",
+    "database.hostname": "100.93.252.63",
     "database.port": "3306",
     "database.user": "debezium",
     "database.password": "debezium",
@@ -11,7 +11,7 @@
     "topic.prefix": "payment-cdc",
     "database.include.list": "payment_db",
     "table.include.list": "payment_db.outbox_events",
-    "schema.history.internal.kafka.bootstrap.servers": "100.89.77.53:19092",
+    "schema.history.internal.kafka.bootstrap.servers": "100.93.252.63:19092",
     "schema.history.internal.kafka.topic": "schema-changes.payment-db",
     "include.schema.changes": "false",
     "tombstones.on.delete": "false",
