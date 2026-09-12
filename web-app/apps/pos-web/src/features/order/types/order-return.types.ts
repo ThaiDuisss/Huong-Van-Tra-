@@ -22,6 +22,10 @@ export type CustomerReturnQcStatus = "PENDING" | "PARTIAL" | "COMPLETED";
 
 export type CustomerReturnInspectionStatus = "CREATED" | "POSTED" | "CANCELLED";
 
+export type OrderRefundStatus = "PENDING" | "REFUNDED" | "NOT_READY" | "FAILED";
+
+export type OrderReturnStatus = "NONE" | "PARTIALLY_RETURNED" | "FULLY_RETURNED";
+
 export interface CreateOrderReturnItemPayload {
     orderItemId: string;
     quantity: number;
@@ -88,6 +92,70 @@ export interface OrderReturnQueryParams {
     page?: number;
     size?: number;
     sort?: string;
+}
+
+export interface OrderRefundQueryParams {
+    fromDate?: string;
+    keyword?: string;
+    status?: OrderRefundStatus;
+    toDate?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
+}
+
+export interface OrderRefundSummaryResponse {
+    returnId: string;
+    returnCode?: string | null;
+    orderId?: string | null;
+    orderCode?: string | null;
+    customerName?: string | null;
+    customerPhone?: string | null;
+    returnCreatedAt?: string | null;
+    returnStatus?: ReturnStatus | null;
+    qcStatus?: CustomerReturnQcStatus | null;
+    refundStatus?: OrderRefundStatus | null;
+    refundAmount?: number | string | null;
+    paymentStatus?: string | null;
+    method?: string | null;
+    refundedAt?: string | null;
+}
+
+export interface OrderRefundDetailResponse extends OrderRefundSummaryResponse {
+    totalAmountRefunded?: number | string | null;
+    items?: OrderReturnItemResponse[] | null;
+}
+
+export interface OrderReturnRefundPreviewResponse {
+    returnId: string;
+    orderId?: string | null;
+    refundAmount?: number | string | null;
+    paymentMethod?: string | null;
+    eligible?: boolean;
+    reason?: string | null;
+}
+
+export interface OrderReturnRefundResponse {
+    returnId: string;
+    orderId?: string | null;
+    paymentId?: string | null;
+    refundTransactionId?: string | null;
+    refundAmount?: number | string | null;
+    totalAmountRefunded?: number | string | null;
+    paymentStatus?: string | null;
+    returnStatus?: ReturnStatus | null;
+    orderPaymentStatus?: string | null;
+    orderReturnStatus?: OrderReturnStatus | null;
+    method?: string | null;
+    refundedAt?: string | null;
+}
+
+export interface OrderRefundStatsResponse {
+    total?: number;
+    pendingRefund?: number;
+    refunded?: number;
+    notReady?: number;
+    failed?: number;
 }
 
 export interface CustomerReturnQcSummaryLine {

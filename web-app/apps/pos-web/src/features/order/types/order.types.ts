@@ -21,6 +21,8 @@ export interface OrderQueryParams {
 
 export type OrderReturnEligibility = "ALL" | "ELIGIBLE" | "INELIGIBLE";
 
+export type OrderReturnStatus = "NONE" | "PARTIALLY_RETURNED" | "FULLY_RETURNED";
+
 export interface OrderSummaryResponse {
     id: string;
     orderCode?: string | null;
@@ -33,6 +35,8 @@ export interface OrderSummaryResponse {
     statusLabel?: string | null;
     paymentStatus?: string | null;
     paymentStatusLabel?: string | null;
+    returnStatus?: OrderReturnStatus | null;
+    returnStatusLabel?: string | null;
     finalAmount?: number | string | null;
     createdAt?: string | null;
     createdBy?: string | null;

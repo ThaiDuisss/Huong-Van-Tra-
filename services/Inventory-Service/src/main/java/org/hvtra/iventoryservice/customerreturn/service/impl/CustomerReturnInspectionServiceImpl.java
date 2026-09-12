@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
+import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSummaryBatchRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionLineResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryLineResponse;
@@ -198,6 +199,23 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 orderReturn.orderCode(),
                 overallQcStatus(lines),
                 lines);
+    }
+
+    @Override
+    public List<CustomerReturnQcSummaryResponse> getQcSummaries(CustomerReturnQcSummaryBatchRequest request) {
+        if (request == null || request.returns() == null || request.returns().isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> returnIds = request.returns().stream()
+                .map(CustomerReturnQcSummaryBatchRequest.CustomerReturnSnapshot::returnId)
+                .distinct()
+                .toList();
+        Map<UUID, BigDecimal> postedQuantities = postedQuantities(returnIds);
+
+        return request.returns().stream()
+                .map(returnSnapshot -> toQcSummary(returnSnapshot, postedQuantities))
+                .toList();
     }
 
     private void postLine(CustomerReturnInspection inspection, CustomerReturnInspectionLine line) {
@@ -427,6 +445,60 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             }
         }
         return totals;
+    }
+
+    private Map<UUID, BigDecimal> postedQuantities(List<UUID> returnIds) {
+        Map<UUID, BigDecimal> totals = new HashMap<>();
+        if (returnIds == null || returnIds.isEmpty()) {
+            return totals;
+        }
+
+        List<CustomerReturnInspection> postedInspections = inspectionRepository.findByReturnIdInAndStatus(
+                returnIds,
+                CustomerReturnInspectionStatus.POSTED);
+        for (CustomerReturnInspection inspection : postedInspections) {
+            for (CustomerReturnInspectionLine line : inspection.getLines()) {
+                if (Boolean.TRUE.equals(line.getPosted())) {
+                    totals.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
+                }
+            }
+        }
+        return totals;
+    }
+
+    private CustomerReturnQcSummaryResponse toQcSummary(
+            CustomerReturnQcSummaryBatchRequest.CustomerReturnSnapshot returnSnapshot,
+            Map<UUID, BigDecimal> postedQuantities
+    ) {
+        List<CustomerReturnQcSummaryLineResponse> lines = returnSnapshot.lines().stream()
+                .map(item -> {
+                    BigDecimal posted = nullSafe(postedQuantities.get(item.returnItemId()));
+                    BigDecimal remaining = item.quantity().subtract(posted);
+                    if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+                        remaining = BigDecimal.ZERO;
+                    }
+                    return new CustomerReturnQcSummaryLineResponse(
+                            item.returnItemId(),
+                            item.orderItemId(),
+                            item.productVariantId(),
+                            item.quantity(),
+                            posted,
+                            remaining,
+                            lineQcStatus(item.quantity(), posted),
+                            item.condition(),
+                            item.reason());
+                })
+                .toList();
+
+        return new CustomerReturnQcSummaryResponse(
+                returnSnapshot.returnId(),
+                returnSnapshot.returnCode(),
+                returnSnapshot.returnStatus(),
+                returnSnapshot.branchId(),
+                returnSnapshot.orderId(),
+                returnSnapshot.orderCode(),
+                overallQcStatus(lines),
+                lines);
     }
 
     private CustomerReturnInspectionResponse toResponse(CustomerReturnInspection inspection) {

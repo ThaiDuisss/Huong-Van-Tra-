@@ -7,6 +7,8 @@ import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
+import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
+import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnCondition;
@@ -14,6 +16,10 @@ import org.hvtra.orderservice.domain.enums.ReturnReason;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.response.OrderRefundDetailResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
@@ -28,6 +34,7 @@ import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -38,6 +45,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -51,7 +59,7 @@ import java.util.stream.Collectors;
 public class OrderReturnServiceImpl implements OrderReturnService {
 
     private static final List<ReturnStatus> ACTIVE_RETURN_STATUSES =
-            List.of(ReturnStatus.CREATED, ReturnStatus.RECEIVED);
+            List.of(ReturnStatus.CREATED, ReturnStatus.RECEIVED, ReturnStatus.COMPLETED);
     private static final Duration DEFAULT_CHANGE_OF_MIND_WINDOW = Duration.ofDays(7);
     private static final Duration DEFAULT_QUALITY_WINDOW = Duration.ofDays(14);
 
@@ -132,9 +140,134 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<OrderRefundSummaryResponse> getRefunds(
+            String keyword,
+            OrderRefundStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    ) {
+        List<OrderReturnSummaryResponse> summaries = orderReturnRepository.findRefundReturnSummaries(
+                keywordPattern(keyword),
+                startOfDay(fromDate),
+                startOfDay(nextDay(toDate))
+        );
+        List<OrderRefundSummaryResponse> refundRows = buildRefundSummaries(summaries);
+        List<OrderRefundSummaryResponse> filteredRows = refundRows.stream()
+                .filter(row -> status == null || row.getRefundStatus() == status)
+                .sorted(refundSort(sort))
+                .toList();
+
+        int pageIndex = Math.max(page, 0);
+        int pageSize = Math.min(Math.max(size, 1), 200);
+        int fromIndex = Math.min(pageIndex * pageSize, filteredRows.size());
+        int toIndex = Math.min(fromIndex + pageSize, filteredRows.size());
+        return new PageImpl<>(
+                filteredRows.subList(fromIndex, toIndex),
+                PageRequest.of(pageIndex, pageSize),
+                filteredRows.size()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderRefundDetailResponse getRefundDetail(UUID returnId) {
+        OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalse(returnId)
+                .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
+        InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
+                inventoryClient.getCustomerReturnQcSummary(returnId);
+        PaymentClient.PaymentRefundSummaryResponse paymentSummary = lookupPaymentRefundSummary(orderReturn);
+        OrderRefundStatus refundStatus = resolveRefundStatus(orderReturn, qcSummary, paymentSummary);
+
+        return OrderRefundDetailResponse.builder()
+                .returnId(orderReturn.getId())
+                .returnCode(orderReturn.getReturnCode())
+                .orderId(orderReturn.getOrder().getId())
+                .orderCode(orderReturn.getOrder().getOrderCode())
+                .customerName(orderReturn.getOrder().getCustomerNameSnapshot())
+                .customerPhone(orderReturn.getOrder().getCustomerPhoneSnapshot())
+                .returnCreatedAt(orderReturn.getCreatedAt())
+                .returnStatus(orderReturn.getStatus())
+                .qcStatus(qcSummary == null ? null : qcSummary.qcStatus())
+                .refundStatus(refundStatus)
+                .refundAmount(paymentSummary == null ? null : paymentSummary.refundAmount())
+                .totalAmountRefunded(paymentSummary == null ? null : paymentSummary.totalAmountRefunded())
+                .paymentStatus(paymentSummary == null ? null : paymentSummary.paymentStatus())
+                .method(paymentSummary == null ? null : paymentSummary.method())
+                .refundedAt(paymentSummary == null ? null : paymentSummary.refundedAt())
+                .items(orderReturnMapper.toResponse(orderReturn).getItems())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderReturnRefundPreviewResponse getRefundPreview(UUID returnId) {
+        OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalse(returnId)
+                .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
+        InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
+                inventoryClient.getCustomerReturnQcSummary(returnId);
+        PaymentClient.PaymentRefundSummaryResponse paymentSummary = lookupPaymentRefundSummary(orderReturn);
+
+        String ineligibleReason = refundIneligibleReason(orderReturn, qcSummary, paymentSummary);
+        if (ineligibleReason != null) {
+            return OrderReturnRefundPreviewResponse.builder()
+                    .returnId(returnId)
+                    .orderId(orderReturn.getOrder().getId())
+                    .paymentMethod(paymentSummary == null ? null : paymentSummary.method())
+                    .eligible(false)
+                    .reason(ineligibleReason)
+                    .build();
+        }
+
+        Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(
+                        orderReturn.getOrder().getId()
+                )
+                .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderReturn.getOrder().getId()));
+        List<OrderReturn> orderReturns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(
+                lockedOrder.getId()
+        );
+        BigDecimal refundAmount = returnRefundCalculator
+                .calculate(lockedOrder, orderReturn, orderReturns)
+                .refundAmount();
+
+        return OrderReturnRefundPreviewResponse.builder()
+                .returnId(returnId)
+                .orderId(lockedOrder.getId())
+                .refundAmount(refundAmount)
+                .paymentMethod(paymentSummary == null ? null : paymentSummary.method())
+                .eligible(refundAmount.compareTo(BigDecimal.ZERO) > 0)
+                .reason(refundAmount.compareTo(BigDecimal.ZERO) > 0 ? null : "Refund amount must be greater than 0")
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderRefundStatsResponse getRefundStats(String keyword, LocalDate fromDate, LocalDate toDate) {
+        List<OrderRefundSummaryResponse> rows = buildRefundSummaries(orderReturnRepository.findRefundReturnSummaries(
+                keywordPattern(keyword),
+                startOfDay(fromDate),
+                startOfDay(nextDay(toDate))
+        ));
+
+        return OrderRefundStatsResponse.builder()
+                .total(rows.size())
+                .pendingRefund(rows.stream().filter(row -> row.getRefundStatus() == OrderRefundStatus.PENDING).count())
+                .refunded(rows.stream().filter(row -> row.getRefundStatus() == OrderRefundStatus.REFUNDED).count())
+                .notReady(rows.stream().filter(row -> row.getRefundStatus() == OrderRefundStatus.NOT_READY).count())
+                .failed(rows.stream().filter(row -> row.getRefundStatus() == OrderRefundStatus.FAILED).count())
+                .build();
+    }
+
+    @Override
     @Transactional
     public OrderReturnRefundResponse refundReturn(UUID returnId) {
         OrderReturn orderReturn = getExistingReturnForUpdate(returnId);
+        if (ReturnStatus.COMPLETED == orderReturn.getStatus()) {
+            return existingCompletedRefundResponse(orderReturn);
+        }
         if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
             throw new InvalidOrderReturnException("Return inventory inspection is not completed");
         }
@@ -164,14 +297,83 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 new PaymentClient.PaymentRefundRequest(returnId, refundAmount)
         );
 
+        finalizeReturnAfterRefund(orderReturn, lockedOrder, orderReturns, paymentRefund);
+
+        orderReturnRepository.save(orderReturn);
+        orderRepository.save(lockedOrder);
+
+        return toRefundResponse(orderReturn, lockedOrder, paymentRefund);
+    }
+
+    private OrderReturnRefundResponse existingCompletedRefundResponse(OrderReturn orderReturn) {
+        PaymentClient.PaymentRefundSummaryResponse paymentSummary = lookupPaymentRefundSummary(orderReturn);
+        if (paymentSummary == null || !"REFUNDED".equals(paymentSummary.refundStatus())) {
+            throw new InvalidOrderReturnException("Return already completed without a refund record");
+        }
+        Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(
+                        orderReturn.getOrder().getId()
+                )
+                .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderReturn.getOrder().getId()));
+        lockedOrder.setReturnStatus(resolveOrderReturnStatus(
+                lockedOrder,
+                orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(lockedOrder.getId())
+        ));
+        PaymentStatus paymentStatus = parsePaymentStatus(paymentSummary.paymentStatus());
+        if (paymentStatus == PaymentStatus.PARTIALLY_REFUNDED || paymentStatus == PaymentStatus.REFUNDED) {
+            lockedOrder.setPaymentStatus(paymentStatus);
+        }
+        orderRepository.save(lockedOrder);
+
         return OrderReturnRefundResponse.builder()
-                .returnId(returnId)
+                .returnId(orderReturn.getId())
                 .orderId(lockedOrder.getId())
+                .paymentId(paymentSummary.paymentId())
+                .refundTransactionId(paymentSummary.refundTransactionId())
+                .refundAmount(paymentSummary.refundAmount())
+                .totalAmountRefunded(paymentSummary.totalAmountRefunded())
+                .paymentStatus(paymentSummary.paymentStatus())
+                .returnStatus(orderReturn.getStatus())
+                .orderPaymentStatus(lockedOrder.getPaymentStatus())
+                .orderReturnStatus(lockedOrder.getReturnStatus())
+                .method(paymentSummary.method())
+                .refundedAt(paymentSummary.refundedAt())
+                .build();
+    }
+
+    private void finalizeReturnAfterRefund(
+            OrderReturn orderReturn,
+            Order lockedOrder,
+            List<OrderReturn> orderReturns,
+            PaymentClient.PaymentRefundResponse paymentRefund
+    ) {
+        PaymentStatus paymentStatus = parsePaymentStatus(paymentRefund.paymentStatus());
+        if (paymentStatus != PaymentStatus.PARTIALLY_REFUNDED && paymentStatus != PaymentStatus.REFUNDED) {
+            throw new InvalidOrderReturnException("Payment refund is not completed");
+        }
+
+        if (ReturnStatus.RECEIVED == orderReturn.getStatus()) {
+            orderReturn.setStatus(ReturnStatus.COMPLETED);
+        }
+        lockedOrder.setPaymentStatus(paymentStatus);
+        lockedOrder.setReturnStatus(resolveOrderReturnStatus(lockedOrder, orderReturns));
+    }
+
+    private OrderReturnRefundResponse toRefundResponse(
+            OrderReturn orderReturn,
+            Order order,
+            PaymentClient.PaymentRefundResponse paymentRefund
+    ) {
+        return OrderReturnRefundResponse.builder()
+                .returnId(orderReturn.getId())
+                .orderId(order.getId())
                 .paymentId(paymentRefund.paymentId())
                 .refundTransactionId(paymentRefund.refundTransactionId())
                 .refundAmount(paymentRefund.refundAmount())
                 .totalAmountRefunded(paymentRefund.totalAmountRefunded())
                 .paymentStatus(paymentRefund.paymentStatus())
+                .returnStatus(orderReturn.getStatus())
+                .orderPaymentStatus(order.getPaymentStatus())
+                .orderReturnStatus(order.getReturnStatus())
                 .method(paymentRefund.method())
                 .refundedAt(paymentRefund.refundedAt())
                 .build();
@@ -223,8 +425,232 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
     }
 
+    private List<OrderRefundSummaryResponse> buildRefundSummaries(List<OrderReturnSummaryResponse> summaries) {
+        if (summaries == null || summaries.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> returnIds = summaries.stream()
+                .map(OrderReturnSummaryResponse::getId)
+                .toList();
+        Map<UUID, OrderReturn> returnsById = orderReturnRepository
+                .findByIdInAndIsDeletedFalseWithItems(returnIds)
+                .stream()
+                .collect(Collectors.toMap(OrderReturn::getId, Function.identity()));
+        Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> qcByReturnId =
+                lookupQcSummaries(summaries, returnsById);
+        Map<UUID, PaymentClient.PaymentRefundSummaryResponse> paymentByReturnId =
+                lookupPaymentRefundSummaries(summaries);
+
+        return summaries.stream()
+                .map(summary -> {
+                    OrderReturn orderReturn = returnsById.get(summary.getId());
+                    InventoryClient.CustomerReturnQcSummaryResponse qcSummary = qcByReturnId.get(summary.getId());
+                    PaymentClient.PaymentRefundSummaryResponse paymentSummary = paymentByReturnId.get(summary.getId());
+                    OrderRefundStatus refundStatus = orderReturn == null
+                            ? OrderRefundStatus.NOT_READY
+                            : resolveRefundStatus(orderReturn, qcSummary, paymentSummary);
+
+                    return OrderRefundSummaryResponse.builder()
+                            .returnId(summary.getId())
+                            .returnCode(summary.getReturnCode())
+                            .orderId(summary.getOrderId())
+                            .orderCode(summary.getOrderCode())
+                            .customerName(summary.getCustomerName())
+                            .customerPhone(summary.getCustomerPhone())
+                            .returnCreatedAt(summary.getCreatedAt())
+                            .returnStatus(summary.getStatus())
+                            .qcStatus(qcSummary == null ? null : qcSummary.qcStatus())
+                            .refundStatus(refundStatus)
+                            .refundAmount(paymentSummary == null ? null : paymentSummary.refundAmount())
+                            .paymentStatus(paymentSummary == null ? null : paymentSummary.paymentStatus())
+                            .method(paymentSummary == null ? null : paymentSummary.method())
+                            .refundedAt(paymentSummary == null ? null : paymentSummary.refundedAt())
+                            .build();
+                })
+                .toList();
+    }
+
+    private Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> lookupQcSummaries(
+            List<OrderReturnSummaryResponse> summaries,
+            Map<UUID, OrderReturn> returnsById
+    ) {
+        List<InventoryClient.CustomerReturnSnapshot> snapshots = summaries.stream()
+                .map(summary -> returnsById.get(summary.getId()))
+                .filter(orderReturn -> orderReturn != null)
+                .map(this::toCustomerReturnSnapshot)
+                .toList();
+        if (snapshots.isEmpty()) {
+            return Map.of();
+        }
+
+        return inventoryClient.getCustomerReturnQcSummaries(
+                        new InventoryClient.CustomerReturnQcSummaryBatchRequest(snapshots)
+                )
+                .stream()
+                .collect(Collectors.toMap(
+                        InventoryClient.CustomerReturnQcSummaryResponse::returnId,
+                        Function.identity(),
+                        (first, second) -> first
+                ));
+    }
+
+    private InventoryClient.CustomerReturnSnapshot toCustomerReturnSnapshot(OrderReturn orderReturn) {
+        Order order = orderReturn.getOrder();
+        return new InventoryClient.CustomerReturnSnapshot(
+                orderReturn.getId(),
+                orderReturn.getReturnCode(),
+                orderReturn.getStatus(),
+                order.getBranchId(),
+                order.getId(),
+                order.getOrderCode(),
+                orderReturn.getItems().stream()
+                        .filter(item -> Boolean.FALSE.equals(item.getIsDeleted()))
+                        .map(this::toCustomerReturnLineSnapshot)
+                        .toList()
+        );
+    }
+
+    private InventoryClient.CustomerReturnLineSnapshot toCustomerReturnLineSnapshot(OrderReturnItem item) {
+        OrderItem orderItem = item.getOrderItem();
+        return new InventoryClient.CustomerReturnLineSnapshot(
+                item.getId(),
+                orderItem == null ? null : orderItem.getId(),
+                orderItem == null ? null : orderItem.getProductVariantId(),
+                item.getQuantity(),
+                item.getCondition(),
+                item.getReason() == null ? null : item.getReason().name()
+        );
+    }
+
+    private Map<UUID, PaymentClient.PaymentRefundSummaryResponse> lookupPaymentRefundSummaries(
+            List<OrderReturnSummaryResponse> summaries
+    ) {
+        List<PaymentClient.RefundSummaryLookupItem> items = summaries.stream()
+                .map(summary -> new PaymentClient.RefundSummaryLookupItem(summary.getId(), summary.getOrderId()))
+                .toList();
+        if (items.isEmpty()) {
+            return Map.of();
+        }
+
+        return paymentClient.lookupRefundSummaries(new PaymentClient.RefundSummaryLookupRequest(items))
+                .stream()
+                .collect(Collectors.toMap(
+                        PaymentClient.PaymentRefundSummaryResponse::returnId,
+                        Function.identity(),
+                        (first, second) -> first
+                ));
+    }
+
+    private PaymentClient.PaymentRefundSummaryResponse lookupPaymentRefundSummary(OrderReturn orderReturn) {
+        return paymentClient.lookupRefundSummaries(new PaymentClient.RefundSummaryLookupRequest(List.of(
+                        new PaymentClient.RefundSummaryLookupItem(
+                                orderReturn.getId(),
+                                orderReturn.getOrder().getId()
+                        )
+                )))
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    private OrderRefundStatus resolveRefundStatus(
+            OrderReturn orderReturn,
+            InventoryClient.CustomerReturnQcSummaryResponse qcSummary,
+            PaymentClient.PaymentRefundSummaryResponse paymentSummary
+    ) {
+        if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
+            return OrderRefundStatus.REFUNDED;
+        }
+        if (paymentSummary != null && "FAILED".equals(paymentSummary.refundStatus())) {
+            return OrderRefundStatus.FAILED;
+        }
+        if (ReturnStatus.RECEIVED == orderReturn.getStatus()
+                && qcSummary != null
+                && "COMPLETED".equals(qcSummary.qcStatus())) {
+            return OrderRefundStatus.PENDING;
+        }
+        return OrderRefundStatus.NOT_READY;
+    }
+
+    private OrderReturnStatus resolveOrderReturnStatus(Order order, List<OrderReturn> orderReturns) {
+        Map<UUID, BigDecimal> completedReturnedQuantities = orderReturns.stream()
+                .filter(returnRecord -> ReturnStatus.COMPLETED == returnRecord.getStatus())
+                .flatMap(returnRecord -> (returnRecord.getItems() == null
+                        ? List.<OrderReturnItem>of()
+                        : returnRecord.getItems()).stream())
+                .filter(item -> Boolean.FALSE.equals(item.getIsDeleted()))
+                .filter(item -> item.getOrderItem() != null && item.getOrderItem().getId() != null)
+                .collect(Collectors.toMap(
+                        item -> item.getOrderItem().getId(),
+                        item -> defaultZero(item.getQuantity()),
+                        BigDecimal::add
+                ));
+
+        boolean anyReturned = completedReturnedQuantities.values().stream()
+                .anyMatch(quantity -> quantity.compareTo(BigDecimal.ZERO) > 0);
+        if (!anyReturned) {
+            return OrderReturnStatus.NONE;
+        }
+
+        boolean fullyReturned = order.getItems().stream()
+                .filter(item -> Boolean.FALSE.equals(item.getIsDeleted()))
+                .allMatch(item -> defaultZero(completedReturnedQuantities.get(item.getId()))
+                        .compareTo(defaultZero(item.getQuantity())) >= 0);
+        return fullyReturned ? OrderReturnStatus.FULLY_RETURNED : OrderReturnStatus.PARTIALLY_RETURNED;
+    }
+
+    private PaymentStatus parsePaymentStatus(String value) {
+        if (value == null || value.isBlank()) {
+            throw new InvalidOrderReturnException("Payment refund is not completed");
+        }
+        try {
+            return PaymentStatus.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidOrderReturnException("Payment refund is not completed");
+        }
+    }
+
+    private String refundIneligibleReason(
+            OrderReturn orderReturn,
+            InventoryClient.CustomerReturnQcSummaryResponse qcSummary,
+            PaymentClient.PaymentRefundSummaryResponse paymentSummary
+    ) {
+        if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
+            return "Return already refunded";
+        }
+        if (ReturnStatus.RECEIVED != orderReturn.getStatus()
+                || qcSummary == null
+                || !"COMPLETED".equals(qcSummary.qcStatus())) {
+            return "Return inventory inspection is not completed";
+        }
+        if (paymentSummary == null || paymentSummary.paymentId() == null) {
+            return "Payment not found";
+        }
+        if (!"CASH".equals(paymentSummary.method())) {
+            return "Refund method is not supported yet";
+        }
+        return null;
+    }
+
+    private Comparator<OrderRefundSummaryResponse> refundSort(String sort) {
+        Comparator<OrderRefundSummaryResponse> comparator = Comparator
+                .comparing(
+                        OrderRefundSummaryResponse::getReturnCreatedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())
+                )
+                .thenComparing(
+                        row -> row.getReturnId() == null ? "" : row.getReturnId().toString()
+                );
+
+        boolean ascending = sort != null && sort.toLowerCase(Locale.ROOT).contains("asc");
+        return ascending ? comparator : comparator.reversed();
+    }
+
     private void validateOrderEligibility(Order order) {
-        if (OrderStatus.COMPLETED != order.getStatus() || PaymentStatus.PAID != order.getPaymentStatus()) {
+        if (OrderStatus.COMPLETED != order.getStatus()
+                || (PaymentStatus.PAID != order.getPaymentStatus()
+                && PaymentStatus.PARTIALLY_REFUNDED != order.getPaymentStatus())) {
             throw new InvalidOrderReturnException("Order is not eligible for return");
         }
     }

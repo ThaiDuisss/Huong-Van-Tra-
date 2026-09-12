@@ -150,11 +150,14 @@ export function getAllowedCustomerReturnQcResults(
 }
 
 export function isActiveReturnStatus(status?: ReturnStatus | null) {
-    return status === "CREATED" || status === "RECEIVED";
+    return status === "CREATED" || status === "RECEIVED" || status === "COMPLETED";
 }
 
 export function canCreateReturn(order?: OrderDetailResponse | null) {
-    return order?.status === "COMPLETED" && order.paymentStatus === "PAID";
+    return (
+        order?.status === "COMPLETED" &&
+        (order.paymentStatus === "PAID" || order.paymentStatus === "PARTIALLY_REFUNDED")
+    );
 }
 
 export function calculateReturnedQuantity(

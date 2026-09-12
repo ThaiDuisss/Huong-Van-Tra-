@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -63,4 +64,17 @@ public interface CustomerReturnInspectionRepository
     List<CustomerReturnInspection> findByReturnIdAndStatus(
             @Param("returnId") UUID returnId,
             @Param("status") CustomerReturnInspectionStatus status);
+
+    @Query("""
+            select distinct inspection
+            from CustomerReturnInspection inspection
+            left join fetch inspection.lines lines
+            where inspection.returnId in :returnIds
+              and inspection.isDeleted = false
+              and inspection.status = :status
+            """)
+    List<CustomerReturnInspection> findByReturnIdInAndStatus(
+            @Param("returnIds") Collection<UUID> returnIds,
+            @Param("status") CustomerReturnInspectionStatus status
+    );
 }

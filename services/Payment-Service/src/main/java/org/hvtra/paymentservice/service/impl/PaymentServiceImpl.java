@@ -14,9 +14,11 @@ import org.hvtra.paymentservice.domain.enums.PaymentTransactionStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
+import org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
 import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
 import org.hvtra.paymentservice.dto.response.PaymentRefundResponse;
+import org.hvtra.paymentservice.dto.response.PaymentRefundSummaryResponse;
 import org.hvtra.paymentservice.repository.PaymentAttemptRepository;
 import org.hvtra.paymentservice.repository.PaymentRepository;
 import org.hvtra.paymentservice.repository.PaymentTransactionRepository;
@@ -30,6 +32,10 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 @Service
@@ -126,6 +132,50 @@ public class PaymentServiceImpl implements PaymentService {
         Payment savedPayment = paymentRepository.save(payment);
 
         return toRefundResponse(savedPayment, savedTransaction);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentRefundSummaryResponse> lookupRefundSummaries(RefundSummaryLookupRequest request) {
+        if (request == null || request.items() == null || request.items().isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> orderIds = request.items().stream()
+                .map(RefundSummaryLookupRequest.RefundSummaryLookupItem::orderId)
+                .distinct()
+                .toList();
+        List<String> refundReferences = request.items().stream()
+                .map(RefundSummaryLookupRequest.RefundSummaryLookupItem::returnId)
+                .map(UUID::toString)
+                .distinct()
+                .toList();
+
+        Map<UUID, Payment> paymentsByOrderId = paymentRepository
+                .findByOrderIdInAndIsDeletedFalse(orderIds)
+                .stream()
+                .collect(Collectors.toMap(Payment::getOrderId, Function.identity(), (first, second) -> first));
+        Map<String, PaymentTransaction> refundsByReference = paymentTransactionRepository
+                .findRefundTransactions(
+                        refundReferences,
+                        PaymentTransactionType.REFUND,
+                        PaymentTransactionStatus.SUCCEEDED
+                )
+                .stream()
+                .collect(Collectors.toMap(
+                        PaymentTransaction::getRefundReference,
+                        Function.identity(),
+                        (first, second) -> first
+                ));
+
+        return request.items().stream()
+                .map(item -> toRefundSummaryResponse(
+                        item.returnId(),
+                        item.orderId(),
+                        paymentsByOrderId.get(item.orderId()),
+                        refundsByReference.get(item.returnId().toString())
+                ))
+                .toList();
     }
 
     /**
@@ -421,6 +471,28 @@ public class PaymentServiceImpl implements PaymentService {
                 .paymentStatus(payment.getStatus().name())
                 .method(payment.getMethod().name())
                 .refundedAt(transaction.getPaidAt())
+                .build();
+    }
+
+    private PaymentRefundSummaryResponse toRefundSummaryResponse(
+            UUID returnId,
+            UUID orderId,
+            Payment payment,
+            PaymentTransaction transaction
+    ) {
+        Payment effectivePayment = transaction == null ? payment : transaction.getPayment();
+
+        return PaymentRefundSummaryResponse.builder()
+                .returnId(returnId)
+                .orderId(orderId)
+                .paymentId(effectivePayment == null ? null : effectivePayment.getId())
+                .refundTransactionId(transaction == null ? null : transaction.getId())
+                .refundAmount(transaction == null ? null : transaction.getAmount())
+                .totalAmountRefunded(effectivePayment == null ? null : effectivePayment.getAmountRefunded())
+                .refundStatus(transaction == null ? "PENDING" : "REFUNDED")
+                .paymentStatus(effectivePayment == null ? null : effectivePayment.getStatus().name())
+                .method(effectivePayment == null ? null : effectivePayment.getMethod().name())
+                .refundedAt(transaction == null ? null : transaction.getPaidAt())
                 .build();
     }
 

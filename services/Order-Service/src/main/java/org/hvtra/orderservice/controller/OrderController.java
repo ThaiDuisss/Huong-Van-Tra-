@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.*;
 import org.hvtra.orderservice.domain.enums.OrderReturnEligibility;
+import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
@@ -16,8 +17,12 @@ import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundDetailResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundSummaryResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
@@ -208,10 +213,46 @@ public class OrderController {
         return orderReturnService.getReturns(keyword, status, fromDate, toDate, sort, page, size);
     }
 
+    @Operation(summary = "lay danh sach hoan tien tu phieu hoan hang")
+    @GetMapping("/refunds")
+    public Page<OrderRefundSummaryResponse> getRefunds(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) OrderRefundStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return orderReturnService.getRefunds(keyword, status, fromDate, toDate, sort, page, size);
+    }
+
+    @Operation(summary = "thong ke trang thai hoan tien")
+    @GetMapping("/refunds/stats")
+    public OrderRefundStatsResponse getRefundStats(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return orderReturnService.getRefundStats(keyword, fromDate, toDate);
+    }
+
+    @Operation(summary = "lay chi tiet hoan tien")
+    @GetMapping("/refunds/{returnId:[0-9a-fA-F\\-]{36}}")
+    public OrderRefundDetailResponse getRefundDetail(@PathVariable UUID returnId) {
+        return orderReturnService.getRefundDetail(returnId);
+    }
+
     @Operation(summary = "lay chi tiet hoan hang")
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderReturnResponse getReturnById(@PathVariable UUID returnId) {
         return orderReturnService.getReturnById(returnId);
+    }
+
+    @Operation(summary = "xem truoc so tien hoan tien")
+    @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund-preview")
+    public OrderReturnRefundPreviewResponse getRefundPreview(@PathVariable UUID returnId) {
+        return orderReturnService.getRefundPreview(returnId);
     }
 
     @Operation(summary = "xac nhan cua hang da nhan hang tra lai")

@@ -1,9 +1,14 @@
 package org.hvtra.orderservice.service;
 
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.response.OrderRefundDetailResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
+import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.springframework.data.domain.Page;
 
@@ -19,6 +24,22 @@ public interface OrderReturnService {
     OrderReturnResponse cancelReturn(UUID returnId);
 
     OrderReturnRefundResponse refundReturn(UUID returnId);
+
+    Page<OrderRefundSummaryResponse> getRefunds(
+            String keyword,
+            OrderRefundStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    );
+
+    OrderRefundDetailResponse getRefundDetail(UUID returnId);
+
+    OrderReturnRefundPreviewResponse getRefundPreview(UUID returnId);
+
+    OrderRefundStatsResponse getRefundStats(String keyword, LocalDate fromDate, LocalDate toDate);
 
     Page<OrderReturnSummaryResponse> getReturns(
             String keyword,

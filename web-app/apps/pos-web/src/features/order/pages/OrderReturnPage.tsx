@@ -477,8 +477,7 @@ export function OrderReturnPage() {
                 orderEligibilityFilter === "ELIGIBLE"
                     ? {
                           ...orderQuery,
-                          status: "COMPLETED",
-                          paymentStatus: "PAID"
+                          status: "COMPLETED"
                       }
                     : orderQuery
             )
@@ -1351,7 +1350,10 @@ function getDraftValidationError(
 function isOrderEligibleForReturn(
     order: Pick<OrderSummaryResponse, "paymentStatus" | "status"> | null
 ) {
-    return order?.status === "COMPLETED" && order.paymentStatus === "PAID";
+    return (
+        order?.status === "COMPLETED" &&
+        (order.paymentStatus === "PAID" || order.paymentStatus === "PARTIALLY_REFUNDED")
+    );
 }
 
 function getOrderIneligibilityReason(

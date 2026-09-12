@@ -1,6 +1,8 @@
 package org.hvtra.orderservice.client;
 
 import lombok.Builder;
+import org.hvtra.orderservice.domain.enums.ReturnCondition;
+import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,6 +35,11 @@ public interface InventoryClient {
     @GetMapping("/api/inventory/customer-returns/{returnId}/qc-summary")
     CustomerReturnQcSummaryResponse getCustomerReturnQcSummary(@PathVariable("returnId") UUID returnId);
 
+    @PostMapping("/api/inventory/customer-returns/qc-summaries")
+    List<CustomerReturnQcSummaryResponse> getCustomerReturnQcSummaries(
+            @RequestBody CustomerReturnQcSummaryBatchRequest request
+    );
+
     @Builder
     record ApplyInventoryReservationRequest(
             UUID orderId,
@@ -52,6 +59,29 @@ public interface InventoryClient {
 
     @Builder
     record ReleaseInventoryReservationOrderRequest(UUID orderId) {}
+
+    record CustomerReturnQcSummaryBatchRequest(
+            List<CustomerReturnSnapshot> returns
+    ) {}
+
+    record CustomerReturnSnapshot(
+            UUID returnId,
+            String returnCode,
+            ReturnStatus returnStatus,
+            UUID branchId,
+            UUID orderId,
+            String orderCode,
+            List<CustomerReturnLineSnapshot> lines
+    ) {}
+
+    record CustomerReturnLineSnapshot(
+            UUID returnItemId,
+            UUID orderItemId,
+            UUID productVariantId,
+            BigDecimal quantity,
+            ReturnCondition condition,
+            String reason
+    ) {}
 
     record CustomerReturnQcSummaryResponse(
             UUID returnId,

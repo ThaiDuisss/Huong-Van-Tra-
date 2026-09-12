@@ -5,12 +5,18 @@ import type {
     CreateOrderReturnPayload,
     CustomerReturnInspectionResponse,
     CustomerReturnQcSummaryResponse,
+    OrderRefundDetailResponse,
+    OrderRefundQueryParams,
+    OrderRefundStatsResponse,
+    OrderRefundSummaryResponse,
     OrderReturnQueryParams,
+    OrderReturnRefundPreviewResponse,
+    OrderReturnRefundResponse,
     OrderReturnSummaryResponse,
     OrderReturnResponse
 } from "../types/order-return.types";
 
-function compactQuery(params: OrderReturnQueryParams = {}) {
+function compactQuery(params: OrderReturnQueryParams | OrderRefundQueryParams = {}) {
     return Object.fromEntries(
         Object.entries(params).filter(([, value]) => {
             if (value === null || value === undefined) {
@@ -19,6 +25,42 @@ function compactQuery(params: OrderReturnQueryParams = {}) {
 
             return typeof value !== "string" || value.trim() !== "";
         })
+    );
+}
+
+export function getOrderRefundList(params: OrderRefundQueryParams = {}) {
+    return apiClient.get<OrderPageResponse<OrderRefundSummaryResponse>>(
+        "/orders/refunds",
+        {
+            query: compactQuery(params)
+        }
+    );
+}
+
+export function getOrderRefundStats(
+    params: Pick<OrderRefundQueryParams, "fromDate" | "keyword" | "toDate"> = {}
+) {
+    return apiClient.get<OrderRefundStatsResponse>("/orders/refunds/stats", {
+        query: compactQuery(params)
+    });
+}
+
+export function getOrderRefundDetail(returnId: string) {
+    return apiClient.get<OrderRefundDetailResponse>(
+        `/orders/refunds/${encodeURIComponent(returnId)}`
+    );
+}
+
+export function getOrderRefundPreview(returnId: string) {
+    return apiClient.get<OrderReturnRefundPreviewResponse>(
+        `/orders/returns/${encodeURIComponent(returnId)}/refund-preview`
+    );
+}
+
+export function refundOrderReturn(returnId: string) {
+    return apiClient.post<OrderReturnRefundResponse, Record<string, never>>(
+        `/orders/returns/${encodeURIComponent(returnId)}/refund`,
+        {}
     );
 }
 

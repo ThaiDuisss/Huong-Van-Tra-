@@ -1492,7 +1492,7 @@ public class OrderServiceImpl implements OrderService {
     private Predicate returnEligiblePredicate(Root<Order> root, CriteriaBuilder criteriaBuilder) {
         return criteriaBuilder.and(
                 criteriaBuilder.equal(root.get("status"), OrderStatus.COMPLETED),
-                criteriaBuilder.equal(root.get("paymentStatus"), PaymentStatus.PAID)
+                root.get("paymentStatus").in(PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED)
         );
     }
 
@@ -1578,6 +1578,7 @@ public class OrderServiceImpl implements OrderService {
                 .orderType(order.getOrderType())
                 .status(order.getStatus())
                 .paymentStatus(order.getPaymentStatus())
+                .returnStatus(order.getReturnStatus())
                 .paymentMethod(paymentMethod)
                 .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))
                 .payment(payment)
@@ -1606,6 +1607,7 @@ public class OrderServiceImpl implements OrderService {
                 .orderTypeLabel(toOrderTypeLabel(order.getOrderType()))
                 .statusLabel(toOrderStatusLabel(order.getStatus()))
                 .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
+                .returnStatusLabel(toReturnStatusLabel(order.getReturnStatus()))
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
                 .createdByName(order.getCashierNameSnapshot())
                 .createdAt(createdAt)
@@ -1628,6 +1630,8 @@ public class OrderServiceImpl implements OrderService {
                 .statusLabel(toOrderStatusLabel(order.getStatus()))
                 .paymentStatus(order.getPaymentStatus())
                 .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
+                .returnStatus(order.getReturnStatus())
+                .returnStatusLabel(toReturnStatusLabel(order.getReturnStatus()))
                 .finalAmount(order.getFinalAmount())
                 .createdAt(toLocalDateTime(auditValue(order, "getCreatedAt")))
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
@@ -1867,6 +1871,17 @@ public class OrderServiceImpl implements OrderService {
             case "E_WALLET" -> "Ví điện tử";
             case "COMBINED" -> "Kết hợp";
             default -> paymentMethod;
+        };
+    }
+
+    private String toReturnStatusLabel(OrderReturnStatus status) {
+        if (status == null) {
+            return null;
+        }
+        return switch (status) {
+            case NONE -> "Ch\u01b0a ho\u00e0n h\u00e0ng";
+            case PARTIALLY_RETURNED -> "Ho\u00e0n m\u1ed9t ph\u1ea7n";
+            case FULLY_RETURNED -> "Ho\u00e0n to\u00e0n b\u1ed9";
         };
     }
 

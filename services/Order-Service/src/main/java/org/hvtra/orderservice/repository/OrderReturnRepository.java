@@ -86,6 +86,51 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
     );
 
     @Query("""
+            select new org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse(
+                orderReturn.id,
+                orderReturn.returnCode,
+                orders.id,
+                orders.orderCode,
+                orderReturn.status,
+                orderReturn.createdAt,
+                orderReturn.updatedAt,
+                count(items.id),
+                orders.customerNameSnapshot,
+                orders.customerPhoneSnapshot
+            )
+            from OrderReturn orderReturn
+            join orderReturn.order orders
+            left join orderReturn.items items on items.isDeleted = false
+            where orderReturn.isDeleted = false
+              and orders.isDeleted = false
+              and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+              and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+              and (
+                  :keywordPattern is null
+                  or lower(orderReturn.returnCode) like :keywordPattern
+                  or lower(orders.orderCode) like :keywordPattern
+                  or lower(orders.customerNameSnapshot) like :keywordPattern
+                  or lower(orders.customerPhoneSnapshot) like :keywordPattern
+              )
+            group by
+                orderReturn.id,
+                orderReturn.returnCode,
+                orders.id,
+                orders.orderCode,
+                orderReturn.status,
+                orderReturn.createdAt,
+                orderReturn.updatedAt,
+                orders.customerNameSnapshot,
+                orders.customerPhoneSnapshot
+            order by orderReturn.createdAt desc, orderReturn.id desc
+            """)
+    List<OrderReturnSummaryResponse> findRefundReturnSummaries(
+            @Param("keywordPattern") String keywordPattern,
+            @Param("fromCreatedAt") Instant fromCreatedAt,
+            @Param("toCreatedBefore") Instant toCreatedBefore
+    );
+
+    @Query("""
             select distinct orderReturn
             from OrderReturn orderReturn
             left join fetch orderReturn.items items
@@ -107,6 +152,17 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
               and orderReturn.isDeleted = false
             """)
     Optional<OrderReturn> findByIdAndIsDeletedFalse(@Param("id") UUID id);
+
+    @Query("""
+            select distinct orderReturn
+            from OrderReturn orderReturn
+            left join fetch orderReturn.items items
+            left join fetch items.orderItem orderItem
+            left join fetch orderReturn.order orders
+            where orderReturn.id in :ids
+              and orderReturn.isDeleted = false
+            """)
+    List<OrderReturn> findByIdInAndIsDeletedFalseWithItems(@Param("ids") List<UUID> ids);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

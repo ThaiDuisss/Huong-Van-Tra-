@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.customerreturn.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
+import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSummaryBatchRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.service.CustomerReturnInspectionService;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -40,5 +42,12 @@ public class CustomerReturnInspectionController {
     @GetMapping("/customer-returns/{returnId}/qc-summary")
     public ResponseEntity<CustomerReturnQcSummaryResponse> getQcSummary(@PathVariable UUID returnId) {
         return ResponseEntity.ok(service.getQcSummary(returnId));
+    }
+
+    @PostMapping("/customer-returns/qc-summaries")
+    public ResponseEntity<List<CustomerReturnQcSummaryResponse>> getQcSummaries(
+            @Valid @RequestBody CustomerReturnQcSummaryBatchRequest request
+    ) {
+        return ResponseEntity.ok(service.getQcSummaries(request));
     }
 }

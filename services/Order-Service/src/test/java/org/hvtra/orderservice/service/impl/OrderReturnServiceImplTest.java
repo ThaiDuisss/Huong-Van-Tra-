@@ -7,6 +7,7 @@ import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
+import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnCondition;
@@ -521,6 +522,142 @@ class OrderReturnServiceImplTest {
         assertEquals(transactionId, response.getRefundTransactionId());
         assertEquals(new BigDecimal("120000"), response.getRefundAmount());
         assertEquals("PARTIALLY_REFUNDED", response.getPaymentStatus());
+        assertEquals(ReturnStatus.COMPLETED, response.getReturnStatus());
+        assertEquals(PaymentStatus.PARTIALLY_REFUNDED, response.getOrderPaymentStatus());
+        assertEquals(OrderReturnStatus.PARTIALLY_RETURNED, response.getOrderReturnStatus());
+        assertEquals(ReturnStatus.COMPLETED, orderReturn.getStatus());
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        assertEquals(PaymentStatus.PARTIALLY_REFUNDED, order.getPaymentStatus());
+        assertEquals(OrderReturnStatus.PARTIALLY_RETURNED, order.getReturnStatus());
+        verify(orderReturnRepository).save(orderReturn);
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    void refundReturnMarksOrderFullyReturnedWhenAllItemsCompleted() {
+        UUID returnId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.RECEIVED, new BigDecimal("3.000"));
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(inventoryClient.getCustomerReturnQcSummary(returnId)).thenReturn(
+                new InventoryClient.CustomerReturnQcSummaryResponse(
+                        returnId,
+                        "RET-001",
+                        "RECEIVED",
+                        UUID.randomUUID(),
+                        orderId,
+                        "ORD-001",
+                        "COMPLETED",
+                        List.of()
+                )
+        );
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(orderReturn));
+        when(returnRefundCalculator.calculate(order, orderReturn, List.of(orderReturn)))
+                .thenReturn(new ReturnRefundCalculator.RefundCalculationResult(new BigDecimal("200000")));
+        when(paymentClient.refundOrderReturn(
+                eq(orderId),
+                eq(new PaymentClient.PaymentRefundRequest(returnId, new BigDecimal("200000")))
+        )).thenReturn(new PaymentClient.PaymentRefundResponse(
+                paymentId,
+                orderId,
+                transactionId,
+                returnId,
+                new BigDecimal("200000"),
+                new BigDecimal("200000"),
+                "REFUNDED",
+                "CASH",
+                null
+        ));
+
+        var response = service.refundReturn(returnId);
+
+        assertEquals(ReturnStatus.COMPLETED, response.getReturnStatus());
+        assertEquals(PaymentStatus.REFUNDED, response.getOrderPaymentStatus());
+        assertEquals(OrderReturnStatus.FULLY_RETURNED, response.getOrderReturnStatus());
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        assertEquals(OrderReturnStatus.FULLY_RETURNED, order.getReturnStatus());
+    }
+
+    @Test
+    void refundReturnDoesNotCountReceivedOrCancelledReturnsForOrderReturnStatus() {
+        UUID returnId = UUID.randomUUID();
+        UUID receivedReturnId = UUID.randomUUID();
+        UUID cancelledReturnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.RECEIVED, BigDecimal.ONE);
+        OrderReturn receivedReturn = orderReturn(receivedReturnId, ReturnStatus.RECEIVED, new BigDecimal("2.000"));
+        OrderReturn cancelledReturn = orderReturn(cancelledReturnId, ReturnStatus.CANCELLED, new BigDecimal("2.000"));
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(inventoryClient.getCustomerReturnQcSummary(returnId)).thenReturn(
+                new InventoryClient.CustomerReturnQcSummaryResponse(
+                        returnId,
+                        "RET-001",
+                        "RECEIVED",
+                        UUID.randomUUID(),
+                        orderId,
+                        "ORD-001",
+                        "COMPLETED",
+                        List.of()
+                )
+        );
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(orderReturn, receivedReturn, cancelledReturn));
+        when(returnRefundCalculator.calculate(order, orderReturn, List.of(orderReturn, receivedReturn, cancelledReturn)))
+                .thenReturn(new ReturnRefundCalculator.RefundCalculationResult(new BigDecimal("120000")));
+        when(paymentClient.refundOrderReturn(any(), any())).thenReturn(new PaymentClient.PaymentRefundResponse(
+                UUID.randomUUID(),
+                orderId,
+                UUID.randomUUID(),
+                returnId,
+                new BigDecimal("120000"),
+                new BigDecimal("120000"),
+                "PARTIALLY_REFUNDED",
+                "CASH",
+                null
+        ));
+
+        var response = service.refundReturn(returnId);
+
+        assertEquals(OrderReturnStatus.PARTIALLY_RETURNED, response.getOrderReturnStatus());
+        assertEquals(OrderReturnStatus.PARTIALLY_RETURNED, order.getReturnStatus());
+    }
+
+    @Test
+    void refundReturnCompletedReturnReturnsExistingRefundWithoutRefundingAgain() {
+        UUID returnId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.COMPLETED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(paymentClient.lookupRefundSummaries(any())).thenReturn(List.of(
+                new PaymentClient.PaymentRefundSummaryResponse(
+                        returnId,
+                        orderId,
+                        paymentId,
+                        transactionId,
+                        new BigDecimal("120000"),
+                        new BigDecimal("120000"),
+                        "REFUNDED",
+                        "PARTIALLY_REFUNDED",
+                        "CASH",
+                        null
+                )
+        ));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(orderReturn));
+
+        var response = service.refundReturn(returnId);
+
+        assertEquals(returnId, response.getReturnId());
+        assertEquals(transactionId, response.getRefundTransactionId());
+        assertEquals(ReturnStatus.COMPLETED, response.getReturnStatus());
+        assertEquals(PaymentStatus.PARTIALLY_REFUNDED, response.getOrderPaymentStatus());
+        assertEquals(OrderReturnStatus.PARTIALLY_RETURNED, response.getOrderReturnStatus());
+        verify(paymentClient, never()).refundOrderReturn(any(), any());
     }
 
     @Test
@@ -555,7 +692,8 @@ class OrderReturnServiceImplTest {
                 eq(orderItemId),
                 argThat(statuses -> statuses.contains(ReturnStatus.CREATED)
                         && statuses.contains(ReturnStatus.RECEIVED)
-                        && statuses.size() == 2)
+                        && statuses.contains(ReturnStatus.COMPLETED)
+                        && statuses.size() == 3)
         );
     }
 
@@ -886,6 +1024,10 @@ class OrderReturnServiceImplTest {
     }
 
     private OrderReturn orderReturn(UUID returnId, ReturnStatus status) {
+        return orderReturn(returnId, status, BigDecimal.ONE);
+    }
+
+    private OrderReturn orderReturn(UUID returnId, ReturnStatus status, BigDecimal quantity) {
         OrderReturn value = OrderReturn.builder()
                 .returnCode("RET-001")
                 .order(order)
@@ -895,7 +1037,7 @@ class OrderReturnServiceImplTest {
         value.setIsDeleted(false);
         value.addItem(OrderReturnItem.builder()
                 .orderItem(orderItem)
-                .quantity(BigDecimal.ONE)
+                .quantity(quantity)
                 .reason(ReturnReason.QUALITY_ISSUE)
                 .condition(ReturnCondition.OPENED)
                 .build());
