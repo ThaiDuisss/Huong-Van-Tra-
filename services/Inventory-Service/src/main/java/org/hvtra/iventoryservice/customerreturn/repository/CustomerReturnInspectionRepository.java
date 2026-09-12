@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.customerreturn.repository;
 
 import jakarta.persistence.LockModeType;
+import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspection;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -74,6 +75,25 @@ public interface CustomerReturnInspectionRepository
               and inspection.status = :status
             """)
     List<CustomerReturnInspection> findByReturnIdInAndStatus(
+            @Param("returnIds") Collection<UUID> returnIds,
+            @Param("status") CustomerReturnInspectionStatus status
+    );
+
+    @Query("""
+            select new org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse(
+                lines.result,
+                coalesce(sum(lines.quantity), 0)
+            )
+            from CustomerReturnInspection inspection
+            join inspection.lines lines
+            where inspection.returnId in :returnIds
+              and inspection.isDeleted = false
+              and inspection.status = :status
+              and lines.isDeleted = false
+              and lines.posted = true
+            group by lines.result
+            """)
+    List<CustomerReturnQcDispositionReportResponse> sumDispositionByReturnIds(
             @Param("returnIds") Collection<UUID> returnIds,
             @Param("status") CustomerReturnInspectionStatus status
     );

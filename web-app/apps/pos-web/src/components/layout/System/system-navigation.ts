@@ -379,6 +379,15 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     label: "Báo cáo",
     icon: BarChart3,
     roles: REPORT_ROLES,
+    children: [
+      {
+        key: "reports-return-refund",
+        label: "Hoàn hàng & hoàn tiền",
+        to: routePaths.returnRefundReport,
+        icon: RefreshCw,
+        roles: REPORT_ROLES,
+      },
+    ],
   },
   {
     key: "settings",

@@ -13,6 +13,7 @@ export const routePaths = {
   invoiceDetail: "/system/orders/invoices/:invoiceId",
   returns: "/system/orders/returns",
   refunds: "/system/orders/refunds",
+  returnRefundReport: "/system/reports/returns",
   categories: "/system/categories",
   units: "/system/units",
   products: "/system/products",

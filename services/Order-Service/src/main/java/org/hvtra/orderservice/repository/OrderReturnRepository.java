@@ -2,7 +2,10 @@ package org.hvtra.orderservice.repository;
 
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
+import org.hvtra.orderservice.dto.response.OrderReturnReportBaseRow;
+import org.hvtra.orderservice.dto.response.OrderReturnReportCoreMetricsResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnStatusBreakdownResponse;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -126,6 +129,100 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
             """)
     List<OrderReturnSummaryResponse> findRefundReturnSummaries(
             @Param("keywordPattern") String keywordPattern,
+            @Param("fromCreatedAt") Instant fromCreatedAt,
+            @Param("toCreatedBefore") Instant toCreatedBefore
+    );
+
+    @Query("""
+            select new org.hvtra.orderservice.dto.response.OrderReturnReportBaseRow(
+                orderReturn.id,
+                orderReturn.returnCode,
+                orders.id,
+                orders.orderCode,
+                orders.branchId,
+                orders.customerNameSnapshot,
+                orders.customerPhoneSnapshot,
+                orderReturn.status,
+                orderReturn.createdAt,
+                count(items.id)
+            )
+            from OrderReturn orderReturn
+            join orderReturn.order orders
+            left join orderReturn.items items on items.isDeleted = false
+            where orderReturn.isDeleted = false
+              and orders.isDeleted = false
+              and (:branchId is null or orders.branchId = :branchId)
+              and (:status is null or orderReturn.status = :status)
+              and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+              and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+              and (
+                  :keywordPattern is null
+                  or lower(orderReturn.returnCode) like :keywordPattern
+                  or lower(orders.orderCode) like :keywordPattern
+                  or lower(orders.customerNameSnapshot) like :keywordPattern
+                  or lower(orders.customerPhoneSnapshot) like :keywordPattern
+              )
+            group by
+                orderReturn.id,
+                orderReturn.returnCode,
+                orders.id,
+                orders.orderCode,
+                orders.branchId,
+                orders.customerNameSnapshot,
+                orders.customerPhoneSnapshot,
+                orderReturn.status,
+                orderReturn.createdAt
+            order by orderReturn.createdAt desc, orderReturn.id desc
+            """)
+    List<OrderReturnReportBaseRow> findReportBaseRows(
+            @Param("keywordPattern") String keywordPattern,
+            @Param("status") ReturnStatus status,
+            @Param("branchId") UUID branchId,
+            @Param("fromCreatedAt") Instant fromCreatedAt,
+            @Param("toCreatedBefore") Instant toCreatedBefore
+    );
+
+    @Query("""
+            select new org.hvtra.orderservice.dto.response.OrderReturnReportCoreMetricsResponse(
+                count(orderReturn.id),
+                coalesce(sum(case when orderReturn.status = :completedStatus then 1 else 0 end), 0),
+                coalesce(sum(case when orderReturn.status in :processingStatuses then 1 else 0 end), 0),
+                coalesce(sum(case when orderReturn.status = :cancelledStatus then 1 else 0 end), 0),
+                count(distinct orders.id)
+            )
+            from OrderReturn orderReturn
+            join orderReturn.order orders
+            where orderReturn.isDeleted = false
+              and orders.isDeleted = false
+              and (:branchId is null or orders.branchId = :branchId)
+              and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+              and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+            """)
+    OrderReturnReportCoreMetricsResponse findReportCoreMetrics(
+            @Param("branchId") UUID branchId,
+            @Param("fromCreatedAt") Instant fromCreatedAt,
+            @Param("toCreatedBefore") Instant toCreatedBefore,
+            @Param("completedStatus") ReturnStatus completedStatus,
+            @Param("cancelledStatus") ReturnStatus cancelledStatus,
+            @Param("processingStatuses") List<ReturnStatus> processingStatuses
+    );
+
+    @Query("""
+            select new org.hvtra.orderservice.dto.response.OrderReturnStatusBreakdownResponse(
+                orderReturn.status,
+                count(orderReturn.id)
+            )
+            from OrderReturn orderReturn
+            join orderReturn.order orders
+            where orderReturn.isDeleted = false
+              and orders.isDeleted = false
+              and (:branchId is null or orders.branchId = :branchId)
+              and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+              and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+            group by orderReturn.status
+            """)
+    List<OrderReturnStatusBreakdownResponse> findReportStatusBreakdown(
+            @Param("branchId") UUID branchId,
             @Param("fromCreatedAt") Instant fromCreatedAt,
             @Param("toCreatedBefore") Instant toCreatedBefore
     );

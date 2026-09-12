@@ -14,6 +14,7 @@ import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
 import { OrderRefundPage } from "../features/order/pages/OrderRefundPage";
 import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
+import { ReturnRefundReportPage } from "../features/order/pages/ReturnRefundReportPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
@@ -80,6 +81,7 @@ import {
   ORDER_ROLES,
   POS_WORKSPACE_ROLES,
   PRODUCT_ROLES,
+  REPORT_ROLES,
   getDefaultRouteForRoles,
   type AppRole,
 } from "../auth/role-utils";
@@ -185,6 +187,9 @@ export function AppRouter() {
           <Route path="orders/invoices/:invoiceId" element={<InvoiceDetailPage />} />
           <Route path="orders/returns" element={<OrderReturnPage />} />
           <Route path="orders/refunds" element={<OrderRefundPage />} />
+        </Route>
+        <Route element={<RoleGate roles={REPORT_ROLES} />}>
+          <Route path="reports/returns" element={<ReturnRefundReportPage />} />
         </Route>
         <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
           <Route path="categories" element={<CategoryListPage />} />

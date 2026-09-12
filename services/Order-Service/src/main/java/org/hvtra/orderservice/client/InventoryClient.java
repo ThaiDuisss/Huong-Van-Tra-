@@ -40,6 +40,11 @@ public interface InventoryClient {
             @RequestBody CustomerReturnQcSummaryBatchRequest request
     );
 
+    @PostMapping("/api/inventory/customer-returns/qc-disposition-report")
+    List<CustomerReturnQcDispositionReportResponse> getCustomerReturnQcDispositionReport(
+            @RequestBody CustomerReturnQcDispositionReportRequest request
+    );
+
     @Builder
     record ApplyInventoryReservationRequest(
             UUID orderId,
@@ -62,6 +67,10 @@ public interface InventoryClient {
 
     record CustomerReturnQcSummaryBatchRequest(
             List<CustomerReturnSnapshot> returns
+    ) {}
+
+    record CustomerReturnQcDispositionReportRequest(
+            List<UUID> returnIds
     ) {}
 
     record CustomerReturnSnapshot(
@@ -102,6 +111,11 @@ public interface InventoryClient {
             BigDecimal acceptedQuantity,
             BigDecimal rejectedQuantity,
             String qcStatus
+    ) {}
+
+    record CustomerReturnQcDispositionReportResponse(
+            String result,
+            BigDecimal quantity
     ) {}
 
 }

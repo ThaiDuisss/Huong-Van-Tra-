@@ -5,9 +5,11 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
+import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcDispositionReportRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSummaryBatchRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionLineResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
+import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryLineResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.repository.CustomerReturnInspectionRepository;
@@ -216,6 +218,24 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         return request.returns().stream()
                 .map(returnSnapshot -> toQcSummary(returnSnapshot, postedQuantities))
                 .toList();
+    }
+
+    @Override
+    public List<CustomerReturnQcDispositionReportResponse> getQcDispositionReport(
+            CustomerReturnQcDispositionReportRequest request
+    ) {
+        if (request == null || request.returnIds() == null || request.returnIds().isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> returnIds = request.returnIds().stream()
+                .distinct()
+                .toList();
+
+        return inspectionRepository.sumDispositionByReturnIds(
+                returnIds,
+                CustomerReturnInspectionStatus.POSTED
+        );
     }
 
     private void postLine(CustomerReturnInspection inspection, CustomerReturnInspectionLine line) {

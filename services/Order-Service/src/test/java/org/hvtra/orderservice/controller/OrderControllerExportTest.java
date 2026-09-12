@@ -8,6 +8,7 @@ import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.service.OrderExportService;
+import org.hvtra.orderservice.service.OrderReturnReportService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,11 +51,19 @@ class OrderControllerExportTest {
     @Mock
     private OrderReturnService orderReturnService;
 
+    @Mock
+    private OrderReturnReportService orderReturnReportService;
+
     private OrderController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new OrderController(orderService, orderExportService, orderReturnService);
+        controller = new OrderController(
+                orderService,
+                orderExportService,
+                orderReturnService,
+                orderReturnReportService
+        );
     }
 
     @Test

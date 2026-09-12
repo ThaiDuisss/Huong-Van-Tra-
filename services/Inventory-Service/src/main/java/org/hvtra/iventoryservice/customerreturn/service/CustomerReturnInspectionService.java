@@ -1,8 +1,10 @@
 package org.hvtra.iventoryservice.customerreturn.service;
 
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
+import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcDispositionReportRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSummaryBatchRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
+import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
 
 import java.util.List;
@@ -16,4 +18,8 @@ public interface CustomerReturnInspectionService {
     CustomerReturnQcSummaryResponse getQcSummary(UUID returnId);
 
     List<CustomerReturnQcSummaryResponse> getQcSummaries(CustomerReturnQcSummaryBatchRequest request);
+
+    List<CustomerReturnQcDispositionReportResponse> getQcDispositionReport(
+            CustomerReturnQcDispositionReportRequest request
+    );
 }

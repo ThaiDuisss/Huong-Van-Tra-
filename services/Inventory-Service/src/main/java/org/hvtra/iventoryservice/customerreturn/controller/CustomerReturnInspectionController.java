@@ -3,8 +3,10 @@ package org.hvtra.iventoryservice.customerreturn.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
+import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcDispositionReportRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSummaryBatchRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
+import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.service.CustomerReturnInspectionService;
 import org.springframework.http.HttpStatus;
@@ -49,5 +51,12 @@ public class CustomerReturnInspectionController {
             @Valid @RequestBody CustomerReturnQcSummaryBatchRequest request
     ) {
         return ResponseEntity.ok(service.getQcSummaries(request));
+    }
+
+    @PostMapping("/customer-returns/qc-disposition-report")
+    public ResponseEntity<List<CustomerReturnQcDispositionReportResponse>> getQcDispositionReport(
+            @Valid @RequestBody CustomerReturnQcDispositionReportRequest request
+    ) {
+        return ResponseEntity.ok(service.getQcDispositionReport(request));
     }
 }
