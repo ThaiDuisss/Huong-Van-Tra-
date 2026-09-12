@@ -19,6 +19,10 @@ import java.util.UUID;
                 @UniqueConstraint(
                         name = "uk_provider_external_txn",
                         columnNames = {"provider", "external_transaction_id"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_payment_transactions_refund_reference",
+                        columnNames = "refund_reference"
                 )
         },
         indexes = {
@@ -83,6 +87,9 @@ public class PaymentTransaction {
 
     @Column(name = "reference_code", length = 100)
     String referenceCode;
+
+    @Column(name = "refund_reference", length = 100)
+    String refundReference;
 
     @Column(name = "gateway", length = 100)
     String gateway;

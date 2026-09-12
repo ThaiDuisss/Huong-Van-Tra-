@@ -898,6 +898,191 @@
   padding: 14px 22px;
 }
 
+.qcHeader,
+.qcPanelHeader,
+.qcActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.qcHeader h3,
+.qcHeader p,
+.qcPanelHeader strong,
+.qcPanelHeader span,
+.qcDoneNote,
+.qcEffect,
+.qcError {
+  margin: 0;
+}
+
+.qcHeader p,
+.qcPanelHeader span,
+.qcEffect {
+  color: #536078;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.qcHeader p strong {
+  color: #07883a;
+  font-weight: 950;
+}
+
+.qcSummaryList,
+.qcFormList,
+.qcReviewList,
+.qcPanel,
+.qcReviewPanel {
+  display: grid;
+  gap: 12px;
+}
+
+.qcSummaryList,
+.qcPanel {
+  margin-top: 14px;
+}
+
+.qcSummaryItem,
+.qcFormItem,
+.qcReviewItem {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #f8faf9;
+  padding: 12px;
+}
+
+.qcSummaryItem {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.qcSummaryItem strong,
+.qcFormItem strong,
+.qcReviewItem strong,
+.qcPanelHeader strong {
+  color: #172317;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.qcSummaryItem span,
+.qcItemSelector small,
+.qcReviewItem span,
+.qcReviewItem small {
+  color: #536078;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.qcSummaryItem > div,
+.qcReviewItem {
+  min-width: 0;
+}
+
+.qcSummaryItem > div:first-child,
+.qcSummaryItem > div:last-child,
+.qcItemSelector span,
+.qcReviewPanel > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.qcDoneNote {
+  border-radius: 8px;
+  background: #e9f8ed;
+  color: #07883a;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.qcPanel {
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.qcItemSelector {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.qcItemSelector input {
+  margin-top: 3px;
+}
+
+.qcMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.qcInputGrid {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(180px, 1fr) minmax(220px, 1.2fr);
+  gap: 12px;
+}
+
+.qcInputGrid label {
+  display: grid;
+  gap: 7px;
+}
+
+.qcInputGrid label span {
+  color: #536078;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.qcInputGrid select,
+.qcInputGrid textarea {
+  width: 100%;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.qcInputGrid select {
+  height: 40px;
+  padding: 0 10px;
+}
+
+.qcInputGrid textarea {
+  min-height: 74px;
+  resize: vertical;
+  padding: 10px;
+}
+
+.qcEffect {
+  border-radius: 8px;
+  background: #f3f7f4;
+  padding: 10px;
+}
+
+.qcError {
+  border-radius: 8px;
+  background: #fff1f1;
+  color: #b91c1c;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.qcReviewItem p {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .confirmDialog {
   display: grid;
   gap: 12px;
@@ -1000,8 +1185,18 @@
 
   .orderPickerGrid,
   .reasonGrid,
-  .detailInfoGrid {
+  .detailInfoGrid,
+  .qcMetaGrid,
+  .qcInputGrid,
+  .qcSummaryItem {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .qcHeader,
+  .qcPanelHeader,
+  .qcActions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

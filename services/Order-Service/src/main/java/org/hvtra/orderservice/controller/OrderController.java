@@ -18,6 +18,7 @@ import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
@@ -223,6 +224,12 @@ public class OrderController {
     @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/cancel")
     public OrderReturnResponse cancelReturn(@PathVariable UUID returnId) {
         return orderReturnService.cancelReturn(returnId);
+    }
+
+    @Operation(summary = "hoan tien cho phieu hoan hang")
+    @PostMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund")
+    public OrderReturnRefundResponse refundReturn(@PathVariable UUID returnId) {
+        return orderReturnService.refundReturn(returnId);
     }
 
     @GetMapping

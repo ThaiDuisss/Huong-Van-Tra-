@@ -1,6 +1,8 @@
 package org.hvtra.orderservice.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.orderservice.client.InventoryClient;
+import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
@@ -12,6 +14,7 @@ import org.hvtra.orderservice.domain.enums.ReturnReason;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.exception.InvalidOrderReturnException;
@@ -22,6 +25,7 @@ import org.hvtra.orderservice.repository.OrderReturnRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
+import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -57,6 +61,9 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderReturnMapper orderReturnMapper;
+    private final InventoryClient inventoryClient;
+    private final PaymentClient paymentClient;
+    private final ReturnRefundCalculator returnRefundCalculator;
 
     @Override
     @Transactional
@@ -122,6 +129,52 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
         orderReturn.setStatus(ReturnStatus.CANCELLED);
         return orderReturnMapper.toResponse(orderReturnRepository.save(orderReturn));
+    }
+
+    @Override
+    @Transactional
+    public OrderReturnRefundResponse refundReturn(UUID returnId) {
+        OrderReturn orderReturn = getExistingReturnForUpdate(returnId);
+        if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
+            throw new InvalidOrderReturnException("Return inventory inspection is not completed");
+        }
+
+        InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
+                inventoryClient.getCustomerReturnQcSummary(returnId);
+        if (qcSummary == null || !"COMPLETED".equals(qcSummary.qcStatus())) {
+            throw new InvalidOrderReturnException("Return inventory inspection is not completed");
+        }
+
+        Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(
+                        orderReturn.getOrder().getId()
+                )
+                .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderReturn.getOrder().getId()));
+        List<OrderReturn> orderReturns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(
+                lockedOrder.getId()
+        );
+        BigDecimal refundAmount = returnRefundCalculator
+                .calculate(lockedOrder, orderReturn, orderReturns)
+                .refundAmount();
+        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidOrderReturnException("Refund amount must be greater than 0");
+        }
+
+        PaymentClient.PaymentRefundResponse paymentRefund = paymentClient.refundOrderReturn(
+                lockedOrder.getId(),
+                new PaymentClient.PaymentRefundRequest(returnId, refundAmount)
+        );
+
+        return OrderReturnRefundResponse.builder()
+                .returnId(returnId)
+                .orderId(lockedOrder.getId())
+                .paymentId(paymentRefund.paymentId())
+                .refundTransactionId(paymentRefund.refundTransactionId())
+                .refundAmount(paymentRefund.refundAmount())
+                .totalAmountRefunded(paymentRefund.totalAmountRefunded())
+                .paymentStatus(paymentRefund.paymentStatus())
+                .method(paymentRefund.method())
+                .refundedAt(paymentRefund.refundedAt())
+                .build();
     }
 
     @Override

@@ -16,6 +16,12 @@ export type ReturnCondition =
     | "SPOILED"
     | "USED";
 
+export type CustomerReturnQcResult = "RESTOCK" | "QUARANTINE" | "WRITE_OFF";
+
+export type CustomerReturnQcStatus = "PENDING" | "PARTIAL" | "COMPLETED";
+
+export type CustomerReturnInspectionStatus = "CREATED" | "POSTED" | "CANCELLED";
+
 export interface CreateOrderReturnItemPayload {
     orderItemId: string;
     quantity: number;
@@ -32,6 +38,7 @@ export interface CreateOrderReturnPayload {
 export interface OrderReturnItemResponse {
     id?: string | null;
     orderItemId?: string | null;
+    productVariantId?: string | null;
     quantity?: number | string | null;
     reason?: ReturnReason | null;
     condition?: ReturnCondition | null;
@@ -46,6 +53,8 @@ export interface OrderReturnResponse {
     returnCode?: string | null;
     orderId?: string | null;
     status?: ReturnStatus | null;
+    branchId?: string | null;
+    orderCode?: string | null;
     note?: string | null;
     createdAt?: string | null;
     updatedAt?: string | null;
@@ -57,6 +66,7 @@ export interface OrderReturnSummaryResponse {
     returnCode?: string | null;
     orderId?: string | null;
     orderCode?: string | null;
+    branchId?: string | null;
     status?: ReturnStatus | null;
     createdAt?: string | null;
     updatedAt?: string | null;
@@ -78,4 +88,68 @@ export interface OrderReturnQueryParams {
     page?: number;
     size?: number;
     sort?: string;
+}
+
+export interface CustomerReturnQcSummaryLine {
+    returnItemId: string;
+    orderItemId?: string | null;
+    productVariantId?: string | null;
+    returnedQuantity?: number | string | null;
+    postedQcQuantity?: number | string | null;
+    remainingQcQuantity?: number | string | null;
+    status?: CustomerReturnQcStatus | null;
+    condition?: ReturnCondition | null;
+    reason?: ReturnReason | string | null;
+}
+
+export interface CustomerReturnQcSummaryResponse {
+    returnId: string;
+    returnCode?: string | null;
+    returnStatus?: ReturnStatus | null;
+    branchId?: string | null;
+    orderId?: string | null;
+    orderCode?: string | null;
+    qcStatus?: CustomerReturnQcStatus | null;
+    lines?: CustomerReturnQcSummaryLine[] | null;
+}
+
+export interface CreateCustomerReturnInspectionLinePayload {
+    returnItemId: string;
+    quantity: number;
+    result: CustomerReturnQcResult;
+    destinationLocationId?: string | null;
+    note?: string | null;
+}
+
+export interface CreateCustomerReturnInspectionPayload {
+    note?: string | null;
+    lines: CreateCustomerReturnInspectionLinePayload[];
+}
+
+export interface CustomerReturnInspectionLine {
+    id: string;
+    returnItemId: string;
+    orderItemId?: string | null;
+    productVariantId?: string | null;
+    inventoryItemId?: string | null;
+    quantity?: number | string | null;
+    result?: CustomerReturnQcResult | null;
+    destinationLocationId?: string | null;
+    note?: string | null;
+    posted?: boolean | null;
+    transactionId?: string | null;
+}
+
+export interface CustomerReturnInspectionResponse {
+    id: string;
+    inspectionCode?: string | null;
+    returnId?: string | null;
+    returnCode?: string | null;
+    branchId?: string | null;
+    orderId?: string | null;
+    orderCode?: string | null;
+    status?: CustomerReturnInspectionStatus | null;
+    postedAt?: string | null;
+    note?: string | null;
+    lines?: CustomerReturnInspectionLine[] | null;
 }

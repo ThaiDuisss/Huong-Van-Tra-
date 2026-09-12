@@ -1,7 +1,10 @@
 import { apiClient } from "../../../api/api-client";
 import type { OrderPageResponse } from "../types/order.types";
 import type {
+    CreateCustomerReturnInspectionPayload,
     CreateOrderReturnPayload,
+    CustomerReturnInspectionResponse,
+    CustomerReturnQcSummaryResponse,
     OrderReturnQueryParams,
     OrderReturnSummaryResponse,
     OrderReturnResponse
@@ -60,6 +63,34 @@ export function receiveOrderReturn(returnId: string) {
 export function cancelOrderReturn(returnId: string) {
     return apiClient.put<OrderReturnResponse, Record<string, never>>(
         `/orders/returns/${encodeURIComponent(returnId)}/cancel`,
+        {}
+    );
+}
+
+export function getCustomerReturnQcSummary(returnId: string) {
+    return apiClient.get<CustomerReturnQcSummaryResponse>(
+        `/inventory/customer-returns/${encodeURIComponent(returnId)}/qc-summary`
+    );
+}
+
+export function createCustomerReturnInspection(
+    returnId: string,
+    payload: CreateCustomerReturnInspectionPayload
+) {
+    return apiClient.post<
+        CustomerReturnInspectionResponse,
+        CreateCustomerReturnInspectionPayload
+    >(
+        `/inventory/customer-returns/${encodeURIComponent(returnId)}/inspections`,
+        payload
+    );
+}
+
+export function postCustomerReturnInspection(inspectionId: string) {
+    return apiClient.post<CustomerReturnInspectionResponse, Record<string, never>>(
+        `/inventory/customer-return-inspections/${encodeURIComponent(
+            inspectionId
+        )}/post`,
         {}
     );
 }

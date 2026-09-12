@@ -1,5 +1,7 @@
 import type { OrderDetailResponse, OrderItemResponse } from "../types/order.types";
 import type {
+    CustomerReturnQcResult,
+    CustomerReturnQcStatus,
     OrderReturnResponse,
     ReturnCondition,
     ReturnReason,
@@ -30,6 +32,37 @@ export const RETURN_CONDITION_LABELS: Record<ReturnCondition, string> = {
     SPOILED: "Mốc / biến chất",
     USED: "Đã sử dụng"
 };
+
+export const CUSTOMER_RETURN_QC_STATUS_LABELS: Record<
+    CustomerReturnQcStatus,
+    string
+> = {
+    PENDING: "Chưa kiểm tra",
+    PARTIAL: "Đang kiểm tra một phần",
+    COMPLETED: "Đã kiểm tra xong"
+};
+
+export const CUSTOMER_RETURN_QC_RESULT_LABELS: Record<
+    CustomerReturnQcResult,
+    string
+> = {
+    RESTOCK: "Nhập lại tồn bán được",
+    QUARANTINE: "Cách ly chờ xử lý",
+    WRITE_OFF: "Loại bỏ / ghi giảm"
+};
+
+export const CUSTOMER_RETURN_QC_RESULT_EFFECTS: Record<
+    CustomerReturnQcResult,
+    string
+> = {
+    RESTOCK: "Sản phẩm sẽ được nhập lại tồn bán được.",
+    QUARANTINE: "Sản phẩm sẽ được đưa vào khu cách ly và không thể bán.",
+    WRITE_OFF: "Sản phẩm sẽ bị loại bỏ và không được cộng lại tồn bán được."
+};
+
+export const CUSTOMER_RETURN_QC_RESULTS = Object.keys(
+    CUSTOMER_RETURN_QC_RESULT_LABELS
+) as CustomerReturnQcResult[];
 
 export const RETURN_REASONS = Object.keys(
     RETURN_REASON_LABELS
@@ -92,6 +125,28 @@ export function getReturnReasonLabel(reason?: ReturnReason | null) {
 
 export function getReturnConditionLabel(condition?: ReturnCondition | null) {
     return condition ? RETURN_CONDITION_LABELS[condition] ?? condition : "--";
+}
+
+export function getCustomerReturnQcStatusLabel(
+    status?: CustomerReturnQcStatus | null
+) {
+    return status ? CUSTOMER_RETURN_QC_STATUS_LABELS[status] ?? status : "--";
+}
+
+export function getCustomerReturnQcResultLabel(
+    result?: CustomerReturnQcResult | null
+) {
+    return result ? CUSTOMER_RETURN_QC_RESULT_LABELS[result] ?? result : "--";
+}
+
+export function getAllowedCustomerReturnQcResults(
+    condition?: ReturnCondition | null
+) {
+    if (condition === "SEALED") {
+        return CUSTOMER_RETURN_QC_RESULTS;
+    }
+
+    return CUSTOMER_RETURN_QC_RESULTS.filter((result) => result !== "RESTOCK");
 }
 
 export function isActiveReturnStatus(status?: ReturnStatus | null) {
@@ -178,6 +233,60 @@ export function getReturnErrorMessage(error: unknown) {
 
     if (message.includes("Only CREATED return can be cancelled")) {
         return "Chỉ phiếu hoàn đang tạo mới được hủy.";
+    }
+
+    if (
+        message.includes("Only RECEIVED order returns can be QC") ||
+        message.includes("Only RECEIVED order returns can be QC'd")
+    ) {
+        return "Phiếu hoàn chưa ở trạng thái đã nhận hàng.";
+    }
+
+    if (
+        message.includes("QC quantity exceeds returned quantity") ||
+        message.includes("Inspection quantity exceeds remaining returned quantity")
+    ) {
+        return "Số lượng kiểm tra vượt quá số lượng còn lại.";
+    }
+
+    if (
+        message.includes("RESTOCK destination must be an active saleable location") ||
+        message.includes("Destination location is not saleable")
+    ) {
+        return "Vị trí nhập lại không phải vị trí có thể bán.";
+    }
+
+    if (
+        message.includes("QUARANTINE destination must be a QUARANTINE location") ||
+        message.includes("Destination location must be QUARANTINE")
+    ) {
+        return "Vui lòng chọn vị trí cách ly.";
+    }
+
+    if (
+        message.includes("Inventory item not found") ||
+        message.includes("Active inventory item not found")
+    ) {
+        return "Không tìm thấy sản phẩm tương ứng trong kho.";
+    }
+
+    if (
+        message.includes("Customer return inspection is already posted") ||
+        message.includes("Inspection already posted")
+    ) {
+        return "Phiếu kiểm tra này đã được xử lý.";
+    }
+
+    if (message.includes("destinationLocationId is required")) {
+        return "Vui lòng chọn vị trí đích.";
+    }
+
+    if (message.includes("RESTOCK is not allowed for return condition")) {
+        return "Tình trạng hàng này không được nhập lại tồn bán được.";
+    }
+
+    if (message.includes("WRITE_OFF for SEALED return item requires a reason note")) {
+        return "Vui lòng nhập lý do khi loại bỏ sản phẩm còn nguyên seal.";
     }
 
     return message;

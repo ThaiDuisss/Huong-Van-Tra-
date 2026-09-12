@@ -36,7 +36,8 @@ export function LocationTypeBadge({
         WAREHOUSE: "bg-emerald-50 text-emerald-700",
         STORAGE: "bg-amber-50 text-amber-700",
         DAMAGED: "bg-red-50 text-red-700",
-        SHELF: "bg-blue-50 text-blue-700"
+        SHELF: "bg-blue-50 text-blue-700",
+        QUARANTINE: "bg-purple-50 text-purple-700"
     }[type];
 
     return (

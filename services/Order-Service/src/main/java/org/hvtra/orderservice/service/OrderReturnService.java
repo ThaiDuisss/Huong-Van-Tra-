@@ -2,6 +2,7 @@ package org.hvtra.orderservice.service;
 
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.springframework.data.domain.Page;
@@ -16,6 +17,8 @@ public interface OrderReturnService {
     OrderReturnResponse receiveReturn(UUID returnId);
 
     OrderReturnResponse cancelReturn(UUID returnId);
+
+    OrderReturnRefundResponse refundReturn(UUID returnId);
 
     Page<OrderReturnSummaryResponse> getReturns(
             String keyword,

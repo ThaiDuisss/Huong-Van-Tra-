@@ -1,6 +1,7 @@
 package org.hvtra.paymentservice.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.paymentservice.config.SepayProperties;
 import org.hvtra.paymentservice.domain.entity.Payment;
 import org.hvtra.paymentservice.domain.entity.PaymentAttempt;
@@ -12,8 +13,10 @@ import org.hvtra.paymentservice.domain.enums.PaymentStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
+import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
 import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
+import org.hvtra.paymentservice.dto.response.PaymentRefundResponse;
 import org.hvtra.paymentservice.repository.PaymentAttemptRepository;
 import org.hvtra.paymentservice.repository.PaymentRepository;
 import org.hvtra.paymentservice.repository.PaymentTransactionRepository;
@@ -23,8 +26,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumSet;
 import java.util.UUID;
 
 @Service
@@ -32,6 +37,8 @@ import java.util.UUID;
 public class PaymentServiceImpl implements PaymentService {
 
     private static final String CURRENCY_VND = "VND";
+    private static final EnumSet<PaymentStatus> REFUNDABLE_PAYMENT_STATUSES =
+            EnumSet.of(PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED);
 
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository paymentAttemptRepository;
@@ -48,6 +55,77 @@ public class PaymentServiceImpl implements PaymentService {
             case CASH -> payByCash(request);
             case BANK_TRANSFER -> createBankTransferCheckout(request);
         };
+    }
+
+    @Override
+    @Transactional
+    public PaymentRefundResponse refundOrderReturn(UUID orderId, RefundPaymentRequest request) {
+        validateRefundRequest(orderId, request);
+
+        String refundReference = request.getReturnId().toString();
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment not found"));
+
+        PaymentTransaction existingTransaction = paymentTransactionRepository
+                .findByRefundReference(refundReference)
+                .orElse(null);
+        if (existingTransaction != null) {
+            if (existingTransaction.getPayment() == null
+                    || !payment.getId().equals(existingTransaction.getPayment().getId())) {
+                throw new BusinessException("REFUND_ALREADY_EXISTS", "Refund has already been created for this return");
+            }
+            if (existingTransaction.getStatus() == PaymentTransactionStatus.SUCCEEDED) {
+                return toRefundResponse(payment, existingTransaction);
+            }
+            throw new BusinessException("REFUND_ALREADY_EXISTS", "Refund has already been created for this return");
+        }
+
+        if (payment.getMethod() != PaymentMethod.CASH) {
+            throw new BusinessException("UNSUPPORTED_REFUND_METHOD", "Refund method is not supported yet");
+        }
+        if (!REFUNDABLE_PAYMENT_STATUSES.contains(payment.getStatus())) {
+            throw new BusinessException("PAYMENT_NOT_REFUNDABLE", "Payment is not eligible for refund");
+        }
+
+        BigDecimal refundAmount = normalizeMoney(request.getAmount());
+        BigDecimal amountPaid = defaultZero(payment.getAmountPaid());
+        BigDecimal amountRefunded = defaultZero(payment.getAmountRefunded());
+        BigDecimal remainingRefundable = amountPaid.subtract(amountRefunded);
+        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("INVALID_REFUND_AMOUNT", "Refund amount must be greater than 0");
+        }
+        if (refundAmount.compareTo(remainingRefundable) > 0) {
+            throw new BusinessException("REFUND_AMOUNT_EXCEEDS_REMAINING", "Refund amount exceeds remaining refundable amount");
+        }
+
+        LocalDateTime refundedAt = LocalDateTime.now();
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .payment(payment)
+                .transactionType(PaymentTransactionType.REFUND)
+                .method(PaymentMethod.CASH)
+                .provider(PaymentProvider.INTERNAL)
+                .status(PaymentTransactionStatus.SUCCEEDED)
+                .amount(refundAmount)
+                .currency(CURRENCY_VND)
+                .referenceCode("RETURN-" + request.getReturnId())
+                .refundReference(refundReference)
+                .paidAt(refundedAt)
+                .build();
+
+        PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
+
+        BigDecimal totalRefunded = amountRefunded.add(refundAmount);
+        if (totalRefunded.compareTo(amountPaid) > 0) {
+            throw new BusinessException("REFUND_AMOUNT_EXCEEDS_REMAINING", "Refund amount exceeds remaining refundable amount");
+        }
+
+        payment.setAmountRefunded(totalRefunded);
+        payment.setStatus(totalRefunded.compareTo(amountPaid) < 0
+                ? PaymentStatus.PARTIALLY_REFUNDED
+                : PaymentStatus.REFUNDED);
+        Payment savedPayment = paymentRepository.save(payment);
+
+        return toRefundResponse(savedPayment, savedTransaction);
     }
 
     /**
@@ -317,6 +395,39 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+    private void validateRefundRequest(UUID orderId, RefundPaymentRequest request) {
+        if (orderId == null) {
+            throw new BusinessException("INVALID_REFUND_REQUEST", "orderId không được để trống");
+        }
+        if (request == null) {
+            throw new BusinessException("INVALID_REFUND_REQUEST", "Request không được để trống");
+        }
+        if (request.getReturnId() == null) {
+            throw new BusinessException("INVALID_REFUND_REQUEST", "returnId không được để trống");
+        }
+        if (request.getAmount() == null) {
+            throw new BusinessException("INVALID_REFUND_REQUEST", "amount không được để trống");
+        }
+    }
+
+    private PaymentRefundResponse toRefundResponse(Payment payment, PaymentTransaction transaction) {
+        return PaymentRefundResponse.builder()
+                .paymentId(payment.getId())
+                .orderId(payment.getOrderId())
+                .refundTransactionId(transaction.getId())
+                .returnId(parseUuid(transaction.getRefundReference()))
+                .refundAmount(transaction.getAmount())
+                .totalAmountRefunded(payment.getAmountRefunded())
+                .paymentStatus(payment.getStatus().name())
+                .method(payment.getMethod().name())
+                .refundedAt(transaction.getPaidAt())
+                .build();
+    }
+
+    private UUID parseUuid(String value) {
+        return value == null || value.isBlank() ? null : UUID.fromString(value);
+    }
+
     private boolean isExpired(LocalDateTime expiresAt, LocalDateTime now) {
         return expiresAt == null || !expiresAt.isAfter(now);
     }
@@ -354,7 +465,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (value == null) {
             return BigDecimal.ZERO;
         }
-        return value.setScale(0, java.math.RoundingMode.HALF_UP);
+        return value.setScale(0, RoundingMode.HALF_UP);
     }
 
     private BigDecimal defaultZero(BigDecimal value) {

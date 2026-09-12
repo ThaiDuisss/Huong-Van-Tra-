@@ -1,5 +1,7 @@
 package org.hvtra.orderservice.service.impl;
 
+import org.hvtra.orderservice.client.InventoryClient;
+import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
@@ -20,6 +22,7 @@ import org.hvtra.orderservice.repository.OrderReturnItemRepository;
 import org.hvtra.orderservice.repository.OrderReturnRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
+import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,6 +75,15 @@ class OrderReturnServiceImplTest {
     @Mock
     private OrderCodeGenerator orderCodeGenerator;
 
+    @Mock
+    private InventoryClient inventoryClient;
+
+    @Mock
+    private PaymentClient paymentClient;
+
+    @Mock
+    private ReturnRefundCalculator returnRefundCalculator;
+
     private OrderReturnServiceImpl service;
 
     private UUID orderId;
@@ -87,7 +99,10 @@ class OrderReturnServiceImplTest {
                 orderReturnItemRepository,
                 orderStatusHistoryRepository,
                 orderCodeGenerator,
-                new OrderReturnMapper()
+                new OrderReturnMapper(),
+                inventoryClient,
+                paymentClient,
+                returnRefundCalculator
         );
         orderId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();
@@ -415,6 +430,97 @@ class OrderReturnServiceImplTest {
 
         assertEquals("Only created returns can be received", exception.getMessage());
         verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    void refundReturnRejectsReturnThatIsNotReceivedWithInspectionMessage() {
+        UUID returnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.CREATED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.refundReturn(returnId)
+        );
+
+        assertEquals("Return inventory inspection is not completed", exception.getMessage());
+        verifyNoInteractions(inventoryClient, paymentClient, returnRefundCalculator);
+    }
+
+    @Test
+    void refundReturnRejectsPendingQcWithRequiredMessage() {
+        UUID returnId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.RECEIVED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(inventoryClient.getCustomerReturnQcSummary(returnId)).thenReturn(
+                new InventoryClient.CustomerReturnQcSummaryResponse(
+                        returnId,
+                        "RET-001",
+                        "RECEIVED",
+                        UUID.randomUUID(),
+                        orderId,
+                        "ORD-001",
+                        "PENDING",
+                        List.of()
+                )
+        );
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.refundReturn(returnId)
+        );
+
+        assertEquals("Return inventory inspection is not completed", exception.getMessage());
+        verifyNoInteractions(paymentClient, returnRefundCalculator);
+    }
+
+    @Test
+    void refundReturnCalculatesAmountAndCallsPaymentService() {
+        UUID returnId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.RECEIVED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(inventoryClient.getCustomerReturnQcSummary(returnId)).thenReturn(
+                new InventoryClient.CustomerReturnQcSummaryResponse(
+                        returnId,
+                        "RET-001",
+                        "RECEIVED",
+                        UUID.randomUUID(),
+                        orderId,
+                        "ORD-001",
+                        "COMPLETED",
+                        List.of()
+                )
+        );
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(orderReturn));
+        when(returnRefundCalculator.calculate(order, orderReturn, List.of(orderReturn)))
+                .thenReturn(new ReturnRefundCalculator.RefundCalculationResult(new BigDecimal("120000")));
+        when(paymentClient.refundOrderReturn(
+                eq(orderId),
+                eq(new PaymentClient.PaymentRefundRequest(returnId, new BigDecimal("120000")))
+        )).thenReturn(new PaymentClient.PaymentRefundResponse(
+                paymentId,
+                orderId,
+                transactionId,
+                returnId,
+                new BigDecimal("120000"),
+                new BigDecimal("120000"),
+                "PARTIALLY_REFUNDED",
+                "CASH",
+                null
+        ));
+
+        var response = service.refundReturn(returnId);
+
+        assertEquals(returnId, response.getReturnId());
+        assertEquals(orderId, response.getOrderId());
+        assertEquals(paymentId, response.getPaymentId());
+        assertEquals(transactionId, response.getRefundTransactionId());
+        assertEquals(new BigDecimal("120000"), response.getRefundAmount());
+        assertEquals("PARTIALLY_REFUNDED", response.getPaymentStatus());
     }
 
     @Test
