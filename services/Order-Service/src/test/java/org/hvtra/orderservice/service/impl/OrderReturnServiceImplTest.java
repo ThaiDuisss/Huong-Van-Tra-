@@ -149,7 +149,7 @@ class OrderReturnServiceImplTest {
                 )
         );
 
-        assertEquals("Order is not eligible for return", exception.getMessage());
+        assertEquals("Order is not completed", exception.getMessage());
         verify(orderReturnRepository, never()).save(any());
     }
 
@@ -166,7 +166,85 @@ class OrderReturnServiceImplTest {
                 )
         );
 
-        assertEquals("Order is not eligible for return", exception.getMessage());
+        assertEquals("Order payment status is not eligible for return", exception.getMessage());
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    void createReturnAllowsPartiallyRefundedOrderWithRemainingQuantity() {
+        order.setPaymentStatus(PaymentStatus.PARTIALLY_REFUNDED);
+        order.setReturnStatus(OrderReturnStatus.PARTIALLY_RETURNED);
+        stubEligibleOrder(BigDecimal.ONE);
+        when(orderCodeGenerator.generateReturnCode()).thenReturn("RET-PARTIAL-REFUND");
+        when(orderReturnRepository.existsByReturnCode("RET-PARTIAL-REFUND")).thenReturn(false);
+        when(orderReturnRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderReturnResponse response = service.createReturn(
+                orderId,
+                request(orderItemId, "2.000", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null)
+        );
+
+        assertEquals("RET-PARTIAL-REFUND", response.getReturnCode());
+        assertEquals(new BigDecimal("2.000"), response.getItems().getFirst().getQuantity());
+        verify(orderReturnItemRepository).sumReturnedQuantity(
+                eq(orderItemId),
+                argThat(statuses -> statuses.contains(ReturnStatus.CREATED)
+                        && statuses.contains(ReturnStatus.RECEIVED)
+                        && statuses.contains(ReturnStatus.COMPLETED)
+                        && !statuses.contains(ReturnStatus.CANCELLED))
+        );
+    }
+
+    @Test
+    void createReturnRejectsPartiallyRefundedOrderWhenQuantityExceedsRemaining() {
+        order.setPaymentStatus(PaymentStatus.PARTIALLY_REFUNDED);
+        order.setReturnStatus(OrderReturnStatus.PARTIALLY_RETURNED);
+        stubEligibleOrder(new BigDecimal("1.000"));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.createReturn(
+                        orderId,
+                        request(orderItemId, "3.000", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null)
+                )
+        );
+
+        assertEquals("Return quantity exceeds remaining returnable quantity", exception.getMessage());
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    void createReturnRejectsRefundedOrder() {
+        order.setPaymentStatus(PaymentStatus.REFUNDED);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.createReturn(
+                        orderId,
+                        request(orderItemId, "1.000", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null)
+                )
+        );
+
+        assertEquals("Order payment status is not eligible for return", exception.getMessage());
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    void createReturnRejectsFullyReturnedOrder() {
+        order.setPaymentStatus(PaymentStatus.PARTIALLY_REFUNDED);
+        order.setReturnStatus(OrderReturnStatus.FULLY_RETURNED);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.createReturn(
+                        orderId,
+                        request(orderItemId, "1.000", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null)
+                )
+        );
+
+        assertEquals("Order has already been fully returned", exception.getMessage());
         verify(orderReturnRepository, never()).save(any());
     }
 
@@ -246,6 +324,22 @@ class OrderReturnServiceImplTest {
         );
 
         assertEquals("Return quantity exceeds remaining returnable quantity", exception.getMessage());
+    }
+
+    @Test
+    void createReturnRejectsWhenNoRemainingQuantityAvailable() {
+        stubEligibleOrder(new BigDecimal("3.000"));
+
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.createReturn(
+                        orderId,
+                        request(orderItemId, "1.000", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null)
+                )
+        );
+
+        assertEquals("No remaining quantity available for return", exception.getMessage());
+        verify(orderReturnRepository, never()).save(any());
     }
 
     @Test

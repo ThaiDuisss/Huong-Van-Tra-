@@ -648,10 +648,15 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     }
 
     private void validateOrderEligibility(Order order) {
-        if (OrderStatus.COMPLETED != order.getStatus()
-                || (PaymentStatus.PAID != order.getPaymentStatus()
-                && PaymentStatus.PARTIALLY_REFUNDED != order.getPaymentStatus())) {
-            throw new InvalidOrderReturnException("Order is not eligible for return");
+        if (OrderStatus.COMPLETED != order.getStatus()) {
+            throw new InvalidOrderReturnException("Order is not completed");
+        }
+        if (OrderReturnStatus.FULLY_RETURNED == order.getReturnStatus()) {
+            throw new InvalidOrderReturnException("Order has already been fully returned");
+        }
+        if (PaymentStatus.PAID != order.getPaymentStatus()
+                && PaymentStatus.PARTIALLY_REFUNDED != order.getPaymentStatus()) {
+            throw new InvalidOrderReturnException("Order payment status is not eligible for return");
         }
     }
 
@@ -697,6 +702,9 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         ));
         BigDecimal remainingQuantity = purchasedQuantity.subtract(returnedQuantity);
 
+        if (remainingQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidOrderReturnException("No remaining quantity available for return");
+        }
         if (requestedQuantity.compareTo(remainingQuantity) > 0) {
             throw new InvalidOrderReturnException("Return quantity exceeds remaining returnable quantity");
         }

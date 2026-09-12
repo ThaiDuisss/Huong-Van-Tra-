@@ -203,14 +203,20 @@ export function getReturnErrorMessage(error: unknown) {
             ? error.message
             : "Không thể xử lý phiếu hoàn. Vui lòng thử lại.";
 
-    if (message.includes("Order is not eligible for return")) {
+    if (
+        message.includes("Order is not eligible for return") ||
+        message.includes("Order is not completed") ||
+        message.includes("Order payment status is not eligible for return") ||
+        message.includes("Order has already been fully returned")
+    ) {
         return "Đơn hàng không đủ điều kiện hoàn.";
     }
 
     if (
         message.includes(
             "Return quantity exceeds remaining returnable quantity"
-        )
+        ) ||
+        message.includes("No remaining quantity available for return")
     ) {
         return "Số lượng hoàn vượt quá số lượng còn có thể hoàn.";
     }
