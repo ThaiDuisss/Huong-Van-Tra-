@@ -22,7 +22,11 @@ public class OrderNotificationEventConsumer {
                     "${notification.order.events.topics.confirmed:order.event.ORDER_CONFIRMED}",
                     "${notification.order.events.topics.cancelled:order.event.ORDER_CANCELLED}",
                     "${notification.order.events.topics.status-changed:order.event.ORDER_STATUS_CHANGED}",
-                    "${notification.order.events.topics.completed}"
+                    "${notification.order.events.topics.completed}",
+                    "${notification.return.events.topics.created:notification.return.created}",
+                    "${notification.return.events.topics.received:notification.return.received}",
+                    "${notification.return.events.topics.cancelled:notification.return.cancelled}",
+                    "${notification.return.events.topics.refund-completed:notification.return.refund-completed}"
             },
             groupId = "${spring.application.name:notification-service}-order-events"
     )

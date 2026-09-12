@@ -8,6 +8,7 @@ import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnTimelineResponse;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.springframework.data.domain.Page;
@@ -54,4 +55,6 @@ public interface OrderReturnService {
     List<OrderReturnResponse> getReturnsByOrder(UUID orderId);
 
     OrderReturnResponse getReturnById(UUID returnId);
+
+    List<OrderReturnTimelineResponse> getReturnTimeline(UUID returnId);
 }

@@ -26,6 +26,7 @@ import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnTimelineResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
@@ -247,6 +248,12 @@ public class OrderController {
     @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}")
     public OrderReturnResponse getReturnById(@PathVariable UUID returnId) {
         return orderReturnService.getReturnById(returnId);
+    }
+
+    @Operation(summary = "lay timeline xu ly hoan hang")
+    @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/timeline")
+    public List<OrderReturnTimelineResponse> getReturnTimeline(@PathVariable UUID returnId) {
+        return orderReturnService.getReturnTimeline(returnId);
     }
 
     @Operation(summary = "xem truoc so tien hoan tien")

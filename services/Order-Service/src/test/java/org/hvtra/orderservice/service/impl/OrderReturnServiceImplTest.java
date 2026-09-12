@@ -7,6 +7,7 @@ import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
+import org.hvtra.orderservice.domain.enums.OrderReturnHistoryAction;
 import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -19,12 +20,15 @@ import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.exception.InvalidOrderReturnException;
 import org.hvtra.orderservice.repository.OrderRepository;
+import org.hvtra.orderservice.repository.OrderReturnHistoryRepository;
 import org.hvtra.orderservice.repository.OrderReturnItemRepository;
 import org.hvtra.orderservice.repository.OrderReturnRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
+import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
+import org.hvtra.orderservice.service.support.OrderReturnHistoryWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -71,6 +75,9 @@ class OrderReturnServiceImplTest {
     private OrderReturnItemRepository orderReturnItemRepository;
 
     @Mock
+    private OrderReturnHistoryRepository orderReturnHistoryRepository;
+
+    @Mock
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
 
     @Mock
@@ -85,6 +92,12 @@ class OrderReturnServiceImplTest {
     @Mock
     private ReturnRefundCalculator returnRefundCalculator;
 
+    @Mock
+    private OrderReturnHistoryWriter orderReturnHistoryWriter;
+
+    @Mock
+    private OrderOutboxPublisher orderOutboxPublisher;
+
     private OrderReturnServiceImpl service;
 
     private UUID orderId;
@@ -98,12 +111,15 @@ class OrderReturnServiceImplTest {
                 orderRepository,
                 orderReturnRepository,
                 orderReturnItemRepository,
+                orderReturnHistoryRepository,
                 orderStatusHistoryRepository,
                 orderCodeGenerator,
                 new OrderReturnMapper(),
                 inventoryClient,
                 paymentClient,
-                returnRefundCalculator
+                returnRefundCalculator,
+                orderReturnHistoryWriter,
+                orderOutboxPublisher
         );
         orderId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();
@@ -134,6 +150,17 @@ class OrderReturnServiceImplTest {
         verify(orderReturnRepository).save(captor.capture());
         assertEquals(ReturnStatus.CREATED, captor.getValue().getStatus());
         assertSame(orderItem, captor.getValue().getItems().getFirst().getOrderItem());
+        verify(orderReturnHistoryWriter).writeIfAbsent(
+                captor.getValue(),
+                OrderReturnHistoryAction.CREATED,
+                null,
+                ReturnStatus.CREATED,
+                null,
+                null,
+                null,
+                null
+        );
+        verify(orderOutboxPublisher).publishReturnCreatedNotification(captor.getValue(), null);
     }
 
     @Test
@@ -466,6 +493,21 @@ class OrderReturnServiceImplTest {
         assertEquals(ReturnStatus.RECEIVED, orderReturn.getStatus());
         assertEquals(ReturnStatus.RECEIVED, response.getStatus());
         verify(orderReturnRepository).save(orderReturn);
+        verify(orderReturnHistoryWriter).writeIfAbsent(
+                orderReturn,
+                OrderReturnHistoryAction.RECEIVED,
+                ReturnStatus.CREATED,
+                ReturnStatus.RECEIVED,
+                null,
+                "Store received returned goods",
+                null,
+                null
+        );
+        verify(orderOutboxPublisher).publishReturnReceivedNotification(
+                orderReturn,
+                ReturnStatus.CREATED,
+                null
+        );
     }
 
     @Test
@@ -480,6 +522,21 @@ class OrderReturnServiceImplTest {
         assertEquals(ReturnStatus.CANCELLED, orderReturn.getStatus());
         assertEquals(ReturnStatus.CANCELLED, response.getStatus());
         verify(orderReturnRepository).save(orderReturn);
+        verify(orderReturnHistoryWriter).writeIfAbsent(
+                orderReturn,
+                OrderReturnHistoryAction.CANCELLED,
+                ReturnStatus.CREATED,
+                ReturnStatus.CANCELLED,
+                null,
+                "Return cancelled",
+                null,
+                null
+        );
+        verify(orderOutboxPublisher).publishReturnCancelledNotification(
+                orderReturn,
+                ReturnStatus.CREATED,
+                null
+        );
     }
 
     @Test
@@ -625,6 +682,32 @@ class OrderReturnServiceImplTest {
         assertEquals(OrderReturnStatus.PARTIALLY_RETURNED, order.getReturnStatus());
         verify(orderReturnRepository).save(orderReturn);
         verify(orderRepository).save(order);
+        verify(orderReturnHistoryWriter).writeIfAbsent(
+                orderReturn,
+                OrderReturnHistoryAction.REFUND_COMPLETED,
+                ReturnStatus.RECEIVED,
+                ReturnStatus.COMPLETED,
+                null,
+                "Refund completed",
+                "PAYMENT_TRANSACTION",
+                transactionId.toString()
+        );
+        verify(orderReturnHistoryWriter).writeIfAbsent(
+                orderReturn,
+                OrderReturnHistoryAction.COMPLETED,
+                ReturnStatus.RECEIVED,
+                ReturnStatus.COMPLETED,
+                null,
+                "Return completed after refund",
+                "PAYMENT_TRANSACTION",
+                transactionId.toString()
+        );
+        verify(orderOutboxPublisher).publishReturnRefundCompletedNotification(
+                eq(orderReturn),
+                eq(ReturnStatus.RECEIVED),
+                isNull(),
+                any(PaymentClient.PaymentRefundResponse.class)
+        );
     }
 
     @Test

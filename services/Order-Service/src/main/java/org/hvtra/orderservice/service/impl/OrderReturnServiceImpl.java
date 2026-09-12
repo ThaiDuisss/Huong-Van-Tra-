@@ -1,13 +1,16 @@
 package org.hvtra.orderservice.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.utils.SecurityUtils;
 import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.entity.OrderReturnHistory;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
+import org.hvtra.orderservice.domain.enums.OrderReturnHistoryAction;
 import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -23,9 +26,11 @@ import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnTimelineResponse;
 import org.hvtra.orderservice.exception.InvalidOrderReturnException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.repository.OrderRepository;
+import org.hvtra.orderservice.repository.OrderReturnHistoryRepository;
 import org.hvtra.orderservice.repository.OrderReturnItemRepository;
 import org.hvtra.orderservice.repository.OrderReturnRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
@@ -33,11 +38,14 @@ import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
+import org.hvtra.orderservice.service.support.OrderReturnHistoryWriter;
+import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -66,12 +74,15 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     private final OrderRepository orderRepository;
     private final OrderReturnRepository orderReturnRepository;
     private final OrderReturnItemRepository orderReturnItemRepository;
+    private final OrderReturnHistoryRepository orderReturnHistoryRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderReturnMapper orderReturnMapper;
     private final InventoryClient inventoryClient;
     private final PaymentClient paymentClient;
     private final ReturnRefundCalculator returnRefundCalculator;
+    private final OrderReturnHistoryWriter orderReturnHistoryWriter;
+    private final OrderOutboxPublisher orderOutboxPublisher;
 
     @Override
     @Transactional
@@ -112,7 +123,21 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                     .build());
         }
 
-        return orderReturnMapper.toResponse(orderReturnRepository.save(orderReturn));
+        OrderReturn saved = orderReturnRepository.save(orderReturn);
+        UUID actorUserId = currentActorUserIdOrNull();
+        orderReturnHistoryWriter.writeIfAbsent(
+                saved,
+                OrderReturnHistoryAction.CREATED,
+                null,
+                ReturnStatus.CREATED,
+                actorUserId,
+                saved.getNote(),
+                null,
+                null
+        );
+        orderOutboxPublisher.publishReturnCreatedNotification(saved, actorUserId);
+
+        return orderReturnMapper.toResponse(saved);
     }
 
     @Override
@@ -123,8 +148,23 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             throw new InvalidOrderReturnException("Only created returns can be received");
         }
 
+        ReturnStatus oldStatus = orderReturn.getStatus();
         orderReturn.setStatus(ReturnStatus.RECEIVED);
-        return orderReturnMapper.toResponse(orderReturnRepository.save(orderReturn));
+        OrderReturn saved = orderReturnRepository.save(orderReturn);
+        UUID actorUserId = currentActorUserIdOrNull();
+        orderReturnHistoryWriter.writeIfAbsent(
+                saved,
+                OrderReturnHistoryAction.RECEIVED,
+                oldStatus,
+                ReturnStatus.RECEIVED,
+                actorUserId,
+                "Store received returned goods",
+                null,
+                null
+        );
+        orderOutboxPublisher.publishReturnReceivedNotification(saved, oldStatus, actorUserId);
+
+        return orderReturnMapper.toResponse(saved);
     }
 
     @Override
@@ -135,8 +175,23 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             throw new InvalidOrderReturnException("Only created returns can be cancelled");
         }
 
+        ReturnStatus oldStatus = orderReturn.getStatus();
         orderReturn.setStatus(ReturnStatus.CANCELLED);
-        return orderReturnMapper.toResponse(orderReturnRepository.save(orderReturn));
+        OrderReturn saved = orderReturnRepository.save(orderReturn);
+        UUID actorUserId = currentActorUserIdOrNull();
+        orderReturnHistoryWriter.writeIfAbsent(
+                saved,
+                OrderReturnHistoryAction.CANCELLED,
+                oldStatus,
+                ReturnStatus.CANCELLED,
+                actorUserId,
+                "Return cancelled",
+                null,
+                null
+        );
+        orderOutboxPublisher.publishReturnCancelledNotification(saved, oldStatus, actorUserId);
+
+        return orderReturnMapper.toResponse(saved);
     }
 
     @Override
@@ -297,10 +352,19 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 new PaymentClient.PaymentRefundRequest(returnId, refundAmount)
         );
 
+        ReturnStatus oldReturnStatus = orderReturn.getStatus();
         finalizeReturnAfterRefund(orderReturn, lockedOrder, orderReturns, paymentRefund);
 
         orderReturnRepository.save(orderReturn);
         orderRepository.save(lockedOrder);
+        UUID actorUserId = currentActorUserIdOrNull();
+        writeRefundCompletedAudit(orderReturn, oldReturnStatus, actorUserId, paymentRefund);
+        orderOutboxPublisher.publishReturnRefundCompletedNotification(
+                orderReturn,
+                oldReturnStatus,
+                actorUserId,
+                paymentRefund
+        );
 
         return toRefundResponse(orderReturn, lockedOrder, paymentRefund);
     }
@@ -420,9 +484,78 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         return orderReturnMapper.toResponse(orderReturn);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderReturnTimelineResponse> getReturnTimeline(UUID returnId) {
+        if (!orderReturnRepository.findByIdAndIsDeletedFalse(returnId).isPresent()) {
+            throw new OrderNotFoundException("Return not found: " + returnId);
+        }
+
+        return orderReturnHistoryRepository
+                .findByOrderReturnIdAndIsDeletedFalseOrderByOccurredAtAscIdAsc(returnId)
+                .stream()
+                .map(this::toTimelineResponse)
+                .toList();
+    }
+
     private OrderReturn getExistingReturnForUpdate(UUID returnId) {
         return orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)
                 .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
+    }
+
+    private void writeRefundCompletedAudit(
+            OrderReturn orderReturn,
+            ReturnStatus oldReturnStatus,
+            UUID actorUserId,
+            PaymentClient.PaymentRefundResponse paymentRefund
+    ) {
+        String refundTransactionId = paymentRefund.refundTransactionId() == null
+                ? null
+                : paymentRefund.refundTransactionId().toString();
+
+        orderReturnHistoryWriter.writeIfAbsent(
+                orderReturn,
+                OrderReturnHistoryAction.REFUND_COMPLETED,
+                oldReturnStatus,
+                ReturnStatus.COMPLETED,
+                actorUserId,
+                "Refund completed",
+                "PAYMENT_TRANSACTION",
+                refundTransactionId
+        );
+        orderReturnHistoryWriter.writeIfAbsent(
+                orderReturn,
+                OrderReturnHistoryAction.COMPLETED,
+                oldReturnStatus,
+                ReturnStatus.COMPLETED,
+                actorUserId,
+                "Return completed after refund",
+                "PAYMENT_TRANSACTION",
+                refundTransactionId
+        );
+    }
+
+    private OrderReturnTimelineResponse toTimelineResponse(OrderReturnHistory history) {
+        return OrderReturnTimelineResponse.builder()
+                .id(history.getId())
+                .action(history.getAction())
+                .fromStatus(history.getFromStatus())
+                .toStatus(history.getToStatus())
+                .actorUserId(history.getActorUserId())
+                .note(history.getNote())
+                .referenceType(history.getReferenceType())
+                .referenceId(history.getReferenceId())
+                .occurredAt(history.getOccurredAt())
+                .build();
+    }
+
+    private UUID currentActorUserIdOrNull() {
+        try {
+            String userId = SecurityUtils.currentUserId();
+            return userId == null || userId.isBlank() ? null : UUID.fromString(userId);
+        } catch (AccessDeniedException | IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private List<OrderRefundSummaryResponse> buildRefundSummaries(List<OrderReturnSummaryResponse> summaries) {
