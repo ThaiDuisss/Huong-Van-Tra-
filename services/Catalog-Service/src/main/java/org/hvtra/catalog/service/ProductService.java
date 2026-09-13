@@ -13,7 +13,7 @@ import org.hvtra.catalog.dto.response.LookupResponse;
 import java.util.List;
 
 public interface ProductService {
-    PageResponse<ProductSummaryResponse> findAll(
+    PageResponse<ProductResponse> findAll(
             String name, UUID categoryId, Status status, Pageable pageable);
     PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     ProductResponse findById(UUID id);

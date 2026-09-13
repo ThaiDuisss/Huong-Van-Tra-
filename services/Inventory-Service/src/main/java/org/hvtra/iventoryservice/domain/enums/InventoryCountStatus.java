@@ -5,7 +5,11 @@ public enum InventoryCountStatus {
     FROZEN,
     COUNTING,
     RECONCILING,
+    PENDING_APPROVAL,
+    RETURNED,
+    REJECTED,
     APPROVED,
     POSTED,
-    CANCELLED
+    CANCELLED,
+    COMPLETED
 }

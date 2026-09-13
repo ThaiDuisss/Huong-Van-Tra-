@@ -25,7 +25,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import org.hvtra.catalog.dto.response.ProductVariantSearchViewResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -78,29 +77,6 @@ public class ProductVariantController {
         return service.searchVariantIds(keyword, sku, productCode, productName, categoryCode, categoryId, unitId);
     }
 
-    @Tag(
-            name = "API cho POS CatalogService",
-            description = "Output: productId, variantId, sku, productName, variantName, categoryName, sellingPrice, imageUrl"
-    )
-    @GetMapping("/search-view-pos")
-    public List<ProductVariantSearchViewResponse> searchVariants(
-            @RequestParam(name = "keyword", required = false) String keyword,
-            @RequestParam(name = "sku", required = false) String sku,
-            @RequestParam(name = "productName", required = false) String productName) {
-        log.info("value {}", service.searchVariants(keyword, sku, productName));
-        return service.searchVariants(keyword, sku, productName);
-    }
-
-    @Tag(
-            name = "API cho POS CatalogService",
-            description = "Output: productId, variantId, sku, productName, variantName, categoryName, sellingPrice, imageUrl"
-    )
-    @GetMapping("/{variantId}/pos-view")
-    public ProductVariantSearchViewResponse getPosView(
-            @PathVariable("variantId") UUID variantId) {
-        return service.getPosView(variantId);
-    }
-
     @PutMapping("/{id}")
     public ProductResponse.VariantResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody ProductVariantRequest request) {
@@ -147,7 +123,7 @@ public class ProductVariantController {
     @ResponseStatus(HttpStatus.OK)
     public void importVariants(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("productId") UUID productId) {
+            @RequestParam(name = "productId", required = false) UUID productId) {
         service.importFromExcel(file, productId);
     }
 

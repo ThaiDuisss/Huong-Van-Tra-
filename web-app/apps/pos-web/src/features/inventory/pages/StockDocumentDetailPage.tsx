@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
+import { useAuth } from "../../../auth/auth-context";
+import { hasAnyRole } from "../../../auth/role-utils";
 import {
-    RoleUnavailable,
     StockDocumentActionDialog,
     StockDocumentAuditTimeline,
     StockDocumentBackLink,
     StockDocumentBatchTable,
     StockDocumentLinesTable,
     StockDocumentReadonlyAlert,
-    StockDocumentRoleSwitch,
     StockDocumentStatusBadge,
     StockDocumentTypeBadge
 } from "../components/StockDocumentComponents";
@@ -22,62 +22,42 @@ import { stockDocumentApi } from "../services/stockDocument.api";
 import type {
     StockDocumentAction,
     StockDocumentDetail,
-    StockDocumentRole,
     StockDocumentStatus
 } from "../types/stock-document.types";
 import { formatVietnamDateTime } from "../utils/inventory-format";
 
 type DetailTab = "general" | "lines" | "batches" | "audit";
 
-function readRole(): StockDocumentRole {
-    const stored = window.localStorage.getItem("hvt.stockDocument.role");
-
-    if (
-        stored &&
-        ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER", "ACCOUNTANT", "DIRECTOR", "QC_STAFF"].includes(
-            stored
-        )
-    ) {
-        return stored as StockDocumentRole;
-    }
-
-    return "ADMIN";
-}
-
-function canViewCost(role: StockDocumentRole) {
-    return role === "ADMIN" || role === "ACCOUNTANT" || role === "DIRECTOR";
-}
-
 function allowedRolesForAction(
     action: StockDocumentAction,
     document: StockDocumentDetail
-): StockDocumentRole[] {
+): string[] {
     if (action === "SUBMIT") {
-        return ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER"];
+        return ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"];
     }
 
     if (action === "APPROVE") {
         return document.totalQuantity > 80
-            ? ["ADMIN", "DIRECTOR"]
-            : ["ADMIN", "DIRECTOR", "WAREHOUSE"];
+            ? ["ADMIN", "INVENTORY_MANAGER", "BRANCH_MANAGER"]
+            : ["ADMIN", "INVENTORY_MANAGER", "INVENTORY_STAFF", "BRANCH_MANAGER"];
     }
 
     if (action === "REJECT") {
-        return ["ADMIN", "DIRECTOR", "WAREHOUSE"];
+        return ["ADMIN", "INVENTORY_MANAGER", "INVENTORY_STAFF", "BRANCH_MANAGER"];
     }
 
     if (action === "POST") {
         return document.sourceLocation?.isCentral ||
             document.destinationLocation?.isCentral
-            ? ["ADMIN", "WAREHOUSE", "ACCOUNTANT"]
-            : ["ADMIN", "BRANCH_MANAGER", "ACCOUNTANT"];
+            ? ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "ACCOUNTANT"]
+            : ["ADMIN", "BRANCH_MANAGER", "ACCOUNTANT", "INVENTORY_MANAGER"];
     }
 
     if (action === "CANCEL") {
-        return ["ADMIN", "WAREHOUSE"];
+        return ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"];
     }
 
-    return ["ADMIN", "ACCOUNTANT"];
+    return ["ADMIN", "ACCOUNTANT", "INVENTORY_MANAGER"];
 }
 
 function actionsForStatus(status: StockDocumentStatus): StockDocumentAction[] {
@@ -122,7 +102,8 @@ function originalBusinessPath(document: StockDocumentDetail) {
 
 export function StockDocumentDetailPage() {
     const { documentId } = useParams();
-    const [role, setRole] = useState<StockDocumentRole>(readRole);
+    const { roles } = useAuth();
+    const canViewCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "DIRECTOR"]);
     const [document, setDocument] = useState<StockDocumentDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -136,10 +117,6 @@ export function StockDocumentDetailPage() {
     const [note, setNote] = useState("");
     const [reason, setReason] = useState("");
     const [mutationLoading, setMutationLoading] = useState(false);
-
-    useEffect(() => {
-        window.localStorage.setItem("hvt.stockDocument.role", role);
-    }, [role]);
 
     const loadDocument = useCallback(() => {
         if (!documentId) {
@@ -200,7 +177,6 @@ export function StockDocumentDetailPage() {
         }
 
         const input = {
-            actorRole: role,
             documentId: document.id,
             note,
             reason
@@ -283,7 +259,6 @@ export function StockDocumentDetailPage() {
         <section className="grid gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <StockDocumentBackLink />
-                <StockDocumentRoleSwitch onChange={setRole} value={role} />
             </div>
 
             <header className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
@@ -326,13 +301,8 @@ export function StockDocumentDetailPage() {
                                 document
                             );
 
-                            if (!allowedRoles.includes(role)) {
-                                return (
-                                    <RoleUnavailable
-                                        currentRole={role}
-                                        key={action}
-                                    />
-                                );
+                            if (!hasAnyRole(roles, allowedRoles)) {
+                                return null;
                             }
 
                             return (
@@ -394,7 +364,7 @@ export function StockDocumentDetailPage() {
             ) : null}
             {tab === "lines" ? (
                 <StockDocumentLinesTable
-                    canViewCost={canViewCost(role)}
+                    canViewCost={canViewCost}
                     lines={document.lines}
                 />
             ) : null}

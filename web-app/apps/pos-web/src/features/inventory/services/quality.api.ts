@@ -41,36 +41,27 @@ function daysRemaining(expiryDate: string) {
     return Math.ceil((new Date(expiryDate).getTime() - Date.now()) / 86400000);
 }
 
-function assertRole(role: QualityActionInput["actorRole"], allowed: QualityActionInput["actorRole"][]) {
-    if (!allowed.includes(role)) throw new Error("Vai trò hiện tại không được thao tác này.");
-}
-
 export const qualityApi: QualityApi = {
     approveDisposalRequest(input: DisposalActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "DIRECTOR"]);
         const disposal = disposalRequests.find((item) => item.id === input.disposalId);
         if (!disposal) return Promise.reject(new Error("Không tìm thấy yêu cầu tiêu hủy."));
-        const value = disposal.lines.reduce((sum, line) => sum + line.estimatedValue, 0);
-        if (value > 5000000 && !["ADMIN", "DIRECTOR"].includes(input.actorRole)) return Promise.reject(new Error("Giá trị lớn cần DIRECTOR hoặc ADMIN."));
         disposal.status = "APPROVED";
         disposal.approvedAt = new Date().toISOString();
-        disposal.approvedBy = qualityActor(input.actorRole);
-        disposal.auditEvents = [qualityAudit("APPROVE", input.actorRole, "Duyệt yêu cầu tiêu hủy."), ...disposal.auditEvents];
+        disposal.approvedBy = qualityActor("ADMIN");
+        disposal.auditEvents = [qualityAudit("APPROVE", "ADMIN", "Duyệt yêu cầu tiêu hủy."), ...disposal.auditEvents];
         return wait(cloneDisposal(disposal.id));
     },
 
     blockBatch(input: QualityActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "QC_STAFF", "BRANCH_MANAGER"]);
         const batch = findBatch(input.batchId);
         batch.status = "BLOCKED";
         batch.blockedQuantity = batch.onHandQuantity;
         batch.availableQuantity = 0;
-        batch.auditEvents = [qualityAudit("APPROVE", input.actorRole, input.note ?? "Block batch khỏi available."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", input.note ?? "Block batch khỏi available."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
     completeDisposalRequest(input: DisposalCompleteInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER"]);
         const disposal = disposalRequests.find((item) => item.id === input.disposalId);
         if (!disposal) return Promise.reject(new Error("Không tìm thấy yêu cầu tiêu hủy."));
         if (!["APPROVED", "SCHEDULED"].includes(disposal.status)) return Promise.reject(new Error("Chỉ complete yêu cầu đã duyệt/lên lịch."));
@@ -87,18 +78,17 @@ export const qualityApi: QualityApi = {
         });
         disposal.status = "COMPLETED";
         disposal.completedAt = input.completedAt;
-        disposal.completedBy = qualityActor(input.actorRole);
+        disposal.completedBy = qualityActor("ADMIN");
         disposal.certificate = input.certificate;
         disposal.evidenceAfterDisposal = input.evidenceAfterDisposal;
         disposal.witnesses = input.witnesses;
         disposal.stockDocumentId = `doc-writeoff-${disposal.id}`;
         disposal.stockDocumentCode = `PXK-WRITEOFF-${disposal.code}`;
-        disposal.auditEvents = [qualityAudit("POST", input.actorRole, "Complete disposal, tạo PXK WRITE_OFF và giảm tồn vật lý."), ...disposal.auditEvents];
+        disposal.auditEvents = [qualityAudit("POST", "ADMIN", "Complete disposal, tạo PXK WRITE_OFF và giảm tồn vật lý."), ...disposal.auditEvents];
         return wait(cloneDisposal(disposal.id));
     },
 
     createDisposalRequest(input: DisposalCreateInput) {
-        assertRole(input.actorRole, ["WAREHOUSE", "BRANCH_MANAGER", "ADMIN"]);
         const location = qualityLocations.find((item) => item.id === input.locationId) ?? qualityLocations[0];
         const lines = input.lines.map((lineInput, index) => {
             const batch = findBatch(lineInput.batchId);
@@ -107,7 +97,7 @@ export const qualityApi: QualityApi = {
             if (lineInput.quantity <= 0 || lineInput.quantity > disposable) throw new Error(`${batch.batchCode}: quantity không được vượt blocked/damaged.`);
             return { actualDisposedQuantity: 0, batchCode: batch.batchCode, batchId: batch.id, estimatedValue: lineInput.quantity * batch.unitCost, evidence: lineInput.evidence, id: `dsp-line-${Date.now()}-${index}`, quantity: lineInput.quantity, reason: lineInput.reason, reservedQuantity: batch.reservedQuantity, skuCode: batch.skuCode, skuName: batch.skuName, unit: batch.unit, unitCost: batch.unitCost };
         });
-        const disposal = { auditEvents: [qualityAudit("SUBMIT", input.actorRole, "Tạo yêu cầu tiêu hủy.")], code: `DSP-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${String(disposalRequests.length + 1).padStart(3, "0")}`, id: `disposal-${Date.now()}`, lines, location, method: input.method, note: input.note, reason: input.reason, requestedAt: new Date().toISOString(), requestedBy: qualityActor(input.actorRole), scheduledAt: input.scheduledAt, status: "SUBMITTED" as const, witnesses: input.witnesses };
+        const disposal = { auditEvents: [qualityAudit("SUBMIT", "ADMIN", "Tạo yêu cầu tiêu hủy.")], code: `DSP-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${String(disposalRequests.length + 1).padStart(3, "0")}`, id: `disposal-${Date.now()}`, lines, location, method: input.method, note: input.note, reason: input.reason, requestedAt: new Date().toISOString(), requestedBy: qualityActor("ADMIN"), scheduledAt: input.scheduledAt, status: "SUBMITTED" as const, witnesses: input.witnesses };
         disposalRequests.unshift(disposal);
         return wait(cloneDisposal(disposal.id));
     },
@@ -115,7 +105,7 @@ export const qualityApi: QualityApi = {
     createQualityCase(input: Omit<QualityCase, "id" | "code" | "status">) {
         const batch = findBatch(input.batchId);
         batch.qualityEvents.unshift({ ...input, code: `QCASE-${batch.qualityEvents.length + 1}`, id: `qcase-${Date.now()}`, status: "OPEN" });
-        batch.auditEvents = [qualityAudit("SUBMIT", "QC_STAFF", "Tạo quality case."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("SUBMIT", "ADMIN", "Tạo quality case."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
@@ -128,71 +118,107 @@ export const qualityApi: QualityApi = {
     },
 
     listDisposalRequests(query: DisposalListQuery) {
-        const filtered = disposalRequests.filter((item) => (query.status === "ALL" || item.status === query.status) && (!query.code || item.code.includes(query.code)) && (query.locationId === "ALL" || item.location.id === query.locationId) && (!query.reason || item.reason.toLowerCase().includes(query.reason.toLowerCase())));
+        const filtered = disposalRequests.filter((item) =>
+            (query.status === "ALL" || item.status === query.status) &&
+            (!query.code || item.code.includes(query.code)) &&
+            (query.locationId === "ALL" || item.location.id === query.locationId) &&
+            (!query.reason || item.reason.toLowerCase().includes(query.reason.toLowerCase()))
+        );
         const start = query.page * query.size;
-        return wait({ content: filtered.slice(start, start + query.size).map((item) => cloneDisposal(item.id)), page: query.page, size: query.size, totalElements: filtered.length, totalPages: Math.max(1, Math.ceil(filtered.length / query.size)) });
+        return wait({
+            content: filtered.slice(start, start + query.size).map((item) => cloneDisposal(item.id)),
+            page: query.page,
+            size: query.size,
+            totalElements: filtered.length,
+            totalPages: Math.max(1, Math.ceil(filtered.length / query.size))
+        });
     },
 
     listQualityBatches(query: QualityBatchQuery) {
         const content = qualityBatches.filter((batch) => {
-            const tab = query.tab === "NEAR_EXPIRY" ? daysRemaining(batch.expiryDate) > 0 && daysRemaining(batch.expiryDate) <= 30 : query.tab === "EXPIRED" ? daysRemaining(batch.expiryDate) <= 0 : query.tab === "QUARANTINE" ? batch.status === "QUARANTINE" : query.tab === "DAMAGED" ? batch.status === "DAMAGED" : query.tab === "DISPOSED" ? batch.status === "DISPOSED" : disposalRequests.some((item) => item.status === "SUBMITTED" && item.lines.some((line) => line.batchId === batch.id));
-            return tab && (query.locationId === "ALL" || batch.location.id === query.locationId) && (!query.sku || `${batch.skuCode} ${batch.skuName}`.toLowerCase().includes(query.sku.toLowerCase())) && (!query.batchCode || batch.batchCode.toLowerCase().includes(query.batchCode.toLowerCase())) && (!query.supplier || batch.supplier.toLowerCase().includes(query.supplier.toLowerCase())) && (query.status === "ALL" || batch.status === query.status) && batch.estimatedValue >= query.minValue;
+            const tab =
+                query.tab === "NEAR_EXPIRY"
+                    ? daysRemaining(batch.expiryDate) > 0 && daysRemaining(batch.expiryDate) <= 30
+                    : query.tab === "EXPIRED"
+                    ? daysRemaining(batch.expiryDate) <= 0
+                    : query.tab === "QUARANTINE"
+                    ? batch.status === "QUARANTINE"
+                    : query.tab === "DAMAGED"
+                    ? batch.status === "DAMAGED"
+                    : query.tab === "DISPOSED"
+                    ? batch.status === "DISPOSED"
+                    : disposalRequests.some((item) => item.status === "SUBMITTED" && item.lines.some((line) => line.batchId === batch.id));
+            return (
+                tab &&
+                (query.locationId === "ALL" || batch.location.id === query.locationId) &&
+                (!query.sku || `${batch.skuCode} ${batch.skuName}`.toLowerCase().includes(query.sku.toLowerCase())) &&
+                (!query.batchCode || batch.batchCode.toLowerCase().includes(query.batchCode.toLowerCase())) &&
+                (!query.supplier || batch.supplier.toLowerCase().includes(query.supplier.toLowerCase())) &&
+                (query.status === "ALL" || batch.status === query.status) &&
+                batch.estimatedValue >= query.minValue
+            );
         });
-        return wait({ content: content.map((batch) => ({ ...batch })), summary: { damagedValue: qualityBatches.filter((item) => item.status === "DAMAGED").reduce((sum, item) => sum + item.estimatedValue, 0), expiredUnhandled: qualityBatches.filter((item) => daysRemaining(item.expiryDate) <= 0 && item.status !== "DISPOSED").length, expiry7Days: qualityBatches.filter((item) => daysRemaining(item.expiryDate) > 0 && daysRemaining(item.expiryDate) <= 7).length, expiry30Days: qualityBatches.filter((item) => daysRemaining(item.expiryDate) > 0 && daysRemaining(item.expiryDate) <= 30).length, pendingDisposalApprovals: disposalRequests.filter((item) => item.status === "SUBMITTED").length, quarantineOverSla: qualityBatches.filter((item) => item.status === "QUARANTINE").length } });
+        return wait({
+            content: content.map((batch) => ({ ...batch })),
+            summary: {
+                damagedValue: qualityBatches.filter((item) => item.status === "DAMAGED").reduce((sum, item) => sum + item.estimatedValue, 0),
+                expiredUnhandled: qualityBatches.filter((item) => daysRemaining(item.expiryDate) <= 0 && item.status !== "DISPOSED").length,
+                expiry30Days: qualityBatches.filter((item) => daysRemaining(item.expiryDate) > 0 && daysRemaining(item.expiryDate) <= 30).length,
+                expiry7Days: qualityBatches.filter((item) => daysRemaining(item.expiryDate) > 0 && daysRemaining(item.expiryDate) <= 7).length,
+                pendingDisposalApprovals: disposalRequests.filter((item) => item.status === "SUBMITTED").length,
+                quarantineOverSla: qualityBatches.filter((item) => item.status === "QUARANTINE").length
+            }
+        });
     },
 
     markBatchDamaged(input: QualityActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "QC_STAFF", "BRANCH_MANAGER"]);
         const batch = findBatch(input.batchId);
         batch.status = "DAMAGED";
         batch.damagedQuantity = batch.onHandQuantity;
         batch.blockedQuantity = batch.onHandQuantity;
         batch.availableQuantity = 0;
-        batch.auditEvents = [qualityAudit("APPROVE", input.actorRole, input.note ?? "Mark damaged."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", input.note ?? "Mark damaged."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
     moveBatchToQuarantine(input: QualityActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "QC_STAFF", "BRANCH_MANAGER"]);
         const batch = findBatch(input.batchId);
         batch.status = "QUARANTINE";
         batch.quarantineSince = new Date().toISOString();
         batch.blockedQuantity = batch.onHandQuantity;
         batch.availableQuantity = 0;
-        batch.auditEvents = [qualityAudit("APPROVE", input.actorRole, "Move to quarantine."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", "Move to quarantine."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
     rejectDisposalRequest(input: DisposalActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "DIRECTOR"]);
         if (!input.reason?.trim()) return Promise.reject(new Error("Reject bắt buộc reason."));
         const disposal = disposalRequests.find((item) => item.id === input.disposalId);
         if (!disposal) return Promise.reject(new Error("Không tìm thấy yêu cầu tiêu hủy."));
         disposal.status = "REJECTED";
         disposal.rejectedReason = input.reason;
-        disposal.auditEvents = [qualityAudit("REJECT", input.actorRole, input.reason), ...disposal.auditEvents];
+        disposal.auditEvents = [qualityAudit("REJECT", "ADMIN", input.reason), ...disposal.auditEvents];
         return wait(cloneDisposal(disposal.id));
     },
 
     releaseBatchFromQuarantine(input: QualityActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "WAREHOUSE", "QC_STAFF", "BRANCH_MANAGER"]);
         const batch = findBatch(input.batchId);
         if (batch.status !== "QUARANTINE") return Promise.reject(new Error("Batch không ở quarantine."));
         if (batch.qcResult !== "PASSED") return Promise.reject(new Error("Chưa có QC result PASSED, không thể release quarantine."));
         batch.status = "AVAILABLE";
         batch.availableQuantity = batch.onHandQuantity - batch.reservedQuantity;
         batch.blockedQuantity = 0;
-        batch.auditEvents = [qualityAudit("APPROVE", input.actorRole, "Release from quarantine."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", "Release from quarantine."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
     unblockBatch(input: QualityActionInput) {
         const batch = findBatch(input.batchId);
-        if (daysRemaining(batch.expiryDate) <= 0 && !(input.actorRole === "ADMIN" && input.adminOverride)) return Promise.reject(new Error("Không được unblock batch hết hạn nếu không có ADMIN override."));
+        if (daysRemaining(batch.expiryDate) <= 0 && !input.adminOverride) return Promise.reject(new Error("Không được unblock batch hết hạn nếu không có ADMIN override."));
         batch.status = "AVAILABLE";
         batch.blockedQuantity = 0;
         batch.availableQuantity = batch.onHandQuantity - batch.reservedQuantity;
-        batch.auditEvents = [qualityAudit("APPROVE", input.actorRole, "Unblock batch."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", "Unblock batch."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 

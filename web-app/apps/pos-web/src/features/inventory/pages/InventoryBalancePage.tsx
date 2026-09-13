@@ -64,6 +64,7 @@ export function InventoryBalancePage() {
     const [filterStatus, setFilterStatus] = useState("");
     const [filterProductId, setFilterProductId] = useState("");
     const [filterProductName, setFilterProductName] = useState("");
+    const [filterItemType, setFilterItemType] = useState<string>("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
@@ -260,10 +261,12 @@ export function InventoryBalancePage() {
                 branchId: activeStoreId as any,
                 locationId: activeLocationId ? (activeLocationId as any) : undefined,
                 keyword: searchQuery.trim() || undefined,
+                name: filterProductName || undefined,
                 productName: filterProductName || undefined,
                 categoryId: filterCategoryId || undefined,
                 unitId: filterUnitId || undefined,
-                status: filterStatus || undefined
+                status: filterStatus || undefined,
+                itemType: (filterItemType as any) || undefined
             });
             setBalances(res.content ?? []);
             setTotalElements(res.totalElements ?? 0);
@@ -273,7 +276,7 @@ export function InventoryBalancePage() {
         } finally {
             setLoadingBalances(false);
         }
-    }, [activeStoreId, activeLocationId, page, pageSize, searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus]);
+    }, [activeStoreId, activeLocationId, page, pageSize, searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus, filterItemType]);
 
     useEffect(() => {
         loadBalances();
@@ -282,7 +285,7 @@ export function InventoryBalancePage() {
     // Reset page to 1 when filters change
     useEffect(() => {
         setPage(1);
-    }, [searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus]);
+    }, [searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus, filterItemType]);
 
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
@@ -296,8 +299,8 @@ export function InventoryBalancePage() {
                 locationId: String(bal.locationId),
                 branchId: String(bal.branchId),
                 "Ảnh sản phẩm": bal.imageUrl,
-                "SKU": bal.sku || bal.inventoryItemId,
-                "Tên sản phẩm": bal.variantName ? `${bal.productName} (${bal.variantName})` : bal.productName,
+                "SKU": bal.code || bal.inventoryItemId,
+                "Tên sản phẩm": bal.name || bal.productName || "N/A",
                 "Danh mục": bal.categoryName || "N/A",
                 "Đơn vị": bal.unitSymbol ? `${bal.unitName} (${bal.unitSymbol})` : (bal.unitName || "N/A"),
                 "Tồn thực tế": bal.quantityOnHand,
@@ -424,6 +427,19 @@ export function InventoryBalancePage() {
                     </div>
                 }
                 filters={[
+                    {
+                        label: "Loại mặt hàng",
+                        value: filterItemType,
+                        options: [
+                            { value: "", label: "Tất cả loại" },
+                            { value: "PRODUCT_VARIANT", label: "Sản phẩm" },
+                            { value: "INGREDIENT", label: "Nguyên liệu" }
+                        ],
+                        onChange: (val) => {
+                            setFilterItemType(val);
+                            setPage(1);
+                        }
+                    },
                     {
                         label: "Kệ hàng",
                         value: activeLocationId ?? "",
@@ -612,8 +628,8 @@ function TransferDialog({ onSuccess }: TransferDialogProps) {
                     .map(b => ({
                         inventoryBalanceId: String(b.inventoryBalanceId),
                         inventoryItemId: String(b.inventoryItemId),
-                        productName: b.variantName ? `${b.productName} (${b.variantName})` : b.productName,
-                        sku: b.sku || "",
+                        productName: b.name || b.productName || "",
+                        sku: b.code || "",
                         quantityOnHand: b.quantityOnHand,
                         locationId: String(b.locationId)
                     }))

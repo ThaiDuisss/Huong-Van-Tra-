@@ -155,11 +155,19 @@ export interface Ingredient {
     id: EntityId;
     ingredientCode: string;
     name: string;
+    imageUrl?: string | null;
+    unitId?: EntityId | null;
+    unitName?: string | null;
+    unitSymbol?: string | null;
+    reorderPoint?: number | null;
     status: CatalogStatus;
 }
 
 export interface IngredientInput {
     ingredientCode?: string;
     name: string;
+    imageUrl?: string | null;
+    unitId?: EntityId | null;
+    reorderPoint?: number | null;
     status: CatalogStatus;
 }

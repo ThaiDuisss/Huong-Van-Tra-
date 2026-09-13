@@ -134,9 +134,9 @@ public class BomServiceImpl implements BomService {
 
     @Transactional
     public String generateBomCode() {
-        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("BOM")
+        BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("BOM")
                 .orElseGet(() -> {
-                    org.hvtra.catalog.entity.BusinessSequence newSeq = new org.hvtra.catalog.entity.BusinessSequence();
+                    BusinessSequence newSeq = new BusinessSequence();
                     newSeq.setSequenceKey("BOM");
                     newSeq.setCurrentValue(0L);
                     return businessSequenceRepository.saveAndFlush(newSeq);
@@ -182,8 +182,14 @@ public class BomServiceImpl implements BomService {
         for (BomRequest.ItemRequest itemRequest : request.items()) {
             Ingredient ingredient = ingredientRepository.findById(itemRequest.ingredientId())
                     .orElseThrow(() -> new ResourceNotFoundException("Ingredient", itemRequest.ingredientId()));
+            if (Boolean.TRUE.equals(ingredient.getIsDeleted())) {
+                throw new BadRequestException("Ingredient with id " + itemRequest.ingredientId() + " is deleted");
+            }
             Unit unit = unitRepository.findById(itemRequest.unitId())
                     .orElseThrow(() -> new ResourceNotFoundException("Unit", itemRequest.unitId()));
+            if (Boolean.TRUE.equals(unit.getIsDeleted())) {
+                throw new BadRequestException("Unit with id " + itemRequest.unitId() + " is deleted");
+            }
             BomItem item = new BomItem();
             item.setIngredient(ingredient);
             item.setQuantity(itemRequest.quantity());

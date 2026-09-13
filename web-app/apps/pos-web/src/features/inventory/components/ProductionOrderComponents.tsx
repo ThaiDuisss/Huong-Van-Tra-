@@ -76,29 +76,6 @@ export function ProductionSummaryCard({
     );
 }
 
-export function ProductionRoleSwitch({
-    onChange,
-    value
-}: {
-    onChange: (role: ProductionRole) => void;
-    value: ProductionRole;
-}) {
-    return (
-        <label className="grid gap-1 text-xs font-black text-[#536078]">
-            Vai trò mô phỏng
-            <select
-                className="h-10 min-w-[210px] rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black text-[#172317]"
-                onChange={(event) => onChange(event.currentTarget.value as ProductionRole)}
-                value={value}
-            >
-                {Object.entries(productionRoleLabels).map(([role, label]) => (
-                    <option key={role} value={role}>{label}</option>
-                ))}
-            </select>
-        </label>
-    );
-}
-
 export function ProductionFilterBar({
     finishedSkus,
     locations,

@@ -1,16 +1,16 @@
 package org.hvtra.iventoryservice.item.service;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
-import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
-import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
-import org.hvtra.iventoryservice.shared.exception.BadRequestException;
-import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
 import org.hvtra.iventoryservice.item.mapper.InventoryItemMapper;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
+import org.hvtra.iventoryservice.shared.exception.BadRequestException;
+import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,10 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private final InventoryItemRepository repository;
     private final InventoryItemMapper mapper;
 
-    public InventoryItemServiceImpl(InventoryItemRepository repository, InventoryItemMapper mapper) {
+    public InventoryItemServiceImpl(
+            InventoryItemRepository repository,
+            InventoryItemMapper mapper
+    ) {
         this.repository = repository;
         this.mapper = mapper;
     }
@@ -33,12 +36,16 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     @Override
     public PageResponse<InventoryItemResponse> findAll(
             UUID referenceId,
+            String referenceCode,
             InventoryItemType itemType,
             InventoryStatus status,
             Pageable pageable) {
         Specification<InventoryItem> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (referenceId != null) predicates.add(cb.equal(root.get("referenceId"), referenceId));
+            if (referenceCode != null && !referenceCode.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("referenceCode")), "%" + referenceCode.trim().toLowerCase() + "%"));
+            }
             if (itemType != null) predicates.add(cb.equal(root.get("itemType"), itemType));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             return cb.and(predicates.toArray(Predicate[]::new));
@@ -71,6 +78,23 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     @Override
     @Transactional
+    public InventoryItemResponse updateByReference(
+            UUID referenceId, InventoryItemType itemType, InventoryItemRequest request) {
+        InventoryItem item = repository.findByReferenceIdAndItemType(referenceId, itemType)
+                .orElseGet(() -> {
+                    InventoryItem newItem = new InventoryItem();
+                    newItem.setReferenceId(referenceId);
+                    newItem.setItemType(itemType);
+                    return newItem;
+                });
+        mapper.update(item, request);
+        item.setReferenceId(referenceId);
+        item.setItemType(itemType);
+        return mapper.toResponse(repository.save(item));
+    }
+
+    @Override
+    @Transactional
     public InventoryItemResponse updateStatus(UUID id, InventoryStatus status) {
         InventoryItem item = get(id);
         item.setStatus(status);
@@ -94,4 +118,3 @@ public class InventoryItemServiceImpl implements InventoryItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory item", id));
     }
 }
-

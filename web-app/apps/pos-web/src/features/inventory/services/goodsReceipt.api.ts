@@ -1,600 +1,802 @@
-import {
-    calculateFinalUnitCost,
-    calculateLineNetAmount
-} from "../constants/goods-receipt.constants";
-import {
-    goodsReceiptActorForRole,
-    goodsReceiptMockData,
-    goodsReceiptMockOptions
-} from "../mocks/goods-receipts.mock";
+import { apiClient } from "../../../api/api-client";
+import { supplierApi } from "../../manufacturing/services/supplier.api";
+import { ingredientApi } from "../../product/services/ingredient.api";
+import { inventoryItemApi } from "./inventoryItem.api";
+import { inventoryLocationApi } from "./inventoryLocation.api";
 import type {
     GoodsReceiptActionInput,
     GoodsReceiptApi,
     GoodsReceiptCostInput,
     GoodsReceiptCreateInput,
+    GoodsReceiptDashboardSummary,
     GoodsReceiptDetail,
     GoodsReceiptLine,
     GoodsReceiptListQuery,
     GoodsReceiptListResult,
+    GoodsReceiptOptions,
     GoodsReceiptQcInput,
     GoodsReceiptStatus,
+    GoodsReceiptSummary,
     QcResult
 } from "../types/goods-receipt.types";
+import type { SupplierResponse } from "../../manufacturing/types/supplier.types";
+import type { PageResult } from "../../product/types/product.types";
 import type { InventoryAuditEvent } from "../types/stock-document.types";
+import type { InventoryItemResponse, InventoryLocationResponse, PageResponse } from "../types/inventory.types";
 
-const goodsReceiptCache = [...goodsReceiptMockData];
+interface InventoryDocumentLineBackendResponse {
+    id: string;
+    lineNo: number;
+    inventoryItemId: string;
+    itemSku: string;
+    itemName: string;
+    unitId: string;
+    unitName: string;
+    orderedQuantity: number;
+    receivedQuantity: number;
+    shortageQuantity: number;
+    excessQuantity: number;
+    acceptedQuantity: number;
+    rejectedQuantity: number;
+    note?: string;
+    batchAllocations?: Array<{
+        id: string;
+        inventoryBatchId: string;
+        batchCode: string;
+        supplierLot?: string;
+        manufactureDate?: string;
+        expiryDate?: string;
+        quantity: number;
+    }>;
+}
 
-function wait<T>(value: T, ms = 430) {
-    return new Promise<T>((resolve) => {
-        window.setTimeout(() => resolve(value), ms);
+interface InventoryDocumentBackendResponse {
+    id: string;
+    documentCode: string;
+    documentType: string;
+    status: GoodsReceiptStatus;
+    branchId?: string;
+    locationId: string;
+    locationName?: string;
+    locationCode?: string;
+    supplierId?: string;
+    supplierName?: string;
+    referenceType?: string;
+    referenceId?: string;
+    expectedDate?: string;
+    note?: string;
+    createdAt: string;
+    updatedAt: string;
+    createdBy?: string;
+    approvedBy?: string;
+    approvedAt?: string;
+    approvalNote?: string;
+    rejectedBy?: string;
+    rejectedAt?: string;
+    rejectionReason?: string;
+    receivedBy?: string;
+    receivedAt?: string;
+    qcBy?: string;
+    qcAt?: string;
+    postedBy?: string;
+    postedAt?: string;
+    lines: InventoryDocumentLineBackendResponse[];
+    totalLines: number;
+    totalOrderedQuantity: number;
+    totalReceivedQuantity: number;
+    totalAcceptedQuantity: number;
+    totalRejectedQuantity: number;
+}
+
+function mapDocToSummary(doc: InventoryDocumentBackendResponse): GoodsReceiptSummary {
+    const totalLines = doc.lines?.length || doc.totalLines || 0;
+    const totalReceived = doc.totalReceivedQuantity || 0;
+
+    let qcResult: QcResult = "PENDING";
+    if (doc.status === "QC_COMPLETED" || doc.status === "POSTED") {
+        if (doc.totalRejectedQuantity > 0 && doc.totalAcceptedQuantity > 0) {
+            qcResult = "PARTIALLY_PASSED";
+        } else if (doc.totalRejectedQuantity > 0) {
+            qcResult = "FAILED";
+        } else {
+            qcResult = "PASSED";
+        }
+    }
+
+    return {
+        code: doc.documentCode,
+        costStatus: "FINAL",
+        createdBy: {
+            id: doc.createdBy || "staff",
+            name: doc.createdBy || "Nhân viên kho",
+            role: "INVENTORY_STAFF"
+        },
+        hasVariance: (doc.lines || []).some(
+            (l) => (l.shortageQuantity || 0) > 0 || (l.excessQuantity || 0) > 0 || (l.rejectedQuantity || 0) > 0
+        ),
+        id: doc.id,
+        purchaseOrderCode: doc.referenceId || "",
+        qcResult,
+        receivedAt: doc.receivedAt || doc.createdAt || new Date().toISOString(),
+        receivingLocation: {
+            code: doc.locationCode || "KHO-TONG",
+            id: doc.locationId,
+            isCentral: true,
+            name: doc.locationName || "Kho nhận"
+        },
+        status: doc.status,
+        stockDocumentCode: doc.documentCode,
+        stockDocumentId: doc.id,
+        supplier: {
+            code: "SUP",
+            id: doc.supplierId || "",
+            name: doc.supplierName || "Nhà cung cấp"
+        },
+        totalLines,
+        totalReceivedQuantity: totalReceived
+    };
+}
+
+const globalIngredientNameMap = new Map<string, string>();
+
+function resolveMaterialName(name?: string, sku?: string, id?: string): string {
+    if (id && globalIngredientNameMap.has(String(id))) {
+        return globalIngredientNameMap.get(String(id))!;
+    }
+    if (sku && globalIngredientNameMap.has(String(sku))) {
+        return globalIngredientNameMap.get(String(sku))!;
+    }
+    if (name && globalIngredientNameMap.has(String(name))) {
+        return globalIngredientNameMap.get(String(name))!;
+    }
+    if (name && !name.startsWith("NL-") && !name.startsWith("MAT-") && !name.startsWith("PKG-") && !name.startsWith("FG-")) {
+        return name;
+    }
+    return name || sku || "Nguyên liệu";
+}
+
+function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDetail {
+    const summary = mapDocToSummary(doc);
+    const lines: GoodsReceiptLine[] = (doc.lines || []).map((line, index) => {
+        const batchAlloc = line.batchAllocations?.[0];
+        return {
+            batchStatus: doc.status === "POSTED" ? "AVAILABLE" : "AWAITING_QC",
+            conversionPreview: `1 ${line.unitName || "kg"} = 1 ${line.unitName || "kg"} nhập kho`,
+            cost: {
+                acceptedQuantity: line.acceptedQuantity || 0,
+                allocatedShippingCost: 0,
+                currency: "VND",
+                discount: 0,
+                finalUnitCost: 0,
+                lineNetAmount: 0,
+                otherCost: 0,
+                purchaseUnitPrice: 0,
+                status: "FINAL",
+                tax: 0
+            },
+            countryOfOrigin: "Việt Nam",
+            expiryDate: batchAlloc?.expiryDate || "",
+            id: line.id || `line-${index}`,
+            initialDamagedQuantity: 0,
+            internalBatchCode: batchAlloc?.batchCode || "",
+            manufacturedAt: batchAlloc?.manufactureDate || "",
+            materialId: line.inventoryItemId,
+            materialName: resolveMaterialName(line.itemName, line.itemSku, line.inventoryItemId),
+            orderedQuantity: line.orderedQuantity,
+            qc: {
+                failedQuantity: line.rejectedQuantity || 0,
+                inspectionNote: line.note,
+                passedQuantity: line.acceptedQuantity || 0,
+                quarantinedQuantity: 0,
+                receivedQuantity: line.receivedQuantity || 0,
+                result:
+                    line.rejectedQuantity > 0 && line.acceptedQuantity > 0
+                        ? "PARTIALLY_PASSED"
+                        : line.rejectedQuantity > 0
+                            ? "FAILED"
+                            : line.acceptedQuantity > 0
+                                ? "PASSED"
+                                : "PENDING"
+            },
+            qualityCertificate: "",
+            receivedQuantity: line.receivedQuantity || 0,
+            shortageQuantity: line.shortageQuantity || 0,
+            skuCode: line.itemSku || "NL",
+            storageCondition: "Nơi khô ráo",
+            supplierLot: batchAlloc?.supplierLot || "",
+            surplusQuantity: line.excessQuantity || 0,
+            unit: line.unitName || "kg"
+        };
     });
-}
 
-function copy(detail: GoodsReceiptDetail): GoodsReceiptDetail {
+    const auditEvents: InventoryAuditEvent[] = [];
+    if (doc.createdAt) {
+        auditEvents.push({
+            actor: summary.createdBy,
+            happenedAt: doc.createdAt,
+            id: `create-${doc.id}`,
+            note: doc.note || "Tạo phiếu nhập",
+            roleSnapshot: "INVENTORY_STAFF",
+            type: "CREATE_DRAFT"
+        });
+    }
+    if (doc.approvedAt) {
+        auditEvents.push({
+            actor: {
+                id: doc.approvedBy || "manager",
+                name: "Quản lý kho",
+                role: "BRANCH_MANAGER"
+            },
+            happenedAt: doc.approvedAt,
+            id: `approve-${doc.id}`,
+            note: doc.approvalNote || "Duyệt phiếu nhập",
+            roleSnapshot: "BRANCH_MANAGER",
+            type: "APPROVE"
+        });
+    }
+    if (doc.rejectedAt) {
+        auditEvents.push({
+            actor: {
+                id: doc.rejectedBy || "manager",
+                name: "Quản lý kho",
+                role: "BRANCH_MANAGER"
+            },
+            happenedAt: doc.rejectedAt,
+            id: `reject-${doc.id}`,
+            note: doc.rejectionReason || "Từ chối phiếu nhập",
+            reason: doc.rejectionReason,
+            roleSnapshot: "BRANCH_MANAGER",
+            type: "REJECT"
+        });
+    }
+    if (doc.receivedAt) {
+        auditEvents.push({
+            actor: {
+                id: doc.receivedBy || "staff",
+                name: "Nhân viên kho",
+                role: "INVENTORY_STAFF"
+            },
+            happenedAt: doc.receivedAt,
+            id: `receive-${doc.id}`,
+            note: "Kiểm đếm thực tế hoàn tất",
+            roleSnapshot: "INVENTORY_STAFF",
+            type: "SUBMIT"
+        });
+    }
+    if (doc.qcAt) {
+        auditEvents.push({
+            actor: {
+                id: doc.qcBy || "qc",
+                name: "Nhân viên QC",
+                role: "QC_STAFF"
+            },
+            happenedAt: doc.qcAt,
+            id: `qc-${doc.id}`,
+            note: "Kiểm tra chất lượng QC hoàn tất",
+            roleSnapshot: "QC_STAFF",
+            type: "APPROVE"
+        });
+    }
+    if (doc.postedAt) {
+        auditEvents.push({
+            actor: summary.createdBy,
+            happenedAt: doc.postedAt,
+            id: `post-${doc.id}`,
+            note: "Ghi sổ nhập kho thành công - Cập nhật tồn khả dụng",
+            roleSnapshot: "INVENTORY_STAFF",
+            type: "POST"
+        });
+    }
+
     return {
-        ...detail,
-        auditEvents: [...detail.auditEvents],
-        evidence: [...detail.evidence],
-        lines: detail.lines.map((line) => ({
-            ...line,
-            cost: { ...line.cost },
-            qc: { ...line.qc }
-        }))
+        ...summary,
+        auditEvents,
+        deliveryPerson: "Đại diện giao hàng",
+        evidence: [],
+        lines,
+        note: doc.note,
+        outsidePo: false,
+        purchaseOrderCode: doc.referenceId || "",
+        vehiclePlate: ""
     };
-}
-
-function audit(
-    input: GoodsReceiptActionInput | GoodsReceiptQcInput | GoodsReceiptCostInput,
-    type: InventoryAuditEvent["type"],
-    note?: string,
-    reason?: string
-): InventoryAuditEvent {
-    const actor = goodsReceiptActorForRole(input.actorRole);
-
-    return {
-        actor,
-        happenedAt: new Date().toISOString(),
-        id: `${type}-${Date.now()}`,
-        note,
-        reason,
-        roleSnapshot: actor.role,
-        type
-    };
-}
-
-function findReceipt(receiptId: string) {
-    const receipt = goodsReceiptCache.find((item) => item.id === receiptId);
-
-    if (!receipt) {
-        throw new Error("Không tìm thấy phiếu nhập nguyên liệu.");
-    }
-
-    return receipt;
-}
-
-function summarizeQc(lines: GoodsReceiptLine[]): QcResult {
-    if (lines.every((line) => line.qc.result === "PENDING")) {
-        return "PENDING";
-    }
-
-    if (lines.every((line) => line.qc.failedQuantity === line.receivedQuantity)) {
-        return "FAILED";
-    }
-
-    if (
-        lines.some(
-            (line) =>
-                line.qc.quarantinedQuantity > 0 || line.qc.failedQuantity > 0
-        )
-    ) {
-        return "PARTIALLY_PASSED";
-    }
-
-    return "PASSED";
-}
-
-function statusAfterQc(result: QcResult): GoodsReceiptStatus {
-    if (result === "FAILED") {
-        return "REJECTED";
-    }
-
-    if (result === "PARTIALLY_PASSED") {
-        return "PARTIALLY_PASSED";
-    }
-
-    if (result === "PASSED") {
-        return "AWAITING_COST";
-    }
-
-    return "AWAITING_QC";
-}
-
-function summaryOf(detail: GoodsReceiptDetail) {
-    return {
-        code: detail.code,
-        costStatus: detail.costStatus,
-        createdBy: detail.createdBy,
-        hasVariance: detail.hasVariance,
-        id: detail.id,
-        purchaseOrderCode: detail.purchaseOrderCode,
-        qcResult: detail.qcResult,
-        receivedAt: detail.receivedAt,
-        receivingLocation: detail.receivingLocation,
-        status: detail.status,
-        stockDocumentCode: detail.stockDocumentCode,
-        stockDocumentId: detail.stockDocumentId,
-        supplier: detail.supplier,
-        totalLines: detail.totalLines,
-        totalReceivedQuantity: detail.totalReceivedQuantity
-    };
-}
-
-function validateQc(input: GoodsReceiptQcInput, receipt: GoodsReceiptDetail) {
-    input.lines.forEach((lineInput) => {
-        const line = receipt.lines.find((item) => item.id === lineInput.lineId);
-
-        if (!line) {
-            throw new Error("Không tìm thấy dòng QC.");
-        }
-
-        const total =
-            lineInput.passedQuantity +
-            lineInput.quarantinedQuantity +
-            lineInput.failedQuantity;
-
-        if (total !== lineInput.receivedQuantity) {
-            throw new Error(
-                "Tổng số đạt, cách ly và không đạt phải bằng số lượng nhận."
-            );
-        }
-
-        if (lineInput.receivedQuantity > line.receivedQuantity) {
-            throw new Error("Không được QC số lượng vượt số nhận.");
-        }
-
-        if (lineInput.failedQuantity > 0 && !lineInput.reasonCode) {
-            throw new Error("Dòng có hàng không đạt phải chọn lý do.");
-        }
-
-        if (
-            lineInput.quarantinedQuantity > 0 &&
-            !lineInput.inspectionNote?.trim()
-        ) {
-            throw new Error("Dòng có hàng cách ly phải nhập ghi chú xử lý tiếp.");
-        }
-    });
-}
-
-function updateReceiptStatus(
-    input: GoodsReceiptActionInput,
-    status: GoodsReceiptStatus,
-    note?: string
-) {
-    const receipt = findReceipt(input.receiptId);
-    receipt.status = status;
-    receipt.auditEvents = [audit(input, "APPROVE", note), ...receipt.auditEvents];
-    return wait(copy(receipt));
 }
 
 export const goodsReceiptApi: GoodsReceiptApi = {
-    cancelGoodsReceipt(input) {
-        return updateReceiptStatus(input, "CANCELLED", input.note ?? "Hủy phiếu nhập.");
+    async getGoodsReceiptSummaryCounts(): Promise<GoodsReceiptDashboardSummary> {
+        try {
+            const res = await apiClient.get<{
+                draft: number;
+                pendingApproval: number;
+                receiving: number;
+                awaitingQc: number;
+                readyToPost: number;
+                postedToday: number;
+                total: number;
+            }>("/inventory/documents/summary-counts", {
+                query: { documentType: "PURCHASE_RECEIPT" }
+            });
+            return {
+                awaitingCost: 0,
+                awaitingQc: Number(res.awaitingQc || 0),
+                draft: Number(res.draft || 0),
+                pendingApproval: Number(res.pendingApproval || 0),
+                postedToday: Number(res.postedToday || 0),
+                readyToPost: Number(res.readyToPost || 0),
+                receiving: Number(res.receiving || 0),
+                total: Number(res.total || 0)
+            };
+        } catch (error) {
+            console.error("Failed to get goods receipts summary counts:", error);
+            return {
+                awaitingCost: 0,
+                awaitingQc: 0,
+                draft: 0,
+                pendingApproval: 0,
+                postedToday: 0,
+                readyToPost: 0,
+                receiving: 0,
+                total: 0
+            };
+        }
     },
 
-    createGoodsReceipt(input: GoodsReceiptCreateInput) {
-        const supplier = goodsReceiptMockOptions.suppliers.find(
-            (item) => item.id === input.supplierId
-        );
-        const location = goodsReceiptMockOptions.locations.find(
-            (item) => item.id === input.receivingLocationId
-        );
-
-        if (!supplier || !location) {
-            return Promise.reject(new Error("Vui lòng chọn nhà cung cấp và kho nhận."));
-        }
-
-        if (input.outsidePo && !input.outsidePoReason?.trim()) {
-            return Promise.reject(new Error("Nhập ngoài PO phải có lý do."));
-        }
-
-        const duplicateKey = new Set<string>();
-        for (const line of input.lines) {
-            const key = `${line.materialId}-${line.supplierLot}`;
-            if (duplicateKey.has(key) && !line.duplicateReason?.trim()) {
-                return Promise.reject(
-                    new Error("Không được trùng SKU + supplier lot nếu chưa nhập lý do.")
-                );
-            }
-            duplicateKey.add(key);
-
-            if (new Date(line.expiryDate) <= new Date(line.manufacturedAt)) {
-                return Promise.reject(
-                    new Error("Hạn sử dụng phải sau ngày sản xuất.")
-                );
-            }
-        }
-
-        const lines = input.lines.map((lineInput, index) => {
-            const material = goodsReceiptMockOptions.materials.find(
-                (item) => item.id === lineInput.materialId
-            );
-
-            if (!material) {
-                throw new Error("Không tìm thấy nguyên liệu.");
-            }
-
-            const shortageQuantity = lineInput.orderedQuantity
-                ? Math.max(0, lineInput.orderedQuantity - lineInput.receivedQuantity)
-                : 0;
-            const surplusQuantity = lineInput.orderedQuantity
-                ? Math.max(0, lineInput.receivedQuantity - lineInput.orderedQuantity)
-                : 0;
-
-            return {
-                batchStatus: "AWAITING_QC" as const,
-                conversionPreview: `1 ${material.unit} = 1 ${material.unit} nhập kho`,
-                cost: {
-                    acceptedQuantity: 0,
-                    allocatedShippingCost: 0,
-                    currency: "VND" as const,
-                    discount: 0,
-                    finalUnitCost: 0,
-                    lineNetAmount: 0,
-                    otherCost: 0,
-                    purchaseUnitPrice: 0,
-                    status: "PENDING" as const,
-                    tax: 0
-                },
-                countryOfOrigin: lineInput.countryOfOrigin,
-                expiryDate: lineInput.expiryDate,
-                id: `gr-new-line-${Date.now()}-${index}`,
-                initialDamagedQuantity: lineInput.initialDamagedQuantity,
-                internalBatchCode: `HVT-${material.skuCode}-${Date.now()}-${index}`,
-                manufacturedAt: lineInput.manufacturedAt,
-                materialId: material.id,
-                materialName: material.name,
-                orderedQuantity: lineInput.orderedQuantity,
-                qc: {
-                    failedQuantity: 0,
-                    passedQuantity: 0,
-                    quarantinedQuantity: 0,
-                    receivedQuantity: lineInput.receivedQuantity,
-                    result: "PENDING" as const
-                },
-                qualityCertificate: lineInput.qualityCertificate,
-                receivedQuantity: lineInput.receivedQuantity,
-                shortageQuantity,
-                skuCode: material.skuCode,
-                storageCondition: lineInput.storageCondition,
-                supplierLot: lineInput.supplierLot,
-                surplusQuantity,
-                unit: material.unit
-            };
-        });
-        const receipt: GoodsReceiptDetail = {
-            auditEvents: [
-                audit(
-                    { actorRole: "WAREHOUSE", receiptId: "new" },
-                    "CREATE_DRAFT",
-                    input.submit ? "Tạo và submit phiếu nhập." : "Lưu draft phiếu nhập."
-                )
-            ],
-            code: `GR-2026-${String(goodsReceiptCache.length + 1).padStart(5, "0")}`,
-            costStatus: "PENDING",
-            createdBy: goodsReceiptActorForRole("WAREHOUSE"),
-            deliveryPerson: input.deliveryPerson,
-            evidence: input.evidence,
-            hasVariance: lines.some(
-                (line) =>
-                    line.shortageQuantity > 0 ||
-                    line.surplusQuantity > 0 ||
-                    line.initialDamagedQuantity > 0
-            ),
-            id: `goods-receipt-${Date.now()}`,
-            invoiceNumber: input.invoiceNumber,
-            lines,
-            note: input.note,
-            outsidePo: input.outsidePo,
-            outsidePoReason: input.outsidePoReason,
-            purchaseOrderCode: input.purchaseOrderCode,
-            qcResult: "PENDING",
-            receivedAt: input.receivedAt,
-            receivingLocation: location,
-            status: input.submit ? "AWAITING_QC" : "DRAFT",
-            supplier,
-            totalLines: lines.length,
-            totalReceivedQuantity: lines.reduce(
-                (sum, line) => sum + line.receivedQuantity,
-                0
-            ),
-            vehiclePlate: input.vehiclePlate
+    async listGoodsReceipts(query: GoodsReceiptListQuery): Promise<GoodsReceiptListResult> {
+        const params: Record<string, string | number | boolean | undefined> = {
+            documentType: "PURCHASE_RECEIPT",
+            page: query.page,
+            size: query.size
         };
 
-        goodsReceiptCache.unshift(receipt);
-        return wait(copy(receipt));
-    },
-
-    finalizeGoodsReceiptCost(input) {
-        return goodsReceiptApi.saveGoodsReceiptCost({
-            ...input,
-            finalize: true
-        });
-    },
-
-    getGoodsReceipt(receiptId) {
-        try {
-            return wait(copy(findReceipt(receiptId)));
-        } catch (error) {
-            return Promise.reject(error);
+        if (query.status && query.status !== "ALL") {
+            params.status = query.status;
         }
-    },
-
-    getGoodsReceiptOptions() {
-        return wait(goodsReceiptMockOptions);
-    },
-
-    listGoodsReceipts(query: GoodsReceiptListQuery): Promise<GoodsReceiptListResult> {
-        const filtered = goodsReceiptCache
-            .filter((receipt) =>
-                receipt.code
-                    .toLowerCase()
-                    .includes(query.receiptCode.trim().toLowerCase())
-            )
-            .filter((receipt) =>
-                query.supplierId === "ALL"
-                    ? true
-                    : receipt.supplier.id === query.supplierId
-            )
-            .filter((receipt) =>
-                receipt.purchaseOrderCode
-                    ?.toLowerCase()
-                    .includes(query.purchaseOrderCode.trim().toLowerCase()) ??
-                query.purchaseOrderCode.trim() === ""
-            )
-            .filter((receipt) =>
-                query.status === "ALL" ? true : receipt.status === query.status
-            )
-            .filter((receipt) =>
-                query.qcResult === "ALL"
-                    ? true
-                    : receipt.qcResult === query.qcResult
-            )
-            .filter((receipt) =>
-                query.costStatus === "ALL"
-                    ? true
-                    : receipt.costStatus === query.costStatus
-            )
-            .filter((receipt) =>
-                query.receivingLocationId === "ALL"
-                    ? true
-                    : receipt.receivingLocation.id === query.receivingLocationId
-            )
-            .filter((receipt) => {
-                const time = new Date(receipt.receivedAt).getTime();
-                const from = query.receivedFrom
-                    ? new Date(`${query.receivedFrom}T00:00:00`).getTime()
-                    : -Infinity;
-                const to = query.receivedTo
-                    ? new Date(`${query.receivedTo}T23:59:59`).getTime()
-                    : Infinity;
-
-                return time >= from && time <= to;
-            })
-            .filter((receipt) =>
-                query.hasVariance === "ALL"
-                    ? true
-                    : query.hasVariance === "YES"
-                      ? receipt.hasVariance
-                      : !receipt.hasVariance
-            )
-            .sort(
-                (first, second) =>
-                    new Date(second.receivedAt).getTime() -
-                    new Date(first.receivedAt).getTime()
-            );
-        const start = query.page * query.size;
-        const content = filtered.slice(start, start + query.size).map(summaryOf);
-        const today = new Date().toISOString().slice(0, 10);
-
-        return wait({
-            content,
-            first: query.page === 0,
-            last: start + query.size >= filtered.length,
-            page: query.page,
-            size: query.size,
-            summary: {
-                awaitingCost: filtered.filter(
-                    (receipt) => receipt.status === "AWAITING_COST"
-                ).length,
-                awaitingQc: filtered.filter(
-                    (receipt) => receipt.status === "AWAITING_QC"
-                ).length,
-                draft: filtered.filter((receipt) => receipt.status === "DRAFT")
-                    .length,
-                postedToday: filtered.filter(
-                    (receipt) =>
-                        receipt.status === "POSTED" &&
-                        receipt.receivedAt.slice(0, 10) === today
-                ).length,
-                readyToPost: filtered.filter(
-                    (receipt) => receipt.status === "READY_TO_POST"
-                ).length
-            },
-            totalElements: filtered.length,
-            totalPages: Math.max(1, Math.ceil(filtered.length / query.size))
-        });
-    },
-
-    performGoodsReceiptQc(input: GoodsReceiptQcInput) {
-        try {
-            const receipt = findReceipt(input.receiptId);
-            validateQc(input, receipt);
-            receipt.lines = receipt.lines.map((line) => {
-                const lineInput = input.lines.find(
-                    (item) => item.lineId === line.id
-                );
-
-                if (!lineInput) {
-                    return line;
-                }
-
-                return {
-                    ...line,
-                    batchStatus:
-                        lineInput.failedQuantity === lineInput.receivedQuantity
-                            ? "RETURN_TO_SUPPLIER"
-                            : lineInput.quarantinedQuantity > 0
-                              ? "QUARANTINED"
-                              : "AWAITING_QC",
-                    qc: {
-                        failedQuantity: lineInput.failedQuantity,
-                        inspectionNote: lineInput.inspectionNote,
-                        passedQuantity: lineInput.passedQuantity,
-                        quarantinedQuantity: lineInput.quarantinedQuantity,
-                        reasonCode: lineInput.reasonCode,
-                        receivedQuantity: lineInput.receivedQuantity,
-                        result:
-                            lineInput.passedQuantity === 0 &&
-                            lineInput.failedQuantity > 0
-                                ? "FAILED"
-                                : lineInput.quarantinedQuantity > 0 ||
-                                    lineInput.failedQuantity > 0
-                                  ? "PARTIALLY_PASSED"
-                                  : "PASSED"
-                    }
-                };
-            });
-            receipt.qcResult = summarizeQc(receipt.lines);
-            receipt.status = statusAfterQc(receipt.qcResult);
-            receipt.auditEvents = [
-                audit(input, "APPROVE", "Hoàn tất QC phiếu nhập."),
-                ...receipt.auditEvents
-            ];
-
-            return wait(copy(receipt));
-        } catch (error) {
-            return Promise.reject(error);
+        if (query.receivingLocationId && query.receivingLocationId !== "ALL") {
+            params.locationId = query.receivingLocationId;
         }
-    },
+        if (query.supplierId && query.supplierId !== "ALL") {
+            params.supplierId = query.supplierId;
+        }
+        if (query.receiptCode?.trim()) {
+            params.query = query.receiptCode.trim();
+        } else if (query.purchaseOrderCode?.trim()) {
+            params.query = query.purchaseOrderCode.trim();
+        }
+        if (query.receivedFrom) {
+            params.fromDate = `${query.receivedFrom}T00:00:00Z`;
+        }
+        if (query.receivedTo) {
+            params.toDate = `${query.receivedTo}T23:59:59Z`;
+        }
 
-    postGoodsReceipt(input) {
         try {
-            const receipt = findReceipt(input.receiptId);
-            const passedQuantity = receipt.lines.reduce(
-                (sum, line) => sum + line.qc.passedQuantity,
-                0
+            const res = await apiClient.get<PageResponse<InventoryDocumentBackendResponse>>(
+                "/inventory/documents",
+                { query: params }
             );
 
-            if (receipt.qcResult === "PENDING" || passedQuantity <= 0) {
-                throw new Error("Phiếu chưa đủ điều kiện QC để post.");
-            }
-
-            if (receipt.costStatus !== "FINAL") {
-                throw new Error("Giá nhập phải FINAL trước khi post.");
-            }
-
-            receipt.status = "POSTED";
-            receipt.stockDocumentId = `stock-doc-gr-${Date.now()}`;
-            receipt.stockDocumentCode = `PNK-${receipt.code}`;
-            receipt.lines = receipt.lines.map((line) => ({
-                ...line,
-                batchStatus:
-                    line.qc.passedQuantity > 0 ? "AVAILABLE" : line.batchStatus
-            }));
-            receipt.movementSummary = {
-                availableQuantity: receipt.lines.reduce(
-                    (sum, line) => sum + line.qc.passedQuantity,
-                    0
-                ),
-                quarantineQuantity: receipt.lines.reduce(
-                    (sum, line) => sum + line.qc.quarantinedQuantity,
-                    0
-                ),
-                returnToSupplierQuantity: receipt.lines.reduce(
-                    (sum, line) => sum + line.qc.failedQuantity,
-                    0
-                ),
-                totalInventoryValue: receipt.lines.reduce(
-                    (sum, line) => sum + line.cost.lineNetAmount,
-                    0
-                )
+            const content = (res.content || []).map(mapDocToSummary);
+            return {
+                content,
+                first: res.first,
+                last: res.last,
+                page: res.page ?? query.page,
+                size: res.size ?? query.size,
+                summary: {
+                    awaitingCost: 0,
+                    awaitingQc: content.filter((r) => r.status === "QC_PENDING" || r.status === "AWAITING_QC").length,
+                    draft: content.filter((r) => r.status === "DRAFT").length,
+                    pendingApproval: content.filter((r) => r.status === "PENDING_APPROVAL").length,
+                    postedToday: content.filter((r) => r.status === "POSTED").length,
+                    readyToPost: content.filter((r) => r.status === "QC_COMPLETED" || r.status === "READY_TO_POST").length,
+                    receiving: content.filter((r) => r.status === "RECEIVING" || r.status === "APPROVED").length,
+                    total: res.totalElements || content.length
+                },
+                totalElements: res.totalElements,
+                totalPages: res.totalPages
             };
-            receipt.auditEvents = [
-                audit(input, "POST", "Post phiếu nhập và tạo chứng từ PNK."),
-                ...receipt.auditEvents
-            ];
-            return wait(copy(receipt));
         } catch (error) {
-            return Promise.reject(error);
+            console.error("Failed to list goods receipts from backend:", error);
+            return {
+                content: [],
+                first: true,
+                last: true,
+                page: 0,
+                size: query.size,
+                summary: { awaitingCost: 0, awaitingQc: 0, draft: 0, pendingApproval: 0, postedToday: 0, readyToPost: 0, receiving: 0, total: 0 },
+                totalElements: 0,
+                totalPages: 0
+            };
         }
     },
 
-    saveGoodsReceiptCost(input: GoodsReceiptCostInput) {
-        try {
-            const receipt = findReceipt(input.receiptId);
-            receipt.lines = receipt.lines.map((line) => {
-                const lineInput = input.lines.find(
-                    (item) => item.lineId === line.id
-                );
-
-                if (!lineInput) {
-                    return line;
-                }
-
-                if (lineInput.acceptedQuantity <= 0) {
-                    throw new Error("Số lượng accepted phải lớn hơn 0 để tính giá.");
-                }
-
-                const costInput = {
-                    acceptedQuantity: lineInput.acceptedQuantity,
-                    allocatedShippingCost: lineInput.allocatedShippingCost,
-                    discount: lineInput.discount,
-                    otherCost: lineInput.otherCost,
-                    purchaseUnitPrice: lineInput.purchaseUnitPrice,
-                    tax: lineInput.tax
-                };
-
-                return {
-                    ...line,
-                    cost: {
-                        ...costInput,
-                        currency: "VND",
-                        finalUnitCost: calculateFinalUnitCost(costInput),
-                        lineNetAmount: calculateLineNetAmount(costInput),
-                        status: input.finalize ? "FINAL" : "PROVISIONAL"
-                    }
-                };
-            });
-            receipt.costStatus = input.finalize ? "FINAL" : "PROVISIONAL";
-            receipt.status = input.finalize ? "READY_TO_POST" : "AWAITING_COST";
-            receipt.auditEvents = [
-                audit(
-                    input,
-                    "APPROVE",
-                    input.finalize ? "Xác nhận giá FINAL." : "Lưu giá PROVISIONAL."
-                ),
-                ...receipt.auditEvents
-            ];
-
-            return wait(copy(receipt));
-        } catch (error) {
-            return Promise.reject(error);
-        }
-    },
-
-    submitGoodsReceipt(input) {
-        return updateReceiptStatus(input, "AWAITING_QC", input.note ?? "Submit phiếu nhập.");
-    },
-
-    updateGoodsReceipt(receiptId, input) {
-        return goodsReceiptApi.createGoodsReceipt(input).then((receipt) => {
-            const index = goodsReceiptCache.findIndex((item) => item.id === receiptId);
-            if (index >= 0) {
-                goodsReceiptCache[index] = { ...receipt, id: receiptId };
-                return copy(goodsReceiptCache[index]);
+    async getGoodsReceipt(receiptId: string): Promise<GoodsReceiptDetail> {
+        if (globalIngredientNameMap.size === 0) {
+            try {
+                await goodsReceiptApi.getGoodsReceiptOptions();
+            } catch {
+                // ignore
             }
+        }
+        const res = await apiClient.get<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(receiptId)}`
+        );
+        return mapDocToDetail(res);
+    },
 
-            return receipt;
+    async createGoodsReceipt(input: GoodsReceiptCreateInput): Promise<GoodsReceiptDetail> {
+        const payload = {
+            expectedDate: input.receivedAt ? `${input.receivedAt}T00:00:00Z` : undefined,
+            items: input.lines.map((line) => ({
+                inventoryItemId: line.materialId,
+                note: line.supplierLot,
+                orderedQuantity: line.orderedQuantity || line.receivedQuantity
+            })),
+            locationId: input.receivingLocationId,
+            note: input.note,
+            referenceId: input.purchaseOrderCode,
+            referenceType: "PURCHASE_ORDER",
+            supplierId: input.supplierId
+        };
+
+        const doc = await apiClient.post<InventoryDocumentBackendResponse>(
+            "/inventory/documents",
+            payload
+        );
+
+        if (input.submit) {
+            const submitted = await apiClient.post<InventoryDocumentBackendResponse>(
+                `/inventory/documents/${doc.id}/submit`
+            );
+            return mapDocToDetail(submitted);
+        }
+
+        return mapDocToDetail(doc);
+    },
+
+    async updateGoodsReceipt(receiptId: string, input: GoodsReceiptCreateInput): Promise<GoodsReceiptDetail> {
+        const payload = {
+            expectedDate: input.receivedAt ? `${input.receivedAt}T00:00:00Z` : undefined,
+            items: input.lines.map((line) => ({
+                inventoryItemId: line.materialId,
+                note: line.supplierLot,
+                orderedQuantity: line.orderedQuantity || line.receivedQuantity
+            })),
+            locationId: input.receivingLocationId,
+            note: input.note,
+            referenceId: input.purchaseOrderCode,
+            referenceType: "PURCHASE_ORDER",
+            supplierId: input.supplierId
+        };
+
+        const doc = await apiClient.put<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(receiptId)}`,
+            payload
+        );
+
+        if (input.submit) {
+            const submitted = await apiClient.post<InventoryDocumentBackendResponse>(
+                `/inventory/documents/${doc.id}/submit`
+            );
+            return mapDocToDetail(submitted);
+        }
+
+        return mapDocToDetail(doc);
+    },
+
+    async submitGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(input.receiptId)}/submit`
+        );
+        return mapDocToDetail(res);
+    },
+
+    async approveGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(input.receiptId)}/approve`,
+            { approvalNote: input.note }
+        );
+        return mapDocToDetail(res);
+    },
+
+    async rejectGoodsReceipt(input: GoodsReceiptActionInput & { reason: string }): Promise<GoodsReceiptDetail> {
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(input.receiptId)}/reject`,
+            { rejectionReason: input.reason }
+        );
+        return mapDocToDetail(res);
+    },
+
+    async startReceivingGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(input.receiptId)}/start-receiving`
+        );
+        return mapDocToDetail(res);
+    },
+
+    async confirmReceivingGoodsReceipt(
+        receiptId: string,
+        items: Array<{ lineId: string; receivedQuantity: number; note?: string }>
+    ): Promise<GoodsReceiptDetail> {
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(receiptId)}/receive`,
+            { items }
+        );
+        return mapDocToDetail(res);
+    },
+
+    async performGoodsReceiptQc(input: GoodsReceiptQcInput): Promise<GoodsReceiptDetail> {
+        const payload = {
+            items: input.lines.map((line) => {
+                const batches = (line as unknown as { batches?: Array<{ batchCode: string; manufactureDate: string; expiryDate: string; quantity: number; supplierLot?: string }> }).batches;
+                return {
+                    acceptedQuantity: line.passedQuantity,
+                    batches: batches && batches.length > 0
+                        ? batches
+                        : line.passedQuantity > 0
+                            ? [
+                                {
+                                    batchCode: `LOT-${Date.now()}`,
+                                    expiryDate: "2027-12-31",
+                                    manufactureDate: "2026-01-01",
+                                    quantity: line.passedQuantity,
+                                    supplierLot: ""
+                                }
+                            ]
+                            : [],
+                    lineId: line.lineId,
+                    rejectedQuantity: line.failedQuantity
+                };
+            })
+        };
+
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(input.receiptId)}/qc`,
+            payload
+        );
+        return mapDocToDetail(res);
+    },
+
+    async postGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(input.receiptId)}/post`
+        );
+        return mapDocToDetail(res);
+    },
+
+    async cancelGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(input.receiptId)}/cancel`,
+            undefined,
+            { query: { note: input.note } }
+        );
+        return mapDocToDetail(res);
+    },
+
+    async saveGoodsReceiptCost(input: GoodsReceiptCostInput): Promise<GoodsReceiptDetail> {
+        return this.getGoodsReceipt(input.receiptId);
+    },
+
+    async finalizeGoodsReceiptCost(input: GoodsReceiptCostInput): Promise<GoodsReceiptDetail> {
+        return this.getGoodsReceipt(input.receiptId);
+    },
+
+    async getGoodsReceiptOptions(supplierId?: string): Promise<GoodsReceiptOptions> {
+        let suppRes: unknown = null;
+        let locRes: unknown = null;
+        let itemRes: unknown = null;
+        let ingRes: unknown = null;
+
+        try {
+            suppRes = await supplierApi.list({ page: 0, size: 100 });
+        } catch (e) {
+            console.warn("[GoodsReceipt] Lỗi supplierApi.list, thử fallback trực tiếp:", e);
+            try {
+                suppRes = await apiClient.get<PageResult<SupplierResponse>>("/catalog/suppliers", {
+                    query: { page: 0, size: 100 }
+                });
+            } catch (e2) {
+                console.error("[GoodsReceipt] Lỗi gọi trực tiếp /catalog/suppliers:", e2);
+            }
+        }
+
+        try {
+            locRes = await inventoryLocationApi.list({ page: 0, size: 100 });
+        } catch (e) {
+            console.warn("[GoodsReceipt] Lỗi inventoryLocationApi.list, thử fallback trực tiếp:", e);
+            try {
+                locRes = await apiClient.get<PageResponse<InventoryLocationResponse>>("/inventory/inventory-locations", {
+                    query: { page: 0, size: 100 }
+                });
+            } catch (e2) {
+                console.error("[GoodsReceipt] Lỗi gọi trực tiếp /inventory/inventory-locations:", e2);
+            }
+        }
+
+        try {
+            itemRes = await inventoryItemApi.list({ itemType: "INGREDIENT", page: 0, size: 200, status: "ACTIVE" });
+        } catch (e) {
+            console.warn("[GoodsReceipt] Lỗi inventoryItemApi.list:", e);
+        }
+
+        if (supplierId) {
+            try {
+                ingRes = await ingredientApi.list({ page: 0, size: 200, status: "ACTIVE", supplierId });
+            } catch (e) {
+                console.warn("[GoodsReceipt] Lỗi ingredientApi.list:", e);
+            }
+        }
+
+        const extractArray = <T>(res: unknown): T[] => {
+            if (!res) return [];
+            let arr: unknown[] = [];
+            if (Array.isArray(res)) {
+                arr = res;
+            } else if (typeof res === "object" && res !== null) {
+                const obj = res as Record<string, unknown>;
+                if (Array.isArray(obj.content)) arr = obj.content;
+                else if (Array.isArray(obj.data)) arr = obj.data;
+                else if (Array.isArray(obj.result)) arr = obj.result;
+                else if (obj.data && typeof obj.data === "object" && obj.data !== null && Array.isArray((obj.data as Record<string, unknown>).content)) {
+                    arr = (obj.data as Record<string, unknown>).content as unknown[];
+                } else if (obj.result && typeof obj.result === "object" && obj.result !== null && Array.isArray((obj.result as Record<string, unknown>).content)) {
+                    arr = (obj.result as Record<string, unknown>).content as unknown[];
+                }
+            }
+            return arr.filter((item): item is T => item !== null && item !== undefined);
+        };
+
+        const rawSuppliers = extractArray<Record<string, unknown>>(suppRes);
+        const suppliers = rawSuppliers
+            .filter((s): s is Record<string, unknown> => Boolean(s))
+            .map((s) => ({
+                code: String(s.supplierCode || s.code || "SUP"),
+                id: String(s.id || ""),
+                name: String(s.name || "Nhà cung cấp"),
+                suppliedIngredientNames: (extractArray<Record<string, unknown>>(s.ingredients) || [])
+                    .filter((ing): ing is Record<string, unknown> => Boolean(ing))
+                    .map((ing) => String(ing.name || ""))
+                    .filter(Boolean)
+            }));
+
+        const rawLocations = extractArray<Record<string, unknown>>(locRes);
+        const locations = rawLocations
+            .filter((l): l is Record<string, unknown> => Boolean(l))
+            .map((l) => ({
+                code: String(l.code || "LOC"),
+                id: String(l.id || ""),
+                isCentral: Boolean(l.isCentral),
+                name: String(l.name || "Kho hàng")
+            }));
+
+        const validIngredientIds = new Set<string>();
+        const validIngredientCodes = new Set<string>();
+        const ingredientMap = new Map<string, { name: string; code: string; unit: string }>();
+
+        let rawIngredients = supplierId
+            ? extractArray<Record<string, unknown>>(ingRes).filter((ing): ing is Record<string, unknown> => Boolean(ing))
+            : [];
+
+        // Fallback: nếu supplierId có nhưng ingRes rỗng, tìm trong supplier.ingredients hoặc gọi supplierApi.getById
+        if (supplierId && rawIngredients.length === 0) {
+            const matchedSupp = rawSuppliers.find((s) => String(s.id) === String(supplierId));
+            if (matchedSupp && Array.isArray(matchedSupp.ingredients) && matchedSupp.ingredients.length > 0) {
+                rawIngredients = extractArray<Record<string, unknown>>(matchedSupp.ingredients)
+                    .filter((ing): ing is Record<string, unknown> => Boolean(ing));
+            } else {
+                try {
+                    const suppDetail = await supplierApi.getById(supplierId);
+                    if (suppDetail?.ingredients?.length) {
+                        rawIngredients = extractArray<Record<string, unknown>>(suppDetail.ingredients)
+                            .filter((ing): ing is Record<string, unknown> => Boolean(ing));
+                    }
+                } catch (e) {
+                    console.warn("[GoodsReceipt] Lỗi supplierApi.getById fallback:", e);
+                }
+            }
+        }
+
+        rawIngredients.forEach((ing) => {
+            if (!ing) return;
+            const unitObjName = typeof ing.unit === "object" && ing.unit !== null
+                ? ((ing.unit as Record<string, unknown>).symbol || (ing.unit as Record<string, unknown>).name)
+                : undefined;
+            const unit = String(
+                ing.unitSymbol ||
+                ing.unitName ||
+                ing.unit_name ||
+                unitObjName ||
+                "kg"
+            );
+            const info = {
+                code: String(ing.ingredientCode || ing.code || "NL"),
+                name: String(ing.name || "Nguyên liệu"),
+                unit
+            };
+            if (ing.id !== undefined && ing.id !== null) {
+                const idStr = String(ing.id);
+                validIngredientIds.add(idStr);
+                ingredientMap.set(idStr, info);
+            }
+            if (ing.ingredientCode) {
+                const codeStr = String(ing.ingredientCode);
+                validIngredientCodes.add(codeStr);
+                ingredientMap.set(codeStr, info);
+            }
         });
+
+        const rawItems = supplierId
+            ? extractArray<InventoryItemResponse>(itemRes).filter((i) => {
+                if (!i) return false;
+                if (i.itemType && i.itemType !== "INGREDIENT") return false;
+                const refIdStr = i.referenceId !== undefined && i.referenceId !== null ? String(i.referenceId) : undefined;
+                return (refIdStr && validIngredientIds.has(refIdStr)) || (Boolean(i.referenceCode) && validIngredientCodes.has(String(i.referenceCode)));
+            })
+            : [];
+
+        const materials = !supplierId
+            ? []
+            : (rawItems.length > 0
+                ? rawItems.map((i) => {
+                    const refIdStr = i.referenceId !== undefined && i.referenceId !== null ? String(i.referenceId) : undefined;
+                    const matched = (refIdStr ? ingredientMap.get(refIdStr) : undefined)
+                        ?? (i.referenceCode ? ingredientMap.get(i.referenceCode) : undefined);
+
+                    return {
+                        id: String(i.id),
+                        name: matched?.name || i.referenceCode || "Nguyên liệu",
+                        shelfLifeWarningDays: 30,
+                        skuCode: matched?.code || i.referenceCode || "NL",
+                        unit: matched?.unit || "kg"
+                    };
+                })
+                : rawIngredients.map((ing) => {
+                    const unitObjName = typeof ing.unit === "object" && ing.unit !== null
+                        ? ((ing.unit as Record<string, unknown>).symbol || (ing.unit as Record<string, unknown>).name)
+                        : undefined;
+                    return {
+                        id: String(ing.id || ""),
+                        name: String(ing.name || "Nguyên liệu"),
+                        shelfLifeWarningDays: 30,
+                        skuCode: String(ing.ingredientCode || ing.code || "NL"),
+                        unit: String(
+                            ing.unitSymbol ||
+                            ing.unitName ||
+                            ing.unit_name ||
+                            unitObjName ||
+                            "kg"
+                        )
+                    };
+                }));
+
+        const finalResult: GoodsReceiptOptions = {
+            locations: locations.length > 0 ? locations : [
+                { code: "KHO-TONG", id: "1", isCentral: true, name: "Kho Tổng Hương Vân Trà" }
+            ],
+            materials,
+            suppliers
+        };
+
+        materials.forEach((m) => {
+            if (m.id) globalIngredientNameMap.set(String(m.id), m.name);
+            if (m.skuCode) globalIngredientNameMap.set(String(m.skuCode), m.name);
+        });
+        rawIngredients.forEach((ing) => {
+            const id = ing.id !== undefined && ing.id !== null ? String(ing.id) : undefined;
+            const code = ing.ingredientCode || ing.code;
+            const name = ing.name;
+            if (name) {
+                if (id) globalIngredientNameMap.set(id, String(name));
+                if (code) globalIngredientNameMap.set(String(code), String(name));
+            }
+        });
+
+        console.log("[GoodsReceipt API] Options loaded:", {
+            suppRes,
+            suppliers,
+            locRes,
+            locations
+        });
+
+        return finalResult;
     }
 };

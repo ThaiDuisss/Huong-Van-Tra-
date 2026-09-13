@@ -3,9 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { transferPriorityLabels, transferPriorityOptions } from "../constants/transfer.constants";
-import { inventoryMasterLocations } from "../mocks/inventory-master-data.mock";
 import { transferApi } from "../services/transfer.api";
-import type { TransferCreateInput, TransferOptions, TransferPriority, TransferRole } from "../types/transfer.types";
+import type { TransferCreateInput, TransferOptions, TransferPriority } from "../types/transfer.types";
 import { formatVietnamNumber, formatVnd } from "../utils/inventory-format";
 
 interface DraftLine {
@@ -14,17 +13,9 @@ interface DraftLine {
     note: string;
 }
 
-function readRole(): TransferRole {
-    const stored = window.localStorage.getItem("hvt.transfer.role");
-    return stored && ["BRANCH_MANAGER", "WAREHOUSE", "ADMIN", "DIRECTOR", "ACCOUNTANT", "SALES_STAFF"].includes(stored)
-        ? stored as TransferRole
-        : "BRANCH_MANAGER";
-}
-
 export function TransferCreatePage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const [role] = useState<TransferRole>(readRole);
     const [options, setOptions] = useState<TransferOptions>({ locations: [], skus: [], users: [] });
     const [form, setForm] = useState({
         destinationLocationId: "",
@@ -57,17 +48,15 @@ export function TransferCreatePage() {
         });
     }, [searchParams]);
 
-    const selectedLines = lines.map((line) => {
-        const sku = options.skus.find((item) => item.id === line.skuId);
-        return { ...line, sku };
-    }).filter((line): line is DraftLine & { sku: TransferOptions["skus"][number] } => Boolean(line.sku));
+    const selectedLines = useMemo(() => lines
+        .map((line) => ({ ...line, sku: options.skus.find((item) => item.id === line.skuId) }))
+        .filter((item): item is DraftLine & { sku: TransferOptions["skus"][number] } => Boolean(item.sku)), [lines, options.skus]);
 
     const totalValue = selectedLines.reduce((sum, line) => sum + line.requestedQuantity * line.sku.unitCost, 0);
 
     const destinationOptions = useMemo(() => {
-        if (role !== "BRANCH_MANAGER") return options.locations;
-        return options.locations.filter((item) => item.id === inventoryMasterLocations.branchCauGiay.id);
-    }, [options.locations, role]);
+        return options.locations;
+    }, [options.locations]);
 
     function addLine() {
         const sku = options.skus.find((item) => !lines.some((line) => line.skuId === item.id));
@@ -77,7 +66,6 @@ export function TransferCreatePage() {
     async function submitTransfer(submit: boolean) {
         setError("");
         const input: TransferCreateInput = {
-            actorRole: role,
             destinationLocationId: form.destinationLocationId,
             expectedReceiveAt: new Date(form.expectedReceiveAt).toISOString(),
             lines: selectedLines.map((line) => ({ note: line.note, requestedQuantity: line.requestedQuantity, skuId: line.skuId })),
@@ -104,9 +92,6 @@ export function TransferCreatePage() {
                     <Link className="text-sm font-black text-[#159734]" to="/management/inventory/transfers">Quay lại danh sách</Link>
                     <h1 className="text-2xl font-black text-[#172317]">Tạo yêu cầu chuyển kho</h1>
                     <p className="text-sm font-semibold text-[#697684]">Source mặc định là kho trung tâm. Nếu tạo từ cảnh báo tồn, các dòng có thể được prefill bằng cùng payload mock.</p>
-                </div>
-                <div className="rounded-lg bg-[#f4faf5] px-3 py-2 text-sm font-black text-[#315f3c]">
-                    Vai trò: {role}
                 </div>
             </header>
 

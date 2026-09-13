@@ -2,10 +2,8 @@ import { AlertTriangle, CheckCircle2, PackageX, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
 import {
-    DisposalTable,
-    QualityRoleSwitch
+    DisposalTable
 } from "../components/QualityComponents";
 import {
     disposalMethodLabels,
@@ -17,15 +15,9 @@ import type {
     DisposalCreateInput,
     DisposalListQuery,
     DisposalListResult,
-    QualityBatchSummary,
-    QualityRole
+    QualityBatchSummary
 } from "../types/quality.types";
 import { formatVietnamNumber, formatVnd } from "../utils/inventory-format";
-
-function readRole(): QualityRole {
-    const stored = window.localStorage.getItem("hvt.quality.role");
-    return stored && ["QC_STAFF", "WAREHOUSE", "BRANCH_MANAGER", "ADMIN", "DIRECTOR", "ACCOUNTANT"].includes(stored) ? stored as QualityRole : "WAREHOUSE";
-}
 
 const initialQuery: DisposalListQuery = {
     code: "",
@@ -49,7 +41,6 @@ const initialForm = {
 
 export function DisposalListPage() {
     const navigate = useNavigate();
-    const [role, setRole] = useState<QualityRole>(readRole);
     const [query, setQuery] = useState<DisposalListQuery>(initialQuery);
     const [result, setResult] = useState<DisposalListResult | null>(null);
     const [candidateBatches, setCandidateBatches] = useState<QualityBatchSummary[]>([]);
@@ -58,8 +49,6 @@ export function DisposalListPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
-
-    useEffect(() => { window.localStorage.setItem("hvt.quality.role", role); }, [role]);
     useEffect(() => {
         let active = true;
         queueMicrotask(() => {
@@ -117,7 +106,6 @@ export function DisposalListPage() {
         setError("");
         try {
             const created = await qualityApi.createDisposalRequest({
-                actorRole: role,
                 lines: [{
                     batchId: selectedBatch.id,
                     evidence: form.evidence.split(",").map((item) => item.trim()).filter(Boolean),
@@ -147,7 +135,6 @@ export function DisposalListPage() {
                 <p className="text-sm font-semibold text-[#697684]">Tạo, phê duyệt và hoàn tất tiêu hủy. Complete disposal mới tạo PXK WRITE_OFF và giảm tồn vật lý.</p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
-                <QualityRoleSwitch onChange={setRole} value={role} />
                 <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" onClick={() => setShowCreate((open) => !open)} type="button"><Plus size={16} />Tạo yêu cầu</button>
             </div>
         </header>

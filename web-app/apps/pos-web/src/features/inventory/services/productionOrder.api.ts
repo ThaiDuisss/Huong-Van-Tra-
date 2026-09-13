@@ -8,7 +8,6 @@ import {
 } from "../mocks/production-orders.mock";
 import type {
     ProductionActionInput,
-    ProductionCompletionInput,
     ProductionOrder,
     ProductionOrderApi,
     ProductionOrderCreateInput,
@@ -51,12 +50,11 @@ function findOrder(id: string) {
 }
 
 function audit(
-    input: ProductionActionInput | ProductionCompletionInput,
     type: InventoryAuditEvent["type"],
     note?: string,
     reason?: string
 ): InventoryAuditEvent {
-    const actor = productionActor(input.actorRole);
+    const actor = productionActor("ADMIN");
     return {
         actor,
         happenedAt: new Date().toISOString(),
@@ -97,7 +95,7 @@ function setStatus(
 ) {
     const order = findOrder(input.productionOrderId);
     order.status = status;
-    order.auditEvents = [audit(input, "APPROVE", note), ...order.auditEvents];
+    order.auditEvents = [audit("APPROVE", note), ...order.auditEvents];
     return wait(clone(order));
 }
 
@@ -200,12 +198,6 @@ export const productionOrderApi: ProductionOrderApi = {
             ) {
                 throw new Error("Hao hụt vượt tolerance phải có lý do.");
             }
-            if (
-                variancePercent > productionCompletionTolerancePercent * 2 &&
-                !["ADMIN", "DIRECTOR"].includes(input.actorRole)
-            ) {
-                throw new Error("Variance vượt ngưỡng cần ADMIN hoặc DIRECTOR duyệt.");
-            }
             if (new Date(input.expiryDate) <= new Date(input.manufacturingDate)) {
                 throw new Error("Batch expiry phải sau manufacturing date.");
             }
@@ -215,7 +207,7 @@ export const productionOrderApi: ProductionOrderApi = {
                 ...order.completions,
                 {
                     completedAt: new Date().toISOString(),
-                    completedBy: productionActor(input.actorRole),
+                    completedBy: productionActor("ADMIN"),
                     completionNumber,
                     expiryDate: input.expiryDate,
                     goodQuantity: input.goodQuantity,
@@ -262,7 +254,7 @@ export const productionOrderApi: ProductionOrderApi = {
                 order.finishedReceiptDocumentCode = `PNK-SX-${order.code}`;
             }
             order.auditEvents = [
-                audit(input, "POST", "Complete Production."),
+                audit("POST", "Complete Production."),
                 ...order.auditEvents
             ];
             completedOperations.add(input.idempotencyKey);
@@ -314,7 +306,6 @@ export const productionOrderApi: ProductionOrderApi = {
         const order: ProductionOrder = {
             auditEvents: [
                 audit(
-                    { actorRole: "WAREHOUSE", productionOrderId: "new" },
                     "CREATE_DRAFT",
                     input.submit ? "Tạo và submit LSX." : "Lưu draft LSX."
                 )
@@ -331,7 +322,7 @@ export const productionOrderApi: ProductionOrderApi = {
                 unitProductionCost: 0
             },
             createdAt: new Date().toISOString(),
-            createdBy: productionActor("WAREHOUSE"),
+            createdBy: productionActor("INVENTORY_STAFF"),
             dueAt: input.dueAt,
             hasShortage: false,
             id: `production-order-${Date.now()}`,
@@ -439,7 +430,7 @@ export const productionOrderApi: ProductionOrderApi = {
         }));
         order.status = "RELEASED";
         order.auditEvents = [
-            audit(input, "APPROVE", "Release và reservation nguyên liệu."),
+            audit("APPROVE", "Release và reservation nguyên liệu."),
             ...order.auditEvents
         ];
         return wait(clone(order));

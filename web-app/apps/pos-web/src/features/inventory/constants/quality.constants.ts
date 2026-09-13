@@ -13,7 +13,7 @@ export const qualityBatchStatusLabels: Record<QualityBatchStatus, string> = {
     DISPOSED: "Đã tiêu hủy",
     EXPIRED: "Hết hạn",
     NEAR_EXPIRY: "Sắp hết hạn",
-    QUARANTINE: "Quarantine"
+    QUARANTINE: "Cách ly kiểm định"
 };
 
 export const qualityTabLabels: Record<QualityTab, string> = {
@@ -22,7 +22,7 @@ export const qualityTabLabels: Record<QualityTab, string> = {
     DISPOSED: "Đã tiêu hủy",
     EXPIRED: "Đã hết hạn",
     NEAR_EXPIRY: "Sắp hết hạn",
-    QUARANTINE: "Quarantine"
+    QUARANTINE: "Cách ly kiểm định"
 };
 
 export const disposalStatusLabels: Record<DisposalStatus, string> = {
@@ -46,8 +46,8 @@ export const qualityRoleLabels: Record<QualityRole, string> = {
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
-    QC_STAFF: "Nhân viên QC",
-    WAREHOUSE: "Nhân viên kho"
+    INVENTORY_STAFF: "Nhân viên kho",
+    QC_STAFF: "Nhân viên QC"
 };
 
 export const qualityTabs: QualityTab[] = [

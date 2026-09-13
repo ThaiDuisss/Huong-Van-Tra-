@@ -12,7 +12,7 @@ import java.util.UUID;
 @FeignClient(name = "catalog-service")
 public interface CatalogClient {
 
-    @GetMapping("/api/catalog/product-variants/{variantId}/pos-view")
+    @GetMapping("/api/catalog/product-variants/{variantId}")
     ProductVariantPosViewResponse getProductVariantPosView(@PathVariable("variantId") UUID variantId);
 
     /**
@@ -26,12 +26,12 @@ public interface CatalogClient {
 
     record ProductVariantPosViewResponse(
             UUID productId,
-            UUID variantId,
+            @JsonProperty("id") UUID variantId,
             String sku,
             String productName,
             String variantName,
             String categoryName,
-            @JsonProperty("selling_price") BigDecimal sellingPrice,
+            BigDecimal sellingPrice,
             String imageUrl
     ){}
 

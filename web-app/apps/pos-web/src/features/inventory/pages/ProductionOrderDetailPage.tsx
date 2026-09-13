@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
+import { useAuth } from "../../../auth/auth-context";
+import { hasAnyRole } from "../../../auth/role-utils";
 import {
     Dialog,
     DialogContent,
@@ -16,40 +18,21 @@ import {
     MaterialTable,
     OutputTable,
     PriorityBadge,
-    ProductionRoleSwitch,
     ProductionStatusBadge,
-    Progress,
-    RoleUnavailable
+    Progress
 } from "../components/ProductionOrderComponents";
 import { productionOrderApi } from "../services/productionOrder.api";
 import type {
     ProductionCompletionInput,
-    ProductionOrder,
-    ProductionRole
+    ProductionOrder
 } from "../types/production-order.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
 type Tab = "overview" | "outputs" | "materials" | "reservation" | "completions" | "documents" | "cost" | "audit";
 
-function readRole(): ProductionRole {
-    const stored = window.localStorage.getItem("hvt.production.role");
-    return stored &&
-        ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER", "ACCOUNTANT", "DIRECTOR", "QC_STAFF"].includes(stored)
-        ? (stored as ProductionRole)
-        : "WAREHOUSE";
-}
-
-function canWarehouse(role: ProductionRole) {
-    return role === "ADMIN" || role === "WAREHOUSE";
-}
-
-function canApprove(role: ProductionRole) {
-    return role === "ADMIN" || role === "DIRECTOR";
-}
-
 export function ProductionOrderDetailPage() {
     const { productionOrderId } = useParams();
-    const [role, setRole] = useState<ProductionRole>(readRole);
+    const { roles } = useAuth();
     const [order, setOrder] = useState<ProductionOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -69,9 +52,9 @@ export function ProductionOrderDetailPage() {
         wasteQuantity: 1
     });
 
-    useEffect(() => {
-        window.localStorage.setItem("hvt.production.role", role);
-    }, [role]);
+    const canWarehouse = hasAnyRole(roles, ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"]);
+    const canApprove = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
+    const canFullCost = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT", "INVENTORY_MANAGER"]);
 
     const loadOrder = useCallback(() => {
         if (!productionOrderId) return;
@@ -114,7 +97,7 @@ export function ProductionOrderDetailPage() {
 
     async function runAction(action: "submit" | "approve" | "release" | "start" | "cancel" | "close") {
         if (!order) return;
-        const input = { actorRole: role, productionOrderId: order.id };
+        const input = { productionOrderId: order.id };
         const actionMap = {
             approve: productionOrderApi.approveProductionOrder,
             cancel: productionOrderApi.cancelProductionOrder,
@@ -139,7 +122,6 @@ export function ProductionOrderDetailPage() {
         if (!order) return;
         const completionNumber = order.completions.length + 1;
         const input: ProductionCompletionInput = {
-            actorRole: role,
             actualMaterialConsumption: completeDraft.actualMaterialConsumption,
             expiryDate: new Date(completeDraft.expiryDate).toISOString(),
             goodQuantity: completeDraft.goodQuantity,
@@ -169,12 +151,11 @@ export function ProductionOrderDetailPage() {
     if (loading) return <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4">{Array.from({length:8},(_,i)=><div className="h-12 animate-pulse rounded-lg bg-[#eef3ef]" key={i}/>)}</div>;
     if (error || !order) return <section className="grid gap-4"><BackLink /><div className="rounded-xl border border-red-100 bg-red-50 px-6 py-12 text-center text-sm font-bold text-red-700">{error || "Không tìm thấy LSX."}</div></section>;
 
-    const canFullCost = role === "ADMIN" || role === "ACCOUNTANT";
     const readOnly = order.status === "COMPLETED" || order.status === "CANCELLED" || order.status === "FAILED";
 
     return (
         <section className="grid gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3"><BackLink /><ProductionRoleSwitch onChange={setRole} value={role} /></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><BackLink /></div>
             <header className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="grid gap-2">
@@ -184,11 +165,11 @@ export function ProductionOrderDetailPage() {
                         <Progress value={order.progressPercent} />
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        {order.status === "DRAFT" && canWarehouse(role) ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={mutationLoading} onClick={()=>void runAction("submit")} type="button">Submit</button> : null}
-                        {order.status === "PENDING_APPROVAL" ? canApprove(role) ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={mutationLoading} onClick={()=>void runAction("approve")} type="button">Approve</button> : <RoleUnavailable role={role}/> : null}
-                        {order.status === "RELEASED" && canWarehouse(role) ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={mutationLoading} onClick={()=>void runAction("start")} type="button">Start Production</button> : null}
-                        {["IN_PROGRESS","PARTIALLY_COMPLETED"].includes(order.status) && canWarehouse(role) ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" onClick={()=>setCompleteOpen(true)} type="button">Complete Production</button> : null}
-                        {order.status === "PARTIALLY_COMPLETED" && canWarehouse(role) ? <button className="h-10 rounded-lg border border-[#d8eadc] px-4 text-sm font-black text-[#159734]" disabled={mutationLoading} onClick={()=>void runAction("close")} type="button">Close remaining</button> : null}
+                        {order.status === "DRAFT" && canWarehouse ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={mutationLoading} onClick={()=>void runAction("submit")} type="button">Submit</button> : null}
+                        {order.status === "PENDING_APPROVAL" && canApprove ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={mutationLoading} onClick={()=>void runAction("approve")} type="button">Approve</button> : null}
+                        {order.status === "RELEASED" && canWarehouse ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={mutationLoading} onClick={()=>void runAction("start")} type="button">Start Production</button> : null}
+                        {["IN_PROGRESS","PARTIALLY_COMPLETED"].includes(order.status) && canWarehouse ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" onClick={()=>setCompleteOpen(true)} type="button">Complete Production</button> : null}
+                        {order.status === "PARTIALLY_COMPLETED" && canWarehouse ? <button className="h-10 rounded-lg border border-[#d8eadc] px-4 text-sm font-black text-[#159734]" disabled={mutationLoading} onClick={()=>void runAction("close")} type="button">Close remaining</button> : null}
                         {readOnly ? <span className="rounded-lg border border-[#e8eef0] bg-[#f7f8fb] px-3 py-2 text-sm font-bold text-[#697684]">Read-only</span> : null}
                     </div>
                 </div>

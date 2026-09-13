@@ -6,15 +6,19 @@ import type {
 
 export type GoodsReceiptStatus =
     | "DRAFT"
-    | "SUBMITTED"
+    | "PENDING_APPROVAL"
+    | "APPROVED"
+    | "REJECTED"
     | "RECEIVING"
+    | "QC_PENDING"
+    | "QC_COMPLETED"
+    | "POSTED"
+    | "CANCELLED"
+    | "SUBMITTED"
     | "AWAITING_QC"
     | "PARTIALLY_PASSED"
     | "AWAITING_COST"
-    | "READY_TO_POST"
-    | "POSTED"
-    | "REJECTED"
-    | "CANCELLED";
+    | "READY_TO_POST";
 
 export type QcResult =
     | "PENDING"
@@ -26,7 +30,8 @@ export type CostStatus = "PENDING" | "PROVISIONAL" | "FINAL";
 
 export type GoodsReceiptRole =
     | "ADMIN"
-    | "WAREHOUSE"
+    | "INVENTORY_STAFF"
+    | "INVENTORY_MANAGER"
     | "QC_STAFF"
     | "ACCOUNTANT"
     | "BRANCH_MANAGER"
@@ -135,12 +140,12 @@ export interface GoodsReceiptCostLine {
 export interface GoodsReceiptEvidence {
     id: string;
     type:
-        | "GOODS_PHOTO"
-        | "BATCH_LABEL"
-        | "DELIVERY_NOTE"
-        | "INVOICE"
-        | "CERTIFICATE"
-        | "VARIANCE_NOTE";
+    | "GOODS_PHOTO"
+    | "BATCH_LABEL"
+    | "DELIVERY_NOTE"
+    | "INVOICE"
+    | "CERTIFICATE"
+    | "VARIANCE_NOTE";
     fileName: string;
     uploadedAt: string;
     uploadedBy: string;
@@ -170,10 +175,13 @@ export interface GoodsReceiptListQuery {
 
 export interface GoodsReceiptDashboardSummary {
     draft: number;
+    pendingApproval: number;
+    receiving: number;
     awaitingQc: number;
     awaitingCost: number;
     readyToPost: number;
     postedToday: number;
+    total: number;
 }
 
 export interface GoodsReceiptListResult {
@@ -233,7 +241,6 @@ export interface GoodsReceiptCreateLineInput {
 
 export interface GoodsReceiptQcInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     lines: Array<{
         lineId: string;
         receivedQuantity: number;
@@ -247,7 +254,6 @@ export interface GoodsReceiptQcInput {
 
 export interface GoodsReceiptCostInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     finalize: boolean;
     lines: Array<{
         lineId: string;
@@ -262,11 +268,11 @@ export interface GoodsReceiptCostInput {
 
 export interface GoodsReceiptActionInput {
     receiptId: string;
-    actorRole: GoodsReceiptRole;
     note?: string;
 }
 
 export interface GoodsReceiptApi {
+    getGoodsReceiptSummaryCounts(): Promise<GoodsReceiptDashboardSummary>;
     listGoodsReceipts(
         query: GoodsReceiptListQuery
     ): Promise<GoodsReceiptListResult>;
@@ -280,6 +286,19 @@ export interface GoodsReceiptApi {
     ): Promise<GoodsReceiptDetail>;
     submitGoodsReceipt(
         input: GoodsReceiptActionInput
+    ): Promise<GoodsReceiptDetail>;
+    approveGoodsReceipt(
+        input: GoodsReceiptActionInput
+    ): Promise<GoodsReceiptDetail>;
+    rejectGoodsReceipt(
+        input: GoodsReceiptActionInput & { reason: string }
+    ): Promise<GoodsReceiptDetail>;
+    startReceivingGoodsReceipt(
+        input: GoodsReceiptActionInput
+    ): Promise<GoodsReceiptDetail>;
+    confirmReceivingGoodsReceipt(
+        receiptId: string,
+        items: Array<{ lineId: string; receivedQuantity: number; note?: string }>
     ): Promise<GoodsReceiptDetail>;
     performGoodsReceiptQc(
         input: GoodsReceiptQcInput
@@ -296,5 +315,5 @@ export interface GoodsReceiptApi {
     cancelGoodsReceipt(
         input: GoodsReceiptActionInput
     ): Promise<GoodsReceiptDetail>;
-    getGoodsReceiptOptions(): Promise<GoodsReceiptOptions>;
+    getGoodsReceiptOptions(supplierId?: string): Promise<GoodsReceiptOptions>;
 }

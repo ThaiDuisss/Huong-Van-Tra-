@@ -60,19 +60,23 @@ public class ProductMapper {
 
     public ProductResponse.VariantResponse toVariantResponse(ProductVariant variant) {
         Product product = variant.getProduct();
+        String categoryName = (product != null && product.getCategory() != null) ? product.getCategory().getName() : null;
+        String imageUrl = product != null ? product.getImageUrl() : null;
         return new ProductResponse.VariantResponse(
                 variant.getId(),
-                product.getId(),
-                product.getName(),
-                product.getProductCode(),
+                product != null ? product.getId() : null,
+                product != null ? product.getName() : null,
+                product != null ? product.getProductCode() : null,
                 variant.getSku(),
                 variant.getVariantName(),
+                categoryName,
                 variant.getSellingPrice(),
                 variant.getCostPrice(),
+                imageUrl,
                 variant.getUnit() != null ? variant.getUnit().getId() : null,
                 variant.getInventoryPolicy(),
                 variant.getStatus(),
-                product.getStatus(),
+                product != null ? product.getStatus() : null,
                 isSellable(variant),
                 variant.getBarcodes().stream().map(this::toBarcodeResponse).toList());
     }
@@ -88,11 +92,24 @@ public class ProductMapper {
 
     public ProductResponse.VariantSummaryResponse toVariantSummary(ProductVariant variant) {
         Product product = variant.getProduct();
+        String categoryName = (product != null && product.getCategory() != null) ? product.getCategory().getName() : null;
+        String imageUrl = product != null ? product.getImageUrl() : null;
         return new ProductResponse.VariantSummaryResponse(
-                variant.getId(), product.getId(), product.getName(), product.getProductCode(), variant.getSku(),
-                variant.getVariantName(), variant.getSellingPrice(), variant.getCostPrice(),
+                variant.getId(),
+                product != null ? product.getId() : null,
+                product != null ? product.getName() : null,
+                product != null ? product.getProductCode() : null,
+                variant.getSku(),
+                variant.getVariantName(),
+                categoryName,
+                variant.getSellingPrice(),
+                variant.getCostPrice(),
+                imageUrl,
                 variant.getUnit() != null ? variant.getUnit().getId() : null,
-                variant.getInventoryPolicy(), variant.getStatus(), product.getStatus(), isSellable(variant)
+                variant.getInventoryPolicy(),
+                variant.getStatus(),
+                product != null ? product.getStatus() : null,
+                isSellable(variant)
         );
     }
 

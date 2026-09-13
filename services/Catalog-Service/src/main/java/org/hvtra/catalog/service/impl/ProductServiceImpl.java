@@ -1,41 +1,30 @@
 package org.hvtra.catalog.service.impl;
 
-import feign.FeignException;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.catalog.client.FileClient;
-import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.request.ProductRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
-import org.hvtra.catalog.dto.response.ProductSummaryResponse;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
-import org.hvtra.catalog.exception.InventoryServiceUnavailableException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.CategoryRepository;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.service.ProductService;
-import org.hvtra.commonservice.exception.FeignClientException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -45,25 +34,22 @@ public class ProductServiceImpl implements ProductService {
     private final ProductMapper mapper;
     private final BusinessSequenceRepository businessSequenceRepository;
     private final FileClient fileClient;
-    private final InventoryClient inventoryClient;
 
     public ProductServiceImpl(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
             ProductMapper mapper,
             BusinessSequenceRepository businessSequenceRepository,
-            FileClient fileClient,
-            InventoryClient inventoryClient) {
+            FileClient fileClient) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.mapper = mapper;
         this.businessSequenceRepository = businessSequenceRepository;
         this.fileClient = fileClient;
-        this.inventoryClient = inventoryClient;
     }
 
     @Override
-    public PageResponse<ProductSummaryResponse> findAll(
+    public PageResponse<ProductResponse> findAll(
             String name, UUID categoryId, Status status, Pageable pageable) {
         Specification<Product> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
@@ -77,19 +63,9 @@ public class ProductServiceImpl implements ProductService {
         };
         Page<Product> productPage = productRepository.findAll(spec, pageable);
         List<Product> products = productPage.getContent();
-        Map<UUID, InventoryClient.StockBatchResponse> stockMap = loadStockMap(products);
-        List<ProductSummaryResponse> content = products.stream()
-                .map(product -> {
-                    InventoryClient.StockBatchResponse stock = stockMap.get(product.getId());
-                    return mapper.toSummaryResponse(
-                            product,
-                            stock != null ? stock.availableQuantity() : BigDecimal.ZERO,
-                            stock != null ? stock.reservedQuantity() : BigDecimal.ZERO,
-                            stock != null ? stock.stockStatus() : "OUT_OF_STOCK");
-                })
-                .toList();
+        List<ProductResponse> productResponses = products.stream().map(mapper::toResponse).toList();
         return new PageResponse<>(
-                content,
+                productResponses,
                 productPage.getNumber(),
                 productPage.getSize(),
                 productPage.getTotalElements(),
@@ -113,25 +89,6 @@ public class ProductServiceImpl implements ProductService {
                 page.isFirst(),
                 page.isLast()
         );
-    }
-
-    private Map<UUID, InventoryClient.StockBatchResponse> loadStockMap(List<Product> products) {
-        List<UUID> productIds = products.stream()
-                .map(Product::getId)
-                .distinct()
-                .toList();
-        if (productIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        try {
-            return inventoryClient.getStocksByProductIds(new InventoryClient.StockBatchRequest(productIds)).stream()
-                    .collect(Collectors.toMap(
-                            InventoryClient.StockBatchResponse::productId,
-                            Function.identity(),
-                            (left, ignored) -> left));
-        } catch (FeignClientException | FeignException exception) {
-            throw new InventoryServiceUnavailableException("Inventory service is temporarily unavailable", exception);
-        }
     }
 
     @Override

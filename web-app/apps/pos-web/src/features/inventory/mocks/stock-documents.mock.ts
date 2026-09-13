@@ -11,7 +11,7 @@ import type {
 
 const users: UserSnapshot[] = [
     { id: "user-admin", name: "Phạm Thu Hương", role: "ADMIN" },
-    { id: "user-warehouse", name: "Nguyễn Minh Anh", role: "WAREHOUSE" },
+    { id: "user-warehouse", name: "Nguyễn Minh Anh", role: "INVENTORY_STAFF" },
     { id: "user-branch", name: "Trần Bảo Ngọc", role: "BRANCH_MANAGER" },
     { id: "user-accountant", name: "Lê Hoài Nam", role: "ACCOUNTANT" },
     { id: "user-director", name: "Vũ Thanh Hà", role: "DIRECTOR" },

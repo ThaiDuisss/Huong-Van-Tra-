@@ -1,5 +1,5 @@
-import { Download, Upload } from "lucide-react";
-import { useCallback, useState } from "react";
+import { Download, Package, Upload } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 
@@ -14,9 +14,11 @@ import {
 import { usePagedApiResource } from "../../product/hooks/useApiResource";
 import { useCatalogPageState } from "../../product/hooks/useCatalogPageState";
 import { ingredientApi } from "../../product/services/ingredient.api";
+import { unitApi } from "../../product/services/unit.api";
 import type {
     CatalogStatus,
-    Ingredient
+    Ingredient,
+    Unit
 } from "../../product/types/product.types";
 import {
     getString
@@ -25,6 +27,13 @@ import {
 export function RawMaterialListPage() {
     const state = useCatalogPageState();
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [units, setUnits] = useState<Unit[]>([]);
+
+    useEffect(() => {
+        unitApi.list({ size: 200, status: "ACTIVE" })
+            .then((res) => setUnits(res.content || []))
+            .catch((err) => console.error("Lỗi tải danh sách đơn vị tính:", err));
+    }, []);
     
     const loadIngredients = useCallback(
         () =>
@@ -52,8 +61,14 @@ export function RawMaterialListPage() {
         values: FormValues,
         editingItem: Ingredient | null
     ) {
+        const unitIdVal = getString(values, "unitId");
+        const reorderPointVal = getString(values, "reorderPoint");
+        const imageUrl = getString(values, "imageFile") || null;
         const input = {
             name: getString(values, "name"),
+            imageUrl: imageUrl,
+            unitId: unitIdVal ? unitIdVal : null,
+            reorderPoint: reorderPointVal ? Number(reorderPointVal) : 0,
             status: getString(values, "status") as CatalogStatus
         };
 
@@ -94,8 +109,8 @@ export function RawMaterialListPage() {
     };
 
     const validateIngredientRow = (row: any) => {
-        const code = String(row["Mã nguyên liệu"] || "").trim();
-        const name = String(row["Tên nguyên liệu"] || "").trim();
+        const code = String(row["Mã nguyên liệu"] || row["ingredientCode"] || row["code"] || "").trim();
+        const name = String(row["Tên nguyên liệu"] || row["name"] || "").trim();
         
         if (!code) {
             return { isValid: false, error: "Mã nguyên liệu trống" };
@@ -185,20 +200,45 @@ export function RawMaterialListPage() {
                 onDelete={handleDelete}
                 getInitialValues={(item: Ingredient) => ({
                     name: item.name,
+                    imageFile: item.imageUrl ?? "",
+                    unitId: item.unitId ? String(item.unitId) : "",
+                    reorderPoint: item.reorderPoint != null ? String(item.reorderPoint) : "0",
                     status: item.status
                 })}
                 columns={[
+                    { key: "image", label: "Ảnh" },
                     { key: "ingredientCode", label: "Mã nguyên liệu" },
                     { key: "name", label: "Tên nguyên liệu" },
+                    { key: "unit", label: "Đơn vị tính" },
+                    { key: "reorderPoint", label: "Cảnh báo tồn" },
                     { key: "status", label: "Trạng thái" }
                 ]}
                 renderCells={(item: Ingredient) => (
                     <>
+                        <TableCell>
+                            {item.imageUrl ? (
+                                <img
+                                    src={item.imageUrl}
+                                    alt=""
+                                    className="size-12 rounded-xl object-cover"
+                                />
+                            ) : (
+                                <span className="grid size-12 place-items-center rounded-xl bg-neutral-100 text-gray-500">
+                                    <Package size={20} />
+                                </span>
+                            )}
+                        </TableCell>
                         <TableCell className="font-bold text-gray-500">
                             {item.ingredientCode}
                         </TableCell>
                         <TableCell className="font-semibold text-gray-700">
                             {item.name}
+                        </TableCell>
+                        <TableCell className="text-gray-600">
+                            {item.unitName ? `${item.unitName} (${item.unitSymbol || ""})` : "-"}
+                        </TableCell>
+                        <TableCell className="font-medium text-gray-600">
+                            {item.reorderPoint ?? 0}
                         </TableCell>
                         <TableCell>
                             <CatalogStatusBadge status={item.status} />
@@ -206,16 +246,31 @@ export function RawMaterialListPage() {
                     </>
                 )}
                 renderDetail={(item: Ingredient) => (
-                    <DetailList
-                        items={[
-                            { label: "Mã nguyên liệu", value: item.ingredientCode },
-                            { label: "Tên nguyên liệu", value: item.name },
-                            // {
-                            //     label: "Trạng thái",
-                            //     value: <CatalogStatusBadge status={item.status} />
-                            // }
-                        ]}
-                    />
+                    <div className="grid gap-6">
+                        {item.imageUrl ? (
+                            <img
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className="h-40 w-full rounded-2xl object-cover"
+                            />
+                        ) : (
+                            <div className="grid h-40 place-items-center rounded-2xl bg-neutral-100 text-gray-500">
+                                <Package size={34} />
+                            </div>
+                        )}
+                        <DetailList
+                            items={[
+                                { label: "Mã nguyên liệu", value: item.ingredientCode },
+                                { label: "Tên nguyên liệu", value: item.name },
+                                { label: "Đơn vị tính", value: item.unitName ? `${item.unitName} (${item.unitSymbol || ""})` : "-" },
+                                { label: "Ngưỡng cảnh báo tồn", value: item.reorderPoint ?? 0 },
+                                {
+                                    label: "Trạng thái",
+                                    value: <CatalogStatusBadge status={item.status} />
+                                }
+                            ]}
+                        />
+                    </div>
                 )}
                 formFields={[
                     {
@@ -223,6 +278,31 @@ export function RawMaterialListPage() {
                         label: "Tên nguyên liệu",
                         required: true,
                         placeholder: "Nhập tên nguyên liệu..."
+                    },
+                    {
+                        name: "imageFile",
+                        label: "Hình ảnh nguyên liệu",
+                        type: "file",
+                        purpose: "PRODUCT_IMAGE"
+                    },
+                    {
+                        name: "unitId",
+                        label: "Đơn vị tính",
+                        type: "select",
+                        placeholder: "Chọn đơn vị tính...",
+                        options: [
+                            { label: "-- Chọn đơn vị tính --", value: "" },
+                            ...units.map((u) => ({
+                                label: `${u.name} (${u.symbol})`,
+                                value: String(u.id)
+                            }))
+                        ]
+                    },
+                    {
+                        name: "reorderPoint",
+                        label: "Ngưỡng cảnh báo tồn tối thiểu",
+                        type: "number",
+                        placeholder: "0"
                     },
                     {
                         name: "status",

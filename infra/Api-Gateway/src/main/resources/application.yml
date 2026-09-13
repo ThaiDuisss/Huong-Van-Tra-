@@ -82,6 +82,10 @@ spring:
                 args:
                   rate-limiter: "#{@customerRateLimiter}"
                   key-resolver: "#{@keycloakUserOrGuestKeyResolver}"
+          - id: pos-bff
+            uri: lb://pos-bff
+            predicates:
+              - Path=/api/pos/**
           globalcors:
             cors-configurations:
               '[/**]':
@@ -101,7 +105,7 @@ spring:
             add-to-simple-url-handler-mapping: true
   data:
     redis:
-      host: 100.89.77.53
+      host: 100.93.252.63
       port: 6379
       password: Hvt@2026
 
@@ -151,6 +155,8 @@ springdoc:
         url: /api/inventory/v3/api-docs
       - name: employee-service
         url: /api/employee/v3/api-docs
+      - name: pos-bff
+        url: /api/pos/v3/api-docs
     enabled: true
     path: /swagger-ui.html
 

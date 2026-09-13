@@ -62,10 +62,6 @@ function summaryOf(detail: CustomerReturnDetail) {
     };
 }
 
-function assertRole(role: CustomerReturnActionInput["actorRole"], allowed: CustomerReturnActionInput["actorRole"][]) {
-    if (!allowed.includes(role)) throw new Error("Vai trò hiện tại không được thao tác nghiệp vụ này.");
-}
-
 function recalculate(detail: CustomerReturnDetail) {
     detail.totalQuantity = detail.lines.reduce((sum, line) => sum + line.requestedQuantity, 0);
     detail.totalValue = detail.lines.reduce((sum, line) => sum + line.requestedQuantity * line.unitPrice, 0);
@@ -83,7 +79,6 @@ function tabMatches(query: CustomerReturnListQuery, detail: CustomerReturnDetail
 
 export const customerReturnApi: CustomerReturnApi = {
     approveCustomerReturnRestock(input: CustomerReturnActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "QC_STAFF"]);
         const detail = findReturn(input.returnId);
         const passed = detail.lines.reduce((sum, line) => sum + line.passedQuantity, 0);
         if (passed <= 0) return Promise.reject(new Error("Không có quantity đạt QC để nhập lại kho."));
@@ -92,23 +87,21 @@ export const customerReturnApi: CustomerReturnApi = {
         detail.stockDocumentId = `doc-customer-return-${detail.id}`;
         detail.stockDocumentCode = `PNK-${detail.code}`;
         detail.status = "COMPLETED";
-        detail.auditEvents = [customerReturnAudit("POST", input.actorRole, "Tạo PNK CUSTOMER_RETURN_RECEIPT và đưa hàng đạt về AVAILABLE."), ...detail.auditEvents];
+        detail.auditEvents = [customerReturnAudit("POST", "ADMIN", "Tạo PNK CUSTOMER_RETURN_RECEIPT và đưa hàng đạt về AVAILABLE."), ...detail.auditEvents];
         return wait(copy(detail));
     },
 
     cancelCustomerReturn(input: CustomerReturnActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "SALES_STAFF", "BRANCH_MANAGER"]);
         const detail = findReturn(input.returnId);
         if (["COMPLETED", "RESTOCK_APPROVED", "DISPOSAL_REQUIRED"].includes(detail.status)) {
             return Promise.reject(new Error("Không thể hủy yêu cầu đã xử lý inventory."));
         }
         detail.status = "CANCELLED";
-        detail.auditEvents = [customerReturnAudit("CANCEL", input.actorRole, input.note ?? "Hủy yêu cầu trả hàng."), ...detail.auditEvents];
+        detail.auditEvents = [customerReturnAudit("CANCEL", "ADMIN", input.note ?? "Hủy yêu cầu trả hàng."), ...detail.auditEvents];
         return wait(copy(detail));
     },
 
     createCustomerReturn(input: CreateCustomerReturnInput) {
-        assertRole(input.actorRole, ["ADMIN", "SALES_STAFF"]);
         const order = returnableOrders.find((item) => item.id === input.orderId);
         if (!order) return Promise.reject(new Error("Không tìm thấy order gốc."));
         if (input.lines.length === 0) return Promise.reject(new Error("Cần chọn ít nhất một dòng trả."));
@@ -142,7 +135,7 @@ export const customerReturnApi: CustomerReturnApi = {
             };
         });
         const detail: CustomerReturnDetail = {
-            auditEvents: [customerReturnAudit("SUBMIT", input.actorRole, "Cashier tạo yêu cầu trả hàng, chờ Manager review.")],
+            auditEvents: [customerReturnAudit("SUBMIT", "ADMIN", "Cashier tạo yêu cầu trả hàng, chờ Manager review.")],
             branch: order.branch,
             code: `CRT-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${String(returnCache.length + 1).padStart(3, "0")}`,
             customerName: order.customerName,
@@ -159,7 +152,7 @@ export const customerReturnApi: CustomerReturnApi = {
             reason: lines[0]?.reason ?? "OTHER",
             refundStatus: input.desiredResolution === "REFUND" ? "REQUESTED" : "NOT_REQUESTED",
             requestedAt: new Date().toISOString(),
-            requestedBy: customerReturnActor(input.actorRole),
+            requestedBy: customerReturnActor("ADMIN"),
             status: "PENDING_MANAGER_REVIEW",
             totalQuantity: 0,
             totalValue: 0
@@ -178,7 +171,6 @@ export const customerReturnApi: CustomerReturnApi = {
     },
 
     inspectCustomerReturn(input: InspectCustomerReturnInput) {
-        assertRole(input.actorRole, ["ADMIN", "QC_STAFF"]);
         const detail = findReturn(input.returnId);
         if (!["RECEIVED_IN_QUARANTINE", "PENDING_QC"].includes(detail.status)) {
             return Promise.reject(new Error("Chỉ QC sau khi hàng vào CUSTOMER_RETURN_QUARANTINE."));
@@ -196,7 +188,7 @@ export const customerReturnApi: CustomerReturnApi = {
         detail.qc = {
             evidence: input.evidence,
             inspectedAt: new Date().toISOString(),
-            inspectedBy: customerReturnActor(input.actorRole),
+            inspectedBy: customerReturnActor("ADMIN"),
             note: input.note,
             remainingShelfLifeDays: input.remainingShelfLifeDays,
             sealStatus: input.sealStatus
@@ -204,7 +196,7 @@ export const customerReturnApi: CustomerReturnApi = {
         const failed = detail.lines.reduce((sum, line) => sum + line.failedQuantity, 0);
         const passed = detail.lines.reduce((sum, line) => sum + line.passedQuantity, 0);
         detail.status = failed > 0 && passed === 0 ? "DISPOSAL_REQUIRED" : "RESTOCK_APPROVED";
-        detail.auditEvents = [customerReturnAudit("APPROVE", input.actorRole, failed > 0 ? "QC không đạt, chuyển DAMAGED/disposal." : "QC đạt, chờ nhập lại kho."), ...detail.auditEvents];
+        detail.auditEvents = [customerReturnAudit("APPROVE", "ADMIN", failed > 0 ? "QC không đạt, chuyển DAMAGED/disposal." : "QC đạt, chờ nhập lại kho."), ...detail.auditEvents];
         return wait(copy(detail));
     },
 
@@ -232,7 +224,6 @@ export const customerReturnApi: CustomerReturnApi = {
     },
 
     receiveCustomerReturn(input: ReceiveCustomerReturnInput) {
-        assertRole(input.actorRole, ["ADMIN", "BRANCH_MANAGER"]);
         const detail = findReturn(input.returnId);
         if (detail.status !== "ACCEPTED") return Promise.reject(new Error("Chỉ nhận hàng sau khi Manager accept."));
         input.lines.forEach((lineInput) => {
@@ -243,32 +234,30 @@ export const customerReturnApi: CustomerReturnApi = {
             line.receivedCondition = lineInput.receivedCondition;
         });
         detail.status = "RECEIVED_IN_QUARANTINE";
-        detail.receiving = { receivedAt: new Date().toISOString(), receivedBy: customerReturnActor(input.actorRole), note: input.note ?? "Hàng vào CUSTOMER_RETURN_QUARANTINE, chưa cộng available." };
-        detail.auditEvents = [customerReturnAudit("APPROVE", input.actorRole, "Nhận hàng thực tế vào CUSTOMER_RETURN_QUARANTINE."), ...detail.auditEvents];
+        detail.receiving = { receivedAt: new Date().toISOString(), receivedBy: customerReturnActor("ADMIN"), note: input.note ?? "Hàng vào CUSTOMER_RETURN_QUARANTINE, chưa cộng available." };
+        detail.auditEvents = [customerReturnAudit("APPROVE", "ADMIN", "Nhận hàng thực tế vào CUSTOMER_RETURN_QUARANTINE."), ...detail.auditEvents];
         return wait(copy(detail));
     },
 
     requestCustomerReturnDisposal(input: CustomerReturnActionInput) {
-        assertRole(input.actorRole, ["ADMIN", "QC_STAFF"]);
         const detail = findReturn(input.returnId);
         const failed = detail.lines.reduce((sum, line) => sum + line.failedQuantity, 0);
         if (failed <= 0) return Promise.reject(new Error("Không có hàng fail QC để tạo Disposal Request."));
         detail.disposalRequestId = `disposal-${detail.id}`;
         detail.disposalRequestCode = `DSP-${detail.code}`;
         detail.status = "COMPLETED";
-        detail.auditEvents = [customerReturnAudit("POST", input.actorRole, "Tạo Disposal Request cho hàng trả không đạt QC."), ...detail.auditEvents];
+        detail.auditEvents = [customerReturnAudit("POST", "ADMIN", "Tạo Disposal Request cho hàng trả không đạt QC."), ...detail.auditEvents];
         return wait(copy(detail));
     },
 
     reviewCustomerReturn(input: ReviewCustomerReturnInput) {
-        assertRole(input.actorRole, ["ADMIN", "BRANCH_MANAGER"]);
         const detail = findReturn(input.returnId);
         if (detail.status !== "PENDING_MANAGER_REVIEW") return Promise.reject(new Error("Chỉ review yêu cầu đang chờ Manager."));
         if (!input.accepted && !input.rejectReason?.trim()) return Promise.reject(new Error("Reject bắt buộc nhập lý do."));
         if (!input.accepted) {
             detail.status = "REJECTED";
-            detail.managerReview = { accepted: false, rejectReason: input.rejectReason, reviewedAt: new Date().toISOString(), reviewedBy: customerReturnActor(input.actorRole) };
-            detail.auditEvents = [customerReturnAudit("REJECT", input.actorRole, input.rejectReason ?? "Từ chối trả hàng."), ...detail.auditEvents];
+            detail.managerReview = { accepted: false, rejectReason: input.rejectReason, reviewedAt: new Date().toISOString(), reviewedBy: customerReturnActor("ADMIN") };
+            detail.auditEvents = [customerReturnAudit("REJECT", "ADMIN", input.rejectReason ?? "Từ chối trả hàng."), ...detail.auditEvents];
             return wait(copy(detail));
         }
         let reduced = false;
@@ -283,8 +272,8 @@ export const customerReturnApi: CustomerReturnApi = {
             return Promise.reject(new Error("Chỉnh quantity accepted phải ghi lý do."));
         }
         detail.status = "ACCEPTED";
-        detail.managerReview = { accepted: true, quantityChangeReason: input.quantityChangeReason, reviewedAt: new Date().toISOString(), reviewedBy: customerReturnActor(input.actorRole), note: input.note };
-        detail.auditEvents = [customerReturnAudit("APPROVE", input.actorRole, "Manager accept điều kiện trả hàng."), ...detail.auditEvents];
+        detail.managerReview = { accepted: true, quantityChangeReason: input.quantityChangeReason, reviewedAt: new Date().toISOString(), reviewedBy: customerReturnActor("ADMIN"), note: input.note };
+        detail.auditEvents = [customerReturnAudit("APPROVE", "ADMIN", "Manager accept điều kiện trả hàng."), ...detail.auditEvents];
         return wait(copy(detail));
     },
 

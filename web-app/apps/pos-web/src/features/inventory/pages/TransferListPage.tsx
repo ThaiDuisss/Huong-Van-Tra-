@@ -5,7 +5,6 @@ import { Link } from "react-router-dom";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import {
     TransferFilterBar,
-    TransferRoleSwitch,
     TransferSummaryCard,
     TransferTable
 } from "../components/TransferComponents";
@@ -14,29 +13,16 @@ import { useTransferQueryState } from "../hooks/useTransferQueryState";
 import { transferApi } from "../services/transfer.api";
 import type {
     TransferListResult,
-    TransferOptions,
-    TransferRole
+    TransferOptions
 } from "../types/transfer.types";
-
-function readRole(): TransferRole {
-    const stored = window.localStorage.getItem("hvt.transfer.role");
-    return stored && ["BRANCH_MANAGER", "WAREHOUSE", "ADMIN", "DIRECTOR", "ACCOUNTANT", "SALES_STAFF"].includes(stored)
-        ? stored as TransferRole
-        : "BRANCH_MANAGER";
-}
 
 export function TransferListPage() {
     const { query, resetQuery, setQuery } = useTransferQueryState();
-    const [role, setRole] = useState<TransferRole>(readRole);
     const [options, setOptions] = useState<TransferOptions>({ locations: [], skus: [], users: [] });
     const [result, setResult] = useState<TransferListResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
-
-    useEffect(() => {
-        window.localStorage.setItem("hvt.transfer.role", role);
-    }, [role]);
 
     useEffect(() => {
         void transferApi.getTransferOptions().then(setOptions);
@@ -71,7 +57,6 @@ export function TransferListPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
-                    <TransferRoleSwitch onChange={setRole} value={role} />
                     <Link className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-pos-card" to="/management/inventory/transfers/new">
                         Tạo yêu cầu
                     </Link>

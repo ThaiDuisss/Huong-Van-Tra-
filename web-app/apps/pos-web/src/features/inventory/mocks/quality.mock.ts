@@ -13,8 +13,8 @@ const users: Record<QualityRole, UserSnapshot> = {
     ADMIN: inventoryMasterUsers.admin,
     BRANCH_MANAGER: inventoryMasterUsers.branchManager,
     DIRECTOR: inventoryMasterUsers.director,
-    QC_STAFF: inventoryMasterUsers.qc,
-    WAREHOUSE: inventoryMasterUsers.warehouse
+    INVENTORY_STAFF: inventoryMasterUsers.warehouse,
+    QC_STAFF: inventoryMasterUsers.qc
 };
 
 export const qualityLocations = [
@@ -98,7 +98,7 @@ export const qualityBatches: BatchQualityDetail[] = [
         unitCost: 155000
     },
     {
-        auditEvents: [qualityAudit("APPROVE", "WAREHOUSE", "Phát hiện bao rách ẩm, mark damaged.")],
+        auditEvents: [qualityAudit("APPROVE", "INVENTORY_STAFF", "Phát hiện bao rách ẩm, mark damaged.")],
         availableQuantity: 0,
         batchCode: inventoryMasterBatches.damaged.batchCode,
         blockedQuantity: 6,
@@ -158,7 +158,7 @@ export const qualityBatches: BatchQualityDetail[] = [
         unitCost: 260000
     },
     {
-        auditEvents: [qualityAudit("POST", "WAREHOUSE", "Batch available sau QC passed.")],
+        auditEvents: [qualityAudit("POST", "INVENTORY_STAFF", "Batch available sau QC passed.")],
         availableQuantity: 44,
         batchCode: inventoryMasterBatches.available.batchCode,
         blockedQuantity: 0,
@@ -191,7 +191,7 @@ export const qualityBatches: BatchQualityDetail[] = [
 
 export const disposalRequests: DisposalRequest[] = [
     {
-        auditEvents: [qualityAudit("SUBMIT", "WAREHOUSE", "Tạo yêu cầu tiêu hủy batch hết hạn.")],
+        auditEvents: [qualityAudit("SUBMIT", "INVENTORY_STAFF", "Tạo yêu cầu tiêu hủy batch hết hạn.")],
         code: "DSP-20260802-001",
         id: "disposal-1",
         lines: [{ actualDisposedQuantity: 0, batchCode: inventoryMasterBatches.expired.batchCode, batchId: inventoryMasterBatches.expired.id, estimatedValue: 1600000, evidence: ["expired-label.jpg"], id: "dsp-line-1", quantity: 5, reason: "Hết hạn", reservedQuantity: 0, skuCode: inventoryMasterMaterials[1].skuCode, skuName: inventoryMasterMaterials[1].name, unit: "kg", unitCost: 320000 }],
@@ -200,7 +200,7 @@ export const disposalRequests: DisposalRequest[] = [
         note: "Tiêu hủy theo quy trình.",
         reason: "Hết hạn",
         requestedAt: "2026-08-02T08:00:00.000Z",
-        requestedBy: users.WAREHOUSE,
+        requestedBy: users.INVENTORY_STAFF,
         scheduledAt: "2026-08-04T09:00:00.000Z",
         status: "SUBMITTED",
         witnesses: ["QC", "Kho"]

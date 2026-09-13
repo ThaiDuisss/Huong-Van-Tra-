@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
-    StockAlertRoleSwitch,
     StockAlertTable
 } from "../components/StockAlertComponents";
 import {
@@ -19,22 +18,16 @@ import { stockAlertApi } from "../services/stockAlert.api";
 import { inventoryMasterLocations } from "../mocks/inventory-master-data.mock";
 import type {
     StockAlertListQuery,
-    StockAlertListResult,
-    StockAlertRole
+    StockAlertListResult
 } from "../types/stock-alert.types";
 import { formatVietnamNumber } from "../utils/inventory-format";
-
-function readRole(): StockAlertRole {
-    const stored = window.localStorage.getItem("hvt.stockAlert.role");
-    return stored && ["WAREHOUSE", "BRANCH_MANAGER", "ADMIN", "ACCOUNTANT", "DIRECTOR", "SALES_STAFF"].includes(stored) ? stored as StockAlertRole : "WAREHOUSE";
-}
 
 const initialQuery: StockAlertListQuery = {
     createdFrom: "",
     hasAction: "ALL",
     locationId: "ALL",
     page: 0,
-    role: "WAREHOUSE",
+    role: "ADMIN",
     severity: "ALL",
     size: 10,
     skuOrCategory: "",
@@ -43,18 +36,10 @@ const initialQuery: StockAlertListQuery = {
 };
 
 export function StockAlertListPage() {
-    const [role, setRole] = useState<StockAlertRole>(readRole);
-    const [query, setQuery] = useState<StockAlertListQuery>({ ...initialQuery, role });
+    const [query, setQuery] = useState<StockAlertListQuery>(initialQuery);
     const [result, setResult] = useState<StockAlertListResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-
-    useEffect(() => {
-        window.localStorage.setItem("hvt.stockAlert.role", role);
-        queueMicrotask(() => {
-            setQuery((current) => ({ ...current, page: 0, role }));
-        });
-    }, [role]);
 
     useEffect(() => {
         let active = true;
@@ -82,7 +67,6 @@ export function StockAlertListPage() {
                 <p className="text-sm font-semibold text-[#697684]">Theo dõi thiếu hàng, sắp hết hàng, reservation cao và đề xuất bổ sung. Không tự động đặt mua hàng.</p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
-                <StockAlertRoleSwitch onChange={setRole} value={role} />
                 <Link className="inline-flex h-10 items-center rounded-lg border border-[#d8eadc] px-4 text-sm font-black text-[#159734]" to="/management/inventory/reorder-policies">Reorder policies</Link>
             </div>
         </header>

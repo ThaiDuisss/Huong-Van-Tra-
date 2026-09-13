@@ -24,7 +24,7 @@ import type {
 
 export const inventoryRoleLabels: Record<InventoryRole, string> = {
     INVENTORY_MANAGER: "Quản lý kho",
-    WAREHOUSE_STAFF: "Nhân viên kho",
+    INVENTORY_STAFF: "Nhân viên kho",
     PRODUCTION_STAFF: "Nhân viên sản xuất",
     BRANCH_STAFF: "Nhân viên chi nhánh",
     AUDITOR: "Kiểm kê viên"
@@ -33,7 +33,7 @@ export const inventoryRoleLabels: Record<InventoryRole, string> = {
 export const inventoryRoleDescriptions: Record<InventoryRole, string> = {
     INVENTORY_MANAGER:
         "Duyệt chứng từ, điều phối bổ sung hàng và xử lý ngoại lệ tồn kho.",
-    WAREHOUSE_STAFF:
+    INVENTORY_STAFF:
         "Tạo chứng từ nhập, chuyển kho, trả nhà cung cấp và tiêu hủy.",
     PRODUCTION_STAFF:
         "Theo dõi lệnh sản xuất, cấp phát nguyên liệu và hoàn thành mẻ trà.",
@@ -81,7 +81,7 @@ export const inventoryActionLabels: Record<InventoryActionType, string> = {
 const managerRoles: InventoryRole[] = ["INVENTORY_MANAGER"];
 const warehouseRoles: InventoryRole[] = [
     "INVENTORY_MANAGER",
-    "WAREHOUSE_STAFF"
+    "INVENTORY_STAFF"
 ];
 const productionRoles: InventoryRole[] = [
     "INVENTORY_MANAGER",

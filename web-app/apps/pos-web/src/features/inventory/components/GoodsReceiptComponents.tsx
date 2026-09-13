@@ -8,8 +8,9 @@ import {
     PackageCheck,
     XCircle
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Pagination } from "../../manufacturing/components/shared/Pagination";
 
 import {
     costStatusLabels,
@@ -38,15 +39,19 @@ import {
 } from "../utils/inventory-format";
 
 const statusTone: Record<GoodsReceiptStatus, string> = {
+    DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
+    PENDING_APPROVAL: "border-amber-200 bg-amber-50 text-amber-700",
+    APPROVED: "border-blue-200 bg-blue-50 text-blue-700",
+    REJECTED: "border-red-200 bg-red-50 text-red-700",
+    RECEIVING: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    QC_PENDING: "border-purple-200 bg-purple-50 text-purple-700",
+    QC_COMPLETED: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    POSTED: "border-green-200 bg-green-50 text-green-700",
+    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600",
     AWAITING_COST: "border-blue-200 bg-blue-50 text-blue-700",
     AWAITING_QC: "border-amber-200 bg-amber-50 text-amber-700",
-    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600",
-    DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
     PARTIALLY_PASSED: "border-orange-200 bg-orange-50 text-orange-700",
-    POSTED: "border-green-200 bg-green-50 text-green-700",
     READY_TO_POST: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    RECEIVING: "border-cyan-200 bg-cyan-50 text-cyan-700",
-    REJECTED: "border-red-200 bg-red-50 text-red-700",
     SUBMITTED: "border-amber-200 bg-amber-50 text-amber-700"
 };
 
@@ -98,16 +103,26 @@ export function CostBadge({ status }: { status: CostStatus }) {
 }
 
 export function GoodsReceiptSummaryCard({
+    active = false,
     icon,
     label,
+    onClick,
     value
 }: {
+    active?: boolean;
     icon: ReactNode;
     label: string;
+    onClick?: () => void;
     value: number;
 }) {
     return (
-        <article className="grid min-h-[90px] gap-2 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
+        <article
+            className={`grid min-h-[90px] gap-2 rounded-xl border p-4 shadow-pos-card transition-all ${active
+                    ? "border-[#159734] bg-[#f4faf5] ring-2 ring-[#159734]/20"
+                    : "border-[#e8eef0] bg-white hover:border-[#159734]/40"
+                } ${onClick ? "cursor-pointer" : ""}`}
+            onClick={onClick}
+        >
             <div className="flex items-center gap-2 text-sm font-black text-[#315f3c]">
                 <span className="grid size-8 place-items-center rounded-lg bg-[#edf8ef] text-[#159734]">
                     {icon}
@@ -121,33 +136,95 @@ export function GoodsReceiptSummaryCard({
     );
 }
 
-export function GoodsReceiptRoleSwitch({
-    onChange,
-    value
+/**
+ * Thanh tiến trình vòng đời (Lifecycle Stepper) trực quan
+ */
+export function GoodsReceiptLifecycleStepper({
+    status
 }: {
-    onChange: (role: GoodsReceiptRole) => void;
-    value: GoodsReceiptRole;
+    status: GoodsReceiptStatus;
 }) {
+    const steps: Array<{ key: GoodsReceiptStatus; label: string; sub: string }> = [
+        { key: "DRAFT", label: "1. Bản nháp", sub: "Lập danh sách đặt" },
+        { key: "PENDING_APPROVAL", label: "2. Chờ duyệt", sub: "Quản lý xem xét" },
+        { key: "APPROVED", label: "3. Đã duyệt", sub: "Chờ NCC giao" },
+        { key: "RECEIVING", label: "4. Tiếp nhận", sub: "Kiểm đếm thực tế" },
+        { key: "QC_PENDING", label: "5. Kiểm định QC", sub: "Kiểm tra & Tạo lô" },
+        { key: "QC_COMPLETED", label: "6. Chờ ghi sổ", sub: "Sẵn sàng nhập kho" },
+        { key: "POSTED", label: "7. Đã nhập kho", sub: "Tồn kho đã tăng" }
+    ];
+
+    const orderMap: Record<string, number> = {
+        DRAFT: 0,
+        PENDING_APPROVAL: 1,
+        APPROVED: 2,
+        RECEIVING: 3,
+        QC_PENDING: 4,
+        AWAITING_QC: 4,
+        PARTIALLY_PASSED: 4,
+        QC_COMPLETED: 5,
+        READY_TO_POST: 5,
+        POSTED: 6
+    };
+
+    const isRejected = status === "REJECTED";
+    const isCancelled = status === "CANCELLED";
+    const currentStepIndex = orderMap[status] ?? 0;
+
+    if (isRejected || isCancelled) {
+        return (
+            <div className={`rounded-xl border p-4 ${isRejected ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                <div className="flex items-center gap-2 font-black text-base">
+                    <XCircle size={18} />
+                    Phiếu nhập ở trạng thái: {goodsReceiptStatusLabels[status]}
+                </div>
+                <p className="mt-1 text-sm font-semibold">
+                    {isRejected
+                        ? "Phiếu nhập đã bị từ chối phê duyệt và không thể tiếp tục quy trình nhập kho."
+                        : "Phiếu nhập đã bị hủy trước khi hoàn tất ghi sổ."}
+                </p>
+            </div>
+        );
+    }
+
     return (
-        <label className="grid gap-1 text-xs font-black text-[#536078]">
-            Vai trò mô phỏng
-            <select
-                aria-label="Vai trò mô phỏng"
-                className="h-10 min-w-[210px] rounded-lg border border-[#d8eadc] bg-white px-3 text-sm font-black text-[#172317] outline-none focus:border-[#159734]"
-                onChange={(event) =>
-                    onChange(event.currentTarget.value as GoodsReceiptRole)
-                }
-                value={value}
-            >
-                {Object.entries(goodsReceiptRoleLabels).map(
-                    ([role, label]) => (
-                        <option key={role} value={role}>
-                            {label}
-                        </option>
-                    )
-                )}
-            </select>
-        </label>
+        <div className="rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
+            <div className="mb-3 text-xs font-black uppercase tracking-wider text-[#697684]">
+                Tiến trình vòng đời phiếu nhập (Workflow Lifecycle)
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                {steps.map((step, idx) => {
+                    const isPassed = idx < currentStepIndex;
+                    const isCurrent = idx === currentStepIndex;
+
+                    return (
+                        <div
+                            key={step.key}
+                            className={`flex flex-col justify-between rounded-lg border p-2.5 transition-all ${isCurrent
+                                    ? "border-[#159734] bg-[#f4faf5] text-[#159734] ring-2 ring-[#159734]/20"
+                                    : isPassed
+                                        ? "border-[#d8eadc] bg-[#fafdfa] text-[#315f3c]"
+                                        : "border-[#eef2f0] bg-slate-50 text-[#8c9ba5]"
+                                }`}
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className={`text-xs font-black ${isCurrent ? "text-[#159734]" : isPassed ? "text-[#315f3c]" : "text-[#697684]"}`}>
+                                    {step.label}
+                                </span>
+                                {isPassed ? (
+                                    <CheckCircle2 size={14} className="text-[#159734]" />
+                                ) : isCurrent ? (
+                                    <span className="size-2 rounded-full bg-[#159734] animate-pulse" />
+                                ) : null}
+                            </div>
+                            <span className="mt-1 text-[11px] font-semibold text-[#697684] line-clamp-1">
+                                {step.sub}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
     );
 }
 
@@ -416,62 +493,82 @@ export function GoodsReceiptLineTable({
 }: {
     receipt: GoodsReceiptDetail;
 }) {
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+
+    const totalLines = receipt.lines.length;
+    const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
+    const pagedLines = receipt.lines.slice(
+        (page - 1) * pageSize,
+        page * pageSize
+    );
+
     return (
-        <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
-            <table className="w-full min-w-[1120px] text-left text-sm">
-                <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
-                    <tr>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>Nguyên liệu</TableHead>
-                        <TableHead align="right">Số đặt</TableHead>
-                        <TableHead align="right">Số nhận</TableHead>
-                        <TableHead align="right">Thiếu/thừa</TableHead>
-                        <TableHead align="right">Đạt QC</TableHead>
-                        <TableHead align="right">Quarantine</TableHead>
-                        <TableHead align="right">Failed</TableHead>
-                        <TableHead>Batch</TableHead>
-                        <TableHead>Hạn sử dụng</TableHead>
-                        <TableHead>Trạng thái batch</TableHead>
-                    </tr>
-                </thead>
-                <tbody>
-                    {receipt.lines.map((line) => (
-                        <tr key={line.id}>
-                            <TableCell strong>{line.skuCode}</TableCell>
-                            <TableCell>{line.materialName}</TableCell>
-                            <TableCell align="right">
-                                {line.orderedQuantity ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                                {formatVietnamNumber(line.receivedQuantity)}
-                            </TableCell>
-                            <TableCell align="right">
-                                {line.surplusQuantity > 0
-                                    ? `+${formatVietnamNumber(line.surplusQuantity)}`
-                                    : line.shortageQuantity > 0
-                                      ? `-${formatVietnamNumber(line.shortageQuantity)}`
-                                      : "0"}
-                            </TableCell>
-                            <TableCell align="right">
-                                {formatVietnamNumber(line.qc.passedQuantity)}
-                            </TableCell>
-                            <TableCell align="right">
-                                {formatVietnamNumber(
-                                    line.qc.quarantinedQuantity
-                                )}
-                            </TableCell>
-                            <TableCell align="right">
-                                {formatVietnamNumber(line.qc.failedQuantity)}
-                            </TableCell>
-                            <TableCell>{line.internalBatchCode}</TableCell>
-                            <TableCell>
-                                {formatVietnamDateTime(line.expiryDate)}
-                            </TableCell>
-                            <TableCell>{line.batchStatus}</TableCell>
+        <div className="grid gap-3">
+            <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                    <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
+                        <tr>
+                            <TableHead>Tên nguyên liệu</TableHead>
+                            <TableHead align="right">Số đặt</TableHead>
+                            <TableHead align="right">Số nhận</TableHead>
+                            <TableHead align="right">Thiếu/thừa</TableHead>
+                            <TableHead align="right">Đạt QC</TableHead>
+                            <TableHead align="right">Cách ly</TableHead>
+                            <TableHead align="right">Không đạt</TableHead>
+                            <TableHead>Hạn sử dụng</TableHead>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {pagedLines.map((line) => (
+                            <tr key={line.id}>
+                                <TableCell strong>{line.materialName}</TableCell>
+                                <TableCell align="right">
+                                    {line.orderedQuantity ?? "-"}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {formatVietnamNumber(line.receivedQuantity)}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {line.surplusQuantity > 0
+                                        ? `+${formatVietnamNumber(line.surplusQuantity)}`
+                                        : line.shortageQuantity > 0
+                                            ? `-${formatVietnamNumber(line.shortageQuantity)}`
+                                            : "0"}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {formatVietnamNumber(line.qc.passedQuantity)}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {formatVietnamNumber(
+                                        line.qc.quarantinedQuantity
+                                    )}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {formatVietnamNumber(line.qc.failedQuantity)}
+                                </TableCell>
+                                <TableCell>
+                                    {formatVietnamDateTime(line.expiryDate)}
+                                </TableCell>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {totalLines > pageSize ? (
+                <Pagination
+                    onPageChange={(p: number) => setPage(p)}
+                    onPageSizeChange={(s: number) => {
+                        setPageSize(s);
+                        setPage(1);
+                    }}
+                    page={page}
+                    pageCount={totalPages}
+                    pageSize={pageSize}
+                    totalItems={totalLines}
+                    totalItemsLabel="Tổng số mặt hàng"
+                />
+            ) : null}
         </div>
     );
 }
@@ -486,7 +583,7 @@ export function GoodsReceiptCostTable({
             <table className="w-full min-w-[1080px] text-left text-sm">
                 <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
                     <tr>
-                        <TableHead>SKU</TableHead>
+                        <TableHead>Tên nguyên liệu</TableHead>
                         <TableHead align="right">Đơn giá nhập</TableHead>
                         <TableHead align="right">Accepted</TableHead>
                         <TableHead align="right">Discount</TableHead>
@@ -501,7 +598,7 @@ export function GoodsReceiptCostTable({
                 <tbody>
                     {receipt.lines.map((line) => (
                         <tr key={line.id}>
-                            <TableCell strong>{line.skuCode}</TableCell>
+                            <TableCell strong>{line.materialName}</TableCell>
                             <TableCell align="right">
                                 {formatVnd(line.cost.purchaseUnitPrice)}
                             </TableCell>
@@ -626,15 +723,15 @@ export function GoodsReceiptMovementPanel({
     return (
         <div className="grid gap-3 rounded-xl border border-[#d8eadc] bg-[#f4faf5] p-4 md:grid-cols-4">
             <MovementItem
-                label="AVAILABLE"
+                label="Tồn khả dụng"
                 value={receipt.movementSummary.availableQuantity}
             />
             <MovementItem
-                label="QUARANTINE"
+                label="Tồn cách ly"
                 value={receipt.movementSummary.quarantineQuantity}
             />
             <MovementItem
-                label="RETURN_TO_SUPPLIER"
+                label="Trả nhà cung cấp"
                 value={receipt.movementSummary.returnToSupplierQuantity}
             />
             <MovementItem
@@ -720,9 +817,8 @@ function TableHead({
 }) {
     return (
         <th
-            className={`border-b border-[#dce8df] px-4 py-3 ${
-                align === "right" ? "text-right" : "text-left"
-            }`}
+            className={`border-b border-[#dce8df] px-4 py-3 ${align === "right" ? "text-right" : "text-left"
+                }`}
         >
             {children}
         </th>
@@ -740,9 +836,8 @@ function TableCell({
 }) {
     return (
         <td
-            className={`border-b border-[#edf0f4] px-4 py-3 ${
-                align === "right" ? "text-right" : "text-left"
-            } ${strong ? "font-black text-[#172317]" : "font-semibold text-[#536078]"}`}
+            className={`border-b border-[#edf0f4] px-4 py-3 ${align === "right" ? "text-right" : "text-left"
+                } ${strong ? "font-black text-[#172317]" : "font-semibold text-[#536078]"}`}
         >
             {children}
         </td>
@@ -771,9 +866,9 @@ export function GoodsReceiptPostPreview({
         <div className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">
             <span className="inline-flex items-center gap-2">
                 <PackageCheck size={16} aria-hidden="true" />
-                Batch đưa vào AVAILABLE: {formatVietnamNumber(available)}
+                Lô đưa vào tồn khả dụng: {formatVietnamNumber(available)}
             </span>
-            <span>Batch đưa vào QUARANTINE: {formatVietnamNumber(quarantine)}</span>
+            <span>Lô đưa vào khu cách ly: {formatVietnamNumber(quarantine)}</span>
             <span>Tổng giá trị nhập: {formatVnd(totalValue)}</span>
             <span>Chứng từ PNK sẽ được tạo sau khi xác nhận post.</span>
         </div>

@@ -2,7 +2,7 @@ spring:
   application:
     name: catalog-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.89.77.53:3306/catalog_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.93.252.63:3306/catalog_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:

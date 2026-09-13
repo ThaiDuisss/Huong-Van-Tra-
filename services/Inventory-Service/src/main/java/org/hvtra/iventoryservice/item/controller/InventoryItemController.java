@@ -1,15 +1,15 @@
 package org.hvtra.iventoryservice.item.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
-import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
-import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
-import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
-import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
-import org.hvtra.iventoryservice.stock.service.InventoryBalanceService;
+import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
 import org.hvtra.iventoryservice.item.service.InventoryItemService;
+import org.hvtra.iventoryservice.shared.pagination.PageResponse;
+import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
+import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
+import org.hvtra.iventoryservice.stock.service.InventoryBalanceService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -32,10 +32,11 @@ public class InventoryItemController {
     @GetMapping
     public PageResponse<InventoryItemResponse> findAll(
             @RequestParam(name = "referenceId", required = false) UUID referenceId,
+            @RequestParam(name = "referenceCode", required = false) String referenceCode,
             @RequestParam(name = "itemType", required = false) InventoryItemType itemType,
             @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "id") Pageable pageable) {
-        return service.findAll(referenceId, itemType, status, pageable);
+        return service.findAll(referenceId, referenceCode, itemType, status, pageable);
     }
 
     @GetMapping("/{id}")
@@ -60,6 +61,14 @@ public class InventoryItemController {
     public InventoryItemResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody InventoryItemRequest request) {
         return service.update(id, request);
+    }
+
+    @PutMapping("/by-reference/{itemType}/{referenceId}")
+    public InventoryItemResponse updateByReference(
+            @PathVariable("itemType") InventoryItemType itemType,
+            @PathVariable("referenceId") UUID referenceId,
+            @Valid @RequestBody InventoryItemRequest request) {
+        return service.updateByReference(referenceId, itemType, request);
     }
 
     @PatchMapping("/{id}/status")

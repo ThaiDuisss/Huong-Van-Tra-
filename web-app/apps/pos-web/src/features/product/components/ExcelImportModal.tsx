@@ -170,7 +170,11 @@ export function ExcelImportModal({
             });
         } catch (err) {
             console.error(err);
-            alert("Có lỗi xảy ra trong quá trình nhập dữ liệu!");
+            const errorMessage =
+                err instanceof Error && err.message
+                    ? err.message
+                    : "Có lỗi xảy ra trong quá trình nhập dữ liệu!";
+            setFileError(errorMessage);
         } finally {
             setImporting(false);
         }
@@ -416,7 +420,7 @@ export function ExcelImportModal({
                             {importResult.failure > 0 && (
                                 <div className="text-sm text-red-600 font-semibold bg-red-50 px-4 py-3 rounded-xl max-w-md flex gap-2 text-left">
                                     <AlertTriangle size={18} className="shrink-0" />
-                                    Có {importResult.failure} bản ghi chứa thông tin không hợp lệ (như thiếu SKU hoặc danh mục không tồn tại) nên hệ thống đã tự động bỏ qua.
+                                    Có {importResult.failure} bản ghi chứa thông tin không hợp lệ (như thiếu mã hoặc tên bắt buộc) nên hệ thống đã tự động bỏ qua.
                                 </div>
                             )}
                         </div>

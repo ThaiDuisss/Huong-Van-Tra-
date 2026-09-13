@@ -5,7 +5,6 @@ import { Link } from "react-router-dom";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import {
     ProductionFilterBar,
-    ProductionRoleSwitch,
     ProductionSummaryCard,
     ProductionTable
 } from "../components/ProductionOrderComponents";
@@ -13,21 +12,11 @@ import { useProductionOrderQueryState } from "../hooks/useProductionOrderQuerySt
 import { productionOrderApi } from "../services/productionOrder.api";
 import type {
     ProductionOrderListResult,
-    ProductionOrderOptions,
-    ProductionRole
+    ProductionOrderOptions
 } from "../types/production-order.types";
-
-function readRole(): ProductionRole {
-    const stored = window.localStorage.getItem("hvt.production.role");
-    return stored &&
-        ["ADMIN", "WAREHOUSE", "BRANCH_MANAGER", "ACCOUNTANT", "DIRECTOR", "QC_STAFF"].includes(stored)
-        ? (stored as ProductionRole)
-        : "WAREHOUSE";
-}
 
 export function ProductionOrderListPage() {
     const { query, resetQuery, setQuery } = useProductionOrderQueryState();
-    const [role, setRole] = useState<ProductionRole>(readRole);
     const [result, setResult] = useState<ProductionOrderListResult | null>(null);
     const [options, setOptions] = useState<ProductionOrderOptions>({
         finishedSkus: [],
@@ -38,10 +27,6 @@ export function ProductionOrderListPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
-
-    useEffect(() => {
-        window.localStorage.setItem("hvt.production.role", role);
-    }, [role]);
 
     useEffect(() => {
         void productionOrderApi.getProductionOrderOptions().then(setOptions);
@@ -85,7 +70,6 @@ export function ProductionOrderListPage() {
                     <p className="max-w-3xl text-sm font-semibold leading-6 text-[#697684]">Make-to-Stock theo BOM, giữ nguyên liệu, FEFO, hoàn thành sản xuất và tạo PXK/PNK.</p>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
-                    <ProductionRoleSwitch onChange={setRole} value={role} />
                     <Link className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white shadow-pos-card" to="/management/inventory/production-orders/new">Tạo lệnh sản xuất</Link>
                 </div>
             </header>

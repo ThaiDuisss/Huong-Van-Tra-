@@ -55,5 +55,5 @@ export const inventoryMasterUsers: Record<string, UserSnapshot> = {
     director: { id: "user-director", name: "Hà Giám đốc", role: "DIRECTOR" },
     qc: { id: "user-qc", name: "Vy QC", role: "QC_STAFF" },
     sales: { id: "user-sales", name: "An Bán hàng", role: "SALES_STAFF" },
-    warehouse: { id: "user-warehouse", name: "Kho trung tâm Hà Nội", role: "WAREHOUSE" }
+    warehouse: { id: "user-warehouse", name: "Kho trung tâm Hà Nội", role: "INVENTORY_STAFF" }
 };

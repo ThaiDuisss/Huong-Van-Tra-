@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.integration.catalog.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,6 +49,18 @@ public interface CatalogClient {
             @RequestParam(name = "unitId", required = false) UUID unitId
     );
 
+    @PostMapping("/api/catalog/ingredients/batch")
+    List<IngredientResponse> getIngredientsBatch(@RequestBody List<UUID> ids);
+
+    @GetMapping("/api/catalog/ingredients/search-ids")
+    List<UUID> searchIngredientIds(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "code", required = false) String code,
+            @RequestParam(name = "name", required = false) String name,
+            @RequestParam(name = "unitId", required = false) UUID unitId
+    );
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record ProductResponse(
             UUID id,
             CategoryResponse category,
@@ -58,6 +71,7 @@ public interface CatalogClient {
             String status
     ) {}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record VariantResponse(
             UUID id,
             UUID productId,
@@ -67,17 +81,32 @@ public interface CatalogClient {
             String variantName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
-            UUID baseUnitId,
+            UUID unitId,
             String status,
             String productStatus,
             boolean sellable
     ) {}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IngredientResponse(
+            UUID id,
+            String ingredientCode,
+            String name,
+            String imageUrl,
+            UUID unitId,
+            String unitName,
+            String unitSymbol,
+            Integer reorderPoint,
+            Object status
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record ProductVariantProductRefResponse(
             UUID id,
             UUID productId
     ) {}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record CategoryResponse(
             UUID id,
             UUID parentId,
@@ -86,6 +115,7 @@ public interface CatalogClient {
             String categoryCode
     ) {}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record UnitResponse(
             UUID id,
             String name,

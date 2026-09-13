@@ -1,9 +1,10 @@
 package org.hvtra.catalog.client;
 
 import lombok.Builder;
-import org.hvtra.catalog.enums.Status;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.math.BigDecimal;
@@ -17,6 +18,13 @@ public interface InventoryClient {
             @RequestBody CreateInventoryItemRequest request
     );
 
+    @PutMapping("/api/inventory/inventory-items/by-reference/{itemType}/{referenceId}")
+    void updateInventoryItemByReference(
+            @PathVariable("itemType") String itemType,
+            @PathVariable("referenceId") UUID referenceId,
+            @RequestBody CreateInventoryItemRequest request
+    );
+
     @PostMapping("/internal/inventory/stocks/batch")
     List<StockBatchResponse> getStocksByProductIds(@RequestBody StockBatchRequest request);
 
@@ -26,6 +34,8 @@ public interface InventoryClient {
     @Builder
     record CreateInventoryItemRequest(
             UUID referenceId,
+            String referenceCode,
+            String name,
             String itemType,
             UUID unitId,
             String status,

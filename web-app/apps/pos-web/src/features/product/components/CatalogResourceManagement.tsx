@@ -8,7 +8,7 @@ import {
     Trash2,
     X
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
@@ -171,6 +171,11 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     const [actionError, setActionError] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+
+    const safeItems: T[] = useMemo(
+        () => (Array.isArray(items) ? items.filter((item): item is T => Boolean(item && typeof item === "object" && "id" in item && (item as RowBase).id !== undefined && (item as RowBase).id !== null)) : []),
+        [items]
+    );
 
     const activeFilters: CatalogFilter[] = [];
 
@@ -375,7 +380,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                 onRetry={onRefresh}
                             />
                         ) : null}
-                        {!loading && !error && items.length === 0 ? (
+                        {!loading && !error && safeItems.length === 0 ? (
                             <div className="grid min-h-[500px] place-items-center p-8 text-center">
                                 <div>
                                     <AlertTriangle
@@ -391,7 +396,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                 </div>
                             </div>
                         ) : null}
-                        {!loading && !error && items.length > 0 ? (
+                        {!loading && !error && safeItems.length > 0 ? (
                             <div className="overflow-x-auto min-h-[280px]">
                                 <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
                                     <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900">
@@ -410,7 +415,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {items.map((item, idx) => {
+                                        {safeItems.map((item, idx) => {
                                             const isSelected = selectedItem?.id === item.id;
                                             const isEven = idx % 2 === 1;
                                             const rowBgClass = isSelected
@@ -445,7 +450,7 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                             {activeActionMenuId === String(item.id) && (
                                                                 <>
                                                                     <div className="fixed inset-0 z-30" onClick={() => setActiveActionMenuId(null)} />
-                                                                    <div className={`absolute right-0 ${idx >= 2 && idx >= items.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
+                                                                    <div className={`absolute right-0 ${idx >= 2 && idx >= safeItems.length - 2 ? "bottom-8 mb-1" : "top-8 mt-1"} w-44 rounded-xl border border-pos-border bg-white p-1.5 shadow-lg z-40 text-left`}>
                                                                         {detailPath ? (
                                                                             <Link
                                                                                 to={detailPath(item)}

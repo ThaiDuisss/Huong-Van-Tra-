@@ -8,8 +8,8 @@ import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -36,7 +36,7 @@ public class InventoryDocumentLine extends BaseEntity {
     @JoinColumn(name = "inventory_item_id", nullable = false)
     private InventoryItem inventoryItem;
 
-    @Column(name = "unit_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "unit_id", columnDefinition = "BINARY(16)")
     private UUID unitId;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -47,11 +47,20 @@ public class InventoryDocumentLine extends BaseEntity {
     @JoinColumn(name = "destination_location_id")
     private InventoryLocation destinationLocation;
 
-    @Column(name = "requested_quantity", nullable = false, precision = 18, scale = 2)
-    private BigDecimal requestedQuantity = BigDecimal.ZERO;
+    @Column(name = "ordered_quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal orderedQuantity = BigDecimal.ZERO;
 
-    @Column(name = "processed_quantity", nullable = false, precision = 18, scale = 2)
-    private BigDecimal processedQuantity = BigDecimal.ZERO;
+    @Column(name = "received_quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal receivedQuantity = BigDecimal.ZERO;
+
+    @Column(name = "shortage_quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal shortageQuantity = BigDecimal.ZERO;
+
+    @Column(name = "excess_quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal excessQuantity = BigDecimal.ZERO;
+
+    @Column(name = "accepted_quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal acceptedQuantity = BigDecimal.ZERO;
 
     @Column(name = "rejected_quantity", nullable = false, precision = 18, scale = 2)
     private BigDecimal rejectedQuantity = BigDecimal.ZERO;
@@ -60,10 +69,19 @@ public class InventoryDocumentLine extends BaseEntity {
     private String note;
 
     @OneToMany(mappedBy = "documentLine", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<InventoryDocumentBatchAllocation> batchAllocations = new ArrayList<>();
+    private Set<InventoryDocumentBatchAllocation> batchAllocations = new HashSet<>();
 
     public void addBatchAllocation(InventoryDocumentBatchAllocation allocation) {
         batchAllocations.add(allocation);
         allocation.setDocumentLine(this);
+    }
+
+    // ====== Domain Methods ======
+
+    /**
+     * Đánh dấu dòng đã được xử lý (khi post).
+     */
+    public void markProcessed() {
+        this.receivedQuantity = this.orderedQuantity;
     }
 }

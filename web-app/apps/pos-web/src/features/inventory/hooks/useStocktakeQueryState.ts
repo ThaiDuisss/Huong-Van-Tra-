@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { stocktakeStatusOptions, stocktakeTypeOptions } from "../constants/stocktake.constants";
 import type { StocktakeListQuery } from "../types/stocktake.types";
 
 function numberParam(value: string | null, fallback: number) {
@@ -14,32 +13,22 @@ function oneOf<T extends string>(value: string | null, options: T[], fallback: T
 }
 
 export const defaultStocktakeQuery: StocktakeListQuery = {
-    code: "",
-    hasVariance: "ALL",
-    locationId: "ALL",
-    ownerId: "ALL",
+    branchId: "ALL",
     page: 0,
+    scopeType: "ALL",
     size: 10,
-    startedFrom: "",
-    startedTo: "",
-    status: "ALL",
-    type: "ALL"
+    status: "ALL"
 };
 
 export function useStocktakeQueryState() {
     const [searchParams, setSearchParams] = useSearchParams();
     const query = useMemo<StocktakeListQuery>(
         () => ({
-            code: searchParams.get("code") ?? "",
-            hasVariance: oneOf(searchParams.get("hasVariance"), ["ALL", "YES", "NO"], "ALL"),
-            locationId: searchParams.get("locationId") ?? "ALL",
-            ownerId: searchParams.get("ownerId") ?? "ALL",
+            branchId: searchParams.get("branchId") ?? "ALL",
             page: numberParam(searchParams.get("page"), 1) - 1,
+            scopeType: oneOf(searchParams.get("scopeType"), ["ALL", "FULL", "LOCATION", "PARTIAL"], "ALL"),
             size: numberParam(searchParams.get("size"), 10),
-            startedFrom: searchParams.get("startedFrom") ?? "",
-            startedTo: searchParams.get("startedTo") ?? "",
-            status: oneOf(searchParams.get("status"), ["ALL", ...stocktakeStatusOptions], "ALL"),
-            type: oneOf(searchParams.get("type"), ["ALL", ...stocktakeTypeOptions], "ALL")
+            status: oneOf(searchParams.get("status"), ["ALL", "DRAFT", "COUNTING", "COMPLETED"], "ALL")
         }),
         [searchParams]
     );
