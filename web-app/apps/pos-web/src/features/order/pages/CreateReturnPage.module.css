@@ -137,28 +137,6 @@
   box-shadow: 0 16px 38px rgb(31 53 43 / 0.05);
 }
 
-.cardHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px solid #edf0f4;
-  padding-bottom: 14px;
-}
-
-.cardHeader h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 950;
-}
-
-.cardHeader p {
-  margin: 5px 0 0;
-  color: #536078;
-  font-size: 13px;
-  font-weight: 800;
-}
-
 .footer {
   position: sticky;
   bottom: 0;
@@ -180,10 +158,12 @@
 
 .orderPickerHeader {
   display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(210px, 260px);
   gap: 10px;
 }
 
-.searchBox {
+.searchBox,
+.timeSelect {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -194,11 +174,45 @@
   padding: 0 14px;
 }
 
-.searchBox input {
+.searchBox input,
+.timeSelect select {
   min-width: 0;
   flex: 1;
   border: 0;
+  background: transparent;
   outline: 0;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.timeSelect select {
+  height: 100%;
+}
+
+.customDateRange {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 220px));
+  gap: 10px;
+}
+
+.customDateRange label {
+  display: grid;
+  gap: 6px;
+}
+
+.customDateRange span {
+  color: #536078;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.dateInput {
+  height: 40px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0 12px;
   color: #172317;
   font-size: 14px;
   font-weight: 750;
@@ -212,53 +226,144 @@
 }
 
 .orderResults {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  padding: 10px;
+  overflow: hidden;
 }
 
-.orderOption {
-  display: grid;
-  grid-template-columns: minmax(150px, 0.9fr) minmax(180px, 1fr) minmax(150px, 0.85fr) minmax(120px, 0.65fr);
-  align-items: center;
-  gap: 12px;
-  min-height: 54px;
-  border: 1px solid #edf0f4;
-  border-radius: 8px;
-  background: #f8faf9;
-  padding: 10px 12px;
+.orderTableWrap {
+  overflow: auto;
+}
+
+.orderTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  color: #334155;
+  font-family: inherit;
+  font-size: 14px;
+  table-layout: fixed;
+}
+
+.orderTable th,
+.orderTable td {
+  height: 52px;
+  border-bottom: 1px solid #edf0f4;
+  padding: 0 12px;
   text-align: left;
+  vertical-align: middle;
 }
 
-.orderOption strong {
+.orderTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom-color: #d7f0df;
+  background: #f3f7f4;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.orderTable th:first-child,
+.orderTable td:first-child {
+  padding-left: 18px;
+}
+
+.orderTable th:nth-child(4),
+.orderTable td:nth-child(4) {
+  text-align: right;
+}
+
+.orderTable th:nth-child(5),
+.orderTable td:nth-child(5) {
+  text-align: center;
+}
+
+.orderTable td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.orderTableRow {
+  cursor: pointer;
+  outline: 0;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.orderTableRow:focus-visible {
+  box-shadow:
+    inset 4px 0 0 #07883a,
+    inset 0 0 0 2px #8dd7a3;
+}
+
+.zebraFirstRow {
+  background: #ffffff;
+}
+
+.zebraSecondRow {
+  background: #f3f7f4;
+}
+
+.zebraFirstRow:hover,
+.zebraSecondRow:hover {
+  background: #ecfdf3;
+}
+
+.orderCodeCell {
+  color: #0f172a;
+  font-weight: 800 !important;
+}
+
+.orderDateCell {
+  color: #475569;
+  font-weight: 600 !important;
+}
+
+.orderAmountCell {
+  color: #334155;
+  font-weight: 800 !important;
+}
+
+.selectedOrderOption {
+  background: #f4faf5;
+  box-shadow: inset 4px 0 0 #07883a;
+}
+
+.emptyCell {
+  height: 76px;
+  color: #536078;
+  text-align: center !important;
+  font-weight: 800;
+}
+
+.emptyCell strong,
+.emptyCell span {
+  display: block;
+}
+
+.emptyCell strong {
   color: #172317;
   font-size: 14px;
   font-weight: 950;
 }
 
-.orderOption span,
-.orderOption small {
-  overflow: hidden;
+.emptyCell span {
+  margin-top: 6px;
   color: #536078;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.selectedOrderOption {
-  border-color: #07883a;
-  background: #f4faf5;
-  box-shadow: inset 4px 0 0 #07883a;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .orderSearchPagination {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
-  padding-top: 6px;
+  border-top: 1px solid #edf0f4;
+  padding: 12px 18px;
 }
 
 .orderSearchPagination .secondaryButton {
@@ -499,7 +604,6 @@
 
 @media (max-width: 920px) {
   .header,
-  .cardHeader,
   .footer {
     align-items: stretch;
     flex-direction: column;
@@ -510,8 +614,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .orderOption {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  .orderPickerHeader {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -526,12 +630,13 @@
     flex-direction: column-reverse;
   }
 
-  .orderOption {
+  .customDateRange {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .orderSearchPagination {
-    justify-content: space-between;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .orderSearchPagination .secondaryButton {

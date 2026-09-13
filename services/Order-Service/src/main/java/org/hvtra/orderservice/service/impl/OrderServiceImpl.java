@@ -72,6 +72,7 @@ public class OrderServiceImpl implements OrderService {
     private static final String DEFAULT_ORDER_TYPE = "POS";
     private static final String SORT_BUSINESS_STATUS = "businessStatus";
     private static final String SORT_INVOICE_PAYMENT = "invoicePayment";
+    private static final String SORT_CREATED_AT_DESC = "createdAt,desc";
     private static final long DRAFT_TTL_MINUTES = 15;
 
     private final OrderRepository orderRepository;
@@ -1448,6 +1449,14 @@ public class OrderServiceImpl implements OrderService {
             OrderReturnEligibility returnEligibility
     ) {
         if (sort == null || sort.isBlank() || isCountQuery(query)) {
+            return;
+        }
+
+        if (SORT_CREATED_AT_DESC.equalsIgnoreCase(sort)) {
+            query.orderBy(
+                    criteriaBuilder.desc(root.get("createdAt")),
+                    criteriaBuilder.desc(root.get("id"))
+            );
             return;
         }
 

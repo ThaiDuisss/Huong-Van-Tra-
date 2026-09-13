@@ -1,10 +1,11 @@
 import {
     ArrowLeft,
+    CalendarDays,
     ChevronLeft,
     ChevronRight,
     Search
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -36,14 +37,22 @@ import {
     getReturnReasonLabel
 } from "../utils/order-return.utils";
 import {
+    formatCurrency,
     formatDateTime,
     getCustomerName,
     getOrderCode,
-    getPaymentStatusText
+    getOrderStatusText
 } from "../utils/order-formatters";
 import styles from "./CreateReturnPage.module.css";
 
 type WizardStep = 1 | 2 | 3 | 4;
+type OrderSearchTimeFilter =
+    | "ALL"
+    | "TODAY"
+    | "YESTERDAY"
+    | "LAST_7_DAYS"
+    | "LAST_30_DAYS"
+    | "CUSTOM";
 
 interface ReturnDraftItem {
     selected: boolean;
@@ -54,6 +63,19 @@ interface ReturnDraftItem {
 }
 
 const ORDER_SEARCH_PAGE_SIZE = 6;
+const ORDER_SEARCH_DEFAULT_SORT: OrderQueryParams["sort"] = "createdAt,desc";
+
+const ORDER_SEARCH_TIME_FILTERS: Array<{
+    label: string;
+    value: OrderSearchTimeFilter;
+}> = [
+    { label: "Tất cả thời gian", value: "ALL" },
+    { label: "Hôm nay", value: "TODAY" },
+    { label: "Hôm qua", value: "YESTERDAY" },
+    { label: "7 ngày gần đây", value: "LAST_7_DAYS" },
+    { label: "30 ngày gần đây", value: "LAST_30_DAYS" },
+    { label: "Tùy chọn khoảng ngày", value: "CUSTOM" }
+];
 
 const WIZARD_STEPS: Array<{ step: WizardStep; label: string }> = [
     { step: 1, label: "Chọn đơn" },
@@ -94,6 +116,72 @@ function getItemName(item: OrderItemResponse) {
 
 function getItemVariant(item: OrderItemResponse) {
     return item.variantNameSnapshot?.trim() || "Không có phân loại";
+}
+
+function padDatePart(value: number) {
+    return String(value).padStart(2, "0");
+}
+
+function formatLocalDate(date: Date) {
+    return `${date.getFullYear()}-${padDatePart(
+        date.getMonth() + 1
+    )}-${padDatePart(date.getDate())}`;
+}
+
+function addDays(date: Date, days: number) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+
+    return result;
+}
+
+function getOrderSearchDateRange(
+    filter: OrderSearchTimeFilter,
+    customFromDate: string,
+    customToDate: string
+) {
+    const today = new Date();
+    const todayDate = formatLocalDate(today);
+
+    if (filter === "TODAY") {
+        return { fromDate: todayDate, toDate: todayDate };
+    }
+
+    if (filter === "YESTERDAY") {
+        const yesterday = formatLocalDate(addDays(today, -1));
+
+        return { fromDate: yesterday, toDate: yesterday };
+    }
+
+    if (filter === "LAST_7_DAYS") {
+        return {
+            fromDate: formatLocalDate(addDays(today, -6)),
+            toDate: todayDate
+        };
+    }
+
+    if (filter === "LAST_30_DAYS") {
+        return {
+            fromDate: formatLocalDate(addDays(today, -29)),
+            toDate: todayDate
+        };
+    }
+
+    if (filter === "CUSTOM") {
+        return {
+            fromDate: customFromDate || undefined,
+            toDate: customToDate || undefined
+        };
+    }
+
+    return {};
+}
+
+function getCustomerDisplay(order: OrderSummaryResponse) {
+    const customerName = getCustomerName(order);
+    const customerPhone = order.customerPhone?.trim();
+
+    return customerPhone ? `${customerName} · ${customerPhone}` : customerName;
 }
 
 function createDefaultDraftItem(): ReturnDraftItem {
@@ -189,6 +277,10 @@ export function CreateReturnPage() {
     const [orderSearchPage, setOrderSearchPage] = useState(0);
     const [isOrderSearchLoading, setIsOrderSearchLoading] = useState(false);
     const [orderSearchError, setOrderSearchError] = useState<string | null>(null);
+    const [orderSearchTimeFilter, setOrderSearchTimeFilter] =
+        useState<OrderSearchTimeFilter>("ALL");
+    const [customFromDate, setCustomFromDate] = useState("");
+    const [customToDate, setCustomToDate] = useState("");
 
     const [selectedOrderSummary, setSelectedOrderSummary] =
         useState<OrderSummaryResponse | null>(null);
@@ -202,6 +294,15 @@ export function CreateReturnPage() {
     const [draftItems, setDraftItems] = useState<Record<string, ReturnDraftItem>>({});
     const [returnNote, setReturnNote] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const orderSearchDateRange = useMemo(
+        () =>
+            getOrderSearchDateRange(
+                orderSearchTimeFilter,
+                customFromDate,
+                customToDate
+            ),
+        [customFromDate, customToDate, orderSearchTimeFilter]
+    );
 
     useEffect(() => {
         if (!toast) {
@@ -225,9 +326,11 @@ export function CreateReturnPage() {
                 keyword: debouncedOrderSearchTerm,
                 returnEligibility: "ELIGIBLE",
                 status: "COMPLETED",
+                fromDate: orderSearchDateRange.fromDate,
+                toDate: orderSearchDateRange.toDate,
                 page: orderSearchPage,
                 size: ORDER_SEARCH_PAGE_SIZE,
-                sort: "businessStatus"
+                sort: ORDER_SEARCH_DEFAULT_SORT
             };
 
             getOrders(orderQuery)
@@ -257,7 +360,12 @@ export function CreateReturnPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [debouncedOrderSearchTerm, orderSearchPage]);
+    }, [
+        debouncedOrderSearchTerm,
+        orderSearchDateRange.fromDate,
+        orderSearchDateRange.toDate,
+        orderSearchPage
+    ]);
 
     useEffect(() => {
         if (!orderId) {
@@ -324,29 +432,23 @@ export function CreateReturnPage() {
         navigate(orderId ? "/system/orders" : "/system/orders/returns");
     };
 
-    const resetOrderDependentState = () => {
-        setSelectedOrderSummary(null);
-        setSelectedOrder(null);
-        setSelectedOrderReturns([]);
-        setDraftItems({});
-        setReturnNote("");
-        setIsSubmitting(false);
-    };
-
-    const handleChangeOrder = () => {
-        resetOrderDependentState();
-        setOrderSearchTerm("");
-        setOrderSearchPage(0);
-        setOrderResultsPage(emptyOrderSearchPage);
-        setWizardStep(1);
-
-        if (orderId) {
-            navigate("/system/orders/returns/create");
-        }
-    };
-
     const handleOrderSearchChange = (value: string) => {
         setOrderSearchTerm(value);
+        setOrderSearchPage(0);
+    };
+
+    const handleOrderSearchTimeFilterChange = (value: OrderSearchTimeFilter) => {
+        setOrderSearchTimeFilter(value);
+        setOrderSearchPage(0);
+    };
+
+    const handleCustomFromDateChange = (value: string) => {
+        setCustomFromDate(value);
+        setOrderSearchPage(0);
+    };
+
+    const handleCustomToDateChange = (value: string) => {
+        setCustomToDate(value);
         setOrderSearchPage(0);
     };
 
@@ -470,11 +572,17 @@ export function CreateReturnPage() {
                     isLoading={isOrderSearchLoading}
                     currentPage={orderSearchPage}
                     onPageChange={setOrderSearchPage}
+                    onCustomFromDateChange={handleCustomFromDateChange}
+                    onCustomToDateChange={handleCustomToDateChange}
                     onSearchChange={handleOrderSearchChange}
+                    onTimeFilterChange={handleOrderSearchTimeFilterChange}
                     onSelectOrder={selectOrderForReturn}
                     orderPage={orderResultsPage}
                     searchError={orderSearchError}
                     searchTerm={orderSearchTerm}
+                    customFromDate={customFromDate}
+                    customToDate={customToDate}
+                    timeFilter={orderSearchTimeFilter}
                     selectedOrderSummary={selectedOrderSummary}
                 />
             );
@@ -557,27 +665,6 @@ export function CreateReturnPage() {
             </div>
 
             <section className={styles.card}>
-                {wizardStep !== 1 ? (
-                    <div className={styles.cardHeader}>
-                        <div>
-                            <h2>{WIZARD_STEPS[wizardStep - 1].label}</h2>
-                            {selectedOrder ? (
-                                <p>Đơn hàng: {getOrderCode(selectedOrder)}</p>
-                            ) : null}
-                        </div>
-                        {selectedOrder ? (
-                            <button
-                                className={styles.secondaryButton}
-                                disabled={isSubmitting}
-                                onClick={handleChangeOrder}
-                                type="button"
-                            >
-                                Đổi đơn hàng
-                            </button>
-                        ) : null}
-                    </div>
-                ) : null}
-
                 {renderStepContent()}
             </section>
 
@@ -622,30 +709,56 @@ export function CreateReturnPage() {
 }
 
 function OrderPicker({
+    customFromDate,
+    customToDate,
     isLoading,
     currentPage,
+    onCustomFromDateChange,
+    onCustomToDateChange,
     onPageChange,
     onSearchChange,
     onSelectOrder,
+    onTimeFilterChange,
     orderPage,
     searchError,
     searchTerm,
+    timeFilter,
     selectedOrderSummary
 }: {
+    customFromDate: string;
+    customToDate: string;
     isLoading: boolean;
     currentPage: number;
+    onCustomFromDateChange: (value: string) => void;
+    onCustomToDateChange: (value: string) => void;
     onPageChange: (page: number) => void;
     onSearchChange: (value: string) => void;
     onSelectOrder: (order: OrderSummaryResponse) => void;
+    onTimeFilterChange: (value: OrderSearchTimeFilter) => void;
     orderPage: OrderPageResponse<OrderSummaryResponse>;
     searchError: string | null;
     searchTerm: string;
+    timeFilter: OrderSearchTimeFilter;
     selectedOrderSummary: OrderSummaryResponse | null;
 }) {
     const orderResults = orderPage.content ?? [];
     const totalPages = Math.max(orderPage.totalPages ?? 0, 1);
     const totalElements = orderPage.totalElements ?? 0;
     const hasSearchTerm = searchTerm.trim().length > 0;
+    const hasTimeFilter =
+        timeFilter !== "ALL" &&
+        (timeFilter !== "CUSTOM" || Boolean(customFromDate || customToDate));
+    const handleOrderRowKeyDown = (
+        event: KeyboardEvent<HTMLTableRowElement>,
+        order: OrderSummaryResponse
+    ) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+            return;
+        }
+
+        event.preventDefault();
+        onSelectOrder(order);
+    };
 
     return (
         <div className={styles.orderPicker}>
@@ -659,54 +772,146 @@ function OrderPicker({
                         value={searchTerm}
                     />
                 </label>
+                <label className={styles.timeSelect}>
+                    <CalendarDays size={18} aria-hidden="true" />
+                    <select
+                        aria-label="Lọc thời gian mua hàng"
+                        onChange={(event) =>
+                            onTimeFilterChange(
+                                event.target.value as OrderSearchTimeFilter
+                            )
+                        }
+                        value={timeFilter}
+                    >
+                        {ORDER_SEARCH_TIME_FILTERS.map((filter) => (
+                            <option key={filter.value} value={filter.value}>
+                                {filter.label}
+                            </option>
+                        ))}
+                    </select>
+                </label>
             </div>
 
+            {timeFilter === "CUSTOM" ? (
+                <div className={styles.customDateRange}>
+                    <label>
+                        <span>Từ ngày</span>
+                        <input
+                            aria-label="Từ ngày mua hàng"
+                            className={styles.dateInput}
+                            onChange={(event) =>
+                                onCustomFromDateChange(event.target.value)
+                            }
+                            type="date"
+                            value={customFromDate}
+                        />
+                    </label>
+                    <label>
+                        <span>Đến ngày</span>
+                        <input
+                            aria-label="Đến ngày mua hàng"
+                            className={styles.dateInput}
+                            onChange={(event) =>
+                                onCustomToDateChange(event.target.value)
+                            }
+                            type="date"
+                            value={customToDate}
+                        />
+                    </label>
+                </div>
+            ) : null}
+
             <div className={styles.orderResults}>
-                {isLoading ? (
-                    <PanelMessage
-                        description="Đang tải danh sách đơn hàng"
-                        title="Đang tìm kiếm"
-                    />
-                ) : null}
-                {!isLoading && searchError ? (
-                    <PanelMessage
-                        description={searchError}
-                        title="Không tải được đơn hàng"
-                    />
-                ) : null}
-                {!isLoading && !searchError
-                    ? orderResults.map((order) => (
-                          <button
-                              className={`${styles.orderOption} ${
-                                  selectedOrderSummary?.id === order.id
-                                      ? styles.selectedOrderOption
-                                      : ""
-                              }`}
-                              key={order.id}
-                              onClick={() => onSelectOrder(order)}
-                              type="button"
-                          >
-                              <strong>{getOrderCode(order)}</strong>
-                              <span>{getCustomerName(order)}</span>
-                              <small>{formatDateTime(order.createdAt)}</small>
-                              <small>{getPaymentStatusText(order)}</small>
-                          </button>
-                      ))
-                    : null}
-                {!isLoading && !searchError && orderResults.length === 0 ? (
-                    <PanelMessage
-                        description={
-                            hasSearchTerm
-                                ? "Không có đơn hàng đủ điều kiện phù hợp với từ khóa."
-                                : "Không có đơn hàng đủ điều kiện hoàn."
-                        }
-                        title={
-                            hasSearchTerm
-                                ? "Không tìm thấy đơn hàng"
-                                : "Chưa có đơn phù hợp"
-                        }
-                    />
-                ) : null}
+                <div className={styles.orderTableWrap}>
+                    <table className={styles.orderTable}>
+                        <colgroup>
+                            <col style={{ width: "22%" }} />
+                            <col style={{ width: "27%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "17%" }} />
+                            <col style={{ width: "16%" }} />
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>Mã đơn hàng</th>
+                                <th>Khách hàng</th>
+                                <th>Thời gian</th>
+                                <th>Giá trị đơn hàng</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {isLoading ? (
+                                <tr>
+                                    <td className={styles.emptyCell} colSpan={5}>
+                                        <strong>Đang tìm kiếm</strong>
+                                        <span>Đang tải danh sách đơn hàng</span>
+                                    </td>
+                                </tr>
+                            ) : null}
+                            {!isLoading && searchError ? (
+                                <tr>
+                                    <td className={styles.emptyCell} colSpan={5}>
+                                        <strong>Không tải được đơn hàng</strong>
+                                        <span>{searchError}</span>
+                                    </td>
+                                </tr>
+                            ) : null}
+                            {!isLoading && !searchError
+                                ? orderResults.map((order, index) => (
+                                      <tr
+                                          aria-selected={
+                                              selectedOrderSummary?.id === order.id
+                                          }
+                                          className={`${styles.orderTableRow} ${
+                                              index % 2 === 0
+                                                  ? styles.zebraFirstRow
+                                                  : styles.zebraSecondRow
+                                          } ${
+                                              selectedOrderSummary?.id === order.id
+                                                  ? styles.selectedOrderOption
+                                                  : ""
+                                          }`}
+                                          key={order.id}
+                                          onClick={() => onSelectOrder(order)}
+                                          onKeyDown={(event) =>
+                                              handleOrderRowKeyDown(event, order)
+                                          }
+                                          tabIndex={0}
+                                      >
+                                          <td className={styles.orderCodeCell}>
+                                              {getOrderCode(order)}
+                                          </td>
+                                          <td>{getCustomerDisplay(order)}</td>
+                                          <td className={styles.orderDateCell}>
+                                              {formatDateTime(order.createdAt)}
+                                          </td>
+                                          <td className={styles.orderAmountCell}>
+                                              {formatCurrency(order.finalAmount)}
+                                          </td>
+                                          <td>{getOrderStatusText(order)}</td>
+                                      </tr>
+                                  ))
+                                : null}
+                            {!isLoading && !searchError && orderResults.length === 0 ? (
+                                <tr>
+                                    <td className={styles.emptyCell} colSpan={5}>
+                                        <strong>
+                                            {hasSearchTerm || hasTimeFilter
+                                                ? "Không tìm thấy đơn hàng"
+                                                : "Chưa có đơn phù hợp"}
+                                        </strong>
+                                        <span>
+                                            {hasSearchTerm || hasTimeFilter
+                                                ? "Không có đơn hàng đủ điều kiện phù hợp với từ khóa."
+                                                : "Không có đơn hàng đủ điều kiện hoàn."}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ) : null}
+                        </tbody>
+                    </table>
+                </div>
                 {!isLoading && !searchError && totalElements > 0 ? (
                     <div className={styles.orderSearchPagination}>
                         <button

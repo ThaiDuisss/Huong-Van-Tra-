@@ -14,7 +14,7 @@ export interface OrderQueryParams {
     fromDate?: string;
     toDate?: string;
     returnEligibility?: OrderReturnEligibility;
-    sort?: "businessStatus" | "invoicePayment";
+    sort?: "businessStatus" | "invoicePayment" | "createdAt,desc";
     page?: number;
     size?: number;
 }
