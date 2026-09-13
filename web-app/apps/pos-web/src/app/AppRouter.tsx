@@ -9,10 +9,12 @@ import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterial
 import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
+import { CreateReturnPage } from "../features/order/pages/CreateReturnPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
 import { OrderRefundPage } from "../features/order/pages/OrderRefundPage";
+import { OrderReturnDetailPage } from "../features/order/pages/OrderReturnDetailPage";
 import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
 import { ReturnRefundReportPage } from "../features/order/pages/ReturnRefundReportPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
@@ -183,9 +185,12 @@ export function AppRouter() {
         <Route index element={<Navigate to={routePaths.inventoryBalances} replace />} />
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
+          <Route path="orders/:orderId/returns/create" element={<CreateReturnPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />
           <Route path="orders/invoices/:invoiceId" element={<InvoiceDetailPage />} />
           <Route path="orders/returns" element={<OrderReturnPage />} />
+          <Route path="orders/returns/create" element={<CreateReturnPage />} />
+          <Route path="orders/returns/:returnId" element={<OrderReturnDetailPage />} />
           <Route path="orders/refunds" element={<OrderRefundPage />} />
         </Route>
         <Route element={<RoleGate roles={REPORT_ROLES} />}>

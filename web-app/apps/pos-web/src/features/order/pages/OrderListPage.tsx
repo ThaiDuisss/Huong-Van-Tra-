@@ -7,6 +7,7 @@ import {
     Upload
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
@@ -135,6 +136,7 @@ function getPageNumbers(totalPages: number, currentPage: number) {
 }
 
 export function OrderListPage() {
+    const navigate = useNavigate();
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedTimeNode, setSelectedTimeNode] = useState<TimeNode | null>(
@@ -316,6 +318,12 @@ export function OrderListPage() {
     };
 
     const handleAction = (action: string, order: OrderSummaryResponse) => {
+        if (action === "Hoàn hàng") {
+            navigate(`/system/orders/${order.id}/returns/create`);
+            setOpenActionCode(null);
+            return;
+        }
+
         if (action === "Xem chi tiết" || action === "Sửa đơn") {
             selectOrder(order);
         }
@@ -760,6 +768,11 @@ export function OrderListPage() {
                                     summary={activeSummary}
                                     loading={isDetailLoading}
                                     error={detailError}
+                                    onCreateReturn={(targetOrderId) =>
+                                        navigate(
+                                            `/system/orders/${targetOrderId}/returns/create`
+                                        )
+                                    }
                                     onClose={closeOrderDetail}
                                 />
                             </div>
