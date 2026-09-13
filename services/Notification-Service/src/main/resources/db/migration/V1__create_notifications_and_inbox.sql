@@ -29,7 +29,7 @@ CREATE TABLE tenant_delivery_configs (
 
                                          PRIMARY KEY (id),
 
-                                         CONSTRAINT tenant_delivery_configs.uk_tenant_delivery_configs_tenant
+                                         CONSTRAINT uk_tenant_delivery_configs_tenant
                                              UNIQUE (tenant_id),
 
                                          INDEX idx_tenant_delivery_configs_active (
