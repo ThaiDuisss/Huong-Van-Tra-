@@ -19,7 +19,7 @@ interface ExcelImportModalProps {
     description: string;
     onDownloadTemplate(): void;
     onImport(file: File): Promise<void>;
-    validateRow(row: any): { isValid: boolean; error?: string };
+    validateRow(row: any, index?: number, allRows?: any[]): { isValid: boolean; error?: string };
 }
 
 interface ParsedRow {
@@ -102,8 +102,8 @@ export function ExcelImportModal({
 
                 // Get object rows
                 const dataRows = XLSX.utils.sheet_to_json<any>(worksheet);
-                const validated: ParsedRow[] = dataRows.map((row) => {
-                    const validation = validateRow(row);
+                const validated: ParsedRow[] = dataRows.map((row, idx) => {
+                    const validation = validateRow(row, idx, dataRows);
                     return {
                         row,
                         isValid: validation.isValid,

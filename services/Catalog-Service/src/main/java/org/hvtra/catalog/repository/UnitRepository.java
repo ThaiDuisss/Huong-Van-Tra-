@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,4 +14,8 @@ import org.springframework.data.domain.Pageable;
 public interface UnitRepository extends JpaRepository<Unit, UUID>, JpaSpecificationExecutor<Unit> {
     Page<Unit> findByNameContainingIgnoreCaseAndIsDeletedFalse(String name, Pageable pageable);
     List<Unit> findByBaseUnitIsNullAndIsDeletedFalseAndStatus(Status status);
+    Optional<Unit> findByNameIgnoreCaseAndIsDeletedFalse(String name);
+    Optional<Unit> findBySymbolIgnoreCaseAndIsDeletedFalse(String symbol);
+    boolean existsBySymbolIgnoreCaseAndIsDeletedFalse(String symbol);
+    boolean existsBySymbolIgnoreCaseAndIdNotAndIsDeletedFalse(String symbol, UUID id);
 }

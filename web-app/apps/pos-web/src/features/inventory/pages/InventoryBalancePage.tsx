@@ -426,20 +426,20 @@ export function InventoryBalancePage() {
                         </ActionButton>
                     </div>
                 }
+                secondaryFilter={{
+                    label: "Loại mặt hàng",
+                    value: filterItemType,
+                    options: [
+                        { value: "", label: "Tất cả loại" },
+                        { value: "PRODUCT_VARIANT", label: "Sản phẩm" },
+                        { value: "INGREDIENT", label: "Nguyên liệu" }
+                    ],
+                    onChange: (val) => {
+                        setFilterItemType(val);
+                        setPage(1);
+                    }
+                }}
                 filters={[
-                    {
-                        label: "Loại mặt hàng",
-                        value: filterItemType,
-                        options: [
-                            { value: "", label: "Tất cả loại" },
-                            { value: "PRODUCT_VARIANT", label: "Sản phẩm" },
-                            { value: "INGREDIENT", label: "Nguyên liệu" }
-                        ],
-                        onChange: (val) => {
-                            setFilterItemType(val);
-                            setPage(1);
-                        }
-                    },
                     {
                         label: "Kệ hàng",
                         value: activeLocationId ?? "",

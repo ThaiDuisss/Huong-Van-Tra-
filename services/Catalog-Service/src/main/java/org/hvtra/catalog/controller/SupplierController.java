@@ -12,6 +12,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -36,6 +37,11 @@ public class SupplierController {
     @GetMapping("/{id}")
     public SupplierResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
+    }
+
+    @PostMapping("/batch")
+    public List<SupplierResponse> getSuppliersBatch(@RequestBody List<UUID> ids) {
+        return service.findByIds(ids);
     }
 
     @PostMapping

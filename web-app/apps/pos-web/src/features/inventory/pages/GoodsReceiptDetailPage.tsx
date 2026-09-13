@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
@@ -67,12 +68,20 @@ export function GoodsReceiptDetailPage() {
 
     const [qcOpen, setQcOpen] = useState(false);
     const [qcDraft, setQcDraft] = useState<QcDraftLine[]>([]);
+    const [qcPage, setQcPage] = useState(1);
+    const [qcPageSize, setQcPageSize] = useState(3);
 
     const [postOpen, setPostOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
     const [cancelNote, setCancelNote] = useState("");
 
     const [mutationLoading, setMutationLoading] = useState(false);
+
+    function updateQcLine(lineId: string, patch: Partial<QcDraftLine>) {
+        setQcDraft((cur) =>
+            cur.map((item) => (item.lineId === lineId ? { ...item, ...patch } : item))
+        );
+    }
 
     const loadReceipt = useCallback(() => {
         if (!receiptId) return;
@@ -259,6 +268,7 @@ export function GoodsReceiptDetailPage() {
                 };
             })
         );
+        setQcPage(1);
         setQcOpen(true);
     }
 
@@ -266,13 +276,18 @@ export function GoodsReceiptDetailPage() {
     async function submitQc() {
         if (!receipt) return;
 
-        for (const line of qcDraft) {
+        for (let i = 0; i < qcDraft.length; i++) {
+            const line = qcDraft[i];
             if (line.acceptedQuantity + line.rejectedQuantity !== line.receivedQuantity) {
-                showToast(`Dòng ${line.materialName}: Tổng SL Đạt + Lỗi phải bằng Thực nhận (${line.receivedQuantity}).`, false);
+                const targetPage = Math.floor(i / qcPageSize) + 1;
+                setQcPage(targetPage);
+                showToast(`Dòng #${i + 1} (${line.materialName}): Tổng SL Đạt + Lỗi phải bằng Thực nhận (${line.receivedQuantity}).`, false);
                 return;
             }
             if (line.acceptedQuantity > 0 && (!line.manufactureDate || !line.expiryDate)) {
-                showToast(`Dòng ${line.materialName}: Vui lòng nhập đầy đủ thông tin lô hàng đạt chuẩn.`, false);
+                const targetPage = Math.floor(i / qcPageSize) + 1;
+                setQcPage(targetPage);
+                showToast(`Dòng #${i + 1} (${line.materialName}): Vui lòng nhập đầy đủ Ngày sản xuất & Hạn sử dụng.`, false);
                 return;
             }
         }
@@ -677,113 +692,200 @@ export function GoodsReceiptDetailPage() {
             {/* ============================================================ */}
             {/* 2. MODAL KIỂM ĐỊNH QC & KHAI BÁO LÔ (QC_PENDING) */}
             {/* ============================================================ */}
-            <Dialog open={qcOpen} onOpenChange={setQcOpen}>
-                <DialogContent className="max-w-[900px]">
-                    <DialogHeader>
-                        <DialogTitle>Giai đoạn 4: Kiểm định chất lượng (QC) & Khai báo Lô</DialogTitle>
-                        <DialogDescription>
-                            Kiểm tra từng dòng nguyên liệu, nhập số lượng đạt chuẩn (Accepted) và lỗi (Rejected). Khai báo thông tin Lô hàng cho lượng nguyên liệu đạt chuẩn.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid max-h-[65vh] gap-4 overflow-y-auto px-6 py-4">
-                        {qcDraft.map((line, index) => (
-                            <div className="grid gap-3 rounded-lg border border-[#e8eef0] p-4 bg-[#fbfdfb]" key={line.lineId}>
-                                <div className="flex justify-between items-center font-bold text-sm text-[#172317] border-b border-[#eef2f0] pb-2">
-                                    <span>#{index + 1}. {line.materialName}</span>
-                                    <span className="text-xs text-[#536078]">
-                                        Thực nhận: <strong className="text-[#172317]">{formatVietnamNumber(line.receivedQuantity)}</strong> {line.unit}
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-xs font-bold text-[#159734]">Số lượng đạt QC (Accepted):</label>
-                                        <input
-                                            className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#159734]"
-                                            min="0"
-                                            max={line.receivedQuantity}
-                                            step="any"
-                                            type="number"
-                                            value={line.acceptedQuantity || ""}
-                                            onChange={(e) => {
-                                                const pass = Number(e.target.value) || 0;
-                                                const fail = Math.max(0, line.receivedQuantity - pass);
-                                                setQcDraft((cur) =>
-                                                    cur.map((item, idx) => (idx === index ? { ...item, acceptedQuantity: pass, rejectedQuantity: fail } : item))
-                                                );
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-red-600">Số lượng lỗi QC (Rejected - Trả NCC):</label>
-                                        <input
-                                            className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-red-600"
-                                            min="0"
-                                            max={line.receivedQuantity}
-                                            step="any"
-                                            type="number"
-                                            value={line.rejectedQuantity || ""}
-                                            onChange={(e) => {
-                                                const fail = Number(e.target.value) || 0;
-                                                const pass = Math.max(0, line.receivedQuantity - fail);
-                                                setQcDraft((cur) =>
-                                                    cur.map((item, idx) => (idx === index ? { ...item, acceptedQuantity: pass, rejectedQuantity: fail } : item))
-                                                );
-                                            }}
-                                        />
-                                    </div>
-                                </div>
+            {(() => {
+                const totalQcPages = Math.max(1, Math.ceil(qcDraft.length / qcPageSize));
+                const safeQcPage = Math.min(qcPage, totalQcPages);
+                const startQcIdx = (safeQcPage - 1) * qcPageSize;
+                const endQcIdx = Math.min(startQcIdx + qcPageSize, qcDraft.length);
+                const paginatedQcDraft = qcDraft.slice(startQcIdx, startQcIdx + qcPageSize);
 
-                                {line.acceptedQuantity > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-[#f4faf5] p-3 rounded-lg border border-[#d8eadc]">
-                                        <div>
-                                            <label className="text-xs font-bold text-[#315f3c]">Ngày sản xuất (MFG) *:</label>
-                                            <input
-                                                className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold"
-                                                type="date"
-                                                value={line.manufactureDate}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setQcDraft((cur) => cur.map((item, idx) => (idx === index ? { ...item, manufactureDate: val } : item)));
-                                                }}
-                                            />
+                return (
+                    <Dialog open={qcOpen} onOpenChange={setQcOpen}>
+                        <DialogContent className="max-w-[900px]">
+                            <DialogHeader>
+                                <DialogTitle>Giai đoạn 4: Kiểm định chất lượng (QC) & Khai báo Lô</DialogTitle>
+                                <DialogDescription>
+                                    Kiểm tra từng dòng nguyên liệu, nhập số lượng đạt chuẩn (Accepted) và lỗi (Rejected). Khai báo thông tin Lô hàng cho lượng nguyên liệu đạt chuẩn.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            {/* DANH SÁCH DÒNG QC */}
+                            <div className="grid max-h-[60vh] gap-3.5 overflow-y-auto px-6 py-3">
+                                {paginatedQcDraft.map((line, relativeIdx) => {
+                                    const globalIdx = startQcIdx + relativeIdx;
+                                    return (
+                                        <div className="grid gap-3 rounded-xl border border-[#e8eef0] p-4 bg-[#fbfdfb] shadow-xs" key={line.lineId}>
+                                            <div className="flex justify-between items-center font-bold text-sm text-[#172317] border-b border-[#eef2f0] pb-2">
+                                                <span className="flex items-center gap-2">
+                                                    <span className="grid size-6 place-items-center rounded bg-[#edf8ef] text-xs font-black text-[#159734]">
+                                                        #{globalIdx + 1}
+                                                    </span>
+                                                    <span>{line.materialName}</span>
+                                                </span>
+                                                <span className="text-xs text-[#536078] bg-slate-100 px-2.5 py-1 rounded-md">
+                                                    Thực nhận: <strong className="text-[#172317]">{formatVietnamNumber(line.receivedQuantity)}</strong> {line.unit}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-xs font-bold text-[#159734]">Số lượng đạt QC (Accepted):</label>
+                                                    <input
+                                                        className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#159734] outline-none focus:border-[#159734]"
+                                                        min="0"
+                                                        max={line.receivedQuantity}
+                                                        step="any"
+                                                        type="number"
+                                                        value={line.acceptedQuantity || ""}
+                                                        onChange={(e) => {
+                                                            const pass = Number(e.target.value) || 0;
+                                                            const fail = Math.max(0, line.receivedQuantity - pass);
+                                                            updateQcLine(line.lineId, { acceptedQuantity: pass, rejectedQuantity: fail });
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-red-600">Số lượng lỗi QC (Rejected - Trả NCC):</label>
+                                                    <input
+                                                        className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-red-600 outline-none focus:border-red-500"
+                                                        min="0"
+                                                        max={line.receivedQuantity}
+                                                        step="any"
+                                                        type="number"
+                                                        value={line.rejectedQuantity || ""}
+                                                        onChange={(e) => {
+                                                            const fail = Number(e.target.value) || 0;
+                                                            const pass = Math.max(0, line.receivedQuantity - fail);
+                                                            updateQcLine(line.lineId, { acceptedQuantity: pass, rejectedQuantity: fail });
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {line.acceptedQuantity > 0 ? (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[#f4faf5] p-3 rounded-lg border border-[#d8eadc]">
+                                                    <div>
+                                                        <label className="text-xs font-bold text-[#315f3c]">Mã lô NCC (Supplier Lot):</label>
+                                                        <input
+                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                            placeholder="Ví dụ: LOT-2026-001"
+                                                            type="text"
+                                                            value={line.supplierLot}
+                                                            onChange={(e) => {
+                                                                updateQcLine(line.lineId, { supplierLot: e.target.value });
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-[#315f3c]">Ngày sản xuất (MFG) *:</label>
+                                                        <input
+                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                            type="date"
+                                                            value={line.manufactureDate}
+                                                            onChange={(e) => {
+                                                                updateQcLine(line.lineId, { manufactureDate: e.target.value });
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold text-[#315f3c]">Hạn sử dụng (EXP) *:</label>
+                                                        <input
+                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                            type="date"
+                                                            value={line.expiryDate}
+                                                            onChange={(e) => {
+                                                                updateQcLine(line.lineId, { expiryDate: e.target.value });
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                         </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-[#315f3c]">Hạn sử dụng (EXP) *:</label>
-                                            <input
-                                                className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold"
-                                                type="date"
-                                                value={line.expiryDate}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setQcDraft((cur) => cur.map((item, idx) => (idx === index ? { ...item, expiryDate: val } : item)));
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                ) : null}
+                                    );
+                                })}
                             </div>
-                        ))}
-                    </div>
-                    <DialogFooter>
-                        <button
-                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                            disabled={mutationLoading}
-                            onClick={() => setQcOpen(false)}
-                            type="button"
-                        >
-                            Hủy
-                        </button>
-                        <button
-                            className="h-10 rounded-lg bg-[#7c3aed] px-5 text-sm font-black text-white hover:bg-[#6d28d9] disabled:opacity-60"
-                            disabled={mutationLoading}
-                            onClick={() => void submitQc()}
-                            type="button"
-                        >
-                            {mutationLoading ? "Đang lưu..." : "Hoàn tất QC & Tạo Lô"}
-                        </button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+
+                            {/* PHÂN TRANG MODAL QC */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f4] px-6 py-2.5 text-xs bg-[#fafbfc]">
+                                <div className="text-[#536078] font-bold">
+                                    Hiển thị <span className="text-[#172317]">{qcDraft.length > 0 ? startQcIdx + 1 : 0} - {endQcIdx}</span> trên tổng <span className="text-[#172317]">{qcDraft.length}</span> nguyên liệu
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center gap-1.5 text-[#697684] font-bold">
+                                        <span>Hiển thị:</span>
+                                        <select
+                                            className="h-8 rounded-lg border border-[#dce5e1] bg-white px-2 text-xs font-bold text-[#172317] outline-none focus:border-[#159734]"
+                                            value={qcPageSize}
+                                            onChange={(e) => {
+                                                setQcPageSize(Number(e.target.value));
+                                                setQcPage(1);
+                                            }}
+                                        >
+                                            <option value={3}>3 dòng / trang</option>
+                                            <option value={5}>5 dòng / trang</option>
+                                            <option value={10}>10 dòng / trang</option>
+                                        </select>
+                                    </div>
+                                    {totalQcPages > 1 && (
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                disabled={safeQcPage <= 1}
+                                                onClick={() => setQcPage((p) => Math.max(1, p - 1))}
+                                                className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                                title="Trang trước"
+                                            >
+                                                <ChevronLeft size={16} />
+                                            </button>
+                                            {Array.from({ length: totalQcPages }, (_, i) => i + 1).map((p) => (
+                                                <button
+                                                    key={p}
+                                                    type="button"
+                                                    onClick={() => setQcPage(p)}
+                                                    className={`grid size-8 place-items-center rounded-lg text-xs font-black transition-colors cursor-pointer ${
+                                                        p === safeQcPage
+                                                            ? "bg-[#7c3aed] text-white shadow-sm"
+                                                            : "border border-[#dce5e1] bg-white text-[#536078] hover:bg-[#f7f8fb]"
+                                                    }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            ))}
+                                            <button
+                                                type="button"
+                                                disabled={safeQcPage >= totalQcPages}
+                                                onClick={() => setQcPage((p) => Math.min(totalQcPages, p + 1))}
+                                                className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                                title="Trang sau"
+                                            >
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <DialogFooter className="px-6 py-3 border-t border-[#eef2f0]">
+                                <button
+                                    className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078] hover:bg-[#f7f8fb] cursor-pointer"
+                                    disabled={mutationLoading}
+                                    onClick={() => setQcOpen(false)}
+                                    type="button"
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    className="h-10 rounded-lg bg-[#7c3aed] px-5 text-sm font-black text-white hover:bg-[#6d28d9] disabled:opacity-60 cursor-pointer shadow-sm"
+                                    disabled={mutationLoading}
+                                    onClick={() => void submitQc()}
+                                    type="button"
+                                >
+                                    {mutationLoading ? "Đang xử lý..." : "Hoàn tất kiểm định QC & Khai báo Lô"}
+                                </button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                );
+            })()}
 
             {/* ============================================================ */}
             {/* 3. MODAL GHI SỔ NHẬP KHO (QC_COMPLETED -> POSTED) */}
