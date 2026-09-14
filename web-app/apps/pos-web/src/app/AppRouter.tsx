@@ -9,6 +9,7 @@ import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterial
 import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
+import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
@@ -176,7 +177,8 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to={routePaths.inventoryBalances} replace />} />
+        <Route index element={<Navigate to={routePaths.systemDashboard} replace />} />
+        <Route path="dashboard" element={<DashboardOverviewPage />} />
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />

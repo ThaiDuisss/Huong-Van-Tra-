@@ -29,6 +29,7 @@ interface PosOrderItemRequest {
     productVariantId: string;
     quantity: number;
     bomVersionId?: string;
+    note?: string;
     itemDiscounts: PosDiscountRequest[];
 }
 
@@ -61,6 +62,7 @@ interface AddDraftOrderItemRequestBody {
     quantity: number;
     discountAmount: number;
     inventoryLocationId?: string;
+    note?: string;
 }
 
 interface UpdateDraftOrderItemQuantityRequestBody {
@@ -118,6 +120,7 @@ export interface PosOrderItemDto {
     actualUnitPrice?: number;
     unitPrice?: number;
     lineTotal?: number;
+    note?: string | null;
 }
 
 export interface PosCheckoutResponse extends PosOrderDto {
@@ -183,6 +186,7 @@ export const posOrderApi = {
             items: input.items.map((item) => ({
                 productVariantId: getProductVariantId(item),
                 quantity: item.quantity,
+                note: item.note?.trim() || undefined,
                 itemDiscounts: getCartItemDiscounts(item)
             }))
         });
@@ -194,6 +198,8 @@ export const posOrderApi = {
         orderType: SaleOrderType;
         productVariantId: string;
         inventoryLocationId?: string | null;
+        quantity?: number;
+        note?: string;
     }) {
         if (!uuidPattern.test(input.productVariantId)) {
             throw new Error("Không xác định được productVariantId dạng UUID.");
@@ -206,9 +212,10 @@ export const posOrderApi = {
                 customerId: getCustomerId(input.customerId),
                 orderType: orderTypeMap[input.orderType],
                 productVariantId: input.productVariantId,
-                quantity: 1,
+                quantity: input.quantity ?? 1,
                 discountAmount: 0,
-                inventoryLocationId: input.inventoryLocationId ?? undefined
+                inventoryLocationId: input.inventoryLocationId ?? undefined,
+                note: input.note?.trim() || undefined
             }
         );
     },
@@ -248,6 +255,7 @@ export const posOrderApi = {
             items: input.items.map((item) => ({
                 productVariantId: getProductVariantId(item),
                 quantity: item.quantity,
+                note: item.note?.trim() || undefined,
                 itemDiscounts: getCartItemDiscounts(item)
             }))
         });
