@@ -76,6 +76,20 @@ public class OrderReturnInventoryCommand extends BaseEntity {
     private UUID inspectionId;
 
     @Builder.Default
+    @Column(name = "not_found_count", nullable = false)
+    private Integer notFoundCount = 0;
+
+    @Column(name = "last_not_found_at")
+    private Instant lastNotFoundAt;
+
+    @Builder.Default
+    @Column(name = "recovery_attempt_count", nullable = false)
+    private Integer recoveryAttemptCount = 0;
+
+    @Column(name = "last_recovery_at")
+    private Instant lastRecoveryAt;
+
+    @Builder.Default
     @OneToMany(mappedBy = "command", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderReturnInventoryCommandLine> lines = new ArrayList<>();
 

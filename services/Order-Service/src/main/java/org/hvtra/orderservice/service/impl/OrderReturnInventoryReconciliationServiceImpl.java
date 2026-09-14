@@ -10,14 +10,11 @@ import org.hvtra.orderservice.dto.response.ReturnDispositionReconciliationStatus
 import org.hvtra.orderservice.dto.response.ReturnDispositionStatusResponse;
 import org.hvtra.orderservice.repository.OrderReturnInventoryCommandRepository;
 import org.hvtra.orderservice.service.OrderReturnInventoryReconciliationService;
-import org.hvtra.orderservice.service.OrderReturnService;
-import org.springframework.beans.factory.ObjectProvider;
+import org.hvtra.orderservice.service.OrderReturnInventoryReconciliationTransactionService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -32,8 +29,7 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
 
     private final OrderReturnInventoryCommandRepository commandRepository;
     private final InventoryClient inventoryClient;
-    private final OrderReturnService orderReturnService;
-    private final ObjectProvider<OrderReturnInventoryReconciliationService> selfProvider;
+    private final OrderReturnInventoryReconciliationTransactionService transactionService;
 
     @Value("${order.return.inventory-reconciliation.pending-threshold-minutes:5}")
     private int pendingThresholdMinutes;
@@ -59,14 +55,9 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
         log.info("Found {} stale pending return inventory commands older than {} minutes to reconcile.",
                 staleCommandIds.size(), pendingThresholdMinutes);
 
-        OrderReturnInventoryReconciliationService self = selfProvider.getIfAvailable();
         for (UUID commandId : staleCommandIds) {
             try {
-                if (self != null) {
-                    self.reconcileSingleCommand(commandId);
-                } else {
-                    reconcileSingleCommand(commandId);
-                }
+                reconcileSingleCommand(commandId);
             } catch (Exception ex) {
                 log.error("Unexpected error reconciling commandId {}: {}", commandId, ex.getMessage(), ex);
             }
@@ -74,21 +65,26 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void reconcileSingleCommand(UUID commandId) {
-        Optional<OrderReturnInventoryCommand> cmdOpt = commandRepository.findByCommandIdForUpdate(commandId);
+        if (commandId == null) {
+            return;
+        }
+
+        // STEP 1: Fast local check without pessimistic lock or write transaction
+        Optional<OrderReturnInventoryCommand> cmdOpt = commandRepository.findByCommandIdAndIsDeletedFalse(commandId);
         if (cmdOpt.isEmpty()) {
-            log.warn("Command not found during reconciliation: {}", commandId);
+            log.debug("Command not found during fast local check: commandId={}", commandId);
             return;
         }
 
         OrderReturnInventoryCommand command = cmdOpt.get();
         if (command.getStatus() != OrderReturnInventoryCommandStatus.PENDING) {
-            log.debug("Command {} is no longer PENDING (current status={}), skipping reconciliation.",
-                    commandId, command.getStatus());
+            log.debug("Command is no longer PENDING in fast local check (current status={}), skipping reconciliation: commandId={}",
+                    command.getStatus(), commandId);
             return;
         }
 
+        // STEP 2: Network I/O outside DB transaction and outside pessimistic lock
         ReturnDispositionStatusResponse statusResponse;
         try {
             statusResponse = inventoryClient.getReturnDispositionStatus(commandId);
@@ -107,40 +103,18 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
             return;
         }
 
-        switch (statusResponse.status()) {
-            case PROCESSED -> {
-                command.setStatus(OrderReturnInventoryCommandStatus.PROCESSED);
-                command.setProcessedAt(statusResponse.processedAt() != null ? statusResponse.processedAt() : Instant.now());
-                if (statusResponse.inspectionId() != null) {
-                    command.setInspectionId(statusResponse.inspectionId());
-                }
-                command.setFailedAt(null);
-                command.setFailureCode(null);
-                command.setFailureReason(null);
-                commandRepository.saveAndFlush(command);
-                log.info("Reconciled command {} PENDING -> PROCESSED (inspectionId={})",
-                        commandId, command.getInspectionId());
-
-                if (command.getOrderReturn() != null && command.getOrderReturn().getId() != null) {
-                    orderReturnService.checkAndAutoCompleteNoRefundReturn(command.getOrderReturn().getId());
-                }
-            }
-            case FAILED -> {
-                command.setStatus(OrderReturnInventoryCommandStatus.FAILED);
-                command.setFailedAt(statusResponse.processedAt() != null ? statusResponse.processedAt() : Instant.now());
-                command.setFailureCode(statusResponse.failureCode() != null ? statusResponse.failureCode() : "RECONCILED_FAILED");
-                command.setFailureReason(statusResponse.failureReason() != null ? statusResponse.failureReason() : "Failed in inventory");
-                commandRepository.saveAndFlush(command);
-                log.warn("Reconciled command {} PENDING -> FAILED (code={}, reason={})",
-                        commandId, command.getFailureCode(), command.getFailureReason());
-            }
-            case PROCESSING -> {
-                log.debug("Command {} is still PROCESSING in Inventory-Service. Leaving as PENDING.", commandId);
-            }
-            case NOT_FOUND -> {
-                log.warn("Command {} NOT_FOUND in Inventory-Service inbox during reconciliation. " +
-                        "Message may still be in transit or lag. Leaving as PENDING.", commandId);
-            }
+        if (statusResponse.status() == ReturnDispositionReconciliationStatus.PROCESSING) {
+            log.debug("Command {} is still PROCESSING in Inventory-Service. Leaving as PENDING and resetting consecutive NOT_FOUND counter.", commandId);
+            transactionService.resetNotFoundCounter(commandId);
+            return;
         }
+
+        if (statusResponse.status() == ReturnDispositionReconciliationStatus.NOT_FOUND) {
+            transactionService.handleNotFound(commandId);
+            return;
+        }
+
+        // STEP 3: Terminal status (PROCESSED or FAILED) -> delegate to short transaction service
+        transactionService.applyReconciledStatus(commandId, statusResponse);
     }
 }

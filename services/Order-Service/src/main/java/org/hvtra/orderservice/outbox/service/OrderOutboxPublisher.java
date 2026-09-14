@@ -252,6 +252,52 @@ public class OrderOutboxPublisher {
         ));
     }
 
+    public void publishReturnInventoryDispositionRecovery(
+            OrderReturnInventoryCommand command,
+            int recoveryAttempt
+    ) {
+        OrderReturn orderReturn = command.getOrderReturn();
+        Order order = orderReturn.getOrder();
+        String commandId = command.getCommandId().toString();
+        String topic = orderOutboxTopicResolver.resolveTopic(
+                OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED
+        );
+        String eventId = UUID.randomUUID().toString();
+        String actor = command.getRequestedBy() == null ? null : command.getRequestedBy().toString();
+        Map<String, Object> payload = buildReturnInventoryDispositionPayload(
+                command,
+                eventId,
+                actor
+        );
+        String businessKey = commandId + ":recovery:" + recoveryAttempt;
+
+        orderOutboxEventService.saveEventIfAbsent(new OutboxSaveCommand(
+                eventId,
+                RETURN_INVENTORY_COMMAND_AGGREGATE_TYPE,
+                commandId,
+                commandId,
+                OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED,
+                businessKey,
+                topic,
+                SOURCE,
+                null,
+                orderReturn.getId().toString(),
+                actor,
+                payload,
+                buildHeaders(
+                        order,
+                        eventId,
+                        OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED,
+                        commandId,
+                        topic,
+                        actor,
+                        null,
+                        RETURN_INVENTORY_COMMAND_AGGREGATE_TYPE,
+                        commandId
+                )
+        ));
+    }
+
     private void publish(Order order, String eventType, String causationId, String action, String sagaId) {
         String orderId = order.getId().toString();
         String businessKey = orderId + ":" + action;
