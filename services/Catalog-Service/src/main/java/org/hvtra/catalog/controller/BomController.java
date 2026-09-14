@@ -3,6 +3,7 @@ package org.hvtra.catalog.controller;
 import jakarta.validation.Valid;
 import org.hvtra.catalog.dto.request.BomRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
+import org.hvtra.catalog.dto.response.BomLookupResponse;
 import org.hvtra.catalog.dto.response.BomResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.enums.Status;
@@ -12,6 +13,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -38,6 +40,13 @@ public class BomController {
     @GetMapping("/{id}")
     public BomResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
+    }
+
+    @GetMapping("/lookup")
+    public List<BomLookupResponse> lookup(
+            @RequestParam(name = "productVariantId") UUID productVariantId,
+            @RequestParam(name = "status", required = false) Status status) {
+        return service.lookupByVariant(productVariantId, status);
     }
 
     @PostMapping

@@ -1,5 +1,6 @@
 package org.hvtra.catalog.mapper;
 
+import org.hvtra.catalog.dto.response.BomLookupResponse;
 import org.hvtra.catalog.dto.response.BomResponse;
 import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.UnitResponse;
@@ -57,6 +58,17 @@ public class BomMapper {
                             item.getWasteRate()
                     );
                 }).toList()
+        );
+    }
+
+    public BomLookupResponse toLookupResponse(Bom bom) {
+        return new BomLookupResponse(
+                bom.getId(),
+                bom.getBomCode(),
+                bom.getName(),
+                bom.isDefault(),
+                bom.getBomVersion(),
+                bom.getStatus()
         );
     }
 }

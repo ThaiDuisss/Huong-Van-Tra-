@@ -17,6 +17,7 @@ import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.CategoryRepository;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.service.ProductService;
+import org.hvtra.catalog.util.ExcelExportHelper;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.DateUtil;
@@ -45,22 +46,22 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly = true)
 public class ProductServiceImpl implements ProductService {
+
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
-    private final ProductMapper mapper;
     private final BusinessSequenceRepository businessSequenceRepository;
+    private final ProductMapper mapper;
     private final FileClient fileClient;
 
-    public ProductServiceImpl(
-            ProductRepository productRepository,
-            CategoryRepository categoryRepository,
-            ProductMapper mapper,
-            BusinessSequenceRepository businessSequenceRepository,
-            FileClient fileClient) {
+    public ProductServiceImpl(ProductRepository productRepository,
+                              CategoryRepository categoryRepository,
+                              BusinessSequenceRepository businessSequenceRepository,
+                              ProductMapper mapper,
+                              FileClient fileClient) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
-        this.mapper = mapper;
         this.businessSequenceRepository = businessSequenceRepository;
+        this.mapper = mapper;
         this.fileClient = fileClient;
     }
 
@@ -126,7 +127,6 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductResponse create(ProductRequest request) {
         Product product = new Product();
-        
         String code = request.productCode();
         if (code == null || code.isBlank()) {
             code = generateProductCode();
@@ -140,13 +140,11 @@ public class ProductServiceImpl implements ProductService {
             }
         }
         product.setProductCode(code);
-
-        
         updateProductFields(product, request);
         Product savedProduct = productRepository.save(product);
         fileClient.attachFile(FileClient.FileAttach.builder()
-                        .refId(savedProduct.getId())
-                        .fieldId(request.fieldId())
+                .refId(savedProduct.getId())
+                .fieldId(request.fieldId())
                 .build());
         return mapper.toResponse(savedProduct);
     }
@@ -204,41 +202,43 @@ public class ProductServiceImpl implements ProductService {
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
               
             Sheet sheet = workbook.createSheet("Danh sách sản phẩm");
+            ExcelExportHelper.ExportStyles styles = ExcelExportHelper.createExportStyles(workbook);
             
-            Font headerFont = workbook.createFont();
-            headerFont.setBold(true);
-            CellStyle headerStyle = workbook.createCellStyle();
-            headerStyle.setFont(headerFont);
+            String[] headers = {"STT", "Mã sản phẩm", "Tên sản phẩm", "Mã danh mục", "Trạng thái", "Mô tả"};
+            ExcelExportHelper.createReportHeader(sheet, styles, "BÁO CÁO DANH SÁCH SẢN PHẨM", headers);
             
-            String[] headers = {"Mã sản phẩm", "Tên sản phẩm", "Mã danh mục", "Trạng thái", "Mô tả"};
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                cell.setCellStyle(headerStyle);
-            }
-            
-            int rowIdx = 1;
+            int rowIdx = 5;
+            int stt = 1;
             for (var p : products) {
                 Row row = sheet.createRow(rowIdx++);
-                row.createCell(0).setCellValue(p.getProductCode());
-                row.createCell(1).setCellValue(p.getName());
-                row.createCell(2).setCellValue(p.getCategory() != null ? p.getCategory().getCategoryCode() : "");
-                row.createCell(3).setCellValue(p.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
-                row.createCell(4).setCellValue(p.getDescription() != null ? p.getDescription() : "");
+                row.setHeightInPoints(22);
+                
+                Cell cellStt = row.createCell(1);
+                cellStt.setCellValue(stt++);
+                cellStt.setCellStyle(styles.centerStyle());
+                
+                Cell cellCode = row.createCell(2);
+                cellCode.setCellValue(p.getProductCode() != null ? p.getProductCode() : "");
+                cellCode.setCellStyle(styles.textStyle());
+                
+                Cell cellName = row.createCell(3);
+                cellName.setCellValue(p.getName() != null ? p.getName() : "");
+                cellName.setCellStyle(styles.textStyle());
+                
+                Cell cellCat = row.createCell(4);
+                cellCat.setCellValue(p.getCategory() != null ? p.getCategory().getCategoryCode() : "");
+                cellCat.setCellStyle(styles.centerStyle());
+                
+                Cell cellStatus = row.createCell(5);
+                cellStatus.setCellValue(p.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
+                cellStatus.setCellStyle(styles.centerStyle());
+                
+                Cell cellDesc = row.createCell(6);
+                cellDesc.setCellValue(p.getDescription() != null ? p.getDescription() : "");
+                cellDesc.setCellStyle(styles.textStyle());
             }
             
-            sheet.createFreezePane(0, 1);
-            
-            if (rowIdx > 1) {
-                sheet.setAutoFilter(new CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
-            }
-            
-            for (int i = 0; i < headers.length; i++) {
-                try {
-                    sheet.autoSizeColumn(i);
-                } catch (Exception ignored) {}
-            }
+            ExcelExportHelper.finalizeSheet(sheet, headers.length, rowIdx);
             
             workbook.write(out);
             return out.toByteArray();
@@ -253,6 +253,57 @@ public class ProductServiceImpl implements ProductService {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             int rowCount = sheet.getPhysicalNumberOfRows();
+            if (rowCount <= 1) {
+                return;
+            }
+
+            int headerRowIndex = 0;
+            for (int r = 0; r < Math.min(10, rowCount); r++) {
+                Row rRow = sheet.getRow(r);
+                if (rRow == null) continue;
+                boolean hasMatch = false;
+                for (int c = 0; c < rRow.getLastCellNum(); c++) {
+                    String h = getCellValueAsString(rRow.getCell(c)).toLowerCase().trim();
+                    String normalized = java.text.Normalizer.normalize(h, java.text.Normalizer.Form.NFD)
+                            .replaceAll("\\p{M}", "");
+                    if (normalized.contains("ma danh muc") || normalized.contains("ten san pham") || normalized.contains("category code") || normalized.contains("product name")) {
+                        hasMatch = true;
+                        break;
+                    }
+                }
+                if (hasMatch) {
+                    headerRowIndex = r;
+                    break;
+                }
+            }
+
+            Row headerRow = sheet.getRow(headerRowIndex);
+            int colCategoryCode = -1;
+            int colName = -1;
+            int colStatus = -1;
+            int colDescription = -1;
+
+            if (headerRow != null) {
+                for (int c = 0; c < headerRow.getLastCellNum(); c++) {
+                    String h = getCellValueAsString(headerRow.getCell(c)).toLowerCase().trim();
+                    String normalized = java.text.Normalizer.normalize(h, java.text.Normalizer.Form.NFD)
+                            .replaceAll("\\p{M}", "");
+                    if (normalized.contains("ma danh muc") || normalized.contains("category code") || normalized.contains("danh muc")) {
+                        colCategoryCode = c;
+                    } else if (normalized.contains("ten san pham") || normalized.contains("product name") || normalized.contains("ten sp")) {
+                        colName = c;
+                    } else if (normalized.contains("trang thai") || normalized.contains("status")) {
+                        colStatus = c;
+                    } else if (normalized.contains("mo ta") || normalized.contains("description")) {
+                        colDescription = c;
+                    }
+                }
+            }
+
+            if (colCategoryCode == -1) colCategoryCode = 0;
+            if (colName == -1) colName = 1;
+            if (colStatus == -1) colStatus = 2;
+            if (colDescription == -1) colDescription = 3;
             
             Map<String, Category> categoriesByCode = categoryRepository.findAll().stream()
                     .filter(c -> c.getCategoryCode() != null)
@@ -260,14 +311,14 @@ public class ProductServiceImpl implements ProductService {
 
             List<ProductImportRow> validRows = new ArrayList<>();
 
-            for (int r = 1; r < rowCount; r++) {
+            for (int r = headerRowIndex + 1; r < rowCount; r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
                 
-                String categoryCode = getCellValueAsString(row.getCell(0));
-                String name = getCellValueAsString(row.getCell(1));
-                String statusStr = getCellValueAsString(row.getCell(2));
-                String description = getCellValueAsString(row.getCell(3));
+                String categoryCode = colCategoryCode >= 0 ? getCellValueAsString(row.getCell(colCategoryCode)) : "";
+                String name = colName >= 0 ? getCellValueAsString(row.getCell(colName)) : "";
+                String statusStr = colStatus >= 0 ? getCellValueAsString(row.getCell(colStatus)) : "";
+                String description = colDescription >= 0 ? getCellValueAsString(row.getCell(colDescription)) : "";
                 
                 if (name.isBlank() && categoryCode.isBlank()) {
                     continue;

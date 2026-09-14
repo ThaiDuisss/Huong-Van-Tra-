@@ -2,6 +2,7 @@ package org.hvtra.catalog.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.catalog.dto.request.BomRequest;
+import org.hvtra.catalog.dto.response.BomLookupResponse;
 import org.hvtra.catalog.dto.response.BomResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.entity.*;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -151,11 +153,6 @@ public class BomServiceImpl implements BomService {
     @Transactional
     public BomResponse updateStatus(UUID id, Status status) {
         Bom bom = get(id);
-        if (status == Status.ACTIVE
-                && repository.existsByProductVariantIdAndStatusAndIdNot(
-                        bom.getProductVariantId(), Status.ACTIVE, id)) {
-            throw new BadRequestException("Another active BOM exists for this product variant");
-        }
         bom.setStatus(status);
         return mapper.toResponse(repository.save(bom));
     }
@@ -210,11 +207,6 @@ public class BomServiceImpl implements BomService {
                     : repository.existsByBomCodeAndIdNot(request.bomCode(), id);
             if (codeExists) throw new BadRequestException("BOM code already exists: " + request.bomCode());
         }
-        if (request.status() == Status.ACTIVE
-                && repository.existsByProductVariantIdAndStatusAndIdNot(
-                        request.productVariantId(), Status.ACTIVE, id == null ? UUID.randomUUID() : id)) {
-            throw new BadRequestException("Another active BOM exists for this product variant");
-        }
     }
 
     private Bom get(UUID id) {
@@ -230,6 +222,14 @@ public class BomServiceImpl implements BomService {
         }
         bom.setIsDeleted(true);
         repository.save(bom);
+    }
+
+    @Override
+    public List<BomLookupResponse> lookupByVariant(UUID productVariantId, Status status) {
+        Status effectiveStatus = status != null ? status : Status.ACTIVE;
+        return repository.findLookupByVariantAndStatus(productVariantId, effectiveStatus).stream()
+                .map(mapper::toLookupResponse)
+                .toList();
     }
 }
 

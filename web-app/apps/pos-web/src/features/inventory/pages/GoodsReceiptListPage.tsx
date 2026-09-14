@@ -1,7 +1,9 @@
-import { Filter } from "lucide-react";
+import { Download, Filter, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
+import { ExcelImportModal } from "../../product/components/ExcelImportModal";
 import {
     GoodsReceiptFilterBar,
     GoodsReceiptStatusBadge,
@@ -26,6 +28,12 @@ import {
     formatVietnamDateTime,
     formatVietnamNumber
 } from "../utils/inventory-format";
+import {
+    exportGoodsReceiptsToExcel,
+    generateGoodsReceiptTemplate,
+    getExcelRowValue,
+    parseAndImportGoodsReceipts
+} from "../utils/goodsReceiptExcel";
 
 const columns: Column[] = [
     // { key: "code", label: "Mã phiếu" },
@@ -43,6 +51,7 @@ const columns: Column[] = [
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
     const [showFilters, setShowFilters] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [result, setResult] = useState<GoodsReceiptListResult | null>(null);
     const [summaryCounts, setSummaryCounts] = useState<GoodsReceiptDashboardSummary>({
         awaitingCost: 0,
@@ -152,6 +161,105 @@ export function GoodsReceiptListPage() {
         { label: "Đã hủy (0)", value: "CANCELLED" }
     ];
 
+    const handleExportExcel = () => {
+        try {
+            if (receipts.length === 0) {
+                alert("Không có dữ liệu phiếu nhập để xuất Excel!");
+                return;
+            }
+            exportGoodsReceiptsToExcel(receipts);
+        } catch (err) {
+            console.error("Lỗi xuất Excel phiếu nhập kho:", err);
+            alert("Có lỗi xảy ra khi xuất file Excel!");
+        }
+    };
+
+    const handleDownloadTemplate = () => {
+        try {
+            const blob = generateGoodsReceiptTemplate(options);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "mau_nhap_phieu_nhap_kho.xlsx");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error("Lỗi tải file mẫu:", err);
+            alert("Có lỗi xảy ra khi tạo file mẫu!");
+        }
+    };
+
+    const validateReceiptRow = (row: any) => {
+        const supplierCodeOrName = getExcelRowValue(row, "Mã nhà cung cấp", "Tên nhà cung cấp", "Nhà cung cấp", "Supplier", "Supplier Code");
+        const locationCodeOrName = getExcelRowValue(row, "Mã kho nhận", "Tên kho nhận", "Kho nhận", "Kho", "Location", "Location Code");
+        const materialCodeOrName = getExcelRowValue(row, "Mã nguyên liệu", "Tên nguyên liệu", "Nguyên liệu", "Mã SKU", "SKU", "Material");
+        const quantityStr = getExcelRowValue(row, "Số lượng đặt", "Số lượng", "SL đặt", "Quantity", "Ordered Quantity");
+
+        if (!supplierCodeOrName && !locationCodeOrName && !materialCodeOrName && !quantityStr) {
+            return { isValid: true };
+        }
+
+        if (options.suppliers.length > 0 && supplierCodeOrName) {
+            const cleanSupp = supplierCodeOrName.toLowerCase().trim();
+            const matched = options.suppliers.some(
+                (s) =>
+                    (s.code && s.code.toLowerCase().trim() === cleanSupp) ||
+                    (s.name && s.name.toLowerCase().trim() === cleanSupp) ||
+                    (s.id && String(s.id).toLowerCase().trim() === cleanSupp)
+            );
+            if (!matched) {
+                return { isValid: false, error: `Nhà cung cấp '${supplierCodeOrName}' không tồn tại` };
+            }
+        }
+
+        if (options.locations.length > 0 && locationCodeOrName) {
+            const cleanLoc = locationCodeOrName.toLowerCase().trim();
+            const matched = options.locations.some(
+                (l) =>
+                    (l.code && l.code.toLowerCase().trim() === cleanLoc) ||
+                    (l.name && l.name.toLowerCase().trim() === cleanLoc) ||
+                    (l.id && String(l.id).toLowerCase().trim() === cleanLoc)
+            );
+            if (!matched) {
+                return { isValid: false, error: `Kho nhận '${locationCodeOrName}' không tồn tại` };
+            }
+        }
+
+        if (!materialCodeOrName) {
+            return { isValid: false, error: "Mã nguyên liệu không được để trống" };
+        }
+
+        if (options.materials.length > 0) {
+            const cleanMat = materialCodeOrName.toLowerCase().trim();
+            const matched = options.materials.some(
+                (m) =>
+                    (m.skuCode && m.skuCode.toLowerCase().trim() === cleanMat) ||
+                    (m.name && m.name.toLowerCase().trim() === cleanMat) ||
+                    (m.id && String(m.id).toLowerCase().trim() === cleanMat)
+            );
+            if (!matched) {
+                return { isValid: false, error: `Nguyên liệu '${materialCodeOrName}' không tồn tại` };
+            }
+        }
+
+        if (!quantityStr) {
+            return { isValid: false, error: "Số lượng đặt không được để trống" };
+        }
+
+        const quantity = Number(String(quantityStr).replace(/,/g, ""));
+        if (isNaN(quantity) || quantity <= 0) {
+            return { isValid: false, error: "Số lượng đặt phải lớn hơn 0" };
+        }
+
+        return { isValid: true };
+    };
+
+    const handleImportExcel = async (file: File) => {
+        await parseAndImportGoodsReceipts(file, options);
+        retry();
+    };
+
     const filters: InventoryFilter[] | undefined = showFilters
         ? [
             {
@@ -175,129 +283,133 @@ export function GoodsReceiptListPage() {
         : undefined;
 
     return (
-        <InventoryResourceManagement<GoodsReceiptSummary, GoodsReceiptStatus>
-            columns={columns}
-            description="Quản lý vòng đời phiếu nhập kho từ nhà cung cấp, kiểm định QC và theo dõi nguyên vật liệu."
-            detailPath={(item) => `/management/inventory/receipts/${item.id}`}
-            error={error}
-            extraHeaderActions={
-                <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-black transition-all ${showFilters
-                            ? "border-[#159734] bg-[#f4faf5] text-[#159734]"
-                            : "border-[#e8eef0] bg-white text-[#536078] hover:bg-[#f7f8fb]"
-                            }`}
-                        onClick={() => setShowFilters((prev) => !prev)}
-                        type="button"
-                    >
-                        <Filter size={16} aria-hidden="true" />
-                        <span>{showFilters ? "Ẩn bộ lọc" : "Hiện bộ lọc chi tiết"}</span>
-                        {activeFilterCount > 0 ? (
-                            <span className="grid size-5 place-items-center rounded-full bg-[#159734] text-[11px] font-black text-white">
-                                {activeFilterCount}
-                            </span>
-                        ) : null}
-                    </button>
-                    <Link
-                        className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] shadow-sm"
-                        to="/management/inventory/receipts/new"
-                    >
-                        Tạo phiếu nhập mới
-                    </Link>
-                </div>
-            }
-            filters={filters}
-            items={receipts}
-            loading={loading}
-            onPageChange={(page) => setQuery({ page: page - 1 })}
-            onPageSizeChange={(size) => setQuery({ page: 0, size })}
-            onQueryChange={(val) => setQuery({ page: 0, receiptCode: val })}
-            onRefresh={retry}
-            onStatusChange={(status) => setQuery({ page: 0, status })}
-            page={query.page + 1}
-            pageCount={result?.totalPages ?? 1}
-            pageSize={query.size}
-            query={query.receiptCode}
-            renderCells={(item) => (
-                <>
-                    {/* <TableCell strong>
-                        <Link
-                            className="text-[#159734] hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                            to={`/management/inventory/receipts/${item.id}`}
+        <>
+            <InventoryResourceManagement<GoodsReceiptSummary, GoodsReceiptStatus>
+                columns={columns}
+                description="Quản lý vòng đời phiếu nhập kho từ nhà cung cấp, kiểm định QC và theo dõi nguyên vật liệu."
+                detailPath={(item) => `/management/inventory/receipts/${item.id}`}
+                error={error}
+                extraHeaderActions={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <ActionButton variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+                            <Upload size={17} aria-hidden="true" />
+                            Nhập Excel
+                        </ActionButton>
+                        <ActionButton variant="secondary" onClick={handleExportExcel}>
+                            <Download size={17} aria-hidden="true" />
+                            Xuất Excel
+                        </ActionButton>
+                        <button
+                            className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-black transition-all cursor-pointer ${showFilters
+                                ? "border-[#159734] bg-[#f4faf5] text-[#159734]"
+                                : "border-[#e8eef0] bg-white text-[#536078] hover:bg-[#f7f8fb]"
+                                }`}
+                            onClick={() => setShowFilters((prev) => !prev)}
+                            type="button"
                         >
-                            {item.code}
+                            <Filter size={16} aria-hidden="true" />
+                            <span>{showFilters ? "Ẩn bộ lọc" : "Hiện bộ lọc chi tiết"}</span>
+                            {activeFilterCount > 0 ? (
+                                <span className="grid size-5 place-items-center rounded-full bg-[#159734] text-[11px] font-black text-white">
+                                    {activeFilterCount}
+                                </span>
+                            ) : null}
+                        </button>
+                        <Link
+                            className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] shadow-sm"
+                            to="/management/inventory/receipts/new"
+                        >
+                            Tạo phiếu nhập mới
                         </Link>
-                    </TableCell> */}
-                    <TableCell>{item.supplier.name}</TableCell>
-                    {/* <TableCell>{item.purchaseOrderCode || "Ngoài PO"}</TableCell> */}
-                    <TableCell>{item.receivingLocation.name}</TableCell>
-                    <TableCell className="text-right pr-[18px]">
-                        {formatVietnamNumber(item.totalReceivedQuantity)}
-                    </TableCell>
-                    {/* <TableCell>
-                        <QcBadge result={item.qcResult} />
-                    </TableCell> */}
-                    {/* <TableCell>
-                        <CostBadge status={item.costStatus} />
-                    </TableCell> */}
-                    <TableCell>
-                        <GoodsReceiptStatusBadge status={item.status} />
-                    </TableCell>
-                    <TableCell>{formatVietnamDateTime(item.receivedAt)}</TableCell>
-                    {/* <TableCell>{item.createdBy.name}</TableCell> */}
-                </>
-            )}
-            renderDetail={(item) => (
-                <dl className="space-y-3 text-sm">
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Mã phiếu</dt>
-                        <dd className="text-gray-900 font-semibold">{item.code}</dd>
                     </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Nhà cung cấp</dt>
-                        <dd className="text-gray-900 font-semibold">{item.supplier.name}</dd>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Đơn đặt hàng (PO)</dt>
-                        <dd className="text-gray-900 font-semibold">{item.purchaseOrderCode || "Ngoài PO"}</dd>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Kho nhận</dt>
-                        <dd className="text-gray-900 font-semibold">{item.receivingLocation.name}</dd>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Số dòng nguyên liệu</dt>
-                        <dd className="text-gray-900 font-semibold">{formatVietnamNumber(item.totalLines)} dòng</dd>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Tổng lượng nhận</dt>
-                        <dd className="text-gray-900 font-semibold">{formatVietnamNumber(item.totalReceivedQuantity)}</dd>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Trạng thái</dt>
-                        <dd><GoodsReceiptStatusBadge status={item.status} /></dd>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Kết quả QC</dt>
-                        <dd><QcBadge result={item.qcResult} /></dd>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Ngày nhận</dt>
-                        <dd className="text-gray-900 font-semibold">{formatVietnamDateTime(item.receivedAt)}</dd>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                        <dt className="text-gray-500 font-bold uppercase text-xs">Người tạo</dt>
-                        <dd className="text-gray-900 font-semibold">{item.createdBy.name}</dd>
-                    </div>
-                </dl>
-            )}
-            searchPlaceholder="Tìm kiếm theo mã phiếu nhập..."
-            status={query.status}
-            statusOptions={statusOptions}
-            title="Phiếu nhập kho từ Nhà cung cấp"
-            totalItems={result?.totalElements ?? 0}
-            totalItemsLabel="Tổng số phiếu nhập"
-        />
+                }
+                filters={filters}
+                items={receipts}
+                loading={loading}
+                onPageChange={(page) => setQuery({ page: page - 1 })}
+                onPageSizeChange={(size) => setQuery({ page: 0, size })}
+                onQueryChange={(val) => setQuery({ page: 0, receiptCode: val })}
+                onRefresh={retry}
+                onStatusChange={(status) => setQuery({ page: 0, status })}
+                page={query.page + 1}
+                pageCount={result?.totalPages ?? 1}
+                pageSize={query.size}
+                query={query.receiptCode}
+                renderCells={(item) => (
+                    <>
+                        <TableCell>{item.supplier.name}</TableCell>
+                        <TableCell>{item.receivingLocation.name}</TableCell>
+                        <TableCell className="text-right pr-[18px]">
+                            {formatVietnamNumber(item.totalReceivedQuantity)}
+                        </TableCell>
+                        <TableCell>
+                            <GoodsReceiptStatusBadge status={item.status} />
+                        </TableCell>
+                        <TableCell>{formatVietnamDateTime(item.receivedAt)}</TableCell>
+                    </>
+                )}
+                renderDetail={(item) => (
+                    <dl className="space-y-3 text-sm">
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Mã phiếu</dt>
+                            <dd className="text-gray-900 font-semibold">{item.code}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Nhà cung cấp</dt>
+                            <dd className="text-gray-900 font-semibold">{item.supplier.name}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Đơn đặt hàng (PO)</dt>
+                            <dd className="text-gray-900 font-semibold">{item.purchaseOrderCode || "Ngoài PO"}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Kho nhận</dt>
+                            <dd className="text-gray-900 font-semibold">{item.receivingLocation.name}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Số dòng nguyên liệu</dt>
+                            <dd className="text-gray-900 font-semibold">{formatVietnamNumber(item.totalLines)} dòng</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Tổng lượng nhận</dt>
+                            <dd className="text-gray-900 font-semibold">{formatVietnamNumber(item.totalReceivedQuantity)}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Trạng thái</dt>
+                            <dd><GoodsReceiptStatusBadge status={item.status} /></dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Kết quả QC</dt>
+                            <dd><QcBadge result={item.qcResult} /></dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Ngày nhận</dt>
+                            <dd className="text-gray-900 font-semibold">{formatVietnamDateTime(item.receivedAt)}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Người tạo</dt>
+                            <dd className="text-gray-900 font-semibold">{item.createdBy.name}</dd>
+                        </div>
+                    </dl>
+                )}
+                searchPlaceholder="Tìm kiếm theo mã phiếu nhập..."
+                status={query.status}
+                statusOptions={statusOptions}
+                title="Phiếu nhập kho từ Nhà cung cấp"
+                totalItems={result?.totalElements ?? 0}
+                totalItemsLabel="Tổng số phiếu nhập"
+            />
+
+            <ExcelImportModal
+                description="Nhập danh sách phiếu nhập kho từ file Excel. Các dòng cùng Nhà cung cấp, Kho nhận và Mã PO sẽ được tự động gom thành 1 phiếu."
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onDownloadTemplate={handleDownloadTemplate}
+                onImport={handleImportExcel}
+                title="Nhập danh sách phiếu nhập kho từ Excel"
+                validateRow={validateReceiptRow}
+            />
+        </>
     );
 }
+
