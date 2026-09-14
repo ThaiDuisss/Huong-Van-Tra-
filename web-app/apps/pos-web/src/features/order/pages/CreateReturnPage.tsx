@@ -517,6 +517,10 @@ export function CreateReturnPage() {
     };
 
     const submitReturn = () => {
+        if (isSubmitting) {
+            return;
+        }
+
         if (!selectedOrder || draftValidationError) {
             setToast(
                 draftValidationError ??

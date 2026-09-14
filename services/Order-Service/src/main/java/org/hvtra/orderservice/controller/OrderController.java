@@ -14,6 +14,7 @@ import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
@@ -22,6 +23,7 @@ import org.hvtra.orderservice.dto.response.OrderRefundStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderRefundSummaryResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnInventoryDispositionResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnReportDetailResponse;
@@ -318,6 +320,16 @@ public class OrderController {
     @PostMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund")
     public OrderReturnRefundResponse refundReturn(@PathVariable UUID returnId) {
         return orderReturnService.refundReturn(returnId);
+    }
+
+    @Operation(summary = "luu lenh xu ly ton kho cho phieu hoan hang")
+    @PostMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/inventory-disposition")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderReturnInventoryDispositionResponse submitReturnInventoryDisposition(
+            @PathVariable UUID returnId,
+            @Valid @RequestBody SubmitReturnInventoryDispositionRequest request
+    ) {
+        return orderReturnService.submitInventoryDisposition(returnId, request);
     }
 
     @GetMapping

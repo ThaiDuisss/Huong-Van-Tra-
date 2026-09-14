@@ -19,8 +19,10 @@ import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.exception.InvalidOrderReturnException;
+import org.hvtra.orderservice.repository.OrderItemRepository;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.repository.OrderReturnHistoryRepository;
+import org.hvtra.orderservice.repository.OrderReturnInventoryCommandRepository;
 import org.hvtra.orderservice.repository.OrderReturnItemRepository;
 import org.hvtra.orderservice.repository.OrderReturnRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
@@ -57,6 +59,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -69,10 +72,16 @@ class OrderReturnServiceImplTest {
     private OrderRepository orderRepository;
 
     @Mock
+    private OrderItemRepository orderItemRepository;
+
+    @Mock
     private OrderReturnRepository orderReturnRepository;
 
     @Mock
     private OrderReturnItemRepository orderReturnItemRepository;
+
+    @Mock
+    private OrderReturnInventoryCommandRepository orderReturnInventoryCommandRepository;
 
     @Mock
     private OrderReturnHistoryRepository orderReturnHistoryRepository;
@@ -109,8 +118,10 @@ class OrderReturnServiceImplTest {
     void setUp() {
         service = new OrderReturnServiceImpl(
                 orderRepository,
+                orderItemRepository,
                 orderReturnRepository,
                 orderReturnItemRepository,
+                orderReturnInventoryCommandRepository,
                 orderReturnHistoryRepository,
                 orderStatusHistoryRepository,
                 orderCodeGenerator,
@@ -1182,6 +1193,8 @@ class OrderReturnServiceImplTest {
 
     private void stubEligibleOrderOnly() {
         when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        lenient().when(orderItemRepository.findReturnableItemsForUpdate(eq(orderId), any()))
+                .thenReturn(order.getItems());
     }
 
     private void stubCompletedAt(Instant completedAt) {

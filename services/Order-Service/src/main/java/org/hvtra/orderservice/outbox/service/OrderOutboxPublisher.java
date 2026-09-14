@@ -5,6 +5,8 @@ import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
 import org.hvtra.commonservice.kafka.outbox.service.OutboxEventService;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
+import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommandLine;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.client.PaymentClient;
@@ -28,6 +30,8 @@ public class OrderOutboxPublisher {
     private static final String SOURCE = "order-service";
     private static final String AGGREGATE_TYPE = "ORDER";
     private static final String RETURN_AGGREGATE_TYPE = "ORDER_RETURN";
+    private static final String RETURN_INVENTORY_COMMAND_AGGREGATE_TYPE =
+            "ORDER_RETURN_INVENTORY_COMMAND";
 
     private final OutboxEventService<OrderOutboxEvent> orderOutboxEventService;
     private final OrderOutboxTopicResolver orderOutboxTopicResolver;
@@ -182,6 +186,51 @@ public class OrderOutboxPublisher {
                 paymentRefund == null ? null : paymentRefund.refundTransactionId(),
                 paymentRefund == null ? null : paymentRefund.paymentId()
         );
+    }
+
+    public void publishReturnInventoryDispositionRequested(
+            OrderReturnInventoryCommand command,
+            UUID actorUserId
+    ) {
+        OrderReturn orderReturn = command.getOrderReturn();
+        Order order = orderReturn.getOrder();
+        String commandId = command.getCommandId().toString();
+        String topic = orderOutboxTopicResolver.resolveTopic(
+                OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED
+        );
+        String eventId = UUID.randomUUID().toString();
+        String actor = actorUserId == null ? null : actorUserId.toString();
+        Map<String, Object> payload = buildReturnInventoryDispositionPayload(
+                command,
+                eventId,
+                actor
+        );
+
+        orderOutboxEventService.saveEventIfAbsent(new OutboxSaveCommand(
+                eventId,
+                RETURN_INVENTORY_COMMAND_AGGREGATE_TYPE,
+                commandId,
+                commandId,
+                OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED,
+                commandId,
+                topic,
+                SOURCE,
+                null,
+                orderReturn.getId().toString(),
+                actor,
+                payload,
+                buildHeaders(
+                        order,
+                        eventId,
+                        OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED,
+                        commandId,
+                        topic,
+                        actor,
+                        null,
+                        RETURN_INVENTORY_COMMAND_AGGREGATE_TYPE,
+                        commandId
+                )
+        ));
     }
 
     private void publish(Order order, String eventType, String causationId, String action, String sagaId) {
@@ -412,6 +461,62 @@ public class OrderOutboxPublisher {
         payload.put("correlationId", orderReturn.getId().toString());
         payload.put("causationId", actorUserId);
         payload.put("occurredAt", Instant.now());
+
+        return payload;
+    }
+
+    private Map<String, Object> buildReturnInventoryDispositionPayload(
+            OrderReturnInventoryCommand command,
+            String eventId,
+            String actorUserId
+    ) {
+        OrderReturn orderReturn = command.getOrderReturn();
+        Order order = orderReturn.getOrder();
+        Map<String, Object> payload = new LinkedHashMap<>();
+
+        payload.put("eventId", eventId);
+        payload.put("eventType", OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED);
+        payload.put("eventKey", command.getCommandId().toString());
+        payload.put("commandId", command.getCommandId().toString());
+        payload.put("returnId", orderReturn.getId().toString());
+        payload.put("returnCode", orderReturn.getReturnCode());
+        payload.put("orderId", order.getId().toString());
+        payload.put("orderCode", order.getOrderCode());
+        payload.put("branchId", order.getBranchId() == null ? null : order.getBranchId().toString());
+        payload.put("status", command.getStatus() == null ? null : command.getStatus().name());
+        payload.put("requestedBy", actorUserId);
+        payload.put("lines", commandLines(command));
+        payload.put("sagaId", null);
+        payload.put("correlationId", orderReturn.getId().toString());
+        payload.put("causationId", actorUserId);
+        payload.put("occurredAt", Instant.now());
+
+        return payload;
+    }
+
+    private List<Map<String, Object>> commandLines(OrderReturnInventoryCommand command) {
+        if (command.getLines() == null) {
+            return List.of();
+        }
+
+        return command.getLines().stream()
+                .filter(line -> Boolean.FALSE.equals(line.getIsDeleted()))
+                .map(this::commandLine)
+                .toList();
+    }
+
+    private Map<String, Object> commandLine(OrderReturnInventoryCommandLine line) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+
+        payload.put("returnItemId", line.getReturnItem().getId().toString());
+        payload.put("orderItemId", line.getOrderItemId().toString());
+        payload.put("productVariantId", line.getProductVariantId().toString());
+        payload.put("quantity", line.getQuantity());
+        payload.put("result", line.getResult() == null ? null : line.getResult().name());
+        payload.put("destinationLocationId", line.getDestinationLocationId() == null
+                ? null
+                : line.getDestinationLocationId().toString());
+        payload.put("note", line.getNote());
 
         return payload;
     }

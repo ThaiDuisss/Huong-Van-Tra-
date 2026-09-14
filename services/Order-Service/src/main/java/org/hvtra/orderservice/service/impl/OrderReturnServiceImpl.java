@@ -8,20 +8,28 @@ import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnHistory;
+import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
+import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommandLine;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
+import org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus;
 import org.hvtra.orderservice.domain.enums.OrderReturnHistoryAction;
 import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnCondition;
+import org.hvtra.orderservice.domain.enums.ReturnInventoryDispositionResult;
 import org.hvtra.orderservice.domain.enums.ReturnReason;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionLineRequest;
+import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.response.OrderRefundDetailResponse;
 import org.hvtra.orderservice.dto.response.OrderRefundStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderRefundSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnInventoryDispositionLineResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnInventoryDispositionResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
@@ -29,8 +37,10 @@ import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnTimelineResponse;
 import org.hvtra.orderservice.exception.InvalidOrderReturnException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
+import org.hvtra.orderservice.repository.OrderItemRepository;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.repository.OrderReturnHistoryRepository;
+import org.hvtra.orderservice.repository.OrderReturnInventoryCommandRepository;
 import org.hvtra.orderservice.repository.OrderReturnItemRepository;
 import org.hvtra.orderservice.repository.OrderReturnRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
@@ -55,9 +65,11 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -72,8 +84,10 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     private static final Duration DEFAULT_QUALITY_WINDOW = Duration.ofDays(14);
 
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final OrderReturnRepository orderReturnRepository;
     private final OrderReturnItemRepository orderReturnItemRepository;
+    private final OrderReturnInventoryCommandRepository orderReturnInventoryCommandRepository;
     private final OrderReturnHistoryRepository orderReturnHistoryRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final OrderCodeGenerator orderCodeGenerator;
@@ -93,9 +107,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         validateOrderEligibility(order);
         validateRequest(request);
 
-        Map<UUID, OrderItem> orderItems = order.getItems().stream()
-                .filter(item -> Boolean.FALSE.equals(item.getIsDeleted()))
-                .collect(Collectors.toMap(OrderItem::getId, Function.identity()));
+        Map<UUID, OrderItem> orderItems = lockRequestedOrderItems(orderId, request);
 
         OrderReturn orderReturn = OrderReturn.builder()
                 .returnCode(generateUniqueReturnCode())
@@ -138,6 +150,24 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         orderOutboxPublisher.publishReturnCreatedNotification(saved, actorUserId);
 
         return orderReturnMapper.toResponse(saved);
+    }
+
+    private Map<UUID, OrderItem> lockRequestedOrderItems(UUID orderId, CreateOrderReturnRequest request) {
+        List<UUID> requestedOrderItemIds = request.getItems().stream()
+                .map(CreateOrderReturnItemRequest::getOrderItemId)
+                .toList();
+        Map<UUID, OrderItem> lockedItems = orderItemRepository
+                .findReturnableItemsForUpdate(orderId, requestedOrderItemIds)
+                .stream()
+                .collect(Collectors.toMap(OrderItem::getId, Function.identity()));
+
+        for (CreateOrderReturnItemRequest itemRequest : request.getItems()) {
+            if (!lockedItems.containsKey(itemRequest.getOrderItemId())) {
+                throw new InvalidOrderReturnException("Order item does not belong to order");
+            }
+        }
+
+        return lockedItems;
     }
 
     @Override
@@ -367,6 +397,225 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         );
 
         return toRefundResponse(orderReturn, lockedOrder, paymentRefund);
+    }
+
+    @Override
+    @Transactional
+    public OrderReturnInventoryDispositionResponse submitInventoryDisposition(
+            UUID returnId,
+            SubmitReturnInventoryDispositionRequest request
+    ) {
+        validateDispositionRequest(request);
+
+        OrderReturnInventoryCommand existingCommand = orderReturnInventoryCommandRepository
+                .findByCommandIdAndIsDeletedFalse(request.getCommandId())
+                .orElse(null);
+        if (existingCommand != null) {
+            return resolveExistingInventoryDispositionCommand(returnId, request, existingCommand);
+        }
+
+        OrderReturn orderReturn = getExistingReturnForUpdate(returnId);
+        existingCommand = orderReturnInventoryCommandRepository
+                .findByCommandIdAndIsDeletedFalse(request.getCommandId())
+                .orElse(null);
+        if (existingCommand != null) {
+            return resolveExistingInventoryDispositionCommand(returnId, request, existingCommand);
+        }
+
+        if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
+            throw new InvalidOrderReturnException("Only received returns can request inventory disposition");
+        }
+
+        Map<UUID, OrderReturnItem> returnItemsById = activeReturnItemsById(orderReturn);
+        Map<UUID, SubmitReturnInventoryDispositionLineRequest> requestedLinesByReturnItemId =
+                requestedDispositionLines(request);
+        UUID actorUserId = currentActorUserIdOrNull();
+        OrderReturnInventoryCommand command = OrderReturnInventoryCommand.builder()
+                .orderReturn(orderReturn)
+                .commandId(request.getCommandId())
+                .status(OrderReturnInventoryCommandStatus.PENDING)
+                .requestedBy(actorUserId)
+                .build();
+
+        for (SubmitReturnInventoryDispositionLineRequest lineRequest : requestedLinesByReturnItemId.values()) {
+            OrderReturnItem returnItem = returnItemsById.get(lineRequest.getReturnItemId());
+            if (returnItem == null) {
+                throw new InvalidOrderReturnException("Return item does not belong to return");
+            }
+
+            validateDispositionLine(lineRequest, returnItem);
+            OrderItem orderItem = returnItem.getOrderItem();
+            if (orderItem == null || orderItem.getId() == null || orderItem.getProductVariantId() == null) {
+                throw new InvalidOrderReturnException("Return item is missing order item data");
+            }
+
+            command.addLine(OrderReturnInventoryCommandLine.builder()
+                    .returnItem(returnItem)
+                    .orderItemId(orderItem.getId())
+                    .productVariantId(orderItem.getProductVariantId())
+                    .quantity(lineRequest.getQuantity())
+                    .result(lineRequest.getResult())
+                    .destinationLocationId(lineRequest.getDestinationLocationId())
+                    .note(normalizeBlank(lineRequest.getNote()))
+                    .build());
+        }
+
+        OrderReturnInventoryCommand saved = orderReturnInventoryCommandRepository.saveAndFlush(command);
+        orderOutboxPublisher.publishReturnInventoryDispositionRequested(saved, actorUserId);
+
+        return toDispositionResponse(saved);
+    }
+
+    private OrderReturnInventoryDispositionResponse resolveExistingInventoryDispositionCommand(
+            UUID returnId,
+            SubmitReturnInventoryDispositionRequest request,
+            OrderReturnInventoryCommand existingCommand
+    ) {
+        if (existingCommand.getOrderReturn() == null
+                || existingCommand.getOrderReturn().getId() == null
+                || !existingCommand.getOrderReturn().getId().equals(returnId)) {
+            throw new InvalidOrderReturnException("Inventory disposition commandId belongs to another return");
+        }
+        if (!sameDispositionCommand(existingCommand, request)) {
+            throw new InvalidOrderReturnException("Inventory disposition commandId was already used differently");
+        }
+
+        return toDispositionResponse(existingCommand);
+    }
+
+    private void validateDispositionRequest(SubmitReturnInventoryDispositionRequest request) {
+        if (request == null || request.getCommandId() == null) {
+            throw new InvalidOrderReturnException("Inventory disposition commandId is required");
+        }
+        if (request.getLines() == null || request.getLines().isEmpty()) {
+            throw new InvalidOrderReturnException("Inventory disposition lines are required");
+        }
+    }
+
+    private Map<UUID, SubmitReturnInventoryDispositionLineRequest> requestedDispositionLines(
+            SubmitReturnInventoryDispositionRequest request
+    ) {
+        Map<UUID, SubmitReturnInventoryDispositionLineRequest> linesByReturnItemId =
+                new LinkedHashMap<>();
+        for (SubmitReturnInventoryDispositionLineRequest line : request.getLines()) {
+            if (line == null || line.getReturnItemId() == null) {
+                throw new InvalidOrderReturnException("Return item is required");
+            }
+            if (line.getResult() == null) {
+                throw new InvalidOrderReturnException("Inventory disposition result is required");
+            }
+            if (linesByReturnItemId.put(line.getReturnItemId(), line) != null) {
+                throw new InvalidOrderReturnException("Duplicate return item in inventory disposition request");
+            }
+        }
+
+        return linesByReturnItemId;
+    }
+
+    private Map<UUID, OrderReturnItem> activeReturnItemsById(OrderReturn orderReturn) {
+        if (orderReturn.getItems() == null) {
+            return Map.of();
+        }
+
+        return orderReturn.getItems().stream()
+                .filter(item -> Boolean.FALSE.equals(item.getIsDeleted()))
+                .collect(Collectors.toMap(OrderReturnItem::getId, Function.identity()));
+    }
+
+    private void validateDispositionLine(
+            SubmitReturnInventoryDispositionLineRequest lineRequest,
+            OrderReturnItem returnItem
+    ) {
+        BigDecimal quantity = requirePositiveQuantity(lineRequest.getQuantity());
+        if ((ReturnInventoryDispositionResult.RESTOCK == lineRequest.getResult()
+                || ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult())
+                && lineRequest.getDestinationLocationId() == null) {
+            throw new InvalidOrderReturnException("Destination location is required for inventory disposition");
+        }
+
+        BigDecimal alreadyCommandedQuantity = defaultZero(
+                orderReturnInventoryCommandRepository.sumCommandedQuantityByReturnItemId(returnItem.getId())
+        );
+        BigDecimal remainingQuantity = defaultZero(returnItem.getQuantity()).subtract(alreadyCommandedQuantity);
+        if (remainingQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidOrderReturnException("No remaining quantity available for inventory disposition");
+        }
+        if (quantity.compareTo(remainingQuantity) > 0) {
+            throw new InvalidOrderReturnException("Inventory disposition quantity exceeds return item quantity");
+        }
+    }
+
+    private boolean sameDispositionCommand(
+            OrderReturnInventoryCommand command,
+            SubmitReturnInventoryDispositionRequest request
+    ) {
+        Map<UUID, SubmitReturnInventoryDispositionLineRequest> requestedLines =
+                requestedDispositionLines(request);
+        List<OrderReturnInventoryCommandLine> commandLines = activeCommandLines(command);
+        if (commandLines.size() != requestedLines.size()) {
+            return false;
+        }
+
+        for (OrderReturnInventoryCommandLine commandLine : commandLines) {
+            UUID returnItemId = commandLine.getReturnItem() == null ? null : commandLine.getReturnItem().getId();
+            SubmitReturnInventoryDispositionLineRequest requestedLine = requestedLines.remove(returnItemId);
+            if (requestedLine == null || !sameDispositionLine(commandLine, requestedLine)) {
+                return false;
+            }
+        }
+
+        return requestedLines.isEmpty();
+    }
+
+    private boolean sameDispositionLine(
+            OrderReturnInventoryCommandLine commandLine,
+            SubmitReturnInventoryDispositionLineRequest requestedLine
+    ) {
+        return defaultZero(commandLine.getQuantity()).compareTo(defaultZero(requestedLine.getQuantity())) == 0
+                && commandLine.getResult() == requestedLine.getResult()
+                && Objects.equals(commandLine.getDestinationLocationId(), requestedLine.getDestinationLocationId())
+                && Objects.equals(normalizeBlank(commandLine.getNote()), normalizeBlank(requestedLine.getNote()));
+    }
+
+    private List<OrderReturnInventoryCommandLine> activeCommandLines(OrderReturnInventoryCommand command) {
+        if (command.getLines() == null) {
+            return List.of();
+        }
+
+        return command.getLines().stream()
+                .filter(line -> Boolean.FALSE.equals(line.getIsDeleted()))
+                .toList();
+    }
+
+    private OrderReturnInventoryDispositionResponse toDispositionResponse(
+            OrderReturnInventoryCommand command
+    ) {
+        OrderReturn orderReturn = command.getOrderReturn();
+        return OrderReturnInventoryDispositionResponse.builder()
+                .commandId(command.getCommandId())
+                .returnId(orderReturn == null ? null : orderReturn.getId())
+                .returnCode(orderReturn == null ? null : orderReturn.getReturnCode())
+                .status(command.getStatus())
+                .createdAt(command.getCreatedAt())
+                .lines(activeCommandLines(command).stream()
+                        .map(this::toDispositionLineResponse)
+                        .toList())
+                .build();
+    }
+
+    private OrderReturnInventoryDispositionLineResponse toDispositionLineResponse(
+            OrderReturnInventoryCommandLine line
+    ) {
+        OrderReturnItem returnItem = line.getReturnItem();
+        return OrderReturnInventoryDispositionLineResponse.builder()
+                .returnItemId(returnItem == null ? null : returnItem.getId())
+                .orderItemId(line.getOrderItemId())
+                .productVariantId(line.getProductVariantId())
+                .quantity(line.getQuantity())
+                .result(line.getResult())
+                .destinationLocationId(line.getDestinationLocationId())
+                .note(line.getNote())
+                .build();
     }
 
     private OrderReturnRefundResponse existingCompletedRefundResponse(OrderReturn orderReturn) {
@@ -824,7 +1073,11 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 && ReturnCondition.SEALED != itemRequest.getCondition()) {
             throw new InvalidOrderReturnException("Change-of-mind return requires sealed product");
         }
-        validateReturnWindow(itemRequest.getReason(), completedAt);
+        // TEMPORARILY DISABLED:
+        // Return requests currently have no maximum age.
+        // Re-enable this call when the business restores the return-window policy.
+        //
+        // validateReturnWindow(itemRequest.getReason(), completedAt);
     }
 
     private void validateReturnQuantity(OrderItem orderItem, BigDecimal requestedQuantity) {
@@ -844,14 +1097,18 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     }
 
     private void validateReturnWindow(ReturnReason reason, Instant completedAt) {
-        Instant baseline = completedAt == null ? Instant.now() : completedAt;
-        Duration window = ReturnReason.CHANGE_OF_MIND == reason
-                ? DEFAULT_CHANGE_OF_MIND_WINDOW
-                : DEFAULT_QUALITY_WINDOW;
-
-        if (baseline.plus(window).isBefore(Instant.now())) {
-            throw new InvalidOrderReturnException("Return window has expired");
-        }
+        // TEMPORARILY DISABLED:
+        // Return requests currently have no maximum age.
+        // Re-enable when the return-window policy is restored.
+        //
+        // Instant baseline = completedAt == null ? Instant.now() : completedAt;
+        // Duration window = ReturnReason.CHANGE_OF_MIND == reason
+        //         ? DEFAULT_CHANGE_OF_MIND_WINDOW
+        //         : DEFAULT_QUALITY_WINDOW;
+        //
+        // if (baseline.plus(window).isBefore(Instant.now())) {
+        //     throw new InvalidOrderReturnException("Return window has expired");
+        // }
     }
 
     private Instant resolveCompletedAt(Order order) {

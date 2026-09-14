@@ -225,9 +225,13 @@ export function getReturnErrorMessage(error: unknown) {
         return "Khách đổi ý chỉ áp dụng với sản phẩm còn nguyên seal.";
     }
 
-    if (message.includes("Return window has expired")) {
-        return "Đơn hàng đã quá thời hạn hoàn.";
-    }
+    // TEMPORARILY DISABLED:
+    // Return requests currently have no maximum age.
+    // Re-enable this mapping when the business restores the return-window policy.
+    //
+    // if (message.includes("Return window has expired")) {
+    //     return "Đơn hàng đã quá thời hạn hoàn.";
+    // }
 
     if (message.includes("Note is required when reason is OTHER")) {
         return "Vui lòng nhập ghi chú cho lý do khác.";

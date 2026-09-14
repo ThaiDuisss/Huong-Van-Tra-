@@ -1,9 +1,11 @@
 package org.hvtra.orderservice.service;
 
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.response.OrderRefundDetailResponse;
 import org.hvtra.orderservice.dto.response.OrderRefundStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderRefundSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnInventoryDispositionResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
@@ -25,6 +27,11 @@ public interface OrderReturnService {
     OrderReturnResponse cancelReturn(UUID returnId);
 
     OrderReturnRefundResponse refundReturn(UUID returnId);
+
+    OrderReturnInventoryDispositionResponse submitInventoryDisposition(
+            UUID returnId,
+            SubmitReturnInventoryDispositionRequest request
+    );
 
     Page<OrderRefundSummaryResponse> getRefunds(
             String keyword,
