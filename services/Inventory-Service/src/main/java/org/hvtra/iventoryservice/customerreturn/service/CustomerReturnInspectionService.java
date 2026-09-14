@@ -6,6 +6,7 @@ import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSumm
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
+import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionStatusResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -22,4 +23,6 @@ public interface CustomerReturnInspectionService {
     List<CustomerReturnQcDispositionReportResponse> getQcDispositionReport(
             CustomerReturnQcDispositionReportRequest request
     );
+
+    ReturnDispositionStatusResponse getDispositionStatus(UUID commandId);
 }

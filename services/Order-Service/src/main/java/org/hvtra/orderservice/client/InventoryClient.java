@@ -3,6 +3,7 @@ package org.hvtra.orderservice.client;
 import lombok.Builder;
 import org.hvtra.orderservice.domain.enums.ReturnCondition;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
+import org.hvtra.orderservice.dto.response.ReturnDispositionStatusResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,10 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Feign client gọi đến Inventory-Service để thực hiện trừ kho.
- *
- * TODO: Cần wire vào OrderServiceImpl khi đã xác nhận phương thức giao tiếp
- *       (REST synchronous hoặc event-driven Kafka).
+ * Feign client gọi đến Inventory-Service để thực hiện trừ kho và đồng bộ trạng thái.
  */
 @FeignClient(name = "inventory-service", url = "${clients.inventory-service.url:http://localhost:8084}")
 public interface InventoryClient {
@@ -44,6 +42,9 @@ public interface InventoryClient {
     List<CustomerReturnQcDispositionReportResponse> getCustomerReturnQcDispositionReport(
             @RequestBody CustomerReturnQcDispositionReportRequest request
     );
+
+    @GetMapping("/api/inventory/internal/return-dispositions/{commandId}/status")
+    ReturnDispositionStatusResponse getReturnDispositionStatus(@PathVariable("commandId") UUID commandId);
 
     @Builder
     record ApplyInventoryReservationRequest(

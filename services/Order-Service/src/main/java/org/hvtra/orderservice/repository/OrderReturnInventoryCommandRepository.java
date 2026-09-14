@@ -8,8 +8,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,8 +41,26 @@ public interface OrderReturnInventoryCommandRepository
             where line.returnItem.id = :returnItemId
               and line.isDeleted = false
               and inventoryCommand.isDeleted = false
+              and inventoryCommand.status in (
+                  org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus.PENDING,
+                  org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus.PROCESSED
+              )
             """)
     BigDecimal sumCommandedQuantityByReturnItemId(@Param("returnItemId") UUID returnItemId);
+
+    @Query("""
+            select c.commandId
+            from OrderReturnInventoryCommand c
+            where c.status = :status
+              and c.isDeleted = false
+              and c.createdAt <= :threshold
+            order by c.createdAt asc
+            """)
+    List<UUID> findStaleCommandIds(
+            @Param("status") OrderReturnInventoryCommandStatus status,
+            @Param("threshold") Instant threshold,
+            Pageable pageable
+    );
 
     @Query("""
             select line.returnItem.id, coalesce(sum(line.quantity), 0)

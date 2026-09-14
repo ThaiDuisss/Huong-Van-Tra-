@@ -27,6 +27,7 @@ import org.hvtra.iventoryservice.integration.order.dto.OrderReturnCondition;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnItemResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnStatus;
+import org.hvtra.iventoryservice.integration.order.repository.InventoryInboxRepository;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
@@ -79,6 +80,8 @@ class CustomerReturnInspectionServiceImplTest {
 
     @Mock
     private InventoryTransactionRepository transactionRepository;
+    @Mock
+    private InventoryInboxRepository inboxRepository;
 
     private CustomerReturnInspectionServiceImpl service;
     private UUID returnId;
@@ -101,7 +104,8 @@ class CustomerReturnInspectionServiceImplTest {
                 locationRepository,
                 batchRepository,
                 balanceRepository,
-                transactionRepository);
+                transactionRepository,
+                inboxRepository);
         returnId = UUID.randomUUID();
         returnItemId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();

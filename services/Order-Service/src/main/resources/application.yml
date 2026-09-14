@@ -175,6 +175,12 @@ order:
         return-disposition-failed: ${ORDER_INVENTORY_RETURN_DISPOSITION_FAILED_TOPIC:inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED}
       return-disposition-ack:
         group-id: ${ORDER_INVENTORY_RETURN_DISPOSITION_ACK_GROUP_ID:order-return-inventory-ack-events}
+  return:
+    inventory-reconciliation:
+      enabled: ${ORDER_RETURN_INVENTORY_RECONCILIATION_ENABLED:true}
+      fixed-delay-ms: ${ORDER_RETURN_INVENTORY_RECONCILIATION_FIXED_DELAY_MS:60000}
+      pending-threshold-minutes: ${ORDER_RETURN_INVENTORY_RECONCILIATION_PENDING_THRESHOLD_MINUTES:5}
+      batch-size: ${ORDER_RETURN_INVENTORY_RECONCILIATION_BATCH_SIZE:50}
 
 security:
   internal:

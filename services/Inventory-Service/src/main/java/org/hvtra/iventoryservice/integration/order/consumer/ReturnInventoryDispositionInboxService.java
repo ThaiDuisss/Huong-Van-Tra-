@@ -128,7 +128,9 @@ public class ReturnInventoryDispositionInboxService {
         CustomerReturnInspectionResponse postedInspection =
                 customerReturnInspectionService.postInspection(createdInspection.id());
 
+        inbox.setInspectionId(postedInspection.id().toString());
         markProcessed(inbox);
+        inventoryInboxRepository.saveAndFlush(inbox);
         inventoryOutboxPublisher.publishReturnInventoryDispositionProcessed(
                 commandId,
                 returnId.toString(),

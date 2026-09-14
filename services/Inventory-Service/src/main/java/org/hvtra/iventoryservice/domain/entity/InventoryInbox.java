@@ -27,7 +27,8 @@ import org.hvtra.commonservice.kafka.inbox.BaseInbox;
                 @Index(name = "idx_inbox_command_id", columnList = "command_id"),
                 @Index(name = "idx_inbox_saga_id", columnList = "saga_id"),
                 @Index(name = "idx_inbox_status", columnList = "status"),
-                @Index(name = "idx_inbox_topic_offset", columnList = "topic, partition_no, offset_no")
+                @Index(name = "idx_inbox_topic_offset", columnList = "topic, partition_no, offset_no"),
+                @Index(name = "idx_inbox_inspection_id", columnList = "inspection_id")
         }
 )
 @Getter
@@ -39,4 +40,7 @@ public class InventoryInbox extends BaseInbox {
 
     @Column(name = "business_payload_hash", length = 64)
     private String businessPayloadHash;
+
+    @Column(name = "inspection_id", length = 36)
+    private String inspectionId;
 }

@@ -37,12 +37,18 @@ import org.hvtra.iventoryservice.integration.order.dto.OrderReturnCondition;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnItemResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnStatus;
+import org.hvtra.commonservice.kafka.inbox.InboxStatus;
+import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionReconciliationStatus;
+import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionStatusResponse;
+import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
+import org.hvtra.iventoryservice.integration.order.repository.InventoryInboxRepository;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +60,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -74,6 +81,10 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     private final InventoryBatchRepository batchRepository;
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryTransactionRepository transactionRepository;
+    private final InventoryInboxRepository inboxRepository;
+
+    @Value("${inventory.order.events.return-disposition.group-id:inventory-return-disposition}")
+    private String consumerGroup;
 
     @Override
     @Transactional
@@ -590,5 +601,76 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         String prefix = type == InventoryTransactionType.WRITE_OFF ? "WOFF" : "CRR";
         return prefix + "-" + LocalDate.now().format(CODE_DATE)
                 + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    @Override
+    public ReturnDispositionStatusResponse getDispositionStatus(UUID commandId) {
+        if (commandId == null) {
+            throw new BadRequestException("CommandId must not be null");
+        }
+        Optional<InventoryInbox> inboxOpt = inboxRepository.findByCommandIdAndConsumerGroup(
+                commandId.toString(),
+                consumerGroup
+        );
+        if (inboxOpt.isEmpty()) {
+            return ReturnDispositionStatusResponse.builder()
+                    .commandId(commandId)
+                    .status(ReturnDispositionReconciliationStatus.NOT_FOUND)
+                    .failureReason("Command not found in inventory inbox")
+                    .build();
+        }
+        InventoryInbox inbox = inboxOpt.get();
+        if (inbox.getStatus() == InboxStatus.FAILED || inbox.getStatus() == InboxStatus.DEAD) {
+            return ReturnDispositionStatusResponse.builder()
+                    .commandId(commandId)
+                    .status(ReturnDispositionReconciliationStatus.FAILED)
+                    .processedAt(inbox.getProcessedAt())
+                    .failureCode("INBOX_FAILED")
+                    .failureReason(inbox.getLastError() != null ? inbox.getLastError() : "Disposition processing failed in inventory")
+                    .build();
+        }
+        if (inbox.getStatus() == InboxStatus.PROCESSED) {
+            UUID inspectionId = null;
+            if (inbox.getInspectionId() != null && !inbox.getInspectionId().isBlank()) {
+                try {
+                    inspectionId = UUID.fromString(inbox.getInspectionId());
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+            if (inspectionId != null) {
+                Optional<CustomerReturnInspection> inspectionOpt = inspectionRepository.findById(inspectionId);
+                if (inspectionOpt.isPresent()) {
+                    CustomerReturnInspection inspection = inspectionOpt.get();
+                    if (inspection.getStatus() == CustomerReturnInspectionStatus.POSTED) {
+                        return ReturnDispositionStatusResponse.builder()
+                                .commandId(commandId)
+                                .status(ReturnDispositionReconciliationStatus.PROCESSED)
+                                .returnId(inspection.getReturnId())
+                                .inspectionId(inspection.getId())
+                                .processedAt(inbox.getProcessedAt())
+                                .build();
+                    } else {
+                        return ReturnDispositionStatusResponse.builder()
+                                .commandId(commandId)
+                                .status(ReturnDispositionReconciliationStatus.PROCESSING)
+                                .returnId(inspection.getReturnId())
+                                .inspectionId(inspection.getId())
+                                .failureReason("Inspection exists but is not yet posted (status: " + inspection.getStatus() + ")")
+                                .build();
+                    }
+                }
+            }
+            return ReturnDispositionStatusResponse.builder()
+                    .commandId(commandId)
+                    .status(ReturnDispositionReconciliationStatus.PROCESSED)
+                    .inspectionId(inspectionId)
+                    .processedAt(inbox.getProcessedAt())
+                    .build();
+        }
+        return ReturnDispositionStatusResponse.builder()
+                .commandId(commandId)
+                .status(ReturnDispositionReconciliationStatus.PROCESSING)
+                .failureReason("Disposition is currently being processed")
+                .build();
     }
 }

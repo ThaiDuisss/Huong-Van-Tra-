@@ -10,6 +10,10 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface InventoryInboxRepository extends BaseInboxRepository<InventoryInbox> {
+    Optional<InventoryInbox> findByCommandIdAndConsumerGroup(
+            String commandId,
+            String consumerGroup);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select inbox

@@ -8,6 +8,7 @@ import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSumm
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
+import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionStatusResponse;
 import org.hvtra.iventoryservice.customerreturn.service.CustomerReturnInspectionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -58,5 +59,12 @@ public class CustomerReturnInspectionController {
             @Valid @RequestBody CustomerReturnQcDispositionReportRequest request
     ) {
         return ResponseEntity.ok(service.getQcDispositionReport(request));
+    }
+
+    @GetMapping("/internal/return-dispositions/{commandId}/status")
+    public ResponseEntity<ReturnDispositionStatusResponse> getDispositionStatus(
+            @PathVariable UUID commandId
+    ) {
+        return ResponseEntity.ok(service.getDispositionStatus(commandId));
     }
 }
