@@ -3,6 +3,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Eye,
+    Loader2,
     Plus,
     RefreshCw,
     Search,
@@ -21,21 +22,21 @@ import {
 } from "../../../components/shared/TimeHierarchyFilter.utils";
 import {
     cancelOrderReturn,
-    createCustomerReturnInspection,
     getCustomerReturnQcSummary,
     getOrderReturnList,
     getOrderReturnDetail,
-    postCustomerReturnInspection,
-    receiveOrderReturn
+    getReturnInventoryDisposition,
+    receiveOrderReturn,
+    submitReturnInventoryDisposition
 } from "../services/order-return.api";
 import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
 import type { InventoryLocationResponse } from "../../inventory/types/inventory.types";
 import type { OrderPageResponse } from "../types/order.types";
 import type {
-    CustomerReturnInspectionResponse,
     CustomerReturnQcResult,
     CustomerReturnQcSummaryLine,
     CustomerReturnQcSummaryResponse,
+    OrderReturnInventoryDispositionResponse,
     OrderReturnListRow,
     OrderReturnResponse,
     ReturnCondition,
@@ -81,6 +82,7 @@ const RETURN_STATUS_FILTERS: {
     { key: "ALL", label: "Tất cả" },
     { key: "CREATED", label: "Đã tạo" },
     { key: "RECEIVED", label: "Đã nhận hàng" },
+    { key: "COMPLETED", label: "Hoàn tất" },
     { key: "CANCELLED", label: "Đã hủy" }
 ];
 
@@ -763,10 +765,13 @@ function ReturnDetailModal({
     >([]);
     const [isLocationLoading, setIsLocationLoading] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
-    const [isCreatingInspection, setIsCreatingInspection] = useState(false);
-    const [createdInspection, setCreatedInspection] =
-        useState<CustomerReturnInspectionResponse | null>(null);
-    const [isPostingInspection, setIsPostingInspection] = useState(false);
+    const [isSubmittingDisposition, setIsSubmittingDisposition] =
+        useState(false);
+    const [submissionCommandId, setSubmissionCommandId] = useState<
+        string | null
+    >(null);
+    const [activeDispositionCommand, setActiveDispositionCommand] =
+        useState<OrderReturnInventoryDispositionResponse | null>(null);
 
     const branchId = qcSummary?.branchId ?? returnItem.branchId ?? null;
     const summaryLines = useMemo(
@@ -792,7 +797,9 @@ function ReturnDetailModal({
             setQcSummary(null);
             setQcSummaryError(null);
             setIsQcOpen(false);
-            setCreatedInspection(null);
+            setActiveDispositionCommand(null);
+            setSubmissionCommandId(null);
+            setIsSubmittingDisposition(false);
             setQcDraftLines({});
             setQcNote("");
             setQcFormError(null);
@@ -897,7 +904,7 @@ function ReturnDetailModal({
     }, [branchId, isQcOpen]);
 
     useEffect(() => {
-        if (!isQcOpen || createdInspection) {
+        if (!isQcOpen || activeDispositionCommand) {
             return;
         }
 
@@ -913,7 +920,7 @@ function ReturnDetailModal({
         }, 0);
 
         return () => window.clearTimeout(timerId);
-    }, [createdInspection, isQcOpen, remainingLines]);
+    }, [activeDispositionCommand, isQcOpen, remainingLines]);
 
     const openQcForm = () => {
         if (returnItem.status !== "RECEIVED") {
@@ -927,7 +934,8 @@ function ReturnDetailModal({
         }
 
         setIsQcOpen(true);
-        setCreatedInspection(null);
+        setActiveDispositionCommand(null);
+        setSubmissionCommandId(null);
         setQcFormError(null);
     };
 
@@ -935,6 +943,10 @@ function ReturnDetailModal({
         returnItemId: string,
         update: Partial<QcDraftLine>
     ) => {
+        setSubmissionCommandId(null);
+        if (activeDispositionCommand && activeDispositionCommand.status !== "PENDING") {
+            setActiveDispositionCommand(null);
+        }
         setQcDraftLines((current) => {
             const line = summaryLines.find(
                 (summaryLine) => summaryLine.returnItemId === returnItemId
@@ -1042,7 +1054,58 @@ function ReturnDetailModal({
         return null;
     };
 
-    const createInspection = () => {
+    useEffect(() => {
+        if (
+            !activeDispositionCommand ||
+            activeDispositionCommand.status !== "PENDING"
+        ) {
+            return;
+        }
+
+        let ignore = false;
+        const intervalId = window.setInterval(() => {
+            getReturnInventoryDisposition(
+                returnItem.id,
+                activeDispositionCommand.commandId
+            )
+                .then((updatedCommand) => {
+                    if (ignore) {
+                        return;
+                    }
+                    setActiveDispositionCommand(updatedCommand);
+                    if (updatedCommand.status === "PROCESSED") {
+                        onToast("Đã cập nhật kho thành công.");
+                        setQcReloadKey((key) => key + 1);
+                        setQcDraftLines({});
+                        setQcNote("");
+                        setQcFormError(null);
+                        setSubmissionCommandId(null);
+                    } else if (updatedCommand.status === "FAILED") {
+                        const failureMsg = updatedCommand.failureReason
+                            ? getReturnErrorMessage(
+                                  new Error(updatedCommand.failureReason)
+                              )
+                            : "Không thể cập nhật kho. Vui lòng kiểm tra lại.";
+                        setQcFormError(failureMsg);
+                    }
+                })
+                .catch((error: unknown) => {
+                    if (!ignore) {
+                        console.warn(
+                            "Lỗi khi tra cứu trạng thái lệnh xử lý kho:",
+                            error
+                        );
+                    }
+                });
+        }, 1500);
+
+        return () => {
+            ignore = true;
+            window.clearInterval(intervalId);
+        };
+    }, [activeDispositionCommand, onToast, returnItem.id]);
+
+    const submitDisposition = () => {
         const validationError = validateQcDraft();
 
         if (validationError) {
@@ -1050,71 +1113,76 @@ function ReturnDetailModal({
             return;
         }
 
+        const selectedLines = remainingLines
+            .filter((line) => qcDraftLines[line.returnItemId]?.selected)
+            .map((line) => {
+                const draft =
+                    qcDraftLines[line.returnItemId] ??
+                    createDefaultQcDraftLine(line);
+
+                return {
+                    returnItemId: line.returnItemId,
+                    quantity: getQcQuantity(draft),
+                    result: draft.result,
+                    destinationLocationId:
+                        draft.result === "WRITE_OFF"
+                            ? null
+                            : draft.destinationLocationId || null,
+                    note: draft.note.trim() || null
+                };
+            });
+
+        if (selectedLines.length === 0) {
+            setQcFormError("Vui lòng chọn ít nhất một sản phẩm để xử lý kho.");
+            return;
+        }
+
+        const commandId = submissionCommandId ?? crypto.randomUUID();
+        setSubmissionCommandId(commandId);
         setQcFormError(null);
-        setIsCreatingInspection(true);
+        setIsSubmittingDisposition(true);
 
-        createCustomerReturnInspection(returnItem.id, {
-            note: qcNote.trim() || null,
-            lines: remainingLines
-                .filter((line) => qcDraftLines[line.returnItemId]?.selected)
-                .map((line) => {
-                    const draft =
-                        qcDraftLines[line.returnItemId] ??
-                        createDefaultQcDraftLine(line);
-
-                    return {
-                        returnItemId: line.returnItemId,
-                        quantity: getQcQuantity(draft),
-                        result: draft.result,
-                        destinationLocationId:
-                            draft.result === "WRITE_OFF"
-                                ? null
-                                : draft.destinationLocationId,
-                        note: draft.note.trim() || null
-                    };
-                })
+        submitReturnInventoryDisposition(returnItem.id, {
+            commandId,
+            lines: selectedLines
         })
-            .then((inspection) => {
-                setCreatedInspection(inspection);
-                onToast("Đã tạo phiếu kiểm tra hàng trả.");
+            .then((response) => {
+                setActiveDispositionCommand(response);
+                if (response.status === "PROCESSED") {
+                    onToast("Đã cập nhật kho thành công.");
+                    setQcReloadKey((key) => key + 1);
+                    setQcDraftLines({});
+                    setQcNote("");
+                    setSubmissionCommandId(null);
+                } else if (response.status === "FAILED") {
+                    const failureMsg = response.failureReason
+                        ? getReturnErrorMessage(new Error(response.failureReason))
+                        : "Không thể cập nhật kho.";
+                    setQcFormError(failureMsg);
+                } else {
+                    onToast("Đã gửi lệnh xử lý kho. Đang cập nhật tồn kho...");
+                }
             })
             .catch((error: unknown) => {
                 setQcFormError(getReturnErrorMessage(error));
             })
             .finally(() => {
-                setIsCreatingInspection(false);
+                setIsSubmittingDisposition(false);
             });
     };
 
-    const postInspection = () => {
-        if (!createdInspection) {
-            return;
-        }
+    const handleResetDispositionAfterFailure = () => {
+        setActiveDispositionCommand(null);
+        setSubmissionCommandId(null);
+        setQcFormError(null);
+    };
 
-        const confirmed = window.confirm(
-            "Xác nhận xử lý tồn kho theo kết quả kiểm tra?\n\nThao tác này sẽ cập nhật tồn kho và không nên thực hiện lặp lại."
-        );
-
-        if (!confirmed) {
-            return;
-        }
-
-        setIsPostingInspection(true);
-        postCustomerReturnInspection(createdInspection.id)
-            .then(() => {
-                onToast("Đã xử lý tồn kho theo phiếu kiểm tra.");
-                setCreatedInspection(null);
-                setIsQcOpen(false);
-                setQcNote("");
-                setQcDraftLines({});
-                setQcReloadKey((key) => key + 1);
-            })
-            .catch((error: unknown) => {
-                setQcFormError(getReturnErrorMessage(error));
-            })
-            .finally(() => {
-                setIsPostingInspection(false);
-            });
+    const handleContinueQcAfterProcessed = () => {
+        setActiveDispositionCommand(null);
+        setSubmissionCommandId(null);
+        setQcFormError(null);
+        setQcDraftLines({});
+        setQcNote("");
     };
 
     const getDestinationName = (locationId?: string | null) => {
@@ -1184,6 +1252,14 @@ function ReturnDetailModal({
                                 <InfoRow
                                     label="Khách hàng"
                                     value={returnItem.customerName || "--"}
+                                />
+                                <InfoRow
+                                    label="Chính sách hoàn tiền"
+                                    value={
+                                        returnItem.refundRequired === false
+                                            ? "Không hoàn tiền"
+                                            : "Có hoàn tiền"
+                                    }
                                 />
                                 <InfoRow
                                     label="Ngày tạo"
@@ -1267,8 +1343,9 @@ function ReturnDetailModal({
                                         className={styles.primaryButton}
                                         disabled={
                                             isQcSummaryLoading ||
-                                            isCreatingInspection ||
-                                            isPostingInspection
+                                            isSubmittingDisposition ||
+                                            activeDispositionCommand?.status ===
+                                                "PENDING"
                                         }
                                         onClick={openQcForm}
                                         type="button"
@@ -1293,8 +1370,12 @@ function ReturnDetailModal({
                             ) : null}
                             {returnItem.status === "COMPLETED" ? (
                                 <PanelMessage
-                                    description="Phiếu hoàn đã hoàn tất nên không tạo lượt QC mới."
-                                    title="Không tạo QC mới"
+                                    description={
+                                        returnItem.refundRequired === false
+                                            ? "Phiếu hoàn đã hoàn tất xử lý hàng. Không phát sinh hoàn tiền."
+                                            : "Phiếu hoàn đã hoàn tất."
+                                    }
+                                    title="Đã hoàn tất"
                                 />
                             ) : null}
 
@@ -1370,22 +1451,24 @@ function ReturnDetailModal({
                                             <div className={styles.qcPanelHeader}>
                                                 <div>
                                                     <strong>
-                                                        Tạo phiếu kiểm tra
+                                                        Xử lý kho hàng trả
                                                     </strong>
                                                     <span>
                                                         Chỉ hiển thị sản phẩm còn
-                                                        số lượng chưa QC.
+                                                        số lượng chưa xử lý kho.
                                                     </span>
                                                 </div>
                                                 <button
                                                     className={styles.secondaryButton}
                                                     disabled={
-                                                        isCreatingInspection ||
-                                                        isPostingInspection
+                                                        isSubmittingDisposition ||
+                                                        activeDispositionCommand?.status ===
+                                                            "PENDING"
                                                     }
                                                     onClick={() => {
                                                         setIsQcOpen(false);
-                                                        setCreatedInspection(null);
+                                                        setActiveDispositionCommand(null);
+                                                        setSubmissionCommandId(null);
                                                         setQcFormError(null);
                                                     }}
                                                     type="button"
@@ -1406,7 +1489,7 @@ function ReturnDetailModal({
                                                 />
                                             ) : null}
 
-                                            {!createdInspection ? (
+                                            {!activeDispositionCommand ? (
                                                 <>
                                                     <div
                                                         className={
@@ -1709,8 +1792,8 @@ function ReturnDetailModal({
                                                     {remainingLines.length ===
                                                     0 ? (
                                                         <PanelMessage
-                                                            description="Không còn sản phẩm cần QC trong phiếu hoàn này."
-                                                            title="Đã kiểm tra xong"
+                                                            description="Không còn sản phẩm cần xử lý kho trong phiếu hoàn này."
+                                                            title="Đã xử lý kho xong"
                                                         />
                                                     ) : null}
 
@@ -1720,15 +1803,21 @@ function ReturnDetailModal({
                                                         }
                                                     >
                                                         <span>
-                                                            Ghi chú phiếu kiểm tra
+                                                            Ghi chú lệnh xử lý kho
                                                         </span>
                                                         <textarea
-                                                            onChange={(event) =>
+                                                            onChange={(
+                                                                event
+                                                            ) => {
+                                                                setSubmissionCommandId(
+                                                                    null
+                                                                );
                                                                 setQcNote(
-                                                                    event.target
+                                                                    event
+                                                                        .target
                                                                         .value
-                                                                )
-                                                            }
+                                                                );
+                                                            }}
                                                             placeholder="Ghi chú chung nếu có"
                                                             value={qcNote}
                                                         />
@@ -1740,24 +1829,106 @@ function ReturnDetailModal({
                                                         styles.qcReviewPanel
                                                     }
                                                 >
-                                                    <div>
-                                                        <strong>
-                                                            {createdInspection.inspectionCode ||
-                                                                "Phiếu kiểm tra"}
-                                                        </strong>
-                                                        <span>
-                                                            Trạng thái:{" "}
-                                                            {createdInspection.status ||
-                                                                "CREATED"}
-                                                        </span>
-                                                    </div>
+                                                    {activeDispositionCommand.status ===
+                                                    "PENDING" ? (
+                                                        <div>
+                                                            <strong
+                                                                style={{
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                    gap: 8
+                                                                }}
+                                                            >
+                                                                <Loader2
+                                                                    className="animate-spin"
+                                                                    size={16}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                Đang xử lý cập
+                                                                nhật kho...
+                                                            </strong>
+                                                            <span>
+                                                                Lệnh đang được
+                                                                xử lý bất đồng
+                                                                bộ qua hệ thống
+                                                                tồn kho. Vui
+                                                                lòng đợi trong
+                                                                giây lát...
+                                                            </span>
+                                                        </div>
+                                                    ) : null}
+                                                    {activeDispositionCommand.status ===
+                                                    "PROCESSED" ? (
+                                                        <div>
+                                                            <strong
+                                                                style={{
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                    gap: 8,
+                                                                    color: "#07883a"
+                                                                }}
+                                                            >
+                                                                <CheckCircle2
+                                                                    size={16}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                Đã cập nhật kho
+                                                                thành công
+                                                            </strong>
+                                                            <span>
+                                                                Tồn kho đã được
+                                                                cập nhật thành
+                                                                công theo kết
+                                                                quả kiểm tra.
+                                                                {activeDispositionCommand.inspectionId
+                                                                    ? ` (Phiếu kiểm tra: ${activeDispositionCommand.inspectionId})`
+                                                                    : ""}
+                                                            </span>
+                                                        </div>
+                                                    ) : null}
+                                                    {activeDispositionCommand.status ===
+                                                    "FAILED" ? (
+                                                        <div>
+                                                            <strong
+                                                                style={{
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                    gap: 8,
+                                                                    color: "#b91c1c"
+                                                                }}
+                                                            >
+                                                                <XCircle
+                                                                    size={16}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                Không thể cập
+                                                                nhật kho
+                                                            </strong>
+                                                            <span>
+                                                                {activeDispositionCommand.failureReason
+                                                                    ? getReturnErrorMessage(
+                                                                          new Error(
+                                                                              activeDispositionCommand.failureReason
+                                                                          )
+                                                                      )
+                                                                    : "Lệnh xử lý kho bị từ chối từ hệ thống tồn kho."}
+                                                            </span>
+                                                        </div>
+                                                    ) : null}
+
                                                     <div
                                                         className={
                                                             styles.qcReviewList
                                                         }
                                                     >
                                                         {(
-                                                            createdInspection.lines ??
+                                                            activeDispositionCommand.lines ??
                                                             []
                                                         ).map((line) => {
                                                             const summaryLine =
@@ -1772,7 +1943,11 @@ function ReturnDetailModal({
                                                                     className={
                                                                         styles.qcReviewItem
                                                                     }
-                                                                    key={line.id}
+                                                                    key={
+                                                                        line.returnItemId ||
+                                                                        line.orderItemId ||
+                                                                        "disposition-line"
+                                                                    }
                                                                 >
                                                                     <strong>
                                                                         {summaryLine
@@ -1819,48 +1994,146 @@ function ReturnDetailModal({
                                             ) : null}
 
                                             <div className={styles.qcActions}>
-                                                {!createdInspection ? (
+                                                {!activeDispositionCommand ? (
                                                     <button
                                                         className={
                                                             styles.primaryButton
                                                         }
                                                         disabled={
-                                                            isCreatingInspection ||
+                                                            isSubmittingDisposition ||
                                                             isLocationLoading ||
                                                             remainingLines.length ===
                                                                 0
                                                         }
                                                         onClick={
-                                                            createInspection
+                                                            submitDisposition
                                                         }
                                                         type="button"
                                                     >
-                                                        {isCreatingInspection
-                                                            ? "Đang tạo..."
-                                                            : "Tạo phiếu kiểm tra"}
+                                                        {isSubmittingDisposition ? (
+                                                            <>
+                                                                <Loader2
+                                                                    className="animate-spin"
+                                                                    size={18}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                Đang gửi lệnh...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <CheckCircle2
+                                                                    size={18}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                Xác nhận xử lý
+                                                                kho
+                                                            </>
+                                                        )}
                                                     </button>
-                                                ) : (
+                                                ) : null}
+
+                                                {activeDispositionCommand?.status ===
+                                                "PENDING" ? (
                                                     <button
                                                         className={
                                                             styles.primaryButton
                                                         }
-                                                        disabled={
-                                                            isPostingInspection
-                                                        }
-                                                        onClick={
-                                                            postInspection
-                                                        }
+                                                        disabled
                                                         type="button"
                                                     >
-                                                        <CheckCircle2
+                                                        <Loader2
+                                                            className="animate-spin"
                                                             size={18}
                                                             aria-hidden="true"
                                                         />
-                                                        {isPostingInspection
-                                                            ? "Đang xử lý..."
-                                                            : "Xác nhận xử lý kho"}
+                                                        Đang xử lý kho...
                                                     </button>
-                                                )}
+                                                ) : null}
+
+                                                {activeDispositionCommand?.status ===
+                                                "PROCESSED" ? (
+                                                    <>
+                                                        {remainingLines.length >
+                                                        0 ? (
+                                                            <button
+                                                                className={
+                                                                    styles.primaryButton
+                                                                }
+                                                                onClick={
+                                                                    handleContinueQcAfterProcessed
+                                                                }
+                                                                type="button"
+                                                            >
+                                                                <Plus
+                                                                    size={18}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                Xử lý sản phẩm
+                                                                còn lại (
+                                                                {
+                                                                    remainingLines.length
+                                                                }
+                                                                )
+                                                            </button>
+                                                        ) : null}
+                                                        <button
+                                                            className={
+                                                                styles.secondaryButton
+                                                            }
+                                                            onClick={() => {
+                                                                setIsQcOpen(
+                                                                    false
+                                                                );
+                                                                setActiveDispositionCommand(
+                                                                    null
+                                                                );
+                                                                setSubmissionCommandId(
+                                                                    null
+                                                                );
+                                                            }}
+                                                            type="button"
+                                                        >
+                                                            Đóng
+                                                        </button>
+                                                    </>
+                                                ) : null}
+
+                                                {activeDispositionCommand?.status ===
+                                                "FAILED" ? (
+                                                    <>
+                                                        <button
+                                                            className={
+                                                                styles.primaryButton
+                                                            }
+                                                            onClick={
+                                                                handleResetDispositionAfterFailure
+                                                            }
+                                                            type="button"
+                                                        >
+                                                            Chỉnh sửa và gửi lệnh
+                                                            mới
+                                                        </button>
+                                                        <button
+                                                            className={
+                                                                styles.secondaryButton
+                                                            }
+                                                            onClick={() => {
+                                                                setIsQcOpen(
+                                                                    false
+                                                                );
+                                                                setActiveDispositionCommand(
+                                                                    null
+                                                                );
+                                                                setSubmissionCommandId(
+                                                                    null
+                                                                );
+                                                            }}
+                                                            type="button"
+                                                        >
+                                                            Đóng
+                                                        </button>
+                                                    </>
+                                                ) : null}
                                             </div>
                                         </div>
                                     ) : null}

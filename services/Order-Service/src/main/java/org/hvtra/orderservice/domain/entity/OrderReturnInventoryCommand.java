@@ -20,6 +20,7 @@ import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -58,6 +59,21 @@ public class OrderReturnInventoryCommand extends BaseEntity {
 
     @Column(name = "requested_by", columnDefinition = "BINARY(16)")
     private UUID requestedBy;
+
+    @Column(name = "processed_at")
+    private Instant processedAt;
+
+    @Column(name = "failed_at")
+    private Instant failedAt;
+
+    @Column(name = "failure_code", length = 100)
+    private String failureCode;
+
+    @Column(name = "failure_reason", length = 500)
+    private String failureReason;
+
+    @Column(name = "inspection_id", columnDefinition = "BINARY(16)")
+    private UUID inspectionId;
 
     @Builder.Default
     @OneToMany(mappedBy = "command", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -16,6 +16,7 @@ import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 import org.hvtra.iventoryservice.integration.order.dto.ReturnInventoryDispositionRequestedEvent;
 import org.hvtra.iventoryservice.integration.order.dto.ReturnInventoryDispositionRequestedLine;
 import org.hvtra.iventoryservice.integration.order.repository.InventoryInboxRepository;
+import org.hvtra.iventoryservice.outbox.publisher.InventoryOutboxPublisher;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,6 +53,7 @@ public class ReturnInventoryDispositionInboxService {
     private final EventMetadataResolver metadataResolver;
     private final PlatformTransactionManager transactionManager;
     private final ObjectMapper objectMapper;
+    private final InventoryOutboxPublisher inventoryOutboxPublisher;
 
     @Value("${inventory.order.events.return-disposition.group-id:inventory-return-disposition}")
     private String consumerGroup;
@@ -127,6 +129,13 @@ public class ReturnInventoryDispositionInboxService {
                 customerReturnInspectionService.postInspection(createdInspection.id());
 
         markProcessed(inbox);
+        inventoryOutboxPublisher.publishReturnInventoryDispositionProcessed(
+                commandId,
+                returnId.toString(),
+                postedInspection.id().toString(),
+                event.getSagaId(),
+                event.getCorrelationId()
+        );
         log.info("Processed return inventory disposition. commandId={}, eventId={}, returnId={}, inspectionId={}",
                 commandId, eventId, returnId, postedInspection.id());
     }
@@ -292,20 +301,33 @@ public class ReturnInventoryDispositionInboxService {
                     return;
                 }
                 markFailed(inbox, ex);
-                return;
+                inventoryInboxRepository.saveAndFlush(inbox);
+            } else {
+                InventoryInbox inbox = buildInbox(
+                        record,
+                        event,
+                        eventId,
+                        payloadHash,
+                        commandId,
+                        InboxStatus.FAILED,
+                        ex.getMessage()
+                );
+                inbox.setProcessedAt(Instant.now());
+                inventoryInboxRepository.saveAndFlush(inbox);
             }
 
-            InventoryInbox inbox = buildInbox(
-                    record,
-                    event,
-                    eventId,
-                    payloadHash,
-                    commandId,
-                    InboxStatus.FAILED,
-                    ex.getMessage()
-            );
-            inbox.setProcessedAt(Instant.now());
-            inventoryInboxRepository.saveAndFlush(inbox);
+            if (commandId != null) {
+                String failureCode = resolveFailureCode(ex);
+                String failureReason = safeFailureReason(ex);
+                inventoryOutboxPublisher.publishReturnInventoryDispositionFailed(
+                        commandId,
+                        event.getReturnId(),
+                        failureCode,
+                        failureReason,
+                        event.getSagaId(),
+                        event.getCorrelationId()
+                );
+            }
         });
     }
 
@@ -415,6 +437,27 @@ public class ReturnInventoryDispositionInboxService {
         return ex instanceof BadRequestException
                 || ex instanceof ResourceNotFoundException
                 || ex instanceof IllegalArgumentException;
+    }
+
+    private String resolveFailureCode(RuntimeException ex) {
+        if (ex instanceof BadRequestException) {
+            return "BAD_REQUEST";
+        }
+        if (ex instanceof ResourceNotFoundException) {
+            return "RESOURCE_NOT_FOUND";
+        }
+        if (ex instanceof IllegalArgumentException) {
+            return "ILLEGAL_ARGUMENT";
+        }
+        return "BUSINESS_ERROR";
+    }
+
+    private String safeFailureReason(RuntimeException ex) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) {
+            return "Internal business validation failed";
+        }
+        return message.length() > 500 ? message.substring(0, 500) : message;
     }
 
     private String businessPayloadHash(ReturnInventoryDispositionRequestedEvent event) {

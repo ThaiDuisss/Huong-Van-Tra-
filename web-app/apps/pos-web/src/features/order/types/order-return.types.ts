@@ -22,7 +22,7 @@ export type CustomerReturnQcStatus = "PENDING" | "PARTIAL" | "COMPLETED";
 
 export type CustomerReturnInspectionStatus = "CREATED" | "POSTED" | "CANCELLED";
 
-export type OrderRefundStatus = "PENDING" | "REFUNDED" | "NOT_READY" | "FAILED";
+export type OrderRefundStatus = "PENDING" | "REFUNDED" | "NOT_READY" | "FAILED" | "NOT_REQUIRED";
 
 export type OrderReturnStatus = "NONE" | "PARTIALLY_RETURNED" | "FULLY_RETURNED";
 
@@ -37,6 +37,7 @@ export interface CreateOrderReturnItemPayload {
 export interface CreateOrderReturnPayload {
     items: CreateOrderReturnItemPayload[];
     note?: string | null;
+    refundRequired?: boolean;
 }
 
 export interface OrderReturnItemResponse {
@@ -57,6 +58,7 @@ export interface OrderReturnResponse {
     returnCode?: string | null;
     orderId?: string | null;
     status?: ReturnStatus | null;
+    refundRequired?: boolean | null;
     branchId?: string | null;
     orderCode?: string | null;
     note?: string | null;
@@ -72,6 +74,7 @@ export interface OrderReturnSummaryResponse {
     orderCode?: string | null;
     branchId?: string | null;
     status?: ReturnStatus | null;
+    refundRequired?: boolean | null;
     createdAt?: string | null;
     updatedAt?: string | null;
     itemCount?: number | string | null;
@@ -113,6 +116,7 @@ export interface OrderRefundSummaryResponse {
     customerPhone?: string | null;
     returnCreatedAt?: string | null;
     returnStatus?: ReturnStatus | null;
+    refundRequired?: boolean | null;
     qcStatus?: CustomerReturnQcStatus | null;
     refundStatus?: OrderRefundStatus | null;
     refundAmount?: number | string | null;
@@ -220,4 +224,46 @@ export interface CustomerReturnInspectionResponse {
     postedAt?: string | null;
     note?: string | null;
     lines?: CustomerReturnInspectionLine[] | null;
+}
+
+export type OrderReturnInventoryCommandStatus =
+    | "PENDING"
+    | "PROCESSED"
+    | "FAILED";
+
+export interface SubmitReturnInventoryDispositionLinePayload {
+    returnItemId: string;
+    quantity: number;
+    result: CustomerReturnQcResult;
+    destinationLocationId?: string | null;
+    note?: string | null;
+}
+
+export interface SubmitReturnInventoryDispositionPayload {
+    commandId: string;
+    lines: SubmitReturnInventoryDispositionLinePayload[];
+}
+
+export interface OrderReturnInventoryDispositionLineResponse {
+    returnItemId?: string | null;
+    orderItemId?: string | null;
+    productVariantId?: string | null;
+    quantity?: number | string | null;
+    result?: CustomerReturnQcResult | null;
+    destinationLocationId?: string | null;
+    note?: string | null;
+}
+
+export interface OrderReturnInventoryDispositionResponse {
+    commandId: string;
+    returnId: string;
+    returnCode?: string | null;
+    status: OrderReturnInventoryCommandStatus;
+    createdAt?: string | null;
+    processedAt?: string | null;
+    failedAt?: string | null;
+    failureCode?: string | null;
+    failureReason?: string | null;
+    inspectionId?: string | null;
+    lines?: OrderReturnInventoryDispositionLineResponse[] | null;
 }

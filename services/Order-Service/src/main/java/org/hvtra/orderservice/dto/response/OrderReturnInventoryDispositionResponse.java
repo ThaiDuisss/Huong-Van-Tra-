@@ -16,5 +16,10 @@ public class OrderReturnInventoryDispositionResponse {
     private String returnCode;
     private OrderReturnInventoryCommandStatus status;
     private Instant createdAt;
+    private Instant processedAt;
+    private Instant failedAt;
+    private String failureCode;
+    private String failureReason;
+    private UUID inspectionId;
     private List<OrderReturnInventoryDispositionLineResponse> lines;
 }

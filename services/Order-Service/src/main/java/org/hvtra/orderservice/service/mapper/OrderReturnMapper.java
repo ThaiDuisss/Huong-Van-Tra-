@@ -19,6 +19,7 @@ public class OrderReturnMapper {
                 .branchId(orderReturn.getOrder().getBranchId())
                 .status(orderReturn.getStatus())
                 .note(orderReturn.getNote())
+                .refundRequired(orderReturn.getRefundRequired())
                 .createdAt(orderReturn.getCreatedAt())
                 .updatedAt(orderReturn.getUpdatedAt())
                 .items(orderReturn.getItems().stream()

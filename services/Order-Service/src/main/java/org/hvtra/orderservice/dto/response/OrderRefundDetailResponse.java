@@ -23,6 +23,7 @@ public class OrderRefundDetailResponse {
     private String customerPhone;
     private Instant returnCreatedAt;
     private ReturnStatus returnStatus;
+    private Boolean refundRequired;
     private String qcStatus;
     private OrderRefundStatus refundStatus;
     private BigDecimal refundAmount;

@@ -293,6 +293,7 @@ export function CreateReturnPage() {
     );
     const [draftItems, setDraftItems] = useState<Record<string, ReturnDraftItem>>({});
     const [returnNote, setReturnNote] = useState("");
+    const [refundRequired, setRefundRequired] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const orderSearchDateRange = useMemo(
         () =>
@@ -550,6 +551,7 @@ export function CreateReturnPage() {
 
         const payload: CreateOrderReturnPayload = {
             note: returnNote.trim() || null,
+            refundRequired: refundRequired,
             items: payloadItems
         };
 
@@ -609,7 +611,9 @@ export function CreateReturnPage() {
                     draftItems={draftItems}
                     items={selectedOrderItems}
                     onNoteChange={setReturnNote}
+                    onRefundRequiredChange={setRefundRequired}
                     onUpdateDraftItem={updateDraftItem}
+                    refundRequired={refundRequired}
                     returnNote={returnNote}
                 />
             );
@@ -621,6 +625,7 @@ export function CreateReturnPage() {
                     draftItems={draftItems}
                     items={selectedOrderItems}
                     order={selectedOrder}
+                    refundRequired={refundRequired}
                     returnNote={returnNote}
                 />
             );
@@ -1035,16 +1040,20 @@ function ReturnReasonForm({
     draftItems,
     items,
     onNoteChange,
+    onRefundRequiredChange,
     onUpdateDraftItem,
+    refundRequired,
     returnNote
 }: {
     draftItems: Record<string, ReturnDraftItem>;
     items: OrderItemResponse[];
     onNoteChange: (value: string) => void;
+    onRefundRequiredChange: (value: boolean) => void;
     onUpdateDraftItem: (
         itemKey: string,
         update: Partial<ReturnDraftItem>
     ) => void;
+    refundRequired: boolean;
     returnNote: string;
 }) {
     const selectedEntries = items
@@ -1117,7 +1126,7 @@ function ReturnReasonForm({
                                     placeholder={
                                         draft.reason === "OTHER"
                                             ? "Bắt buộc khi chọn lý do khác"
-                                            : "Ghi chú thêm nếu có"
+                                             : "Ghi chú thêm nếu có"
                                     }
                                     value={draft.note}
                                 />
@@ -1126,6 +1135,23 @@ function ReturnReasonForm({
                     </div>
                 );
             })}
+
+            <div style={{ padding: "1rem", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", fontWeight: 600, fontSize: "0.95rem" }}>
+                    <input
+                        checked={refundRequired}
+                        onChange={(event) => onRefundRequiredChange(event.target.checked)}
+                        style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                        type="checkbox"
+                    />
+                    <span>Yêu cầu hoàn tiền cho khách hàng</span>
+                </label>
+                <p style={{ margin: "0.5rem 0 0 2rem", fontSize: "0.85rem", color: "#64748b", lineHeight: 1.4 }}>
+                    {refundRequired
+                        ? "Phiếu hoàn sẽ chuyển sang luồng hoàn tiền sau khi nhận hàng và kiểm kho hoàn tất."
+                        : "Phiếu hoàn KHÔNG phát sinh hoàn tiền (ví dụ: đổi ngang, tặng phẩm, bảo hành). Phiếu sẽ tự động hoàn tất khi kiểm kho 100%."}
+                </p>
+            </div>
 
             <label className={styles.fullField}>
                 <span>Ghi chú phiếu hoàn</span>
@@ -1143,11 +1169,13 @@ function ReturnConfirmation({
     draftItems,
     items,
     order,
+    refundRequired,
     returnNote
 }: {
     draftItems: Record<string, ReturnDraftItem>;
     items: OrderItemResponse[];
     order: OrderDetailResponse;
+    refundRequired: boolean;
     returnNote: string;
 }) {
     const selectedEntries = items
@@ -1164,6 +1192,9 @@ function ReturnConfirmation({
             <div className={styles.summaryPanel}>
                 <h3>{getOrderCode(order)}</h3>
                 <p>{getCustomerName(order)}</p>
+                <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: refundRequired ? "#166534" : "#b45309", fontWeight: 600 }}>
+                    Chính sách hoàn tiền: {refundRequired ? "Có hoàn tiền" : "Không hoàn tiền (tự động hoàn tất khi kiểm kho)"}
+                </div>
                 {returnNote.trim() ? <span>{returnNote.trim()}</span> : null}
             </div>
 

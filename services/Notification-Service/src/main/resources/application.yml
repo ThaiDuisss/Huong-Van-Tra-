@@ -81,6 +81,7 @@ notification:
         received: notification.return.received
         cancelled: notification.return.cancelled
         refund-completed: notification.return.refund-completed
+        completed: notification.return.completed
 
 security:
   internal:

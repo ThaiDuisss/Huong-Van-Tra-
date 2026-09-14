@@ -250,16 +250,31 @@ export function getReturnErrorMessage(error: unknown) {
 
     if (
         message.includes("Only RECEIVED order returns can be QC") ||
-        message.includes("Only RECEIVED order returns can be QC'd")
+        message.includes("Only RECEIVED order returns can be QC'd") ||
+        message.includes("Only received returns can request inventory disposition")
     ) {
-        return "Phiếu hoàn chưa ở trạng thái đã nhận hàng.";
+        return "Chỉ phiếu hoàn ở trạng thái đã nhận hàng mới được xử lý kho.";
     }
 
     if (
         message.includes("QC quantity exceeds returned quantity") ||
-        message.includes("Inspection quantity exceeds remaining returned quantity")
+        message.includes("Inspection quantity exceeds remaining returned quantity") ||
+        message.includes("Total command quantity exceeds remaining return item quantity") ||
+        message.includes("Disposition quantity exceeds remaining return quantity")
     ) {
         return "Số lượng kiểm tra vượt quá số lượng còn lại.";
+    }
+
+    if (message.includes("Duplicate return item in inventory disposition request")) {
+        return "Sản phẩm hoàn bị trùng lặp trong yêu cầu xử lý.";
+    }
+
+    if (message.includes("Inventory disposition commandId was already used differently")) {
+        return "Mã lệnh xử lý kho đã được sử dụng với nội dung khác.";
+    }
+
+    if (message.includes("Inventory disposition lines are required")) {
+        return "Vui lòng chọn ít nhất một sản phẩm để xử lý kho.";
     }
 
     if (

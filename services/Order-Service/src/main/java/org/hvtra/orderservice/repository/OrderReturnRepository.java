@@ -34,7 +34,8 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
                         orderReturn.updatedAt,
                         count(items.id),
                         orders.customerNameSnapshot,
-                        orders.customerPhoneSnapshot
+                        orders.customerPhoneSnapshot,
+                        orderReturn.refundRequired
                     )
                     from OrderReturn orderReturn
                     join orderReturn.order orders
@@ -60,7 +61,8 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
                         orderReturn.createdAt,
                         orderReturn.updatedAt,
                         orders.customerNameSnapshot,
-                        orders.customerPhoneSnapshot
+                        orders.customerPhoneSnapshot,
+                        orderReturn.refundRequired
                     """,
             countQuery = """
                     select count(orderReturn.id)
@@ -99,7 +101,8 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
                 orderReturn.updatedAt,
                 count(items.id),
                 orders.customerNameSnapshot,
-                orders.customerPhoneSnapshot
+                orders.customerPhoneSnapshot,
+                orderReturn.refundRequired
             )
             from OrderReturn orderReturn
             join orderReturn.order orders
@@ -124,7 +127,8 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
                 orderReturn.createdAt,
                 orderReturn.updatedAt,
                 orders.customerNameSnapshot,
-                orders.customerPhoneSnapshot
+                orders.customerPhoneSnapshot,
+                orderReturn.refundRequired
             order by orderReturn.createdAt desc, orderReturn.id desc
             """)
     List<OrderReturnSummaryResponse> findRefundReturnSummaries(

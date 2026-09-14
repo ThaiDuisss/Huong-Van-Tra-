@@ -168,6 +168,13 @@ order:
         expired: payment.expired
         cancelled: payment.cancelled
         need-review: payment.need-review
+  inventory:
+    events:
+      topics:
+        return-disposition-processed: ${ORDER_INVENTORY_RETURN_DISPOSITION_PROCESSED_TOPIC:inventory.event.RETURN_INVENTORY_DISPOSITION_PROCESSED}
+        return-disposition-failed: ${ORDER_INVENTORY_RETURN_DISPOSITION_FAILED_TOPIC:inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED}
+      return-disposition-ack:
+        group-id: ${ORDER_INVENTORY_RETURN_DISPOSITION_ACK_GROUP_ID:order-return-inventory-ack-events}
 
 security:
   internal:

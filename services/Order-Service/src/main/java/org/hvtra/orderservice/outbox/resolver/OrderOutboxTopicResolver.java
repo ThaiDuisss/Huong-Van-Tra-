@@ -18,6 +18,7 @@ public class OrderOutboxTopicResolver implements OutboxTopicResolver {
             case OrderEventType.RETURN_RECEIVED -> "notification.return.received";
             case OrderEventType.RETURN_CANCELLED -> "notification.return.cancelled";
             case OrderEventType.RETURN_REFUND_COMPLETED -> "notification.return.refund-completed";
+            case OrderEventType.RETURN_COMPLETED -> "notification.return.completed";
             case OrderEventType.RETURN_INVENTORY_DISPOSITION_REQUESTED ->
                     "order.event.RETURN_INVENTORY_DISPOSITION_REQUESTED";
             case OrderEventType.INVENTORY_RESERVATION_CONFIRM_REQUESTED -> "inventory.reservation-confirm.requested";

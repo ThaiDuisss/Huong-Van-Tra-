@@ -33,6 +33,8 @@ public interface OrderReturnService {
             SubmitReturnInventoryDispositionRequest request
     );
 
+    OrderReturnInventoryDispositionResponse getInventoryDisposition(UUID returnId, UUID commandId);
+
     Page<OrderRefundSummaryResponse> getRefunds(
             String keyword,
             OrderRefundStatus status,
@@ -64,4 +66,8 @@ public interface OrderReturnService {
     OrderReturnResponse getReturnById(UUID returnId);
 
     List<OrderReturnTimelineResponse> getReturnTimeline(UUID returnId);
+
+    boolean isPhysicalDispositionCompleted(UUID returnId);
+
+    void checkAndAutoCompleteNoRefundReturn(UUID returnId);
 }

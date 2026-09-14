@@ -22,4 +22,7 @@ public class CreateOrderReturnRequest {
     private List<CreateOrderReturnItemRequest> items = new ArrayList<>();
 
     private String note;
+
+    @Builder.Default
+    private Boolean refundRequired = true;
 }

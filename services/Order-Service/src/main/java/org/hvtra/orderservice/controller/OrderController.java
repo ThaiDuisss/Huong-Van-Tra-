@@ -332,6 +332,15 @@ public class OrderController {
         return orderReturnService.submitInventoryDisposition(returnId, request);
     }
 
+    @Operation(summary = "lay trang thai lenh xu ly ton kho cua phieu hoan hang")
+    @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/inventory-dispositions/{commandId:[0-9a-fA-F\\-]{36}}")
+    public OrderReturnInventoryDispositionResponse getReturnInventoryDisposition(
+            @PathVariable UUID returnId,
+            @PathVariable UUID commandId
+    ) {
+        return orderReturnService.getInventoryDisposition(returnId, commandId);
+    }
+
     @GetMapping
     public Page<OrderSummaryResponse> getOrders(
             @RequestParam(required = false) String keyword,

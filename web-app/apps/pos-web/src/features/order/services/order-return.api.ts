@@ -13,7 +13,9 @@ import type {
     OrderReturnRefundPreviewResponse,
     OrderReturnRefundResponse,
     OrderReturnSummaryResponse,
-    OrderReturnResponse
+    OrderReturnResponse,
+    OrderReturnInventoryDispositionResponse,
+    SubmitReturnInventoryDispositionPayload
 } from "../types/order-return.types";
 
 function compactQuery(params: OrderReturnQueryParams | OrderRefundQueryParams = {}) {
@@ -134,5 +136,29 @@ export function postCustomerReturnInspection(inspectionId: string) {
             inspectionId
         )}/post`,
         {}
+    );
+}
+
+export function submitReturnInventoryDisposition(
+    returnId: string,
+    payload: SubmitReturnInventoryDispositionPayload
+) {
+    return apiClient.post<
+        OrderReturnInventoryDispositionResponse,
+        SubmitReturnInventoryDispositionPayload
+    >(
+        `/orders/returns/${encodeURIComponent(returnId)}/inventory-disposition`,
+        payload
+    );
+}
+
+export function getReturnInventoryDisposition(
+    returnId: string,
+    commandId: string
+) {
+    return apiClient.get<OrderReturnInventoryDispositionResponse>(
+        `/orders/returns/${encodeURIComponent(
+            returnId
+        )}/inventory-dispositions/${encodeURIComponent(commandId)}`
     );
 }

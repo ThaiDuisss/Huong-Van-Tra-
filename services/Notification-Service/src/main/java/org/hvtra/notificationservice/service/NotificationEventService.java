@@ -250,7 +250,8 @@ public class NotificationEventService {
                 || "RETURN_CREATED".equals(eventType)
                 || "RETURN_RECEIVED".equals(eventType)
                 || "RETURN_CANCELLED".equals(eventType)
-                || "RETURN_REFUND_COMPLETED".equals(eventType);
+                || "RETURN_REFUND_COMPLETED".equals(eventType)
+                || "RETURN_COMPLETED".equals(eventType);
     }
 
     private boolean isTerminal(InboxStatus status) {
@@ -270,6 +271,7 @@ public class NotificationEventService {
             case "RETURN_RECEIVED" -> "Đã nhận hàng trả";
             case "RETURN_CANCELLED" -> "Phiếu hoàn hàng đã bị hủy";
             case "RETURN_REFUND_COMPLETED" -> "Hoàn tiền thành công";
+            case "RETURN_COMPLETED" -> "Xử lý hàng trả hoàn tất";
             default -> "Order notification";
         };
     }
@@ -286,12 +288,16 @@ public class NotificationEventService {
             case "RETURN_RECEIVED" -> "Cửa hàng đã nhận hàng trả của phiếu " + returnCode + ".";
             case "RETURN_CANCELLED" -> "Phiếu hoàn hàng " + returnCode + " đã bị hủy.";
             case "RETURN_REFUND_COMPLETED" -> "Phiếu " + returnCode + " đã hoàn tiền thành công.";
+            case "RETURN_COMPLETED" -> "Phiếu hoàn " + returnCode + " đã hoàn tất xử lý hàng. Không phát sinh hoàn tiền.";
             default -> "Order " + orderCode + " has a new update.";
         };
     }
 
-    private String firstNonBlank(String first, String second) {
-        return first != null && !first.isBlank() ? first : second;
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback != null ? fallback : "";
     }
 
     private String header(ConsumerRecord<String, String> record, String name) {

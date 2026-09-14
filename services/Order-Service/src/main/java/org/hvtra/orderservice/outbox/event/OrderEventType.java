@@ -13,6 +13,7 @@ public final class OrderEventType {
     public static final String RETURN_RECEIVED = "RETURN_RECEIVED";
     public static final String RETURN_CANCELLED = "RETURN_CANCELLED";
     public static final String RETURN_REFUND_COMPLETED = "RETURN_REFUND_COMPLETED";
+    public static final String RETURN_COMPLETED = "RETURN_COMPLETED";
     public static final String RETURN_INVENTORY_DISPOSITION_REQUESTED =
             "RETURN_INVENTORY_DISPOSITION_REQUESTED";
     public static final String INVENTORY_RESERVATION_CONFIRM_REQUESTED = "INVENTORY_RESERVATION_CONFIRM_REQUESTED";

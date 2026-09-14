@@ -68,7 +68,8 @@ const REFUND_STATUS_LABELS: Record<OrderRefundStatus, string> = {
     FAILED: "Hoàn tiền thất bại",
     NOT_READY: "Chờ xử lý",
     PENDING: "Chờ hoàn tiền",
-    REFUNDED: "Đã hoàn tiền"
+    REFUNDED: "Đã hoàn tiền",
+    NOT_REQUIRED: "Không hoàn tiền"
 };
 
 const QC_STATUS_LABELS: Record<string, string> = {
@@ -88,7 +89,8 @@ const ERROR_MESSAGES: Record<string, string> = {
     "Refund method is not supported yet": "Phương thức thanh toán hiện tại chưa hỗ trợ hoàn tiền.",
     "Return already refunded": "Phiếu này đã được hoàn tiền.",
     "Return inventory inspection is not completed": "Cần hoàn tất kiểm tra hàng trả trước khi hoàn tiền.",
-    "Return is not eligible for refund": "Phiếu hoàn chưa đủ điều kiện hoàn tiền."
+    "Return is not eligible for refund": "Phiếu hoàn chưa đủ điều kiện hoàn tiền.",
+    "Refund is not required for this return": "Phiếu hoàn này không phát sinh hoàn tiền."
 };
 
 function getErrorMessage(error: unknown) {
@@ -140,7 +142,7 @@ function getMethodLabel(method?: string | null) {
 }
 
 function canRefund(row: OrderRefundSummaryResponse) {
-    return row.refundStatus === "PENDING" && row.method === "CASH";
+    return row.refundStatus === "PENDING" && row.method === "CASH" && row.refundRequired !== false;
 }
 
 export function OrderRefundPage() {
@@ -702,6 +704,7 @@ function RefundDetailModal({
                                     ["Khách hàng", displayText(detail.customerName, "Khách lẻ")],
                                     ["Số điện thoại", displayText(detail.customerPhone)],
                                     ["Trạng thái Return", displayText(detail.returnStatus)],
+                                    ["Chính sách hoàn tiền", detail.refundRequired === false ? "Không hoàn tiền" : "Có hoàn tiền"],
                                     ["QC", getQcStatusLabel(detail.qcStatus)]
                                 ]}
                             />

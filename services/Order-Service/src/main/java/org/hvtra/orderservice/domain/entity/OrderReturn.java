@@ -41,6 +41,10 @@ public class OrderReturn extends BaseEntity {
     @Column(name = "status", nullable = false, length = 50)
     private ReturnStatus status;
 
+    @Column(name = "refund_required", nullable = false)
+    @Builder.Default
+    private Boolean refundRequired = true;
+
     @Column(name = "note", length = 500)
     private String note;
 

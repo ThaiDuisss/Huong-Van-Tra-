@@ -4,5 +4,6 @@ public enum OrderRefundStatus {
     PENDING,
     REFUNDED,
     NOT_READY,
-    FAILED
+    FAILED,
+    NOT_REQUIRED
 }

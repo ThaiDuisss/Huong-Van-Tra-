@@ -18,6 +18,7 @@ public class OrderReturnResponse {
     private UUID branchId;
     private ReturnStatus status;
     private String note;
+    private Boolean refundRequired;
     private Instant createdAt;
     private Instant updatedAt;
     private List<OrderReturnItemResponse> items;

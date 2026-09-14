@@ -26,7 +26,8 @@ public class OrderNotificationEventConsumer {
                     "${notification.return.events.topics.created:notification.return.created}",
                     "${notification.return.events.topics.received:notification.return.received}",
                     "${notification.return.events.topics.cancelled:notification.return.cancelled}",
-                    "${notification.return.events.topics.refund-completed:notification.return.refund-completed}"
+                    "${notification.return.events.topics.refund-completed:notification.return.refund-completed}",
+                    "${notification.return.events.topics.completed:notification.return.completed}"
             },
             groupId = "${spring.application.name:notification-service}-order-events"
     )

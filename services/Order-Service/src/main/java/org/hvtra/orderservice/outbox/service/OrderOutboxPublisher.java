@@ -188,6 +188,25 @@ public class OrderOutboxPublisher {
         );
     }
 
+    public void publishReturnCompletedNotification(
+            OrderReturn orderReturn,
+            ReturnStatus oldStatus,
+            UUID actorUserId
+    ) {
+        publishReturnNotification(
+                orderReturn,
+                OrderEventType.RETURN_COMPLETED,
+                "return-completed",
+                oldStatus,
+                ReturnStatus.COMPLETED,
+                actorUserId,
+                "Xử lý hàng trả hoàn tất",
+                "Phiếu hoàn " + orderReturn.getReturnCode() + " đã hoàn tất xử lý hàng. Không phát sinh hoàn tiền.",
+                null,
+                null
+        );
+    }
+
     public void publishReturnInventoryDispositionRequested(
             OrderReturnInventoryCommand command,
             UUID actorUserId

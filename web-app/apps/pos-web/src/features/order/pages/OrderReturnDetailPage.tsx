@@ -110,6 +110,14 @@ export function OrderReturnDetailPage() {
                             value={formatDateTime(detail.createdAt)}
                         />
                         <Info
+                            label="Chính sách hoàn tiền"
+                            value={
+                                detail.refundRequired === false
+                                    ? "Không hoàn tiền"
+                                    : "Có hoàn tiền"
+                            }
+                        />
+                        <Info
                             label="Tổng số lượng"
                             value={formatReturnQuantity(totalQuantity)}
                         />
