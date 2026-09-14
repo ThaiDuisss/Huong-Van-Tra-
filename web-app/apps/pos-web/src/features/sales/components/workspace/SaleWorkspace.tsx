@@ -3,6 +3,7 @@ import { CartNote } from "../cart/CartNote";
 import { OrderTypeSelector } from "../cart/OrderTypeSelector";
 import { ProductSearchBar } from "../product/ProductSearchBar";
 import { formatCurrency } from "../../services/money";
+import { MessageSquarePlus } from "lucide-react";
 import type {
     SaleCartItem,
     SaleManualDiscount,
@@ -28,6 +29,8 @@ interface SaleWorkspaceProps {
     onProductDecrement(productId: string): void;
     onProductRemove(productId: string): void;
     onProductDiscountChange(productId: string, discount: SaleManualDiscount | null): void;
+    onProductNoteChange(productId: string, note: string): void;
+    onCustomTeaOpen(): void;
     onInvoiceClose(): void;
     onNoteChange(value: string): void;
     onOrderTypeChange(value: SaleOrderType): void;
@@ -49,6 +52,8 @@ export function SaleWorkspace({
     onProductDecrement,
     onProductRemove,
     onProductDiscountChange,
+    onProductNoteChange,
+    onCustomTeaOpen,
     onInvoiceClose,
     onNoteChange,
     onOrderTypeChange
@@ -69,6 +74,14 @@ export function SaleWorkspace({
                 />
 
                 <InvoiceTabs onCloseActive={onInvoiceClose} />
+                <button
+                    className={styles.customTeaButton}
+                    onClick={onCustomTeaOpen}
+                    type="button"
+                >
+                    <MessageSquarePlus size={18} aria-hidden="true" />
+                    <span>Trà theo yêu cầu</span>
+                </button>
             </div>
 
             <CartList
@@ -78,6 +91,7 @@ export function SaleWorkspace({
                 onDecrement={onProductDecrement}
                 onRemove={onProductRemove}
                 onDiscountChange={onProductDiscountChange}
+                onNoteChange={onProductNoteChange}
             />
 
             <CartNote value={note} onChange={onNoteChange} />
