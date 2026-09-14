@@ -60,6 +60,24 @@ public interface CatalogClient {
             @RequestParam(name = "unitId", required = false) UUID unitId
     );
 
+    @GetMapping("/api/catalog/suppliers/{id}")
+    SupplierResponse getSupplier(@PathVariable("id") UUID id);
+
+    @PostMapping("/api/catalog/suppliers/batch")
+    List<SupplierResponse> getSuppliersBatch(@RequestBody List<UUID> ids);
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SupplierResponse(
+            UUID id,
+            String supplierCode,
+            String name,
+            String phone,
+            String email,
+            String address,
+            String taxCode,
+            Object status
+    ) {}
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ProductResponse(
             UUID id,

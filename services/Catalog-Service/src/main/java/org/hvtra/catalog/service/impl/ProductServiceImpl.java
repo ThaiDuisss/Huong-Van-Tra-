@@ -6,6 +6,7 @@ import org.hvtra.catalog.dto.request.ProductRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
+import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.enums.Status;
@@ -16,15 +17,30 @@ import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.CategoryRepository;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.service.ProductService;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -98,7 +114,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Transactional
     public String generateProductCode() {
-        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("PRODUCT")
+        BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("PRODUCT")
                 .orElseThrow(() -> new RuntimeException("Product sequence not initialized"));
         long nextVal = seq.getCurrentValue() + 1;
         seq.setCurrentValue(nextVal);
@@ -184,27 +200,27 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public byte[] exportToExcel() {
         var products = productRepository.findAll();
-        try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
-             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
               
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Danh sách sản phẩm");
+            Sheet sheet = workbook.createSheet("Danh sách sản phẩm");
             
-            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            Font headerFont = workbook.createFont();
             headerFont.setBold(true);
-            org.apache.poi.ss.usermodel.CellStyle headerStyle = workbook.createCellStyle();
+            CellStyle headerStyle = workbook.createCellStyle();
             headerStyle.setFont(headerFont);
             
             String[] headers = {"Mã sản phẩm", "Tên sản phẩm", "Mã danh mục", "Trạng thái", "Mô tả"};
-            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
-                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(headerStyle);
             }
             
             int rowIdx = 1;
             for (var p : products) {
-                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+                Row row = sheet.createRow(rowIdx++);
                 row.createCell(0).setCellValue(p.getProductCode());
                 row.createCell(1).setCellValue(p.getName());
                 row.createCell(2).setCellValue(p.getCategory() != null ? p.getCategory().getCategoryCode() : "");
@@ -215,7 +231,7 @@ public class ProductServiceImpl implements ProductService {
             sheet.createFreezePane(0, 1);
             
             if (rowIdx > 1) {
-                sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
+                sheet.setAutoFilter(new CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
             }
             
             for (int i = 0; i < headers.length; i++) {
@@ -233,13 +249,19 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public void importFromExcel(org.springframework.web.multipart.MultipartFile file) {
-        try (org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(file.getInputStream())) {
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(0);
+    public void importFromExcel(MultipartFile file) {
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
             int rowCount = sheet.getPhysicalNumberOfRows();
             
+            Map<String, Category> categoriesByCode = categoryRepository.findAll().stream()
+                    .filter(c -> c.getCategoryCode() != null)
+                    .collect(Collectors.toMap(c -> c.getCategoryCode().toUpperCase().trim(), c -> c, (a, b) -> a));
+
+            List<ProductImportRow> validRows = new ArrayList<>();
+
             for (int r = 1; r < rowCount; r++) {
-                org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
+                Row row = sheet.getRow(r);
                 if (row == null) continue;
                 
                 String categoryCode = getCellValueAsString(row.getCell(0));
@@ -259,21 +281,40 @@ public class ProductServiceImpl implements ProductService {
                     throw new BadRequestException("Row " + rowNum + ": Product Name is blank.");
                 }
                 
-                Category category = categoryRepository.findByCategoryCode(categoryCode)
-                        .orElseThrow(() -> new BadRequestException("Row " + rowNum + ": Category Code '" + categoryCode + "' does not exist."));
-
+                Category category = categoriesByCode.get(categoryCode.trim().toUpperCase());
+                if (category == null) {
+                    throw new BadRequestException("Row " + rowNum + ": Category Code '" + categoryCode + "' does not exist.");
+                }
                 
                 Status status = "Ngừng hoạt động".equals(statusStr) || "INACTIVE".equalsIgnoreCase(statusStr) 
                         ? Status.INACTIVE : Status.ACTIVE;
                         
-                Product product = new Product();
-                product.setProductCode(generateProductCode());
-                product.setName(name);
-                product.setCategory(category);
-                product.setDescription(description);
-                product.setStatus(status);
-                productRepository.save(product);
+                validRows.add(new ProductImportRow(name.trim(), category, description, status));
             }
+
+            if (validRows.isEmpty()) {
+                return;
+            }
+
+            BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("PRODUCT")
+                    .orElseThrow(() -> new RuntimeException("Product sequence not initialized"));
+            long currentVal = seq.getCurrentValue();
+            seq.setCurrentValue(currentVal + validRows.size());
+            businessSequenceRepository.saveAndFlush(seq);
+
+            List<Product> productsToSave = new ArrayList<>();
+            for (int i = 0; i < validRows.size(); i++) {
+                ProductImportRow rowData = validRows.get(i);
+                Product product = new Product();
+                product.setProductCode(String.format("PRD%05d", currentVal + 1 + i));
+                product.setName(rowData.name());
+                product.setCategory(rowData.category());
+                product.setDescription(rowData.description());
+                product.setStatus(rowData.status());
+                productsToSave.add(product);
+            }
+
+            productRepository.saveAll(productsToSave);
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
@@ -281,7 +322,9 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
-    private String getCellValueAsString(org.apache.poi.ss.usermodel.Cell cell) {
+    private record ProductImportRow(String name, Category category, String description, Status status) {}
+
+    private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
         switch (cell.getCellType()) {
             case STRING:

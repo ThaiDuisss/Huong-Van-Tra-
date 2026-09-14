@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.web.multipart.MultipartFile;
 
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.UnitType;
@@ -22,4 +23,7 @@ public interface UnitService {
     UnitResponse updateStatus(UUID id, Status status);
     List<UnitResponse> findAllByIds(List<UUID> ids);
     void delete(UUID id);
+    byte[] exportToExcel(String search, Status status, UnitType type);
+    byte[] getImportTemplate();
+    void importFromExcel(MultipartFile file);
 }

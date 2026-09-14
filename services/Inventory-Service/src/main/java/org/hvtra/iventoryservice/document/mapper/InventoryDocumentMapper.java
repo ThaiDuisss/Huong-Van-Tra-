@@ -16,6 +16,10 @@ import java.util.List;
 public class InventoryDocumentMapper {
 
     public InventoryDocumentResponse toResponse(InventoryDocument document) {
+        return toResponse(document, null);
+    }
+
+    public InventoryDocumentResponse toResponse(InventoryDocument document, String supplierName) {
         if (document == null) {
             return null;
         }
@@ -53,7 +57,7 @@ public class InventoryDocumentMapper {
                 locationName,
                 locationCode,
                 document.getSupplierId(),
-                null,
+                supplierName,
                 document.getReferenceType(),
                 document.getReferenceId(),
                 document.getExpectedDate(),

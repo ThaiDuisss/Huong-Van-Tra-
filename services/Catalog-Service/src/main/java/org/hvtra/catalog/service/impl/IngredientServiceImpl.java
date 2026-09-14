@@ -37,7 +37,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayOutputStream;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -383,19 +388,27 @@ public class IngredientServiceImpl implements IngredientService {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             int rowCount = sheet.getPhysicalNumberOfRows();
-            
+
+            Map<String, Ingredient> existingByCode = repository.findAll().stream()
+                    .filter(i -> i.getIngredientCode() != null)
+                    .collect(Collectors.toMap(i -> i.getIngredientCode().toLowerCase().trim(), i -> i, (a, b) -> a));
+
+            Set<String> seenCodesInFile = new HashSet<>();
+            List<Ingredient> ingredientsToSave = new ArrayList<>();
+            List<Ingredient> newIngredients = new ArrayList<>();
+
             for (int r = 1; r < rowCount; r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
-                
+
                 String ingredientCode = getCellValueAsString(row.getCell(0));
                 String name = getCellValueAsString(row.getCell(1));
                 String statusStr = getCellValueAsString(row.getCell(2));
-                
+
                 if (name.isBlank() && ingredientCode.isBlank()) {
                     continue;
                 }
-                
+
                 final int rowNum = r + 1;
                 if (ingredientCode.isBlank()) {
                     throw new BadRequestException("Dòng " + rowNum + ": Mã nguyên liệu không được để trống.");
@@ -403,32 +416,44 @@ public class IngredientServiceImpl implements IngredientService {
                 if (name.isBlank()) {
                     throw new BadRequestException("Dòng " + rowNum + ": Tên nguyên liệu không được để trống.");
                 }
-                
+
+                String cleanCode = ingredientCode.trim();
+                String cleanName = name.trim();
+                String codeKey = cleanCode.toLowerCase();
+
+                if (seenCodesInFile.contains(codeKey)) {
+                    throw new BadRequestException("Dòng " + rowNum + ": Mã nguyên liệu '" + cleanCode + "' bị trùng lặp trong file excel.");
+                }
+                seenCodesInFile.add(codeKey);
+
                 Status status = Status.ACTIVE;
                 if (statusStr.equalsIgnoreCase("Ngừng hoạt động") || statusStr.equalsIgnoreCase("INACTIVE")) {
                     status = Status.INACTIVE;
                 }
-                
-                var existingOpt = repository.findAll().stream()
-                        .filter(i -> i.getIngredientCode().equalsIgnoreCase(ingredientCode))
-                        .findFirst();
-                        
-                Ingredient ingredient;
+
+                Ingredient ingredient = existingByCode.get(codeKey);
                 boolean isNew = false;
-                if (existingOpt.isPresent()) {
-                    ingredient = existingOpt.get();
+                if (ingredient != null) {
                     ingredient.setIsDeleted(false);
                 } else {
                     ingredient = new Ingredient();
                     isNew = true;
                 }
-                
-                ingredient.setIngredientCode(ingredientCode.trim());
-                ingredient.setName(name.trim());
-                ingredient.setStatus(status);
-                Ingredient saved = repository.saveAndFlush(ingredient);
 
+                ingredient.setIngredientCode(cleanCode);
+                ingredient.setName(cleanName);
+                ingredient.setStatus(status);
+
+                ingredientsToSave.add(ingredient);
                 if (isNew) {
+                    newIngredients.add(ingredient);
+                }
+            }
+
+            if (!ingredientsToSave.isEmpty()) {
+                repository.saveAll(ingredientsToSave);
+
+                for (Ingredient saved : newIngredients) {
                     inventoryClient.createProductVariantItem(
                             CreateInventoryItemRequest.builder()
                                     .status(saved.getStatus().toString())

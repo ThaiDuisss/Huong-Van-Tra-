@@ -1,11 +1,14 @@
 package org.hvtra.iventoryservice.document.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.exception.FeignClientException;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.dto.request.*;
 import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.hvtra.iventoryservice.document.mapper.InventoryDocumentMapper;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentBatchAllocationRepository;
@@ -49,11 +52,10 @@ import java.util.*;
 
 @Service
 @Transactional(readOnly = true)
+@Slf4j
 public class InventoryDocumentServiceImpl implements InventoryDocumentService {
 
     private final InventoryDocumentRepository documentRepository;
-    private final InventoryDocumentLineRepository lineRepository;
-    private final InventoryDocumentBatchAllocationRepository allocationRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryBatchRepository batchRepository;
@@ -61,6 +63,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     private final InventoryTransactionRepository transactionRepository;
     private final InventorySupplementRequestRepository supplementRequestRepository;
     private final InventorySupplierReturnRequestRepository supplierReturnRequestRepository;
+    private final CatalogClient catalogClient;
     private final InventoryDocumentMapper mapper;
 
     public InventoryDocumentServiceImpl(
@@ -74,11 +77,10 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             InventoryTransactionRepository transactionRepository,
             InventorySupplementRequestRepository supplementRequestRepository,
             InventorySupplierReturnRequestRepository supplierReturnRequestRepository,
+            CatalogClient catalogClient,
             InventoryDocumentMapper mapper
     ) {
         this.documentRepository = documentRepository;
-        this.lineRepository = lineRepository;
-        this.allocationRepository = allocationRepository;
         this.locationRepository = locationRepository;
         this.itemRepository = itemRepository;
         this.batchRepository = batchRepository;
@@ -86,6 +88,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         this.transactionRepository = transactionRepository;
         this.supplementRequestRepository = supplementRequestRepository;
         this.supplierReturnRequestRepository = supplierReturnRequestRepository;
+        this.catalogClient = catalogClient;
         this.mapper = mapper;
     }
 
@@ -133,7 +136,31 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
 
-        return PageResponse.from(documentRepository.findAll(specification, pageable).map(mapper::toResponse));
+        var page = documentRepository.findAll(specification, pageable);
+        List<InventoryDocument> documents = page.getContent();
+        List<UUID> supplierIds = documents.stream()
+                .map(InventoryDocument::getSupplierId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<UUID, String> supplierNameMap = new HashMap<>();
+
+        if (!supplierIds.isEmpty()) {
+            try {
+                List<CatalogClient.SupplierResponse> suppliers = catalogClient.getSuppliersBatch(supplierIds);
+                if (suppliers != null) {
+                    for (CatalogClient.SupplierResponse s : suppliers) {
+                        if (s != null && s.id() != null && s.name() != null) {
+                            supplierNameMap.put(s.id(), s.name());
+                        }
+                    }
+                }
+            } catch (FeignClientException exception) {
+                log.error("Feign client error", exception);
+            }
+        }
+        return PageResponse.from(page.map(doc -> mapper.toResponse(doc, supplierNameMap.get(doc.getSupplierId()))));
     }
 
     @Override
@@ -169,11 +196,28 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         );
     }
 
+    private InventoryDocumentResponse toEnrichedResponse(InventoryDocument document) {
+        if (document == null) {
+            return null;
+        }
+        String supplierName = null;
+        if (document.getSupplierId() != null) {
+            try {
+                CatalogClient.SupplierResponse s = catalogClient.getSupplier(document.getSupplierId());
+                if (s != null) {
+                    supplierName = s.name();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return mapper.toResponse(document, supplierName);
+    }
+
     @Override
     public InventoryDocumentResponse findById(UUID id) {
         InventoryDocument document = documentRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("InventoryDocument", id));
-        return mapper.toResponse(document);
+        return toEnrichedResponse(document);
     }
 
     private UUID getCurrentUserId() {
@@ -232,7 +276,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         InventoryDocument saved = documentRepository.save(document);
-        return mapper.toResponse(saved);
+        return toEnrichedResponse(saved);
     }
 
     @Override
@@ -278,7 +322,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             document.addLine(line);
         }
 
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     @Override
@@ -294,7 +338,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         document.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     @Override
@@ -313,7 +357,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             document.setApprovalNote(request.approvalNote());
         }
 
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     @Override
@@ -330,7 +374,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         document.setRejectedAt(Instant.now());
         document.setRejectionReason(request.rejectionReason());
 
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     @Override
@@ -346,7 +390,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         document.setReceivedBy(getCurrentUserId());
         document.setReceivedAt(Instant.now());
 
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     @Override
@@ -413,7 +457,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         document.setStatus(InventoryDocumentStatus.QC_PENDING);
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     @Override
@@ -511,7 +555,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         document.setStatus(InventoryDocumentStatus.QC_COMPLETED);
         document.setQcBy(getCurrentUserId());
         document.setQcAt(Instant.now());
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     @Override
@@ -614,7 +658,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         document.setPostedBy(getCurrentUserId());
         document.setPostedAt(Instant.now());
 
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     @Override
@@ -631,7 +675,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             document.setNote((document.getNote() != null ? document.getNote() + " | " : "") + "Hủy phiếu: " + note);
         }
 
-        return mapper.toResponse(documentRepository.save(document));
+        return toEnrichedResponse(documentRepository.save(document));
     }
 
     private InventoryDocument getDocument(UUID id) {
