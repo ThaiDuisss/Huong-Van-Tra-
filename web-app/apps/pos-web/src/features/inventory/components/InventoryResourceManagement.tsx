@@ -150,6 +150,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
     detailPath,
     statusOptions,
     totalItemsLabel,
+    secondaryFilter,
     filters,
     renderExtraRowActions,
     onDelete,
@@ -190,7 +191,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
     const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
     const activeFilters = filters ?? [];
-    const remainingFilters = activeFilters.filter(f => f.label !== "Loại vị trí" && f.label !== "Trạng thái" && f.label !== "Kệ hàng" && f.label !== "Đơn vị tính" && f.label !== "Sản phẩm" && f.label !== "Danh mục" && f.label !== "Kho hàng");
+    const remainingFilters = activeFilters.filter(f => f.label !== "Loại vị trí" && f.label !== "Trạng thái" && f.label !== "Kệ hàng" && f.label !== "Đơn vị tính" && f.label !== "Sản phẩm" && f.label !== "Danh mục" && f.label !== "Kho hàng" && f.label !== "Nhà cung cấp" && f.label !== "Kho nhận");
     const hasRemainingFilters = remainingFilters.length > 0;
 
     async function submitForm(values: FormValues) {
@@ -272,7 +273,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                 {searchPlaceholder ? (
                     <div className={`${hasRemainingFilters ? "border-b border-[#f3f5f7]" : ""} pb-2`}>
                         {(() => {
-                            const topFilters = activeFilters.filter(f => f.label === "Loại vị trí" || f.label === "Trạng thái" || f.label === "Kệ hàng" || f.label === "Đơn vị tính" || f.label === "Sản phẩm" || f.label === "Danh mục" || f.label === "Kho hàng");
+                            const topFilters = activeFilters.filter(f => f.label === "Loại vị trí" || f.label === "Trạng thái" || f.label === "Kệ hàng" || f.label === "Đơn vị tính" || f.label === "Sản phẩm" || f.label === "Danh mục" || f.label === "Kho hàng" || f.label === "Nhà cung cấp" || f.label === "Kho nhận");
                             return (
                                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">
                                     <div className="relative flex-1">
@@ -360,30 +361,61 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                     );
                 })()}
 
-                {onStatusChange && (
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#f3f5f7] mt-2">
-                        <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
-                            Trạng thái:
-                        </span>
-                        <div className="flex flex-wrap gap-2 items-center">
-                            {defaultStatusOptions.map((opt) => {
-                                const isActive = String(opt.value) === String(status || "ALL");
-                                return (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => onStatusChange(opt.value)}
-                                        type="button"
-                                        className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                            isActive
-                                                ? "bg-[#159734] border-[#159734] text-white"
-                                                : "bg-white border-[#dce5e1] text-[#536171] hover:bg-[#f4f8f5] hover:text-[#172317]"
-                                        }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                {(secondaryFilter || onStatusChange) && (
+                    <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-4 pt-2 border-t border-[#f3f5f7] mt-2">
+                        {secondaryFilter && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[13px] font-[900] text-[#536078] shrink-0">
+                                    {secondaryFilter.label}:
+                                </span>
+                                <div className="flex flex-wrap gap-1.5 items-center">
+                                    {secondaryFilter.options.map((opt) => {
+                                        const isActive = String(opt.value) === String(secondaryFilter.value ?? "");
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                onClick={() => secondaryFilter.onChange(opt.value)}
+                                                type="button"
+                                                className={`h-[30px] px-3.5 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                                    isActive
+                                                        ? "bg-[#159734] border-[#159734] text-white shadow-xs"
+                                                        : "bg-white border-[#dce5e1] text-[#536171] hover:bg-[#f4f8f5] hover:text-[#172317]"
+                                                }`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {onStatusChange && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[13px] font-[900] text-[#536078] shrink-0">
+                                    Trạng thái:
+                                </span>
+                                <div className="flex flex-wrap gap-1.5 items-center">
+                                    {defaultStatusOptions.map((opt) => {
+                                        const isActive = String(opt.value) === String(status || "ALL");
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                onClick={() => onStatusChange(opt.value)}
+                                                type="button"
+                                                className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
+                                                    isActive
+                                                        ? "bg-[#159734] border-[#159734] text-white shadow-xs"
+                                                        : "bg-white border-[#dce5e1] text-[#536171] hover:bg-[#f4f8f5] hover:text-[#172317]"
+                                                }`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

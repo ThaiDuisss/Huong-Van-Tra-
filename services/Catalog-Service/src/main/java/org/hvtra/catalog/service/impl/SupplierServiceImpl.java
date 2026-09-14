@@ -120,6 +120,18 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<SupplierResponse> findByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return repository.findAllById(ids).stream()
+                .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
+                .map(mapper::toResponse)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public SupplierResponse create(SupplierRequest request) {
         String code = generateSupplierCode(request.name());

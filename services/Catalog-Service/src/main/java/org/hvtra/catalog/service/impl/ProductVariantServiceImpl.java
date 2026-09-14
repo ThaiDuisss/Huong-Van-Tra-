@@ -23,15 +23,30 @@ import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.service.ProductVariantService;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.DataFormat;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -252,37 +267,37 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             variants = repository.findAll();
         }
         var units = unitRepository.findAll();
-        try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
-             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
              
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Danh sách Mặt hàng");
+            Sheet sheet = workbook.createSheet("Danh sách Mặt hàng");
             
-            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            Font headerFont = workbook.createFont();
             headerFont.setBold(true);
-            org.apache.poi.ss.usermodel.CellStyle headerStyle = workbook.createCellStyle();
+            CellStyle headerStyle = workbook.createCellStyle();
             headerStyle.setFont(headerFont);
             
-            org.apache.poi.ss.usermodel.CellStyle priceStyle = workbook.createCellStyle();
-            org.apache.poi.ss.usermodel.DataFormat format = workbook.createDataFormat();
+            CellStyle priceStyle = workbook.createCellStyle();
+            DataFormat format = workbook.createDataFormat();
             priceStyle.setDataFormat(format.getFormat("#,##0"));
             
             String[] headers = {"Mã sản phẩm", "Tên Mặt hàng", "SKU", "Giá bán", "Giá vốn", "Đơn vị bán", "Chính sách tồn kho", "Trạng thái"};
-            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
-                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(headerStyle);
             }
             
             int rowIdx = 1;
             for (var v : variants) {
-                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+                Row row = sheet.createRow(rowIdx++);
                 
                 row.createCell(0).setCellValue(v.getProduct() != null ? v.getProduct().getProductCode() : "");
                 row.createCell(1).setCellValue(v.getVariantName());
                 row.createCell(2).setCellValue(v.getSku());
                 
-                org.apache.poi.ss.usermodel.Cell cellSelling = row.createCell(3);
+                Cell cellSelling = row.createCell(3);
                 if (v.getSellingPrice() != null) {
                     cellSelling.setCellValue(v.getSellingPrice().doubleValue());
                 } else {
@@ -290,7 +305,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 }
                 cellSelling.setCellStyle(priceStyle);
                 
-                org.apache.poi.ss.usermodel.Cell cellCost = row.createCell(4);
+                Cell cellCost = row.createCell(4);
                 if (v.getCostPrice() != null) {
                     cellCost.setCellValue(v.getCostPrice().doubleValue());
                 } else {
@@ -316,7 +331,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             sheet.createFreezePane(0, 1);
             
             if (rowIdx > 1) {
-                sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
+                sheet.setAutoFilter(new CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
             }
 
             for (int i = 0; i < headers.length; i++) {
@@ -334,15 +349,28 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     @Override
     @Transactional
-    public void importFromExcel(org.springframework.web.multipart.MultipartFile file, UUID productId) {
+    public void importFromExcel(MultipartFile file, UUID productId) {
         var units = unitRepository.findAll();
         
-        try (org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(file.getInputStream())) {
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(0);
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
             int rowCount = sheet.getPhysicalNumberOfRows();
             
+            Map<String, Product> productsByCode = productRepository.findAll().stream()
+                    .filter(p -> p.getProductCode() != null)
+                    .collect(Collectors.toMap(p -> p.getProductCode().toUpperCase().trim(), p -> p, (a, b) -> a));
+
+            Set<String> existingSkus = repository.findAll().stream()
+                    .map(ProductVariant::getSku)
+                    .filter(Objects::nonNull)
+                    .map(s -> s.trim().toLowerCase())
+                    .collect(Collectors.toSet());
+
+            Set<String> seenSkusInFile = new HashSet<>(existingSkus);
+            List<ProductVariant> variantsToSave = new ArrayList<>();
+
             for (int r = 1; r < rowCount; r++) {
-                org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
+                Row row = sheet.getRow(r);
                 if (row == null) continue;
                 
                 String productCode = getCellValueAsString(row.getCell(0));
@@ -366,31 +394,35 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                     throw new BadRequestException("Row " + rowNum + ": Variant Name is blank.");
                 }
 
-                Product product = productRepository.findByProductCode(productCode)
-                        .orElseThrow(() -> new BadRequestException("Row " + rowNum + ": Product Code '" + productCode + "' does not exist."));
+                Product product = productsByCode.get(productCode.trim().toUpperCase());
+                if (product == null) {
+                    throw new BadRequestException("Row " + rowNum + ": Product Code '" + productCode + "' does not exist.");
+                }
 
                 String finalSku;
                 if (sku.isBlank()) {
                     finalSku = generateSku(product);
+                    seenSkusInFile.add(finalSku.toLowerCase());
                 } else {
                     finalSku = sku.trim();
-                    // Skip if SKU already exists in database
-                    if (repository.existsBySku(finalSku)) {
+                    // Skip if SKU already exists in database or previous rows
+                    if (seenSkusInFile.contains(finalSku.toLowerCase())) {
                         continue;
                     }
+                    seenSkusInFile.add(finalSku.toLowerCase());
                 }
 
-                java.math.BigDecimal sellingPrice = java.math.BigDecimal.ZERO;
+                BigDecimal sellingPrice = BigDecimal.ZERO;
                 if (!sellingPriceStr.isBlank()) {
                     try {
-                        sellingPrice = new java.math.BigDecimal(sellingPriceStr);
+                        sellingPrice = new BigDecimal(sellingPriceStr);
                     } catch (Exception ignored) {}
                 }
 
-                java.math.BigDecimal costPrice = java.math.BigDecimal.ZERO;
+                BigDecimal costPrice = BigDecimal.ZERO;
                 if (!costPriceStr.isBlank()) {
                     try {
-                        costPrice = new java.math.BigDecimal(costPriceStr);
+                        costPrice = new BigDecimal(costPriceStr);
                     } catch (Exception ignored) {}
                 }
 
@@ -428,22 +460,28 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 variant.setInventoryPolicy(policy);
                 variant.setStatus(status);
                 
-                ProductVariant savedVariant = repository.saveAndFlush(variant);
-                
-                String variantDisplayName = (savedVariant.getVariantName() != null && !savedVariant.getVariantName().isBlank())
-                        ? product.getName() + " - " + savedVariant.getVariantName()
-                        : product.getName();
+                variantsToSave.add(variant);
+            }
 
-                inventoryClient.createProductVariantItem(
-                        InventoryClient.CreateInventoryItemRequest.builder()
-                                .status(savedVariant.getStatus().toString())
-                                .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
-                                .referenceId(savedVariant.getId())
-                                .referenceCode(savedVariant.getSku())
-                                .name(variantDisplayName)
-                                .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
-                                .reorderPoint(10)
-                                .build());
+            if (!variantsToSave.isEmpty()) {
+                List<ProductVariant> savedVariants = repository.saveAll(variantsToSave);
+
+                for (ProductVariant savedVariant : savedVariants) {
+                    String variantDisplayName = (savedVariant.getVariantName() != null && !savedVariant.getVariantName().isBlank())
+                            ? savedVariant.getProduct().getName() + " - " + savedVariant.getVariantName()
+                            : savedVariant.getProduct().getName();
+
+                    inventoryClient.createProductVariantItem(
+                            InventoryClient.CreateInventoryItemRequest.builder()
+                                    .status(savedVariant.getStatus().toString())
+                                    .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
+                                    .referenceId(savedVariant.getId())
+                                    .referenceCode(savedVariant.getSku())
+                                    .name(variantDisplayName)
+                                    .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
+                                    .reorderPoint(10)
+                                    .build());
+                }
             }
         } catch (BadRequestException e) {
             throw e;
@@ -452,13 +490,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         }
     }
 
-    private String getCellValueAsString(org.apache.poi.ss.usermodel.Cell cell) {
+    private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
         switch (cell.getCellType()) {
             case STRING:
                 return cell.getStringCellValue().trim();
             case NUMERIC:
-                if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell)) {
+                if (DateUtil.isCellDateFormatted(cell)) {
                     return cell.getDateCellValue().toString();
                 }
                 double val = cell.getNumericCellValue();
@@ -486,39 +524,39 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     @Override
     public byte[] getImportTemplate() {
-        try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
-             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
              
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Mẫu nhập Mặt hàng");
+            Sheet sheet = workbook.createSheet("Mẫu nhập Mặt hàng");
             
-            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            Font headerFont = workbook.createFont();
             headerFont.setBold(true);
-            org.apache.poi.ss.usermodel.CellStyle headerStyle = workbook.createCellStyle();
+            CellStyle headerStyle = workbook.createCellStyle();
             headerStyle.setFont(headerFont);
             
-            org.apache.poi.ss.usermodel.CellStyle priceStyle = workbook.createCellStyle();
-            org.apache.poi.ss.usermodel.DataFormat format = workbook.createDataFormat();
+            CellStyle priceStyle = workbook.createCellStyle();
+            DataFormat format = workbook.createDataFormat();
             priceStyle.setDataFormat(format.getFormat("#,##0"));
             
             String[] headers = {"Mã sản phẩm", "Tên Mặt hàng", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Định lượng", "Chính sách tồn kho", "Trạng thái"};
-            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
-                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(headerStyle);
             }
             
             // Add template rows
-            org.apache.poi.ss.usermodel.Row row1 = sheet.createRow(1);
+            Row row1 = sheet.createRow(1);
             row1.createCell(0).setCellValue("PRD00001");
             row1.createCell(1).setCellValue("Thiết Quan Âm 100g");
             row1.createCell(2).setCellValue("TQA-100G");
             
-            org.apache.poi.ss.usermodel.Cell cellSelling1 = row1.createCell(3);
+            Cell cellSelling1 = row1.createCell(3);
             cellSelling1.setCellValue(150000.0);
             cellSelling1.setCellStyle(priceStyle);
             
-            org.apache.poi.ss.usermodel.Cell cellCost1 = row1.createCell(4);
+            Cell cellCost1 = row1.createCell(4);
             cellCost1.setCellValue(100000.0);
             cellCost1.setCellStyle(priceStyle);
             
@@ -526,16 +564,16 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             row1.createCell(6).setCellValue("Theo dõi tồn kho");
             row1.createCell(7).setCellValue("Đang hoạt động");
             
-            org.apache.poi.ss.usermodel.Row row2 = sheet.createRow(2);
+            Row row2 = sheet.createRow(2);
             row2.createCell(0).setCellValue("PRD00001");
             row2.createCell(1).setCellValue("Thiết Quan Âm 250g");
             row2.createCell(2).setCellValue("TQA-250G");
             
-            org.apache.poi.ss.usermodel.Cell cellSelling2 = row2.createCell(3);
+            Cell cellSelling2 = row2.createCell(3);
             cellSelling2.setCellValue(350000.0);
             cellSelling2.setCellStyle(priceStyle);
             
-            org.apache.poi.ss.usermodel.Cell cellCost2 = row2.createCell(4);
+            Cell cellCost2 = row2.createCell(4);
             cellCost2.setCellValue(230000.0);
             cellCost2.setCellStyle(priceStyle);
             
@@ -544,7 +582,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             row2.createCell(7).setCellValue("Đang hoạt động");
             
             sheet.createFreezePane(0, 1);
-            sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, 2, 0, headers.length - 1));
+            sheet.setAutoFilter(new CellRangeAddress(0, 2, 0, headers.length - 1));
             
             for (int i = 0; i < headers.length; i++) {
                 try {
