@@ -58,11 +58,11 @@ const FILTERS: {
     status?: OrderRefundStatus;
     countKey: keyof OrderRefundStatsResponse;
 }[] = [
-    { key: "ALL", label: "Tất cả", countKey: "total" },
-    { key: "NOT_READY", label: "Chờ xử lý", status: "NOT_READY", countKey: "notReady" },
-    { key: "PENDING", label: "Chờ hoàn tiền", status: "PENDING", countKey: "pendingRefund" },
-    { key: "REFUNDED", label: "Đã hoàn tiền", status: "REFUNDED", countKey: "refunded" }
-];
+        { key: "ALL", label: "Tất cả", countKey: "total" },
+        { key: "NOT_READY", label: "Chờ xử lý", status: "NOT_READY", countKey: "notReady" },
+        { key: "PENDING", label: "Chờ hoàn tiền", status: "PENDING", countKey: "pendingRefund" },
+        { key: "REFUNDED", label: "Đã hoàn tiền", status: "REFUNDED", countKey: "refunded" }
+    ];
 
 const REFUND_STATUS_LABELS: Record<OrderRefundStatus, string> = {
     FAILED: "Hoàn tiền thất bại",
@@ -75,12 +75,16 @@ const REFUND_STATUS_LABELS: Record<OrderRefundStatus, string> = {
 const QC_STATUS_LABELS: Record<string, string> = {
     COMPLETED: "Hoàn tất",
     PARTIAL: "Đang kiểm",
-    PENDING: "Chưa kiểm"
+    PENDING: "Chưa kiểm",
+    UNAVAILABLE: "Không xác định",
+    UNKNOWN: "Không xác định"
 };
 
 const METHOD_LABELS: Record<string, string> = {
     BANK_TRANSFER: "Chuyển khoản",
-    CASH: "Tiền mặt"
+    CASH: "Tiền mặt",
+    UNAVAILABLE: "Không xác định",
+    UNKNOWN: "Không xác định"
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -94,6 +98,46 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 function getErrorMessage(error: unknown) {
+    if (
+        typeof error === "object" &&
+        error !== null &&
+        "status" in error &&
+        typeof error.status === "number"
+    ) {
+        if (error.status === 401) {
+            return "Phiên đăng nhập đã hết hạn hoặc không hợp lệ.";
+        }
+
+        if (error.status === 403) {
+            return "Bạn không có quyền truy cập.";
+        }
+
+        if (error.status === 500) {
+            return "Máy chủ gặp lỗi khi tải danh sách hoàn tiền.";
+        }
+
+        if (error.status === 502) {
+            return "Dịch vụ phụ thuộc gặp lỗi khi tải danh sách hoàn tiền.";
+        }
+
+        if (error.status === 503) {
+            return "Dịch vụ tạm thời không khả dụng.";
+        }
+
+        if (error.status === 0) {
+            return "Không thể kết nối đến máy chủ.";
+        }
+    }
+
+    if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "NETWORK_ERROR"
+    ) {
+        return "Không thể kết nối đến máy chủ.";
+    }
+
     if (
         typeof error === "object" &&
         error !== null &&
@@ -142,7 +186,24 @@ function getMethodLabel(method?: string | null) {
 }
 
 function canRefund(row: OrderRefundSummaryResponse) {
-    return row.refundStatus === "PENDING" && row.method === "CASH" && row.refundRequired !== false;
+    const paymentStatus = row.paymentStatus?.trim();
+    const method = row.method?.trim();
+    const hasUnavailablePaymentStatus =
+        paymentStatus === "UNAVAILABLE" || paymentStatus === "UNKNOWN";
+    const hasUnavailableMethod = method === "UNKNOWN" || method === "UNAVAILABLE";
+    const hasRefundablePaymentStatus =
+        paymentStatus === "PAID" || paymentStatus === "PARTIALLY_REFUNDED";
+
+    return (
+        row.refundStatus === "PENDING" &&
+        row.qcStatus === "COMPLETED" &&
+        Boolean(paymentStatus) &&
+        !hasUnavailablePaymentStatus &&
+        !hasUnavailableMethod &&
+        hasRefundablePaymentStatus &&
+        method === "CASH" &&
+        row.refundRequired !== false
+    );
 }
 
 export function OrderRefundPage() {
@@ -364,15 +425,15 @@ export function OrderRefundPage() {
                     setSelectedDetail((current) =>
                         current
                             ? {
-                                  ...current,
-                                  method: response.method,
-                                  paymentStatus: response.paymentStatus,
-                                  refundAmount: response.refundAmount,
-                                  refundedAt: response.refundedAt,
-                                  refundStatus: "REFUNDED",
-                                  returnStatus: response.returnStatus ?? "COMPLETED",
-                                  totalAmountRefunded: response.totalAmountRefunded
-                              }
+                                ...current,
+                                method: response.method,
+                                paymentStatus: response.paymentStatus,
+                                refundAmount: response.refundAmount,
+                                refundedAt: response.refundedAt,
+                                refundStatus: "REFUNDED",
+                                returnStatus: response.returnStatus ?? "COMPLETED",
+                                totalAmountRefunded: response.totalAmountRefunded
+                            }
                             : current
                     );
                 }
@@ -439,9 +500,8 @@ export function OrderRefundPage() {
                             <div className={styles.statusFilters}>
                                 {FILTERS.map((filter) => (
                                     <button
-                                        className={`${styles.statusChip} ${
-                                            activeFilter === filter.key ? styles.activeStatusChip : ""
-                                        }`}
+                                        className={`${styles.statusChip} ${activeFilter === filter.key ? styles.activeStatusChip : ""
+                                            }`}
                                         key={filter.key}
                                         onClick={() => {
                                             setActiveFilter(filter.key);
@@ -492,71 +552,71 @@ export function OrderRefundPage() {
                                     ) : null}
                                     {!isListLoading && !listError
                                         ? visibleRefunds.map((row, index) => (
-                                              <tr
-                                                  className={index % 2 === 0 ? styles.zebraFirstRow : styles.zebraSecondRow}
-                                                  key={row.returnId}
-                                                  onClick={() => openDetail(row)}
-                                              >
-                                                  <td>
-                                                      <button className={styles.linkButton} type="button">
-                                                          {displayText(row.returnCode)}
-                                                      </button>
-                                                  </td>
-                                                  <td>{displayText(row.orderCode)}</td>
-                                                  <td>
-                                                      <strong>{displayText(row.customerName, "Khách lẻ")}</strong>
-                                                      <span>{displayText(row.customerPhone)}</span>
-                                                  </td>
-                                                  <td>
-                                                      {row.refundAmount === null || row.refundAmount === undefined
-                                                          ? "Chưa xác định"
-                                                          : formatCurrency(row.refundAmount)}
-                                                  </td>
-                                                  <td>{getMethodLabel(row.method)}</td>
-                                                  <td>
-                                                      <StatusPill tone={row.qcStatus === "COMPLETED" ? "green" : "amber"}>
-                                                          {getQcStatusLabel(row.qcStatus)}
-                                                      </StatusPill>
-                                                  </td>
-                                                  <td>
-                                                      <StatusPill tone={row.refundStatus === "REFUNDED" ? "blue" : row.refundStatus === "PENDING" ? "green" : "gray"}>
-                                                          {getRefundStatusLabel(row.refundStatus)}
-                                                      </StatusPill>
-                                                  </td>
-                                                  <td>{formatDateTime(row.returnCreatedAt)}</td>
-                                                  <td>
-                                                      <div className={styles.rowActions}>
-                                                          <button
-                                                              aria-label={`Xem chi tiết ${displayText(row.returnCode)}`}
-                                                              className={styles.iconButton}
-                                                              onClick={(event) => {
-                                                                  event.stopPropagation();
-                                                                  openDetail(row);
-                                                              }}
-                                                              type="button"
-                                                          >
-                                                              <Eye size={16} aria-hidden="true" />
-                                                          </button>
-                                                          {canRefund(row) ? (
-                                                              <button
-                                                                  className={styles.refundButton}
-                                                                  onClick={(event) => {
-                                                                      event.stopPropagation();
-                                                                      openConfirm(row);
-                                                                  }}
-                                                                  type="button"
-                                                              >
-                                                                  <WalletCards size={15} aria-hidden="true" />
-                                                                  Hoàn tiền
-                                                              </button>
-                                                          ) : null}
-                                                          {row.refundStatus === "PENDING" && row.method === "BANK_TRANSFER" ? (
-                                                              <span className={styles.unsupportedText}>Chưa hỗ trợ</span>
-                                                          ) : null}
-                                                      </div>
-                                                  </td>
-                                              </tr>
-                                          ))
+                                            <tr
+                                                className={index % 2 === 0 ? styles.zebraFirstRow : styles.zebraSecondRow}
+                                                key={row.returnId}
+                                                onClick={() => openDetail(row)}
+                                            >
+                                                <td>
+                                                    <button className={styles.linkButton} type="button">
+                                                        {displayText(row.returnCode)}
+                                                    </button>
+                                                </td>
+                                                <td>{displayText(row.orderCode)}</td>
+                                                <td>
+                                                    <strong>{displayText(row.customerName, "Khách lẻ")}</strong>
+                                                    <span>{displayText(row.customerPhone)}</span>
+                                                </td>
+                                                <td>
+                                                    {row.refundAmount === null || row.refundAmount === undefined
+                                                        ? "Chưa xác định"
+                                                        : formatCurrency(row.refundAmount)}
+                                                </td>
+                                                <td>{getMethodLabel(row.method)}</td>
+                                                <td>
+                                                    <StatusPill tone={row.qcStatus === "COMPLETED" ? "green" : "amber"}>
+                                                        {getQcStatusLabel(row.qcStatus)}
+                                                    </StatusPill>
+                                                </td>
+                                                <td>
+                                                    <StatusPill tone={row.refundStatus === "REFUNDED" ? "blue" : row.refundStatus === "PENDING" ? "green" : "gray"}>
+                                                        {getRefundStatusLabel(row.refundStatus)}
+                                                    </StatusPill>
+                                                </td>
+                                                <td>{formatDateTime(row.returnCreatedAt)}</td>
+                                                <td>
+                                                    <div className={styles.rowActions}>
+                                                        <button
+                                                            aria-label={`Xem chi tiết ${displayText(row.returnCode)}`}
+                                                            className={styles.iconButton}
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                openDetail(row);
+                                                            }}
+                                                            type="button"
+                                                        >
+                                                            <Eye size={16} aria-hidden="true" />
+                                                        </button>
+                                                        {canRefund(row) ? (
+                                                            <button
+                                                                className={styles.refundButton}
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    openConfirm(row);
+                                                                }}
+                                                                type="button"
+                                                            >
+                                                                <WalletCards size={15} aria-hidden="true" />
+                                                                Hoàn tiền
+                                                            </button>
+                                                        ) : null}
+                                                        {row.refundStatus === "PENDING" && row.method === "BANK_TRANSFER" ? (
+                                                            <span className={styles.unsupportedText}>Chưa hỗ trợ</span>
+                                                        ) : null}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
                                         : null}
                                     {!isListLoading && !listError && visibleRefunds.length === 0 ? (
                                         <EmptyRow
@@ -564,8 +624,8 @@ export function OrderRefundPage() {
                                                 activeFilter === "PENDING"
                                                     ? "Không có phiếu nào đang chờ hoàn tiền."
                                                     : debouncedKeyword
-                                                      ? "Không tìm thấy phiếu hoàn tiền phù hợp."
-                                                      : "Không có phiếu hoàn tiền."
+                                                        ? "Không tìm thấy phiếu hoàn tiền phù hợp."
+                                                        : "Không có phiếu hoàn tiền."
                                             }
                                             subText="Thử đổi bộ lọc thời gian, trạng thái hoặc từ khóa"
                                         />

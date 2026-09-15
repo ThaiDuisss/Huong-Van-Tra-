@@ -207,7 +207,7 @@
 
 .returnTable {
   width: 100%;
-  min-width: 840px;
+  min-width: 760px;
   border-collapse: collapse;
   color: #334155;
   font-size: 14px;
@@ -239,9 +239,7 @@
 }
 
 .returnTable th:nth-child(4),
-.returnTable td:nth-child(4),
-.returnTable th:nth-child(6),
-.returnTable td:nth-child(6) {
+.returnTable td:nth-child(4) {
   text-align: center;
 }
 
@@ -268,11 +266,6 @@
   white-space: nowrap;
 }
 
-.actionCell {
-  text-align: center;
-}
-
-.iconButton,
 .closeButton {
   display: grid;
   width: 34px;
@@ -284,7 +277,6 @@
   color: #536078;
 }
 
-.iconButton:hover,
 .closeButton:hover {
   border-color: #dfe6ee;
   background: #f8faf9;
@@ -1028,6 +1020,12 @@
   gap: 12px;
 }
 
+.qcInputGridTwoCol {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.5fr);
+  gap: 12px;
+}
+
 .qcInputGrid label {
   display: grid;
   gap: 7px;
@@ -1144,6 +1142,228 @@
   font-weight: 850;
 }
 
+.dispositionBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.dispositionRestock {
+  background: #e9f8ed;
+  color: #07883a;
+  border: 1px solid #bbf0c8;
+}
+
+.dispositionDamaged {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.dispositionQuarantine {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.dispositionWriteOff {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.dispositionDefault {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.qcItemDispositionSummary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+}
+
+.qcItemDispositionSummary span {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.qcItemDispositionSummary strong {
+  color: #0f172a;
+  font-weight: 850;
+}
+
+.emptyLocationWarning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff1f1;
+  border: 1px solid #fed7d7;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.qcConfirmationPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.qcConfirmationHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.qcConfirmationHeader h4 {
+  margin: 0;
+  color: #166534;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.qcConfirmationHeader p {
+  margin: 4px 0 0;
+  color: #15803d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.qcConfirmationList {
+  display: grid;
+  gap: 12px;
+}
+
+.qcConfirmationCard {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.qcConfirmationTitleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.qcConfirmationTitleRow strong {
+  color: #172317;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.qcConfirmationTitleRow span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.qcConfirmationGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.qcConfirmationGrid > div {
+  display: grid;
+  gap: 4px;
+}
+
+.confirmLabel {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.confirmLocationText {
+  color: #172317;
+  font-size: 13px;
+  font-weight: 850;
+  word-break: break-word;
+}
+
+.confirmNoteRow {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 12px;
+}
+
+.confirmNoteRow span:last-child {
+  color: #334155;
+  font-weight: 600;
+}
+
+.confirmGeneralNote {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+}
+
+.confirmGeneralNote strong {
+  color: #334155;
+  font-weight: 850;
+}
+
+.confirmGeneralNote span {
+  color: #475569;
+  font-weight: 600;
+}
+
+.qcStepBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.qcStepActive {
+  color: #07883a;
+}
+
+.qcStepInactive {
+  color: #94a3b8;
+}
+
 @media (max-width: 1279px) {
   .page {
     grid-template-columns: minmax(0, 1fr);
@@ -1188,7 +1408,8 @@
   .detailInfoGrid,
   .qcMetaGrid,
   .qcInputGrid,
-  .qcSummaryItem {
+  .qcSummaryItem,
+  .qcConfirmationGrid {
     grid-template-columns: minmax(0, 1fr);
   }
 

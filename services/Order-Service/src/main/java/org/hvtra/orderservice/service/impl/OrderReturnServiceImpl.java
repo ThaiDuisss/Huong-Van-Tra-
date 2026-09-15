@@ -1,5 +1,7 @@
 package org.hvtra.orderservice.service.impl;
 
+import feign.FeignException;
+import feign.RetryableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.utils.SecurityUtils;
@@ -84,6 +86,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             List.of(ReturnStatus.CREATED, ReturnStatus.RECEIVED, ReturnStatus.COMPLETED);
     private static final Duration DEFAULT_CHANGE_OF_MIND_WINDOW = Duration.ofDays(7);
     private static final Duration DEFAULT_QUALITY_WINDOW = Duration.ofDays(14);
+    private static final String DOWNSTREAM_STATUS_UNAVAILABLE = "UNAVAILABLE";
+    private static final String DOWNSTREAM_METHOD_UNKNOWN = "UNKNOWN";
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -265,10 +269,28 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     public OrderRefundDetailResponse getRefundDetail(UUID returnId) {
         OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalse(returnId)
                 .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
-        InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
-                inventoryClient.getCustomerReturnQcSummary(returnId);
-        PaymentClient.PaymentRefundSummaryResponse paymentSummary = lookupPaymentRefundSummary(orderReturn);
-        OrderRefundStatus refundStatus = resolveRefundStatus(orderReturn, qcSummary, paymentSummary);
+        DownstreamLookupResult<InventoryClient.CustomerReturnQcSummaryResponse> qcLookup =
+                lookupQcSummaryForRefundRead(returnId);
+        DownstreamLookupResult<PaymentClient.PaymentRefundSummaryResponse> paymentLookup =
+                lookupPaymentRefundSummaryForRefundRead(orderReturn);
+        InventoryClient.CustomerReturnQcSummaryResponse qcSummary = qcLookup.value();
+        PaymentClient.PaymentRefundSummaryResponse paymentSummary = paymentLookup.value();
+        OrderRefundStatus refundStatus = resolveRefundStatus(
+                orderReturn,
+                qcSummary,
+                paymentSummary,
+                qcLookup.available(),
+                paymentLookup.available()
+        );
+        String qcStatus = qcLookup.available()
+                ? (qcSummary == null ? null : qcSummary.qcStatus())
+                : DOWNSTREAM_STATUS_UNAVAILABLE;
+        String paymentStatus = paymentLookup.available()
+                ? (paymentSummary == null ? null : paymentSummary.paymentStatus())
+                : DOWNSTREAM_STATUS_UNAVAILABLE;
+        String method = paymentLookup.available()
+                ? (paymentSummary == null ? null : paymentSummary.method())
+                : DOWNSTREAM_METHOD_UNKNOWN;
 
         return OrderRefundDetailResponse.builder()
                 .returnId(orderReturn.getId())
@@ -280,13 +302,15 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .returnCreatedAt(orderReturn.getCreatedAt())
                 .returnStatus(orderReturn.getStatus())
                 .refundRequired(orderReturn.getRefundRequired())
-                .qcStatus(qcSummary == null ? null : qcSummary.qcStatus())
+                .qcStatus(qcStatus)
                 .refundStatus(refundStatus)
-                .refundAmount(paymentSummary == null ? null : paymentSummary.refundAmount())
-                .totalAmountRefunded(paymentSummary == null ? null : paymentSummary.totalAmountRefunded())
-                .paymentStatus(paymentSummary == null ? null : paymentSummary.paymentStatus())
-                .method(paymentSummary == null ? null : paymentSummary.method())
-                .refundedAt(paymentSummary == null ? null : paymentSummary.refundedAt())
+                .refundAmount(paymentLookup.available() && paymentSummary != null ? paymentSummary.refundAmount() : null)
+                .totalAmountRefunded(paymentLookup.available() && paymentSummary != null
+                        ? paymentSummary.totalAmountRefunded()
+                        : null)
+                .paymentStatus(paymentStatus)
+                .method(method)
+                .refundedAt(paymentLookup.available() && paymentSummary != null ? paymentSummary.refundedAt() : null)
                 .items(orderReturnMapper.toResponse(orderReturn).getItems())
                 .build();
     }
@@ -551,7 +575,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     ) {
         BigDecimal quantity = requirePositiveQuantity(lineRequest.getQuantity());
         if ((ReturnInventoryDispositionResult.RESTOCK == lineRequest.getResult()
-                || ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult())
+                || ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult()
+                || ReturnInventoryDispositionResult.DAMAGED == lineRequest.getResult())
                 && lineRequest.getDestinationLocationId() == null) {
             throw new InvalidOrderReturnException("Destination location is required for inventory disposition");
         }
@@ -944,6 +969,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     }
 
     private List<OrderRefundSummaryResponse> buildRefundSummaries(List<OrderReturnSummaryResponse> summaries) {
+        int summaryCount = summaries == null ? 0 : summaries.size();
+        log.info("Loaded {} refund return summaries from repository", summaryCount);
         if (summaries == null || summaries.isEmpty()) {
             return List.of();
         }
@@ -955,10 +982,12 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .findByIdInAndIsDeletedFalseWithItems(returnIds)
                 .stream()
                 .collect(Collectors.toMap(OrderReturn::getId, Function.identity()));
-        Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> qcByReturnId =
-                lookupQcSummaries(summaries, returnsById);
-        Map<UUID, PaymentClient.PaymentRefundSummaryResponse> paymentByReturnId =
-                lookupPaymentRefundSummaries(summaries);
+        DownstreamLookupResult<Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse>> qcLookup =
+                lookupQcSummariesForRefundRead(summaries, returnsById);
+        DownstreamLookupResult<Map<UUID, PaymentClient.PaymentRefundSummaryResponse>> paymentLookup =
+                lookupPaymentRefundSummariesForRefundRead(summaries);
+        Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> qcByReturnId = qcLookup.value();
+        Map<UUID, PaymentClient.PaymentRefundSummaryResponse> paymentByReturnId = paymentLookup.value();
 
         return summaries.stream()
                 .map(summary -> {
@@ -967,7 +996,22 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                     PaymentClient.PaymentRefundSummaryResponse paymentSummary = paymentByReturnId.get(summary.getId());
                     OrderRefundStatus refundStatus = orderReturn == null
                             ? OrderRefundStatus.NOT_READY
-                            : resolveRefundStatus(orderReturn, qcSummary, paymentSummary);
+                            : resolveRefundStatus(
+                                    orderReturn,
+                                    qcSummary,
+                                    paymentSummary,
+                                    qcLookup.available(),
+                                    paymentLookup.available()
+                            );
+                    String qcStatus = qcLookup.available()
+                            ? (qcSummary == null ? null : qcSummary.qcStatus())
+                            : DOWNSTREAM_STATUS_UNAVAILABLE;
+                    String paymentStatus = paymentLookup.available()
+                            ? (paymentSummary == null ? null : paymentSummary.paymentStatus())
+                            : DOWNSTREAM_STATUS_UNAVAILABLE;
+                    String method = paymentLookup.available()
+                            ? (paymentSummary == null ? null : paymentSummary.method())
+                            : DOWNSTREAM_METHOD_UNKNOWN;
 
                     return OrderRefundSummaryResponse.builder()
                             .returnId(summary.getId())
@@ -979,18 +1023,22 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                             .returnCreatedAt(summary.getCreatedAt())
                             .returnStatus(summary.getStatus())
                             .refundRequired(orderReturn == null ? summary.getRefundRequired() : orderReturn.getRefundRequired())
-                            .qcStatus(qcSummary == null ? null : qcSummary.qcStatus())
+                            .qcStatus(qcStatus)
                             .refundStatus(refundStatus)
-                            .refundAmount(paymentSummary == null ? null : paymentSummary.refundAmount())
-                            .paymentStatus(paymentSummary == null ? null : paymentSummary.paymentStatus())
-                            .method(paymentSummary == null ? null : paymentSummary.method())
-                            .refundedAt(paymentSummary == null ? null : paymentSummary.refundedAt())
+                            .refundAmount(paymentLookup.available() && paymentSummary != null
+                                    ? paymentSummary.refundAmount()
+                                    : null)
+                            .paymentStatus(paymentStatus)
+                            .method(method)
+                            .refundedAt(paymentLookup.available() && paymentSummary != null
+                                    ? paymentSummary.refundedAt()
+                                    : null)
                             .build();
                 })
                 .toList();
     }
 
-    private Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> lookupQcSummaries(
+    private DownstreamLookupResult<Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse>> lookupQcSummariesForRefundRead(
             List<OrderReturnSummaryResponse> summaries,
             Map<UUID, OrderReturn> returnsById
     ) {
@@ -1000,18 +1048,60 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .map(this::toCustomerReturnSnapshot)
                 .toList();
         if (snapshots.isEmpty()) {
-            return Map.of();
+            return new DownstreamLookupResult<>(Map.of(), true);
         }
 
-        return inventoryClient.getCustomerReturnQcSummaries(
-                        new InventoryClient.CustomerReturnQcSummaryBatchRequest(snapshots)
-                )
-                .stream()
-                .collect(Collectors.toMap(
-                        InventoryClient.CustomerReturnQcSummaryResponse::returnId,
-                        Function.identity(),
-                        (first, second) -> first
-                ));
+        log.info("Starting Inventory enrich for {} refund returns", snapshots.size());
+        try {
+            Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> summariesByReturnId =
+                    inventoryClient.getCustomerReturnQcSummaries(
+                                    new InventoryClient.CustomerReturnQcSummaryBatchRequest(snapshots)
+                            )
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    InventoryClient.CustomerReturnQcSummaryResponse::returnId,
+                                    Function.identity(),
+                                    (first, second) -> first
+                            ));
+            log.info(
+                    "Inventory enrich succeeded for {} refund returns with {} QC summaries",
+                    snapshots.size(),
+                    summariesByReturnId.size()
+            );
+            return new DownstreamLookupResult<>(summariesByReturnId, true);
+        } catch (RetryableException ex) {
+            logDownstreamUnavailable("Inventory-Service", "customer return QC batch summary", ex, ex.status());
+            return new DownstreamLookupResult<>(Map.of(), false);
+        } catch (FeignException ex) {
+            if (isAvailabilityStatus(ex.status())) {
+                logDownstreamUnavailable("Inventory-Service", "customer return QC batch summary", ex, ex.status());
+                return new DownstreamLookupResult<>(Map.of(), false);
+            }
+            logDownstreamFailureWithoutDegradation("Inventory-Service", "customer return QC batch summary", ex);
+            throw ex;
+        }
+    }
+
+    private DownstreamLookupResult<InventoryClient.CustomerReturnQcSummaryResponse> lookupQcSummaryForRefundRead(
+            UUID returnId
+    ) {
+        log.info("Starting Inventory enrich for refund return {}", returnId);
+        try {
+            InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
+                    inventoryClient.getCustomerReturnQcSummary(returnId);
+            log.info("Inventory enrich succeeded for refund return {}", returnId);
+            return new DownstreamLookupResult<>(qcSummary, true);
+        } catch (RetryableException ex) {
+            logDownstreamUnavailable("Inventory-Service", "customer return QC summary", ex, ex.status());
+            return new DownstreamLookupResult<>(null, false);
+        } catch (FeignException ex) {
+            if (isAvailabilityStatus(ex.status())) {
+                logDownstreamUnavailable("Inventory-Service", "customer return QC summary", ex, ex.status());
+                return new DownstreamLookupResult<>(null, false);
+            }
+            logDownstreamFailureWithoutDegradation("Inventory-Service", "customer return QC summary", ex);
+            throw ex;
+        }
     }
 
     private InventoryClient.CustomerReturnSnapshot toCustomerReturnSnapshot(OrderReturn orderReturn) {
@@ -1042,23 +1132,64 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         );
     }
 
-    private Map<UUID, PaymentClient.PaymentRefundSummaryResponse> lookupPaymentRefundSummaries(
+    private DownstreamLookupResult<Map<UUID, PaymentClient.PaymentRefundSummaryResponse>> lookupPaymentRefundSummariesForRefundRead(
             List<OrderReturnSummaryResponse> summaries
     ) {
         List<PaymentClient.RefundSummaryLookupItem> items = summaries.stream()
                 .map(summary -> new PaymentClient.RefundSummaryLookupItem(summary.getId(), summary.getOrderId()))
                 .toList();
         if (items.isEmpty()) {
-            return Map.of();
+            return new DownstreamLookupResult<>(Map.of(), true);
         }
 
-        return paymentClient.lookupRefundSummaries(new PaymentClient.RefundSummaryLookupRequest(items))
-                .stream()
-                .collect(Collectors.toMap(
-                        PaymentClient.PaymentRefundSummaryResponse::returnId,
-                        Function.identity(),
-                        (first, second) -> first
-                ));
+        log.info("Starting Payment enrich for {} refund returns", items.size());
+        try {
+            Map<UUID, PaymentClient.PaymentRefundSummaryResponse> summariesByReturnId =
+                    paymentClient.lookupRefundSummaries(new PaymentClient.RefundSummaryLookupRequest(items))
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    PaymentClient.PaymentRefundSummaryResponse::returnId,
+                                    Function.identity(),
+                                    (first, second) -> first
+                            ));
+            log.info(
+                    "Payment enrich succeeded for {} refund returns with {} payment summaries",
+                    items.size(),
+                    summariesByReturnId.size()
+            );
+            return new DownstreamLookupResult<>(summariesByReturnId, true);
+        } catch (RetryableException ex) {
+            logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.status());
+            return new DownstreamLookupResult<>(Map.of(), false);
+        } catch (FeignException ex) {
+            if (isAvailabilityStatus(ex.status())) {
+                logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.status());
+                return new DownstreamLookupResult<>(Map.of(), false);
+            }
+            logDownstreamFailureWithoutDegradation("Payment-Service", "refund summary lookup", ex);
+            throw ex;
+        }
+    }
+
+    private DownstreamLookupResult<PaymentClient.PaymentRefundSummaryResponse> lookupPaymentRefundSummaryForRefundRead(
+            OrderReturn orderReturn
+    ) {
+        log.info("Starting Payment enrich for refund return {}", orderReturn.getId());
+        try {
+            PaymentClient.PaymentRefundSummaryResponse paymentSummary = lookupPaymentRefundSummary(orderReturn);
+            log.info("Payment enrich succeeded for refund return {}", orderReturn.getId());
+            return new DownstreamLookupResult<>(paymentSummary, true);
+        } catch (RetryableException ex) {
+            logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.status());
+            return new DownstreamLookupResult<>(null, false);
+        } catch (FeignException ex) {
+            if (isAvailabilityStatus(ex.status())) {
+                logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.status());
+                return new DownstreamLookupResult<>(null, false);
+            }
+            logDownstreamFailureWithoutDegradation("Payment-Service", "refund summary lookup", ex);
+            throw ex;
+        }
     }
 
     private PaymentClient.PaymentRefundSummaryResponse lookupPaymentRefundSummary(OrderReturn orderReturn) {
@@ -1078,6 +1209,19 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             InventoryClient.CustomerReturnQcSummaryResponse qcSummary,
             PaymentClient.PaymentRefundSummaryResponse paymentSummary
     ) {
+        return resolveRefundStatus(orderReturn, qcSummary, paymentSummary, true, true);
+    }
+
+    private OrderRefundStatus resolveRefundStatus(
+            OrderReturn orderReturn,
+            InventoryClient.CustomerReturnQcSummaryResponse qcSummary,
+            PaymentClient.PaymentRefundSummaryResponse paymentSummary,
+            boolean inventoryAvailable,
+            boolean paymentAvailable
+    ) {
+        if (!inventoryAvailable || !paymentAvailable) {
+            return OrderRefundStatus.NOT_READY;
+        }
         if (Boolean.FALSE.equals(orderReturn.getRefundRequired())) {
             return OrderRefundStatus.NOT_REQUIRED;
         }
@@ -1094,6 +1238,55 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         }
         return OrderRefundStatus.NOT_READY;
     }
+
+    private boolean isAvailabilityStatus(int status) {
+        return status == 502 || status == 503 || status == 504;
+    }
+
+    private void logDownstreamUnavailable(
+            String serviceName,
+            String operation,
+            RuntimeException ex,
+            Integer status
+    ) {
+        log.warn(
+                "{} {} unavailable: status={}, exception={}, message={}",
+                serviceName,
+                operation,
+                status == null ? "n/a" : status,
+                ex.getClass().getSimpleName(),
+                shortMessage(ex)
+        );
+    }
+
+    private void logDownstreamFailureWithoutDegradation(
+            String serviceName,
+            String operation,
+            FeignException ex
+    ) {
+        String failureType = ex.status() == 401 || ex.status() == 403
+                ? "auth/security failure"
+                : "failed without degradation";
+        log.warn(
+                "{} {} {}: status={}, exception={}, message={}",
+                serviceName,
+                operation,
+                failureType,
+                ex.status(),
+                ex.getClass().getSimpleName(),
+                shortMessage(ex)
+        );
+    }
+
+    private String shortMessage(Throwable ex) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) {
+            return "";
+        }
+        return message.length() <= 240 ? message : message.substring(0, 240);
+    }
+
+    private record DownstreamLookupResult<T>(T value, boolean available) {}
 
     private OrderReturnStatus resolveOrderReturnStatus(Order order, List<OrderReturn> orderReturns) {
         Map<UUID, BigDecimal> completedReturnedQuantities = orderReturns.stream()

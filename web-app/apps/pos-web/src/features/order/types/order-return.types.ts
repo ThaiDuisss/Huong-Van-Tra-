@@ -16,9 +16,14 @@ export type ReturnCondition =
     | "SPOILED"
     | "USED";
 
-export type CustomerReturnQcResult = "RESTOCK" | "QUARANTINE" | "WRITE_OFF";
+export type CustomerReturnQcResult = "RESTOCK" | "DAMAGED" | "QUARANTINE" | "WRITE_OFF";
 
-export type CustomerReturnQcStatus = "PENDING" | "PARTIAL" | "COMPLETED";
+export type CustomerReturnQcStatus =
+    | "PENDING"
+    | "PARTIAL"
+    | "COMPLETED"
+    | "UNAVAILABLE"
+    | "UNKNOWN";
 
 export type CustomerReturnInspectionStatus = "CREATED" | "POSTED" | "CANCELLED";
 

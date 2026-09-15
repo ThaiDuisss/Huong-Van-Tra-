@@ -3,8 +3,10 @@ package org.hvtra.orderservice.service.impl;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.utils.SecurityUtils;
@@ -13,6 +15,8 @@ import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderDiscount;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
 import org.hvtra.orderservice.domain.enums.*;
 import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
@@ -74,6 +78,8 @@ public class OrderServiceImpl implements OrderService {
     private static final String SORT_INVOICE_PAYMENT = "invoicePayment";
     private static final String SORT_CREATED_AT_DESC = "createdAt,desc";
     private static final long DRAFT_TTL_MINUTES = 15;
+    private static final List<ReturnStatus> ACTIVE_RETURN_STATUSES =
+            List.of(ReturnStatus.CREATED, ReturnStatus.RECEIVED, ReturnStatus.COMPLETED);
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
@@ -1314,7 +1320,7 @@ public class OrderServiceImpl implements OrderService {
                     predicates.add(criteriaBuilder.equal(root.get("paymentStatus"), paymentStatus));
                 }
             }
-            applyReturnEligibilityFilter(predicates, root, criteriaBuilder, returnEligibility);
+            applyReturnEligibilityFilter(predicates, root, query, criteriaBuilder, returnEligibility);
             if (orderType != null && !orderType.isBlank()) {
                 predicates.add(criteriaBuilder.equal(root.get("orderType"), normalizeOrderType(orderType)));
             }
@@ -1466,7 +1472,7 @@ public class OrderServiceImpl implements OrderService {
 
         if (OrderReturnEligibility.ALL == returnEligibility) {
             query.orderBy(
-                    criteriaBuilder.asc(returnEligibilityPriority(root, criteriaBuilder)),
+                    criteriaBuilder.asc(returnEligibilityPriority(root, query, criteriaBuilder)),
                     criteriaBuilder.asc(priority),
                     criteriaBuilder.desc(root.get("createdAt"))
             );
@@ -1482,6 +1488,7 @@ public class OrderServiceImpl implements OrderService {
     private void applyReturnEligibilityFilter(
             List<Predicate> predicates,
             Root<Order> root,
+            CriteriaQuery<?> query,
             CriteriaBuilder criteriaBuilder,
             OrderReturnEligibility returnEligibility
     ) {
@@ -1489,7 +1496,7 @@ public class OrderServiceImpl implements OrderService {
             return;
         }
 
-        Predicate eligible = returnEligiblePredicate(root, criteriaBuilder);
+        Predicate eligible = returnEligiblePredicate(root, query, criteriaBuilder);
         if (OrderReturnEligibility.ELIGIBLE == returnEligibility) {
             predicates.add(eligible);
             return;
@@ -1498,16 +1505,67 @@ public class OrderServiceImpl implements OrderService {
         predicates.add(criteriaBuilder.not(eligible));
     }
 
-    private Predicate returnEligiblePredicate(Root<Order> root, CriteriaBuilder criteriaBuilder) {
+    private Predicate returnEligiblePredicate(
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder
+    ) {
         return criteriaBuilder.and(
                 criteriaBuilder.equal(root.get("status"), OrderStatus.COMPLETED),
-                root.get("paymentStatus").in(PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED)
+                root.get("paymentStatus").in(PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED),
+                hasReturnableItemPredicate(root, query, criteriaBuilder)
         );
     }
 
-    private Expression<Integer> returnEligibilityPriority(Root<Order> root, CriteriaBuilder criteriaBuilder) {
+    private Predicate hasReturnableItemPredicate(
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder
+    ) {
+        Subquery<UUID> itemSubquery = query.subquery(UUID.class);
+        Root<OrderItem> itemRoot = itemSubquery.from(OrderItem.class);
+
+        Subquery<BigDecimal> returnedQuantitySubquery =
+                itemSubquery.subquery(BigDecimal.class);
+        Root<OrderReturnItem> returnItemRoot =
+                returnedQuantitySubquery.from(OrderReturnItem.class);
+        Join<OrderReturnItem, OrderReturn> returnRoot =
+                returnItemRoot.join("orderReturn");
+
+        returnedQuantitySubquery.select(criteriaBuilder.coalesce(
+                criteriaBuilder.sum(returnItemRoot.<BigDecimal>get("quantity")),
+                BigDecimal.ZERO
+        ));
+        returnedQuantitySubquery.where(
+                criteriaBuilder.equal(
+                        returnItemRoot.get("orderItem").get("id"),
+                        itemRoot.get("id")
+                ),
+                criteriaBuilder.isFalse(returnItemRoot.get("isDeleted")),
+                criteriaBuilder.isFalse(returnRoot.get("isDeleted")),
+                returnRoot.get("status").in(ACTIVE_RETURN_STATUSES)
+        );
+
+        itemSubquery.select(itemRoot.get("id"));
+        itemSubquery.where(
+                criteriaBuilder.equal(itemRoot.get("order").get("id"), root.get("id")),
+                criteriaBuilder.isFalse(itemRoot.get("isDeleted")),
+                criteriaBuilder.greaterThan(
+                        itemRoot.<BigDecimal>get("quantity"),
+                        returnedQuantitySubquery
+                )
+        );
+
+        return criteriaBuilder.exists(itemSubquery);
+    }
+
+    private Expression<Integer> returnEligibilityPriority(
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder
+    ) {
         return criteriaBuilder.<Integer>selectCase()
-                .when(returnEligiblePredicate(root, criteriaBuilder), 0)
+                .when(returnEligiblePredicate(root, query, criteriaBuilder), 0)
                 .otherwise(1);
     }
 

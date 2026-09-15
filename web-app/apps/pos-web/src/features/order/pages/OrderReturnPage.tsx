@@ -1,8 +1,9 @@
 import {
+    AlertTriangle,
+    ArrowRight,
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
-    Eye,
     Loader2,
     Plus,
     RefreshCw,
@@ -10,7 +11,7 @@ import {
     X,
     XCircle
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -195,6 +196,41 @@ function getLocationOptionLabel(location: InventoryLocationResponse) {
     }
 
     return name || code || "Vị trí kho";
+}
+
+function DispositionBadge({ result }: { result: CustomerReturnQcResult }) {
+    const config: Record<
+        CustomerReturnQcResult,
+        { label: string; className: string }
+    > = {
+        RESTOCK: {
+            label: "Nhập lại kho",
+            className: styles.dispositionRestock
+        },
+        DAMAGED: {
+            label: "Hàng hỏng",
+            className: styles.dispositionDamaged
+        },
+        QUARANTINE: {
+            label: "Cách ly",
+            className: styles.dispositionQuarantine
+        },
+        WRITE_OFF: {
+            label: "Tiêu hủy",
+            className: styles.dispositionWriteOff
+        }
+    };
+
+    const current = config[result] ?? {
+        label: result,
+        className: styles.dispositionDefault
+    };
+
+    return (
+        <span className={`${styles.dispositionBadge} ${current.className}`}>
+            {current.label}
+        </span>
+    );
 }
 
 function getPageNumbers(totalPages: number, currentPage: number) {
@@ -493,12 +529,11 @@ export function OrderReturnPage() {
                     <div className={styles.tableWrap}>
                         <table className={styles.returnTable}>
                             <colgroup>
-                                <col style={{ width: "20%" }} />
-                                <col style={{ width: "20%" }} />
-                                <col style={{ width: "18%" }} />
+                                <col style={{ width: "24%" }} />
+                                <col style={{ width: "24%" }} />
                                 <col style={{ width: "16%" }} />
-                                <col style={{ width: "18%" }} />
-                                <col style={{ width: "8%" }} />
+                                <col style={{ width: "17%" }} />
+                                <col style={{ width: "19%" }} />
                             </colgroup>
                             <thead>
                                 <tr>
@@ -507,7 +542,6 @@ export function OrderReturnPage() {
                                     <th>Sản phẩm</th>
                                     <th>Trạng thái</th>
                                     <th>Ngày tạo</th>
-                                    <th>Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -559,30 +593,6 @@ export function OrderReturnPage() {
                                                   {formatDateTime(
                                                       row.createdAt
                                                   )}
-                                              </td>
-                                              <td
-                                                  className={
-                                                      styles.actionCell
-                                                  }
-                                              >
-                                                  <button
-                                                      aria-label={`Xem ${getReturnCode(
-                                                          row
-                                                      )}`}
-                                                      className={
-                                                          styles.iconButton
-                                                      }
-                                                      onClick={(event) => {
-                                                          event.stopPropagation();
-                                                          openReturnDetail(row);
-                                                      }}
-                                                      type="button"
-                                                  >
-                                                      <Eye
-                                                          size={18}
-                                                          aria-hidden="true"
-                                                      />
-                                                  </button>
                                               </td>
                                           </tr>
                                       ))
@@ -752,6 +762,8 @@ function ReturnDetailModal({
     const [qcSummaryError, setQcSummaryError] = useState<string | null>(null);
     const [qcReloadKey, setQcReloadKey] = useState(0);
     const [isQcOpen, setIsQcOpen] = useState(false);
+    const [isConfirmingDisposition, setIsConfirmingDisposition] =
+        useState(false);
     const [qcDraftLines, setQcDraftLines] = useState<Record<string, QcDraftLine>>(
         {}
     );
@@ -761,6 +773,9 @@ function ReturnDetailModal({
         InventoryLocationResponse[]
     >([]);
     const [quarantineLocations, setQuarantineLocations] = useState<
+        InventoryLocationResponse[]
+    >([]);
+    const [damagedLocations, setDamagedLocations] = useState<
         InventoryLocationResponse[]
     >([]);
     const [isLocationLoading, setIsLocationLoading] = useState(false);
@@ -785,11 +800,37 @@ function ReturnDetailModal({
             ),
         [summaryLines]
     );
-    const restockLocations = activeLocations.filter(isSaleableReturnLocation);
-    const normalizedQuarantineLocations = quarantineLocations.filter(
-        (location) =>
-            location.status === "ACTIVE" && location.type === "QUARANTINE"
+    const allLocationsMap = useMemo(() => {
+        const map = new Map<string, InventoryLocationResponse>();
+        activeLocations.forEach((loc) => map.set(String(loc.id), loc));
+        quarantineLocations.forEach((loc) => map.set(String(loc.id), loc));
+        damagedLocations.forEach((loc) => map.set(String(loc.id), loc));
+        return map;
+    }, [activeLocations, quarantineLocations, damagedLocations]);
+    const restockLocations = useMemo(
+        () => activeLocations.filter(isSaleableReturnLocation),
+        [activeLocations]
     );
+    const normalizedQuarantineLocations = useMemo(() => {
+        const map = new Map<string, InventoryLocationResponse>();
+        activeLocations
+            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
+            .forEach((l) => map.set(String(l.id), l));
+        quarantineLocations
+            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
+            .forEach((l) => map.set(String(l.id), l));
+        return Array.from(map.values());
+    }, [activeLocations, quarantineLocations]);
+    const normalizedDamagedLocations = useMemo(() => {
+        const map = new Map<string, InventoryLocationResponse>();
+        activeLocations
+            .filter((l) => l.status === "ACTIVE" && l.type === "DAMAGED")
+            .forEach((l) => map.set(String(l.id), l));
+        damagedLocations
+            .filter((l) => l.status === "ACTIVE" && l.type === "DAMAGED")
+            .forEach((l) => map.set(String(l.id), l));
+        return Array.from(map.values());
+    }, [activeLocations, damagedLocations]);
     const isQcCompleted = qcSummary?.qcStatus === "COMPLETED";
 
     useEffect(() => {
@@ -797,6 +838,7 @@ function ReturnDetailModal({
             setQcSummary(null);
             setQcSummaryError(null);
             setIsQcOpen(false);
+            setIsConfirmingDisposition(false);
             setActiveDispositionCommand(null);
             setSubmissionCommandId(null);
             setIsSubmittingDisposition(false);
@@ -805,6 +847,7 @@ function ReturnDetailModal({
             setQcFormError(null);
             setActiveLocations([]);
             setQuarantineLocations([]);
+            setDamagedLocations([]);
             setLocationError(null);
         }, 0);
 
@@ -875,18 +918,27 @@ function ReturnDetailModal({
                     size: 100,
                     status: "ACTIVE",
                     type: "QUARANTINE"
+                }),
+                inventoryLocationApi.list({
+                    branchId,
+                    page: 0,
+                    size: 100,
+                    status: "ACTIVE",
+                    type: "DAMAGED"
                 })
             ])
-                .then(([activePage, quarantinePage]) => {
+                .then(([activePage, quarantinePage, damagedPage]) => {
                     if (!ignore) {
                         setActiveLocations(activePage.content ?? []);
                         setQuarantineLocations(quarantinePage.content ?? []);
+                        setDamagedLocations(damagedPage.content ?? []);
                     }
                 })
                 .catch((error: unknown) => {
                     if (!ignore) {
                         setActiveLocations([]);
                         setQuarantineLocations([]);
+                        setDamagedLocations([]);
                         setLocationError(getReturnErrorMessage(error));
                     }
                 })
@@ -934,6 +986,7 @@ function ReturnDetailModal({
         }
 
         setIsQcOpen(true);
+        setIsConfirmingDisposition(false);
         setActiveDispositionCommand(null);
         setSubmissionCommandId(null);
         setQcFormError(null);
@@ -944,6 +997,7 @@ function ReturnDetailModal({
         update: Partial<QcDraftLine>
     ) => {
         setSubmissionCommandId(null);
+        setIsConfirmingDisposition(false);
         if (activeDispositionCommand && activeDispositionCommand.status !== "PENDING") {
             setActiveDispositionCommand(null);
         }
@@ -969,26 +1023,55 @@ function ReturnDetailModal({
         });
     };
 
-    const getLocationOptions = (result: CustomerReturnQcResult) => {
-        if (result === "QUARANTINE") {
-            return normalizedQuarantineLocations;
-        }
+    const getLocationOptions = useCallback(
+        (result: CustomerReturnQcResult) => {
+            if (result === "QUARANTINE") {
+                return normalizedQuarantineLocations;
+            }
 
-        if (result === "RESTOCK") {
-            return restockLocations;
-        }
+            if (result === "RESTOCK") {
+                return restockLocations;
+            }
 
-        return [];
-    };
+            if (result === "DAMAGED") {
+                return normalizedDamagedLocations;
+            }
+
+            return [];
+        },
+        [
+            normalizedDamagedLocations,
+            normalizedQuarantineLocations,
+            restockLocations
+        ]
+    );
+
+    const selectedLines = useMemo(
+        () =>
+            remainingLines.filter(
+                (line) => qcDraftLines[line.returnItemId]?.selected
+            ),
+        [qcDraftLines, remainingLines]
+    );
+
+    const hasEmptyLocationConflict = useMemo(
+        () =>
+            selectedLines.some((line) => {
+                const draft =
+                    qcDraftLines[line.returnItemId] ??
+                    createDefaultQcDraftLine(line);
+                if (draft.result === "WRITE_OFF") {
+                    return false;
+                }
+                return getLocationOptions(draft.result).length === 0;
+            }),
+        [getLocationOptions, qcDraftLines, selectedLines]
+    );
 
     const validateQcDraft = () => {
         if (!branchId) {
             return "Phiếu hoàn chưa có thông tin chi nhánh để chọn vị trí kho.";
         }
-
-        const selectedLines = remainingLines.filter(
-            (line) => qcDraftLines[line.returnItemId]?.selected
-        );
 
         if (selectedLines.length === 0) {
             return "Vui lòng chọn ít nhất một sản phẩm cần kiểm tra.";
@@ -1002,33 +1085,53 @@ function ReturnDetailModal({
             const allowedResults = getAllowedCustomerReturnQcResults(
                 line.condition
             );
+            const productName = getReturnLineName(returnItem, line);
 
             if (quantity <= 0) {
-                return "Số lượng kiểm tra phải lớn hơn 0.";
+                return `Số lượng kiểm tra của "${productName}" phải lớn hơn 0.`;
             }
 
             if (quantity > remainingQuantity) {
-                return "Số lượng kiểm tra vượt quá số lượng còn lại.";
+                return `Số lượng kiểm tra của "${productName}" vượt quá số lượng còn lại.`;
             }
 
             if (!allowedResults.includes(draft.result)) {
-                return "Tình trạng hàng này không được nhập lại tồn bán được.";
+                return `Sản phẩm "${productName}" với tình trạng này không được nhập lại kho.`;
             }
 
             if (draft.result === "RESTOCK") {
+                if (restockLocations.length === 0) {
+                    return `Chi nhánh chưa cấu hình vị trí kho bán được.`;
+                }
+
                 const isValidLocation = restockLocations.some(
                     (location) =>
                         String(location.id) === draft.destinationLocationId
                 );
 
                 if (!draft.destinationLocationId || !isValidLocation) {
-                    return "Vị trí nhập lại không phải vị trí có thể bán.";
+                    return `Vui lòng chọn vị trí kho bán được để nhập lại.`;
+                }
+            }
+
+            if (draft.result === "DAMAGED") {
+                if (normalizedDamagedLocations.length === 0) {
+                    return `Chi nhánh chưa cấu hình khu vực hàng hỏng.`;
+                }
+
+                const isValidLocation = normalizedDamagedLocations.some(
+                    (location) =>
+                        String(location.id) === draft.destinationLocationId
+                );
+
+                if (!draft.destinationLocationId || !isValidLocation) {
+                    return `Vui lòng chọn vị trí kho hàng hỏng.`;
                 }
             }
 
             if (draft.result === "QUARANTINE") {
                 if (normalizedQuarantineLocations.length === 0) {
-                    return "Chi nhánh chưa có vị trí cách ly hàng.";
+                    return `Chi nhánh chưa cấu hình khu vực cách ly.`;
                 }
 
                 const isValidLocation = normalizedQuarantineLocations.some(
@@ -1037,8 +1140,17 @@ function ReturnDetailModal({
                 );
 
                 if (!draft.destinationLocationId || !isValidLocation) {
-                    return "Vui lòng chọn vị trí cách ly.";
+                    return `Vui lòng chọn vị trí cách ly.`;
                 }
+            }
+
+            if (
+                line.condition === "SEALED" &&
+                draft.result === "DAMAGED" &&
+                draft.note.trim().length < 5 &&
+                qcNote.trim().length < 5
+            ) {
+                return "Vui lòng nhập lý do khi đánh dấu hàng nguyên niêm phong là hàng hỏng.";
             }
 
             if (
@@ -1052,6 +1164,16 @@ function ReturnDetailModal({
         }
 
         return null;
+    };
+
+    const handleProceedToConfirmation = () => {
+        const validationError = validateQcDraft();
+        if (validationError) {
+            setQcFormError(validationError);
+            return;
+        }
+        setQcFormError(null);
+        setIsConfirmingDisposition(true);
     };
 
     useEffect(() => {
@@ -1080,6 +1202,7 @@ function ReturnDetailModal({
                         setQcNote("");
                         setQcFormError(null);
                         setSubmissionCommandId(null);
+                        setIsConfirmingDisposition(false);
                     } else if (updatedCommand.status === "FAILED") {
                         const failureMsg = updatedCommand.failureReason
                             ? getReturnErrorMessage(
@@ -1154,6 +1277,7 @@ function ReturnDetailModal({
                     setQcDraftLines({});
                     setQcNote("");
                     setSubmissionCommandId(null);
+                    setIsConfirmingDisposition(false);
                 } else if (response.status === "FAILED") {
                     const failureMsg = response.failureReason
                         ? getReturnErrorMessage(new Error(response.failureReason))
@@ -1175,6 +1299,7 @@ function ReturnDetailModal({
         setActiveDispositionCommand(null);
         setSubmissionCommandId(null);
         setQcFormError(null);
+        setIsConfirmingDisposition(false);
     };
 
     const handleContinueQcAfterProcessed = () => {
@@ -1183,6 +1308,7 @@ function ReturnDetailModal({
         setQcFormError(null);
         setQcDraftLines({});
         setQcNote("");
+        setIsConfirmingDisposition(false);
     };
 
     const getDestinationName = (locationId?: string | null) => {
@@ -1190,9 +1316,7 @@ function ReturnDetailModal({
             return "--";
         }
 
-        const location = [...activeLocations, ...quarantineLocations].find(
-            (item) => String(item.id) === locationId
-        );
+        const location = allLocationsMap.get(String(locationId));
 
         return location ? getLocationOptionLabel(location) : "--";
     };
@@ -1477,547 +1601,758 @@ function ReturnDetailModal({
                                                 </button>
                                             </div>
 
-                                            {locationError ? (
-                                                <p className={styles.qcError}>
-                                                    {locationError}
-                                                </p>
-                                            ) : null}
-                                            {isLocationLoading ? (
-                                                <PanelMessage
-                                                    description="Đang tải vị trí nhập lại và cách ly của chi nhánh."
-                                                    title="Đang tải vị trí kho"
-                                                />
-                                            ) : null}
-
                                             {!activeDispositionCommand ? (
                                                 <>
-                                                    <div
-                                                        className={
-                                                            styles.qcFormList
-                                                        }
-                                                    >
-                                                        {remainingLines.map(
-                                                            (line) => {
+                                                    <div className={styles.qcStepBar}>
+                                                        <span
+                                                            className={
+                                                                !isConfirmingDisposition
+                                                                    ? styles.qcStepActive
+                                                                    : styles.qcStepInactive
+                                                            }
+                                                        >
+                                                            1. Thiết lập xử lý
+                                                        </span>
+                                                        <ChevronRight size={14} aria-hidden="true" />
+                                                        <span
+                                                            className={
+                                                                isConfirmingDisposition
+                                                                    ? styles.qcStepActive
+                                                                    : styles.qcStepInactive
+                                                            }
+                                                        >
+                                                            2. Xác nhận chi tiết
+                                                        </span>
+                                                    </div>
+
+                                                    {!isConfirmingDisposition ? (
+                                                        <>
+                                                            <div
+                                                                className={
+                                                                    styles.qcFormList
+                                                                }
+                                                            >
+                                                                {remainingLines.map(
+                                                                    (line) => {
+                                                                        const draft =
+                                                                            qcDraftLines[
+                                                                                line
+                                                                                    .returnItemId
+                                                                            ] ??
+                                                                            createDefaultQcDraftLine(
+                                                                                line
+                                                                            );
+                                                                        const allowedResults =
+                                                                            getAllowedCustomerReturnQcResults(
+                                                                                line.condition
+                                                                            );
+                                                                        const locationOptions =
+                                                                            getLocationOptions(
+                                                                                draft.result
+                                                                            );
+                                                                        const isLocationRequired =
+                                                                            draft.result !==
+                                                                            "WRITE_OFF";
+                                                                        const isLocationEmpty =
+                                                                            isLocationRequired &&
+                                                                            locationOptions.length ===
+                                                                                0;
+
+                                                                        return (
+                                                                            <div
+                                                                                className={
+                                                                                    styles.qcFormItem
+                                                                                }
+                                                                                key={
+                                                                                    line.returnItemId
+                                                                                }
+                                                                            >
+                                                                                <label
+                                                                                    className={
+                                                                                        styles.qcItemSelector
+                                                                                    }
+                                                                                >
+                                                                                    <input
+                                                                                        checked={
+                                                                                            draft.selected
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            event
+                                                                                        ) =>
+                                                                                            updateQcDraftLine(
+                                                                                                line.returnItemId,
+                                                                                                {
+                                                                                                    selected:
+                                                                                                        event
+                                                                                                            .target
+                                                                                                            .checked
+                                                                                                }
+                                                                                            )
+                                                                                        }
+                                                                                        type="checkbox"
+                                                                                    />
+                                                                                    <span>
+                                                                                        <strong>
+                                                                                            {getReturnLineName(
+                                                                                                returnItem,
+                                                                                                line
+                                                                                            )}
+                                                                                        </strong>
+                                                                                        <small>
+                                                                                            {getReturnLineMeta(
+                                                                                                returnItem,
+                                                                                                line
+                                                                                            )}
+                                                                                        </small>
+                                                                                    </span>
+                                                                                </label>
+                                                                                <div
+                                                                                    className={
+                                                                                        styles.qcMetaGrid
+                                                                                    }
+                                                                                >
+                                                                                    <InfoRow
+                                                                                        label="Tình trạng"
+                                                                                        value={getReturnConditionLabel(
+                                                                                            line.condition
+                                                                                        )}
+                                                                                    />
+                                                                                    <InfoRow
+                                                                                        label="Lý do"
+                                                                                        value={getReturnLineReasonLabel(
+                                                                                            line.reason
+                                                                                        )}
+                                                                                    />
+                                                                                    <InfoRow
+                                                                                        label="Đã trả"
+                                                                                        value={formatReturnQuantity(
+                                                                                            line.returnedQuantity
+                                                                                        )}
+                                                                                    />
+                                                                                    <InfoRow
+                                                                                        label="Đã kiểm tra"
+                                                                                        value={formatReturnQuantity(
+                                                                                            line.postedQcQuantity
+                                                                                        )}
+                                                                                    />
+                                                                                    <InfoRow
+                                                                                        label="Còn lại"
+                                                                                        value={formatReturnQuantity(
+                                                                                            line.remainingQcQuantity
+                                                                                        )}
+                                                                                    />
+                                                                                </div>
+                                                                                <div
+                                                                                    className={
+                                                                                        draft.result ===
+                                                                                        "WRITE_OFF"
+                                                                                            ? styles.qcInputGridTwoCol
+                                                                                            : styles.qcInputGrid
+                                                                                    }
+                                                                                >
+                                                                                    <label>
+                                                                                        <span>
+                                                                                            Số lượng QC
+                                                                                            lần
+                                                                                            này
+                                                                                        </span>
+                                                                                        <input
+                                                                                            className={
+                                                                                                styles.quantityInput
+                                                                                            }
+                                                                                            disabled={
+                                                                                                !draft.selected
+                                                                                            }
+                                                                                            max={toReturnNumber(
+                                                                                                line.remainingQcQuantity
+                                                                                            )}
+                                                                                            min="0"
+                                                                                            onChange={(
+                                                                                                event
+                                                                                            ) =>
+                                                                                                updateQcDraftLine(
+                                                                                                    line.returnItemId,
+                                                                                                    {
+                                                                                                        quantity:
+                                                                                                            event
+                                                                                                                .target
+                                                                                                                .value
+                                                                                                    }
+                                                                                                )
+                                                                                            }
+                                                                                            type="number"
+                                                                                            value={
+                                                                                                draft.quantity
+                                                                                            }
+                                                                                        />
+                                                                                    </label>
+                                                                                    <label>
+                                                                                        <span>
+                                                                                            Kết quả QC
+                                                                                        </span>
+                                                                                        <select
+                                                                                            disabled={
+                                                                                                !draft.selected
+                                                                                            }
+                                                                                            onChange={(
+                                                                                                event
+                                                                                            ) =>
+                                                                                                updateQcDraftLine(
+                                                                                                    line.returnItemId,
+                                                                                                    {
+                                                                                                        result: event
+                                                                                                            .target
+                                                                                                            .value as CustomerReturnQcResult
+                                                                                                    }
+                                                                                                )
+                                                                                            }
+                                                                                            value={
+                                                                                                draft.result
+                                                                                            }
+                                                                                        >
+                                                                                            {CUSTOMER_RETURN_QC_RESULTS.map(
+                                                                                                (
+                                                                                                    result
+                                                                                                ) => (
+                                                                                                    <option
+                                                                                                        disabled={
+                                                                                                            !allowedResults.includes(
+                                                                                                                result
+                                                                                                            )
+                                                                                                        }
+                                                                                                        key={
+                                                                                                            result
+                                                                                                        }
+                                                                                                        value={
+                                                                                                            result
+                                                                                                        }
+                                                                                                    >
+                                                                                                        {getCustomerReturnQcResultLabel(
+                                                                                                            result
+                                                                                                        )}
+                                                                                                    </option>
+                                                                                                )
+                                                                                            )}
+                                                                                        </select>
+                                                                                    </label>
+                                                                                    {isLocationRequired ? (
+                                                                                        <label>
+                                                                                            <span>
+                                                                                                Vị trí đích
+                                                                                            </span>
+                                                                                            <select
+                                                                                                disabled={
+                                                                                                    !draft.selected ||
+                                                                                                    isLocationLoading ||
+                                                                                                    isLocationEmpty
+                                                                                                }
+                                                                                                onChange={(
+                                                                                                    event
+                                                                                            ) =>
+                                                                                                updateQcDraftLine(
+                                                                                                    line.returnItemId,
+                                                                                                    {
+                                                                                                        destinationLocationId:
+                                                                                                            event
+                                                                                                                .target
+                                                                                                                .value
+                                                                                                    }
+                                                                                                )
+                                                                                            }
+                                                                                            value={
+                                                                                                draft.destinationLocationId
+                                                                                            }
+                                                                                        >
+                                                                                            <option value="">
+                                                                                                {isLocationEmpty
+                                                                                                    ? draft.result === "DAMAGED"
+                                                                                                        ? "-- Chưa có kho hàng hỏng --"
+                                                                                                        : draft.result === "QUARANTINE"
+                                                                                                        ? "-- Chưa có kho cách ly --"
+                                                                                                        : "-- Chưa có kho bán được --"
+                                                                                                    : "Chọn vị trí"}
+                                                                                            </option>
+                                                                                            {locationOptions.map(
+                                                                                                (
+                                                                                                    location
+                                                                                                ) => (
+                                                                                                    <option
+                                                                                                        key={String(
+                                                                                                            location.id
+                                                                                                        )}
+                                                                                                        value={String(
+                                                                                                            location.id
+                                                                                                        )}
+                                                                                                    >
+                                                                                                        {getLocationOptionLabel(
+                                                                                                            location
+                                                                                                        )}
+                                                                                                    </option>
+                                                                                                )
+                                                                                            )}
+                                                                                        </select>
+                                                                                    </label>
+                                                                                ) : null}
+                                                                                <label
+                                                                                    className={
+                                                                                        styles.fullField
+                                                                                    }
+                                                                                >
+                                                                                    <span>
+                                                                                        Ghi chú dòng
+                                                                                    </span>
+                                                                                    <textarea
+                                                                                        disabled={
+                                                                                            !draft.selected
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            event
+                                                                                        ) =>
+                                                                                            updateQcDraftLine(
+                                                                                                line.returnItemId,
+                                                                                                {
+                                                                                                    note: event
+                                                                                                        .target
+                                                                                                        .value
+                                                                                                }
+                                                                                            )
+                                                                                        }
+                                                                                        placeholder="Ghi chú tình trạng kiểm tra"
+                                                                                        value={
+                                                                                            draft.note
+                                                                                        }
+                                                                                    />
+                                                                                </label>
+                                                                            </div>
+                                                                            <p
+                                                                                className={
+                                                                                    styles.qcEffect
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    CUSTOMER_RETURN_QC_RESULT_EFFECTS[
+                                                                                        draft
+                                                                                            .result
+                                                                                    ]
+                                                                                }
+                                                                            </p>
+
+                                                                            {draft.selected ? (
+                                                                                <div className={styles.qcItemDispositionSummary}>
+                                                                                    <span>Xử lý:</span>
+                                                                                    <DispositionBadge result={draft.result} />
+                                                                                    <span>Điểm đến:</span>
+                                                                                    <strong>
+                                                                                        {draft.result === "WRITE_OFF"
+                                                                                            ? "Không áp dụng"
+                                                                                            : getDestinationName(draft.destinationLocationId)}
+                                                                                    </strong>
+                                                                                </div>
+                                                                            ) : null}
+
+                                                                            {draft.selected && draft.result === "DAMAGED" && normalizedDamagedLocations.length === 0 ? (
+                                                                                <div className={styles.emptyLocationWarning}>
+                                                                                    <AlertTriangle size={15} aria-hidden="true" />
+                                                                                    Chi nhánh chưa cấu hình khu vực hàng hỏng.
+                                                                                </div>
+                                                                            ) : null}
+                                                                            {draft.selected && draft.result === "QUARANTINE" && normalizedQuarantineLocations.length === 0 ? (
+                                                                                <div className={styles.emptyLocationWarning}>
+                                                                                    <AlertTriangle size={15} aria-hidden="true" />
+                                                                                    Chi nhánh chưa cấu hình khu vực cách ly.
+                                                                                </div>
+                                                                            ) : null}
+                                                                            {draft.selected && draft.result === "RESTOCK" && restockLocations.length === 0 ? (
+                                                                                <div className={styles.emptyLocationWarning}>
+                                                                                    <AlertTriangle size={15} aria-hidden="true" />
+                                                                                    Chi nhánh chưa cấu hình vị trí kho bán được.
+                                                                                </div>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                            )}
+                                                        </div>
+
+                                                        {remainingLines.length ===
+                                                        0 ? (
+                                                            <PanelMessage
+                                                                description="Không còn sản phẩm cần xử lý kho trong phiếu hoàn này."
+                                                                title="Đã xử lý kho xong"
+                                                            />
+                                                        ) : null}
+
+                                                        <label
+                                                            className={
+                                                                styles.fullField
+                                                            }
+                                                        >
+                                                            <span>
+                                                                Ghi chú lệnh xử lý kho
+                                                            </span>
+                                                            <textarea
+                                                                onChange={(
+                                                                    event
+                                                                ) => {
+                                                                    setSubmissionCommandId(
+                                                                        null
+                                                                    );
+                                                                    setQcNote(
+                                                                        event
+                                                                            .target
+                                                                            .value
+                                                                    );
+                                                                }}
+                                                                placeholder="Ghi chú chung nếu có"
+                                                                value={qcNote}
+                                                            />
+                                                        </label>
+
+                                                        {qcFormError ? (
+                                                            <p className={styles.qcError}>
+                                                                {qcFormError}
+                                                            </p>
+                                                        ) : null}
+
+                                                        <div className={styles.qcActions}>
+                                                            <button
+                                                                className={
+                                                                    styles.secondaryButton
+                                                                }
+                                                                onClick={() => {
+                                                                    setIsQcOpen(false);
+                                                                    setActiveDispositionCommand(null);
+                                                                    setSubmissionCommandId(null);
+                                                                    setQcFormError(null);
+                                                                }}
+                                                                type="button"
+                                                            >
+                                                                Đóng
+                                                            </button>
+                                                            <button
+                                                                className={
+                                                                    styles.primaryButton
+                                                                }
+                                                                disabled={
+                                                                    isLocationLoading ||
+                                                                    remainingLines.length === 0 ||
+                                                                    selectedLines.length === 0 ||
+                                                                    hasEmptyLocationConflict
+                                                                }
+                                                                onClick={
+                                                                    handleProceedToConfirmation
+                                                                }
+                                                                type="button"
+                                                            >
+                                                                Tiếp tục xác nhận ({selectedLines.length})
+                                                                <ArrowRight size={18} aria-hidden="true" />
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className={styles.qcConfirmationPanel}>
+                                                        <div className={styles.qcConfirmationHeader}>
+                                                            <div>
+                                                                <h4>Xác nhận xử lý kho hàng trả</h4>
+                                                                <p>
+                                                                    Vui lòng kiểm tra kỹ danh sách sản phẩm, phương án xử lý và vị trí kho trước khi cập nhật tồn kho.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className={styles.qcConfirmationList}>
+                                                            {selectedLines.map((line) => {
                                                                 const draft =
-                                                                    qcDraftLines[
-                                                                        line
-                                                                            .returnItemId
-                                                                    ] ??
-                                                                    createDefaultQcDraftLine(
-                                                                        line
-                                                                    );
-                                                                const allowedResults =
-                                                                    getAllowedCustomerReturnQcResults(
-                                                                        line.condition
-                                                                    );
-                                                                const locationOptions =
-                                                                    getLocationOptions(
-                                                                        draft.result
-                                                                    );
+                                                                    qcDraftLines[line.returnItemId] ??
+                                                                    createDefaultQcDraftLine(line);
+                                                                const quantity = getQcQuantity(draft);
 
                                                                 return (
                                                                     <div
-                                                                        className={
-                                                                            styles.qcFormItem
-                                                                        }
-                                                                        key={
-                                                                            line.returnItemId
-                                                                        }
+                                                                        className={styles.qcConfirmationCard}
+                                                                        key={line.returnItemId}
                                                                     >
-                                                                        <label
-                                                                            className={
-                                                                                styles.qcItemSelector
-                                                                            }
-                                                                        >
-                                                                            <input
-                                                                                checked={
-                                                                                    draft.selected
-                                                                                }
-                                                                                onChange={(
-                                                                                    event
-                                                                                ) =>
-                                                                                    updateQcDraftLine(
-                                                                                        line.returnItemId,
-                                                                                        {
-                                                                                            selected:
-                                                                                                event
-                                                                                                    .target
-                                                                                                    .checked
-                                                                                        }
-                                                                                    )
-                                                                                }
-                                                                                type="checkbox"
-                                                                            />
+                                                                        <div className={styles.qcConfirmationTitleRow}>
+                                                                            <strong>
+                                                                                {getReturnLineName(returnItem, line)}
+                                                                            </strong>
                                                                             <span>
-                                                                                <strong>
-                                                                                    {getReturnLineName(
-                                                                                        returnItem,
-                                                                                        line
-                                                                                    )}
-                                                                                </strong>
-                                                                                <small>
-                                                                                    {getReturnLineMeta(
-                                                                                        returnItem,
-                                                                                        line
-                                                                                    )}
-                                                                                </small>
+                                                                                {getReturnLineMeta(returnItem, line)}
                                                                             </span>
-                                                                        </label>
-                                                                        <div
-                                                                            className={
-                                                                                styles.qcMetaGrid
-                                                                            }
-                                                                        >
-                                                                            <InfoRow
-                                                                                label="Tình trạng"
-                                                                                value={getReturnConditionLabel(
-                                                                                    line.condition
-                                                                                )}
-                                                                            />
-                                                                            <InfoRow
-                                                                                label="Lý do"
-                                                                                value={getReturnLineReasonLabel(
-                                                                                    line.reason
-                                                                                )}
-                                                                            />
-                                                                            <InfoRow
-                                                                                label="Đã trả"
-                                                                                value={formatReturnQuantity(
-                                                                                    line.returnedQuantity
-                                                                                )}
-                                                                            />
-                                                                            <InfoRow
-                                                                                label="Đã kiểm tra"
-                                                                                value={formatReturnQuantity(
-                                                                                    line.postedQcQuantity
-                                                                                )}
-                                                                            />
-                                                                            <InfoRow
-                                                                                label="Còn lại"
-                                                                                value={formatReturnQuantity(
-                                                                                    line.remainingQcQuantity
-                                                                                )}
-                                                                            />
                                                                         </div>
-                                                                        <div
-                                                                            className={
-                                                                                styles.qcInputGrid
-                                                                            }
-                                                                        >
-                                                                            <label>
-                                                                                <span>
-                                                                                    Số lượng QC
-                                                                                    lần
-                                                                                    này
+                                                                        <div className={styles.qcConfirmationGrid}>
+                                                                            <div>
+                                                                                <span className={styles.confirmLabel}>
+                                                                                    Số lượng hoàn:
                                                                                 </span>
-                                                                                <input
+                                                                                <strong>
+                                                                                    SL {formatReturnQuantity(quantity)}
+                                                                                </strong>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className={styles.confirmLabel}>
+                                                                                    Tình trạng:
+                                                                                </span>
+                                                                                <span>
+                                                                                    {getReturnConditionLabel(
+                                                                                        line.condition
+                                                                                    )}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className={styles.confirmLabel}>
+                                                                                    Xử lý:
+                                                                                </span>
+                                                                                <div>
+                                                                                    <DispositionBadge
+                                                                                        result={draft.result}
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className={styles.confirmLabel}>
+                                                                                    Điểm đến:
+                                                                                </span>
+                                                                                <strong
                                                                                     className={
-                                                                                        styles.quantityInput
-                                                                                    }
-                                                                                    disabled={
-                                                                                        !draft.selected
-                                                                                    }
-                                                                                    max={toReturnNumber(
-                                                                                        line.remainingQcQuantity
-                                                                                    )}
-                                                                                    min="0"
-                                                                                    onChange={(
-                                                                                        event
-                                                                                    ) =>
-                                                                                        updateQcDraftLine(
-                                                                                            line.returnItemId,
-                                                                                            {
-                                                                                                quantity:
-                                                                                                    event
-                                                                                                        .target
-                                                                                                        .value
-                                                                                            }
-                                                                                        )
-                                                                                    }
-                                                                                    type="number"
-                                                                                    value={
-                                                                                        draft.quantity
-                                                                                    }
-                                                                                />
-                                                                            </label>
-                                                                            <label>
-                                                                                <span>
-                                                                                    Kết quả QC
-                                                                                </span>
-                                                                                <select
-                                                                                    disabled={
-                                                                                        !draft.selected
-                                                                                    }
-                                                                                    onChange={(
-                                                                                        event
-                                                                                    ) =>
-                                                                                        updateQcDraftLine(
-                                                                                            line.returnItemId,
-                                                                                            {
-                                                                                                result: event
-                                                                                                    .target
-                                                                                                    .value as CustomerReturnQcResult
-                                                                                            }
-                                                                                        )
-                                                                                    }
-                                                                                    value={
-                                                                                        draft.result
+                                                                                        styles.confirmLocationText
                                                                                     }
                                                                                 >
-                                                                                    {CUSTOMER_RETURN_QC_RESULTS.map(
-                                                                                        (
-                                                                                            result
-                                                                                        ) => (
-                                                                                            <option
-                                                                                                disabled={
-                                                                                                    !allowedResults.includes(
-                                                                                                        result
-                                                                                                    )
-                                                                                                }
-                                                                                                key={
-                                                                                                    result
-                                                                                                }
-                                                                                                value={
-                                                                                                    result
-                                                                                                }
-                                                                                            >
-                                                                                                {getCustomerReturnQcResultLabel(
-                                                                                                    result
-                                                                                                )}
-                                                                                            </option>
-                                                                                        )
-                                                                                    )}
-                                                                                </select>
-                                                                            </label>
-                                                                            <label>
-                                                                                <span>
-                                                                                    Vị trí đích
-                                                                                </span>
-                                                                                <select
-                                                                                    disabled={
-                                                                                        !draft.selected ||
-                                                                                        draft.result ===
-                                                                                            "WRITE_OFF" ||
-                                                                                        isLocationLoading
-                                                                                    }
-                                                                                    onChange={(
-                                                                                        event
-                                                                                    ) =>
-                                                                                        updateQcDraftLine(
-                                                                                            line.returnItemId,
-                                                                                            {
-                                                                                                destinationLocationId:
-                                                                                                    event
-                                                                                                        .target
-                                                                                                        .value
-                                                                                            }
-                                                                                        )
-                                                                                    }
-                                                                                    value={
-                                                                                        draft.destinationLocationId
-                                                                                    }
-                                                                                >
-                                                                                    <option value="">
-                                                                                        Chọn vị trí
-                                                                                    </option>
-                                                                                    {locationOptions.map(
-                                                                                        (
-                                                                                            location
-                                                                                        ) => (
-                                                                                            <option
-                                                                                                key={String(
-                                                                                                    location.id
-                                                                                                )}
-                                                                                                value={String(
-                                                                                                    location.id
-                                                                                                )}
-                                                                                            >
-                                                                                                {getLocationOptionLabel(
-                                                                                                    location
-                                                                                                )}
-                                                                                            </option>
-                                                                                        )
-                                                                                    )}
-                                                                                </select>
-                                                                            </label>
-                                                                            <label
-                                                                                className={
-                                                                                    styles.fullField
-                                                                                }
-                                                                            >
-                                                                                <span>
-                                                                                    Ghi chú dòng
-                                                                                </span>
-                                                                                <textarea
-                                                                                    disabled={
-                                                                                        !draft.selected
-                                                                                    }
-                                                                                    onChange={(
-                                                                                        event
-                                                                                    ) =>
-                                                                                        updateQcDraftLine(
-                                                                                            line.returnItemId,
-                                                                                            {
-                                                                                                note: event
-                                                                                                    .target
-                                                                                                    .value
-                                                                                            }
-                                                                                        )
-                                                                                    }
-                                                                                    placeholder="Ghi chú tình trạng kiểm tra"
-                                                                                    value={
-                                                                                        draft.note
-                                                                                    }
-                                                                                />
-                                                                            </label>
+                                                                                    {draft.result === "WRITE_OFF"
+                                                                                        ? "Không áp dụng"
+                                                                                        : getDestinationName(
+                                                                                              draft.destinationLocationId
+                                                                                          )}
+                                                                                </strong>
+                                                                            </div>
                                                                         </div>
-                                                                        <p
-                                                                            className={
-                                                                                styles.qcEffect
-                                                                            }
-                                                                        >
-                                                                            {
-                                                                                CUSTOMER_RETURN_QC_RESULT_EFFECTS[
-                                                                                    draft
-                                                                                        .result
-                                                                                ]
-                                                                            }
-                                                                        </p>
+                                                                        {draft.note.trim() ? (
+                                                                            <div className={styles.confirmNoteRow}>
+                                                                                <span className={styles.confirmLabel}>
+                                                                                    Ghi chú:
+                                                                                </span>
+                                                                                <span>{draft.note.trim()}</span>
+                                                                            </div>
+                                                                        ) : null}
                                                                     </div>
                                                                 );
-                                                            }
-                                                        )}
+                                                            })}
+                                                        </div>
+
+                                                        {qcNote.trim() ? (
+                                                            <div className={styles.confirmGeneralNote}>
+                                                                <strong>Ghi chú lệnh xử lý:</strong>
+                                                                <span>{qcNote.trim()}</span>
+                                                            </div>
+                                                        ) : null}
+
+                                                        {qcFormError ? (
+                                                            <p className={styles.qcError}>{qcFormError}</p>
+                                                        ) : null}
+
+                                                        <div className={styles.qcActions}>
+                                                            <button
+                                                                className={styles.secondaryButton}
+                                                                disabled={isSubmittingDisposition}
+                                                                onClick={() => setIsConfirmingDisposition(false)}
+                                                                type="button"
+                                                            >
+                                                                <ChevronLeft size={18} aria-hidden="true" />
+                                                                Quay lại chỉnh sửa
+                                                            </button>
+                                                            <button
+                                                                className={styles.primaryButton}
+                                                                disabled={isSubmittingDisposition}
+                                                                onClick={submitDisposition}
+                                                                type="button"
+                                                            >
+                                                                {isSubmittingDisposition ? (
+                                                                    <>
+                                                                        <Loader2
+                                                                            className="animate-spin"
+                                                                            size={18}
+                                                                            aria-hidden="true"
+                                                                        />
+                                                                        Đang cập nhật kho...
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <CheckCircle2 size={18} aria-hidden="true" />
+                                                                        Xác nhận cập nhật kho
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
                                                     </div>
-
-                                                    {remainingLines.length ===
-                                                    0 ? (
-                                                        <PanelMessage
-                                                            description="Không còn sản phẩm cần xử lý kho trong phiếu hoàn này."
-                                                            title="Đã xử lý kho xong"
-                                                        />
-                                                    ) : null}
-
-                                                    <label
-                                                        className={
-                                                            styles.fullField
-                                                        }
-                                                    >
-                                                        <span>
-                                                            Ghi chú lệnh xử lý kho
-                                                        </span>
-                                                        <textarea
-                                                            onChange={(
-                                                                event
-                                                            ) => {
-                                                                setSubmissionCommandId(
-                                                                    null
-                                                                );
-                                                                setQcNote(
-                                                                    event
-                                                                        .target
-                                                                        .value
-                                                                );
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div
+                                                className={
+                                                    styles.qcReviewPanel
+                                                }
+                                            >
+                                                {activeDispositionCommand.status ===
+                                                "PENDING" ? (
+                                                    <div>
+                                                        <strong
+                                                            style={{
+                                                                display:
+                                                                    "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                gap: 8
                                                             }}
-                                                            placeholder="Ghi chú chung nếu có"
-                                                            value={qcNote}
-                                                        />
-                                                    </label>
-                                                </>
-                                            ) : (
+                                                        >
+                                                            <Loader2
+                                                                className="animate-spin"
+                                                                size={16}
+                                                                aria-hidden="true"
+                                                            />
+                                                            Đang xử lý cập
+                                                            nhật kho...
+                                                        </strong>
+                                                        <span>
+                                                            Lệnh đang được
+                                                            xử lý bất đồng
+                                                            bộ qua hệ thống
+                                                            tồn kho. Vui
+                                                            lòng đợi trong
+                                                            giây lát...
+                                                        </span>
+                                                    </div>
+                                                ) : null}
+                                                {activeDispositionCommand.status ===
+                                                "PROCESSED" ? (
+                                                    <div>
+                                                        <strong
+                                                            style={{
+                                                                display:
+                                                                    "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                gap: 8,
+                                                                color: "#07883a"
+                                                            }}
+                                                        >
+                                                            <CheckCircle2
+                                                                size={16}
+                                                                aria-hidden="true"
+                                                            />
+                                                            Đã cập nhật kho
+                                                            thành công
+                                                        </strong>
+                                                        <span>
+                                                            Tồn kho đã được
+                                                            cập nhật thành
+                                                            công theo kết
+                                                            quả kiểm tra.
+                                                            {activeDispositionCommand.inspectionId
+                                                                ? ` (Phiếu kiểm tra: ${activeDispositionCommand.inspectionId})`
+                                                                : ""}
+                                                        </span>
+                                                    </div>
+                                                ) : null}
+                                                {activeDispositionCommand.status ===
+                                                "FAILED" ? (
+                                                    <div>
+                                                        <strong
+                                                            style={{
+                                                                display:
+                                                                    "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                gap: 8,
+                                                                color: "#b91c1c"
+                                                            }}
+                                                        >
+                                                            <XCircle
+                                                                size={16}
+                                                                aria-hidden="true"
+                                                            />
+                                                            Không thể cập
+                                                            nhật kho
+                                                        </strong>
+                                                        <span>
+                                                            {activeDispositionCommand.failureReason
+                                                                ? getReturnErrorMessage(
+                                                                      new Error(
+                                                                          activeDispositionCommand.failureReason
+                                                                      )
+                                                                  )
+                                                                : "Lệnh xử lý kho bị từ chối từ hệ thống tồn kho."}
+                                                        </span>
+                                                    </div>
+                                                ) : null}
+
                                                 <div
                                                     className={
-                                                        styles.qcReviewPanel
+                                                        styles.qcReviewList
                                                     }
                                                 >
-                                                    {activeDispositionCommand.status ===
-                                                    "PENDING" ? (
-                                                        <div>
-                                                            <strong
-                                                                style={{
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    gap: 8
-                                                                }}
-                                                            >
-                                                                <Loader2
-                                                                    className="animate-spin"
-                                                                    size={16}
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Đang xử lý cập
-                                                                nhật kho...
-                                                            </strong>
-                                                            <span>
-                                                                Lệnh đang được
-                                                                xử lý bất đồng
-                                                                bộ qua hệ thống
-                                                                tồn kho. Vui
-                                                                lòng đợi trong
-                                                                giây lát...
-                                                            </span>
-                                                        </div>
-                                                    ) : null}
-                                                    {activeDispositionCommand.status ===
-                                                    "PROCESSED" ? (
-                                                        <div>
-                                                            <strong
-                                                                style={{
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    gap: 8,
-                                                                    color: "#07883a"
-                                                                }}
-                                                            >
-                                                                <CheckCircle2
-                                                                    size={16}
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Đã cập nhật kho
-                                                                thành công
-                                                            </strong>
-                                                            <span>
-                                                                Tồn kho đã được
-                                                                cập nhật thành
-                                                                công theo kết
-                                                                quả kiểm tra.
-                                                                {activeDispositionCommand.inspectionId
-                                                                    ? ` (Phiếu kiểm tra: ${activeDispositionCommand.inspectionId})`
-                                                                    : ""}
-                                                            </span>
-                                                        </div>
-                                                    ) : null}
-                                                    {activeDispositionCommand.status ===
-                                                    "FAILED" ? (
-                                                        <div>
-                                                            <strong
-                                                                style={{
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    gap: 8,
-                                                                    color: "#b91c1c"
-                                                                }}
-                                                            >
-                                                                <XCircle
-                                                                    size={16}
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Không thể cập
-                                                                nhật kho
-                                                            </strong>
-                                                            <span>
-                                                                {activeDispositionCommand.failureReason
-                                                                    ? getReturnErrorMessage(
-                                                                          new Error(
-                                                                              activeDispositionCommand.failureReason
-                                                                          )
-                                                                      )
-                                                                    : "Lệnh xử lý kho bị từ chối từ hệ thống tồn kho."}
-                                                            </span>
-                                                        </div>
-                                                    ) : null}
-
-                                                    <div
-                                                        className={
-                                                            styles.qcReviewList
-                                                        }
-                                                    >
-                                                        {(
-                                                            activeDispositionCommand.lines ??
-                                                            []
-                                                        ).map((line) => {
-                                                            const summaryLine =
-                                                                summaryLines.find(
-                                                                    (item) =>
-                                                                        item.returnItemId ===
-                                                                        line.returnItemId
-                                                                );
-
-                                                            return (
-                                                                <div
-                                                                    className={
-                                                                        styles.qcReviewItem
-                                                                    }
-                                                                    key={
-                                                                        line.returnItemId ||
-                                                                        line.orderItemId ||
-                                                                        "disposition-line"
-                                                                    }
-                                                                >
-                                                                    <strong>
-                                                                        {summaryLine
-                                                                            ? getReturnLineName(
-                                                                                  returnItem,
-                                                                                  summaryLine
-                                                                              )
-                                                                            : "Sản phẩm"}
-                                                                    </strong>
-                                                                    <span>
-                                                                        SL{" "}
-                                                                        {formatReturnQuantity(
-                                                                            line.quantity
-                                                                        )}{" "}
-                                                                        ·{" "}
-                                                                        {getCustomerReturnQcResultLabel(
-                                                                            line.result
-                                                                        )}
-                                                                    </span>
-                                                                    <small>
-                                                                        Vị trí:{" "}
-                                                                        {getDestinationName(
-                                                                            line.destinationLocationId
-                                                                        )}
-                                                                    </small>
-                                                                    {line.note ? (
-                                                                        <p>
-                                                                            {
-                                                                                line.note
-                                                                            }
-                                                                        </p>
-                                                                    ) : null}
-                                                                </div>
+                                                    {(
+                                                        activeDispositionCommand.lines ??
+                                                        []
+                                                    ).map((line) => {
+                                                        const summaryLine =
+                                                            summaryLines.find(
+                                                                (item) =>
+                                                                    item.returnItemId ===
+                                                                    line.returnItemId
                                                             );
-                                                        })}
-                                                    </div>
+
+                                                        return (
+                                                            <div
+                                                                className={
+                                                                    styles.qcReviewItem
+                                                                }
+                                                                key={
+                                                                    line.returnItemId ||
+                                                                    line.orderItemId ||
+                                                                    "disposition-line"
+                                                                }
+                                                            >
+                                                                <strong>
+                                                                    {summaryLine
+                                                                        ? getReturnLineName(
+                                                                              returnItem,
+                                                                              summaryLine
+                                                                          )
+                                                                        : "Sản phẩm"}
+                                                                </strong>
+                                                                <span>
+                                                                    SL{" "}
+                                                                    {formatReturnQuantity(
+                                                                        line.quantity
+                                                                    )}{" "}
+                                                                    ·{" "}
+                                                                    <DispositionBadge
+                                                                        result={
+                                                                            line.result
+                                                                        }
+                                                                    />
+                                                                </span>
+                                                                <small>
+                                                                    Vị trí:{" "}
+                                                                    {line.result === "WRITE_OFF"
+                                                                        ? "Không áp dụng"
+                                                                        : getDestinationName(
+                                                                              line.destinationLocationId
+                                                                          )}
+                                                                </small>
+                                                                {line.note ? (
+                                                                    <p>
+                                                                        {
+                                                                            line.note
+                                                                        }
+                                                                    </p>
+                                                                ) : null}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                            )}
-
-                                            {qcFormError ? (
-                                                <p className={styles.qcError}>
-                                                    {qcFormError}
-                                                </p>
-                                            ) : null}
-
-                                            <div className={styles.qcActions}>
-                                                {!activeDispositionCommand ? (
-                                                    <button
-                                                        className={
-                                                            styles.primaryButton
-                                                        }
-                                                        disabled={
-                                                            isSubmittingDisposition ||
-                                                            isLocationLoading ||
-                                                            remainingLines.length ===
-                                                                0
-                                                        }
-                                                        onClick={
-                                                            submitDisposition
-                                                        }
-                                                        type="button"
-                                                    >
-                                                        {isSubmittingDisposition ? (
-                                                            <>
-                                                                <Loader2
-                                                                    className="animate-spin"
-                                                                    size={18}
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Đang gửi lệnh...
+                                            </div>
+                                        )}                                                 Đang gửi lệnh...
                                                             </>
                                                         ) : (
                                                             <>
@@ -2198,7 +2533,7 @@ function ReturnTableMessage({
 }) {
     return (
         <tr>
-            <td className={styles.emptyCell} colSpan={6}>
+            <td className={styles.emptyCell} colSpan={5}>
                 <strong>{title}</strong>
                 <span>{description}</span>
             </td>

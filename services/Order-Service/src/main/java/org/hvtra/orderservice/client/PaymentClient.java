@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "payment-service", url = "http://localhost:8087")
+@FeignClient(name = "payment-service", url = "${clients.payment-service.url:http://localhost:8087}")
 public interface PaymentClient {
 
     @GetMapping("/api/payments/orders/{orderId}")

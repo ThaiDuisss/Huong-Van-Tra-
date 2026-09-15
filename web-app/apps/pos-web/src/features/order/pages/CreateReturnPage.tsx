@@ -40,8 +40,7 @@ import {
     formatCurrency,
     formatDateTime,
     getCustomerName,
-    getOrderCode,
-    getOrderStatusText
+    getOrderCode
 } from "../utils/order-formatters";
 import styles from "./CreateReturnPage.module.css";
 
@@ -834,11 +833,10 @@ function OrderPicker({
                 <div className={styles.orderTableWrap}>
                     <table className={styles.orderTable}>
                         <colgroup>
+                            <col style={{ width: "24%" }} />
+                            <col style={{ width: "34%" }} />
+                            <col style={{ width: "20%" }} />
                             <col style={{ width: "22%" }} />
-                            <col style={{ width: "27%" }} />
-                            <col style={{ width: "18%" }} />
-                            <col style={{ width: "17%" }} />
-                            <col style={{ width: "16%" }} />
                         </colgroup>
                         <thead>
                             <tr>
@@ -846,13 +844,12 @@ function OrderPicker({
                                 <th>Khách hàng</th>
                                 <th>Thời gian</th>
                                 <th>Giá trị đơn hàng</th>
-                                <th>Trạng thái</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={5}>
+                                    <td className={styles.emptyCell} colSpan={4}>
                                         <strong>Đang tìm kiếm</strong>
                                         <span>Đang tải danh sách đơn hàng</span>
                                     </td>
@@ -860,7 +857,7 @@ function OrderPicker({
                             ) : null}
                             {!isLoading && searchError ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={5}>
+                                    <td className={styles.emptyCell} colSpan={4}>
                                         <strong>Không tải được đơn hàng</strong>
                                         <span>{searchError}</span>
                                     </td>
@@ -898,13 +895,12 @@ function OrderPicker({
                                           <td className={styles.orderAmountCell}>
                                               {formatCurrency(order.finalAmount)}
                                           </td>
-                                          <td>{getOrderStatusText(order)}</td>
                                       </tr>
                                   ))
                                 : null}
                             {!isLoading && !searchError && orderResults.length === 0 ? (
                                 <tr>
-                                    <td className={styles.emptyCell} colSpan={5}>
+                                    <td className={styles.emptyCell} colSpan={4}>
                                         <strong>
                                             {hasSearchTerm || hasTimeFilter
                                                 ? "Không tìm thấy đơn hàng"

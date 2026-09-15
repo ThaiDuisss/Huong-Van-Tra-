@@ -75,4 +75,4 @@ inventory:
 
 security:
   internal:
-      header-secret: ${INTERNAL_HEADER_SECRET}
+      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}

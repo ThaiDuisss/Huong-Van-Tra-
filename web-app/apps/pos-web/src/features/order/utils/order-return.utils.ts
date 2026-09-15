@@ -39,25 +39,29 @@ export const CUSTOMER_RETURN_QC_STATUS_LABELS: Record<
 > = {
     PENDING: "Chưa kiểm tra",
     PARTIAL: "Đang kiểm tra một phần",
-    COMPLETED: "Đã kiểm tra xong"
+    COMPLETED: "Đã kiểm tra xong",
+    UNAVAILABLE: "Không xác định",
+    UNKNOWN: "Không xác định"
 };
 
 export const CUSTOMER_RETURN_QC_RESULT_LABELS: Record<
     CustomerReturnQcResult,
     string
 > = {
-    RESTOCK: "Nhập lại tồn bán được",
-    QUARANTINE: "Cách ly chờ xử lý",
-    WRITE_OFF: "Loại bỏ / ghi giảm"
+    RESTOCK: "Nhập lại kho",
+    DAMAGED: "Hàng hỏng",
+    QUARANTINE: "Cách ly",
+    WRITE_OFF: "Tiêu hủy"
 };
 
 export const CUSTOMER_RETURN_QC_RESULT_EFFECTS: Record<
     CustomerReturnQcResult,
     string
 > = {
-    RESTOCK: "Sản phẩm sẽ được nhập lại tồn bán được.",
+    RESTOCK: "Sản phẩm sẽ được nhập lại kho bán được.",
+    DAMAGED: "Sản phẩm sẽ được đưa vào khu hàng hỏng và không thể bán.",
     QUARANTINE: "Sản phẩm sẽ được đưa vào khu cách ly và không thể bán.",
-    WRITE_OFF: "Sản phẩm sẽ bị loại bỏ và không được cộng lại tồn bán được."
+    WRITE_OFF: "Sản phẩm sẽ bị tiêu hủy và không tăng tồn kho."
 };
 
 export const CUSTOMER_RETURN_QC_RESULTS = Object.keys(
@@ -88,8 +92,8 @@ export function formatReturnQuantity(value?: number | string | null) {
     return Number.isInteger(numericValue)
         ? numericValue.toLocaleString("vi-VN")
         : numericValue.toLocaleString("vi-VN", {
-              maximumFractionDigits: 3
-          });
+            maximumFractionDigits: 3
+        });
 }
 
 export function getReturnCode(returnItem?: {
@@ -193,7 +197,7 @@ export function calculateAvailableReturnQuantity(
     return Math.max(
         0,
         toReturnNumber(item.quantity) -
-            calculateReturnedQuantity(item.id, returns)
+        calculateReturnedQuantity(item.id, returns)
     );
 }
 
@@ -292,6 +296,13 @@ export function getReturnErrorMessage(error: unknown) {
     }
 
     if (
+        message.includes("DAMAGED destination must be a DAMAGED location") ||
+        message.includes("Destination location must be DAMAGED")
+    ) {
+        return "Vui lòng chọn vị trí kho hàng hỏng.";
+    }
+
+    if (
         message.includes("Inventory item not found") ||
         message.includes("Active inventory item not found")
     ) {
@@ -311,6 +322,10 @@ export function getReturnErrorMessage(error: unknown) {
 
     if (message.includes("RESTOCK is not allowed for return condition")) {
         return "Tình trạng hàng này không được nhập lại tồn bán được.";
+    }
+
+    if (message.includes("DAMAGED for SEALED return item requires a reason note")) {
+        return "Vui lòng nhập lý do khi đánh dấu hàng nguyên niêm phong là hàng hỏng.";
     }
 
     if (message.includes("WRITE_OFF for SEALED return item requires a reason note")) {

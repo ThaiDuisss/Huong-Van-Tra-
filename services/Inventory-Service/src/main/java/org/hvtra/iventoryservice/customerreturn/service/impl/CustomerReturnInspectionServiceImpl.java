@@ -21,6 +21,7 @@ import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspection;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspectionLine;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
+import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
@@ -281,7 +282,21 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 InventoryTransactionType.CUSTOMER_RETURN_RECEIPT,
                 inspection.getBranchId(),
                 inspection.getReturnId());
-        transaction.addLine(createTransactionLine(line.getInventoryItem(), location, line.getQuantity(), beforeOnHand, afterOnHand));
+        InventoryTransactionLine transLine = createTransactionLine(
+                line.getInventoryItem(),
+                location,
+                line.getQuantity(),
+                beforeOnHand,
+                afterOnHand);
+
+        InventoryTransactionBatchAllocation transAlloc = new InventoryTransactionBatchAllocation();
+        transAlloc.setInventoryBatch(batch);
+        transAlloc.setQuantity(line.getQuantity());
+        transAlloc.setBeforeBatchQuantity(beforeOnHand);
+        transAlloc.setAfterBatchQuantity(afterOnHand);
+        transLine.addBatchAllocation(transAlloc);
+
+        transaction.addLine(transLine);
         line.setTransactionId(transactionRepository.saveAndFlush(transaction).getId());
     }
 
@@ -418,6 +433,9 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         if (result == CustomerReturnQcResult.QUARANTINE && location.getType() != InventoryLocationType.QUARANTINE) {
             throw new BadRequestException("QUARANTINE destination must be a QUARANTINE location");
         }
+        if (result == CustomerReturnQcResult.DAMAGED && location.getType() != InventoryLocationType.DAMAGED) {
+            throw new BadRequestException("DAMAGED destination must be a DAMAGED location");
+        }
         return location;
     }
 
@@ -429,6 +447,9 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         if (condition == OrderReturnCondition.SEALED) {
             if (result == CustomerReturnQcResult.WRITE_OFF && !hasReasonableNote(lineNote, inspectionNote)) {
                 throw new BadRequestException("WRITE_OFF for SEALED return item requires a reason note");
+            }
+            if (result == CustomerReturnQcResult.DAMAGED && !hasReasonableNote(lineNote, inspectionNote)) {
+                throw new BadRequestException("DAMAGED for SEALED return item requires a reason note");
             }
             return;
         }
