@@ -2,23 +2,42 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { getOrderReturnDetail } from "../services/order-return.api";
-import type { OrderReturnResponse } from "../types/order-return.types";
+import {
+    getCustomerReturnQcSummary,
+    getOrderRefundDetail,
+    getOrderReturnDetail
+} from "../services/order-return.api";
+import type {
+    CustomerReturnQcSummaryResponse,
+    OrderRefundDetailResponse,
+    OrderReturnResponse
+} from "../types/order-return.types";
 import {
     formatReturnQuantity,
+    getCustomerReturnQcStatusLabel,
     getReturnCode,
     getReturnConditionLabel,
     getReturnErrorMessage,
     getReturnReasonLabel,
     getReturnStatusLabel
 } from "../utils/order-return.utils";
-import { formatDateTime } from "../utils/order-formatters";
+import { formatCurrency, formatDateTime } from "../utils/order-formatters";
 import styles from "./OrderReturnDetailPage.module.css";
+
+const REFUND_STATUS_LABELS: Record<string, string> = {
+    FAILED: "Hoàn tiền thất bại",
+    NOT_READY: "Chờ xử lý",
+    PENDING: "Chờ hoàn tiền",
+    REFUNDED: "Đã hoàn tiền",
+    NOT_REQUIRED: "Không hoàn tiền"
+};
 
 export function OrderReturnDetailPage() {
     const { returnId } = useParams();
     const navigate = useNavigate();
     const [detail, setDetail] = useState<OrderReturnResponse | null>(null);
+    const [qcSummary, setQcSummary] = useState<CustomerReturnQcSummaryResponse | null>(null);
+    const [refundDetail, setRefundDetail] = useState<OrderRefundDetailResponse | null>(null);
     const [loading, setLoading] = useState(Boolean(returnId));
     const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +55,18 @@ export function OrderReturnDetailPage() {
                 .then((response) => {
                     if (!ignore) {
                         setDetail(response);
+                        // Fetch QC Summary in background
+                        getCustomerReturnQcSummary(returnId)
+                            .then((qc) => {
+                                if (!ignore) setQcSummary(qc);
+                            })
+                            .catch(() => {});
+                        // Fetch Refund Summary in background
+                        getOrderRefundDetail(returnId)
+                            .then((rf) => {
+                                if (!ignore) setRefundDetail(rf);
+                            })
+                            .catch(() => {});
                     }
                 })
                 .catch((loadError: unknown) => {
@@ -61,6 +92,10 @@ export function OrderReturnDetailPage() {
     const totalQuantity = (detail?.items ?? []).reduce(
         (total, item) => total + Number(item.quantity ?? 0),
         0
+    );
+
+    const qcLinesByItemId = new Map(
+        (qcSummary?.lines ?? []).map((line) => [line.returnItemId, line])
     );
 
     return (
@@ -102,25 +137,50 @@ export function OrderReturnDetailPage() {
                             value={getReturnCode(detail)}
                         />
                         <Info
-                            label="Trạng thái"
+                            label="Trạng thái hàng trả"
                             value={getReturnStatusLabel(detail.status)}
+                        />
+                        <Info
+                            label="Kiểm kho (QC)"
+                            value={
+                                qcSummary?.qcStatus
+                                    ? getCustomerReturnQcStatusLabel(qcSummary.qcStatus)
+                                    : "Chưa kiểm"
+                            }
+                        />
+                        <Info
+                            label="Hoàn tiền"
+                            value={
+                                refundDetail?.refundStatus
+                                    ? REFUND_STATUS_LABELS[refundDetail.refundStatus] ?? refundDetail.refundStatus
+                                    : detail.refundRequired === false
+                                    ? "Không hoàn tiền"
+                                    : "Chờ xử lý"
+                            }
                         />
                         <Info
                             label="Ngày tạo"
                             value={formatDateTime(detail.createdAt)}
                         />
                         <Info
-                            label="Chính sách hoàn tiền"
-                            value={
-                                detail.refundRequired === false
-                                    ? "Không hoàn tiền"
-                                    : "Có hoàn tiền"
-                            }
-                        />
-                        <Info
                             label="Tổng số lượng"
                             value={formatReturnQuantity(totalQuantity)}
                         />
+                        {refundDetail?.refundAmount != null && Number(refundDetail.refundAmount) > 0 ? (
+                            <Info
+                                label="Số tiền hoàn"
+                                value={formatCurrency(refundDetail.refundAmount)}
+                            />
+                        ) : (
+                            <Info
+                                label="Chính sách hoàn tiền"
+                                value={
+                                    detail.refundRequired === false
+                                        ? "Không hoàn tiền"
+                                        : "Có hoàn tiền"
+                                }
+                            />
+                        )}
                         {detail.note?.trim() ? (
                             <Info label="Ghi chú" value={detail.note} wide />
                         ) : null}
@@ -129,40 +189,45 @@ export function OrderReturnDetailPage() {
                     <section className={styles.card}>
                         <h2>Sản phẩm hoàn</h2>
                         <div className={styles.lines}>
-                            {(detail.items ?? []).map((item, index) => (
-                                <article
-                                    className={styles.line}
-                                    key={item.id ?? item.orderItemId ?? index}
-                                >
-                                    <div>
-                                        <strong>
-                                            {item.productNameSnapshot || "Sản phẩm"}
-                                        </strong>
-                                        <span>
-                                            SKU: {item.skuSnapshot || "--"} ·{" "}
-                                            {item.variantNameSnapshot ||
-                                                "Không có phân loại"}
-                                        </span>
-                                    </div>
-                                    <Info
-                                        label="Số lượng"
-                                        value={formatReturnQuantity(item.quantity)}
-                                    />
-                                    <Info
-                                        label="Lý do"
-                                        value={getReturnReasonLabel(item.reason)}
-                                    />
-                                    <Info
-                                        label="Tình trạng"
-                                        value={getReturnConditionLabel(
-                                            item.condition
-                                        )}
-                                    />
-                                    {item.note?.trim() ? (
-                                        <p>{item.note}</p>
-                                    ) : null}
-                                </article>
-                            ))}
+                            {(detail.items ?? []).map((item, index) => {
+                                const qcLine = item.id ? qcLinesByItemId.get(item.id) : null;
+                                return (
+                                    <article
+                                        className={styles.line}
+                                        key={item.id ?? item.orderItemId ?? index}
+                                    >
+                                        <div>
+                                            <strong>
+                                                {item.productNameSnapshot || "Sản phẩm"}
+                                            </strong>
+                                            <span>
+                                                SKU: {item.skuSnapshot || "--"} ·{" "}
+                                                {item.variantNameSnapshot ||
+                                                    "Không có phân loại"}
+                                            </span>
+                                        </div>
+                                        <Info
+                                            label="Số lượng yêu cầu"
+                                            value={formatReturnQuantity(item.quantity)}
+                                        />
+                                        <Info
+                                            label="Lý do & Tình trạng"
+                                            value={`${getReturnReasonLabel(item.reason)} (${getReturnConditionLabel(item.condition)})`}
+                                        />
+                                        <Info
+                                            label="Kiểm hàng (QC)"
+                                            value={
+                                                qcLine
+                                                    ? `${getCustomerReturnQcStatusLabel(qcLine.status)} (${formatReturnQuantity(qcLine.postedQcQuantity)}/${formatReturnQuantity(item.quantity)})`
+                                                    : "Chưa kiểm"
+                                            }
+                                        />
+                                        {item.note?.trim() ? (
+                                            <p>{item.note}</p>
+                                        ) : null}
+                                    </article>
+                                );
+                            })}
                         </div>
                     </section>
                 </>

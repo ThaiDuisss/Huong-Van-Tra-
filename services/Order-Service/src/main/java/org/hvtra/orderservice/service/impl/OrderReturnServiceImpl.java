@@ -47,6 +47,7 @@ import org.hvtra.orderservice.repository.OrderReturnInventoryCommandRepository;
 import org.hvtra.orderservice.repository.OrderReturnItemRepository;
 import org.hvtra.orderservice.repository.OrderReturnRepository;
 import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
+import org.hvtra.orderservice.service.OrderReturnRefundTransactionService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
@@ -65,7 +66,12 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -73,6 +79,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -103,6 +111,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     private final ReturnRefundCalculator returnRefundCalculator;
     private final OrderReturnHistoryWriter orderReturnHistoryWriter;
     private final OrderOutboxPublisher orderOutboxPublisher;
+    private final OrderReturnRefundTransactionService orderReturnRefundTransactionService;
 
     @Override
     @Transactional
@@ -375,15 +384,19 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     }
 
     @Override
-    @Transactional
     public OrderReturnRefundResponse refundReturn(UUID returnId) {
-        OrderReturn orderReturn = getExistingReturnForUpdate(returnId);
+        OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalse(returnId)
+                .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
+
         if (Boolean.FALSE.equals(orderReturn.getRefundRequired())) {
             throw new InvalidOrderReturnException("Refund is not required for this return");
         }
-        if (ReturnStatus.COMPLETED == orderReturn.getStatus()) {
+
+        PaymentClient.PaymentRefundSummaryResponse existingRefund = lookupPaymentRefundSummary(orderReturn);
+        if (existingRefund != null && "REFUNDED".equals(existingRefund.refundStatus())) {
             return existingCompletedRefundResponse(orderReturn);
         }
+
         if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
             throw new InvalidOrderReturnException("Return inventory inspection is not completed");
         }
@@ -396,40 +409,28 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             }
         }
 
-        Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(
-                        orderReturn.getOrder().getId()
-                )
+        Order order = orderRepository.findByIdAndIsDeletedFalse(orderReturn.getOrder().getId())
                 .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderReturn.getOrder().getId()));
+
         List<OrderReturn> orderReturns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(
-                lockedOrder.getId()
+                order.getId()
         );
+
         BigDecimal refundAmount = returnRefundCalculator
-                .calculate(lockedOrder, orderReturn, orderReturns)
+                .calculate(order, orderReturn, orderReturns)
                 .refundAmount();
         if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new InvalidOrderReturnException("Refund amount must be greater than 0");
         }
 
+        // Feign call over network - NO DB locks held!
         PaymentClient.PaymentRefundResponse paymentRefund = paymentClient.refundOrderReturn(
-                lockedOrder.getId(),
+                order.getId(),
                 new PaymentClient.PaymentRefundRequest(returnId, refundAmount)
         );
 
-        ReturnStatus oldReturnStatus = orderReturn.getStatus();
-        finalizeReturnAfterRefund(orderReturn, lockedOrder, orderReturns, paymentRefund);
-
-        orderReturnRepository.save(orderReturn);
-        orderRepository.save(lockedOrder);
         UUID actorUserId = currentActorUserIdOrNull();
-        writeRefundCompletedAudit(orderReturn, oldReturnStatus, actorUserId, paymentRefund);
-        orderOutboxPublisher.publishReturnRefundCompletedNotification(
-                orderReturn,
-                oldReturnStatus,
-                actorUserId,
-                paymentRefund
-        );
-
-        return toRefundResponse(orderReturn, lockedOrder, paymentRefund);
+        return orderReturnRefundTransactionService.applyRefundSuccess(returnId, paymentRefund, actorUserId);
     }
 
     @Override
@@ -706,45 +707,6 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .build();
     }
 
-    private void finalizeReturnAfterRefund(
-            OrderReturn orderReturn,
-            Order lockedOrder,
-            List<OrderReturn> orderReturns,
-            PaymentClient.PaymentRefundResponse paymentRefund
-    ) {
-        PaymentStatus paymentStatus = parsePaymentStatus(paymentRefund.paymentStatus());
-        if (paymentStatus != PaymentStatus.PARTIALLY_REFUNDED && paymentStatus != PaymentStatus.REFUNDED) {
-            throw new InvalidOrderReturnException("Payment refund is not completed");
-        }
-
-        if (ReturnStatus.RECEIVED == orderReturn.getStatus()) {
-            orderReturn.setStatus(ReturnStatus.COMPLETED);
-        }
-        lockedOrder.setPaymentStatus(paymentStatus);
-        lockedOrder.setReturnStatus(resolveOrderReturnStatus(lockedOrder, orderReturns));
-    }
-
-    private OrderReturnRefundResponse toRefundResponse(
-            OrderReturn orderReturn,
-            Order order,
-            PaymentClient.PaymentRefundResponse paymentRefund
-    ) {
-        return OrderReturnRefundResponse.builder()
-                .returnId(orderReturn.getId())
-                .orderId(order.getId())
-                .paymentId(paymentRefund.paymentId())
-                .refundTransactionId(paymentRefund.refundTransactionId())
-                .refundAmount(paymentRefund.refundAmount())
-                .totalAmountRefunded(paymentRefund.totalAmountRefunded())
-                .paymentStatus(paymentRefund.paymentStatus())
-                .returnStatus(orderReturn.getStatus())
-                .orderPaymentStatus(order.getPaymentStatus())
-                .orderReturnStatus(order.getReturnStatus())
-                .method(paymentRefund.method())
-                .refundedAt(paymentRefund.refundedAt())
-                .build();
-    }
-
     @Override
     @Transactional(readOnly = true)
     public Page<OrderReturnSummaryResponse> getReturns(
@@ -880,10 +842,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             return;
         }
 
-        ReturnStatus oldStatus = orderReturn.getStatus();
-        orderReturn.setStatus(ReturnStatus.COMPLETED);
-        OrderReturn saved = orderReturnRepository.save(orderReturn);
-
+        // Return status remains RECEIVED - only order return status is updated
         Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderReturn.getOrder().getId())
                 .orElse(null);
         if (lockedOrder != null) {
@@ -893,19 +852,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         }
 
         UUID actorUserId = currentActorUserIdOrNull();
-        orderReturnHistoryWriter.writeIfAbsent(
-                saved,
-                OrderReturnHistoryAction.COMPLETED,
-                oldStatus,
-                ReturnStatus.COMPLETED,
-                actorUserId,
-                "Return completed after inventory processing without refund",
-                null,
-                null
-        );
-
-        orderOutboxPublisher.publishReturnCompletedNotification(saved, oldStatus, actorUserId);
-        log.info("Auto-completed no-refund return: returnId={}, returnCode={}", saved.getId(), saved.getReturnCode());
+        orderOutboxPublisher.publishReturnCompletedNotification(orderReturn, ReturnStatus.RECEIVED, actorUserId);
+        log.info("Processed no-refund return completion: returnId={}, returnCode={}", orderReturn.getId(), orderReturn.getReturnCode());
     }
 
     private OrderReturn getExistingReturnForUpdate(UUID returnId) {
@@ -913,37 +861,6 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
     }
 
-    private void writeRefundCompletedAudit(
-            OrderReturn orderReturn,
-            ReturnStatus oldReturnStatus,
-            UUID actorUserId,
-            PaymentClient.PaymentRefundResponse paymentRefund
-    ) {
-        String refundTransactionId = paymentRefund.refundTransactionId() == null
-                ? null
-                : paymentRefund.refundTransactionId().toString();
-
-        orderReturnHistoryWriter.writeIfAbsent(
-                orderReturn,
-                OrderReturnHistoryAction.REFUND_COMPLETED,
-                oldReturnStatus,
-                ReturnStatus.COMPLETED,
-                actorUserId,
-                "Refund completed",
-                "PAYMENT_TRANSACTION",
-                refundTransactionId
-        );
-        orderReturnHistoryWriter.writeIfAbsent(
-                orderReturn,
-                OrderReturnHistoryAction.COMPLETED,
-                oldReturnStatus,
-                ReturnStatus.COMPLETED,
-                actorUserId,
-                "Return completed after refund",
-                "PAYMENT_TRANSACTION",
-                refundTransactionId
-        );
-    }
 
     private OrderReturnTimelineResponse toTimelineResponse(OrderReturnHistory history) {
         return OrderReturnTimelineResponse.builder()
@@ -1290,7 +1207,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
     private OrderReturnStatus resolveOrderReturnStatus(Order order, List<OrderReturn> orderReturns) {
         Map<UUID, BigDecimal> completedReturnedQuantities = orderReturns.stream()
-                .filter(returnRecord -> ReturnStatus.COMPLETED == returnRecord.getStatus())
+                .filter(returnRecord -> ReturnStatus.RECEIVED == returnRecord.getStatus()
+                        || ReturnStatus.COMPLETED == returnRecord.getStatus())
                 .flatMap(returnRecord -> (returnRecord.getItems() == null
                         ? List.<OrderReturnItem>of()
                         : returnRecord.getItems()).stream())

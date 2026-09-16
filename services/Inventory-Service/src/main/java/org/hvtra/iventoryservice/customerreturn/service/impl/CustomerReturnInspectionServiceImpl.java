@@ -273,7 +273,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         BigDecimal afterOnHand = beforeOnHand.add(line.getQuantity());
         balance.setQuantityOnHand(afterOnHand);
 
-        if (line.getResult() == CustomerReturnQcResult.QUARANTINE) {
+        if (line.getResult() == CustomerReturnQcResult.QUARANTINE || line.getResult() == CustomerReturnQcResult.DAMAGED) {
             balance.setQuantityBlocked(nullSafe(balance.getQuantityBlocked()).add(line.getQuantity()));
         }
         balanceRepository.save(balance);
