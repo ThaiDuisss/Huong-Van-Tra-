@@ -23,22 +23,22 @@ public interface CatalogClient {
     @GetMapping("/api/catalog/units/{id}")
     UnitResponse getUnit(@PathVariable("id") UUID id);
 
-    @PostMapping("/api/catalog/products/batch")
+    @PostMapping("/internal/catalog/products/batch")
     List<ProductResponse> getProductsBatch(@RequestBody List<UUID> ids);
 
-    @PostMapping("/api/catalog/product-variants/batch")
+    @PostMapping("/internal/catalog/product-variants/batch")
     List<VariantResponse> getVariantsBatch(@RequestBody List<UUID> ids);
 
     @PostMapping("/internal/catalog/product-variants/by-products")
     List<ProductVariantProductRefResponse> getVariantRefsByProductIds(@RequestBody List<UUID> productIds);
 
-    @PostMapping("/api/catalog/categories/batch")
+    @PostMapping("/internal/catalog/categories/batch")
     List<CategoryResponse> getCategoriesBatch(@RequestBody List<UUID> ids);
 
-    @PostMapping("/api/catalog/units/batch")
+    @PostMapping("/internal/catalog/units/batch")
     List<UnitResponse> getUnitsBatch(@RequestBody List<UUID> ids);
 
-    @GetMapping("/api/catalog/product-variants/search-ids")
+    @GetMapping("/internal/catalog/product-variants/search-ids")
     List<UUID> searchVariantIds(
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
@@ -49,10 +49,10 @@ public interface CatalogClient {
             @RequestParam(name = "unitId", required = false) UUID unitId
     );
 
-    @PostMapping("/api/catalog/ingredients/batch")
+    @PostMapping("/internal/catalog/ingredients/batch")
     List<IngredientResponse> getIngredientsBatch(@RequestBody List<UUID> ids);
 
-    @GetMapping("/api/catalog/ingredients/search-ids")
+    @GetMapping("/internal/catalog/ingredients/search-ids")
     List<UUID> searchIngredientIds(
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "code", required = false) String code,
@@ -63,8 +63,53 @@ public interface CatalogClient {
     @GetMapping("/api/catalog/suppliers/{id}")
     SupplierResponse getSupplier(@PathVariable("id") UUID id);
 
-    @PostMapping("/api/catalog/suppliers/batch")
+    @PostMapping("/internal/catalog/suppliers/batch")
     List<SupplierResponse> getSuppliersBatch(@RequestBody List<UUID> ids);
+
+    @GetMapping("/internal/catalog/boms/lookup")
+    List<BomLookupResponse> lookupBoms(
+            @RequestParam("productVariantId") UUID productVariantId,
+            @RequestParam(value = "status", required = false) String status
+    );
+
+    @GetMapping("/api/catalog/boms/{id}")
+    BomDetailResponse getBom(@PathVariable("id") UUID id);
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record BomLookupResponse(
+            UUID id,
+            String bomCode,
+            String name,
+            boolean isDefault,
+            Integer bomVersion,
+            String status
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record BomDetailResponse(
+            UUID id,
+            UUID productVariantId,
+            String bomCode,
+            String name,
+            Integer version,
+            String status,
+            boolean isDefault,
+            List<BomItemResponse> items
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record BomItemResponse(
+            IngredientRef ingredient,
+            BigDecimal quantity,
+            UnitRef unit,
+            BigDecimal wasteRate
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IngredientRef(UUID id, String name) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record UnitRef(UUID id, String name, String symbol) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record SupplierResponse(

@@ -13,6 +13,7 @@ import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.UnitMapper;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.UnitService;
+import org.hvtra.catalog.util.ExcelExportHelper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -67,7 +68,23 @@ public class UnitServiceImpl implements UnitService {
 
     @Override
     public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
-        Page<Unit> page = repository.findByNameContainingIgnoreCaseAndIsDeletedFalse(search, pageable);
+        Specification<Unit> spec = (root, query, cb) -> {
+            var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.equal(root.get("isDeleted"), false));
+            predicates.add(cb.equal(root.get("status"), Status.ACTIVE));
+
+            if (search != null && !search.trim().isEmpty()) {
+                String searchPattern = "%" + search.trim().toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("name")), searchPattern),
+                        cb.like(cb.lower(root.get("symbol")), searchPattern)
+                ));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<Unit> page = repository.findAll(spec, pageable);
+
         return new PageResponse<>(
                 page.getContent().stream()
                         .map(u -> new LookupResponse(u.getId().toString(), u.getName()))
@@ -201,40 +218,43 @@ public class UnitServiceImpl implements UnitService {
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
             Sheet sheet = workbook.createSheet("Danh sách Đơn vị tính");
+            ExcelExportHelper.ExportStyles styles = ExcelExportHelper.createExportStyles(workbook);
 
-            Font headerFont = workbook.createFont();
-            headerFont.setBold(true);
-            CellStyle headerStyle = workbook.createCellStyle();
-            headerStyle.setFont(headerFont);
+            String[] headers = {"STT", "Tên đơn vị", "Ký hiệu", "Phân loại", "Độ chính xác", "Trạng thái"};
+            ExcelExportHelper.createReportHeader(sheet, styles, "BÁO CÁO DANH SÁCH ĐƠN VỊ TÍNH", headers);
 
-            String[] headers = {"Tên đơn vị", "Ký hiệu", "Phân loại", "Độ chính xác", "Trạng thái"};
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                cell.setCellStyle(headerStyle);
-            }
-
-            int rowIdx = 1;
+            int rowIdx = 5;
+            int stt = 1;
             for (var u : units) {
                 Row row = sheet.createRow(rowIdx++);
-                row.createCell(0).setCellValue(u.getName() != null ? u.getName() : "");
-                row.createCell(1).setCellValue(u.getSymbol() != null ? u.getSymbol() : "");
-                row.createCell(2).setCellValue(formatUnitType(u.getType()));
-                row.createCell(3).setCellValue(u.getPrecisionScale() != null ? u.getPrecisionScale() : 0);
-                row.createCell(4).setCellValue(u.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
+                row.setHeightInPoints(22);
+                
+                Cell cellStt = row.createCell(1);
+                cellStt.setCellValue(stt++);
+                cellStt.setCellStyle(styles.centerStyle());
+                
+                Cell cellName = row.createCell(2);
+                cellName.setCellValue(u.getName() != null ? u.getName() : "");
+                cellName.setCellStyle(styles.textStyle());
+                
+                Cell cellSymbol = row.createCell(3);
+                cellSymbol.setCellValue(u.getSymbol() != null ? u.getSymbol() : "");
+                cellSymbol.setCellStyle(styles.centerStyle());
+                
+                Cell cellType = row.createCell(4);
+                cellType.setCellValue(formatUnitType(u.getType()));
+                cellType.setCellStyle(styles.centerStyle());
+                
+                Cell cellPrecision = row.createCell(5);
+                cellPrecision.setCellValue(u.getPrecisionScale() != null ? u.getPrecisionScale() : 0);
+                cellPrecision.setCellStyle(styles.centerStyle());
+                
+                Cell cellStatus = row.createCell(6);
+                cellStatus.setCellValue(u.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
+                cellStatus.setCellStyle(styles.centerStyle());
             }
 
-            sheet.createFreezePane(0, 1);
-            if (rowIdx > 1) {
-                sheet.setAutoFilter(new CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
-            }
-
-            for (int i = 0; i < headers.length; i++) {
-                try {
-                    sheet.autoSizeColumn(i);
-                } catch (Exception ignored) {}
-            }
+            ExcelExportHelper.finalizeSheet(sheet, headers.length, rowIdx);
 
             workbook.write(out);
             return out.toByteArray();
@@ -314,20 +334,75 @@ public class UnitServiceImpl implements UnitService {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             int rowCount = sheet.getPhysicalNumberOfRows();
+            if (rowCount <= 1) {
+                return;
+            }
+
+            int headerRowIndex = 0;
+            for (int r = 0; r < Math.min(10, rowCount); r++) {
+                Row rRow = sheet.getRow(r);
+                if (rRow == null) continue;
+                boolean hasMatch = false;
+                for (int c = 0; c < rRow.getLastCellNum(); c++) {
+                    String h = getCellValueAsString(rRow.getCell(c)).toLowerCase().trim();
+                    String normalized = java.text.Normalizer.normalize(h, java.text.Normalizer.Form.NFD)
+                            .replaceAll("\\p{M}", "");
+                    if (normalized.contains("ten don vi") || normalized.contains("ky hieu") || normalized.contains("phan loai") || normalized.contains("unit name")) {
+                        hasMatch = true;
+                        break;
+                    }
+                }
+                if (hasMatch) {
+                    headerRowIndex = r;
+                    break;
+                }
+            }
+
+            Row headerRow = sheet.getRow(headerRowIndex);
+            int colName = -1;
+            int colSymbol = -1;
+            int colType = -1;
+            int colPrecision = -1;
+            int colStatus = -1;
+
+            if (headerRow != null) {
+                for (int c = 0; c < headerRow.getLastCellNum(); c++) {
+                    String h = getCellValueAsString(headerRow.getCell(c)).toLowerCase().trim();
+                    String normalized = java.text.Normalizer.normalize(h, java.text.Normalizer.Form.NFD)
+                            .replaceAll("\\p{M}", "");
+                    if (normalized.contains("ten don vi") || (normalized.contains("don vi") && !normalized.contains("mau")) || normalized.contains("unit name")) {
+                        colName = c;
+                    } else if (normalized.contains("ky hieu") || normalized.contains("symbol")) {
+                        colSymbol = c;
+                    } else if (normalized.contains("phan loai") || normalized.contains("loai") || normalized.contains("type")) {
+                        colType = c;
+                    } else if (normalized.contains("do chinh xac") || normalized.contains("precision") || normalized.contains("scale")) {
+                        colPrecision = c;
+                    } else if (normalized.contains("trang thai") || normalized.contains("status")) {
+                        colStatus = c;
+                    }
+                }
+            }
+
+            if (colName == -1) colName = 0;
+            if (colSymbol == -1) colSymbol = 1;
+            if (colType == -1) colType = 2;
+            if (colPrecision == -1) colPrecision = 3;
+            if (colStatus == -1) colStatus = 4;
 
             Set<String> seenSymbolsInFile = new HashSet<>();
 
             List<Unit> unitsToSave = new ArrayList<>();
 
-            for (int r = 1; r < rowCount; r++) {
+            for (int r = headerRowIndex + 1; r < rowCount; r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
 
-                String name = getCellValueAsString(row.getCell(0));
-                String symbol = getCellValueAsString(row.getCell(1));
-                String typeStr = getCellValueAsString(row.getCell(2));
-                String precisionStr = getCellValueAsString(row.getCell(3));
-                String statusStr = getCellValueAsString(row.getCell(4));
+                String name = colName >= 0 ? getCellValueAsString(row.getCell(colName)) : "";
+                String symbol = colSymbol >= 0 ? getCellValueAsString(row.getCell(colSymbol)) : "";
+                String typeStr = colType >= 0 ? getCellValueAsString(row.getCell(colType)) : "";
+                String precisionStr = colPrecision >= 0 ? getCellValueAsString(row.getCell(colPrecision)) : "";
+                String statusStr = colStatus >= 0 ? getCellValueAsString(row.getCell(colStatus)) : "";
 
                 if (name.isBlank() && symbol.isBlank()) {
                     continue;

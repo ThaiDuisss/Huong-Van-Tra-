@@ -1,6 +1,8 @@
 import { Download, Plus, RefreshCw, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
+import { routePaths } from "../../../routes/path";
 import {
     productionOrderAttentionItems,
     productionOrderMetrics,
@@ -27,6 +29,7 @@ import type {
 } from "../types/production-order.types";
 
 export function ProductionOrderListPage() {
+    const navigate = useNavigate();
     const [query, setQuery] = useState("");
     const [draftFilters, setDraftFilters] =
         useState<ProductionOrderFiltersState>(
@@ -104,7 +107,10 @@ export function ProductionOrderListPage() {
                 }
                 actions={
                     <div className="flex flex-wrap gap-2">
-                        <ActionButton variant="primary">
+                        <ActionButton
+                            variant="primary"
+                            onClick={() => navigate(routePaths.productionOrderCreate)}
+                        >
                             <Plus size={17} aria-hidden="true" />
                             Tạo lệnh sản xuất
                         </ActionButton>

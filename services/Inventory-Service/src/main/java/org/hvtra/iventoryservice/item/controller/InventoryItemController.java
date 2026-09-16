@@ -12,7 +12,6 @@ import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.stock.service.InventoryBalanceService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -51,24 +50,10 @@ public class InventoryItemController {
         return balanceService.findByInventoryItem(id, pageable);
     }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public InventoryItemResponse create(@Valid @RequestBody InventoryItemRequest request) {
-        return service.create(request);
-    }
-
     @PutMapping("/{id}")
     public InventoryItemResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody InventoryItemRequest request) {
         return service.update(id, request);
-    }
-
-    @PutMapping("/by-reference/{itemType}/{referenceId}")
-    public InventoryItemResponse updateByReference(
-            @PathVariable("itemType") InventoryItemType itemType,
-            @PathVariable("referenceId") UUID referenceId,
-            @Valid @RequestBody InventoryItemRequest request) {
-        return service.updateByReference(referenceId, itemType, request);
     }
 
     @PatchMapping("/{id}/status")

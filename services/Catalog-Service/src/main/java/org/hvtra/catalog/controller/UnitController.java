@@ -57,11 +57,6 @@ public class UnitController {
         return service.lookup(search, pageable);
     }
 
-    @PostMapping("/batch")
-    public List<UnitResponse> findByIds(@RequestBody List<UUID> ids) {
-        return service.findAllByIds(ids);
-    }
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public UnitResponse create(@Valid @RequestBody UnitRequest request) {

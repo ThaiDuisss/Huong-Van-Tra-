@@ -1,10 +1,14 @@
 package org.hvtra.catalog.mapper;
 
+import org.hvtra.catalog.dto.response.BomLookupResponse;
 import org.hvtra.catalog.dto.response.BomResponse;
 import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.UnitResponse;
 import org.hvtra.catalog.entity.Bom;
+import org.hvtra.catalog.entity.BomItem;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 public class BomMapper {
@@ -17,6 +21,10 @@ public class BomMapper {
     }
 
     public BomResponse toResponse(Bom bom) {
+        return toResponse(bom, bom.getItems());
+    }
+
+    public BomResponse toResponse(Bom bom, List<BomItem> items) {
         String sku = bom.getProductVariant() != null ? bom.getProductVariant().getSku() : null;
         String variantName = bom.getProductVariant() != null ? bom.getProductVariant().getVariantName() : null;
         String productName = bom.getProductVariant() != null && bom.getProductVariant().getProduct() != null
@@ -38,7 +46,7 @@ public class BomMapper {
                 bom.getEffectiveTo(),
                 bom.getCreatedAt(),
                 bom.getUpdatedAt(),
-                bom.getItems() == null ? java.util.Collections.emptyList() : bom.getItems().stream().map(item -> {
+                items == null ? java.util.Collections.emptyList() : items.stream().map(item -> {
                     IngredientResponse ing = null;
                     try {
                         ing = item.getIngredient() != null ? ingredientMapper.toResponse(item.getIngredient()) : null;
@@ -57,6 +65,17 @@ public class BomMapper {
                             item.getWasteRate()
                     );
                 }).toList()
+        );
+    }
+
+    public BomLookupResponse toLookupResponse(Bom bom) {
+        return new BomLookupResponse(
+                bom.getId(),
+                bom.getBomCode(),
+                bom.getName(),
+                bom.isDefault(),
+                bom.getBomVersion(),
+                bom.getStatus()
         );
     }
 }

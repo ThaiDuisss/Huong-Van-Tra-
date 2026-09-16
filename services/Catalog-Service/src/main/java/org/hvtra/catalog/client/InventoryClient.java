@@ -13,12 +13,12 @@ import java.util.UUID;
 
 @FeignClient(name = "inventory-service", url = "${clients.inventory.url:}")
 public interface InventoryClient {
-    @PostMapping("/api/inventory/inventory-items")
+    @PostMapping("/internal/inventory/inventory-items")
     void createProductVariantItem(
             @RequestBody CreateInventoryItemRequest request
     );
 
-    @PutMapping("/api/inventory/inventory-items/by-reference/{itemType}/{referenceId}")
+    @PutMapping("/internal/inventory/inventory-items/by-reference/{itemType}/{referenceId}")
     void updateInventoryItemByReference(
             @PathVariable("itemType") String itemType,
             @PathVariable("referenceId") UUID referenceId,

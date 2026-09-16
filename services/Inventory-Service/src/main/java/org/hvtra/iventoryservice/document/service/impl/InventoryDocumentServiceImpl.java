@@ -1,13 +1,17 @@
 package org.hvtra.iventoryservice.document.service.impl;
 
-import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
 import org.hvtra.commonservice.exception.FeignClientException;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.dto.request.*;
 import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
+import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentBatchAllocationResponse;
+import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentLineResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
+import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumentBatchAllocationRow;
+import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumentRow;
+import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumentLineRow;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.hvtra.iventoryservice.document.mapper.InventoryDocumentMapper;
@@ -39,8 +43,9 @@ import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +54,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -63,6 +69,9 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     private final InventoryTransactionRepository transactionRepository;
     private final InventorySupplementRequestRepository supplementRequestRepository;
     private final InventorySupplierReturnRequestRepository supplierReturnRequestRepository;
+    private final InventoryDocumentLineRepository lineRepository;
+    private final InventoryDocumentBatchAllocationRepository allocationRepository;
+
     private final CatalogClient catalogClient;
     private final InventoryDocumentMapper mapper;
 
@@ -76,7 +85,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             InventoryBalanceRepository balanceRepository,
             InventoryTransactionRepository transactionRepository,
             InventorySupplementRequestRepository supplementRequestRepository,
-            InventorySupplierReturnRequestRepository supplierReturnRequestRepository,
+            InventorySupplierReturnRequestRepository supplierReturnRequestRepository, InventoryDocumentLineRepository lineRepository1, InventoryDocumentBatchAllocationRepository allocationRepository1,
             CatalogClient catalogClient,
             InventoryDocumentMapper mapper
     ) {
@@ -88,6 +97,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         this.transactionRepository = transactionRepository;
         this.supplementRequestRepository = supplementRequestRepository;
         this.supplierReturnRequestRepository = supplierReturnRequestRepository;
+        this.lineRepository = lineRepository1;
+        this.allocationRepository = allocationRepository1;
         this.catalogClient = catalogClient;
         this.mapper = mapper;
     }
@@ -103,49 +114,67 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             Instant toDate,
             Pageable pageable
     ) {
-        Specification<InventoryDocument> specification = (root, rootQuery, cb) -> {
-            var predicates = new ArrayList<Predicate>();
+        String documentTypeParam = documentType != null ? documentType.name() : null;
+        String statusParam = status != null ? status.name() : null;
+        String queryPattern = (query != null && !query.isBlank())
+                ? "%" + query.trim().toLowerCase() + "%"
+                : null;
 
-            if (documentType != null) {
-                predicates.add(cb.equal(root.get("documentType"), documentType));
-            }
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
-            }
-            if (locationId != null) {
-                predicates.add(cb.equal(root.get("locationId"), locationId));
-            }
-            if (supplierId != null) {
-                predicates.add(cb.equal(root.get("supplierId"), supplierId));
-            }
-            if (fromDate != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), fromDate));
-            }
-            if (toDate != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), toDate));
-            }
-            if (query != null && !query.isBlank()) {
-                String pattern = "%" + query.trim().toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("documentCode")), pattern),
-                        cb.like(cb.lower(root.get("referenceId")), pattern),
-                        cb.like(cb.lower(root.get("note")), pattern)
-                ));
-            }
+        long totalElements = documentRepository.countDocument(
+                documentTypeParam, statusParam, locationId, supplierId, fromDate, toDate, queryPattern);
 
-            return cb.and(predicates.toArray(Predicate[]::new));
-        };
+        List<InventoryDocumentRow> headerRows = totalElements == 0
+                ? List.of()
+                : documentRepository.searchDocument(
+                        documentTypeParam, statusParam, locationId, supplierId, fromDate, toDate, queryPattern,
+                        pageable.getPageSize(), pageable.getOffset());
 
-        var page = documentRepository.findAll(specification, pageable);
-        List<InventoryDocument> documents = page.getContent();
-        List<UUID> supplierIds = documents.stream()
-                .map(InventoryDocument::getSupplierId)
+        List<InventoryDocumentResponse> content = buildListResponses(headerRows);
+
+        Page<InventoryDocumentResponse> page = new PageImpl<>(content, pageable, totalElements);
+        return PageResponse.from(page);
+    }
+
+    private List<InventoryDocumentResponse> buildListResponses(List<InventoryDocumentRow> headerRows) {
+        if (headerRows.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> documentIds = headerRows.stream().map(h -> parseUuid(h.getId())).toList();
+        List<InventoryDocumentLineRow> lineRows = lineRepository.findLineRowsByDocumentIds(documentIds);
+
+        List<UUID> lineIds = lineRows.stream().map(l -> parseUuid(l.getId())).toList();
+        Map<String, List<InventoryDocumentBatchAllocationRow>> allocationsByLine = lineIds.isEmpty()
+                ? Map.of()
+                : allocationRepository.findBatchAllocationRowsByLineIds(lineIds).stream()
+                        .collect(Collectors.groupingBy(InventoryDocumentBatchAllocationRow::getDocumentLineId));
+
+        Map<String, List<InventoryDocumentLineRow>> linesByDocument = lineRows.stream()
+                .collect(Collectors.groupingBy(InventoryDocumentLineRow::getDocumentId, LinkedHashMap::new, Collectors.toList()));
+
+        List<UUID> supplierIds = headerRows.stream()
+                .map(InventoryDocumentRow::getSupplierId)
                 .filter(Objects::nonNull)
+                .map(this::parseUuid)
                 .distinct()
                 .toList();
+        Map<UUID, String> supplierNameMap = fetchSupplierNames(supplierIds);
 
+        List<InventoryDocumentResponse> content = new ArrayList<>(headerRows.size());
+        for (InventoryDocumentRow header : headerRows) {
+            List<InventoryDocumentLineRow> lines = linesByDocument.getOrDefault(header.getId(), List.of());
+            String supplierName = header.getSupplierId() != null ? supplierNameMap.get(parseUuid(header.getSupplierId())) : null;
+            content.add(toDocumentResponse(header, lines, allocationsByLine, supplierName));
+        }
+        return content;
+    }
+
+    private UUID parseUuid(String value) {
+        return value != null ? UUID.fromString(value) : null;
+    }
+
+    private Map<UUID, String> fetchSupplierNames(List<UUID> supplierIds) {
         Map<UUID, String> supplierNameMap = new HashMap<>();
-
         if (!supplierIds.isEmpty()) {
             try {
                 List<CatalogClient.SupplierResponse> suppliers = catalogClient.getSuppliersBatch(supplierIds);
@@ -160,7 +189,111 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                 log.error("Feign client error", exception);
             }
         }
-        return PageResponse.from(page.map(doc -> mapper.toResponse(doc, supplierNameMap.get(doc.getSupplierId()))));
+        return supplierNameMap;
+    }
+
+    private InventoryDocumentResponse toDocumentResponse(
+            InventoryDocumentRow header,
+            List<InventoryDocumentLineRow> lineRows,
+            Map<String, List<InventoryDocumentBatchAllocationRow>> allocationsByLine,
+            String supplierName
+    ) {
+        List<InventoryDocumentLineResponse> lines = new ArrayList<>(lineRows.size());
+        BigDecimal totalOrdered = BigDecimal.ZERO;
+        BigDecimal totalReceived = BigDecimal.ZERO;
+        BigDecimal totalAccepted = BigDecimal.ZERO;
+        BigDecimal totalRejected = BigDecimal.ZERO;
+
+        for (InventoryDocumentLineRow line : lineRows) {
+            List<InventoryDocumentBatchAllocationResponse> allocations = allocationsByLine
+                    .getOrDefault(line.getId(), List.of())
+                    .stream()
+                    .map(this::toAllocationResponse)
+                    .toList();
+
+            BigDecimal ordered = nvl(line.getOrderedQuantity());
+            BigDecimal received = nvl(line.getReceivedQuantity());
+            BigDecimal accepted = nvl(line.getAcceptedQuantity());
+            BigDecimal rejected = nvl(line.getRejectedQuantity());
+
+            totalOrdered = totalOrdered.add(ordered);
+            totalReceived = totalReceived.add(received);
+            totalAccepted = totalAccepted.add(accepted);
+            totalRejected = totalRejected.add(rejected);
+
+            String itemName = line.getItemName() != null ? line.getItemName() : line.getItemSku();
+            lines.add(new InventoryDocumentLineResponse(
+                    parseUuid(line.getId()),
+                    line.getLineNo(),
+                    parseUuid(line.getInventoryItemId()),
+                    line.getItemSku(),
+                    itemName,
+                    parseUuid(line.getUnitId()),
+                    null,
+                    ordered,
+                    received,
+                    nvl(line.getShortageQuantity()),
+                    nvl(line.getExcessQuantity()),
+                    accepted,
+                    rejected,
+                    line.getNote(),
+                    allocations
+            ));
+        }
+
+        return new InventoryDocumentResponse(
+                parseUuid(header.getId()),
+                header.getDocumentCode(),
+                InventoryDocumentType.valueOf(header.getDocumentType()),
+                InventoryDocumentStatus.valueOf(header.getStatus()),
+                parseUuid(header.getBranchId()),
+                parseUuid(header.getLocationId()),
+                header.getLocationName(),
+                header.getLocationCode(),
+                parseUuid(header.getSupplierId()),
+                supplierName,
+                header.getReferenceType() != null ? InventoryReferenceType.valueOf(header.getReferenceType()) : null,
+                header.getReferenceId(),
+                header.getExpectedDate(),
+                header.getNote(),
+                header.getCreatedAt(),
+                header.getUpdatedAt(),
+                parseUuid(header.getCreatedBy()),
+                parseUuid(header.getApprovedBy()),
+                header.getApprovedAt(),
+                header.getApprovalNote(),
+                parseUuid(header.getRejectedBy()),
+                header.getRejectedAt(),
+                header.getRejectionReason(),
+                parseUuid(header.getReceivedBy()),
+                header.getReceivedAt(),
+                parseUuid(header.getQcBy()),
+                header.getQcAt(),
+                parseUuid(header.getPostedBy()),
+                header.getPostedAt(),
+                lines,
+                lines.size(),
+                totalOrdered,
+                totalReceived,
+                totalAccepted,
+                totalRejected
+        );
+    }
+
+    private InventoryDocumentBatchAllocationResponse toAllocationResponse(InventoryDocumentBatchAllocationRow row) {
+        return new InventoryDocumentBatchAllocationResponse(
+                parseUuid(row.getId()),
+                parseUuid(row.getInventoryBatchId()),
+                row.getBatchCode(),
+                row.getSupplierBatchCode(),
+                row.getManufactureDate(),
+                row.getExpiryDate(),
+                row.getQuantity()
+        );
+    }
+
+    private static BigDecimal nvl(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     @Override

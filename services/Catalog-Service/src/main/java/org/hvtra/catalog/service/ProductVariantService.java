@@ -6,6 +6,7 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 import java.util.List;
@@ -20,7 +21,7 @@ public interface ProductVariantService {
     ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request);
     ProductResponse.VariantResponse updateStatus(UUID id, Status status);
     byte[] exportToExcel(UUID productId);
-    void importFromExcel(org.springframework.web.multipart.MultipartFile file, UUID productId);
+    void importFromExcel(MultipartFile file, UUID productId);
     byte[] getImportTemplate();
     List<ProductResponse.VariantResponse> findAllByIds(List<UUID> ids);
     List<UUID> searchVariantIds(String keyword, String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId);

@@ -45,11 +45,6 @@ public class CategoryController {
         return service.findById(id);
     }
 
-    @PostMapping("/batch")
-    public List<CategoryResponse> findByIds(@RequestBody List<UUID> ids) {
-        return service.findAllByIds(ids);
-    }
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CategoryResponse create(@Valid @RequestBody CategoryRequest request) {
