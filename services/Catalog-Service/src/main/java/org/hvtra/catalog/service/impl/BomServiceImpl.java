@@ -19,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -82,12 +84,22 @@ public class BomServiceImpl implements BomService {
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
+        var page = repository.findAll(spec, pageable);
+        List<Bom> boms = page.getContent();
+
+        List<UUID> bomIds = boms.stream().map(Bom::getId).toList();
+        Map<UUID, List<BomItem>> itemsByBom = bomIds.isEmpty()
+                ? Map.of()
+                : repository.findItemsByBomIds(bomIds).stream()
+                        .collect(Collectors.groupingBy(i -> i.getBom().getId()));
+
+        return PageResponse.from(page.map(bom -> mapper.toResponse(bom, itemsByBom.getOrDefault(bom.getId(), List.of()))));
     }
 
     @Override
     public BomResponse findById(UUID id) {
-        return mapper.toResponse(get(id));
+        Bom bom = repository.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("BOM", id));
+        return mapper.toResponse(bom);
     }
 
     @Override

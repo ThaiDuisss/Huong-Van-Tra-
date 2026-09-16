@@ -109,6 +109,12 @@ public class IngredientServiceImpl implements IngredientService {
     @Override
     public PageResponse<IngredientResponse> findAll(String search, Status status, Pageable pageable, UUID supplierId) {
         Specification<Ingredient> spec = (root, query, cb) -> {
+            Class<?> resultType = query.getResultType();
+            boolean isCountQuery = Long.class.equals(resultType) || long.class.equals(resultType);
+            if (!isCountQuery) {
+                root.fetch("unit", JoinType.LEFT);
+            }
+
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
             if (search != null && !search.isBlank()) {

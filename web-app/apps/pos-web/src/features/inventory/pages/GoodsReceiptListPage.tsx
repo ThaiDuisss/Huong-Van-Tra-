@@ -1,4 +1,4 @@
-import { Download, Filter, Upload } from "lucide-react";
+import { Download, Filter, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -300,26 +300,27 @@ export function GoodsReceiptListPage() {
                             Xuất Excel
                         </ActionButton>
                         <button
-                            className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-black transition-all cursor-pointer ${showFilters
-                                ? "border-[#159734] bg-[#f4faf5] text-[#159734]"
-                                : "border-[#e8eef0] bg-white text-[#536078] hover:bg-[#f7f8fb]"
+                            className={`inline-flex h-12 items-center justify-center gap-[9px] rounded-lg px-[18px] text-sm font-black transition-all cursor-pointer ${showFilters
+                                    ? "border border-[#07883a] bg-[#f4faf5] text-[#07883a]"
+                                    : "border border-[#dfe6ee] bg-white text-[#172317] hover:bg-neutral-50"
                                 }`}
                             onClick={() => setShowFilters((prev) => !prev)}
                             type="button"
                         >
-                            <Filter size={16} aria-hidden="true" />
-                            <span>{showFilters ? "Ẩn bộ lọc" : "Hiện bộ lọc chi tiết"}</span>
+                            <Filter size={17} aria-hidden="true" />
+                            <span>{showFilters ? "Ẩn bộ lọc" : "Hiện bộ lọc"}</span>
                             {activeFilterCount > 0 ? (
-                                <span className="grid size-5 place-items-center rounded-full bg-[#159734] text-[11px] font-black text-white">
+                                <span className="grid size-5 place-items-center rounded-full bg-[#07883a] text-[11px] font-black text-white">
                                     {activeFilterCount}
                                 </span>
                             ) : null}
                         </button>
                         <Link
-                            className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] shadow-sm"
+                            className="inline-flex h-12 items-center justify-center gap-[9px] rounded-lg border-0 bg-[#07883a] px-[22px] text-sm font-black text-white shadow-[0_10px_24px_rgba(7,136,58,0.24)] hover:opacity-90 transition-all cursor-pointer"
                             to="/management/inventory/receipts/new"
                         >
-                            Tạo phiếu nhập mới
+                            <Plus size={17} aria-hidden="true" />
+                            <span>Tạo phiếu nhập mới</span>
                         </Link>
                     </div>
                 }

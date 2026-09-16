@@ -48,21 +48,6 @@ public class IngredientController {
         return service.findById(id);
     }
 
-    @PostMapping("/batch")
-    public java.util.List<IngredientResponse> getIngredientsBatch(@RequestBody java.util.List<UUID> ids) {
-        return service.findByIds(ids);
-    }
-
-    @GetMapping("/search-ids")
-    public java.util.List<UUID> searchIngredientIds(
-            @RequestParam(name = "keyword", required = false) String keyword,
-            @RequestParam(name = "code", required = false) String code,
-            @RequestParam(name = "name", required = false) String name,
-            @RequestParam(name = "unitId", required = false) UUID unitId
-    ) {
-        return service.searchIngredientIds(keyword, code, name, unitId);
-    }
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public IngredientResponse create(@Valid @RequestBody IngredientRequest request) {

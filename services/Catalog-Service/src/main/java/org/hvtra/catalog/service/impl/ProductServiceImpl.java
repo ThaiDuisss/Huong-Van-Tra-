@@ -12,10 +12,12 @@ import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
+import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.CategoryRepository;
 import org.hvtra.catalog.repository.ProductRepository;
+import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.service.ProductService;
 import org.hvtra.catalog.util.ExcelExportHelper;
 import org.apache.poi.ss.usermodel.Cell;
@@ -48,17 +50,20 @@ import java.util.stream.Collectors;
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final CategoryRepository categoryRepository;
     private final BusinessSequenceRepository businessSequenceRepository;
     private final ProductMapper mapper;
     private final FileClient fileClient;
 
     public ProductServiceImpl(ProductRepository productRepository,
+                              ProductVariantRepository productVariantRepository,
                               CategoryRepository categoryRepository,
                               BusinessSequenceRepository businessSequenceRepository,
                               ProductMapper mapper,
                               FileClient fileClient) {
         this.productRepository = productRepository;
+        this.productVariantRepository = productVariantRepository;
         this.categoryRepository = categoryRepository;
         this.businessSequenceRepository = businessSequenceRepository;
         this.mapper = mapper;
@@ -69,6 +74,12 @@ public class ProductServiceImpl implements ProductService {
     public PageResponse<ProductResponse> findAll(
             String name, UUID categoryId, Status status, Pageable pageable) {
         Specification<Product> spec = (root, query, cb) -> {
+            Class<?> resultType = query.getResultType();
+            boolean isCountQuery = Long.class.equals(resultType) || long.class.equals(resultType);
+            if (!isCountQuery) {
+                root.fetch("category", jakarta.persistence.criteria.JoinType.LEFT);
+            }
+
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
             if (name != null && !name.isBlank()) {
@@ -80,7 +91,16 @@ public class ProductServiceImpl implements ProductService {
         };
         Page<Product> productPage = productRepository.findAll(spec, pageable);
         List<Product> products = productPage.getContent();
-        List<ProductResponse> productResponses = products.stream().map(mapper::toResponse).toList();
+
+        List<UUID> productIds = products.stream().map(Product::getId).toList();
+        Map<UUID, List<ProductVariant>> variantsByProduct = productIds.isEmpty()
+                ? Map.of()
+                : productVariantRepository.findByProductIdsWithDetails(productIds).stream()
+                        .collect(Collectors.groupingBy(v -> v.getProduct().getId()));
+
+        List<ProductResponse> productResponses = products.stream()
+                .map(p -> mapper.toResponse(p, variantsByProduct.getOrDefault(p.getId(), List.of())))
+                .toList();
         return new PageResponse<>(
                 productResponses,
                 productPage.getNumber(),
