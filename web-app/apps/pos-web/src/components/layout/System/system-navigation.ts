@@ -61,6 +61,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     key: "dashboard",
     label: "Tổng quan",
     icon: Home,
+    to: routePaths.systemDashboard,
     roles: BACKOFFICE_ROLES,
   },
   {

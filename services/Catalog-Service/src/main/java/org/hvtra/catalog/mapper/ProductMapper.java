@@ -9,6 +9,7 @@ import org.hvtra.catalog.enums.Status;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Component
 public class ProductMapper {
@@ -19,6 +20,10 @@ public class ProductMapper {
     }
 
     public ProductResponse toResponse(Product product) {
+        return toResponse(product, product.getVariants());
+    }
+
+    public ProductResponse toResponse(Product product, List<ProductVariant> variants) {
         return new ProductResponse(
                 product.getId(),
                 categoryMapper.toResponse(product.getCategory()),
@@ -27,7 +32,7 @@ public class ProductMapper {
                 product.getDescription(),
                 product.getImageUrl(),
                 product.getStatus(),
-                product.getVariants().stream().map(this::toVariantResponse).toList()
+                variants.stream().map(this::toVariantResponse).toList()
         );
     }
 

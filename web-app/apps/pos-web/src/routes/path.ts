@@ -7,6 +7,7 @@ export const routePaths = {
   posCustomerReturnDetail: "/pos/customer-returns/:returnId",
   salesHistory: "/sales-history",
   system: "/system",
+  systemDashboard: "/system/dashboard",
   management: "/management",
   orders: "/system/orders",
   invoices: "/system/orders/invoices",
@@ -80,6 +81,8 @@ export const routePaths = {
   bomList: "/system/manufacturing/boms",
   bomDetail: "/system/manufacturing/boms/:id",
   productionOrders: "/system/manufacturing/production-orders",
+  productionOrderCreate: "/system/manufacturing/production-orders/new",
+  productionOrderDetail: "/system/manufacturing/production-orders/:id",
   ingredient: "/system/manufacturing/ingredients",
   supplier: "/system/manufacturing/suppliers",
 } as const;

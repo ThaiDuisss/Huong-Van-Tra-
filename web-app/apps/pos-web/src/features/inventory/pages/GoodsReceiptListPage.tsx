@@ -1,60 +1,67 @@
-import {
-    CheckCircle2,
-    ClipboardList,
-    Clock3,
-    FileCheck2,
-    Filter,
-    PackageCheck,
-    Truck
-} from "lucide-react";
+import { Download, Filter, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { Pagination } from "../../manufacturing/components/shared/Pagination";
+import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
+import { ExcelImportModal } from "../../product/components/ExcelImportModal";
 import {
     GoodsReceiptFilterBar,
-    GoodsReceiptSummaryCard,
-    GoodsReceiptTable
+    GoodsReceiptStatusBadge,
+    QcBadge
 } from "../components/GoodsReceiptComponents";
+import {
+    InventoryResourceManagement,
+    TableCell,
+    type Column,
+    type InventoryFilter
+} from "../components/InventoryResourceManagement";
 import { useGoodsReceiptQueryState } from "../hooks/useGoodsReceiptQueryState";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
+    GoodsReceiptDashboardSummary,
     GoodsReceiptListResult,
     GoodsReceiptOptions,
-    GoodsReceiptStatus
+    GoodsReceiptStatus,
+    GoodsReceiptSummary
 } from "../types/goods-receipt.types";
+import {
+    formatVietnamDateTime,
+    formatVietnamNumber
+} from "../utils/inventory-format";
+import {
+    exportGoodsReceiptsToExcel,
+    generateGoodsReceiptTemplate,
+    getExcelRowValue,
+    parseAndImportGoodsReceipts
+} from "../utils/goodsReceiptExcel";
 
-const statusTabs: Array<{ key: "ALL" | GoodsReceiptStatus; label: string }> = [
-    { key: "ALL", label: "Tất cả" },
-    { key: "DRAFT", label: "Bản nháp" },
-    { key: "PENDING_APPROVAL", label: "Chờ duyệt" },
-    { key: "APPROVED", label: "Đã duyệt (Chờ giao)" },
-    { key: "RECEIVING", label: "Đang tiếp nhận" },
-    { key: "QC_PENDING", label: "Chờ QC" },
-    { key: "QC_COMPLETED", label: "Chờ ghi sổ" },
-    { key: "POSTED", label: "Đã nhập kho" },
-    { key: "REJECTED", label: "Từ chối" },
-    { key: "CANCELLED", label: "Đã hủy" }
+const columns: Column[] = [
+    // { key: "code", label: "Mã phiếu" },
+    { key: "supplier", label: "Nhà cung cấp" },
+    // { key: "po", label: "PO" },
+    { key: "location", label: "Kho nhận" },
+    { align: "right", key: "totalReceivedQuantity", label: "Tổng nhận" },
+    // { key: "qcResult", label: "QC" },
+    // { key: "costStatus", label: "Giá" },
+    { key: "status", label: "Trạng thái" },
+    { key: "receivedAt", label: "Ngày nhận" },
+    // { key: "createdBy", label: "Người tạo" }
 ];
 
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
     const [showFilters, setShowFilters] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [result, setResult] = useState<GoodsReceiptListResult | null>(null);
-    const [summaryCounts, setSummaryCounts] = useState<{
-        draft: number;
-        pendingApproval: number;
-        receiving: number;
-        awaitingQc: number;
-        readyToPost: number;
-        postedToday: number;
-    }>({
+    const [summaryCounts, setSummaryCounts] = useState<GoodsReceiptDashboardSummary>({
+        awaitingCost: 0,
         awaitingQc: 0,
         draft: 0,
         pendingApproval: 0,
         postedToday: 0,
         readyToPost: 0,
-        receiving: 0
+        receiving: 0,
+        total: 0
     });
     const [options, setOptions] = useState<GoodsReceiptOptions>({
         locations: [],
@@ -69,7 +76,6 @@ export function GoodsReceiptListPage() {
         void goodsReceiptApi
             .getGoodsReceiptOptions()
             .then((res) => {
-                console.log("[GoodsReceiptListPage] setOptions với:", res);
                 setOptions(res);
             })
             .catch((err: unknown) => {
@@ -142,177 +148,269 @@ export function GoodsReceiptListPage() {
         Boolean(query.receivedTo)
     ].filter(Boolean).length;
 
-    return (
-        <section className="grid gap-4">
-            <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div className="grid gap-1">
-                    <h1 className="text-2xl font-black text-[#172317]">
-                        Phiếu nhập kho từ Nhà cung cấp
-                    </h1>
-                    <p className="max-w-3xl text-sm font-semibold leading-6 text-[#697684]">
-                        Quản lý vòng đời phiếu nhập
-                    </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-black transition-all ${showFilters
-                            ? "border-[#159734] bg-[#f4faf5] text-[#159734]"
-                            : "border-[#e8eef0] bg-white text-[#536078] hover:bg-[#f7f8fb]"
-                            }`}
-                        onClick={() => setShowFilters((prev) => !prev)}
-                        type="button"
-                    >
-                        <Filter size={16} aria-hidden="true" />
-                        <span>{showFilters ? "Ẩn bộ lọc" : "Hiện bộ lọc"}</span>
-                        {activeFilterCount > 0 ? (
-                            <span className="grid size-5 place-items-center rounded-full bg-[#159734] text-[11px] font-black text-white">
-                                {activeFilterCount}
-                            </span>
-                        ) : null}
-                    </button>
-                    <Link
-                        className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] shadow-sm"
-                        to="/management/inventory/receipts/new"
-                    >
-                        + Tạo phiếu nhập mới
-                    </Link>
-                </div>
-            </header>
+    const statusOptions: Array<{ label: string; value: "ALL" | GoodsReceiptStatus }> = [
+        { label: `Tất cả (${summaryCounts.total ?? 0})`, value: "ALL" },
+        { label: `Bản nháp (${summaryCounts.draft ?? 0})`, value: "DRAFT" },
+        { label: `Chờ duyệt (${summaryCounts.pendingApproval ?? 0})`, value: "PENDING_APPROVAL" },
+        { label: "Đã duyệt (Chờ giao) (0)", value: "APPROVED" },
+        { label: `Đang tiếp nhận (${summaryCounts.receiving ?? 0})`, value: "RECEIVING" },
+        { label: `Chờ QC (${summaryCounts.awaitingQc ?? 0})`, value: "QC_PENDING" },
+        { label: `Chờ ghi sổ (${summaryCounts.readyToPost ?? 0})`, value: "QC_COMPLETED" },
+        { label: `Đã nhập kho (${summaryCounts.postedToday ?? 0})`, value: "POSTED" },
+        { label: "Từ chối (0)", value: "REJECTED" },
+        { label: "Đã hủy (0)", value: "CANCELLED" }
+    ];
 
-            {/* THẺ CHỈ SỐ THEO VÒNG ĐỜI (TÍNH TOÁN ĐỘC LẬP VỚI BỘ LỌC) */}
-            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-                <GoodsReceiptSummaryCard
-                    icon={<ClipboardList size={18} aria-hidden="true" />}
-                    label="1. Bản nháp"
-                    value={summaryCounts.draft}
-                    active={query.status === "DRAFT"}
-                    onClick={() => setQuery({ page: 0, status: "DRAFT" })}
-                />
-                <GoodsReceiptSummaryCard
-                    icon={<Clock3 size={18} aria-hidden="true" />}
-                    label="2. Chờ duyệt"
-                    value={summaryCounts.pendingApproval}
-                    active={query.status === "PENDING_APPROVAL"}
-                    onClick={() => setQuery({ page: 0, status: "PENDING_APPROVAL" })}
-                />
-                <GoodsReceiptSummaryCard
-                    icon={<Truck size={18} aria-hidden="true" />}
-                    label="3. Đang tiếp nhận"
-                    value={summaryCounts.receiving}
-                    active={query.status === "RECEIVING" || query.status === "APPROVED"}
-                    onClick={() => setQuery({ page: 0, status: "RECEIVING" })}
-                />
-                <GoodsReceiptSummaryCard
-                    icon={<FileCheck2 size={18} aria-hidden="true" />}
-                    label="4. Chờ QC"
-                    value={summaryCounts.awaitingQc}
-                    active={query.status === "QC_PENDING" || query.status === "AWAITING_QC"}
-                    onClick={() => setQuery({ page: 0, status: "QC_PENDING" })}
-                />
-                <GoodsReceiptSummaryCard
-                    icon={<PackageCheck size={18} aria-hidden="true" />}
-                    label="5. Chờ ghi sổ"
-                    value={summaryCounts.readyToPost}
-                    active={query.status === "QC_COMPLETED" || query.status === "READY_TO_POST"}
-                    onClick={() => setQuery({ page: 0, status: "QC_COMPLETED" })}
-                />
-                <GoodsReceiptSummaryCard
-                    icon={<CheckCircle2 size={18} aria-hidden="true" />}
-                    label="Đã nhập kho"
-                    value={summaryCounts.postedToday}
-                    active={query.status === "POSTED"}
-                    onClick={() => setQuery({ page: 0, status: "POSTED" })}
-                />
-            </div>
+    const handleExportExcel = () => {
+        try {
+            if (receipts.length === 0) {
+                alert("Không có dữ liệu phiếu nhập để xuất Excel!");
+                return;
+            }
+            exportGoodsReceiptsToExcel(receipts);
+        } catch (err) {
+            console.error("Lỗi xuất Excel phiếu nhập kho:", err);
+            alert("Có lỗi xảy ra khi xuất file Excel!");
+        }
+    };
 
-            {/* TAB LỌC NHANH TRẠNG THÁI */}
-            <div className="flex gap-2 overflow-x-auto border-b border-[#e8eef0] pb-2">
-                {statusTabs.map((tab) => (
-                    <button
-                        key={tab.key}
-                        className={`h-9 shrink-0 rounded-lg px-4 text-xs font-black transition-all ${query.status === tab.key
-                            ? "bg-[#159734] text-white shadow-sm"
-                            : "bg-white text-[#536078] hover:bg-[#f4faf5] border border-[#e8eef0]"
-                            }`}
-                        onClick={() => setQuery({ page: 0, status: tab.key })}
-                        type="button"
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
+    const handleDownloadTemplate = () => {
+        try {
+            const blob = generateGoodsReceiptTemplate(options);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "mau_nhap_phieu_nhap_kho.xlsx");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error("Lỗi tải file mẫu:", err);
+            alert("Có lỗi xảy ra khi tạo file mẫu!");
+        }
+    };
 
-            {/* BỘ LỌC TÌM KIẾM CHI TIẾT (MẶC ĐỊNH ẨN) */}
-            {showFilters ? (
-                <GoodsReceiptFilterBar
-                    locations={options.locations}
-                    onChange={setQuery}
-                    onReset={resetQuery}
-                    query={query}
-                    suppliers={options.suppliers}
-                />
-            ) : null}
+    const validateReceiptRow = (row: any) => {
+        const supplierCodeOrName = getExcelRowValue(row, "Mã nhà cung cấp", "Tên nhà cung cấp", "Nhà cung cấp", "Supplier", "Supplier Code");
+        const locationCodeOrName = getExcelRowValue(row, "Mã kho nhận", "Tên kho nhận", "Kho nhận", "Kho", "Location", "Location Code");
+        const materialCodeOrName = getExcelRowValue(row, "Mã nguyên liệu", "Tên nguyên liệu", "Nguyên liệu", "Mã SKU", "SKU", "Material");
+        const quantityStr = getExcelRowValue(row, "Số lượng đặt", "Số lượng", "SL đặt", "Quantity", "Ordered Quantity");
 
-            {loading ? (
-                <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-                    {Array.from({ length: 6 }, (_, index) => (
-                        <div
-                            className="h-11 animate-pulse rounded-lg bg-[#eef3ef]"
-                            key={index}
+        if (!supplierCodeOrName && !locationCodeOrName && !materialCodeOrName && !quantityStr) {
+            return { isValid: true };
+        }
+
+        if (options.suppliers.length > 0 && supplierCodeOrName) {
+            const cleanSupp = supplierCodeOrName.toLowerCase().trim();
+            const matched = options.suppliers.some(
+                (s) =>
+                    (s.code && s.code.toLowerCase().trim() === cleanSupp) ||
+                    (s.name && s.name.toLowerCase().trim() === cleanSupp) ||
+                    (s.id && String(s.id).toLowerCase().trim() === cleanSupp)
+            );
+            if (!matched) {
+                return { isValid: false, error: `Nhà cung cấp '${supplierCodeOrName}' không tồn tại` };
+            }
+        }
+
+        if (options.locations.length > 0 && locationCodeOrName) {
+            const cleanLoc = locationCodeOrName.toLowerCase().trim();
+            const matched = options.locations.some(
+                (l) =>
+                    (l.code && l.code.toLowerCase().trim() === cleanLoc) ||
+                    (l.name && l.name.toLowerCase().trim() === cleanLoc) ||
+                    (l.id && String(l.id).toLowerCase().trim() === cleanLoc)
+            );
+            if (!matched) {
+                return { isValid: false, error: `Kho nhận '${locationCodeOrName}' không tồn tại` };
+            }
+        }
+
+        if (!materialCodeOrName) {
+            return { isValid: false, error: "Mã nguyên liệu không được để trống" };
+        }
+
+        if (options.materials.length > 0) {
+            const cleanMat = materialCodeOrName.toLowerCase().trim();
+            const matched = options.materials.some(
+                (m) =>
+                    (m.skuCode && m.skuCode.toLowerCase().trim() === cleanMat) ||
+                    (m.name && m.name.toLowerCase().trim() === cleanMat) ||
+                    (m.id && String(m.id).toLowerCase().trim() === cleanMat)
+            );
+            if (!matched) {
+                return { isValid: false, error: `Nguyên liệu '${materialCodeOrName}' không tồn tại` };
+            }
+        }
+
+        if (!quantityStr) {
+            return { isValid: false, error: "Số lượng đặt không được để trống" };
+        }
+
+        const quantity = Number(String(quantityStr).replace(/,/g, ""));
+        if (isNaN(quantity) || quantity <= 0) {
+            return { isValid: false, error: "Số lượng đặt phải lớn hơn 0" };
+        }
+
+        return { isValid: true };
+    };
+
+    const handleImportExcel = async (file: File) => {
+        await parseAndImportGoodsReceipts(file, options);
+        retry();
+    };
+
+    const filters: InventoryFilter[] | undefined = showFilters
+        ? [
+            {
+                label: "Bộ lọc chi tiết",
+                onChange: () => { },
+                options: [],
+                render: (
+                    <div className="w-full pt-1">
+                        <GoodsReceiptFilterBar
+                            locations={options.locations}
+                            onChange={setQuery}
+                            onReset={resetQuery}
+                            query={query}
+                            suppliers={options.suppliers}
                         />
-                    ))}
-                </div>
-            ) : null}
+                    </div>
+                ),
+                value: ""
+            }
+        ]
+        : undefined;
 
-            {!loading && error ? (
-                <div className="grid place-items-center rounded-xl border border-red-100 bg-red-50 px-6 py-12 text-center">
-                    <div className="grid max-w-sm gap-3 justify-items-center">
-                        <strong className="text-base font-black text-red-800">
-                            Không thể tải danh sách phiếu nhập
-                        </strong>
-                        <p className="text-sm font-semibold leading-6 text-red-700">
-                            {error}
-                        </p>
+    return (
+        <>
+            <InventoryResourceManagement<GoodsReceiptSummary, GoodsReceiptStatus>
+                columns={columns}
+                description="Quản lý vòng đời phiếu nhập kho từ nhà cung cấp, kiểm định QC và theo dõi nguyên vật liệu."
+                detailPath={(item) => `/management/inventory/receipts/${item.id}`}
+                error={error}
+                extraHeaderActions={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <ActionButton variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+                            <Upload size={17} aria-hidden="true" />
+                            Nhập Excel
+                        </ActionButton>
+                        <ActionButton variant="secondary" onClick={handleExportExcel}>
+                            <Download size={17} aria-hidden="true" />
+                            Xuất Excel
+                        </ActionButton>
                         <button
-                            className="rounded-lg bg-red-700 px-4 py-2 text-sm font-black text-white"
-                            onClick={retry}
+                            className={`inline-flex h-12 items-center justify-center gap-[9px] rounded-lg px-[18px] text-sm font-black transition-all cursor-pointer ${showFilters
+                                    ? "border border-[#07883a] bg-[#f4faf5] text-[#07883a]"
+                                    : "border border-[#dfe6ee] bg-white text-[#172317] hover:bg-neutral-50"
+                                }`}
+                            onClick={() => setShowFilters((prev) => !prev)}
                             type="button"
                         >
-                            Thử lại
+                            <Filter size={17} aria-hidden="true" />
+                            <span>{showFilters ? "Ẩn bộ lọc" : "Hiện bộ lọc"}</span>
+                            {activeFilterCount > 0 ? (
+                                <span className="grid size-5 place-items-center rounded-full bg-[#07883a] text-[11px] font-black text-white">
+                                    {activeFilterCount}
+                                </span>
+                            ) : null}
                         </button>
+                        <Link
+                            className="inline-flex h-12 items-center justify-center gap-[9px] rounded-lg border-0 bg-[#07883a] px-[22px] text-sm font-black text-white shadow-[0_10px_24px_rgba(7,136,58,0.24)] hover:opacity-90 transition-all cursor-pointer"
+                            to="/management/inventory/receipts/new"
+                        >
+                            <Plus size={17} aria-hidden="true" />
+                            <span>Tạo phiếu nhập mới</span>
+                        </Link>
                     </div>
-                </div>
-            ) : null}
+                }
+                filters={filters}
+                items={receipts}
+                loading={loading}
+                onPageChange={(page) => setQuery({ page: page - 1 })}
+                onPageSizeChange={(size) => setQuery({ page: 0, size })}
+                onQueryChange={(val) => setQuery({ page: 0, receiptCode: val })}
+                onRefresh={retry}
+                onStatusChange={(status) => setQuery({ page: 0, status })}
+                page={query.page + 1}
+                pageCount={result?.totalPages ?? 1}
+                pageSize={query.size}
+                query={query.receiptCode}
+                renderCells={(item) => (
+                    <>
+                        <TableCell>{item.supplier.name}</TableCell>
+                        <TableCell>{item.receivingLocation.name}</TableCell>
+                        <TableCell className="text-right pr-[18px]">
+                            {formatVietnamNumber(item.totalReceivedQuantity)}
+                        </TableCell>
+                        <TableCell>
+                            <GoodsReceiptStatusBadge status={item.status} />
+                        </TableCell>
+                        <TableCell>{formatVietnamDateTime(item.receivedAt)}</TableCell>
+                    </>
+                )}
+                renderDetail={(item) => (
+                    <dl className="space-y-3 text-sm">
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Mã phiếu</dt>
+                            <dd className="text-gray-900 font-semibold">{item.code}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Nhà cung cấp</dt>
+                            <dd className="text-gray-900 font-semibold">{item.supplier.name}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Đơn đặt hàng (PO)</dt>
+                            <dd className="text-gray-900 font-semibold">{item.purchaseOrderCode || "Ngoài PO"}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Kho nhận</dt>
+                            <dd className="text-gray-900 font-semibold">{item.receivingLocation.name}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Số dòng nguyên liệu</dt>
+                            <dd className="text-gray-900 font-semibold">{formatVietnamNumber(item.totalLines)} dòng</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Tổng lượng nhận</dt>
+                            <dd className="text-gray-900 font-semibold">{formatVietnamNumber(item.totalReceivedQuantity)}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Trạng thái</dt>
+                            <dd><GoodsReceiptStatusBadge status={item.status} /></dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Kết quả QC</dt>
+                            <dd><QcBadge result={item.qcResult} /></dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Ngày nhận</dt>
+                            <dd className="text-gray-900 font-semibold">{formatVietnamDateTime(item.receivedAt)}</dd>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
+                            <dt className="text-gray-500 font-bold uppercase text-xs">Người tạo</dt>
+                            <dd className="text-gray-900 font-semibold">{item.createdBy.name}</dd>
+                        </div>
+                    </dl>
+                )}
+                searchPlaceholder="Tìm kiếm theo mã phiếu nhập..."
+                status={query.status}
+                statusOptions={statusOptions}
+                title="Phiếu nhập kho từ Nhà cung cấp"
+                totalItems={result?.totalElements ?? 0}
+                totalItemsLabel="Tổng số phiếu nhập"
+            />
 
-            {!loading && !error && receipts.length === 0 ? (
-                <div className="grid place-items-center rounded-xl border border-dashed border-[#cfdad2] bg-white px-6 py-14 text-center">
-                    <div className="grid max-w-sm gap-2">
-                        <strong className="text-base font-black text-[#172317]">
-                            Không tìm thấy phiếu nhập phù hợp
-                        </strong>
-                        <p className="text-sm font-semibold leading-6 text-[#697684]">
-                            Thử thay đổi điều kiện lọc hoặc tạo phiếu nhập nguyên liệu mới.
-                        </p>
-                    </div>
-                </div>
-            ) : null}
-
-            {!loading && !error && receipts.length > 0 ? (
-                <div className="grid gap-3">
-                    <GoodsReceiptTable receipts={receipts} />
-                    <Pagination
-                        onPageChange={(page) => setQuery({ page: page - 1 })}
-                        onPageSizeChange={(size) =>
-                            setQuery({ page: 0, size })
-                        }
-                        page={query.page + 1}
-                        pageCount={result?.totalPages ?? 1}
-                        pageSize={query.size}
-                        totalItems={result?.totalElements ?? 0}
-                        totalItemsLabel="Tổng số phiếu nhập"
-                    />
-                </div>
-            ) : null}
-        </section>
+            <ExcelImportModal
+                description="Nhập danh sách phiếu nhập kho từ file Excel. Các dòng cùng Nhà cung cấp, Kho nhận và Mã PO sẽ được tự động gom thành 1 phiếu."
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onDownloadTemplate={handleDownloadTemplate}
+                onImport={handleImportExcel}
+                title="Nhập danh sách phiếu nhập kho từ Excel"
+                validateRow={validateReceiptRow}
+            />
+        </>
     );
 }
+

@@ -45,5 +45,22 @@ export const unitApi = {
     },
     delete(id: string) {
         return apiClient.delete<void>(`/catalog/units/${encodeURIComponent(id)}`);
+    },
+    export(query: { search?: string; keyword?: string; status?: string; type?: string } = {}) {
+        return apiClient.download("/catalog/units/export", {
+            query: {
+                search: query.search ?? query.keyword,
+                status: query.status,
+                type: query.type
+            }
+        });
+    },
+    import(file: File) {
+        const formData = new FormData();
+        formData.append("file", file);
+        return apiClient.upload<void>("/catalog/units/import", formData);
+    },
+    downloadTemplate() {
+        return apiClient.download("/catalog/units/import/template");
     }
 };

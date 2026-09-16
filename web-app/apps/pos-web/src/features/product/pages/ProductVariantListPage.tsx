@@ -23,7 +23,8 @@ import { unitApi } from "../services/unit.api";
 import type {
     CatalogStatus,
     InventoryPolicy,
-    ProductVariant
+    ProductVariant,
+    ProductVariantInput
 } from "../types/product.types";
 import {
     getNumber,
@@ -134,7 +135,7 @@ export function ProductVariantListPage() {
         ]
     );
     const loadProducts = useCallback(
-        () => productApi.list({ page: 0, size: 200 }),
+        () => productApi.list({ page: 0, size: 500 }),
         []
     );
     const resource = usePagedApiResource(loadVariants);
@@ -149,8 +150,8 @@ export function ProductVariantListPage() {
         values: FormValues,
         editingItem: ProductVariant | null
     ) {
-        const input = {
-            productId: getString(values, "productId"),
+        const input: ProductVariantInput = {
+            productId: (filterProductId && filterProductId !== "ALL") ? filterProductId : (products[0]?.id ? String(products[0].id) : ""),
             variantName: getString(values, "variantName"),
             sellingPrice: getNumber(values, "sellingPrice"),
             costPrice: getNumber(values, "costPrice"),
@@ -171,21 +172,21 @@ export function ProductVariantListPage() {
 
     const handleExport = async () => {
         try {
-            const blob = await productVariantApi.export(productId);
+            const blob = await productVariantApi.export(filterProductId || undefined);
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.setAttribute("href", url);
 
             const now = new Date();
             const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const seconds = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
+            const month = String(now.getMonth() + 1).padStart(2, "0");
+            const day = String(now.getDate()).padStart(2, "0");
+            const hours = String(now.getHours()).padStart(2, "0");
+            const minutes = String(now.getMinutes()).padStart(2, "0");
+            const seconds = String(now.getSeconds()).padStart(2, "0");
+            const filename = `Danh_sach_bien_the_san_pham_${year}${month}${day}_${hours}${minutes}${seconds}.xlsx`;
 
-            link.setAttribute("download", `Danh sách Mặt hàng_${timestamp}.xlsx`);
+            link.setAttribute("download", filename);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -196,41 +197,53 @@ export function ProductVariantListPage() {
     };
 
     const handleImportClick = () => {
-        let currentProductId = productId;
-        if (!currentProductId || currentProductId === "ALL") {
-            currentProductId = String(products[0]?.id);
-        }
-
-        if (!currentProductId) {
-            alert("Không tìm thấy sản phẩm hợp lệ để import Mặt hàng!");
-            return;
-        }
         setIsImportModalOpen(true);
     };
 
+    const getRowValue = (row: any, ...keys: string[]): string => {
+        if (!row) return "";
+        for (const k of keys) {
+            if (row[k] !== undefined && row[k] !== null) {
+                return String(row[k]).trim();
+            }
+        }
+        const rowKeys = Object.keys(row);
+        for (const targetKey of keys) {
+            const normalizedTarget = targetKey.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const foundKey = rowKeys.find((rk) => {
+                const normalizedRk = rk.toLowerCase().replace(/[^a-z0-9]/g, "");
+                return normalizedRk === normalizedTarget;
+            });
+            if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+                return String(row[foundKey]).trim();
+            }
+        }
+        return "";
+    };
+
     const validateVariantRow = (row: any) => {
-        const productCode = String(row["Mã sản phẩm"] || "").trim();
-        const variantName = String(row["Tên Mặt hàng"] || "").trim();
-        const sellingPriceStr = String(row["Giá bán"] || "").trim();
-        const costPriceStr = String(row["Giá vốn"] || "").trim();
-        const unitName = String(row["Đơn vị bán"] || row["Đơn vị"] || "").trim();
-        const policyStr = String(row["Chính sách tồn kho"] || "").trim();
+        const productCode = getRowValue(row, "Mã sản phẩm", "Mã SP", "Mã sp", "Product Code", "Mã hàng", "Mã SP/Product");
+        const sellingPriceStr = getRowValue(row, "Giá bán", "Selling Price");
+        const costPriceStr = getRowValue(row, "Giá vốn", "Cost Price");
+        const unitName = getRowValue(row, "Đơn vị", "Đơn vị bán", "Đơn vị tính", "Unit");
+        const policyStr = getRowValue(row, "Chính sách tồn kho", "Chính sách", "Inventory Policy");
+        const statusStr = getRowValue(row, "Trạng thái", "Status");
 
-        const statusStr = String(row["Trạng thái"] || "").trim();
-
-        if (!productCode) {
+        if (!productCode && !productId) {
             return { isValid: false, error: "Mã sản phẩm trống" };
         }
 
-        const matchedProduct = products.some(
-            (p) => p.productCode.toLowerCase() === productCode.toLowerCase()
-        );
-        if (!matchedProduct) {
-            return { isValid: false, error: "Mã sản phẩm không tồn tại" };
-        }
-
-        if (!variantName) {
-            return { isValid: false, error: "Tên Mặt hàng trống" };
+        if (productCode && products.length > 0) {
+            const cleanCode = productCode.trim().toLowerCase();
+            const matchedProduct = products.some(
+                (p) => (p.productCode || "").trim().toLowerCase() === cleanCode
+            );
+            if (!matchedProduct) {
+                // If there are more than 500 products or products only partially loaded, avoid false negative if backend will verify
+                if (products.length < 500) {
+                    return { isValid: false, error: "Mã sản phẩm không tồn tại" };
+                }
+            }
         }
 
         const sellingPrice = Number(String(sellingPriceStr).replace(/,/g, ""));
@@ -247,11 +260,18 @@ export function ProductVariantListPage() {
             return { isValid: false, error: "Đơn vị trống" };
         }
 
-        const matchedUnit = units.some(
-            (u) => u.name.toLowerCase() === unitName.toLowerCase() || u.symbol.toLowerCase() === unitName.toLowerCase()
-        );
-        if (!matchedUnit) {
-            return { isValid: false, error: "Đơn vị không tồn tại" };
+        if (units.length > 0) {
+            const cleanUnit = unitName.trim().toLowerCase();
+            const matchedUnit = units.some(
+                (u) =>
+                    (u.name || "").trim().toLowerCase() === cleanUnit ||
+                    (u.symbol || "").trim().toLowerCase() === cleanUnit
+            );
+            if (!matchedUnit) {
+                if (units.length < 500) {
+                    return { isValid: false, error: "Đơn vị không tồn tại" };
+                }
+            }
         }
 
         if (policyStr) {
@@ -274,12 +294,9 @@ export function ProductVariantListPage() {
     const handleImportExcel = async (file: File) => {
         let currentProductId = productId;
         if (!currentProductId || currentProductId === "ALL") {
-            currentProductId = String(products[0]?.id);
+            currentProductId = products[0]?.id ? String(products[0].id) : undefined;
         }
-        if (!currentProductId) {
-            throw new Error("Không tìm thấy sản phẩm hợp lệ để import Mặt hàng!");
-        }
-        await productVariantApi.import(file, currentProductId);
+        await productVariantApi.import(file, currentProductId || "");
         resource.refresh();
     };
 

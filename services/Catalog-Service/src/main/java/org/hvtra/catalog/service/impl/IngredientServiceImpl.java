@@ -28,6 +28,7 @@ import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.service.IngredientService;
+import org.hvtra.catalog.util.ExcelExportHelper;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -37,7 +38,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayOutputStream;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -103,6 +109,12 @@ public class IngredientServiceImpl implements IngredientService {
     @Override
     public PageResponse<IngredientResponse> findAll(String search, Status status, Pageable pageable, UUID supplierId) {
         Specification<Ingredient> spec = (root, query, cb) -> {
+            Class<?> resultType = query.getResultType();
+            boolean isCountQuery = Long.class.equals(resultType) || long.class.equals(resultType);
+            if (!isCountQuery) {
+                root.fetch("unit", JoinType.LEFT);
+            }
+
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
             if (search != null && !search.isBlank()) {
@@ -298,38 +310,35 @@ public class IngredientServiceImpl implements IngredientService {
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
              
             Sheet sheet = workbook.createSheet("Danh sách Nguyên liệu");
+            ExcelExportHelper.ExportStyles styles = ExcelExportHelper.createExportStyles(workbook);
             
-            Font headerFont = workbook.createFont();
-            headerFont.setBold(true);
-            CellStyle headerStyle = workbook.createCellStyle();
-            headerStyle.setFont(headerFont);
+            String[] headers = {"STT", "Mã nguyên liệu", "Tên nguyên liệu", "Trạng thái"};
+            ExcelExportHelper.createReportHeader(sheet, styles, "BÁO CÁO DANH SÁCH NGUYÊN LIỆU", headers);
             
-            String[] headers = {"Mã nguyên liệu", "Tên nguyên liệu", "Trạng thái"};
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                cell.setCellStyle(headerStyle);
-            }
-            
-            int rowIdx = 1;
+            int rowIdx = 5;
+            int stt = 1;
             for (var ing : ingredients) {
                 Row row = sheet.createRow(rowIdx++);
-                row.createCell(0).setCellValue(ing.getIngredientCode());
-                row.createCell(1).setCellValue(ing.getName());
-                row.createCell(2).setCellValue(ing.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
+                row.setHeightInPoints(22);
+                
+                Cell cellStt = row.createCell(1);
+                cellStt.setCellValue(stt++);
+                cellStt.setCellStyle(styles.centerStyle());
+                
+                Cell cellCode = row.createCell(2);
+                cellCode.setCellValue(ing.getIngredientCode() != null ? ing.getIngredientCode() : "");
+                cellCode.setCellStyle(styles.textStyle());
+                
+                Cell cellName = row.createCell(3);
+                cellName.setCellValue(ing.getName() != null ? ing.getName() : "");
+                cellName.setCellStyle(styles.textStyle());
+                
+                Cell cellStatus = row.createCell(4);
+                cellStatus.setCellValue(ing.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
+                cellStatus.setCellStyle(styles.centerStyle());
             }
             
-            sheet.createFreezePane(0, 1);
-            if (rowIdx > 1) {
-                sheet.setAutoFilter(new CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
-            }
-            
-            for (int i = 0; i < headers.length; i++) {
-                try {
-                    sheet.autoSizeColumn(i);
-                } catch (Exception ignored) {}
-            }
+            ExcelExportHelper.finalizeSheet(sheet, headers.length, rowIdx);
             
             workbook.write(out);
             return out.toByteArray();
@@ -383,19 +392,74 @@ public class IngredientServiceImpl implements IngredientService {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             int rowCount = sheet.getPhysicalNumberOfRows();
-            
-            for (int r = 1; r < rowCount; r++) {
+            if (rowCount <= 1) {
+                return;
+            }
+
+            int headerRowIndex = 0;
+            for (int r = 0; r < Math.min(10, rowCount); r++) {
+                Row rRow = sheet.getRow(r);
+                if (rRow == null) continue;
+                boolean hasMatch = false;
+                for (int c = 0; c < rRow.getLastCellNum(); c++) {
+                    String h = getCellValueAsString(rRow.getCell(c)).toLowerCase().trim();
+                    String normalized = Normalizer.normalize(h, Normalizer.Form.NFD)
+                            .replaceAll("\\p{M}", "");
+                    if (normalized.contains("ma nguyen lieu") || normalized.contains("ma nl") || normalized.contains("ten nguyen lieu") || normalized.contains("ten nl")) {
+                        hasMatch = true;
+                        break;
+                    }
+                }
+                if (hasMatch) {
+                    headerRowIndex = r;
+                    break;
+                }
+            }
+
+            Row headerRow = sheet.getRow(headerRowIndex);
+            int colCode = -1;
+            int colName = -1;
+            int colStatus = -1;
+
+            if (headerRow != null) {
+                for (int c = 0; c < headerRow.getLastCellNum(); c++) {
+                    String h = getCellValueAsString(headerRow.getCell(c)).toLowerCase().trim();
+                    String normalized = Normalizer.normalize(h, Normalizer.Form.NFD)
+                            .replaceAll("\\p{M}", "");
+                    if (normalized.contains("ma nguyen lieu") || normalized.contains("ma nl") || normalized.contains("ingredient code")) {
+                        colCode = c;
+                    } else if (normalized.contains("ten nguyen lieu") || normalized.contains("ten nl") || normalized.contains("ingredient name") || normalized.contains("nguyen lieu")) {
+                        colName = c;
+                    } else if (normalized.contains("trang thai") || normalized.contains("status")) {
+                        colStatus = c;
+                    }
+                }
+            }
+
+            if (colCode == -1) colCode = 0;
+            if (colName == -1) colName = 1;
+            if (colStatus == -1) colStatus = 2;
+
+            Map<String, Ingredient> existingByCode = repository.findAll().stream()
+                    .filter(i -> i.getIngredientCode() != null)
+                    .collect(Collectors.toMap(i -> i.getIngredientCode().toLowerCase().trim(), i -> i, (a, b) -> a));
+
+            Set<String> seenCodesInFile = new HashSet<>();
+            List<Ingredient> ingredientsToSave = new ArrayList<>();
+            List<Ingredient> newIngredients = new ArrayList<>();
+
+            for (int r = headerRowIndex + 1; r < rowCount; r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
-                
-                String ingredientCode = getCellValueAsString(row.getCell(0));
-                String name = getCellValueAsString(row.getCell(1));
-                String statusStr = getCellValueAsString(row.getCell(2));
-                
+
+                String ingredientCode = colCode >= 0 ? getCellValueAsString(row.getCell(colCode)) : "";
+                String name = colName >= 0 ? getCellValueAsString(row.getCell(colName)) : "";
+                String statusStr = colStatus >= 0 ? getCellValueAsString(row.getCell(colStatus)) : "";
+
                 if (name.isBlank() && ingredientCode.isBlank()) {
                     continue;
                 }
-                
+
                 final int rowNum = r + 1;
                 if (ingredientCode.isBlank()) {
                     throw new BadRequestException("Dòng " + rowNum + ": Mã nguyên liệu không được để trống.");
@@ -403,32 +467,44 @@ public class IngredientServiceImpl implements IngredientService {
                 if (name.isBlank()) {
                     throw new BadRequestException("Dòng " + rowNum + ": Tên nguyên liệu không được để trống.");
                 }
-                
+
+                String cleanCode = ingredientCode.trim();
+                String cleanName = name.trim();
+                String codeKey = cleanCode.toLowerCase();
+
+                if (seenCodesInFile.contains(codeKey)) {
+                    throw new BadRequestException("Dòng " + rowNum + ": Mã nguyên liệu '" + cleanCode + "' bị trùng lặp trong file excel.");
+                }
+                seenCodesInFile.add(codeKey);
+
                 Status status = Status.ACTIVE;
                 if (statusStr.equalsIgnoreCase("Ngừng hoạt động") || statusStr.equalsIgnoreCase("INACTIVE")) {
                     status = Status.INACTIVE;
                 }
-                
-                var existingOpt = repository.findAll().stream()
-                        .filter(i -> i.getIngredientCode().equalsIgnoreCase(ingredientCode))
-                        .findFirst();
-                        
-                Ingredient ingredient;
+
+                Ingredient ingredient = existingByCode.get(codeKey);
                 boolean isNew = false;
-                if (existingOpt.isPresent()) {
-                    ingredient = existingOpt.get();
+                if (ingredient != null) {
                     ingredient.setIsDeleted(false);
                 } else {
                     ingredient = new Ingredient();
                     isNew = true;
                 }
-                
-                ingredient.setIngredientCode(ingredientCode.trim());
-                ingredient.setName(name.trim());
-                ingredient.setStatus(status);
-                Ingredient saved = repository.saveAndFlush(ingredient);
 
+                ingredient.setIngredientCode(cleanCode);
+                ingredient.setName(cleanName);
+                ingredient.setStatus(status);
+
+                ingredientsToSave.add(ingredient);
                 if (isNew) {
+                    newIngredients.add(ingredient);
+                }
+            }
+
+            if (!ingredientsToSave.isEmpty()) {
+                repository.saveAll(ingredientsToSave);
+
+                for (Ingredient saved : newIngredients) {
                     inventoryClient.createProductVariantItem(
                             CreateInventoryItemRequest.builder()
                                     .status(saved.getStatus().toString())

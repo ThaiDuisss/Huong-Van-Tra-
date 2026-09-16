@@ -36,6 +36,7 @@ export interface SaleCartItem {
   quantityOnHand?: number | null;
   quantityReserved?: number | null;
   manualDiscount?: SaleManualDiscount | null;
+  note?: string;
 }
 
 export type SaleOrderType = "QUICK_SALE" | "DELIVERY";

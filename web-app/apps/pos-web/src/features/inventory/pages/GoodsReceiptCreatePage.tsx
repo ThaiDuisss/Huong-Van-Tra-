@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -44,6 +44,10 @@ export function GoodsReceiptCreatePage() {
     const [locationSearch, setLocationSearch] = useState("");
     const [materialSearch, setMaterialSearch] = useState("");
 
+    // Phân trang danh sách dòng nguyên liệu
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(5);
+
     const [form, setForm] = useState({
         expectedDate: new Date().toISOString().split("T")[0],
         note: "",
@@ -76,16 +80,39 @@ export function GoodsReceiptCreatePage() {
             }));
     }, [options.locations, locationSearch]);
 
-    const materialLookupOptions = useMemo<LookupItem[]>(() => {
-        const q = materialSearch.toLowerCase().trim();
-        return (options.materials || [])
-            .filter((m) => Boolean(m && m.id))
-            .filter((m) => !q || (m.name || "").toLowerCase().includes(q) || ((m.skuCode || "").toLowerCase().includes(q)))
-            .map((m) => ({
-                id: String(m.id),
-                name: m.skuCode ? `${m.name} (${m.skuCode})` : m.name
-            }));
-    }, [options.materials, materialSearch]);
+    // Trả về danh sách nguyên liệu khả dụng cho 1 dòng cụ thể (loại bỏ các nguyên liệu đã được chọn ở các dòng khác)
+    const getAvailableMaterialOptions = useCallback(
+        (currentLineId: string, currentMaterialId: string): LookupItem[] => {
+            const q = materialSearch.toLowerCase().trim();
+            const otherSelectedIds = new Set(
+                lines
+                    .filter((l) => l.id !== currentLineId && Boolean(l.materialId))
+                    .map((l) => l.materialId)
+            );
+
+            return (options.materials || [])
+                .filter((m) => Boolean(m && m.id))
+                .filter((m) => m.id === currentMaterialId || !otherSelectedIds.has(m.id))
+                .filter(
+                    (m) =>
+                        !q ||
+                        (m.name || "").toLowerCase().includes(q) ||
+                        (m.skuCode || "").toLowerCase().includes(q)
+                )
+                .map((m) => ({
+                    id: String(m.id),
+                    name: m.skuCode ? `${m.name} (${m.skuCode})` : m.name
+                }));
+        },
+        [lines, options.materials, materialSearch]
+    );
+
+    // Kiểm tra xem tất cả nguyên liệu của NCC đã được chọn hết chưa
+    const isAllMaterialsSelected = useMemo(() => {
+        if (!options.materials || options.materials.length === 0) return false;
+        const selectedIds = new Set(lines.map((l) => l.materialId).filter(Boolean));
+        return options.materials.every((m) => selectedIds.has(m.id));
+    }, [options.materials, lines]);
 
     useEffect(() => {
         let active = true;
@@ -109,6 +136,7 @@ export function GoodsReceiptCreatePage() {
                     supplierId: ""
                 }));
                 setLines([emptyLine("")]);
+                setPage(1);
             })
             .catch((err: unknown) => {
                 console.error("[GoodsReceiptCreatePage] Lỗi tải danh mục:", err);
@@ -139,6 +167,7 @@ export function GoodsReceiptCreatePage() {
                 materials: []
             }));
             setLines([emptyLine("")]);
+            setPage(1);
             return;
         }
 
@@ -150,15 +179,9 @@ export function GoodsReceiptCreatePage() {
                     ...cur,
                     materials: response.materials
                 }));
-                const validIds = new Set(response.materials.map((m) => m.id));
-                setLines((cur) =>
-                    cur.map((l) => ({
-                        ...l,
-                        materialId: validIds.has(l.materialId)
-                            ? l.materialId
-                            : response.materials[0]?.id || ""
-                    }))
-                );
+                const firstMatId = response.materials[0]?.id || "";
+                setLines([emptyLine(firstMatId)]);
+                setPage(1);
             })
             .catch((err: unknown) => {
                 console.error("[GoodsReceiptCreatePage] Lỗi tải nguyên liệu của NCC:", err);
@@ -197,15 +220,33 @@ export function GoodsReceiptCreatePage() {
             setError("Nhà cung cấp đã chọn chưa có nguyên liệu nào để thêm.");
             return;
         }
-        setLines((cur) => [
-            ...cur,
-            emptyLine(options.materials[0]?.id || "")
-        ]);
+
+        const selectedIds = new Set(lines.map((l) => l.materialId).filter(Boolean));
+        const nextAvailable = options.materials.find((m) => !selectedIds.has(m.id));
+
+        if (!nextAvailable && options.materials.length > 0 && lines.length >= options.materials.length) {
+            setError("Tất cả nguyên liệu của nhà cung cấp này đã được thêm vào danh sách.");
+            return;
+        }
+
+        const newLine = emptyLine(nextAvailable ? nextAvailable.id : "");
+        const nextLines = [...lines, newLine];
+        setLines(nextLines);
+        setError("");
+
+        // Chuyển tới trang chứa dòng vừa thêm
+        const targetPage = Math.ceil(nextLines.length / pageSize);
+        setPage(targetPage);
     }
 
     function removeLine(id: string) {
         if (lines.length <= 1) return;
-        setLines((cur) => cur.filter((l) => l.id !== id));
+        const nextLines = lines.filter((l) => l.id !== id);
+        setLines(nextLines);
+        const nextTotalPages = Math.max(1, Math.ceil(nextLines.length / pageSize));
+        if (page > nextTotalPages) {
+            setPage(nextTotalPages);
+        }
     }
 
     function updateLine(id: string, patch: Partial<CreateLine>) {
@@ -243,6 +284,16 @@ export function GoodsReceiptCreatePage() {
             }
         }
 
+        // Kiểm tra xem có trùng lặp nguyên liệu không
+        const matSet = new Set<string>();
+        for (const line of lines) {
+            if (matSet.has(line.materialId)) {
+                setError("Có nguyên liệu bị trùng lặp trong danh sách. Vui lòng kiểm tra lại.");
+                return;
+            }
+            matSet.add(line.materialId);
+        }
+
         const payload: GoodsReceiptCreateInput = {
             deliveryPerson: "",
             evidence: [],
@@ -277,6 +328,13 @@ export function GoodsReceiptCreatePage() {
             setSubmitting(false);
         }
     }
+
+    // Tính toán phân trang
+    const totalPages = Math.max(1, Math.ceil(lines.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const startIndex = (safePage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, lines.length);
+    const paginatedLines = lines.slice(startIndex, startIndex + pageSize);
 
     return (
         <section className="grid gap-4">
@@ -321,7 +379,7 @@ export function GoodsReceiptCreatePage() {
                             onChange={handleSupplierChange}
                             options={supplierLookupOptions}
                             onSearch={setSupplierSearch}
-                            onLoadMore={() => {}}
+                            onLoadMore={() => { }}
                             hasMore={false}
                             loading={loadingOptions}
                             placeholder="Chọn nhà cung cấp..."
@@ -342,7 +400,7 @@ export function GoodsReceiptCreatePage() {
                             }
                             options={locationLookupOptions}
                             onSearch={setLocationSearch}
-                            onLoadMore={() => {}}
+                            onLoadMore={() => { }}
                             hasMore={false}
                             loading={loadingOptions}
                             placeholder="Chọn kho nhận hàng..."
@@ -366,7 +424,7 @@ export function GoodsReceiptCreatePage() {
                         />
                     </label>
 
-                    <label className="grid gap-1.5 text-xs font-black text-[#536078]">
+                    {/* <label className="grid gap-1.5 text-xs font-black text-[#536078]">
                         Mã đơn đặt hàng (PO)
                         <input
                             className="h-10 rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#172317] outline-none focus:border-[#159734]"
@@ -379,7 +437,7 @@ export function GoodsReceiptCreatePage() {
                             }
                             value={form.purchaseOrderCode}
                         />
-                    </label>
+                    </label> */}
 
                     <label className="grid gap-1.5 text-xs font-black text-[#536078] md:col-span-2 lg:col-span-4">
                         Ghi chú phiếu
@@ -406,17 +464,18 @@ export function GoodsReceiptCreatePage() {
                             2. Danh sách nguyên liệu dự kiến nhập
                         </h2>
                         <p className="text-xs font-semibold text-[#697684]">
-                            Chỉ chọn các nguyên liệu do nhà cung cấp đã chọn cung cấp.
+                            Chỉ chọn các nguyên liệu do nhà cung cấp đã chọn cung cấp (mỗi nguyên liệu chỉ được chọn một lần).
                         </p>
                     </div>
                     <button
                         className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#edf8ef] px-3 text-xs font-black text-[#159734] hover:bg-[#e2f4e5] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
-                        disabled={!form.supplierId || loadingMaterials}
+                        disabled={!form.supplierId || loadingMaterials || isAllMaterialsSelected}
                         onClick={addLine}
                         type="button"
+                        title={isAllMaterialsSelected ? "Đã chọn tất cả nguyên liệu của nhà cung cấp này" : "Thêm nguyên liệu"}
                     >
                         <Plus size={15} />
-                        Thêm dòng
+                        Thêm dòng {options.materials.length > 0 ? `(${lines.length}/${options.materials.length})` : ""}
                     </button>
                 </div>
 
@@ -447,13 +506,16 @@ export function GoodsReceiptCreatePage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {lines.map((line, index) => {
+                            {paginatedLines.map((line, index) => {
+                                const globalIndex = startIndex + index;
                                 const material = getMaterial(line.materialId);
                                 const isMaterialDisabled = !form.supplierId || loadingMaterials || options.materials.length === 0;
+                                const lineMaterialOptions = getAvailableMaterialOptions(line.id, line.materialId);
+
                                 return (
                                     <tr key={line.id} className="border-b border-[#edf0f4]">
                                         <td className="px-3 py-2.5 text-xs font-bold text-[#697684]">
-                                            {index + 1}
+                                            {globalIndex + 1}
                                         </td>
                                         <td className="px-3 py-2.5 min-w-[280px]">
                                             <SearchableDropdown
@@ -463,19 +525,19 @@ export function GoodsReceiptCreatePage() {
                                                         materialId: val
                                                     })
                                                 }
-                                                options={materialLookupOptions}
+                                                options={lineMaterialOptions}
                                                 onSearch={setMaterialSearch}
-                                                onLoadMore={() => {}}
+                                                onLoadMore={() => { }}
                                                 hasMore={false}
                                                 loading={loadingMaterials}
                                                 placeholder={
                                                     !form.supplierId
                                                         ? "Vui lòng chọn NCC trước"
                                                         : loadingMaterials
-                                                        ? "Đang tải nguyên liệu..."
-                                                        : options.materials.length === 0
-                                                        ? "Không có nguyên liệu"
-                                                        : "Chọn nguyên liệu..."
+                                                            ? "Đang tải nguyên liệu..."
+                                                            : options.materials.length === 0
+                                                                ? "Không có nguyên liệu"
+                                                                : "Chọn nguyên liệu..."
                                                 }
                                                 emptyText="Không tìm thấy nguyên liệu"
                                                 disabled={isMaterialDisabled}
@@ -531,6 +593,65 @@ export function GoodsReceiptCreatePage() {
                     </table>
                 </div>
 
+                {/* PHÂN TRANG DANH SÁCH NGUYÊN LIỆU */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f4] pt-3 text-xs">
+                    <div className="text-[#536078] font-bold">
+                        Hiển thị <span className="text-[#172317]">{lines.length > 0 ? startIndex + 1 : 0} - {endIndex}</span> trên tổng <span className="text-[#172317]">{lines.length}</span> dòng
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-1.5 text-[#697684] font-bold">
+                            <span>Hiển thị:</span>
+                            <select
+                                className="h-8 rounded-lg border border-[#dce5e1] bg-white px-2 text-xs font-bold text-[#172317] outline-none focus:border-[#159734]"
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                            >
+                                <option value={5}>5 dòng / trang</option>
+                                <option value={10}>10 dòng / trang</option>
+                                <option value={20}>20 dòng / trang</option>
+                            </select>
+                        </div>
+                        {totalPages > 1 && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    disabled={safePage <= 1}
+                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-[#f7f8fb] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                    title="Trang trước"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                                    <button
+                                        key={p}
+                                        type="button"
+                                        onClick={() => setPage(p)}
+                                        className={`grid size-8 place-items-center rounded-lg text-xs font-black transition-colors cursor-pointer ${p === safePage
+                                                ? "bg-[#159734] text-white shadow-sm"
+                                                : "border border-[#dce5e1] text-[#536078] hover:bg-[#f7f8fb]"
+                                            }`}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                                <button
+                                    type="button"
+                                    disabled={safePage >= totalPages}
+                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                    className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-[#f7f8fb] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                    title="Trang sau"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* TỔNG KẾT DÒNG */}
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#f8fbf8] p-3 border border-[#e8f2e9]">
                     <span className="text-xs font-bold text-[#536078]">
@@ -552,7 +673,7 @@ export function GoodsReceiptCreatePage() {
                 </Link>
                 <div className="flex flex-wrap gap-2">
                     <button
-                        className="h-10 rounded-lg border border-[#d8eadc] bg-white px-5 text-sm font-black text-[#159734] hover:bg-[#f4faf5] disabled:opacity-60"
+                        className="h-10 rounded-lg border border-[#d8eadc] bg-white px-5 text-sm font-black text-[#159734] hover:bg-[#f4faf5] disabled:opacity-60 cursor-pointer"
                         disabled={submitting}
                         onClick={() => void handleSave(false)}
                         type="button"
@@ -560,7 +681,7 @@ export function GoodsReceiptCreatePage() {
                         {submitting ? "Đang lưu..." : "Lưu bản nháp (DRAFT)"}
                     </button>
                     <button
-                        className="h-10 rounded-lg bg-[#159734] px-6 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-60"
+                        className="h-10 rounded-lg bg-[#159734] px-6 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-60 cursor-pointer"
                         disabled={submitting}
                         onClick={() => void handleSave(true)}
                         type="button"
@@ -572,3 +693,4 @@ export function GoodsReceiptCreatePage() {
         </section>
     );
 }
+

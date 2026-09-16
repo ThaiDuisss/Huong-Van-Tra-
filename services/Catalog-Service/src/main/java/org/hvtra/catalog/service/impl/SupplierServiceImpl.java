@@ -106,7 +106,9 @@ public class SupplierServiceImpl implements SupplierService {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
 
-        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
+        var page = repository.findAll(spec, pageable);
+        warmUpIngredients(page.getContent());
+        return PageResponse.from(page.map(mapper::toResponse));
     }
 
     @Override
@@ -116,7 +118,29 @@ public class SupplierServiceImpl implements SupplierService {
         if (Boolean.TRUE.equals(supplier.getIsDeleted())) {
             throw new ResourceNotFoundException("Supplier", id);
         }
+        warmUpIngredients(List.of(supplier));
         return mapper.toResponse(supplier);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SupplierResponse> findByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        List<Supplier> suppliers = repository.findAllById(ids).stream()
+                .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
+                .toList();
+        warmUpIngredients(suppliers);
+        return suppliers.stream().map(mapper::toResponse).toList();
+    }
+
+    private void warmUpIngredients(List<Supplier> suppliers) {
+        if (suppliers.isEmpty()) {
+            return;
+        }
+        List<UUID> supplierIds = suppliers.stream().map(Supplier::getId).toList();
+        repository.fetchIngredientsForSuppliers(supplierIds);
     }
 
     @Override

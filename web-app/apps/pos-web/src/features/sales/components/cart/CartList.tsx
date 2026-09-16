@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BadgePercent, Plus, Minus, ShoppingBag, Trash2, X } from "lucide-react";
+import { BadgePercent, MessageSquareText, Plus, Minus, ShoppingBag, Trash2, X } from "lucide-react";
 
 import type { SaleCartItem, SaleManualDiscount } from "../../types/sale.types";
 import {
@@ -15,6 +15,7 @@ interface CartListProps {
   onDecrement(productId: string): void;
   onRemove(productId: string): void;
   onDiscountChange(productId: string, discount: SaleManualDiscount | null): void;
+  onNoteChange(productId: string, note: string): void;
 }
 
 export function CartList({
@@ -23,9 +24,12 @@ export function CartList({
   onIncrement,
   onDecrement,
   onRemove,
-  onDiscountChange
+  onDiscountChange,
+  onNoteChange
 }: CartListProps) {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingNoteItem, setEditingNoteItem] = useState<SaleCartItem | null>(null);
+  const [draftNote, setDraftNote] = useState("");
 
   if (items.length === 0) {
     return (
@@ -65,6 +69,11 @@ export function CartList({
                 {item.variant ? (
                   <small className="mt-1 block font-medium text-neutral-500">
                     {item.variant}
+                  </small>
+                ) : null}
+                {item.note ? (
+                  <small className={styles.itemNote}>
+                    Yêu cầu: {item.note}
                   </small>
                 ) : null}
               </span>
@@ -133,6 +142,17 @@ export function CartList({
                 <button
                   type="button"
                   className={styles.iconAction}
+                  onClick={() => {
+                    setEditingNoteItem(item);
+                    setDraftNote(item.note ?? "");
+                  }}
+                  aria-label={`Sửa yêu cầu ${item.name}`}
+                >
+                  <MessageSquareText size={18} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className={styles.iconAction}
                   onClick={() => onRemove(item.productId)}
                   aria-label={`Xóa ${item.name} khỏi hóa đơn`}
                 >
@@ -143,6 +163,62 @@ export function CartList({
           );
         })}
       </div>
+      {editingNoteItem ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4"
+          role="presentation"
+        >
+          <section
+            aria-modal="true"
+            className="grid w-full max-w-[560px] gap-4 rounded-2xl bg-white p-5 shadow-pos-panel"
+            role="dialog"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-[#172317]">
+                  Sửa yêu cầu khách hàng
+                </h2>
+                <p className="text-sm font-semibold text-[#697684]">
+                  {editingNoteItem.name} · {editingNoteItem.sku}
+                </p>
+              </div>
+              <button
+                aria-label="Đóng"
+                className={styles.iconAction}
+                onClick={() => setEditingNoteItem(null)}
+                type="button"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <textarea
+              className="min-h-[140px] rounded-lg border border-pos-border px-3 py-2 text-sm font-semibold outline-none focus:border-[#159734]"
+              onChange={(event) => setDraftNote(event.currentTarget.value)}
+              placeholder="Nhập yêu cầu riêng của khách hàng"
+              value={draftNote}
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]"
+                onClick={() => setEditingNoteItem(null)}
+                type="button"
+              >
+                Hủy
+              </button>
+              <button
+                className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white"
+                onClick={() => {
+                  onNoteChange(editingNoteItem.productId, draftNote.trim());
+                  setEditingNoteItem(null);
+                }}
+                type="button"
+              >
+                Lưu
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

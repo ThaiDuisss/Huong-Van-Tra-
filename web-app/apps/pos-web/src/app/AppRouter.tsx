@@ -5,10 +5,13 @@ import { SystemShell } from "../components/layout/System/SystemShell";
 import { BomListPage } from "../features/manufacturing/pages/BomListPage";
 import { BomDetailPage } from "../features/manufacturing/pages/BomDetailPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
+import { ProductionOrderCreatePage as ManufacturingProductionOrderCreatePage } from "../features/manufacturing/pages/ProductionOrderCreatePage";
+import { ProductionOrderDetailPage as ManufacturingProductionOrderDetailPage } from "../features/manufacturing/pages/ProductionOrderDetailPage";
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
+import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
@@ -176,7 +179,8 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to={routePaths.inventoryBalances} replace />} />
+        <Route index element={<Navigate to={routePaths.systemDashboard} replace />} />
+        <Route path="dashboard" element={<DashboardOverviewPage />} />
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />
@@ -259,6 +263,8 @@ export function AppRouter() {
           <Route path="manufacturing/boms" element={<BomListPage />} />
           <Route path="manufacturing/boms/:id" element={<BomDetailPage />} />
           <Route path="manufacturing/production-orders" element={<ProductionOrderListPage />} />
+          <Route path="manufacturing/production-orders/new" element={<ManufacturingProductionOrderCreatePage />} />
+          <Route path="manufacturing/production-orders/:id" element={<ManufacturingProductionOrderDetailPage />} />
           <Route path="manufacturing/ingredients" element={<RawMaterialListPage />} />
           <Route path="manufacturing/suppliers" element={<SupplierListPage />} />
         </Route>
