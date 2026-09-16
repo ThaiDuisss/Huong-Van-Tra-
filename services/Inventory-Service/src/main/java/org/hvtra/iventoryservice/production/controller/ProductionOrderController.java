@@ -5,7 +5,6 @@ import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
 import org.hvtra.iventoryservice.production.dto.request.CancelProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.request.CompleteProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.request.CreateProductionOrderRequest;
-import org.hvtra.iventoryservice.production.dto.response.BomOptionResponse;
 import org.hvtra.iventoryservice.production.dto.response.ProductionOrderResponse;
 import org.hvtra.iventoryservice.production.service.ProductionOrderService;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
@@ -16,7 +15,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,11 +35,6 @@ public class ProductionOrderController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return ResponseEntity.ok(service.findAll(status, productVariantId, search, pageable));
-    }
-
-    @GetMapping("/bom-options")
-    public ResponseEntity<List<BomOptionResponse>> getBomOptions(@RequestParam UUID productVariantId) {
-        return ResponseEntity.ok(service.getBomOptions(productVariantId));
     }
 
     @GetMapping("/{id}")

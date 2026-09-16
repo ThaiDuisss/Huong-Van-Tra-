@@ -12,8 +12,6 @@ public record ProductionOrderResponse(
         String orderCode,
         ProductionOrderStatus status,
         UUID productVariantId,
-        UUID bomId,
-        Integer bomVersion,
         BigDecimal plannedQuantity,
         UUID unitId,
         UUID locationId,

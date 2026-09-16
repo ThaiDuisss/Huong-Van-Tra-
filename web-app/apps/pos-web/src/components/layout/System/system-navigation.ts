@@ -157,13 +157,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         roles: MANUFACTURING_ROLES,
       },
       {
-        key: "manufacturing-boms",
-        label: "Công thức",
-        to: routePaths.bomList,
-        icon: Layers3,
-        roles: MANUFACTURING_ROLES,
-      },
-      {
         key: "manufacturing-ingredients",
         label: "Nguyên liệu",
         to: routePaths.ingredient,

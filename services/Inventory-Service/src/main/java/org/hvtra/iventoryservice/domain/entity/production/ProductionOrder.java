@@ -31,12 +31,6 @@ public class ProductionOrder extends BaseEntity {
     @Column(name = "product_variant_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID productVariantId;
 
-    @Column(name = "bom_id", nullable = false, columnDefinition = "BINARY(16)")
-    private UUID bomId;
-
-    @Column(name = "bom_version")
-    private Integer bomVersion;
-
     @Column(name = "planned_quantity", nullable = false, precision = 18, scale = 2)
     private BigDecimal plannedQuantity;
 

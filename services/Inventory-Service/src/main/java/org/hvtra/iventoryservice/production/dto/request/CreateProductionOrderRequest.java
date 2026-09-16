@@ -10,8 +10,6 @@ public record CreateProductionOrderRequest(
         @NotNull(message = "productVariantId is required")
         UUID productVariantId,
 
-        UUID bomId,
-
         @NotNull(message = "plannedQuantity is required")
         @DecimalMin(value = "0.01", message = "plannedQuantity must be greater than 0")
         BigDecimal plannedQuantity,

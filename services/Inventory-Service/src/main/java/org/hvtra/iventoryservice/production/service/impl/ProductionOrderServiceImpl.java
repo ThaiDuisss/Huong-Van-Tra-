@@ -27,7 +27,6 @@ import org.hvtra.iventoryservice.movement.repository.InventoryTransactionReposit
 import org.hvtra.iventoryservice.production.dto.request.CancelProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.request.CompleteProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.request.CreateProductionOrderRequest;
-import org.hvtra.iventoryservice.production.dto.response.BomOptionResponse;
 import org.hvtra.iventoryservice.production.dto.response.ProductionOrderResponse;
 import org.hvtra.iventoryservice.production.mapper.ProductionOrderMapper;
 import org.hvtra.iventoryservice.production.repository.ProductionOrderRepository;
@@ -48,7 +47,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -105,19 +107,12 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(productionOrderRepository.findAll(spec, pageable).map(mapper::toResponse));
+        return PageResponse.from(productionOrderRepository.findAll(spec, pageable).map(mapper::toSummaryResponse));
     }
 
     @Override
     public ProductionOrderResponse findById(UUID id) {
         return mapper.toResponse(getOrderWithDetails(id));
-    }
-
-    @Override
-    public List<BomOptionResponse> getBomOptions(UUID productVariantId) {
-        return catalogClient.lookupBoms(productVariantId, "ACTIVE").stream()
-                .map(bom -> new BomOptionResponse(bom.id(), bom.bomCode(), bom.name(), bom.isDefault(), bom.bomVersion()))
-                .toList();
     }
 
     @Override
@@ -128,10 +123,11 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             throw new ResourceNotFoundException("Product variant", request.productVariantId());
         }
 
-        List<CatalogClient.BomLookupResponse> activeBoms = catalogClient.lookupBoms(request.productVariantId(), "ACTIVE");
-        UUID resolvedBomId = resolveBomId(activeBoms, request.bomId());
-
-        CatalogClient.BomDetailResponse bom = catalogClient.getBom(resolvedBomId);
+        List<CatalogClient.BomItemResponse> bomItems = catalogClient.getBomItems(request.productVariantId());
+        if (bomItems.isEmpty()) {
+            throw new BadRequestException(
+                    "Sản phẩm này chưa có định mức nguyên liệu (BOM) — vui lòng cập nhật BOM trước khi tạo lệnh sản xuất");
+        }
 
         InventoryLocation location = locationRepository.findById(request.locationId())
                 .orElseThrow(() -> new ResourceNotFoundException("InventoryLocation", request.locationId()));
@@ -139,21 +135,29 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         ProductionOrder order = new ProductionOrder();
         order.setOrderCode(generateOrderCode());
         order.setProductVariantId(request.productVariantId());
-        order.setBomId(bom.id());
-        order.setBomVersion(bom.version());
         order.setPlannedQuantity(request.plannedQuantity());
         order.setUnitId(variant.unitId());
         order.setLocationId(location.getId());
         order.setNote(request.note());
         order.setStatus(ProductionOrderStatus.DRAFT);
 
-        for (CatalogClient.BomItemResponse bomItem : bom.items()) {
+        List<UUID> ingredientIds = bomItems.stream()
+                .filter(bi -> bi.ingredient() != null)
+                .map(bi -> bi.ingredient().id())
+                .distinct()
+                .toList();
+        Map<UUID, InventoryItem> inventoryItemByIngredientId = itemRepository
+                .findByReferenceIdInAndItemType(ingredientIds, InventoryItemType.INGREDIENT).stream()
+                .collect(Collectors.toMap(InventoryItem::getReferenceId, Function.identity()));
+
+        for (CatalogClient.BomItemResponse bomItem : bomItems) {
             if (bomItem.ingredient() == null) {
                 continue;
             }
-            InventoryItem inventoryItem = itemRepository
-                    .findByReferenceIdAndItemType(bomItem.ingredient().id(), InventoryItemType.INGREDIENT)
-                    .orElseThrow(() -> new ResourceNotFoundException("InventoryItem for ingredient", bomItem.ingredient().id()));
+            InventoryItem inventoryItem = inventoryItemByIngredientId.get(bomItem.ingredient().id());
+            if (inventoryItem == null) {
+                throw new ResourceNotFoundException("InventoryItem for ingredient", bomItem.ingredient().id());
+            }
 
             BigDecimal wasteRate = bomItem.wasteRate() != null ? bomItem.wasteRate() : BigDecimal.ZERO;
             BigDecimal requiredQuantity = bomItem.quantity()
@@ -171,22 +175,6 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         }
 
         return mapper.toResponse(productionOrderRepository.save(order));
-    }
-
-    private UUID resolveBomId(List<CatalogClient.BomLookupResponse> activeBoms, UUID requestedBomId) {
-        if (requestedBomId != null) {
-            boolean valid = activeBoms.stream().anyMatch(b -> b.id().equals(requestedBomId));
-            if (!valid) {
-                throw new BadRequestException("BOM đã chọn không hợp lệ hoặc không ở trạng thái ACTIVE cho sản phẩm này");
-            }
-            return requestedBomId;
-        }
-        List<CatalogClient.BomLookupResponse> defaults = activeBoms.stream().filter(CatalogClient.BomLookupResponse::isDefault).toList();
-        if (defaults.size() == 1) {
-            return defaults.get(0).id();
-        }
-        throw new BadRequestException(
-                "Sản phẩm này chưa có BOM mặc định duy nhất — vui lòng chọn một BOM trước khi tạo lệnh sản xuất");
     }
 
     @Override

@@ -8,8 +8,7 @@ import { bomApi } from "../services/bom.api";
 import { productionOrderApi } from "../services/production-order.api";
 import { SearchableDropdown } from "../components/shared/SearchableDropdown";
 import type { LookupItem } from "../components/shared/SearchableDropdown";
-import type { BomResponse } from "../types/bom.types";
-import type { BomOption } from "../types/production-order.types";
+import type { BomItemResponse } from "../types/bom.types";
 
 export function ProductionOrderCreatePage() {
     const navigate = useNavigate();
@@ -31,13 +30,9 @@ export function ProductionOrderCreatePage() {
     const [plannedQuantity, setPlannedQuantity] = useState(1);
     const [note, setNote] = useState("");
 
-    const [bomOptions, setBomOptions] = useState<BomOption[] | null>(null);
-    const [bomOptionsLoading, setBomOptionsLoading] = useState(false);
-    const [selectedBomId, setSelectedBomId] = useState("");
-    const [bomPreview, setBomPreview] = useState<BomResponse | null>(null);
-    const [bomPreviewLoading, setBomPreviewLoading] = useState(false);
-    const bomOptionsRequestRef = useRef(0);
-    const bomPreviewRequestRef = useRef(0);
+    const [bomItems, setBomItems] = useState<BomItemResponse[] | null>(null);
+    const [bomItemsLoading, setBomItemsLoading] = useState(false);
+    const bomItemsRequestRef = useRef(0);
 
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
@@ -80,11 +75,15 @@ export function ProductionOrderCreatePage() {
     const loadLocationOptions = useCallback(async (search: string, page: number) => {
         try {
             setLocationLoading(true);
-            const res = await inventoryLocationApi.lookup(search, page, 20);
-            setLocationOptions((prev) => (page === 0 ? (res.content ?? []) : [...prev, ...(res.content ?? [])]));
+            const res = await inventoryLocationApi.lookupByType("WAREHOUSE", search, page, 20);
+            const options = (res.content ?? []).map((loc) => ({
+                id: String(loc.id),
+                name: `${loc.name} (${loc.code})`
+            }));
+            setLocationOptions((prev) => (page === 0 ? options : [...prev, ...options]));
             setLocationHasMore(!res.last);
         } catch (err) {
-            console.error("Lỗi tải danh sách kho/vị trí", err);
+            console.error("Lỗi tải danh sách kho sản xuất", err);
             setLocationHasMore(false);
         } finally {
             setLocationLoading(false);
@@ -112,73 +111,37 @@ export function ProductionOrderCreatePage() {
         }
     }, [locationLoading, locationHasMore, locationPage, loadLocationOptions]);
 
-    // Xem trước định mức nguyên liệu khi đã xác định được BOM (default hoặc do người dùng chọn)
-    const loadBomPreview = useCallback((bomId: string) => {
-        if (!bomId) {
-            setBomPreview(null);
-            return;
-        }
-        const requestId = ++bomPreviewRequestRef.current;
-        setBomPreviewLoading(true);
-        bomApi
-            .detail(bomId)
-            .then((res) => {
-                if (bomPreviewRequestRef.current === requestId) setBomPreview(res);
-            })
-            .catch(() => {
-                if (bomPreviewRequestRef.current === requestId) setBomPreview(null);
-            })
-            .finally(() => {
-                if (bomPreviewRequestRef.current === requestId) setBomPreviewLoading(false);
-            });
-    }, []);
-
-    function handleSelectBom(bomId: string) {
-        setSelectedBomId(bomId);
-        loadBomPreview(bomId);
-    }
-
-    // Khi chọn sản phẩm: tải danh sách BOM khả dụng, ưu tiên tự chọn BOM mặc định
+    // Khi chọn sản phẩm: tải luôn danh sách nguyên liệu (BOM) của sản phẩm đó để xem trước
     function handleVariantChange(newVariantId: string) {
         setVariantId(newVariantId);
-        setSelectedBomId("");
-        setBomPreview(null);
 
         if (!newVariantId) {
-            setBomOptions(null);
+            setBomItems(null);
             return;
         }
 
-        const requestId = ++bomOptionsRequestRef.current;
-        setBomOptionsLoading(true);
-        productionOrderApi
-            .bomOptions(newVariantId)
-            .then((options) => {
-                if (bomOptionsRequestRef.current !== requestId) return;
-                setBomOptions(options);
-                const defaults = options.filter((o) => o.isDefault);
-                if (defaults.length === 1) {
-                    handleSelectBom(defaults[0].id);
-                }
+        const requestId = ++bomItemsRequestRef.current;
+        setBomItemsLoading(true);
+        bomApi
+            .listByVariant(newVariantId)
+            .then((items) => {
+                if (bomItemsRequestRef.current === requestId) setBomItems(items);
             })
             .catch((err) => {
-                if (bomOptionsRequestRef.current !== requestId) return;
-                setError(err instanceof Error ? err.message : "Không thể tải danh sách BOM của sản phẩm này.");
-                setBomOptions([]);
+                if (bomItemsRequestRef.current !== requestId) return;
+                setError(err instanceof Error ? err.message : "Không thể tải định mức nguyên liệu của sản phẩm này.");
+                setBomItems([]);
             })
             .finally(() => {
-                if (bomOptionsRequestRef.current === requestId) setBomOptionsLoading(false);
+                if (bomItemsRequestRef.current === requestId) setBomItemsLoading(false);
             });
     }
 
-    const defaultBomOptions = useMemo(() => (bomOptions ?? []).filter((o) => o.isDefault), [bomOptions]);
-    const needsManualBomPick = bomOptions !== null && bomOptions.length > 0 && defaultBomOptions.length !== 1;
-    const autoSelectedBom = defaultBomOptions.length === 1 ? defaultBomOptions[0] : null;
-    const noBomAvailable = bomOptions !== null && bomOptions.length === 0;
+    const noBomAvailable = bomItems !== null && bomItems.length === 0;
 
     const materialPreviewRows = useMemo(() => {
-        if (!bomPreview) return [];
-        return bomPreview.items.map((item) => {
+        if (!bomItems) return [];
+        return bomItems.map((item) => {
             const wasteRate = item.wasteRate ?? 0;
             const requiredQuantity = item.quantity * plannedQuantity * (1 + wasteRate);
             return {
@@ -188,12 +151,12 @@ export function ProductionOrderCreatePage() {
                 requiredQuantity
             };
         });
-    }, [bomPreview, plannedQuantity]);
+    }, [bomItems, plannedQuantity]);
 
     const canSubmit =
         Boolean(variantId) &&
         Boolean(locationId) &&
-        Boolean(selectedBomId) &&
+        Boolean(bomItems && bomItems.length > 0) &&
         plannedQuantity > 0 &&
         !submitting;
 
@@ -206,8 +169,8 @@ export function ProductionOrderCreatePage() {
             setError("Vui lòng chọn kho/vị trí sản xuất.");
             return;
         }
-        if (!selectedBomId) {
-            setError("Vui lòng chọn BOM trước khi tạo lệnh sản xuất.");
+        if (!bomItems || bomItems.length === 0) {
+            setError("Sản phẩm này chưa có định mức nguyên liệu (BOM) — vui lòng cập nhật BOM trước khi tạo lệnh sản xuất.");
             return;
         }
         if (plannedQuantity <= 0) {
@@ -220,7 +183,6 @@ export function ProductionOrderCreatePage() {
         try {
             const created = await productionOrderApi.create({
                 productVariantId: variantId,
-                bomId: selectedBomId,
                 plannedQuantity,
                 locationId,
                 note: note.trim() || undefined
@@ -249,8 +211,7 @@ export function ProductionOrderCreatePage() {
             <header className="grid gap-1 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">
                 <h1 className="text-2xl font-black text-[#172317]">Tạo lệnh sản xuất</h1>
                 <p className="text-sm font-semibold text-[#536078]">
-                    Chọn sản phẩm cần sản xuất, hệ thống sẽ tự động lấy BOM mặc định — nếu sản phẩm chưa có BOM mặc định,
-                    bạn cần chọn một BOM khả dụng trước khi tiếp tục.
+                    Chọn sản phẩm cần sản xuất — hệ thống sẽ tự động lấy định mức nguyên liệu (BOM) đã khai báo cho sản phẩm đó.
                 </p>
             </header>
 
@@ -319,85 +280,42 @@ export function ProductionOrderCreatePage() {
                 <div className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">
                     <h2 className="text-base font-black text-[#172317]">2. Định mức nguyên liệu (BOM)</h2>
 
-                    {bomOptionsLoading ? (
-                        <div className="text-sm font-semibold text-[#697684]">Đang tải danh sách BOM...</div>
+                    {bomItemsLoading ? (
+                        <div className="text-sm font-semibold text-[#697684]">Đang tải định mức nguyên liệu...</div>
                     ) : noBomAvailable ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-700">
-                            Sản phẩm này chưa có BOM nào ở trạng thái hoạt động. Vui lòng tạo BOM trước khi sản xuất.
+                            Sản phẩm này chưa có định mức nguyên liệu (BOM). Vui lòng cập nhật BOM cho mặt hàng trước khi sản xuất.
                         </div>
-                    ) : autoSelectedBom ? (
-                        <div className="rounded-lg border border-hvt-green-600/30 bg-hvt-green-600/5 p-3 text-sm font-bold text-[#159734]">
-                            BOM mặc định: {autoSelectedBom.bomCode} — {autoSelectedBom.name} (phiên bản{" "}
-                            {autoSelectedBom.bomVersion ?? "-"})
-                        </div>
-                    ) : needsManualBomPick ? (
-                        <div className="grid gap-2">
-                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-700">
-                                Sản phẩm này chưa có BOM mặc định — vui lòng chọn một BOM để tiếp tục.
-                            </div>
-                            <div className="grid gap-2 sm:grid-cols-2">
-                                {(bomOptions ?? []).map((option) => (
-                                    <label
-                                        key={option.id}
-                                        className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm transition-colors ${
-                                            selectedBomId === option.id
-                                                ? "border-hvt-green-600 bg-hvt-green-600/5"
-                                                : "border-pos-border hover:bg-neutral-50"
-                                        }`}
-                                    >
-                                        <input
-                                            checked={selectedBomId === option.id}
-                                            className="mt-1"
-                                            name="bom-option"
-                                            onChange={() => handleSelectBom(option.id)}
-                                            type="radio"
-                                        />
-                                        <span>
-                                            <span className="block font-black text-[#172317]">{option.bomCode}</span>
-                                            <span className="block text-[#536078]">
-                                                {option.name} (phiên bản {option.bomVersion ?? "-"})
-                                            </span>
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    ) : null}
-
-                    {selectedBomId ? (
+                    ) : (
                         <div className="grid gap-2">
                             <h3 className="text-sm font-black text-[#172317]">Nguyên liệu dự kiến tiêu thụ</h3>
-                            {bomPreviewLoading ? (
-                                <div className="text-sm font-semibold text-[#697684]">Đang tải định mức...</div>
-                            ) : (
-                                <div className="overflow-hidden rounded-xl border border-[#e8eef0]">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-neutral-50 text-xs font-bold uppercase text-[#697684]">
-                                            <tr>
-                                                <th className="px-3 py-2 text-left">Nguyên liệu</th>
-                                                <th className="px-3 py-2 text-right">Số lượng cần</th>
-                                                <th className="px-3 py-2 text-left">Đơn vị</th>
+                            <div className="overflow-hidden rounded-xl border border-[#e8eef0]">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-neutral-50 text-xs font-bold uppercase text-[#697684]">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left">Nguyên liệu</th>
+                                            <th className="px-3 py-2 text-right">Số lượng cần</th>
+                                            <th className="px-3 py-2 text-left">Đơn vị</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {materialPreviewRows.map((row) => (
+                                            <tr key={row.id} className="border-t border-[#e8eef0]">
+                                                <td className="px-3 py-2 font-semibold text-[#172317]">{row.name}</td>
+                                                <td className="px-3 py-2 text-right font-mono">
+                                                    {row.requiredQuantity.toLocaleString("vi-VN", { maximumFractionDigits: 4 })}
+                                                </td>
+                                                <td className="px-3 py-2 text-[#536078]">{row.unit}</td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {materialPreviewRows.map((row) => (
-                                                <tr key={row.id} className="border-t border-[#e8eef0]">
-                                                    <td className="px-3 py-2 font-semibold text-[#172317]">{row.name}</td>
-                                                    <td className="px-3 py-2 text-right font-mono">
-                                                        {row.requiredQuantity.toLocaleString("vi-VN", { maximumFractionDigits: 4 })}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-[#536078]">{row.unit}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                             <p className="text-xs font-semibold italic text-[#697684]">
                                 Số liệu chỉ để xem trước — số lượng chính thức sẽ được hệ thống tính lại khi tạo lệnh.
                             </p>
                         </div>
-                    ) : null}
+                    )}
                 </div>
             ) : null}
 

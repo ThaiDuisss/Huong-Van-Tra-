@@ -66,39 +66,12 @@ public interface CatalogClient {
     @PostMapping("/internal/catalog/suppliers/batch")
     List<SupplierResponse> getSuppliersBatch(@RequestBody List<UUID> ids);
 
-    @GetMapping("/internal/catalog/boms/lookup")
-    List<BomLookupResponse> lookupBoms(
-            @RequestParam("productVariantId") UUID productVariantId,
-            @RequestParam(value = "status", required = false) String status
-    );
-
-    @GetMapping("/api/catalog/boms/{id}")
-    BomDetailResponse getBom(@PathVariable("id") UUID id);
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record BomLookupResponse(
-            UUID id,
-            String bomCode,
-            String name,
-            boolean isDefault,
-            Integer bomVersion,
-            String status
-    ) {}
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record BomDetailResponse(
-            UUID id,
-            UUID productVariantId,
-            String bomCode,
-            String name,
-            Integer version,
-            String status,
-            boolean isDefault,
-            List<BomItemResponse> items
-    ) {}
+    @GetMapping("/internal/catalog/product-variants/{variantId}/bom-items")
+    List<BomItemResponse> getBomItems(@PathVariable("variantId") UUID variantId);
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record BomItemResponse(
+            UUID id,
             IngredientRef ingredient,
             BigDecimal quantity,
             UnitRef unit,

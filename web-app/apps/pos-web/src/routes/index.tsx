@@ -55,12 +55,6 @@ export const appRoutes = {
     customerTiers: {
         path: routePaths.customerTiers
     },
-    manufacturingBoms: {
-        path: routePaths.bomList
-    },
-    manufacturingBomDetail: {
-        path: routePaths.bomDetail
-    },
     productionOrders: {
         path: routePaths.productionOrders
     }
