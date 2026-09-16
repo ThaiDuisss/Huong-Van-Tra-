@@ -1,13 +1,27 @@
-import { ChevronRight, ClipboardCheck, Filter, Plus, RefreshCw } from "lucide-react";
+import { ArrowUpDown, ChevronRight, ClipboardCheck, Filter, Plus, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { stocktakeScopeLabels, stocktakeStatusLabels } from "../constants/stocktake.constants";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../../components/ui/select";
+import { SearchBox } from "../../manufacturing/components/shared/SearchBox";
+import {
+  stocktakeScopeLabels,
+  stocktakeStatusFilterOptions,
+  stocktakeStatusLabels,
+} from "../constants/stocktake.constants";
 import type {
   StocktakeListQuery,
   StocktakeOptions,
+  StocktakeSort,
   StocktakeSummary,
 } from "../types/stocktake.types";
-import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
+import { formatVietnamDateTime } from "../utils/inventory-format";
 
 export function StocktakePageHeader({ onRefresh }: { onRefresh: () => void }) {
   return (
@@ -30,48 +44,6 @@ export function StocktakePageHeader({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
-export function StocktakeSummaryCards({
-  result,
-}: {
-  result:
-    | {
-        draft: number;
-        counting: number;
-        completed: number;
-        adjustmentReady: number;
-        posted: number;
-      }
-    | undefined;
-}) {
-  const cards = [
-    ["Chưa bắt đầu", result?.draft ?? 0],
-    ["Đang kiểm kê", result?.counting ?? 0],
-    ["Hoàn tất", result?.completed ?? 0],
-    ["Chờ điều chỉnh", result?.adjustmentReady ?? 0],
-    ["Đã cập nhật tồn kho", result?.posted ?? 0],
-  ] as const;
-  return (
-    <section className="grid gap-2">
-      <p className="text-xs font-bold text-[#7a8790]">Thống kê trên trang dữ liệu hiện tại</p>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {cards.map(([label, value]) => (
-          <article
-            className="rounded-xl border border-[#dce5e1] bg-white p-4 shadow-[0_8px_24px_rgba(31,53,43,0.05)]"
-            key={label}
-          >
-            <span className="text-xs font-bold uppercase tracking-wide text-[#657282]">
-              {label}
-            </span>
-            <strong className="mt-2 block text-2xl font-black text-[#172317]">
-              {formatVietnamNumber(value)}
-            </strong>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export function StocktakeFilterBar({
   branches,
   onChange,
@@ -83,48 +55,184 @@ export function StocktakeFilterBar({
   onReset: () => void;
   query: StocktakeListQuery;
 }) {
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterDraft, setFilterDraft] = useState({
+    branchId: query.branchId,
+    scopeType: query.scopeType,
+  });
+  const appliedFilterCount = Number(query.branchId !== "ALL") + Number(query.scopeType !== "ALL");
+
+  function openFilter() {
+    setFilterDraft({ branchId: query.branchId, scopeType: query.scopeType });
+    setFilterOpen(true);
+  }
+
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-[#dce5e1] bg-white p-4 shadow-[0_8px_24px_rgba(31,53,43,0.05)] lg:flex-row lg:items-end">
-      <div className="flex items-center gap-2 pb-2 text-sm font-black text-[#315f3c]">
-        <Filter size={17} /> Bộ lọc
+    <section className="rounded-2xl bg-white p-3 shadow-pos-card">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav
+          aria-label="Lọc theo trạng thái kiểm kê"
+          className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
+        >
+          {[{ label: "Tất cả", value: "ALL" as const }, ...stocktakeStatusFilterOptions].map(
+            ({ label, value }) => {
+              const active = query.status === value;
+              return (
+                <button
+                  aria-pressed={active}
+                  className={`inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-extrabold transition-colors ${
+                    active
+                      ? "border-[#159734] bg-[#eaf8ee] text-[#116f28] shadow-[0_1px_2px_rgba(21,151,52,0.08)]"
+                      : "border-[#dce5e1] bg-white text-[#536171] hover:border-[#b8cac1] hover:text-[#172317]"
+                  }`}
+                  key={value}
+                  onClick={() => onChange({ page: 0, status: value })}
+                  type="button"
+                >
+                  {label}
+                </button>
+              );
+            },
+          )}
+        </nav>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2.5">
+          <div className="w-full min-w-[240px] md:w-[320px]">
+            <SearchBox
+              onChange={(keyword) => onChange({ keyword, page: 0 })}
+              placeholder="Tìm mã kiểm kê..."
+              value={query.keyword}
+            />
+          </div>
+          <button
+            aria-expanded={filterOpen}
+            className={`${toolbarButton} relative`}
+            onClick={openFilter}
+            type="button"
+          >
+            <Filter size={17} aria-hidden="true" />
+            Bộ lọc
+            {appliedFilterCount > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-[#159734] px-1.5 text-[10px] font-black leading-5 text-white shadow-sm">
+                {appliedFilterCount}
+              </span>
+            ) : null}
+          </button>
+          <SortSelect onChange={(sort) => onChange({ page: 0, sort })} value={query.sort} />
+        </div>
       </div>
-      <div className="grid flex-1 gap-3 sm:grid-cols-3">
-        <SelectField
-          label="Chi nhánh"
-          value={query.branchId}
-          onChange={(branchId) => onChange({ branchId, page: 0 })}
-          options={[
-            { label: "Tất cả", value: "ALL" },
-            ...branches.map((branch) => ({ label: branch.name, value: branch.id })),
-          ]}
+      {filterOpen ? (
+        <StocktakeFilterPopover
+          branches={branches}
+          draft={filterDraft}
+          onApply={() => {
+            onChange({ ...filterDraft, page: 0 });
+            setFilterOpen(false);
+          }}
+          onCancel={() => setFilterOpen(false)}
+          onClear={() => {
+            onReset();
+            setFilterDraft({ branchId: "ALL", scopeType: "ALL" });
+          }}
+          onChange={setFilterDraft}
         />
-        <SelectField
-          label="Trạng thái"
-          value={query.status}
-          onChange={(status) =>
-            onChange({ page: 0, status: status as StocktakeListQuery["status"] })
-          }
-          options={[
-            { label: "Tất cả", value: "ALL" },
-            ...Object.entries(stocktakeStatusLabels).map(([value, label]) => ({ label, value })),
-          ]}
-        />
-        <SelectField
-          label="Phạm vi"
-          value={query.scopeType}
-          onChange={(scopeType) =>
-            onChange({ page: 0, scopeType: scopeType as StocktakeListQuery["scopeType"] })
-          }
-          options={[
-            { label: "Tất cả", value: "ALL" },
-            ...Object.entries(stocktakeScopeLabels).map(([value, label]) => ({ label, value })),
-          ]}
-        />
-      </div>
-      <button className={secondaryButton} onClick={onReset} type="button">
-        Xóa bộ lọc
-      </button>
+      ) : null}
     </section>
+  );
+}
+
+function StocktakeFilterPopover({
+  branches,
+  draft,
+  onApply,
+  onCancel,
+  onChange,
+  onClear,
+}: {
+  branches: StocktakeOptions["branches"];
+  draft: Pick<StocktakeListQuery, "branchId" | "scopeType">;
+  onApply: () => void;
+  onCancel: () => void;
+  onChange: (value: Pick<StocktakeListQuery, "branchId" | "scopeType">) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#172317]/10 p-5">
+      <div className="w-[min(560px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-[#dce5e1] bg-white shadow-[0_24px_60px_rgba(24,39,28,0.18)]">
+        <div className="flex min-h-16 items-center justify-between border-b border-[#eef2f0] px-6">
+          <h2 className="text-base font-black text-[#172317]">Bộ lọc kiểm kê</h2>
+          <button
+            className="text-xs font-bold text-[#159734] hover:text-[#116f28]"
+            onClick={onClear}
+            type="button"
+          >
+            Xóa tất cả
+          </button>
+        </div>
+        <div className="grid gap-5 p-6 sm:grid-cols-2">
+          <SelectField
+            label="Chi nhánh"
+            onChange={(branchId) => onChange({ ...draft, branchId })}
+            options={[
+              { label: "Tất cả chi nhánh", value: "ALL" },
+              ...branches.map((branch) => ({ label: branch.name, value: branch.id })),
+            ]}
+            value={draft.branchId}
+          />
+          <SelectField
+            label="Phạm vi kiểm kê"
+            onChange={(scopeType) =>
+              onChange({ ...draft, scopeType: scopeType as StocktakeListQuery["scopeType"] })
+            }
+            options={[
+              { label: "Tất cả phạm vi", value: "ALL" },
+              ...Object.entries(stocktakeScopeLabels).map(([value, label]) => ({ label, value })),
+            ]}
+            value={draft.scopeType}
+          />
+        </div>
+        <div className="flex items-center justify-end gap-3 border-t border-[#eef2f0] bg-white px-6 py-4">
+          <button className={toolbarButton} onClick={onCancel} type="button">
+            Hủy
+          </button>
+          <button className={primaryToolbarButton} onClick={onApply} type="button">
+            Áp dụng bộ lọc
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SortSelect({
+  onChange,
+  value,
+}: {
+  onChange: (value: StocktakeSort) => void;
+  value: StocktakeSort;
+}) {
+  const options: Array<{ label: string; value: StocktakeSort }> = [
+    { label: "Mới tạo gần đây", value: "createdAt,desc" },
+    { label: "Tạo từ lâu đến mới", value: "createdAt,asc" },
+    { label: "Mã kiểm kê A–Z", value: "countCode,asc" },
+    { label: "Mã kiểm kê Z–A", value: "countCode,desc" },
+  ];
+  return (
+    <Select onValueChange={(next) => onChange(next as StocktakeSort)} value={value}>
+      <SelectTrigger
+        aria-label="Sắp xếp danh sách kiểm kê"
+        className={`${toolbarButton} min-w-[210px]`}
+      >
+        <ArrowUpDown size={17} aria-hidden="true" />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="w-56">
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -253,21 +361,20 @@ export function StocktakeTable({
 }
 
 export function StatusBadge({ status }: { status: StocktakeSummary["status"] }) {
+  const statusGroup = stocktakeStatusFilterOptions.find((option) =>
+    option.statuses.includes(status),
+  );
   const style =
-    status === "DRAFT"
+    statusGroup?.value === "PREPARING"
       ? "bg-slate-100 text-slate-700"
-      : status === "FROZEN" ||
-          status === "COUNTING" ||
-          status === "RECONCILING" ||
-          status === "PENDING_APPROVAL" ||
-          status === "RETURNED"
+      : statusGroup?.value === "IN_PROGRESS" || statusGroup?.value === "PENDING_APPROVAL"
         ? "bg-amber-50 text-amber-700"
-        : status === "CANCELLED" || status === "REJECTED"
+        : statusGroup?.value === "CANCELLED"
           ? "bg-red-50 text-red-700"
           : "bg-emerald-50 text-emerald-700";
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${style}`}>
-      {stocktakeStatusLabels[status]}
+      {statusGroup?.label ?? stocktakeStatusLabels[status]}
     </span>
   );
 }
@@ -284,10 +391,10 @@ function SelectField({
   value: string;
 }) {
   return (
-    <label className="grid gap-1.5 text-xs font-bold text-[#536171]">
+    <label className="grid gap-2 text-xs font-bold text-[#536171]">
       {label}
       <select
-        className="h-10 rounded-xl border border-[#dce5e1] bg-white px-3 text-sm font-semibold outline-none focus:border-[#159734]"
+        className="h-11 min-w-[172px] rounded-lg border border-[#dce5e1] bg-white px-3 text-sm font-semibold text-[#172317] outline-none focus:border-[#159734]"
         onChange={(event) => onChange(event.currentTarget.value)}
         value={value}
       >
@@ -305,4 +412,8 @@ const primaryButton =
   "inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white hover:bg-[#12862d]";
 const secondaryButton =
   "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#536171] hover:bg-[#f7faf8] disabled:opacity-50";
+const toolbarButton =
+  "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dce5e1] bg-white px-4 text-sm font-bold text-[#273a2b] shadow-sm transition-colors hover:bg-[#f7fbf8]";
+const primaryToolbarButton =
+  "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#159734] px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#12862d]";
 const pageButton = "h-8 rounded-lg border border-[#dce5e1] px-3 disabled:opacity-40";

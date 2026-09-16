@@ -17,6 +17,14 @@ export type StocktakeStatus =
   | "POSTED"
   | "COMPLETED"
   | "CANCELLED";
+export type StocktakeStatusFilter =
+  | "ALL"
+  | "PREPARING"
+  | "IN_PROGRESS"
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "COMPLETED"
+  | "CANCELLED";
 export type StocktakeCountType = "FULL_COUNT" | "CYCLE_COUNT" | "SPOT_COUNT";
 export type AdjustmentStatus = "DRAFT" | "APPROVED" | "POSTED" | "REJECTED";
 export type AdjustmentReferenceType = "STOCK_COUNT" | "MANUAL";
@@ -142,9 +150,13 @@ export interface StocktakeListQuery {
   page: number;
   size: number;
   branchId: "ALL" | string;
-  status: "ALL" | StocktakeStatus;
+  status: StocktakeStatusFilter;
   scopeType: "ALL" | StocktakeScopeType;
+  keyword: string;
+  sort: StocktakeSort;
 }
+
+export type StocktakeSort = "createdAt,desc" | "createdAt,asc" | "countCode,asc" | "countCode,desc";
 
 export interface StocktakeListResult {
   content: StocktakeSummary[];
