@@ -1,6 +1,7 @@
 import type {
   AdjustmentStatus,
   StocktakeScopeType,
+  StocktakeStatusFilter,
   StocktakeStatus,
 } from "../types/stocktake.types";
 
@@ -31,17 +32,20 @@ export const adjustmentStatusLabels: Record<AdjustmentStatus, string> = {
   REJECTED: "Đã từ chối",
 };
 
-export const stocktakeStatusOptions: StocktakeStatus[] = [
-  "DRAFT",
-  "FROZEN",
-  "COUNTING",
-  "RECONCILING",
-  "PENDING_APPROVAL",
-  "RETURNED",
-  "REJECTED",
-  "APPROVED",
-  "POSTED",
-  "COMPLETED",
-  "CANCELLED",
+export const stocktakeStatusFilterOptions: Array<{
+  label: string;
+  statuses: StocktakeStatus[];
+  value: Exclude<StocktakeStatusFilter, "ALL">;
+}> = [
+  { label: "Chuẩn bị", statuses: ["DRAFT", "FROZEN"], value: "PREPARING" },
+  {
+    label: "Đang xử lý",
+    statuses: ["COUNTING", "RECONCILING", "RETURNED"],
+    value: "IN_PROGRESS",
+  },
+  { label: "Chờ duyệt", statuses: ["PENDING_APPROVAL"], value: "PENDING_APPROVAL" },
+  { label: "Chờ cập nhật tồn", statuses: ["APPROVED"], value: "APPROVED" },
+  { label: "Hoàn tất", statuses: ["POSTED", "COMPLETED"], value: "COMPLETED" },
+  { label: "Đã dừng", statuses: ["REJECTED", "CANCELLED"], value: "CANCELLED" },
 ];
 export const stocktakeScopeOptions: StocktakeScopeType[] = ["FULL", "LOCATION", "PARTIAL"];
