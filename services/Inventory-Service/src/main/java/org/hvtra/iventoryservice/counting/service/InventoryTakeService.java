@@ -10,10 +10,11 @@ import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
+import java.util.List;
 
 public interface InventoryTakeService {
-    PageResponse<InventoryTakeResponse> findAll(UUID branchId, InventoryCountStatus status,
-                                                 InventoryCountScopeType scopeType, Pageable pageable);
+    PageResponse<InventoryTakeResponse> findAll(UUID branchId, List<InventoryCountStatus> statuses,
+                                                 InventoryCountScopeType scopeType, String keyword, Pageable pageable);
     InventoryTakeResponse findById(UUID id);
     InventoryTakeResponse create(CreateInventoryTakeRequest request);
     InventoryTakeResponse freeze(UUID id);
