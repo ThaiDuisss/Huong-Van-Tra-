@@ -1,9 +1,7 @@
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useParams } from "react-router-dom";
 
 import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
-import { BomListPage } from "../features/manufacturing/pages/BomListPage";
-import { BomDetailPage } from "../features/manufacturing/pages/BomDetailPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
 import { ProductionOrderCreatePage as ManufacturingProductionOrderCreatePage } from "../features/manufacturing/pages/ProductionOrderCreatePage";
 import { ProductionOrderDetailPage as ManufacturingProductionOrderDetailPage } from "../features/manufacturing/pages/ProductionOrderDetailPage";
@@ -29,9 +27,6 @@ import { InventoryManagementPage } from "../features/inventory/pages/InventoryMa
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
 import { DisposalDetailPage } from "../features/inventory/pages/DisposalDetailPage";
 import { DisposalListPage } from "../features/inventory/pages/DisposalListPage";
-import { ProductionOrderCreatePage } from "../features/inventory/pages/ProductionOrderCreatePage";
-import { ProductionOrderDetailPage } from "../features/inventory/pages/ProductionOrderDetailPage";
-import { ProductionOrderListPage as InventoryProductionOrderListPage } from "../features/inventory/pages/ProductionOrderListPage";
 import { QualityBatchDetailPage } from "../features/inventory/pages/QualityBatchDetailPage";
 import { QualityDashboardPage } from "../features/inventory/pages/QualityDashboardPage";
 import { ReorderPolicyPage } from "../features/inventory/pages/ReorderPolicyPage";
@@ -90,6 +85,16 @@ function RoleGate({ roles }: { roles: AppRole[] }) {
     <ProtectedRoute roles={roles}>
       <Outlet />
     </ProtectedRoute>
+  );
+}
+
+function RedirectToManufacturingProductionOrderDetail() {
+  const { productionOrderId } = useParams();
+  return (
+    <Navigate
+      to={routePaths.productionOrderDetail.replace(":id", productionOrderId ?? "")}
+      replace
+    />
   );
 }
 
@@ -260,8 +265,6 @@ export function AppRouter() {
           <Route path="marketing/discount-history" element={<CouponUsageListPage />} />
         </Route>
         <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
-          <Route path="manufacturing/boms" element={<BomListPage />} />
-          <Route path="manufacturing/boms/:id" element={<BomDetailPage />} />
           <Route path="manufacturing/production-orders" element={<ProductionOrderListPage />} />
           <Route path="manufacturing/production-orders/new" element={<ManufacturingProductionOrderCreatePage />} />
           <Route path="manufacturing/production-orders/:id" element={<ManufacturingProductionOrderDetailPage />} />
@@ -291,12 +294,15 @@ export function AppRouter() {
         <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
           <Route
             path="inventory/production-orders"
-            element={<InventoryProductionOrderListPage />}
+            element={<Navigate to={routePaths.productionOrders} replace />}
           />
-          <Route path="inventory/production-orders/new" element={<ProductionOrderCreatePage />} />
+          <Route
+            path="inventory/production-orders/new"
+            element={<Navigate to={routePaths.productionOrderCreate} replace />}
+          />
           <Route
             path="inventory/production-orders/:productionOrderId"
-            element={<ProductionOrderDetailPage />}
+            element={<RedirectToManufacturingProductionOrderDetail />}
           />
           <Route path="inventory/custom-bundles" element={<CustomBundleManagementListPage />} />
           <Route

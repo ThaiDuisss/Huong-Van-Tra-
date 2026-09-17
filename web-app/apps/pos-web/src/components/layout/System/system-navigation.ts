@@ -107,17 +107,17 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     roles: PRODUCT_ROLES,
     children: [
       {
-        key: "catalog-variants",
-        label: "Mặt hàng",
-        to: routePaths.productVariants,
-        icon: Layers3,
-        roles: PRODUCT_ROLES,
-      },
-      {
         key: "catalog-products",
         label: "Sản phẩm",
         to: routePaths.products,
         icon: Package,
+        roles: PRODUCT_ROLES,
+      },
+      {
+        key: "catalog-variants",
+        label: "Mặt hàng",
+        to: routePaths.productVariants,
+        icon: Layers3,
         roles: PRODUCT_ROLES,
       },
       {
@@ -154,13 +154,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Custom Tea Bundle",
         to: routePaths.customBundles,
         icon: Boxes,
-        roles: MANUFACTURING_ROLES,
-      },
-      {
-        key: "manufacturing-boms",
-        label: "Công thức",
-        to: routePaths.bomList,
-        icon: Layers3,
         roles: MANUFACTURING_ROLES,
       },
       {

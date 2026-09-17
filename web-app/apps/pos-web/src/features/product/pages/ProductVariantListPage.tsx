@@ -1,60 +1,492 @@
-import { Download, Upload, Plus } from "lucide-react";
+import { Download, Upload, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import type { FormEvent } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
+import { bomApi } from "../../manufacturing/services/bom.api";
+import type { BomItemInput } from "../../manufacturing/types/bom.types";
 import { categoryApi } from "../services/category.api";
 
 import { ExcelImportModal } from "../components/ExcelImportModal";
 import {
     CatalogStatusBadge,
     DetailList,
-    type FormValues,
     CatalogResourceManagement,
     TableCell
 } from "../components/CatalogResourceManagement";
 import { useApiResource, usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
+import { ingredientApi } from "../services/ingredient.api";
 import { productApi } from "../services/product.api";
 import { productVariantApi } from "../services/productVariant.api";
 import { unitApi } from "../services/unit.api";
 import type {
     CatalogStatus,
+    Ingredient,
     InventoryPolicy,
     ProductVariant,
-    ProductVariantInput
+    ProductVariantInput,
+    Unit
 } from "../types/product.types";
-import {
-    getNumber,
-    getString
-} from "../utils/form-values";
 import { formatCurrency } from "../utils/product-formatters";
+
+interface ProductVariantFormWrapperProps {
+    editingItem: ProductVariant | null;
+    onClose(): void;
+    productOptions: LookupItem[];
+    onProductSearch(term: string): void;
+    onLoadMoreProducts(): void;
+    productHasMore: boolean;
+    productLoading: boolean;
+    units: Unit[];
+    ingredients: Ingredient[];
+    onSave(input: ProductVariantInput, items: BomItemInput[]): Promise<void>;
+}
+
+function ProductVariantFormWrapper({
+    editingItem,
+    onClose,
+    productOptions,
+    onProductSearch,
+    onLoadMoreProducts,
+    productHasMore,
+    productLoading,
+    units,
+    ingredients,
+    onSave
+}: ProductVariantFormWrapperProps) {
+    const isEditMode = Boolean(editingItem?.id);
+
+    const [formProductId, setFormProductId] = useState(
+        editingItem?.productId ? String(editingItem.productId) : ""
+    );
+    const [formQuantity, setFormQuantity] = useState(editingItem?.quantity ?? 0);
+    const [formSellingPrice, setFormSellingPrice] = useState(editingItem?.sellingPrice ?? 0);
+    const [formCostPrice, setFormCostPrice] = useState(editingItem?.costPrice ?? 0);
+    const [formUnitId, setFormUnitId] = useState(editingItem?.unitId ? String(editingItem.unitId) : "");
+    const [formInventoryPolicy, setFormInventoryPolicy] = useState<InventoryPolicy>(
+        editingItem?.inventoryPolicy || "TRACK_STOCK"
+    );
+    const [formStatus, setFormStatus] = useState<CatalogStatus>(editingItem?.status || "ACTIVE");
+
+    const [formItems, setFormItems] = useState<BomItemInput[]>([]);
+    const [itemsLoading, setItemsLoading] = useState(false);
+
+    const [formError, setFormError] = useState("");
+    const [formSubmitting, setFormSubmitting] = useState(false);
+
+    const selectedProductName = productOptions.find((p) => p.id === formProductId)?.name ?? "";
+    const selectedUnit = units.find((u) => String(u.id) === formUnitId);
+    const previewVariantName = [
+        selectedProductName,
+        formQuantity > 0 ? String(formQuantity) : "",
+        selectedUnit?.name ?? ""
+    ]
+        .filter(Boolean)
+        .join(" ");
+
+    useEffect(() => {
+        if (!editingItem?.id) return;
+        let active = true;
+        setItemsLoading(true);
+        bomApi
+            .listByVariant(String(editingItem.id))
+            .then((items) => {
+                if (!active) return;
+                setFormItems(
+                    items.map((item) => ({
+                        ingredientId: item.ingredient.id,
+                        quantity: item.quantity,
+                        unitId: item.unit.id,
+                        wasteRate: item.wasteRate
+                    }))
+                );
+            })
+            .catch((err) => console.error("Error loading bom items", err))
+            .finally(() => {
+                if (active) setItemsLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [editingItem?.id]);
+
+    function addIngredientRow() {
+        setFormItems((prev) => [...prev, { ingredientId: "", quantity: 1, unitId: "", wasteRate: 0 }]);
+    }
+
+    function removeIngredientRow(index: number) {
+        setFormItems((prev) => prev.filter((_, i) => i !== index));
+    }
+
+    function updateRowItem(index: number, field: keyof BomItemInput, value: string | number) {
+        setFormItems((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+    }
+
+    function validateForm(): boolean {
+        if (!formProductId) {
+            setFormError("Vui lòng chọn Sản phẩm.");
+            return false;
+        }
+        if (!formQuantity || formQuantity <= 0) {
+            setFormError("Vui lòng nhập Định lượng lớn hơn 0.");
+            return false;
+        }
+        if (!formUnitId) {
+            setFormError("Vui lòng chọn Đơn vị bán.");
+            return false;
+        }
+        if (formSellingPrice < 0 || formCostPrice < 0) {
+            setFormError("Giá bán/Giá vốn không được âm.");
+            return false;
+        }
+
+        const ingredientIds = new Set<string>();
+        for (let i = 0; i < formItems.length; i++) {
+            const item = formItems[i];
+            if (!item.ingredientId) {
+                setFormError(`Nguyên liệu dòng ${i + 1}: vui lòng chọn nguyên liệu.`);
+                return false;
+            }
+            if (!item.unitId) {
+                setFormError(`Nguyên liệu dòng ${i + 1}: vui lòng chọn đơn vị.`);
+                return false;
+            }
+            if (item.quantity <= 0) {
+                setFormError(`Nguyên liệu dòng ${i + 1}: định lượng phải lớn hơn 0.`);
+                return false;
+            }
+            if (item.wasteRate < 0 || item.wasteRate > 100) {
+                setFormError(`Nguyên liệu dòng ${i + 1}: tỷ lệ hao hụt phải từ 0% đến 100%.`);
+                return false;
+            }
+            if (ingredientIds.has(item.ingredientId)) {
+                setFormError("Không được chọn trùng nguyên liệu trong danh sách.");
+                return false;
+            }
+            ingredientIds.add(item.ingredientId);
+        }
+
+        setFormError("");
+        return true;
+    }
+
+    async function handleSubmit(event: FormEvent) {
+        event.preventDefault();
+        if (!validateForm()) return;
+
+        setFormSubmitting(true);
+        try {
+            const input: ProductVariantInput = {
+                productId: formProductId,
+                quantity: Number(formQuantity),
+                sellingPrice: Number(formSellingPrice),
+                costPrice: Number(formCostPrice),
+                unitId: formUnitId,
+                inventoryPolicy: formInventoryPolicy,
+                status: formStatus
+            };
+            const items = formItems.map((item) => ({
+                ...item,
+                quantity: Number(item.quantity),
+                wasteRate: Number(item.wasteRate)
+            }));
+
+            await onSave(input, items);
+            onClose();
+        } catch (err) {
+            setFormError(err instanceof Error ? err.message : "Có lỗi xảy ra khi lưu Mặt hàng.");
+        } finally {
+            setFormSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-6 overflow-y-auto">
+            <form
+                onSubmit={handleSubmit}
+                className="my-8 w-full max-w-4xl rounded-3xl bg-white p-6 shadow-pos-panel border border-pos-border max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150"
+            >
+                <header className="mb-5 flex items-center justify-between border-b border-pos-border pb-3">
+                    <h2 className="text-xl font-bold text-gray-700">
+                        {isEditMode ? "Chỉnh sửa Mặt hàng" : "Tạo Mặt hàng mới"}
+                    </h2>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="grid size-9 place-items-center rounded-lg hover:bg-neutral-100 transition-all focus:outline-none cursor-pointer"
+                        aria-label="Đóng biểu mẫu"
+                    >
+                        <X size={20} />
+                    </button>
+                </header>
+
+                {formError && (
+                    <div className="mb-4 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600 border border-red-200">
+                        {formError}
+                    </div>
+                )}
+
+                <div className="grid gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            <span>Sản phẩm *</span>
+                            <SearchableDropdown
+                                value={formProductId}
+                                onChange={setFormProductId}
+                                options={productOptions}
+                                onSearch={onProductSearch}
+                                onLoadMore={onLoadMoreProducts}
+                                hasMore={productHasMore}
+                                loading={productLoading}
+                                placeholder="Chọn sản phẩm..."
+                            />
+                        </div>
+
+                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            Định lượng *
+                            <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                placeholder="Ví dụ: 100, 250, 500"
+                                value={formQuantity}
+                                onChange={(e) => setFormQuantity(Number(e.target.value))}
+                            />
+                        </label>
+
+                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            Giá bán *
+                            <input
+                                type="number"
+                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                value={formSellingPrice}
+                                onChange={(e) => setFormSellingPrice(Number(e.target.value))}
+                            />
+                        </label>
+
+                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            Giá vốn *
+                            <input
+                                type="number"
+                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                value={formCostPrice}
+                                onChange={(e) => setFormCostPrice(Number(e.target.value))}
+                            />
+                        </label>
+
+                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            Đơn vị bán thương mại *
+                            <select
+                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                value={formUnitId}
+                                onChange={(e) => setFormUnitId(e.target.value)}
+                            >
+                                <option value="">-- Chọn đơn vị --</option>
+                                {units
+                                    .filter((unit) => unit.status === "ACTIVE")
+                                    .map((unit) => (
+                                        <option key={unit.id} value={unit.id}>
+                                            {unit.name} ({unit.symbol})
+                                        </option>
+                                    ))}
+                            </select>
+                        </label>
+
+                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            Chính sách tồn kho *
+                            <select
+                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                value={formInventoryPolicy}
+                                onChange={(e) => setFormInventoryPolicy(e.target.value as InventoryPolicy)}
+                            >
+                                <option value="TRACK_STOCK">Theo dõi tồn kho</option>
+                                <option value="DO_NOT_TRACK">Không theo dõi</option>
+                            </select>
+                        </label>
+
+                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            Trạng thái *
+                            <select
+                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                                value={formStatus}
+                                onChange={(e) => setFormStatus(e.target.value as CatalogStatus)}
+                            >
+                                <option value="ACTIVE">Đang hoạt động</option>
+                                <option value="INACTIVE">Ngừng hoạt động</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div className="rounded-xl border border-pos-border bg-neutral-50 px-4 py-3 text-sm">
+                        <span className="font-bold text-gray-500">Tên Mặt hàng (tự sinh): </span>
+                        <span className="font-black text-gray-800">
+                            {previewVariantName || "Chọn sản phẩm, định lượng và đơn vị để xem tên hiển thị"}
+                        </span>
+                    </div>
+
+                    <div className="grid gap-3 border-t border-pos-border pt-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="font-bold text-gray-700 text-base">Định mức nguyên liệu (BOM)</h3>
+                                <p className="text-xs font-medium text-gray-400">
+                                    Không bắt buộc — chỉ khai báo nếu Mặt hàng này cần sản xuất từ nguyên liệu.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={addIngredientRow}
+                                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#07883a] bg-white px-3.5 text-xs font-bold text-[#07883a] hover:bg-green-50 transition-all cursor-pointer"
+                            >
+                                <Plus size={14} />
+                                Thêm dòng
+                            </button>
+                        </div>
+
+                        {itemsLoading ? (
+                            <div className="text-sm font-semibold text-gray-400">Đang tải định mức nguyên liệu...</div>
+                        ) : formItems.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-pos-border p-4 text-center text-sm font-medium text-gray-400">
+                                Chưa có dòng nguyên liệu nào.
+                            </div>
+                        ) : (
+                            <div className="max-h-[300px] overflow-y-auto rounded-xl border border-pos-border">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="sticky top-0 bg-neutral-50 text-[11px] font-bold text-gray-500 uppercase z-10 border-b border-pos-border">
+                                        <tr>
+                                            <th className="p-3 w-5/12">Nguyên liệu *</th>
+                                            <th className="p-3 w-2/12">Định lượng *</th>
+                                            <th className="p-3 w-2/12">Đơn vị *</th>
+                                            <th className="p-3 w-2/12">Hao hụt (%)</th>
+                                            <th className="p-3 w-1/12 text-center">Xóa</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-pos-border bg-white">
+                                        {formItems.map((row, index) => (
+                                            <tr key={index} className="hover:bg-neutral-50/50">
+                                                <td className="p-2">
+                                                    <select
+                                                        className="h-9 w-full rounded-lg border border-pos-border bg-white px-2 focus:outline-none"
+                                                        value={row.ingredientId}
+                                                        onChange={(e) => updateRowItem(index, "ingredientId", e.target.value)}
+                                                    >
+                                                        <option value="">-- Chọn nguyên liệu --</option>
+                                                        {ingredients.map((ing) => (
+                                                            <option key={ing.id} value={ing.id}>
+                                                                {ing.name} ({ing.ingredientCode})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="p-2">
+                                                    <input
+                                                        type="number"
+                                                        step="any"
+                                                        className="h-9 w-full rounded-lg border border-pos-border bg-white px-2 font-semibold focus:outline-none"
+                                                        placeholder="0.00"
+                                                        value={row.quantity}
+                                                        onChange={(e) => updateRowItem(index, "quantity", Number(e.target.value))}
+                                                    />
+                                                </td>
+                                                <td className="p-2">
+                                                    <select
+                                                        className="h-9 w-full rounded-lg border border-pos-border bg-white px-2 focus:outline-none"
+                                                        value={row.unitId}
+                                                        onChange={(e) => updateRowItem(index, "unitId", e.target.value)}
+                                                    >
+                                                        <option value="">-- Đơn vị --</option>
+                                                        {units.map((u) => (
+                                                            <option key={u.id} value={u.id}>
+                                                                {u.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="p-2">
+                                                    <input
+                                                        type="number"
+                                                        step="any"
+                                                        min={0}
+                                                        max={100}
+                                                        className="h-9 w-full rounded-lg border border-pos-border bg-white px-2 focus:outline-none"
+                                                        placeholder="0"
+                                                        value={row.wasteRate}
+                                                        onChange={(e) => updateRowItem(index, "wasteRate", Number(e.target.value))}
+                                                    />
+                                                </td>
+                                                <td className="p-2 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeIngredientRow(index)}
+                                                        className="grid size-8 place-items-center rounded-lg text-red-500 hover:bg-red-50 mx-auto transition-all cursor-pointer"
+                                                        aria-label="Xóa dòng"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <footer className="mt-6 flex items-center justify-end gap-3 border-t border-pos-border pt-4">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="h-11 rounded-xl border border-pos-border bg-white px-6 font-bold text-gray-500 hover:bg-neutral-50 transition-all cursor-pointer focus:outline-none"
+                    >
+                        Hủy bỏ
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={formSubmitting}
+                        className="h-11 rounded-xl bg-[#07883a] px-6 font-bold text-white hover:bg-[#067331] transition-all disabled:opacity-50 cursor-pointer shadow-sm focus:outline-none"
+                    >
+                        {formSubmitting ? "Đang lưu..." : isEditMode ? "Lưu thay đổi" : "Tạo mới"}
+                    </button>
+                </footer>
+            </form>
+        </div>
+    );
+}
 
 export function ProductVariantListPage() {
     const { productId } = useParams();
+    const navigate = useNavigate();
+    const location = useLocation();
     const state = useCatalogPageState();
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const [filterProductId, setFilterProductId] = useState(productId && productId !== "ALL" ? productId : "");
 
-    // Searchable dropdown states for Category
+    const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
+    const [showForm, setShowForm] = useState(false);
+
+    // Searchable dropdown states for Category (bộ lọc)
     const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
     const [categoryPage, setCategoryPage] = useState(0);
     const [categoryHasMore, setCategoryHasMore] = useState(true);
     const [categoryLoading, setCategoryLoading] = useState(false);
     const [categorySearchTerm, setCategorySearchTerm] = useState("");
 
-    // Searchable dropdown states for Product
+    // Searchable dropdown states for Product (dùng chung cho bộ lọc và biểu mẫu)
     const [productOptions, setProductOptions] = useState<LookupItem[]>([]);
     const [productPage, setProductPage] = useState(0);
     const [productHasMore, setProductHasMore] = useState(true);
     const [productLoading, setProductLoading] = useState(false);
     const [productSearchTerm, setProductSearchTerm] = useState("");
 
-    // Fetch category options with infinite scroll
+    const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+
     const loadCategoryOptions = useCallback(async (search: string, page: number) => {
         try {
             setCategoryLoading(true);
@@ -69,21 +501,27 @@ export function ProductVariantListPage() {
         }
     }, []);
 
-    // Initial load and search change for categories
     useEffect(() => {
-        setCategoryPage(0);
-        loadCategoryOptions(categorySearchTerm, 0);
-    }, [categorySearchTerm, loadCategoryOptions]);
+        void loadCategoryOptions("", 0);
+    }, [loadCategoryOptions]);
+
+    const handleCategorySearch = useCallback(
+        (term: string) => {
+            setCategorySearchTerm(term);
+            setCategoryPage(0);
+            void loadCategoryOptions(term, 0);
+        },
+        [loadCategoryOptions]
+    );
 
     const handleLoadMoreCategories = useCallback(() => {
         if (!categoryLoading && categoryHasMore) {
             const nextPage = categoryPage + 1;
             setCategoryPage(nextPage);
-            loadCategoryOptions(categorySearchTerm, nextPage);
+            void loadCategoryOptions(categorySearchTerm, nextPage);
         }
     }, [categoryLoading, categoryHasMore, categoryPage, categorySearchTerm, loadCategoryOptions]);
 
-    // Fetch product options with infinite scroll
     const loadProductOptions = useCallback(async (search: string, page: number) => {
         try {
             setProductLoading(true);
@@ -98,19 +536,47 @@ export function ProductVariantListPage() {
         }
     }, []);
 
-    // Initial load and search change for products
     useEffect(() => {
-        setProductPage(0);
-        loadProductOptions(productSearchTerm, 0);
-    }, [productSearchTerm, loadProductOptions]);
+        void loadProductOptions("", 0);
+    }, [loadProductOptions]);
+
+    const handleProductSearch = useCallback(
+        (term: string) => {
+            setProductSearchTerm(term);
+            setProductPage(0);
+            void loadProductOptions(term, 0);
+        },
+        [loadProductOptions]
+    );
 
     const handleLoadMoreProducts = useCallback(() => {
         if (!productLoading && productHasMore) {
             const nextPage = productPage + 1;
             setProductPage(nextPage);
-            loadProductOptions(productSearchTerm, nextPage);
+            void loadProductOptions(productSearchTerm, nextPage);
         }
     }, [productLoading, productHasMore, productPage, productSearchTerm, loadProductOptions]);
+
+    useEffect(() => {
+        ingredientApi.list({ page: 0, size: 1000, status: "ACTIVE" }).then((res) => {
+            setIngredients(res.content ?? []);
+        }).catch((err) => console.error("Error loading ingredients", err));
+    }, []);
+
+    // Mở sẵn biểu mẫu chỉnh sửa khi được điều hướng từ trang chi tiết mặt hàng
+    useEffect(() => {
+        const targetId = (location.state as { editVariantId?: string } | null)?.editVariantId;
+        if (!targetId) return;
+
+        productVariantApi.detail(targetId)
+            .then((variant) => {
+                setEditingVariant(variant);
+                setShowForm(true);
+            })
+            .catch((err) => console.error("Error loading variant for editing from redirect state", err));
+
+        navigate(location.pathname, { replace: true });
+    }, [location.state, location.pathname, navigate]);
 
     const loadVariants = useCallback(
         () =>
@@ -146,28 +612,12 @@ export function ProductVariantListPage() {
     const products = productResource.data?.content ?? [];
     const units = unitResource.data?.content ?? [];
 
-    async function submit(
-        values: FormValues,
-        editingItem: ProductVariant | null
-    ) {
-        const input: ProductVariantInput = {
-            productId: (filterProductId && filterProductId !== "ALL") ? filterProductId : (products[0]?.id ? String(products[0].id) : ""),
-            variantName: getString(values, "variantName"),
-            sellingPrice: getNumber(values, "sellingPrice"),
-            costPrice: getNumber(values, "costPrice"),
-            unitId: getString(values, "unitId"),
-            inventoryPolicy: getString(
-                values,
-                "inventoryPolicy"
-            ) as InventoryPolicy,
-            status: getString(values, "status") as CatalogStatus
-        };
-
-        if (editingItem) {
-            await productVariantApi.update(String(editingItem.id), input);
-        } else {
-            await productVariantApi.create(input);
-        }
+    async function handleSave(input: ProductVariantInput, items: BomItemInput[]) {
+        const variant = editingVariant
+            ? await productVariantApi.update(String(editingVariant.id), input)
+            : await productVariantApi.create(input);
+        await bomApi.replaceForVariant(String(variant.id), items);
+        resource.refresh();
     }
 
     const handleExport = async () => {
@@ -223,6 +673,7 @@ export function ProductVariantListPage() {
 
     const validateVariantRow = (row: any) => {
         const productCode = getRowValue(row, "Mã sản phẩm", "Mã SP", "Mã sp", "Product Code", "Mã hàng", "Mã SP/Product");
+        const quantityStr = getRowValue(row, "Định lượng", "Quantity");
         const sellingPriceStr = getRowValue(row, "Giá bán", "Selling Price");
         const costPriceStr = getRowValue(row, "Giá vốn", "Cost Price");
         const unitName = getRowValue(row, "Đơn vị", "Đơn vị bán", "Đơn vị tính", "Unit");
@@ -244,6 +695,11 @@ export function ProductVariantListPage() {
                     return { isValid: false, error: "Mã sản phẩm không tồn tại" };
                 }
             }
+        }
+
+        const quantity = Number(String(quantityStr).replace(/,/g, ""));
+        if (!quantityStr || isNaN(quantity) || quantity <= 0) {
+            return { isValid: false, error: "Định lượng không hợp lệ" };
         }
 
         const sellingPrice = Number(String(sellingPriceStr).replace(/,/g, ""));
@@ -324,7 +780,7 @@ export function ProductVariantListPage() {
         <>
             <CatalogResourceManagement
                 title="Mặt hàng"
-                description="Quản lý các mặt hàng bán được, SKU và chính sách tồn kho."
+                description="Quản lý các phiên bản sản phẩm bán được, SKU và định mức nguyên liệu."
                 createLabel="Tạo Mặt hàng"
                 searchPlaceholder="Tìm theo tên sản phẩm, tên mặt hàng, SKU..."
                 totalItemsLabel="Tổng số Mặt hàng"
@@ -354,7 +810,11 @@ export function ProductVariantListPage() {
                 onPageChange={state.setPage}
                 onPageSizeChange={state.setPageSize}
                 onRefresh={resource.refresh}
-                onSubmit={submit}
+                onSubmit={async () => {}} // Not used because customForm handles submission
+                controlledEditingItem={editingVariant}
+                controlledShowForm={showForm}
+                onControlledShowFormChange={setShowForm}
+                onControlledEditingItemChange={(item) => setEditingVariant(item as ProductVariant | null)}
                 onChangeStatus={(item) =>
                     productVariantApi.updateStatus(
                         String(item.id),
@@ -376,7 +836,7 @@ export function ProductVariantListPage() {
                                     state.setPage(1);
                                 }}
                                 options={categoryOptions}
-                                onSearch={setCategorySearchTerm}
+                                onSearch={handleCategorySearch}
                                 onLoadMore={handleLoadMoreCategories}
                                 hasMore={categoryHasMore}
                                 loading={categoryLoading}
@@ -397,7 +857,7 @@ export function ProductVariantListPage() {
                                     state.setPage(1);
                                 }}
                                 options={productOptions}
-                                onSearch={setProductSearchTerm}
+                                onSearch={handleProductSearch}
                                 onLoadMore={handleLoadMoreProducts}
                                 hasMore={productHasMore}
                                 loading={productLoading}
@@ -406,55 +866,24 @@ export function ProductVariantListPage() {
                         )
                     }
                 ]}
-                getInitialValues={(item) => ({
-                    productId: String(item.productId),
-                    variantName: item.variantName,
-                    sellingPrice: String(item.sellingPrice),
-                    costPrice: String(item.costPrice),
-                    unitId: String(item.unitId),
-                    inventoryPolicy: item.inventoryPolicy,
-                    status: item.status
-                })}
                 secondaryFilter={undefined}
                 columns={[
-                    // { key: "sku", label: "SKU" },
-                    // { key: "product", label: "Sản phẩm" },
                     { key: "variant", label: "Tên Mặt hàng" },
+                    { key: "quantity", label: "Định lượng" },
                     { key: "selling", label: "Giá bán" },
-                    // { key: "cost", label: "Giá vốn" },
-                    // { key: "inventory", label: "Tồn kho" },
                     { key: "status", label: "Trạng thái" }
                 ]}
                 renderCells={(item) => (
                     <>
-                        {/* <TableCell className="font-bold text-gray-500">
-                            {item.sku}
-                        </TableCell> */}
-                        {/* <TableCell>{item.productName}</TableCell> */}
                         <TableCell>{item.variantName}</TableCell>
+                        <TableCell className="text-right pr-[18px]">{item.quantity}</TableCell>
                         <TableCell>{formatCurrency(item.sellingPrice)}</TableCell>
-                        {/* <TableCell>{formatCurrency(item.costPrice)}</TableCell> */}
-                        {/* <TableCell>
-                            {item.inventoryPolicy === "TRACK_STOCK"
-                                ? "Theo dõi tồn"
-                                : "Không theo dõi"}
-                        </TableCell> */}
                         <TableCell>
                             <CatalogStatusBadge status={item.status} />
                         </TableCell>
                     </>
                 )}
                 detailPath={(item) => `/system/product-variants/${item.id}`}
-                renderExtraRowActions={(item, closeMenu) => (
-                    <Link
-                        to={`/system/manufacturing/boms?create=true&variantId=${item.id}`}
-                        onClick={closeMenu}
-                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#07883a] font-medium transition-colors cursor-pointer"
-                    >
-                        <Plus size={14} />
-                        Tạo công thức
-                    </Link>
-                )}
                 renderDetail={(item) => {
                     const matchedUnit = units.find((u) => u.id === item.unitId);
                     const unitText = matchedUnit ? `${matchedUnit.name} (${matchedUnit.symbol})` : `Mã đơn vị: ${item.unitId}`;
@@ -465,6 +894,7 @@ export function ProductVariantListPage() {
                                     { label: "Sản phẩm", value: item.productName },
                                     { label: "SKU", value: item.sku },
                                     { label: "Tên Mặt hàng", value: item.variantName },
+                                    { label: "Định lượng", value: String(item.quantity) },
                                     {
                                         label: "Giá bán",
                                         value: formatCurrency(item.sellingPrice)
@@ -494,13 +924,6 @@ export function ProductVariantListPage() {
                             />
                             <div className="flex gap-2 justify-end border-t border-pos-border pt-4">
                                 <Link
-                                    to={`/system/manufacturing/boms?create=true&variantId=${item.id}`}
-                                    className="flex items-center gap-1.5 rounded-xl bg-[#07883a] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-hvt-green-700 active:scale-95 transition-all cursor-pointer"
-                                >
-                                    <Plus size={16} />
-                                    Tạo công thức (BOM)
-                                </Link>
-                                <Link
                                     to={`/system/product-variants/${item.id}`}
                                     className="flex items-center gap-1.5 rounded-xl border border-pos-border bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
                                 >
@@ -510,82 +933,20 @@ export function ProductVariantListPage() {
                         </div>
                     );
                 }}
-                formFields={[
-                    {
-                        name: "productId",
-                        label: "Sản phẩm",
-                        type: "select",
-                        required: true,
-                        options: products.map((product) => ({
-                            label: product.name,
-                            value: String(product.id)
-                        })),
-                        render: (value, onChange) => (
-                            <SearchableDropdown
-                                value={value}
-                                onChange={onChange}
-                                options={productOptions}
-                                onSearch={setProductSearchTerm}
-                                onLoadMore={handleLoadMoreProducts}
-                                hasMore={productHasMore}
-                                loading={productLoading}
-                                placeholder="Chọn sản phẩm"
-                            />
-                        )
-                    },
-                    {
-                        name: "variantName",
-                        label: "Tên Mặt hàng",
-                        required: true
-                    },
-                    {
-                        name: "sellingPrice",
-                        label: "Giá bán",
-                        type: "number",
-                        required: true
-                    },
-                    {
-                        name: "costPrice",
-                        label: "Giá vốn",
-                        type: "number",
-                        required: true
-                    },
-                    {
-                        name: "unitId",
-                        label: "Đơn vị bán thương mại",
-                        type: "select",
-                        required: true,
-                        options: units
-                            .filter((unit) => unit.status === "ACTIVE")
-                            .map((unit) => ({
-                                label: `${unit.name} (${unit.symbol})`,
-                                value: String(unit.id)
-                            }))
-                    },
-                    {
-                        name: "inventoryPolicy",
-                        label: "Chính sách tồn kho",
-                        type: "select",
-                        required: true,
-                        options: [
-                            { label: "Theo dõi tồn kho", value: "TRACK_STOCK" },
-                            {
-                                label: "Không theo dõi",
-                                value: "DO_NOT_TRACK"
-                            }
-                        ]
-                    },
-                    {
-                        name: "status",
-                        label: "Trạng thái",
-                        type: "select",
-                        required: true,
-                        options: [
-                            { label: "Đang hoạt động", value: "ACTIVE" },
-                            { label: "Ngừng hoạt động", value: "INACTIVE" }
-                        ]
-                    }
-                ]}
+                customForm={(editingItem, onClose) => (
+                    <ProductVariantFormWrapper
+                        editingItem={editingItem as ProductVariant | null}
+                        onClose={onClose}
+                        productOptions={productOptions}
+                        onProductSearch={handleProductSearch}
+                        onLoadMoreProducts={handleLoadMoreProducts}
+                        productHasMore={productHasMore}
+                        productLoading={productLoading}
+                        units={units}
+                        ingredients={ingredients}
+                        onSave={handleSave}
+                    />
+                )}
             />
             <ExcelImportModal
                 isOpen={isImportModalOpen}

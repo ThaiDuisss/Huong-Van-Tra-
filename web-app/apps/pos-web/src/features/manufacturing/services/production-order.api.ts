@@ -1,7 +1,6 @@
 import { apiClient } from "../../../api/api-client";
 import type { PageResult } from "../../product/types/product.types";
 import type {
-    BomOption,
     ProductionOrder,
     ProductionOrderCompleteInput,
     ProductionOrderCreateInput,
@@ -22,11 +21,6 @@ export const productionOrderApi = {
     },
     detail(id: string) {
         return apiClient.get<ProductionOrder>(`/inventory/production-orders/${encodeURIComponent(id)}`);
-    },
-    bomOptions(productVariantId: string) {
-        return apiClient.get<BomOption[]>("/inventory/production-orders/bom-options", {
-            query: { productVariantId }
-        });
     },
     create(input: ProductionOrderCreateInput) {
         return apiClient.post<ProductionOrder, ProductionOrderCreateInput>(

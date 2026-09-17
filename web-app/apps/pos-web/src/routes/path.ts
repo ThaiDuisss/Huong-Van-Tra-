@@ -78,8 +78,6 @@ export const routePaths = {
   discountCodes: "/system/marketing/discount-codes",
   discountHistory: "/system/marketing/discount-history",
   customerTiers: "/system/customers/tiers",
-  bomList: "/system/manufacturing/boms",
-  bomDetail: "/system/manufacturing/boms/:id",
   productionOrders: "/system/manufacturing/production-orders",
   productionOrderCreate: "/system/manufacturing/production-orders/new",
   productionOrderDetail: "/system/manufacturing/production-orders/:id",
