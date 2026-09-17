@@ -27,6 +27,13 @@ public class ProductVariant extends BaseEntity {
     @Column(name = "variant_name", nullable = false)
     private String variantName;
 
+    /**
+     * Định lượng của Mặt hàng, ví dụ 100, 250, 500.
+     * Dùng để tự sinh variantName = "{Tên sản phẩm} {quantity} {Tên đơn vị}".
+     */
+    @Column(name = "quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal quantity;
+
     @Column(name = "selling_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal sellingPrice;
 

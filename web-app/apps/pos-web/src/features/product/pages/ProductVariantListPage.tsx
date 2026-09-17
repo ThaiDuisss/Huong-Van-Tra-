@@ -63,7 +63,7 @@ function ProductVariantFormWrapper({
     const [formProductId, setFormProductId] = useState(
         editingItem?.productId ? String(editingItem.productId) : ""
     );
-    const [formVariantName, setFormVariantName] = useState(editingItem?.variantName || "");
+    const [formQuantity, setFormQuantity] = useState(editingItem?.quantity ?? 0);
     const [formSellingPrice, setFormSellingPrice] = useState(editingItem?.sellingPrice ?? 0);
     const [formCostPrice, setFormCostPrice] = useState(editingItem?.costPrice ?? 0);
     const [formUnitId, setFormUnitId] = useState(editingItem?.unitId ? String(editingItem.unitId) : "");
@@ -77,6 +77,16 @@ function ProductVariantFormWrapper({
 
     const [formError, setFormError] = useState("");
     const [formSubmitting, setFormSubmitting] = useState(false);
+
+    const selectedProductName = productOptions.find((p) => p.id === formProductId)?.name ?? "";
+    const selectedUnit = units.find((u) => String(u.id) === formUnitId);
+    const previewVariantName = [
+        selectedProductName,
+        formQuantity > 0 ? String(formQuantity) : "",
+        selectedUnit?.name ?? ""
+    ]
+        .filter(Boolean)
+        .join(" ");
 
     useEffect(() => {
         if (!editingItem?.id) return;
@@ -121,8 +131,8 @@ function ProductVariantFormWrapper({
             setFormError("Vui lòng chọn Sản phẩm.");
             return false;
         }
-        if (!formVariantName.trim()) {
-            setFormError("Vui lòng nhập Tên Mặt hàng.");
+        if (!formQuantity || formQuantity <= 0) {
+            setFormError("Vui lòng nhập Định lượng lớn hơn 0.");
             return false;
         }
         if (!formUnitId) {
@@ -172,7 +182,7 @@ function ProductVariantFormWrapper({
         try {
             const input: ProductVariantInput = {
                 productId: formProductId,
-                variantName: formVariantName.trim(),
+                quantity: Number(formQuantity),
                 sellingPrice: Number(formSellingPrice),
                 costPrice: Number(formCostPrice),
                 unitId: formUnitId,
@@ -237,13 +247,15 @@ function ProductVariantFormWrapper({
                         </div>
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                            Tên Mặt hàng *
+                            Định lượng *
                             <input
-                                type="text"
+                                type="number"
+                                min={0}
+                                step="any"
                                 className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
-                                placeholder="Ví dụ: Trà Ô Long Túi Lọc 100g"
-                                value={formVariantName}
-                                onChange={(e) => setFormVariantName(e.target.value)}
+                                placeholder="Ví dụ: 100, 250, 500"
+                                value={formQuantity}
+                                onChange={(e) => setFormQuantity(Number(e.target.value))}
                             />
                         </label>
 
@@ -308,6 +320,13 @@ function ProductVariantFormWrapper({
                                 <option value="INACTIVE">Ngừng hoạt động</option>
                             </select>
                         </label>
+                    </div>
+
+                    <div className="rounded-xl border border-pos-border bg-neutral-50 px-4 py-3 text-sm">
+                        <span className="font-bold text-gray-500">Tên Mặt hàng (tự sinh): </span>
+                        <span className="font-black text-gray-800">
+                            {previewVariantName || "Chọn sản phẩm, định lượng và đơn vị để xem tên hiển thị"}
+                        </span>
                     </div>
 
                     <div className="grid gap-3 border-t border-pos-border pt-4">
@@ -654,6 +673,7 @@ export function ProductVariantListPage() {
 
     const validateVariantRow = (row: any) => {
         const productCode = getRowValue(row, "Mã sản phẩm", "Mã SP", "Mã sp", "Product Code", "Mã hàng", "Mã SP/Product");
+        const quantityStr = getRowValue(row, "Định lượng", "Quantity");
         const sellingPriceStr = getRowValue(row, "Giá bán", "Selling Price");
         const costPriceStr = getRowValue(row, "Giá vốn", "Cost Price");
         const unitName = getRowValue(row, "Đơn vị", "Đơn vị bán", "Đơn vị tính", "Unit");
@@ -675,6 +695,11 @@ export function ProductVariantListPage() {
                     return { isValid: false, error: "Mã sản phẩm không tồn tại" };
                 }
             }
+        }
+
+        const quantity = Number(String(quantityStr).replace(/,/g, ""));
+        if (!quantityStr || isNaN(quantity) || quantity <= 0) {
+            return { isValid: false, error: "Định lượng không hợp lệ" };
         }
 
         const sellingPrice = Number(String(sellingPriceStr).replace(/,/g, ""));
@@ -755,7 +780,7 @@ export function ProductVariantListPage() {
         <>
             <CatalogResourceManagement
                 title="Mặt hàng"
-                description="Quản lý các mặt hàng bán được, SKU, chính sách tồn kho và định mức nguyên liệu (BOM)."
+                description="Quản lý các phiên bản sản phẩm bán được, SKU và định mức nguyên liệu."
                 createLabel="Tạo Mặt hàng"
                 searchPlaceholder="Tìm theo tên sản phẩm, tên mặt hàng, SKU..."
                 totalItemsLabel="Tổng số Mặt hàng"
@@ -844,12 +869,14 @@ export function ProductVariantListPage() {
                 secondaryFilter={undefined}
                 columns={[
                     { key: "variant", label: "Tên Mặt hàng" },
+                    { key: "quantity", label: "Định lượng" },
                     { key: "selling", label: "Giá bán" },
                     { key: "status", label: "Trạng thái" }
                 ]}
                 renderCells={(item) => (
                     <>
                         <TableCell>{item.variantName}</TableCell>
+                        <TableCell className="text-right pr-[18px]">{item.quantity}</TableCell>
                         <TableCell>{formatCurrency(item.sellingPrice)}</TableCell>
                         <TableCell>
                             <CatalogStatusBadge status={item.status} />
@@ -867,6 +894,7 @@ export function ProductVariantListPage() {
                                     { label: "Sản phẩm", value: item.productName },
                                     { label: "SKU", value: item.sku },
                                     { label: "Tên Mặt hàng", value: item.variantName },
+                                    { label: "Định lượng", value: String(item.quantity) },
                                     {
                                         label: "Giá bán",
                                         value: formatCurrency(item.sellingPrice)

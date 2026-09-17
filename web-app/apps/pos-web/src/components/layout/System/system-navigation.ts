@@ -107,17 +107,17 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     roles: PRODUCT_ROLES,
     children: [
       {
-        key: "catalog-variants",
-        label: "Mặt hàng",
-        to: routePaths.productVariants,
-        icon: Layers3,
-        roles: PRODUCT_ROLES,
-      },
-      {
         key: "catalog-products",
         label: "Sản phẩm",
         to: routePaths.products,
         icon: Package,
+        roles: PRODUCT_ROLES,
+      },
+      {
+        key: "catalog-variants",
+        label: "Mặt hàng",
+        to: routePaths.productVariants,
+        icon: Layers3,
         roles: PRODUCT_ROLES,
       },
       {

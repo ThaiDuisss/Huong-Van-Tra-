@@ -185,17 +185,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 : 10;
         Integer reorderPoint = request.reorderPoint() != null ? request.reorderPoint() : defaultReorder;
 
-        String variantDisplayName = (savedVariant.getVariantName() != null && !savedVariant.getVariantName().isBlank())
-                ? product.getName() + " - " + savedVariant.getVariantName()
-                : product.getName();
-
         inventoryClient.createProductVariantItem(
                 InventoryClient.CreateInventoryItemRequest.builder()
                         .status(savedVariant.getStatus().toString())
                         .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                         .referenceId(savedVariant.getId())
                         .referenceCode(savedVariant.getSku())
-                        .name(variantDisplayName)
+                        .name(savedVariant.getVariantName())
                         .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                         .reorderPoint(reorderPoint)
                         .build());
@@ -229,19 +225,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             return;
         }
         try {
-            Product product = variant.getProduct();
-            String productName = product != null ? product.getName() : "";
-            String variantDisplayName = (variant.getVariantName() != null && !variant.getVariantName().isBlank() && !productName.isBlank())
-                    ? productName + " - " + variant.getVariantName()
-                    : (!productName.isBlank() ? productName : variant.getVariantName());
-
             inventoryClient.updateInventoryItemByReference(
                     InventoryItemType.PRODUCT_VARIANT.toString(),
                     variant.getId(),
                     InventoryClient.CreateInventoryItemRequest.builder()
                             .referenceId(variant.getId())
                             .referenceCode(variant.getSku())
-                            .name(variantDisplayName)
+                            .name(variant.getVariantName())
                             .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                             .unitId(variant.getUnit() != null ? variant.getUnit().getId() : null)
                             .status(variant.getStatus() != null ? variant.getStatus().toString() : "ACTIVE")
@@ -259,7 +249,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     private void apply(ProductVariant variant, ProductVariantRequest request) {
-        variant.setVariantName(request.variantName());
+        variant.setQuantity(request.quantity());
         variant.setSellingPrice(request.sellingPrice());
         variant.setCostPrice(request.costPrice());
 
@@ -269,6 +259,19 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
         variant.setInventoryPolicy(request.inventoryPolicy());
         variant.setStatus(request.status());
+
+        variant.setVariantName(composeVariantName(variant.getProduct(), request.quantity(), unit));
+    }
+
+    /**
+     * Tên Mặt hàng luôn được hệ thống tự sinh, không cho người dùng tự nhập,
+     * theo công thức "{Tên sản phẩm} {Định lượng} {Tên đơn vị}".
+     */
+    private String composeVariantName(Product product, BigDecimal quantity, Unit unit) {
+        String productName = product != null && product.getName() != null ? product.getName().trim() : "";
+        String qtyStr = quantity != null ? quantity.stripTrailingZeros().toPlainString() : "";
+        String unitName = unit != null && unit.getName() != null ? unit.getName().trim() : "";
+        return (productName + " " + qtyStr + " " + unitName).trim().replaceAll("\\s+", " ");
     }
 
     @Override
@@ -292,6 +295,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 "Tên sản phẩm",
                 "Tên Mặt hàng",
                 "SKU",
+                "Định lượng",
                 "Giá bán",
                 "Giá vốn",
                 "Đơn vị",
@@ -331,26 +335,30 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 cellSku.setCellValue(v.getSku() != null ? v.getSku() : "");
                 cellSku.setCellStyle(styles.textStyle());
 
-                Cell cellSelling = row.createCell(6);
+                Cell cellQuantity = row.createCell(6);
+                cellQuantity.setCellValue(v.getQuantity() != null ? v.getQuantity().doubleValue() : 0.0);
+                cellQuantity.setCellStyle(styles.centerStyle());
+
+                Cell cellSelling = row.createCell(7);
                 cellSelling.setCellValue(v.getSellingPrice() != null ? v.getSellingPrice().doubleValue() : 0.0);
                 cellSelling.setCellStyle(styles.moneyStyle());
 
-                Cell cellCost = row.createCell(7);
+                Cell cellCost = row.createCell(8);
                 cellCost.setCellValue(v.getCostPrice() != null ? v.getCostPrice().doubleValue() : 0.0);
                 cellCost.setCellStyle(styles.moneyStyle());
 
                 String unitStr = v.getUnit() != null ? v.getUnit().getName() : "";
-                Cell cellUnit = row.createCell(8);
+                Cell cellUnit = row.createCell(9);
                 cellUnit.setCellValue(unitStr);
                 cellUnit.setCellStyle(styles.centerStyle());
 
                 String policyStr = v.getInventoryPolicy() == InventoryPolicy.TRACK_STOCK ? "Theo dõi tồn kho" : "Không theo dõi";
-                Cell cellPolicy = row.createCell(9);
+                Cell cellPolicy = row.createCell(10);
                 cellPolicy.setCellValue(policyStr);
                 cellPolicy.setCellStyle(styles.centerStyle());
 
                 String statusStr = v.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động";
-                Cell cellStatus = row.createCell(10);
+                Cell cellStatus = row.createCell(11);
                 cellStatus.setCellValue(statusStr);
                 cellStatus.setCellStyle(styles.centerStyle());
             }
@@ -385,7 +393,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                     String h = getCellValueAsString(rRow.getCell(c)).toLowerCase().trim();
                     String normalized = java.text.Normalizer.normalize(h, java.text.Normalizer.Form.NFD)
                             .replaceAll("\\p{M}", "");
-                    if (normalized.contains("ma san pham") || normalized.contains("ma sp") || normalized.contains("ten mat hang") || normalized.contains("ten bien the") || normalized.contains("gia ban")) {
+                    if (normalized.contains("ma san pham") || normalized.contains("ma sp") || normalized.contains("dinh luong") || normalized.contains("gia ban")) {
                         hasMatch = true;
                         break;
                     }
@@ -398,7 +406,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
             Row headerRow = sheet.getRow(headerRowIndex);
             int colProductCode = -1;
-            int colVariantName = -1;
+            int colQuantity = -1;
             int colSellingPrice = -1;
             int colCostPrice = -1;
             int colUnit = -1;
@@ -412,8 +420,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                             .replaceAll("\\p{M}", "");
                     if (normalized.contains("ma san pham") || normalized.contains("ma sp") || normalized.contains("product code") || normalized.contains("productcode")) {
                         colProductCode = c;
-                    } else if (normalized.contains("ten mat hang") || normalized.contains("ten bien the") || normalized.contains("variant name") || (normalized.contains("mat hang") && !normalized.contains("danh sach")) || normalized.contains("ten san pham") || normalized.contains("product name")) {
-                        colVariantName = c;
+                    } else if (normalized.contains("dinh luong") || normalized.contains("quantity")) {
+                        colQuantity = c;
                     } else if (normalized.contains("gia ban") || normalized.contains("selling price")) {
                         colSellingPrice = c;
                     } else if (normalized.contains("gia von") || normalized.contains("cost price")) {
@@ -430,7 +438,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
             // Fallback to default indices if header matching was not detected
             if (colProductCode == -1) colProductCode = 0;
-            if (colVariantName == -1) colVariantName = 1;
+            if (colQuantity == -1) colQuantity = 1;
             if (colSellingPrice == -1) colSellingPrice = 2;
             if (colCostPrice == -1) colCostPrice = 3;
             if (colUnit == -1) colUnit = 4;
@@ -448,14 +456,14 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 if (row == null) continue;
 
                 String productCode = colProductCode >= 0 ? getCellValueAsString(row.getCell(colProductCode)) : "";
-                String variantName = colVariantName >= 0 ? getCellValueAsString(row.getCell(colVariantName)) : "";
+                String quantityStr = colQuantity >= 0 ? getCellValueAsString(row.getCell(colQuantity)) : "";
                 String sellingPriceStr = colSellingPrice >= 0 ? getCellValueAsString(row.getCell(colSellingPrice)) : "";
                 String costPriceStr = colCostPrice >= 0 ? getCellValueAsString(row.getCell(colCostPrice)) : "";
                 String unitName = colUnit >= 0 ? getCellValueAsString(row.getCell(colUnit)) : "";
                 String policyStr = colPolicy >= 0 ? getCellValueAsString(row.getCell(colPolicy)) : "";
                 String statusStr = colStatus >= 0 ? getCellValueAsString(row.getCell(colStatus)) : "";
 
-                if (variantName.isBlank() && productCode.isBlank() && sellingPriceStr.isBlank() && unitName.isBlank()) {
+                if (quantityStr.isBlank() && productCode.isBlank() && sellingPriceStr.isBlank() && unitName.isBlank()) {
                     continue;
                 }
 
@@ -480,8 +488,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                     throw new BadRequestException("Dòng " + rowNum + ": Mã sản phẩm không được để trống.");
                 }
 
-                if (variantName.isBlank()) {
-                    variantName = product.getName();
+                if (quantityStr.isBlank()) {
+                    throw new BadRequestException("Dòng " + rowNum + ": Định lượng không được để trống.");
+                }
+                BigDecimal quantity;
+                try {
+                    quantity = new BigDecimal(quantityStr.replace(",", ""));
+                    if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+                        throw new BadRequestException("Dòng " + rowNum + ": Định lượng phải lớn hơn 0.");
+                    }
+                } catch (NumberFormatException e) {
+                    throw new BadRequestException("Dòng " + rowNum + ": Định lượng không hợp lệ.");
                 }
 
                 if (unitName.isBlank()) {
@@ -537,7 +554,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 ProductVariant variant = new ProductVariant();
                 variant.setProduct(product);
                 variant.setSku(autoGeneratedSku);
-                variant.setVariantName(variantName.trim());
+                variant.setQuantity(quantity);
+                variant.setVariantName(composeVariantName(product, quantity, resolvedUnit));
                 variant.setSellingPrice(sellingPrice);
                 variant.setCostPrice(costPrice);
                 variant.setUnit(resolvedUnit);
@@ -551,17 +569,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 List<ProductVariant> savedVariants = repository.saveAll(variantsToSave);
 
                 for (ProductVariant savedVariant : savedVariants) {
-                    String variantDisplayName = (savedVariant.getVariantName() != null && !savedVariant.getVariantName().isBlank())
-                            ? savedVariant.getProduct().getName() + " - " + savedVariant.getVariantName()
-                            : savedVariant.getProduct().getName();
-
                     inventoryClient.createProductVariantItem(
                             InventoryClient.CreateInventoryItemRequest.builder()
                                      .status(savedVariant.getStatus().toString())
                                     .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                                     .referenceId(savedVariant.getId())
                                     .referenceCode(savedVariant.getSku())
-                                    .name(variantDisplayName)
+                                    .name(savedVariant.getVariantName())
                                     .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                                     .reorderPoint(10)
                                     .build());
@@ -622,7 +636,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             DataFormat format = workbook.createDataFormat();
             priceStyle.setDataFormat(format.getFormat("#,##0"));
 
-            String[] headers = {"Mã sản phẩm", "Tên Mặt hàng", "Giá bán", "Giá vốn", "Đơn vị", "Chính sách tồn kho", "Trạng thái"};
+            String[] headers = {"Mã sản phẩm", "Định lượng", "Giá bán", "Giá vốn", "Đơn vị", "Chính sách tồn kho", "Trạng thái"};
             Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
@@ -633,7 +647,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             // Add template rows
             Row row1 = sheet.createRow(1);
             row1.createCell(0).setCellValue("PRD00001");
-            row1.createCell(1).setCellValue("Thiết Quan Âm 100g");
+            row1.createCell(1).setCellValue(100.0);
 
             Cell cellSelling1 = row1.createCell(2);
             cellSelling1.setCellValue(150000.0);
@@ -643,13 +657,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             cellCost1.setCellValue(100000.0);
             cellCost1.setCellStyle(priceStyle);
 
-            row1.createCell(4).setCellValue("Gói 100g");
+            row1.createCell(4).setCellValue("Gói");
             row1.createCell(5).setCellValue("Theo dõi tồn kho");
             row1.createCell(6).setCellValue("Đang hoạt động");
 
             Row row2 = sheet.createRow(2);
             row2.createCell(0).setCellValue("PRD00001");
-            row2.createCell(1).setCellValue("Thiết Quan Âm 250g");
+            row2.createCell(1).setCellValue(250.0);
 
             Cell cellSelling2 = row2.createCell(2);
             cellSelling2.setCellValue(350000.0);
@@ -659,7 +673,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             cellCost2.setCellValue(230000.0);
             cellCost2.setCellStyle(priceStyle);
 
-            row2.createCell(4).setCellValue("Gói 250g");
+            row2.createCell(4).setCellValue("Gói");
             row2.createCell(5).setCellValue("Theo dõi tồn kho");
             row2.createCell(6).setCellValue("Đang hoạt động");
 

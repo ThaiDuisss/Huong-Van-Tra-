@@ -1,9 +1,7 @@
 package org.hvtra.catalog.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import org.hvtra.catalog.enums.InventoryPolicy;
 import org.hvtra.catalog.enums.Status;
 
@@ -11,7 +9,9 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record ProductVariantRequest(
-        @NotBlank @Size(max = 255) String variantName,
+        @NotNull(message = "quantity is required")
+        @DecimalMin(value = "0.01", message = "quantity must be greater than 0")
+        BigDecimal quantity,
         @NotNull @DecimalMin("0.00") BigDecimal sellingPrice,
         @NotNull @DecimalMin("0.00") BigDecimal costPrice,
         @NotNull UUID unitId,
