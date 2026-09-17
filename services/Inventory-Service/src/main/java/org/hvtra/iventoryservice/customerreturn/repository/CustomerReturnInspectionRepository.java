@@ -80,6 +80,28 @@ public interface CustomerReturnInspectionRepository
     );
 
     @Query("""
+            select distinct inspection
+            from CustomerReturnInspection inspection
+            left join fetch inspection.lines lines
+            where inspection.returnId = :returnId
+              and inspection.isDeleted = false
+            order by inspection.createdAt desc, inspection.id desc
+            """)
+    List<CustomerReturnInspection> findQcProgressByReturnId(@Param("returnId") UUID returnId);
+
+    @Query("""
+            select distinct inspection
+            from CustomerReturnInspection inspection
+            left join fetch inspection.lines lines
+            where inspection.returnId in :returnIds
+              and inspection.isDeleted = false
+            order by inspection.createdAt desc, inspection.id desc
+            """)
+    List<CustomerReturnInspection> findQcProgressByReturnIds(
+            @Param("returnIds") Collection<UUID> returnIds
+    );
+
+    @Query("""
             select new org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse(
                 lines.result,
                 coalesce(sum(lines.quantity), 0)

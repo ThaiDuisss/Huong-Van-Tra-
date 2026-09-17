@@ -10,6 +10,7 @@ import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSumm
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionLineResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
+import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryLineResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.repository.CustomerReturnInspectionRepository;
@@ -57,6 +58,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -182,11 +184,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     @Override
     public CustomerReturnQcSummaryResponse getQcSummary(UUID returnId) {
         OrderReturnResponse orderReturn = fetchReturn(returnId);
-        Map<UUID, BigDecimal> postedQuantities = postedQuantities(returnId);
+        QcProgress qcProgress = buildQcProgress(
+                inspectionRepository.findQcProgressByReturnId(returnId)
+        );
 
         List<CustomerReturnQcSummaryLineResponse> lines = orderReturn.items().stream()
                 .map(item -> {
-                    BigDecimal posted = nullSafe(postedQuantities.get(item.id()));
+                    BigDecimal posted = qcProgress.postedQuantity(item.id());
                     BigDecimal remaining = item.quantity().subtract(posted);
                     if (remaining.compareTo(BigDecimal.ZERO) < 0) {
                         remaining = BigDecimal.ZERO;
@@ -200,7 +204,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                             remaining,
                             lineQcStatus(item.quantity(), posted),
                             item.condition(),
-                            item.reason());
+                            item.reason(),
+                            qcProgress.dispositions(item.id()));
                 })
                 .toList();
 
@@ -211,6 +216,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 orderReturn.branchId(),
                 orderReturn.orderId(),
                 orderReturn.orderCode(),
+                qcProgress.inspectionId(),
+                qcProgress.inspectionStatus(),
                 overallQcStatus(lines),
                 lines);
     }
@@ -225,10 +232,16 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 .map(CustomerReturnQcSummaryBatchRequest.CustomerReturnSnapshot::returnId)
                 .distinct()
                 .toList();
-        Map<UUID, BigDecimal> postedQuantities = postedQuantities(returnIds);
+        Map<UUID, List<CustomerReturnInspection>> inspectionsByReturnId = inspectionRepository
+                .findQcProgressByReturnIds(returnIds)
+                .stream()
+                .collect(Collectors.groupingBy(CustomerReturnInspection::getReturnId));
 
         return request.returns().stream()
-                .map(returnSnapshot -> toQcSummary(returnSnapshot, postedQuantities))
+                .map(returnSnapshot -> toQcSummary(
+                        returnSnapshot,
+                        buildQcProgress(inspectionsByReturnId.getOrDefault(returnSnapshot.returnId(), List.of()))
+                ))
                 .toList();
     }
 
@@ -384,6 +397,20 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 .collect(Collectors.toMap(OrderReturnItemResponse::id, Function.identity()));
     }
 
+    private Map<UUID, BigDecimal> postedQuantities(UUID returnId) {
+        Map<UUID, BigDecimal> totals = new HashMap<>();
+        inspectionRepository.findByReturnIdAndStatus(returnId, CustomerReturnInspectionStatus.POSTED)
+                .stream()
+                .flatMap(inspection -> inspection.getLines().stream())
+                .filter(line -> Boolean.TRUE.equals(line.getPosted()))
+                .forEach(line -> totals.merge(
+                        line.getReturnItemId(),
+                        line.getQuantity(),
+                        BigDecimal::add
+                ));
+        return totals;
+    }
+
     private InventoryItem activeProductVariantItem(UUID productVariantId) {
         if (productVariantId == null) {
             throw new BadRequestException("Order return item productVariantId is required");
@@ -484,47 +511,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         }
     }
 
-    private Map<UUID, BigDecimal> postedQuantities(UUID returnId) {
-        Map<UUID, BigDecimal> totals = new HashMap<>();
-        List<CustomerReturnInspection> postedInspections = inspectionRepository.findByReturnIdAndStatus(
-                returnId,
-                CustomerReturnInspectionStatus.POSTED);
-        for (CustomerReturnInspection inspection : postedInspections) {
-            for (CustomerReturnInspectionLine line : inspection.getLines()) {
-                if (Boolean.TRUE.equals(line.getPosted())) {
-                    totals.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
-                }
-            }
-        }
-        return totals;
-    }
-
-    private Map<UUID, BigDecimal> postedQuantities(List<UUID> returnIds) {
-        Map<UUID, BigDecimal> totals = new HashMap<>();
-        if (returnIds == null || returnIds.isEmpty()) {
-            return totals;
-        }
-
-        List<CustomerReturnInspection> postedInspections = inspectionRepository.findByReturnIdInAndStatus(
-                returnIds,
-                CustomerReturnInspectionStatus.POSTED);
-        for (CustomerReturnInspection inspection : postedInspections) {
-            for (CustomerReturnInspectionLine line : inspection.getLines()) {
-                if (Boolean.TRUE.equals(line.getPosted())) {
-                    totals.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
-                }
-            }
-        }
-        return totals;
-    }
-
     private CustomerReturnQcSummaryResponse toQcSummary(
             CustomerReturnQcSummaryBatchRequest.CustomerReturnSnapshot returnSnapshot,
-            Map<UUID, BigDecimal> postedQuantities
+            QcProgress qcProgress
     ) {
         List<CustomerReturnQcSummaryLineResponse> lines = returnSnapshot.lines().stream()
                 .map(item -> {
-                    BigDecimal posted = nullSafe(postedQuantities.get(item.returnItemId()));
+                    BigDecimal posted = qcProgress.postedQuantity(item.returnItemId());
                     BigDecimal remaining = item.quantity().subtract(posted);
                     if (remaining.compareTo(BigDecimal.ZERO) < 0) {
                         remaining = BigDecimal.ZERO;
@@ -538,7 +531,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                             remaining,
                             lineQcStatus(item.quantity(), posted),
                             item.condition(),
-                            item.reason());
+                            item.reason(),
+                            qcProgress.dispositions(item.returnItemId()));
                 })
                 .toList();
 
@@ -549,8 +543,60 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 returnSnapshot.branchId(),
                 returnSnapshot.orderId(),
                 returnSnapshot.orderCode(),
+                qcProgress.inspectionId(),
+                qcProgress.inspectionStatus(),
                 overallQcStatus(lines),
                 lines);
+    }
+
+    private QcProgress buildQcProgress(List<CustomerReturnInspection> inspections) {
+        CustomerReturnInspection latestInspection = inspections.isEmpty() ? null : inspections.getFirst();
+        Map<UUID, BigDecimal> postedQuantities = new HashMap<>();
+        Map<UUID, Map<CustomerReturnQcResult, BigDecimal>> dispositionsByItem = new HashMap<>();
+
+        inspections.stream()
+                .filter(inspection -> inspection.getStatus() == CustomerReturnInspectionStatus.POSTED)
+                .flatMap(inspection -> inspection.getLines().stream())
+                .filter(line -> Boolean.TRUE.equals(line.getPosted()))
+                .forEach(line -> {
+                    postedQuantities.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
+                    dispositionsByItem
+                            .computeIfAbsent(
+                                    line.getReturnItemId(),
+                                    ignored -> new EnumMap<>(CustomerReturnQcResult.class)
+                            )
+                            .merge(line.getResult(), line.getQuantity(), BigDecimal::add);
+                });
+
+        return new QcProgress(
+                latestInspection == null ? null : latestInspection.getId(),
+                latestInspection == null ? null : latestInspection.getStatus(),
+                postedQuantities,
+                dispositionsByItem
+        );
+    }
+
+    private record QcProgress(
+            UUID inspectionId,
+            CustomerReturnInspectionStatus inspectionStatus,
+            Map<UUID, BigDecimal> postedQuantities,
+            Map<UUID, Map<CustomerReturnQcResult, BigDecimal>> dispositionsByItem
+    ) {
+        private BigDecimal postedQuantity(UUID returnItemId) {
+            return postedQuantities.getOrDefault(returnItemId, BigDecimal.ZERO);
+        }
+
+        private List<CustomerReturnQcDispositionSummaryResponse> dispositions(UUID returnItemId) {
+            return dispositionsByItem
+                    .getOrDefault(returnItemId, Map.of())
+                    .entrySet()
+                    .stream()
+                    .map(entry -> new CustomerReturnQcDispositionSummaryResponse(
+                            entry.getKey(),
+                            entry.getValue()
+                    ))
+                    .toList();
+        }
     }
 
     private CustomerReturnInspectionResponse toResponse(CustomerReturnInspection inspection) {

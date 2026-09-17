@@ -177,6 +177,12 @@ export interface CustomerReturnQcSummaryLine {
     status?: CustomerReturnQcStatus | null;
     condition?: ReturnCondition | null;
     reason?: ReturnReason | string | null;
+    dispositions?: CustomerReturnQcDispositionSummary[] | null;
+}
+
+export interface CustomerReturnQcDispositionSummary {
+    result: CustomerReturnQcResult;
+    quantity?: number | string | null;
 }
 
 export interface CustomerReturnQcSummaryResponse {
@@ -186,6 +192,8 @@ export interface CustomerReturnQcSummaryResponse {
     branchId?: string | null;
     orderId?: string | null;
     orderCode?: string | null;
+    inspectionId?: string | null;
+    inspectionStatus?: CustomerReturnInspectionStatus | null;
     qcStatus?: CustomerReturnQcStatus | null;
     lines?: CustomerReturnQcSummaryLine[] | null;
 }

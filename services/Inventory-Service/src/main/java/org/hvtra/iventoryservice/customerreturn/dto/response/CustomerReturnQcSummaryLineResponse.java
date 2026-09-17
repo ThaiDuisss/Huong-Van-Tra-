@@ -4,6 +4,7 @@ import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcStatus;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnCondition;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record CustomerReturnQcSummaryLineResponse(
@@ -15,6 +16,7 @@ public record CustomerReturnQcSummaryLineResponse(
         BigDecimal remainingQcQuantity,
         CustomerReturnQcStatus status,
         OrderReturnCondition condition,
-        String reason
+        String reason,
+        List<CustomerReturnQcDispositionSummaryResponse> dispositions
 ) {
 }

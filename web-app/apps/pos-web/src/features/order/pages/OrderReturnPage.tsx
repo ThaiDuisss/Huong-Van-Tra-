@@ -840,6 +840,19 @@ function ReturnDetailModal({
         return Array.from(map.values());
     }, [activeLocations, damagedLocations]);
     const isQcCompleted = qcSummary?.qcStatus === "COMPLETED";
+    const qcStatusLabel = (() => {
+        if (isQcSummaryLoading) {
+            return "Đang tải...";
+        }
+
+        if (qcSummary?.qcStatus === "PENDING") {
+            return qcSummary.inspectionStatus === "CREATED"
+                ? "Đang kiểm tra hàng trả"
+                : "Chờ kiểm tra hàng trả";
+        }
+
+        return getCustomerReturnQcStatusLabel(qcSummary?.qcStatus);
+    })();
 
     useEffect(() => {
         const timerId = window.setTimeout(() => {
@@ -1459,11 +1472,7 @@ function ReturnDetailModal({
                                         <p>
                                             Trạng thái xử lý kho:{" "}
                                             <strong>
-                                                {isQcSummaryLoading
-                                                    ? "Đang tải..."
-                                                    : getCustomerReturnQcStatusLabel(
-                                                          qcSummary?.qcStatus
-                                                      )}
+                                                {qcStatusLabel}
                                             </strong>
                                         </p>
                                     ) : null}
@@ -1527,6 +1536,18 @@ function ReturnDetailModal({
                                     ) : null}
                                     {!isQcSummaryLoading &&
                                     !qcSummaryError &&
+                                    qcSummary?.qcStatus === "PENDING" ? (
+                                        <PanelMessage
+                                            description={
+                                                qcSummary.inspectionStatus === "CREATED"
+                                                    ? "Phiếu kiểm tra đã được tạo và đang chờ hoàn tất xử lý kho."
+                                                    : "Phiếu hoàn đã được nhận hàng và đang chờ kiểm tra hàng trả."
+                                            }
+                                            title={qcStatusLabel}
+                                        />
+                                    ) : null}
+                                    {!isQcSummaryLoading &&
+                                    !qcSummaryError &&
                                     qcSummary ? (
                                         <div className={styles.qcSummaryList}>
                                             {summaryLines.map((line) => (
@@ -1567,6 +1588,21 @@ function ReturnDetailModal({
                                                                 line.remainingQcQuantity
                                                             )}
                                                         </span>
+                                                        {(line.dispositions ?? []).map(
+                                                            (disposition) => (
+                                                                <span
+                                                                    key={disposition.result}
+                                                                >
+                                                                    {getCustomerReturnQcResultLabel(
+                                                                        disposition.result
+                                                                    )}
+                                                                    :{" "}
+                                                                    {formatReturnQuantity(
+                                                                        disposition.quantity
+                                                                    )}
+                                                                </span>
+                                                            )
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}

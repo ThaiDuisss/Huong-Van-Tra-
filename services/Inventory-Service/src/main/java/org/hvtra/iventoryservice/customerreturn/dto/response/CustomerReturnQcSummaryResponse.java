@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.customerreturn.dto.response;
 
+import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcStatus;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnStatus;
 
@@ -13,6 +14,8 @@ public record CustomerReturnQcSummaryResponse(
         UUID branchId,
         UUID orderId,
         String orderCode,
+        UUID inspectionId,
+        CustomerReturnInspectionStatus inspectionStatus,
         CustomerReturnQcStatus qcStatus,
         List<CustomerReturnQcSummaryLineResponse> lines
 ) {
