@@ -59,6 +59,9 @@ import { CategoryListPage } from "../features/product/pages/CategoryListPage";
 import { UnitListPage } from "../features/product/pages/UnitListPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
 import { ProductListPage } from "../features/product/pages/ProductListPage";
+import { ProductImportPage } from "../features/product/pages/ProductImportPage";
+import { ProductImportReviewPage } from "../features/product/pages/ProductImportReviewPage";
+import { ImportBatchListPage } from "../features/product/pages/ImportBatchListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
 import { ProductVariantDetailPage } from "../features/product/pages/ProductVariantDetailPage";
 import { routePaths } from "../routes/path";
@@ -203,6 +206,12 @@ export function AppRouter() {
           <Route path="product-variants/:id" element={<ProductVariantDetailPage />} />
 
           <Route path="price-lists" element={<PriceListPage />} />
+        </Route>
+
+        <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
+          <Route path="import-excel" element={<ImportBatchListPage />} />
+          <Route path="import-excel/new" element={<ProductImportPage />} />
+          <Route path="import-excel/:batchId" element={<ProductImportReviewPage />} />
         </Route>
 
         <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
