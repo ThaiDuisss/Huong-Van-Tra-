@@ -16,14 +16,22 @@ import { importBatchApi } from "../services/importBatch.api";
 import type { ImportBatch, ImportBatchStatus, ImportType } from "../types/import-batch.types";
 
 const IMPORT_TYPE_LABEL: Record<string, string> = {
-    PRODUCT: "Sản phẩm"
+    PRODUCT: "Sản phẩm",
+    PRODUCT_VARIANT: "Mặt hàng"
 };
 
 // Mỗi service tự quản lý bảng import_batches riêng (Catalog-Service, Inventory-Service sau này...) — trang này
 // chỉ gọi API của Catalog-Service nên không có lựa chọn "Tất cả" (sẽ phải gộp nhiều API khác nhau, không hợp lý).
+// Sản phẩm và Mặt hàng đều cùng Catalog-Service nên chuyển qua lại vẫn chỉ 1 API call, không phải gộp service khác.
 const importTypeOptions: Array<{ label: string; value: ImportType }> = [
-    { label: "Sản phẩm", value: "PRODUCT" }
+    { label: "Sản phẩm", value: "PRODUCT" },
+    { label: "Mặt hàng", value: "PRODUCT_VARIANT" }
 ];
+
+const IMPORT_CREATE_ROUTE_BY_TYPE: Record<ImportType, string> = {
+    PRODUCT: routePaths.importExcelCreate,
+    PRODUCT_VARIANT: routePaths.importExcelVariantCreate
+};
 
 const columns: Column[] = [
     // { key: "batchCode", label: "Mã phiếu" },
@@ -98,12 +106,6 @@ export function ImportBatchListPage() {
                     setPage(1);
                 }
             }}
-            extraHeaderActions={
-                <ActionButton variant="secondary" onClick={() => navigate(routePaths.importExcelCreate)}>
-                    <Upload size={17} aria-hidden="true" />
-                    Nhập Excel
-                </ActionButton>
-            }
             items={batches}
             loading={resource.loading}
             onPageChange={setPage}

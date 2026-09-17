@@ -90,13 +90,6 @@ export const productVariantApi = {
             query: productId && productId !== "ALL" ? { productId } : {}
         });
     },
-    import(file: File, productId: string) {
-        const formData = new FormData();
-        formData.append("file", file);
-        return apiClient.upload<void>("/catalog/product-variants/import", formData, {
-            query: { productId }
-        });
-    },
     downloadTemplate() {
         return apiClient.download("/catalog/product-variants/import/template");
     },

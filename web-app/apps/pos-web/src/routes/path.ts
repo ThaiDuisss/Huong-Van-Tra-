@@ -20,6 +20,7 @@ export const routePaths = {
   productDetail: "/system/products/:id",
   importExcelRequests: "/system/import-excel",
   importExcelCreate: "/system/import-excel/new",
+  importExcelVariantCreate: "/system/import-excel/variants/new",
   importExcelDetail: "/system/import-excel/:batchId",
   productVariants: "/system/product-variants",
   productVariantsByProduct: "/system/products/:productId/variants",

@@ -80,11 +80,15 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         batch.setStatus(ImportBatchStatus.DRAFT);
         batch.setSourceFileName(file.getOriginalFilename());
 
-        for (ParsedImportRow row : rows) {
+        // Validate cả loạt 1 lần (không lặp handler.validate() từng dòng) để handler có thể gộp
+        // tra cứu tồn tại theo id (product/unit/ingredient...) thành vài query thay vì N query riêng lẻ.
+        List<List<ValidationErrorResponse>> allErrors = handler.validateAll(rows.stream().map(ParsedImportRow::payload).toList());
+        for (int i = 0; i < rows.size(); i++) {
+            ParsedImportRow row = rows.get(i);
             ImportBatchItem item = new ImportBatchItem();
             item.setRowIndex(row.rowIndex());
             item.setPayload(writeJson(row.payload()));
-            item.setValidationErrors(writeJson(handler.validate(row.payload())));
+            item.setValidationErrors(writeJson(allErrors.get(i)));
             item.setOccurrenceCount(row.occurrenceCount());
             batch.addItem(item);
         }
@@ -191,9 +195,14 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         ImportTypeHandler handler = handlerFor(batch.getImportType());
 
         // 1. Validate lại toàn bộ trước — nếu còn bất kỳ lỗi nào thì dừng ngay, KHÔNG commit dòng nào cả.
-        for (ImportBatchItem item : batch.getItems()) {
-            Map<String, Object> payload = readPayload(item);
-            List<ValidationErrorResponse> errors = handler.validate(payload);
+        //    Gọi validateAll() 1 lần cho cả batch (không lặp validate() từng item) để tránh N+1 khi
+        //    handler cần tra cứu tồn tại theo id (product/unit/ingredient...).
+        List<ImportBatchItem> items = batch.getItems();
+        List<List<ValidationErrorResponse>> allErrors =
+                handler.validateAll(items.stream().map(this::readPayload).toList());
+        for (int i = 0; i < items.size(); i++) {
+            ImportBatchItem item = items.get(i);
+            List<ValidationErrorResponse> errors = allErrors.get(i);
             item.setValidationErrors(writeJson(errors));
             if (!errors.isEmpty()) {
                 throw new BusinessException("ITEM_INVALID",

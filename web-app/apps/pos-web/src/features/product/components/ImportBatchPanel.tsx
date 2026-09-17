@@ -1,5 +1,5 @@
 import { ApiError } from "@hvt/api-client";
-import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import type { ComponentType } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthorization } from "../../../auth/role-utils";
@@ -12,11 +12,8 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
-import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
-import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
-import { categoryApi } from "../services/category.api";
 import { importBatchApi } from "../services/importBatch.api";
-import type { ImportBatch, ImportBatchItem, ImportBatchStatus } from "../types/import-batch.types";
+import type { ImportBatch, ImportBatchItem, ImportBatchStatus, ImportType } from "../types/import-batch.types";
 
 const STATUS_LABEL: Record<ImportBatchStatus, { label: string; className: string }> = {
     DRAFT: { label: "Bản nháp", className: "bg-neutral-100 text-neutral-700" },
@@ -34,193 +31,27 @@ export function StatusPill({ status }: { status: ImportBatchStatus }) {
     );
 }
 
-interface ItemRowProps {
-    item: ImportBatchItem;
+/** Mỗi loại import (PRODUCT, PRODUCT_VARIANT, ...) tự cung cấp 1 component render toàn bộ danh sách dòng
+ * của TRANG hiện tại — để được tự quản lý state/lookup dùng chung giữa các dòng (vd danh sách danh mục,
+ * nguyên liệu) chỉ tải 1 lần cho cả trang thay vì tải lại theo từng dòng. */
+export interface ImportItemsListProps {
+    items: ImportBatchItem[];
     editable: boolean;
-    expanded: boolean;
-    onToggle(): void;
-    onSave(payload: Record<string, unknown>): Promise<void>;
-    onDelete(): Promise<void>;
-    categoryOptions: LookupItem[];
-    onCategorySearch(term: string): void;
-    onLoadMoreCategories(): void;
-    categoryHasMore: boolean;
-    categoryLoading: boolean;
-    categoryNameById: Record<string, string>;
-}
-
-function ItemRow({
-    item,
-    editable,
-    expanded,
-    onToggle,
-    onSave,
-    onDelete,
-    categoryOptions,
-    onCategorySearch,
-    onLoadMoreCategories,
-    categoryHasMore,
-    categoryLoading,
-    categoryNameById
-}: ItemRowProps) {
-    const [name, setName] = useState(String(item.payload.name ?? ""));
-    const [categoryId, setCategoryId] = useState(item.payload.categoryId ? String(item.payload.categoryId) : "");
-    const [description, setDescription] = useState(String(item.payload.description ?? ""));
-    const [status, setStatus] = useState(String(item.payload.status ?? "ACTIVE"));
-    const [saving, setSaving] = useState(false);
-
-    useEffect(() => {
-        setName(String(item.payload.name ?? ""));
-        setCategoryId(item.payload.categoryId ? String(item.payload.categoryId) : "");
-        setDescription(String(item.payload.description ?? ""));
-        setStatus(String(item.payload.status ?? "ACTIVE"));
-    }, [item]);
-
-    const errorByField = new Map(item.validationErrors.map((e) => [e.field, e.message]));
-    const isValid = item.validationErrors.length === 0;
-    const categoryName = categoryId ? categoryNameById[categoryId] : undefined;
-
-    async function handleSave() {
-        setSaving(true);
-        try {
-            await onSave({
-                categoryId: categoryId || null,
-                name,
-                description: description.trim() ? description : null,
-                status
-            });
-        } finally {
-            setSaving(false);
-        }
-    }
-
-    return (
-        <div className="overflow-hidden rounded-xl border border-pos-border bg-white">
-            <button
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-neutral-50"
-                onClick={onToggle}
-                type="button"
-            >
-                <div className="flex min-w-0 items-center gap-3">
-                    {expanded ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
-                    <div className="min-w-0">
-                        <div className="truncate font-bold text-[#172317]">{name || `Dòng ${item.rowIndex}`}</div>
-                        <div className="truncate text-xs text-[#697684]">{categoryName ?? "Chưa chọn danh mục"}</div>
-                    </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                    {item.occurrenceCount > 1 ? (
-                        <span className="inline-flex h-6 items-center rounded-full bg-amber-50 px-2 text-[11px] font-bold text-amber-700">
-                            Trùng {item.occurrenceCount} dòng — đã gộp
-                        </span>
-                    ) : null}
-                    <span
-                        className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${
-                            isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                        }`}
-                    >
-                        {isValid ? "Hợp lệ" : `${item.validationErrors.length} lỗi`}
-                    </span>
-                </div>
-            </button>
-
-            {expanded ? (
-                <div className="grid gap-3 border-t border-pos-border p-4">
-                    {item.occurrenceCount > 1 ? (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
-                            Dòng này xuất hiện {item.occurrenceCount} lần giống hệt nhau trong file Excel gốc — hệ thống đã tự
-                            gộp thành 1 dòng duy nhất.
-                        </div>
-                    ) : null}
-                    <div className="grid gap-1.5">
-                        <label className="text-xs font-bold text-[#536078]">Danh mục *</label>
-                        <SearchableDropdown
-                            disabled={!editable}
-                            hasMore={categoryHasMore}
-                            loading={categoryLoading}
-                            onChange={setCategoryId}
-                            onLoadMore={onLoadMoreCategories}
-                            onSearch={onCategorySearch}
-                            options={categoryOptions}
-                            placeholder="Chọn danh mục..."
-                            value={categoryId}
-                        />
-                        {errorByField.get("categoryId") ? (
-                            <p className="text-xs font-bold text-red-600">{errorByField.get("categoryId")}</p>
-                        ) : null}
-                    </div>
-
-                    <div className="grid gap-1.5">
-                        <label className="text-xs font-bold text-[#536078]">Tên sản phẩm *</label>
-                        <input
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
-                            disabled={!editable}
-                            onChange={(e) => setName(e.target.value)}
-                            type="text"
-                            value={name}
-                        />
-                        {errorByField.get("name") ? (
-                            <p className="text-xs font-bold text-red-600">{errorByField.get("name")}</p>
-                        ) : null}
-                    </div>
-
-                    <div className="grid gap-1.5">
-                        <label className="text-xs font-bold text-[#536078]">Mô tả</label>
-                        <textarea
-                            className="rounded-lg border border-pos-border px-3 py-2 text-sm outline-none focus:border-hvt-green-600"
-                            disabled={!editable}
-                            onChange={(e) => setDescription(e.target.value)}
-                            rows={2}
-                            value={description}
-                        />
-                    </div>
-
-                    <div className="grid gap-1.5">
-                        <label className="text-xs font-bold text-[#536078]">Trạng thái</label>
-                        <select
-                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
-                            disabled={!editable}
-                            onChange={(e) => setStatus(e.target.value)}
-                            value={status}
-                        >
-                            <option value="ACTIVE">Đang hoạt động</option>
-                            <option value="INACTIVE">Ngừng hoạt động</option>
-                        </select>
-                    </div>
-
-                    {editable ? (
-                        <div className="flex items-center justify-between pt-1">
-                            <button
-                                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-600 hover:bg-red-50"
-                                onClick={() => void onDelete()}
-                                type="button"
-                            >
-                                <Trash2 size={14} aria-hidden="true" />
-                                Xóa dòng
-                            </button>
-                            <button
-                                className="inline-flex h-9 items-center rounded-lg bg-[#159734] px-4 text-xs font-black text-white hover:bg-[#12802c] disabled:opacity-50"
-                                disabled={saving}
-                                onClick={() => void handleSave()}
-                                type="button"
-                            >
-                                {saving ? "Đang lưu..." : "Lưu dòng này"}
-                            </button>
-                        </div>
-                    ) : null}
-                </div>
-            ) : null}
-        </div>
-    );
+    expandedId: string | null;
+    onToggle(itemId: string): void;
+    onSave(itemId: string, payload: Record<string, unknown>): Promise<void>;
+    onDelete(itemId: string): Promise<void>;
 }
 
 interface ImportBatchPanelProps {
     batchId: string;
     /** Called whenever the batch is (re)loaded or changes status/version, for parents that need to react (e.g. refresh a list). */
     onBatchChange?: (batch: ImportBatch) => void;
+    /** Component hiển thị danh sách dòng theo từng loại import — bắt buộc, thêm loại mới chỉ cần thêm 1 entry ở đây. */
+    itemsListRegistry: Partial<Record<ImportType, ComponentType<ImportItemsListProps>>>;
 }
 
-export function ImportBatchPanel({ batchId, onBatchChange }: ImportBatchPanelProps) {
+export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry }: ImportBatchPanelProps) {
     const { hasAnyRole } = useAuthorization();
     const canApprove = hasAnyRole(["ADMIN", "BRANCH_MANAGER"]);
 
@@ -236,54 +67,6 @@ export function ImportBatchPanel({ batchId, onBatchChange }: ImportBatchPanelPro
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
 
-    const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
-    const [categoryPage, setCategoryPage] = useState(0);
-    const [categoryHasMore, setCategoryHasMore] = useState(true);
-    const [categoryLoading, setCategoryLoading] = useState(false);
-    const [categoryNameById, setCategoryNameById] = useState<Record<string, string>>({});
-
-    const loadCategoryOptions = useCallback(async (search: string, page: number) => {
-        try {
-            setCategoryLoading(true);
-            const res = await categoryApi.lookup(search, page, 20);
-            const content = res.content ?? [];
-            setCategoryOptions((prev) => (page === 0 ? content : [...prev, ...content]));
-            setCategoryHasMore(!res.last);
-            setCategoryNameById((prev) => {
-                const next = { ...prev };
-                content.forEach((c) => {
-                    next[c.id] = c.name;
-                });
-                return next;
-            });
-        } catch (err) {
-            console.error("Lỗi tải danh mục", err);
-            setCategoryHasMore(false);
-        } finally {
-            setCategoryLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        void loadCategoryOptions("", 0);
-    }, [loadCategoryOptions]);
-
-    const handleCategorySearch = useCallback(
-        (term: string) => {
-            setCategoryPage(0);
-            void loadCategoryOptions(term, 0);
-        },
-        [loadCategoryOptions]
-    );
-
-    const handleLoadMoreCategories = useCallback(() => {
-        if (!categoryLoading && categoryHasMore) {
-            const nextPage = categoryPage + 1;
-            setCategoryPage(nextPage);
-            void loadCategoryOptions("", nextPage);
-        }
-    }, [categoryLoading, categoryHasMore, categoryPage, loadCategoryOptions]);
-
     const applyBatch = useCallback(
         (updated: ImportBatch) => {
             setBatch(updated);
@@ -291,48 +74,6 @@ export function ImportBatchPanel({ batchId, onBatchChange }: ImportBatchPanelPro
         },
         [onBatchChange]
     );
-
-    // Danh mục đã chọn của 1 dòng có thể không nằm trong trang lookup mặc định (chỉ 20 kết quả đầu) —
-    // nếu không resolve riêng thì dropdown/tóm tắt sẽ không hiện đúng tên danh mục đã có sẵn từ Excel.
-    useEffect(() => {
-        if (!batch) return;
-        const idsNeeded = Array.from(
-            new Set(
-                batch.items
-                    .map((item) => (item.payload.categoryId ? String(item.payload.categoryId) : null))
-                    .filter((id): id is string => Boolean(id) && !categoryNameById[id as string])
-            )
-        );
-        if (idsNeeded.length === 0) return;
-        let active = true;
-        Promise.all(
-            idsNeeded.map((id) =>
-                categoryApi
-                    .detail(id)
-                    .then((category) => ({ id, name: category.name }))
-                    .catch(() => null)
-            )
-        ).then((resolved) => {
-            if (!active) return;
-            const valid = resolved.filter((r): r is { id: string; name: string } => r !== null);
-            if (valid.length === 0) return;
-            setCategoryNameById((prev) => {
-                const next = { ...prev };
-                valid.forEach((v) => {
-                    next[v.id] = v.name;
-                });
-                return next;
-            });
-            setCategoryOptions((prev) => {
-                const existingIds = new Set(prev.map((o) => o.id));
-                const additions = valid.filter((v) => !existingIds.has(v.id));
-                return additions.length > 0 ? [...prev, ...additions] : prev;
-            });
-        });
-        return () => {
-            active = false;
-        };
-    }, [batch, categoryNameById]);
 
     const loadBatch = useCallback(() => {
         let active = true;
@@ -463,6 +204,8 @@ export function ImportBatchPanel({ batchId, onBatchChange }: ImportBatchPanelPro
     const safeItemsPage = Math.min(itemsPage, itemsPageCount);
     const pagedItems = batch.items.slice((safeItemsPage - 1) * itemsPageSize, safeItemsPage * itemsPageSize);
 
+    const ItemsList = itemsListRegistry[batch.importType];
+
     return (
         <section className="grid gap-4">
             {toast ? (
@@ -502,35 +245,20 @@ export function ImportBatchPanel({ batchId, onBatchChange }: ImportBatchPanelPro
 
             <div className="overflow-hidden rounded-xl border border-pos-border bg-white">
                 <div className="grid gap-2 p-3">
-                    {pagedItems.map((item) => {
-                        // Danh mục đang chọn của dòng này phải luôn có mặt trong options của riêng nó,
-                        // bất kể ô tìm kiếm chung đang lọc ra gì — nếu không dropdown sẽ rớt về nhãn "Đã chọn"
-                        // mỗi khi có dòng khác (dùng chung state search) đổi từ khoá tìm kiếm.
-                        const itemCategoryId = item.payload.categoryId ? String(item.payload.categoryId) : "";
-                        const itemCategoryName = itemCategoryId ? categoryNameById[itemCategoryId] : undefined;
-                        const itemCategoryOptions =
-                            itemCategoryId && itemCategoryName && !categoryOptions.some((o) => o.id === itemCategoryId)
-                                ? [{ id: itemCategoryId, name: itemCategoryName }, ...categoryOptions]
-                                : categoryOptions;
-
-                        return (
-                            <ItemRow
-                                categoryHasMore={categoryHasMore}
-                                categoryLoading={categoryLoading}
-                                categoryNameById={categoryNameById}
-                                categoryOptions={itemCategoryOptions}
-                                editable={isEditable}
-                                expanded={expandedId === item.id}
-                                item={item}
-                                key={item.id}
-                                onCategorySearch={handleCategorySearch}
-                                onDelete={() => handleDeleteItem(item.id)}
-                                onLoadMoreCategories={handleLoadMoreCategories}
-                                onSave={(payload) => handleUpdateItem(item.id, payload)}
-                                onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                            />
-                        );
-                    })}
+                    {ItemsList ? (
+                        <ItemsList
+                            editable={isEditable}
+                            expandedId={expandedId}
+                            items={pagedItems}
+                            onDelete={handleDeleteItem}
+                            onSave={handleUpdateItem}
+                            onToggle={(itemId) => setExpandedId(expandedId === itemId ? null : itemId)}
+                        />
+                    ) : (
+                        <div className="p-4 text-sm font-bold text-red-600">
+                            Loại import "{batch.importType}" chưa được hỗ trợ hiển thị trên giao diện.
+                        </div>
+                    )}
                 </div>
                 <Pagination
                     onPageChange={setItemsPage}

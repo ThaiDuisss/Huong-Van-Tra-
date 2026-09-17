@@ -64,6 +64,20 @@ public class ProductMapper {
     }
 
     public ProductResponse.VariantResponse toVariantResponse(ProductVariant variant) {
+        return toVariantResponse(variant, variant.getBarcodes().stream().map(this::toBarcodeResponse).toList());
+    }
+
+    /**
+     * Dùng ngay sau khi tạo mới 1 variant (vd trong luồng import Excel duyệt hàng loạt): variant vừa
+     * persist chắc chắn CHƯA có barcode nào (barcode được thêm qua endpoint riêng, sau khi tạo variant),
+     * nên truyền thẳng danh sách rỗng thay vì đọc {@code variant.getBarcodes()} — tránh 1 query SELECT
+     * lazy-load thừa cho mỗi variant khi tạo hàng loạt (N+1).
+     */
+    public ProductResponse.VariantResponse toVariantResponseForNewlyCreated(ProductVariant variant) {
+        return toVariantResponse(variant, List.of());
+    }
+
+    private ProductResponse.VariantResponse toVariantResponse(ProductVariant variant, List<ProductResponse.BarcodeResponse> barcodes) {
         Product product = variant.getProduct();
         String categoryName = (product != null && product.getCategory() != null) ? product.getCategory().getName() : null;
         String imageUrl = product != null ? product.getImageUrl() : null;
@@ -84,7 +98,7 @@ public class ProductMapper {
                 variant.getStatus(),
                 product != null ? product.getStatus() : null,
                 isSellable(variant),
-                variant.getBarcodes().stream().map(this::toBarcodeResponse).toList());
+                barcodes);
     }
 
     public ProductResponse.BarcodeResponse toBarcodeResponse(Barcode barcode) {

@@ -24,9 +24,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -162,6 +164,31 @@ public class ProductImportHandler implements ImportTypeHandler {
 
     @Override
     public List<ValidationErrorResponse> validate(Map<String, Object> payload) {
+        return validate(payload, null);
+    }
+
+    @Override
+    public List<List<ValidationErrorResponse>> validateAll(List<Map<String, Object>> payloads) {
+        // Gộp toàn bộ categoryId của cả batch lại, chỉ tra cứu tồn tại bằng 1 query findAllById()
+        // thay vì N query existsById() riêng lẻ (mỗi dòng Excel 1 query).
+        Set<UUID> categoryIds = new HashSet<>();
+        for (Map<String, Object> payload : payloads) {
+            Object categoryIdObj = payload.get("categoryId");
+            if (categoryIdObj != null) {
+                try {
+                    categoryIds.add(UUID.fromString(String.valueOf(categoryIdObj)));
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+        }
+        Set<UUID> existingCategoryIds = categoryIds.isEmpty()
+                ? Set.of()
+                : categoryRepository.findAllById(categoryIds).stream().map(Category::getId).collect(Collectors.toSet());
+
+        return payloads.stream().map(payload -> validate(payload, existingCategoryIds)).toList();
+    }
+
+    private List<ValidationErrorResponse> validate(Map<String, Object> payload, Set<UUID> preloadedExistingCategoryIds) {
         ProductRequest request = toRequest(payload);
         List<ValidationErrorResponse> errors = new ArrayList<>();
 
@@ -169,8 +196,13 @@ public class ProductImportHandler implements ImportTypeHandler {
             errors.add(new ValidationErrorResponse(violation.getPropertyPath().toString(), violation.getMessage()));
         }
 
-        if (request.categoryId() != null && !categoryRepository.existsById(request.categoryId())) {
-            errors.add(new ValidationErrorResponse("categoryId", "Danh mục không tồn tại"));
+        if (request.categoryId() != null) {
+            boolean exists = preloadedExistingCategoryIds != null
+                    ? preloadedExistingCategoryIds.contains(request.categoryId())
+                    : categoryRepository.existsById(request.categoryId());
+            if (!exists) {
+                errors.add(new ValidationErrorResponse("categoryId", "Danh mục không tồn tại"));
+            }
         }
 
         return errors;
