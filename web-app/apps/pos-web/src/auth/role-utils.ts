@@ -76,6 +76,11 @@ export const REPORT_ROLES: AppRole[] = [
 
 export const SETTINGS_ROLES: AppRole[] = [ROLES.ADMIN];
 
+export const IMPORT_MANAGEMENT_ROLES: AppRole[] = [
+    "ADMIN",
+    "BRANCH_MANAGER"
+];
+
 const DEFAULT_ROUTE_BY_ROLE: Record<string, string> = {
     [ROLES.ADMIN]: "/system/inventory/balances",
     [ROLES.BRANCH_MANAGER]: "/system/orders",
