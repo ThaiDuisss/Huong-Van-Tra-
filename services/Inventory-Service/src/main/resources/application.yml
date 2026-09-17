@@ -14,7 +14,7 @@ spring:
           format_sql: true
   flyway:
      baseline-on-migrate: true
-     out-of-order: true
+     out-of-order: false
 server:
   port: 8084
 

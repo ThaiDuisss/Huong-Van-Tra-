@@ -198,7 +198,15 @@ function getLocationOptionLabel(location: InventoryLocationResponse) {
     return name || code || "Vị trí kho";
 }
 
-function DispositionBadge({ result }: { result: CustomerReturnQcResult }) {
+function DispositionBadge({ result }: { result?: CustomerReturnQcResult | null }) {
+    if (!result) {
+        return (
+            <span className={`${styles.dispositionBadge} ${styles.dispositionDefault}`}>
+                --
+            </span>
+        );
+    }
+
     const config: Record<
         CustomerReturnQcResult,
         { label: string; className: string }
@@ -2008,6 +2016,12 @@ function ReturnDetailModal({
                                                             />
                                                         </label>
 
+                                                        {locationError ? (
+                                                            <p className={styles.qcError}>
+                                                                {locationError}
+                                                            </p>
+                                                        ) : null}
+
                                                         {qcFormError ? (
                                                             <p className={styles.qcError}>
                                                                 {qcFormError}
@@ -2187,11 +2201,12 @@ function ReturnDetailModal({
                                                 )}
                                             </>
                                         ) : (
-                                            <div
-                                                className={
-                                                    styles.qcReviewPanel
-                                                }
-                                            >
+                                            <>
+                                                <div
+                                                    className={
+                                                        styles.qcReviewPanel
+                                                    }
+                                                >
                                                 {activeDispositionCommand.status ===
                                                 "PENDING" ? (
                                                     <div>
@@ -2352,21 +2367,8 @@ function ReturnDetailModal({
                                                     })}
                                                 </div>
                                             </div>
-                                        )}                                                 Đang gửi lệnh...
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <CheckCircle2
-                                                                    size={18}
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Xác nhận xử lý
-                                                                kho
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                ) : null}
 
+                                            <div className={styles.qcActions}>
                                                 {activeDispositionCommand?.status ===
                                                 "PENDING" ? (
                                                     <button
@@ -2470,8 +2472,10 @@ function ReturnDetailModal({
                                                     </>
                                                 ) : null}
                                             </div>
-                                        </div>
-                                    ) : null}
+                                        </>
+                                    )}
+                                </div>
+                            ) : null}
                                 </>
                             ) : null}
                         </section>
