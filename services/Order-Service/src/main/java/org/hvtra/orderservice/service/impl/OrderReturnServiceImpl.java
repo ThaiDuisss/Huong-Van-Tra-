@@ -722,13 +722,302 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             int page,
             int size
     ) {
-        return orderReturnRepository.findReturnSummaries(
+        return getReturns(keyword, status, null, fromDate, toDate, sort, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrderReturnSummaryResponse> getReturns(
+            String keyword,
+            ReturnStatus status,
+            String displayStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    ) {
+        String effectiveDisplayStatus = normalizeDisplayStatus(status, displayStatus);
+
+        if (effectiveDisplayStatus == null || "ALL".equalsIgnoreCase(effectiveDisplayStatus)) {
+            Page<OrderReturnSummaryResponse> pageResult = orderReturnRepository.findReturnSummaries(
+                    keywordPattern(keyword),
+                    null,
+                    startOfDay(fromDate),
+                    startOfDay(nextDay(toDate)),
+                    returnPageRequest(page, size, sort)
+            );
+            enrichReturnSummaries(pageResult.getContent());
+            return pageResult;
+        }
+
+        if ("CREATED".equalsIgnoreCase(effectiveDisplayStatus)) {
+            Page<OrderReturnSummaryResponse> pageResult = orderReturnRepository.findReturnSummaries(
+                    keywordPattern(keyword),
+                    ReturnStatus.CREATED,
+                    startOfDay(fromDate),
+                    startOfDay(nextDay(toDate)),
+                    returnPageRequest(page, size, sort)
+            );
+            enrichReturnSummaries(pageResult.getContent());
+            return pageResult;
+        }
+
+        if ("CANCELLED".equalsIgnoreCase(effectiveDisplayStatus)) {
+            Page<OrderReturnSummaryResponse> pageResult = orderReturnRepository.findReturnSummaries(
+                    keywordPattern(keyword),
+                    ReturnStatus.CANCELLED,
+                    startOfDay(fromDate),
+                    startOfDay(nextDay(toDate)),
+                    returnPageRequest(page, size, sort)
+            );
+            enrichReturnSummaries(pageResult.getContent());
+            return pageResult;
+        }
+
+        List<OrderReturnSummaryResponse> candidates = orderReturnRepository.findReturnSummariesList(
                 keywordPattern(keyword),
-                status,
+                ReturnStatus.RECEIVED,
                 startOfDay(fromDate),
-                startOfDay(nextDay(toDate)),
-                returnPageRequest(page, size, sort)
+                startOfDay(nextDay(toDate))
         );
+        enrichReturnSummaries(candidates);
+
+        List<OrderReturnSummaryResponse> matched = candidates.stream()
+                .filter(row -> effectiveDisplayStatus.equalsIgnoreCase(row.getDisplayStatus()))
+                .toList();
+
+        int pageIndex = Math.max(page, 0);
+        int pageSize = Math.min(Math.max(size, 1), 200);
+        int fromIndex = Math.min(pageIndex * pageSize, matched.size());
+        int toIndex = Math.min(fromIndex + pageSize, matched.size());
+        return new PageImpl<>(
+                matched.subList(fromIndex, toIndex),
+                PageRequest.of(pageIndex, pageSize),
+                matched.size()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate) {
+        List<OrderReturnSummaryResponse> summaries = orderReturnRepository.findReturnSummariesList(
+                keywordPattern(keyword),
+                null,
+                startOfDay(fromDate),
+                startOfDay(nextDay(toDate))
+        );
+        enrichReturnSummaries(summaries);
+
+        long createdCount = 0;
+        long receivedCount = 0;
+        long processingCount = 0;
+        long processingFailedCount = 0;
+        long pendingRefundCount = 0;
+        long completedCount = 0;
+        long cancelledCount = 0;
+
+        for (OrderReturnSummaryResponse row : summaries) {
+            String ds = row.getDisplayStatus();
+            if ("CREATED".equals(ds)) {
+                createdCount++;
+            } else if ("RECEIVED".equals(ds)) {
+                receivedCount++;
+            } else if ("PROCESSING".equals(ds)) {
+                processingCount++;
+            } else if ("PROCESSING_FAILED".equals(ds)) {
+                processingFailedCount++;
+            } else if ("PENDING_REFUND".equals(ds)) {
+                pendingRefundCount++;
+            } else if ("COMPLETED".equals(ds)) {
+                completedCount++;
+            } else if ("CANCELLED".equals(ds)) {
+                cancelledCount++;
+            }
+        }
+
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("ALL", (long) summaries.size());
+        counts.put("CREATED", createdCount);
+        counts.put("RECEIVED", receivedCount);
+        counts.put("PROCESSING", processingCount);
+        counts.put("PENDING_REFUND", pendingRefundCount);
+        counts.put("COMPLETED", completedCount);
+        counts.put("CANCELLED", cancelledCount);
+        counts.put("PROCESSING_FAILED", processingFailedCount);
+
+        return counts;
+    }
+
+    private String normalizeDisplayStatus(ReturnStatus status, String displayStatus) {
+        if (displayStatus != null && !displayStatus.isBlank()) {
+            return displayStatus.trim().toUpperCase(Locale.ROOT);
+        }
+        if (status != null) {
+            return status.name();
+        }
+        return null;
+    }
+
+    private String resolveDerivedDisplayStatus(OrderReturnSummaryResponse summary) {
+        if (summary == null) {
+            return "RECEIVED";
+        }
+        if (summary.getStatus() == ReturnStatus.CREATED) {
+            return "CREATED";
+        }
+        if (summary.getStatus() == ReturnStatus.CANCELLED) {
+            return "CANCELLED";
+        }
+        if (summary.getStatus() == ReturnStatus.RECEIVED) {
+            if (Boolean.TRUE.equals(summary.getHasFailedDisposition())) {
+                return "PROCESSING_FAILED";
+            }
+
+            boolean hasPartialPostedQc =
+                    summary.getPostedQcQuantity() != null
+                            && summary.getPostedQcQuantity().compareTo(BigDecimal.ZERO) > 0
+                            && summary.getRemainingQcQuantity() != null
+                            && summary.getRemainingQcQuantity().compareTo(BigDecimal.ZERO) > 0;
+
+            boolean isInspectionPending =
+                    Boolean.TRUE.equals(summary.getIsPendingDisposition())
+                            || "CREATED".equals(summary.getInspectionStatus())
+                            || "PARTIAL".equals(summary.getQcStatus())
+                            || hasPartialPostedQc;
+            if (isInspectionPending) {
+                return "PROCESSING";
+            }
+
+            boolean isQcFullyCompleted =
+                    summary.getRemainingQcQuantity() != null
+                            && summary.getRemainingQcQuantity().compareTo(BigDecimal.ZERO) == 0
+                            && ("COMPLETED".equals(summary.getQcStatus()) || "POSTED".equals(summary.getInspectionStatus()));
+
+            if (isQcFullyCompleted) {
+                boolean isRefundNeeded = !Boolean.FALSE.equals(summary.getRefundRequired());
+                if (isRefundNeeded) {
+                    if (summary.getRefundStatus() == OrderRefundStatus.REFUNDED) {
+                        return "COMPLETED";
+                    }
+                    return "PENDING_REFUND";
+                }
+                return "COMPLETED";
+            }
+
+            return "RECEIVED";
+        }
+
+        return "RECEIVED";
+    }
+
+    private void enrichReturnSummaries(List<OrderReturnSummaryResponse> summaries) {
+        if (summaries == null || summaries.isEmpty()) {
+            return;
+        }
+
+        List<OrderReturnSummaryResponse> receivedSummaries = summaries.stream()
+                .filter(s -> s.getStatus() == ReturnStatus.RECEIVED)
+                .toList();
+
+        for (OrderReturnSummaryResponse summary : summaries) {
+            if (summary.getStatus() == ReturnStatus.CREATED) {
+                summary.setQcStatus("PENDING");
+                summary.setRefundStatus(Boolean.FALSE.equals(summary.getRefundRequired())
+                        ? OrderRefundStatus.NOT_REQUIRED
+                        : OrderRefundStatus.NOT_READY);
+                summary.setHasFailedDisposition(false);
+                summary.setIsPendingDisposition(false);
+                summary.setDisplayStatus("CREATED");
+            } else if (summary.getStatus() == ReturnStatus.CANCELLED) {
+                summary.setHasFailedDisposition(false);
+                summary.setIsPendingDisposition(false);
+                summary.setDisplayStatus("CANCELLED");
+            }
+        }
+
+        if (receivedSummaries.isEmpty()) {
+            return;
+        }
+
+        List<UUID> receivedReturnIds = receivedSummaries.stream()
+                .map(OrderReturnSummaryResponse::getId)
+                .toList();
+
+        Set<UUID> returnsWithFailedCommand = new HashSet<>();
+        Set<UUID> returnsWithPendingCommand = new HashSet<>();
+        List<Object[]> commandRows = orderReturnInventoryCommandRepository.findCommandStatusesByReturnIds(receivedReturnIds);
+        for (Object[] row : commandRows) {
+            if (row != null && row.length >= 2 && row[0] instanceof UUID retId && row[1] instanceof OrderReturnInventoryCommandStatus cmdStatus) {
+                if (cmdStatus == OrderReturnInventoryCommandStatus.FAILED) {
+                    returnsWithFailedCommand.add(retId);
+                } else if (cmdStatus == OrderReturnInventoryCommandStatus.PENDING) {
+                    returnsWithPendingCommand.add(retId);
+                }
+            }
+        }
+
+        Set<UUID> completedRefundReturnIds = orderReturnHistoryRepository.findCompletedRefundReturnIds(receivedReturnIds);
+
+        Map<UUID, OrderReturn> returnsById = orderReturnRepository
+                .findByIdInAndIsDeletedFalseWithItems(receivedReturnIds)
+                .stream()
+                .collect(Collectors.toMap(OrderReturn::getId, Function.identity()));
+
+        DownstreamLookupResult<Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse>> qcLookup =
+                lookupQcSummariesForRefundRead(receivedSummaries, returnsById);
+        Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> qcByReturnId = qcLookup.value();
+
+        for (OrderReturnSummaryResponse summary : receivedSummaries) {
+            UUID returnId = summary.getId();
+            boolean hasFailed = returnsWithFailedCommand.contains(returnId);
+            boolean isPending = returnsWithPendingCommand.contains(returnId);
+            summary.setHasFailedDisposition(hasFailed);
+            summary.setIsPendingDisposition(isPending);
+
+            InventoryClient.CustomerReturnQcSummaryResponse qcSummary = qcByReturnId.get(returnId);
+            BigDecimal remainingQcQuantity = null;
+            BigDecimal postedQcQuantity = null;
+            String qcStatus = null;
+            String inspectionStatus = null;
+
+            if (qcSummary != null) {
+                qcStatus = qcSummary.qcStatus();
+                inspectionStatus = qcSummary.inspectionStatus();
+                if (qcSummary.lines() != null) {
+                    remainingQcQuantity = qcSummary.lines().stream()
+                            .map(InventoryClient.CustomerReturnQcLineResponse::remainingQcQuantity)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    postedQcQuantity = qcSummary.lines().stream()
+                            .map(InventoryClient.CustomerReturnQcLineResponse::postedQcQuantity)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                }
+            }
+            summary.setQcStatus(qcStatus);
+            summary.setInspectionStatus(inspectionStatus);
+            summary.setRemainingQcQuantity(remainingQcQuantity);
+            summary.setPostedQcQuantity(postedQcQuantity);
+
+            OrderRefundStatus refundStatus;
+            if (Boolean.FALSE.equals(summary.getRefundRequired())) {
+                refundStatus = OrderRefundStatus.NOT_REQUIRED;
+            } else if (completedRefundReturnIds.contains(returnId)) {
+                refundStatus = OrderRefundStatus.REFUNDED;
+            } else {
+                boolean physicalDone = !hasFailed && (isPhysicalDispositionCompleted(returnId)
+                        || (remainingQcQuantity != null && remainingQcQuantity.compareTo(BigDecimal.ZERO) == 0
+                            && ("COMPLETED".equals(qcStatus) || "POSTED".equals(inspectionStatus))));
+                if (physicalDone) {
+                    refundStatus = OrderRefundStatus.PENDING;
+                } else {
+                    refundStatus = OrderRefundStatus.NOT_READY;
+                }
+            }
+            summary.setRefundStatus(refundStatus);
+            summary.setDisplayStatus(resolveDerivedDisplayStatus(summary));
+        }
     }
 
     @Override

@@ -1,10 +1,7 @@
 import {
-    AlertTriangle,
-    ArrowRight,
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
-    Loader2,
     Plus,
     RefreshCw,
     Search,
@@ -12,7 +9,7 @@ import {
     XCircle
 } from "lucide-react";
 import { ApiError } from "@hvt/api-client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -22,69 +19,63 @@ import {
     getDateRangeFromTimeNode,
     type TimeNode
 } from "../../../components/shared/TimeHierarchyFilter.utils";
+import { ReturnInspectionModal } from "../components/ReturnInspectionModal";
 import {
     cancelOrderReturn,
     getCustomerReturnQcSummary,
+    getOrderRefundDetail,
     getOrderReturnList,
+    getOrderReturnStatusCounts,
     getOrderReturnDetail,
-    getReturnInventoryDisposition,
-    receiveOrderReturn,
-    submitReturnInventoryDisposition
+    receiveOrderReturn
 } from "../services/order-return.api";
-import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
-import type { InventoryLocationResponse } from "../../inventory/types/inventory.types";
 import type { OrderPageResponse } from "../types/order.types";
 import type {
     CustomerReturnQcResult,
     CustomerReturnQcSummaryLine,
     CustomerReturnQcSummaryResponse,
-    OrderReturnInventoryDispositionResponse,
+    OrderRefundDetailResponse,
     OrderReturnListRow,
     OrderReturnResponse,
-    ReturnCondition,
-    ReturnReason,
+    ReturnFilterKey,
     ReturnStatus
 } from "../types/order-return.types";
 import {
-    CUSTOMER_RETURN_QC_RESULT_EFFECTS,
-    CUSTOMER_RETURN_QC_RESULTS,
     formatReturnQuantity,
-    getAllowedCustomerReturnQcResults,
-    getCustomerReturnQcResultLabel,
     getReturnCode,
     getReturnConditionLabel,
+    getReturnDisplayStatusLabel,
     getReturnErrorMessage,
+    getOrderRefundStatusLabel,
     getReturnReasonLabel,
     getReturnStatusLabel,
-    toReturnNumber
+    resolveReturnDisplayStatus,
+    toReturnNumber,
+    type ReturnDisplayStatus
 } from "../utils/order-return.utils";
-import { formatDateTime } from "../utils/order-formatters";
+import { formatCurrency, formatDateTime } from "../utils/order-formatters";
 import styles from "./OrderReturnPage.module.css";
 
-type ReturnStatusFilter = "ALL" | ReturnStatus;
+type ReturnStatusFilter = ReturnFilterKey;
 
 interface ConfirmAction {
     type: "receive" | "cancel";
     returnItem: OrderReturnListRow;
 }
 
-interface QcDraftLine {
-    selected: boolean;
-    quantity: string;
-    result: CustomerReturnQcResult;
-    destinationLocationId: string;
-    note: string;
-}
-
 const RETURN_STATUS_FILTERS: {
     key: ReturnStatusFilter;
     label: string;
+    isError?: boolean;
 }[] = [
     { key: "ALL", label: "Tất cả" },
     { key: "CREATED", label: "Đã tạo" },
     { key: "RECEIVED", label: "Đã nhận hàng" },
+    { key: "PROCESSING", label: "Đang xử lý" },
+    { key: "PENDING_REFUND", label: "Chờ hoàn tiền" },
     { key: "COMPLETED", label: "Hoàn tất" },
-    { key: "CANCELLED", label: "Đã hủy" }
+    { key: "CANCELLED", label: "Đã hủy" },
+    { key: "PROCESSING_FAILED", label: "Có lỗi", isError: true }
 ];
 
 const RETURN_LIST_PAGE_SIZE = 20;
@@ -95,6 +86,17 @@ const emptyReturnPage: OrderPageResponse<OrderReturnListRow> = {
     totalPages: 0,
     number: 0,
     size: RETURN_LIST_PAGE_SIZE
+};
+
+const initialStatusCounts: Record<ReturnStatusFilter, number> = {
+    ALL: 0,
+    CREATED: 0,
+    RECEIVED: 0,
+    PROCESSING: 0,
+    PENDING_REFUND: 0,
+    COMPLETED: 0,
+    CANCELLED: 0,
+    PROCESSING_FAILED: 0
 };
 
 function useDebouncedValue<T>(value: T, delayMs: number) {
@@ -120,32 +122,6 @@ function getReturnItemCount(returnItem: OrderReturnListRow) {
         (total, item) => total + toReturnNumber(item.quantity),
         0
     );
-}
-
-function getQcQuantity(draft?: QcDraftLine) {
-    if (!draft?.quantity.trim()) {
-        return 0;
-    }
-
-    const quantity = Number(draft.quantity);
-
-    return Number.isFinite(quantity) ? quantity : 0;
-}
-
-function getDefaultQcResult(condition?: ReturnCondition | null) {
-    return condition === "SEALED" ? "RESTOCK" : "DAMAGED";
-}
-
-function createDefaultQcDraftLine(
-    line?: CustomerReturnQcSummaryLine | null
-): QcDraftLine {
-    return {
-        selected: false,
-        quantity: "1",
-        result: getDefaultQcResult(line?.condition),
-        destinationLocationId: "",
-        note: ""
-    };
 }
 
 function findReturnItem(
@@ -175,39 +151,12 @@ function getReturnLineMeta(
     return `${sku} · ${variant}`;
 }
 
-function getReturnLineReasonLabel(reason?: string | null) {
-    return getReturnReasonLabel(reason as ReturnReason | null);
-}
-
-function isSaleableReturnLocation(location: InventoryLocationResponse) {
-    return (
-        location.status === "ACTIVE" &&
-        location.type !== "DAMAGED" &&
-        location.type !== "QUARANTINE"
-    );
-}
-
-function getLocationOptionLabel(location: InventoryLocationResponse) {
-    const code = String(location.code ?? "").trim();
-    const name = String(location.name ?? "").trim();
-
-    if (code && name) {
-        return `${name} (${code})`;
-    }
-
-    return name || code || "Vị trí kho";
-}
-
 const QC_DISPOSITION_DISPLAY_LABELS: Record<CustomerReturnQcResult, string> = {
-    RESTOCK: "Nhập lại kho",
+    RESTOCK: "Đạt chất lượng",
     DAMAGED: "Hàng hỏng",
     QUARANTINE: "Cách ly",
     WRITE_OFF: "Tiêu hủy"
 };
-
-function getQcDispositionDisplayLabel(result: CustomerReturnQcResult) {
-    return QC_DISPOSITION_DISPLAY_LABELS[result] ?? result;
-}
 
 function logQcSummaryError(returnId: string, error: unknown) {
     if (!import.meta.env.DEV) {
@@ -296,6 +245,8 @@ export function OrderReturnPage() {
     const [isRowsLoading, setIsRowsLoading] = useState(false);
     const [rowsError, setRowsError] = useState<string | null>(null);
     const [reloadKey, setReloadKey] = useState(0);
+    const [statusCounts, setStatusCounts] =
+        useState<Record<ReturnStatusFilter, number>>(initialStatusCounts);
 
     const [activeReturn, setActiveReturn] =
         useState<OrderReturnListRow | null>(null);
@@ -330,6 +281,8 @@ export function OrderReturnPage() {
                 fromDate: timeRange?.fromDate,
                 keyword: debouncedSearchTerm,
                 status:
+                    statusFilter === "ALL" ? undefined : statusFilter,
+                displayStatus:
                     statusFilter === "ALL" ? undefined : statusFilter,
                 toDate: timeRange?.toDate,
                 page: currentPage,
@@ -370,6 +323,39 @@ export function OrderReturnPage() {
         timeRange?.fromDate,
         timeRange?.toDate
     ]);
+
+    useEffect(() => {
+        let ignore = false;
+
+        getOrderReturnStatusCounts({
+            fromDate: timeRange?.fromDate,
+            keyword: debouncedSearchTerm,
+            toDate: timeRange?.toDate
+        })
+            .then((counts) => {
+                if (!ignore && counts) {
+                    setStatusCounts({
+                        ALL: counts.ALL ?? 0,
+                        CREATED: counts.CREATED ?? 0,
+                        RECEIVED: counts.RECEIVED ?? 0,
+                        PROCESSING: counts.PROCESSING ?? 0,
+                        PENDING_REFUND: counts.PENDING_REFUND ?? 0,
+                        COMPLETED: counts.COMPLETED ?? 0,
+                        CANCELLED: counts.CANCELLED ?? 0,
+                        PROCESSING_FAILED: counts.PROCESSING_FAILED ?? 0
+                    });
+                }
+            })
+            .catch((error: unknown) => {
+                if (!ignore) {
+                    console.warn("Không thể tải số lượng trạng thái phiếu hoàn:", error);
+                }
+            });
+
+        return () => {
+            ignore = true;
+        };
+    }, [debouncedSearchTerm, reloadKey, timeRange?.fromDate, timeRange?.toDate]);
 
     const visibleRows = returnPage.content ?? [];
     const totalPages = Math.max(returnPage.totalPages ?? 0, 1);
@@ -468,6 +454,19 @@ export function OrderReturnPage() {
                 );
                 setConfirmAction(null);
                 setReloadKey((key) => key + 1);
+
+                if (type === "receive") {
+                    getOrderReturnDetail(returnItem.id)
+                        .then((freshDetail) => {
+                            applyTransitionResult(freshDetail, returnItem);
+                        })
+                        .catch((error: unknown) => {
+                            console.warn(
+                                "Không thể tải lại chi tiết phiếu hoàn sau khi nhận hàng:",
+                                error
+                            );
+                        });
+                }
             })
             .catch((error: unknown) => {
                 setToast(getReturnErrorMessage(error));
@@ -542,24 +541,35 @@ export function OrderReturnPage() {
                                 Trạng thái:
                             </span>
                             <div className={styles.quickFilters}>
-                                {RETURN_STATUS_FILTERS.map((filter) => (
-                                    <button
-                                        className={`${styles.filterChip} ${
-                                            statusFilter === filter.key
-                                                ? styles.activeFilterChip
-                                                : ""
-                                        }`}
-                                        key={filter.key}
-                                        onClick={() =>
-                                            handleStatusFilterChange(
-                                                filter.key
-                                            )
-                                        }
-                                        type="button"
-                                    >
-                                        {filter.label}
-                                    </button>
-                                ))}
+                                {RETURN_STATUS_FILTERS.map((filter) => {
+                                    const isActive = statusFilter === filter.key;
+                                    const count = statusCounts[filter.key] ?? 0;
+                                    const chipClass = filter.isError
+                                        ? `${styles.filterChip} ${styles.errorFilterChip} ${
+                                              isActive ? styles.activeErrorFilterChip : ""
+                                          }`
+                                        : `${styles.filterChip} ${
+                                              isActive ? styles.activeFilterChip : ""
+                                          }`;
+
+                                    return (
+                                        <button
+                                            className={chipClass}
+                                            key={filter.key}
+                                            onClick={() =>
+                                                handleStatusFilterChange(
+                                                    filter.key
+                                                )
+                                            }
+                                            type="button"
+                                        >
+                                            {filter.label}{" "}
+                                            <span className={styles.filterChipCount}>
+                                                {count.toLocaleString("vi-VN")}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -570,17 +580,17 @@ export function OrderReturnPage() {
                         <table className={styles.returnTable}>
                             <colgroup>
                                 <col style={{ width: "24%" }} />
+                                <col style={{ width: "20%" }} />
+                                <col style={{ width: "12%" }} />
                                 <col style={{ width: "24%" }} />
-                                <col style={{ width: "16%" }} />
-                                <col style={{ width: "17%" }} />
-                                <col style={{ width: "19%" }} />
+                                <col style={{ width: "20%" }} />
                             </colgroup>
                             <thead>
                                 <tr>
                                     <th>Mã phiếu hoàn</th>
-                                    <th>Mã đơn hàng</th>
-                                    <th>Sản phẩm</th>
                                     <th>Trạng thái</th>
+                                    <th>Sản phẩm</th>
+                                    <th>Mã đơn hàng</th>
                                     <th>Ngày tạo</th>
                                 </tr>
                             </thead>
@@ -615,8 +625,21 @@ export function OrderReturnPage() {
                                               <td className={styles.code}>
                                                   {getReturnCode(row)}
                                               </td>
-                                              <td className={styles.code}>
-                                                  {row.orderCode || "--"}
+                                              <td>
+                                                  <ReturnStatusBadge
+                                                      displayStatus={row.displayStatus ?? resolveReturnDisplayStatus({
+                                                          status: row.status,
+                                                          refundRequired: row.refundRequired,
+                                                          qcStatus: row.qcStatus,
+                                                          postedQcQuantity: row.postedQcQuantity,
+                                                          remainingQcQuantity: row.remainingQcQuantity,
+                                                          inspectionStatus: row.inspectionStatus,
+                                                          refundStatus: row.refundStatus,
+                                                          hasFailedDisposition: row.hasFailedDisposition,
+                                                          isPendingDisposition: row.isPendingDisposition
+                                                      })}
+                                                      status={row.status}
+                                                  />
                                               </td>
                                               <td>
                                                   {formatReturnQuantity(
@@ -624,10 +647,8 @@ export function OrderReturnPage() {
                                                   )}{" "}
                                                   sản phẩm
                                               </td>
-                                              <td>
-                                                  <ReturnStatusBadge
-                                                      status={row.status}
-                                                  />
+                                              <td className={styles.code}>
+                                                  {row.orderCode || "--"}
                                               </td>
                                               <td>
                                                   {formatDateTime(
@@ -708,6 +729,19 @@ export function OrderReturnPage() {
                     isDetailLoading={isDetailLoading}
                     isTransitioning={isTransitioning}
                     onClose={closeReturnDetail}
+                    onRefreshDetail={() => {
+                        setReloadKey((k) => k + 1);
+                        getOrderReturnDetail(activeReturn.id)
+                            .then((freshDetail) => {
+                                applyTransitionResult(freshDetail, activeReturn);
+                            })
+                            .catch((err) =>
+                                console.warn(
+                                    "Lỗi làm mới chi tiết phiếu:",
+                                    err
+                                )
+                            );
+                    }}
                     onRequestCancel={(returnItem) =>
                         setConfirmAction({
                             type: "cancel",
@@ -781,6 +815,7 @@ function ReturnDetailModal({
     isDetailLoading,
     isTransitioning,
     onClose,
+    onRefreshDetail,
     onRequestCancel,
     onRequestComplete,
     onToast,
@@ -790,6 +825,7 @@ function ReturnDetailModal({
     isDetailLoading: boolean;
     isTransitioning: boolean;
     onClose: () => void;
+    onRefreshDetail?: () => void;
     onRequestCancel: (returnItem: OrderReturnListRow) => void;
     onRequestComplete: (returnItem: OrderReturnListRow) => void;
     onToast: (message: string) => void;
@@ -798,32 +834,12 @@ function ReturnDetailModal({
     const canTransition = returnItem.status === "CREATED";
     const [qcSummary, setQcSummary] =
         useState<CustomerReturnQcSummaryResponse | null>(null);
+    const [refundDetail, setRefundDetail] =
+        useState<OrderRefundDetailResponse | null>(null);
     const [isQcSummaryLoading, setIsQcSummaryLoading] = useState(false);
     const [qcSummaryError, setQcSummaryError] = useState<string | null>(null);
     const [qcReloadKey, setQcReloadKey] = useState(0);
-    const [isQcOpen, setIsQcOpen] = useState(false);
-    const [isConfirmingDisposition, setIsConfirmingDisposition] =
-        useState(false);
-    const [qcDraftLines, setQcDraftLines] = useState<Record<string, QcDraftLine>>(
-        {}
-    );
-    const [qcNote, setQcNote] = useState("");
-    const [qcFormError, setQcFormError] = useState<string | null>(null);
-    const [activeLocations, setActiveLocations] = useState<
-        InventoryLocationResponse[]
-    >([]);
-    const [damagedLocations, setDamagedLocations] = useState<
-        InventoryLocationResponse[]
-    >([]);
-    const [isLocationLoading, setIsLocationLoading] = useState(false);
-    const [locationError, setLocationError] = useState<string | null>(null);
-    const [isSubmittingDisposition, setIsSubmittingDisposition] =
-        useState(false);
-    const [submissionCommandId, setSubmissionCommandId] = useState<
-        string | null
-    >(null);
-    const [activeDispositionCommand, setActiveDispositionCommand] =
-        useState<OrderReturnInventoryDispositionResponse | null>(null);
+    const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
 
     const summaryLines = useMemo(
         () => qcSummary?.lines ?? [],
@@ -836,29 +852,67 @@ function ReturnDetailModal({
             ),
         [summaryLines]
     );
-    const allLocationsMap = useMemo(() => {
-        const map = new Map<string, InventoryLocationResponse>();
-        activeLocations.forEach((loc) => map.set(String(loc.id), loc));
-        damagedLocations.forEach((loc) => map.set(String(loc.id), loc));
-        return map;
-    }, [activeLocations, damagedLocations]);
-    const restockLocations = useMemo(
-        () => activeLocations.filter(isSaleableReturnLocation),
-        [activeLocations]
+
+    const totalReturned = useMemo(
+        () =>
+            summaryLines.reduce(
+                (sum, line) => sum + toReturnNumber(line.returnedQuantity),
+                0
+            ),
+        [summaryLines]
     );
-    const normalizedDamagedLocations = useMemo(() => {
-        const map = new Map<string, InventoryLocationResponse>();
-        activeLocations
-            .filter((l) => l.status === "ACTIVE" && l.type === "DAMAGED")
-            .forEach((l) => map.set(String(l.id), l));
-        damagedLocations
-            .filter((l) => l.status === "ACTIVE" && l.type === "DAMAGED")
-            .forEach((l) => map.set(String(l.id), l));
-        return Array.from(map.values());
-    }, [activeLocations, damagedLocations]);
+    const totalPosted = useMemo(
+        () =>
+            summaryLines.reduce(
+                (sum, line) => sum + toReturnNumber(line.postedQcQuantity),
+                0
+            ),
+        [summaryLines]
+    );
+    const totalRemaining = useMemo(
+        () =>
+            summaryLines.reduce(
+                (sum, line) => sum + toReturnNumber(line.remainingQcQuantity),
+                0
+            ),
+        [summaryLines]
+    );
+
     const shouldLoadQcSummary =
         returnItem.status === "RECEIVED" || returnItem.status === "COMPLETED";
-    const isQcCompleted = qcSummary?.qcStatus === "COMPLETED";
+    const isQcCompleted =
+        summaryLines.length > 0 &&
+        totalRemaining === 0 &&
+        qcSummary?.inspectionStatus !== "CREATED" &&
+        (qcSummary?.qcStatus === "COMPLETED" || qcSummary?.inspectionStatus === "POSTED");
+
+    const displayStatus = useMemo(
+        () =>
+            resolveReturnDisplayStatus({
+                status: returnItem.status,
+                refundRequired: returnItem.refundRequired,
+                qcSummary,
+                refundStatus: refundDetail?.refundStatus ?? returnItem.refundStatus,
+                qcStatus: returnItem.qcStatus,
+                remainingQcQuantity: returnItem.remainingQcQuantity,
+                inspectionStatus: returnItem.inspectionStatus,
+                hasFailedDisposition: returnItem.hasFailedDisposition,
+                isPendingDisposition: returnItem.isPendingDisposition
+            }),
+        [
+            qcSummary,
+            refundDetail?.refundStatus,
+            returnItem.hasFailedDisposition,
+            returnItem.inspectionStatus,
+            returnItem.isPendingDisposition,
+            returnItem.qcStatus,
+            returnItem.refundRequired,
+            returnItem.refundStatus,
+            returnItem.remainingQcQuantity,
+            returnItem.status
+        ]
+    );
+
     const qcStatusLabel = (() => {
         if (isQcSummaryLoading) {
             return "Đang tải...";
@@ -887,18 +941,9 @@ function ReturnDetailModal({
     useEffect(() => {
         const timerId = window.setTimeout(() => {
             setQcSummary(null);
+            setRefundDetail(null);
             setQcSummaryError(null);
-            setIsQcOpen(false);
-            setIsConfirmingDisposition(false);
-            setActiveDispositionCommand(null);
-            setSubmissionCommandId(null);
-            setIsSubmittingDisposition(false);
-            setQcDraftLines({});
-            setQcNote("");
-            setQcFormError(null);
-            setActiveLocations([]);
-            setDamagedLocations([]);
-            setLocationError(null);
+            setIsInspectionModalOpen(false);
         }, 0);
 
         return () => window.clearTimeout(timerId);
@@ -908,6 +953,7 @@ function ReturnDetailModal({
         if (!shouldLoadQcSummary) {
             const timerId = window.setTimeout(() => {
                 setQcSummary(null);
+                setRefundDetail(null);
                 setQcSummaryError(null);
                 setIsQcSummaryLoading(false);
             }, 0);
@@ -931,13 +977,28 @@ function ReturnDetailModal({
                         logQcSummaryError(returnItem.id, error);
                         setQcSummary(null);
                         setQcSummaryError(
-                            "Không thể tải thông tin kiểm tra hàng trả"
+                            getReturnErrorMessage(
+                                error,
+                                "Không thể tải thông tin kiểm tra hàng trả"
+                            )
                         );
                     }
                 })
                 .finally(() => {
                     if (!ignore) {
                         setIsQcSummaryLoading(false);
+                    }
+                });
+
+            getOrderRefundDetail(returnItem.id)
+                .then((refund) => {
+                    if (!ignore) {
+                        setRefundDetail(refund);
+                    }
+                })
+                .catch(() => {
+                    if (!ignore) {
+                        setRefundDetail(null);
                     }
                 });
         }, 0);
@@ -948,404 +1009,18 @@ function ReturnDetailModal({
         };
     }, [qcReloadKey, returnItem.id, shouldLoadQcSummary]);
 
-    useEffect(() => {
-        if (!isQcOpen) {
-            return;
-        }
-
-        let ignore = false;
-        const timerId = window.setTimeout(() => {
-            setIsLocationLoading(true);
-            setLocationError(null);
-
-            Promise.all([
-                inventoryLocationApi.list({
-                    page: 0,
-                    size: 100,
-                    status: "ACTIVE"
-                }),
-                inventoryLocationApi.list({
-                    page: 0,
-                    size: 100,
-                    status: "ACTIVE",
-                    type: "DAMAGED"
-                })
-            ])
-                .then(([activePage, damagedPage]) => {
-                    if (!ignore) {
-                        setActiveLocations(activePage.content ?? []);
-                        setDamagedLocations(damagedPage.content ?? []);
-                    }
-                })
-                .catch((error: unknown) => {
-                    if (!ignore) {
-                        setActiveLocations([]);
-                        setDamagedLocations([]);
-                        setLocationError(getReturnErrorMessage(error));
-                    }
-                })
-                .finally(() => {
-                    if (!ignore) {
-                        setIsLocationLoading(false);
-                    }
-                });
-        }, 0);
-
-        return () => {
-            ignore = true;
-            window.clearTimeout(timerId);
-        };
-    }, [isQcOpen]);
-
-    useEffect(() => {
-        if (!isQcOpen || activeDispositionCommand) {
-            return;
-        }
-
-        const timerId = window.setTimeout(() => {
-            setQcDraftLines((current) => {
-                const nextEntries = remainingLines.map((line) => [
-                    line.returnItemId,
-                    current[line.returnItemId] ?? createDefaultQcDraftLine(line)
-                ]);
-
-                return Object.fromEntries(nextEntries);
-            });
-        }, 0);
-
-        return () => window.clearTimeout(timerId);
-    }, [activeDispositionCommand, isQcOpen, remainingLines]);
-
-    const openQcForm = () => {
+    const handleOpenInspection = () => {
         if (returnItem.status !== "RECEIVED") {
             onToast("Phiếu hoàn chưa ở trạng thái đã nhận hàng.");
             return;
         }
 
         if (isQcCompleted) {
-            onToast("Đã kiểm tra xong hàng trả.");
+            onToast("Tất cả sản phẩm đã được kiểm tra xong.");
             return;
         }
 
-        setIsQcOpen(true);
-        setIsConfirmingDisposition(false);
-        setActiveDispositionCommand(null);
-        setSubmissionCommandId(null);
-        setQcFormError(null);
-    };
-
-    const updateQcDraftLine = (
-        returnItemId: string,
-        update: Partial<QcDraftLine>
-    ) => {
-        setSubmissionCommandId(null);
-        setIsConfirmingDisposition(false);
-        if (activeDispositionCommand && activeDispositionCommand.status !== "PENDING") {
-            setActiveDispositionCommand(null);
-        }
-        setQcDraftLines((current) => {
-            const line = summaryLines.find(
-                (summaryLine) => summaryLine.returnItemId === returnItemId
-            );
-            const currentLine =
-                current[returnItemId] ?? createDefaultQcDraftLine(line);
-            const nextLine = {
-                ...currentLine,
-                ...update
-            };
-
-            if (update.result) {
-                nextLine.destinationLocationId = "";
-            }
-
-            return {
-                ...current,
-                [returnItemId]: nextLine
-            };
-        });
-    };
-
-    const getLocationOptions = useCallback(
-        (result: CustomerReturnQcResult) => {
-            if (result === "RESTOCK") {
-                return restockLocations;
-            }
-
-            if (result === "DAMAGED") {
-                return normalizedDamagedLocations;
-            }
-
-            return [];
-        },
-        [normalizedDamagedLocations, restockLocations]
-    );
-
-    const selectedLines = useMemo(
-        () =>
-            remainingLines.filter(
-                (line) => qcDraftLines[line.returnItemId]?.selected
-            ),
-        [qcDraftLines, remainingLines]
-    );
-
-    const selectedLinesRequireLocation = useMemo(
-        () =>
-            selectedLines.some((line) => {
-                const draft =
-                    qcDraftLines[line.returnItemId] ??
-                    createDefaultQcDraftLine(line);
-
-                return draft.result !== "WRITE_OFF";
-            }),
-        [qcDraftLines, selectedLines]
-    );
-
-    const hasEmptyLocationConflict = useMemo(
-        () =>
-            selectedLines.some((line) => {
-                const draft =
-                    qcDraftLines[line.returnItemId] ??
-                    createDefaultQcDraftLine(line);
-                if (draft.result === "WRITE_OFF") {
-                    return false;
-                }
-                return getLocationOptions(draft.result).length === 0;
-            }),
-        [getLocationOptions, qcDraftLines, selectedLines]
-    );
-
-    const validateQcDraft = () => {
-        if (selectedLines.length === 0) {
-            return "Vui lòng chọn ít nhất một sản phẩm cần kiểm tra.";
-        }
-
-        for (const line of selectedLines) {
-            const draft =
-                qcDraftLines[line.returnItemId] ?? createDefaultQcDraftLine(line);
-            const quantity = getQcQuantity(draft);
-            const remainingQuantity = toReturnNumber(line.remainingQcQuantity);
-            const allowedResults = getAllowedCustomerReturnQcResults(
-                line.condition
-            );
-            const productName = getReturnLineName(returnItem, line);
-
-            if (quantity <= 0) {
-                return `Số lượng kiểm tra của "${productName}" phải lớn hơn 0.`;
-            }
-
-            if (quantity > remainingQuantity) {
-                return `Số lượng kiểm tra của "${productName}" vượt quá số lượng còn lại.`;
-            }
-
-            if (!allowedResults.includes(draft.result)) {
-                return `Sản phẩm "${productName}" với tình trạng này không được nhập lại kho.`;
-            }
-
-            if (draft.result === "RESTOCK") {
-                if (restockLocations.length === 0) {
-                    return `Chưa cấu hình vị trí kho bán được.`;
-                }
-
-                const isValidLocation = restockLocations.some(
-                    (location) =>
-                        String(location.id) === draft.destinationLocationId
-                );
-
-                if (!draft.destinationLocationId || !isValidLocation) {
-                    return `Vui lòng chọn vị trí kho bán được để nhập lại.`;
-                }
-            }
-
-            if (draft.result === "DAMAGED") {
-                if (normalizedDamagedLocations.length === 0) {
-                    return `Chưa cấu hình vị trí hàng hỏng.`;
-                }
-
-                const isValidLocation = normalizedDamagedLocations.some(
-                    (location) =>
-                        String(location.id) === draft.destinationLocationId
-                );
-
-                if (!draft.destinationLocationId || !isValidLocation) {
-                    return `Vui lòng chọn vị trí kho hàng hỏng.`;
-                }
-            }
-
-            if (
-                line.condition === "SEALED" &&
-                draft.result === "DAMAGED" &&
-                draft.note.trim().length < 5 &&
-                qcNote.trim().length < 5
-            ) {
-                return "Vui lòng nhập lý do khi đánh dấu hàng nguyên niêm phong là hàng hỏng.";
-            }
-
-            if (
-                line.condition === "SEALED" &&
-                draft.result === "WRITE_OFF" &&
-                draft.note.trim().length < 5 &&
-                qcNote.trim().length < 5
-            ) {
-                return "Vui lòng nhập lý do khi loại bỏ sản phẩm còn nguyên seal.";
-            }
-        }
-
-        return null;
-    };
-
-    const handleProceedToConfirmation = () => {
-        const validationError = validateQcDraft();
-        if (validationError) {
-            setQcFormError(validationError);
-            return;
-        }
-        setQcFormError(null);
-        setIsConfirmingDisposition(true);
-    };
-
-    useEffect(() => {
-        if (
-            !activeDispositionCommand ||
-            activeDispositionCommand.status !== "PENDING"
-        ) {
-            return;
-        }
-
-        let ignore = false;
-        const intervalId = window.setInterval(() => {
-            getReturnInventoryDisposition(
-                returnItem.id,
-                activeDispositionCommand.commandId
-            )
-                .then((updatedCommand) => {
-                    if (ignore) {
-                        return;
-                    }
-                    setActiveDispositionCommand(updatedCommand);
-                    if (updatedCommand.status === "PROCESSED") {
-                        onToast("Đã cập nhật kho thành công.");
-                        setQcReloadKey((key) => key + 1);
-                        setQcDraftLines({});
-                        setQcNote("");
-                        setQcFormError(null);
-                        setSubmissionCommandId(null);
-                        setIsConfirmingDisposition(false);
-                    } else if (updatedCommand.status === "FAILED") {
-                        const failureMsg = updatedCommand.failureReason
-                            ? getReturnErrorMessage(
-                                  new Error(updatedCommand.failureReason)
-                              )
-                            : "Không thể cập nhật kho. Vui lòng kiểm tra lại.";
-                        setQcFormError(failureMsg);
-                    }
-                })
-                .catch((error: unknown) => {
-                    if (!ignore) {
-                        console.warn(
-                            "Lỗi khi tra cứu trạng thái lệnh xử lý kho:",
-                            error
-                        );
-                    }
-                });
-        }, 1500);
-
-        return () => {
-            ignore = true;
-            window.clearInterval(intervalId);
-        };
-    }, [activeDispositionCommand, onToast, returnItem.id]);
-
-    const submitDisposition = () => {
-        const validationError = validateQcDraft();
-
-        if (validationError) {
-            setQcFormError(validationError);
-            return;
-        }
-
-        const selectedLines = remainingLines
-            .filter((line) => qcDraftLines[line.returnItemId]?.selected)
-            .map((line) => {
-                const draft =
-                    qcDraftLines[line.returnItemId] ??
-                    createDefaultQcDraftLine(line);
-
-                return {
-                    returnItemId: line.returnItemId,
-                    quantity: getQcQuantity(draft),
-                    result: draft.result,
-                    destinationLocationId:
-                        draft.result === "WRITE_OFF"
-                            ? null
-                            : draft.destinationLocationId || null,
-                    note: draft.note.trim() || null
-                };
-            });
-
-        if (selectedLines.length === 0) {
-            setQcFormError("Vui lòng chọn ít nhất một sản phẩm để xử lý kho.");
-            return;
-        }
-
-        const commandId = submissionCommandId ?? crypto.randomUUID();
-        setSubmissionCommandId(commandId);
-        setQcFormError(null);
-        setIsSubmittingDisposition(true);
-
-        submitReturnInventoryDisposition(returnItem.id, {
-            commandId,
-            lines: selectedLines
-        })
-            .then((response) => {
-                setActiveDispositionCommand(response);
-                if (response.status === "PROCESSED") {
-                    onToast("Đã cập nhật kho thành công.");
-                    setQcReloadKey((key) => key + 1);
-                    setQcDraftLines({});
-                    setQcNote("");
-                    setSubmissionCommandId(null);
-                    setIsConfirmingDisposition(false);
-                } else if (response.status === "FAILED") {
-                    const failureMsg = response.failureReason
-                        ? getReturnErrorMessage(new Error(response.failureReason))
-                        : "Không thể cập nhật kho.";
-                    setQcFormError(failureMsg);
-                } else {
-                    onToast("Đã gửi lệnh xử lý kho. Đang cập nhật tồn kho...");
-                }
-            })
-            .catch((error: unknown) => {
-                setQcFormError(getReturnErrorMessage(error));
-            })
-            .finally(() => {
-                setIsSubmittingDisposition(false);
-            });
-    };
-
-    const handleResetDispositionAfterFailure = () => {
-        setActiveDispositionCommand(null);
-        setSubmissionCommandId(null);
-        setQcFormError(null);
-        setIsConfirmingDisposition(false);
-    };
-
-    const handleContinueQcAfterProcessed = () => {
-        setActiveDispositionCommand(null);
-        setSubmissionCommandId(null);
-        setQcFormError(null);
-        setQcDraftLines({});
-        setQcNote("");
-        setIsConfirmingDisposition(false);
-    };
-
-    const getDestinationName = (locationId?: string | null) => {
-        if (!locationId) {
-            return "--";
-        }
-
-        const location = allLocationsMap.get(String(locationId));
-
-        return location ? getLocationOptionLabel(location) : "--";
+        setIsInspectionModalOpen(true);
     };
 
     return (
@@ -1390,12 +1065,14 @@ function ReturnDetailModal({
                 ) : null}
                 {!isDetailLoading && !detailError ? (
                     <>
+                        {/* Section A: Thông tin phiếu hoàn */}
                         <section className={styles.detailSection}>
                             <div className={styles.detailInfoGrid}>
                                 <InfoRow
                                     label="Trạng thái"
                                     value={
                                         <ReturnStatusBadge
+                                            displayStatus={displayStatus}
                                             status={returnItem.status}
                                         />
                                     }
@@ -1429,6 +1106,7 @@ function ReturnDetailModal({
                             ) : null}
                         </section>
 
+                        {/* Section B: Sản phẩm hoàn */}
                         <section className={styles.detailSection}>
                             <h3>Sản phẩm hoàn</h3>
                             <div className={styles.detailItems}>
@@ -1486,6 +1164,7 @@ function ReturnDetailModal({
                             </div>
                         </section>
 
+                        {/* Section C: Kiểm tra hàng trả (Summary Only) */}
                         <section className={styles.detailSection}>
                             <div className={styles.qcHeader}>
                                 <div>
@@ -1501,16 +1180,12 @@ function ReturnDetailModal({
                                 </div>
                                 {returnItem.status === "RECEIVED" &&
                                 qcSummary &&
-                                !isQcCompleted ? (
+                                !isQcCompleted &&
+                                remainingLines.length > 0 ? (
                                     <button
                                         className={styles.primaryButton}
-                                        disabled={
-                                            isQcSummaryLoading ||
-                                            isSubmittingDisposition ||
-                                            activeDispositionCommand?.status ===
-                                                "PENDING"
-                                        }
-                                        onClick={openQcForm}
+                                        disabled={isQcSummaryLoading}
+                                        onClick={handleOpenInspection}
                                         type="button"
                                     >
                                         <Plus size={18} aria-hidden="true" />
@@ -1531,7 +1206,12 @@ function ReturnDetailModal({
                                     title="Không thể kiểm tra hàng trả"
                                 />
                             ) : null}
-                            {returnItem.status === "COMPLETED" ? (
+                            {isQcCompleted ? (
+                                <PanelMessage
+                                    description="Toàn bộ sản phẩm của phiếu hoàn đã được kiểm tra chất lượng và xử lý kho thành công."
+                                    title="Đã hoàn tất kiểm tra và xử lý hàng trả."
+                                />
+                            ) : returnItem.status === "COMPLETED" ? (
                                 <PanelMessage
                                     description={
                                         returnItem.refundRequired === false
@@ -1550,1038 +1230,291 @@ function ReturnDetailModal({
                                             title="Đang tải thông tin kiểm tra"
                                         />
                                     ) : null}
-                                    {!isQcSummaryLoading && qcSummaryError ? (
-                                        <PanelMessage
-                                            title={qcSummaryError}
-                                        />
-                                    ) : null}
-                                    {!isQcSummaryLoading &&
-                                    !qcSummaryError &&
-                                    qcSummary?.qcStatus === "PENDING" ? (
-                                        <PanelMessage
-                                            description={
-                                                qcSummary.inspectionStatus === "CREATED"
-                                                    ? "Phiếu kiểm tra đã được tạo và đang chờ hoàn tất xử lý kho."
-                                                    : "Phiếu hoàn đã được nhận hàng và đang chờ kiểm tra chất lượng."
-                                            }
-                                            title="Chờ kiểm tra chất lượng"
-                                        />
-                                    ) : null}
-                                    {!isQcSummaryLoading &&
-                                    !qcSummaryError &&
-                                    qcSummary ? (
-                                        <div className={styles.qcSummaryList}>
-                                            {summaryLines.map((line) => (
-                                                <div
-                                                    className={styles.qcSummaryItem}
-                                                    key={line.returnItemId}
-                                                >
-                                                    <div>
-                                                        <strong>
-                                                            {getReturnLineName(
-                                                                returnItem,
-                                                                line
-                                                            )}
-                                                        </strong>
-                                                        <span>
-                                                            {getReturnLineMeta(
-                                                                returnItem,
-                                                                line
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    <div>
-                                                        <span>
-                                                            Đã trả:{" "}
-                                                            {formatReturnQuantity(
-                                                                line.returnedQuantity
-                                                            )}
-                                                        </span>
-                                                        <span>
-                                                            Đã kiểm tra:{" "}
-                                                            {formatReturnQuantity(
-                                                                line.postedQcQuantity
-                                                            )}
-                                                        </span>
-                                                        <span>
-                                                            Còn lại:{" "}
-                                                            {formatReturnQuantity(
-                                                                line.remainingQcQuantity
-                                                            )}
-                                                        </span>
-                                                        {(line.dispositions ?? []).map(
-                                                            (disposition) => (
-                                                                <span
-                                                                    key={disposition.result}
-                                                                >
-                                                                    {getQcDispositionDisplayLabel(
-                                                                        disposition.result
-                                                                    )}
-                                                                    :{" "}
-                                                                    {formatReturnQuantity(
-                                                                        disposition.quantity
-                                                                    )}
-                                                                </span>
-                                                            )
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {isQcCompleted ? (
-                                                <p className={styles.qcDoneNote}>
-                                                    Đã kiểm tra xong hàng trả
-                                                </p>
-                                            ) : null}
-                                        </div>
-                                    ) : null}
 
-                                    {isQcOpen ? (
-                                        <div className={styles.qcPanel}>
-                                            <div className={styles.qcPanelHeader}>
-                                                <div>
-                                                    <strong>
-                                                        Xử lý kho hàng trả
-                                                    </strong>
-                                                    <span>
-                                                        Chỉ hiển thị sản phẩm còn
-                                                        số lượng chưa xử lý kho.
-                                                    </span>
-                                                </div>
+                                    {!isQcSummaryLoading && qcSummaryError ? (
+                                        <div className={styles.panelMessage}>
+                                            <strong>{qcSummaryError}</strong>
+                                            <span>
+                                                Không thể tải dữ liệu kiểm tra chất lượng từ dịch vụ kho.
+                                            </span>
+                                            <div>
                                                 <button
                                                     className={styles.secondaryButton}
-                                                    disabled={
-                                                        isSubmittingDisposition ||
-                                                        activeDispositionCommand?.status ===
-                                                            "PENDING"
+                                                    onClick={() =>
+                                                        setQcReloadKey(
+                                                            (k) => k + 1
+                                                        )
                                                     }
-                                                    onClick={() => {
-                                                        setIsQcOpen(false);
-                                                        setActiveDispositionCommand(null);
-                                                        setSubmissionCommandId(null);
-                                                        setQcFormError(null);
+                                                    style={{
+                                                        marginTop: "8px",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: "6px"
                                                     }}
                                                     type="button"
                                                 >
-                                                    Đóng
+                                                    <RefreshCw
+                                                        size={14}
+                                                        aria-hidden="true"
+                                                    />
+                                                    Thử lại tải dữ liệu kho
                                                 </button>
                                             </div>
+                                        </div>
+                                    ) : null}
 
-                                            {!activeDispositionCommand ? (
-                                                <>
-                                                    <div className={styles.qcStepBar}>
-                                                        <span
-                                                            className={
-                                                                !isConfirmingDisposition
-                                                                    ? styles.qcStepActive
-                                                                    : styles.qcStepInactive
-                                                            }
-                                                        >
-                                                            1. Thiết lập xử lý
-                                                        </span>
-                                                        <ChevronRight size={14} aria-hidden="true" />
-                                                        <span
-                                                            className={
-                                                                isConfirmingDisposition
-                                                                    ? styles.qcStepActive
-                                                                    : styles.qcStepInactive
-                                                            }
-                                                        >
-                                                            2. Xác nhận chi tiết
-                                                        </span>
-                                                    </div>
-
-                                                    {!isConfirmingDisposition ? (
-                                                        <>
-                                                            <div
-                                                                className={
-                                                                    styles.qcFormList
-                                                                }
-                                                            >
-                                                                {remainingLines.map(
-                                                                    (line) => {
-                                                                        const draft =
-                                                                            qcDraftLines[
-                                                                                line
-                                                                                    .returnItemId
-                                                                            ] ??
-                                                                            createDefaultQcDraftLine(
-                                                                                line
-                                                                            );
-                                                                        const allowedResults =
-                                                                            getAllowedCustomerReturnQcResults(
-                                                                                line.condition
-                                                                            );
-                                                                        const locationOptions =
-                                                                            getLocationOptions(
-                                                                                draft.result
-                                                                            );
-                                                                        const isLocationRequired =
-                                                                            draft.result !==
-                                                                            "WRITE_OFF";
-                                                                        const isLocationEmpty =
-                                                                            isLocationRequired &&
-                                                                            locationOptions.length ===
-                                                                                0;
-
-                                                                        return (
-                                                                            <div
-                                                                                className={
-                                                                                    styles.qcFormItem
-                                                                                }
-                                                                                key={
-                                                                                    line.returnItemId
-                                                                                }
-                                                                            >
-                                                                                <label
-                                                                                    className={
-                                                                                        styles.qcItemSelector
-                                                                                    }
-                                                                                >
-                                                                                    <input
-                                                                                        checked={
-                                                                                            draft.selected
-                                                                                        }
-                                                                                        onChange={(
-                                                                                            event
-                                                                                        ) =>
-                                                                                            updateQcDraftLine(
-                                                                                                line.returnItemId,
-                                                                                                {
-                                                                                                    selected:
-                                                                                                        event
-                                                                                                            .target
-                                                                                                            .checked
-                                                                                                }
-                                                                                            )
-                                                                                        }
-                                                                                        type="checkbox"
-                                                                                    />
-                                                                                    <span>
-                                                                                        <strong>
-                                                                                            {getReturnLineName(
-                                                                                                returnItem,
-                                                                                                line
-                                                                                            )}
-                                                                                        </strong>
-                                                                                        <small>
-                                                                                            {getReturnLineMeta(
-                                                                                                returnItem,
-                                                                                                line
-                                                                                            )}
-                                                                                        </small>
-                                                                                    </span>
-                                                                                </label>
-                                                                                <div
-                                                                                    className={
-                                                                                        styles.qcMetaGrid
-                                                                                    }
-                                                                                >
-                                                                                    <InfoRow
-                                                                                        label="Tình trạng"
-                                                                                        value={getReturnConditionLabel(
-                                                                                            line.condition
-                                                                                        )}
-                                                                                    />
-                                                                                    <InfoRow
-                                                                                        label="Lý do"
-                                                                                        value={getReturnLineReasonLabel(
-                                                                                            line.reason
-                                                                                        )}
-                                                                                    />
-                                                                                    <InfoRow
-                                                                                        label="Đã trả"
-                                                                                        value={formatReturnQuantity(
-                                                                                            line.returnedQuantity
-                                                                                        )}
-                                                                                    />
-                                                                                    <InfoRow
-                                                                                        label="Đã kiểm tra"
-                                                                                        value={formatReturnQuantity(
-                                                                                            line.postedQcQuantity
-                                                                                        )}
-                                                                                    />
-                                                                                    <InfoRow
-                                                                                        label="Còn lại"
-                                                                                        value={formatReturnQuantity(
-                                                                                            line.remainingQcQuantity
-                                                                                        )}
-                                                                                    />
-                                                                                </div>
-                                                                                <div
-                                                                                    className={
-                                                                                        styles.qcInputGrid
-                                                                                    }
-                                                                                >
-                                                                                    <label>
-                                                                                        <span>
-                                                                                            Số lượng QC
-                                                                                            lần
-                                                                                            này
-                                                                                        </span>
-                                                                                        <input
-                                                                                            className={
-                                                                                                styles.quantityInput
-                                                                                            }
-                                                                                            disabled={
-                                                                                                !draft.selected
-                                                                                            }
-                                                                                            max={toReturnNumber(
-                                                                                                line.remainingQcQuantity
-                                                                                            )}
-                                                                                            min="0"
-                                                                                            onChange={(
-                                                                                                event
-                                                                                            ) =>
-                                                                                                updateQcDraftLine(
-                                                                                                    line.returnItemId,
-                                                                                                    {
-                                                                                                        quantity:
-                                                                                                            event
-                                                                                                                .target
-                                                                                                                .value
-                                                                                                    }
-                                                                                                )
-                                                                                            }
-                                                                                            type="number"
-                                                                                            value={
-                                                                                                draft.quantity
-                                                                                            }
-                                                                                        />
-                                                                                    </label>
-                                                                                    <label>
-                                                                                        <span>
-                                                                                            Kết quả QC
-                                                                                        </span>
-                                                                                        <select
-                                                                                            disabled={
-                                                                                                !draft.selected
-                                                                                            }
-                                                                                            onChange={(
-                                                                                                event
-                                                                                            ) =>
-                                                                                                updateQcDraftLine(
-                                                                                                    line.returnItemId,
-                                                                                                    {
-                                                                                                        result: event
-                                                                                                            .target
-                                                                                                            .value as CustomerReturnQcResult
-                                                                                                    }
-                                                                                                )
-                                                                                            }
-                                                                                            value={
-                                                                                                draft.result
-                                                                                            }
-                                                                                        >
-                                                                                            {CUSTOMER_RETURN_QC_RESULTS.map(
-                                                                                                (
-                                                                                                    result
-                                                                                                ) => (
-                                                                                                    <option
-                                                                                                        disabled={
-                                                                                                            !allowedResults.includes(
-                                                                                                                result
-                                                                                                            )
-                                                                                                        }
-                                                                                                        key={
-                                                                                                            result
-                                                                                                        }
-                                                                                                        value={
-                                                                                                            result
-                                                                                                        }
-                                                                                                    >
-                                                                                                        {getCustomerReturnQcResultLabel(
-                                                                                                            result
-                                                                                                        )}
-                                                                                                    </option>
-                                                                                                )
-                                                                                            )}
-                                                                                        </select>
-                                                                                    </label>
-                                                                                    <label>
-                                                                                        <span>
-                                                                                            Vị trí đích
-                                                                                        </span>
-                                                                                        {isLocationRequired ? (
-                                                                                            <select
-                                                                                                disabled={
-                                                                                                    !draft.selected ||
-                                                                                                    isLocationLoading ||
-                                                                                                    isLocationEmpty
-                                                                                                }
-                                                                                                onChange={(
-                                                                                                    event
-                                                                                            ) =>
-                                                                                                updateQcDraftLine(
-                                                                                                    line.returnItemId,
-                                                                                                    {
-                                                                                                        destinationLocationId:
-                                                                                                            event
-                                                                                                                .target
-                                                                                                                .value
-                                                                                                    }
-                                                                                                )
-                                                                                            }
-                                                                                            value={
-                                                                                                draft.destinationLocationId
-                                                                                            }
-                                                                                        >
-                                                                                            <option value="">
-                                                                                                {isLocationEmpty
-                                                                                                    ? draft.result === "DAMAGED"
-                                                                                                        ? "-- Chưa có kho hàng hỏng --"
-                                                                                                        : "-- Chưa có kho bán được --"
-                                                                                                    : "Chọn vị trí"}
-                                                                                            </option>
-                                                                                            {locationOptions.map(
-                                                                                                (
-                                                                                                    location
-                                                                                                ) => (
-                                                                                                    <option
-                                                                                                        key={String(
-                                                                                                            location.id
-                                                                                                        )}
-                                                                                                        value={String(
-                                                                                                            location.id
-                                                                                                        )}
-                                                                                                    >
-                                                                                                        {getLocationOptionLabel(
-                                                                                                            location
-                                                                                                        )}
-                                                                                                    </option>
-                                                                                                )
-                                                                                            )}
-                                                                                        </select>
-                                                                                        ) : (
-                                                                                            <div
-                                                                                                aria-disabled={
-                                                                                                    !draft.selected
-                                                                                                }
-                                                                                                className={
-                                                                                                    styles.qcReadonlyField
-                                                                                                }
-                                                                                            >
-                                                                                                Không áp dụng
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </label>
-                                                                                <label
-                                                                                    className={
-                                                                                        styles.fullField
-                                                                                    }
-                                                                                >
-                                                                                    <span>
-                                                                                        Ghi chú dòng
-                                                                                    </span>
-                                                                                    <textarea
-                                                                                        disabled={
-                                                                                            !draft.selected
-                                                                                        }
-                                                                                        onChange={(
-                                                                                            event
-                                                                                        ) =>
-                                                                                            updateQcDraftLine(
-                                                                                                line.returnItemId,
-                                                                                                {
-                                                                                                    note: event
-                                                                                                        .target
-                                                                                                        .value
-                                                                                                }
-                                                                                            )
-                                                                                        }
-                                                                                        placeholder="Ghi chú tình trạng kiểm tra"
-                                                                                        value={
-                                                                                            draft.note
-                                                                                        }
-                                                                                    />
-                                                                                </label>
-                                                                            </div>
-                                                                            <p
-                                                                                className={
-                                                                                    styles.qcEffect
-                                                                                }
-                                                                            >
-                                                                                {
-                                                                                    CUSTOMER_RETURN_QC_RESULT_EFFECTS[
-                                                                                        draft
-                                                                                            .result
-                                                                                    ]
-                                                                                }
-                                                                            </p>
-
-                                                                            {draft.selected ? (
-                                                                                <div className={styles.qcItemDispositionSummary}>
-                                                                                    <span>Xử lý:</span>
-                                                                                    <DispositionBadge result={draft.result} />
-                                                                                    <span>Điểm đến:</span>
-                                                                                    <strong>
-                                                                                        {draft.result === "WRITE_OFF"
-                                                                                            ? "Không áp dụng"
-                                                                                            : getDestinationName(draft.destinationLocationId)}
-                                                                                    </strong>
-                                                                                </div>
-                                                                            ) : null}
-
-                                                                            {draft.selected && draft.result === "DAMAGED" && normalizedDamagedLocations.length === 0 ? (
-                                                                                <div className={styles.emptyLocationWarning}>
-                                                                                    <AlertTriangle size={15} aria-hidden="true" />
-                                                                                    Chưa cấu hình vị trí hàng hỏng.
-                                                                                </div>
-                                                                            ) : null}
-                                                                            {draft.selected && draft.result === "RESTOCK" && restockLocations.length === 0 ? (
-                                                                                <div className={styles.emptyLocationWarning}>
-                                                                                    <AlertTriangle size={15} aria-hidden="true" />
-                                                                                    Chưa cấu hình vị trí kho bán được.
-                                                                                </div>
-                                                                            ) : null}
-                                                                        </div>
-                                                                    );
-                                                                }
-                                                            )}
-                                                        </div>
-
-                                                        {remainingLines.length ===
-                                                        0 ? (
-                                                            <PanelMessage
-                                                                description="Không còn sản phẩm cần xử lý kho trong phiếu hoàn này."
-                                                                title="Đã xử lý kho xong"
-                                                            />
-                                                        ) : null}
-
-                                                        <label
-                                                            className={
-                                                                styles.fullField
-                                                            }
-                                                        >
-                                                            <span>
-                                                                Ghi chú lệnh xử lý kho
-                                                            </span>
-                                                            <textarea
-                                                                onChange={(
-                                                                    event
-                                                                ) => {
-                                                                    setSubmissionCommandId(
-                                                                        null
-                                                                    );
-                                                                    setQcNote(
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    );
-                                                                }}
-                                                                placeholder="Ghi chú chung nếu có"
-                                                                value={qcNote}
-                                                            />
-                                                        </label>
-
-                                                        {selectedLinesRequireLocation && locationError ? (
-                                                            <p className={styles.qcError}>
-                                                                {locationError}
-                                                            </p>
-                                                        ) : null}
-
-                                                        {qcFormError ? (
-                                                            <p className={styles.qcError}>
-                                                                {qcFormError}
-                                                            </p>
-                                                        ) : null}
-
-                                                        <div className={styles.qcActions}>
-                                                            <button
-                                                                className={
-                                                                    styles.secondaryButton
-                                                                }
-                                                                onClick={() => {
-                                                                    setIsQcOpen(false);
-                                                                    setActiveDispositionCommand(null);
-                                                                    setSubmissionCommandId(null);
-                                                                    setQcFormError(null);
-                                                                }}
-                                                                type="button"
-                                                            >
-                                                                Đóng
-                                                            </button>
-                                                            <button
-                                                                className={
-                                                                    styles.primaryButton
-                                                                }
-                                                                disabled={
-                                                                    (selectedLinesRequireLocation &&
-                                                                        isLocationLoading) ||
-                                                                    remainingLines.length === 0 ||
-                                                                    selectedLines.length === 0 ||
-                                                                    hasEmptyLocationConflict
-                                                                }
-                                                                onClick={
-                                                                    handleProceedToConfirmation
-                                                                }
-                                                                type="button"
-                                                            >
-                                                                Tiếp tục xác nhận ({selectedLines.length})
-                                                                <ArrowRight size={18} aria-hidden="true" />
-                                                            </button>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className={styles.qcConfirmationPanel}>
-                                                        <div className={styles.qcConfirmationHeader}>
-                                                            <div>
-                                                                <h4>Xác nhận xử lý kho hàng trả</h4>
-                                                                <p>
-                                                                    Vui lòng kiểm tra kỹ danh sách sản phẩm, phương án xử lý và vị trí kho trước khi cập nhật tồn kho.
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className={styles.qcConfirmationList}>
-                                                            {selectedLines.map((line) => {
-                                                                const draft =
-                                                                    qcDraftLines[line.returnItemId] ??
-                                                                    createDefaultQcDraftLine(line);
-                                                                const quantity = getQcQuantity(draft);
-
-                                                                return (
-                                                                    <div
-                                                                        className={styles.qcConfirmationCard}
-                                                                        key={line.returnItemId}
-                                                                    >
-                                                                        <div className={styles.qcConfirmationTitleRow}>
-                                                                            <strong>
-                                                                                {getReturnLineName(returnItem, line)}
-                                                                            </strong>
-                                                                            <span>
-                                                                                {getReturnLineMeta(returnItem, line)}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className={styles.qcConfirmationGrid}>
-                                                                            <div>
-                                                                                <span className={styles.confirmLabel}>
-                                                                                    Số lượng hoàn:
-                                                                                </span>
-                                                                                <strong>
-                                                                                    SL {formatReturnQuantity(quantity)}
-                                                                                </strong>
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className={styles.confirmLabel}>
-                                                                                    Tình trạng:
-                                                                                </span>
-                                                                                <span>
-                                                                                    {getReturnConditionLabel(
-                                                                                        line.condition
-                                                                                    )}
-                                                                                </span>
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className={styles.confirmLabel}>
-                                                                                    Xử lý:
-                                                                                </span>
-                                                                                <div>
-                                                                                    <DispositionBadge
-                                                                                        result={draft.result}
-                                                                                    />
-                                                                                </div>
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className={styles.confirmLabel}>
-                                                                                    Điểm đến:
-                                                                                </span>
-                                                                                <strong
-                                                                                    className={
-                                                                                        styles.confirmLocationText
-                                                                                    }
-                                                                                >
-                                                                                    {draft.result === "WRITE_OFF"
-                                                                                        ? "Không áp dụng"
-                                                                                        : getDestinationName(
-                                                                                              draft.destinationLocationId
-                                                                                          )}
-                                                                                </strong>
-                                                                            </div>
-                                                                        </div>
-                                                                        {draft.note.trim() ? (
-                                                                            <div className={styles.confirmNoteRow}>
-                                                                                <span className={styles.confirmLabel}>
-                                                                                    Ghi chú:
-                                                                                </span>
-                                                                                <span>{draft.note.trim()}</span>
-                                                                            </div>
-                                                                        ) : null}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-
-                                                        {qcNote.trim() ? (
-                                                            <div className={styles.confirmGeneralNote}>
-                                                                <strong>Ghi chú lệnh xử lý:</strong>
-                                                                <span>{qcNote.trim()}</span>
-                                                            </div>
-                                                        ) : null}
-
-                                                        {qcFormError ? (
-                                                            <p className={styles.qcError}>{qcFormError}</p>
-                                                        ) : null}
-
-                                                        <div className={styles.qcActions}>
-                                                            <button
-                                                                className={styles.secondaryButton}
-                                                                disabled={isSubmittingDisposition}
-                                                                onClick={() => setIsConfirmingDisposition(false)}
-                                                                type="button"
-                                                            >
-                                                                <ChevronLeft size={18} aria-hidden="true" />
-                                                                Quay lại chỉnh sửa
-                                                            </button>
-                                                            <button
-                                                                className={styles.primaryButton}
-                                                                disabled={isSubmittingDisposition}
-                                                                onClick={submitDisposition}
-                                                                type="button"
-                                                            >
-                                                                {isSubmittingDisposition ? (
-                                                                    <>
-                                                                        <Loader2
-                                                                            className="animate-spin"
-                                                                            size={18}
-                                                                            aria-hidden="true"
-                                                                        />
-                                                                        Đang cập nhật kho...
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <CheckCircle2 size={18} aria-hidden="true" />
-                                                                        Xác nhận cập nhật kho
-                                                                    </>
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <div
-                                                    className={
-                                                        styles.qcReviewPanel
-                                                    }
-                                                >
-                                                {activeDispositionCommand.status ===
-                                                "PENDING" ? (
-                                                    <div>
-                                                        <strong
-                                                            style={{
-                                                                display:
-                                                                    "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                gap: 8
-                                                            }}
-                                                        >
-                                                            <Loader2
-                                                                className="animate-spin"
-                                                                size={16}
-                                                                aria-hidden="true"
-                                                            />
-                                                            Đang xử lý cập
-                                                            nhật kho...
-                                                        </strong>
-                                                        <span>
-                                                            Lệnh đang được
-                                                            xử lý bất đồng
-                                                            bộ qua hệ thống
-                                                            tồn kho. Vui
-                                                            lòng đợi trong
-                                                            giây lát...
-                                                        </span>
-                                                    </div>
-                                                ) : null}
-                                                {activeDispositionCommand.status ===
-                                                "PROCESSED" ? (
-                                                    <div>
-                                                        <strong
-                                                            style={{
-                                                                display:
-                                                                    "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                gap: 8,
-                                                                color: "#07883a"
-                                                            }}
-                                                        >
-                                                            <CheckCircle2
-                                                                size={16}
-                                                                aria-hidden="true"
-                                                            />
-                                                            Đã cập nhật kho
-                                                            thành công
-                                                        </strong>
-                                                        <span>
-                                                            Tồn kho đã được
-                                                            cập nhật thành
-                                                            công theo kết
-                                                            quả kiểm tra.
-                                                            {activeDispositionCommand.inspectionId
-                                                                ? ` (Phiếu kiểm tra: ${activeDispositionCommand.inspectionId})`
-                                                                : ""}
-                                                        </span>
-                                                    </div>
-                                                ) : null}
-                                                {activeDispositionCommand.status ===
-                                                "FAILED" ? (
-                                                    <div>
-                                                        <strong
-                                                            style={{
-                                                                display:
-                                                                    "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                gap: 8,
-                                                                color: "#b91c1c"
-                                                            }}
-                                                        >
-                                                            <XCircle
-                                                                size={16}
-                                                                aria-hidden="true"
-                                                            />
-                                                            Không thể cập
-                                                            nhật kho
-                                                        </strong>
-                                                        <span>
-                                                            {activeDispositionCommand.failureReason
-                                                                ? getReturnErrorMessage(
-                                                                      new Error(
-                                                                          activeDispositionCommand.failureReason
-                                                                      )
-                                                                  )
-                                                                : "Lệnh xử lý kho bị từ chối từ hệ thống tồn kho."}
-                                                        </span>
-                                                    </div>
-                                                ) : null}
-
-                                                <div
-                                                    className={
-                                                        styles.qcReviewList
-                                                    }
-                                                >
-                                                    {(
-                                                        activeDispositionCommand.lines ??
-                                                        []
-                                                    ).map((line) => {
-                                                        const summaryLine =
-                                                            summaryLines.find(
-                                                                (item) =>
-                                                                    item.returnItemId ===
-                                                                    line.returnItemId
-                                                            );
-
-                                                        return (
-                                                            <div
-                                                                className={
-                                                                    styles.qcReviewItem
-                                                                }
-                                                                key={
-                                                                    line.returnItemId ||
-                                                                    line.orderItemId ||
-                                                                    "disposition-line"
-                                                                }
-                                                            >
-                                                                <strong>
-                                                                    {summaryLine
-                                                                        ? getReturnLineName(
-                                                                              returnItem,
-                                                                              summaryLine
-                                                                          )
-                                                                        : "Sản phẩm"}
-                                                                </strong>
-                                                                <span>
-                                                                    SL{" "}
-                                                                    {formatReturnQuantity(
-                                                                        line.quantity
-                                                                    )}{" "}
-                                                                    ·{" "}
-                                                                    <DispositionBadge
-                                                                        result={
-                                                                            line.result
-                                                                        }
-                                                                    />
-                                                                </span>
-                                                                <small>
-                                                                    Vị trí:{" "}
-                                                                    {line.result === "WRITE_OFF"
-                                                                        ? "Không áp dụng"
-                                                                        : getDestinationName(
-                                                                              line.destinationLocationId
-                                                                          )}
-                                                                </small>
-                                                                {line.note ? (
-                                                                    <p>
-                                                                        {
-                                                                            line.note
-                                                                        }
-                                                                    </p>
-                                                                ) : null}
-                                                            </div>
-                                                        );
-                                                    })}
+                                    {!isQcSummaryLoading &&
+                                    !qcSummaryError &&
+                                    qcSummary ? (
+                                        <>
+                                            {/* Thống kê tóm tắt 3 chỉ số */}
+                                            <div className={styles.qcStatBar}>
+                                                <div className={styles.qcStatCard}>
+                                                    <span>Đã trả</span>
+                                                    <strong>
+                                                        {formatReturnQuantity(totalReturned)}
+                                                    </strong>
+                                                </div>
+                                                <div className={styles.qcStatCard}>
+                                                    <span>Đã kiểm tra</span>
+                                                    <strong>
+                                                        {formatReturnQuantity(totalPosted)}
+                                                    </strong>
+                                                </div>
+                                                <div className={styles.qcStatCard}>
+                                                    <span>Còn lại</span>
+                                                    <strong>
+                                                        {formatReturnQuantity(totalRemaining)}
+                                                    </strong>
                                                 </div>
                                             </div>
 
-                                            <div className={styles.qcActions}>
-                                                {activeDispositionCommand?.status ===
-                                                "PENDING" ? (
-                                                    <button
-                                                        className={
-                                                            styles.primaryButton
-                                                        }
-                                                        disabled
-                                                        type="button"
+                                            {qcSummary.qcStatus === "PENDING" ? (
+                                                <PanelMessage
+                                                    description="Phiếu hoàn đã được nhận hàng và đang chờ kiểm tra chất lượng."
+                                                    title="Chờ kiểm tra chất lượng"
+                                                />
+                                            ) : null}
+
+                                            {/* Tóm tắt từng sản phẩm */}
+                                            <div className={styles.qcSummaryList}>
+                                                {summaryLines.map((line) => (
+                                                    <div
+                                                        className={styles.qcSummaryItem}
+                                                        key={line.returnItemId}
                                                     >
-                                                        <Loader2
-                                                            className="animate-spin"
-                                                            size={18}
-                                                            aria-hidden="true"
-                                                        />
-                                                        Đang xử lý kho...
-                                                    </button>
-                                                ) : null}
-
-                                                {activeDispositionCommand?.status ===
-                                                "PROCESSED" ? (
-                                                    <>
-                                                        {remainingLines.length >
-                                                        0 ? (
-                                                            <button
-                                                                className={
-                                                                    styles.primaryButton
-                                                                }
-                                                                onClick={
-                                                                    handleContinueQcAfterProcessed
-                                                                }
-                                                                type="button"
-                                                            >
-                                                                <Plus
-                                                                    size={18}
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Xử lý sản phẩm
-                                                                còn lại (
-                                                                {
-                                                                    remainingLines.length
-                                                                }
+                                                        <div>
+                                                            <strong>
+                                                                {getReturnLineName(
+                                                                    returnItem,
+                                                                    line
+                                                                )}
+                                                            </strong>
+                                                            <span>
+                                                                {getReturnLineMeta(
+                                                                    returnItem,
+                                                                    line
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <span>
+                                                                Đã trả:{" "}
+                                                                {formatReturnQuantity(
+                                                                    line.returnedQuantity
+                                                                )}
+                                                            </span>
+                                                            <span>
+                                                                Đã kiểm tra:{" "}
+                                                                {formatReturnQuantity(
+                                                                    line.postedQcQuantity
+                                                                )}
+                                                            </span>
+                                                            <span>
+                                                                Còn lại:{" "}
+                                                                {formatReturnQuantity(
+                                                                    line.remainingQcQuantity
+                                                                )}
+                                                            </span>
+                                                            {(line.dispositions ?? []).map(
+                                                                (disposition) => (
+                                                                    <span
+                                                                        key={disposition.result}
+                                                                        style={{
+                                                                            display: "inline-flex",
+                                                                            alignItems: "center",
+                                                                            gap: "4px"
+                                                                        }}
+                                                                    >
+                                                                        <DispositionBadge
+                                                                            result={
+                                                                                disposition.result
+                                                                            }
+                                                                        />
+                                                                        <span>
+                                                                            {formatReturnQuantity(
+                                                                                disposition.quantity
+                                                                            )}
+                                                                        </span>
+                                                                    </span>
                                                                 )
-                                                            </button>
-                                                        ) : null}
-                                                        <button
-                                                            className={
-                                                                styles.secondaryButton
-                                                            }
-                                                            onClick={() => {
-                                                                setIsQcOpen(
-                                                                    false
-                                                                );
-                                                                setActiveDispositionCommand(
-                                                                    null
-                                                                );
-                                                                setSubmissionCommandId(
-                                                                    null
-                                                                );
-                                                            }}
-                                                            type="button"
-                                                        >
-                                                            Đóng
-                                                        </button>
-                                                    </>
-                                                ) : null}
-
-                                                {activeDispositionCommand?.status ===
-                                                "FAILED" ? (
-                                                    <>
-                                                        <button
-                                                            className={
-                                                                styles.primaryButton
-                                                            }
-                                                            onClick={
-                                                                handleResetDispositionAfterFailure
-                                                            }
-                                                            type="button"
-                                                        >
-                                                            Chỉnh sửa và gửi lệnh
-                                                            mới
-                                                        </button>
-                                                        <button
-                                                            className={
-                                                                styles.secondaryButton
-                                                            }
-                                                            onClick={() => {
-                                                                setIsQcOpen(
-                                                                    false
-                                                                );
-                                                                setActiveDispositionCommand(
-                                                                    null
-                                                                );
-                                                                setSubmissionCommandId(
-                                                                    null
-                                                                );
-                                                            }}
-                                                            type="button"
-                                                        >
-                                                            Đóng
-                                                        </button>
-                                                    </>
-                                                ) : null}
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </>
-                                    )}
-                                </div>
-                            ) : null}
+                                    ) : null}
                                 </>
                             ) : null}
                         </section>
 
-                        {canTransition ? (
-                            <div className={styles.detailActions}>
+                        {/* Section D: Hoàn tiền */}
+                        <section className={styles.detailSection}>
+                            <h3>Hoàn tiền</h3>
+                            <div className={styles.detailInfoGrid}>
+                                <InfoRow
+                                    label="Chính sách hoàn tiền"
+                                    value={
+                                        returnItem.refundRequired === false
+                                            ? "Không hoàn tiền (tự động hoàn tất khi kiểm kho)"
+                                            : "Có hoàn tiền"
+                                    }
+                                />
+                                <InfoRow
+                                    label="Trạng thái hoàn tiền"
+                                    value={(() => {
+                                        if (returnItem.refundRequired === false) {
+                                            return "Không phát sinh";
+                                        }
+                                        if (refundDetail?.refundStatus === "REFUNDED") {
+                                            return "Đã hoàn tất";
+                                        }
+                                        if (refundDetail?.refundStatus === "PENDING") {
+                                            return isQcCompleted
+                                                ? "Sẵn sàng hoàn tiền (đã kiểm kho)"
+                                                : "Chờ xử lý sau kiểm kho";
+                                        }
+                                        if (refundDetail?.refundStatus) {
+                                            return getOrderRefundStatusLabel(refundDetail.refundStatus);
+                                        }
+                                        return returnItem.status === "COMPLETED"
+                                            ? "Đã hoàn tất"
+                                            : "Chờ xử lý sau kiểm kho";
+                                    })()}
+                                />
+                                {refundDetail?.refundAmount ? (
+                                    <InfoRow
+                                        label="Số tiền hoàn"
+                                        value={formatCurrency(toReturnNumber(refundDetail.refundAmount))}
+                                    />
+                                ) : null}
+                                {refundDetail?.refundedAt ? (
+                                    <InfoRow
+                                        label="Thời gian hoàn"
+                                        value={formatDateTime(refundDetail.refundedAt)}
+                                    />
+                                ) : null}
+                            </div>
+                            {displayStatus === "PENDING_REFUND" ? (
+                                <PanelMessage
+                                    description="Hàng trả đã được kiểm tra và xử lý kho thành công. Vui lòng thực hiện hoàn tiền cho khách hàng tại mục Quản lý hoàn tiền."
+                                    title="Sẵn sàng hoàn tiền"
+                                />
+                            ) : null}
+                        </section>
+
+                        <div className={styles.detailActions}>
+                            {canTransition ? (
+                                <>
+                                    <button
+                                        className={styles.secondaryButton}
+                                        disabled={isTransitioning}
+                                        onClick={() => onRequestCancel(returnItem)}
+                                        type="button"
+                                    >
+                                        <XCircle size={18} aria-hidden="true" />
+                                        Hủy phiếu
+                                    </button>
+                                    <button
+                                        className={styles.primaryButton}
+                                        disabled={isTransitioning}
+                                        onClick={() =>
+                                            onRequestComplete(returnItem)
+                                        }
+                                        type="button"
+                                    >
+                                        <CheckCircle2 size={18} aria-hidden="true" />
+                                        Xác nhận nhận hàng
+                                    </button>
+                                </>
+                            ) : (
                                 <button
                                     className={styles.secondaryButton}
-                                    disabled={isTransitioning}
-                                    onClick={() => onRequestCancel(returnItem)}
+                                    onClick={onClose}
                                     type="button"
                                 >
-                                    <XCircle size={18} aria-hidden="true" />
-                                    Hủy phiếu
+                                    Đóng
                                 </button>
-                                <button
-                                    className={styles.primaryButton}
-                                    disabled={isTransitioning}
-                                    onClick={() =>
-                                        onRequestComplete(returnItem)
-                                    }
-                                    type="button"
-                                >
-                                    <CheckCircle2 size={18} aria-hidden="true" />
-                                    Xác nhận nhận hàng
-                                </button>
-                            </div>
-                        ) : null}
+                            )}
+                        </div>
                     </>
                 ) : null}
             </aside>
+
+            {isInspectionModalOpen && (
+                <ReturnInspectionModal
+                    isOpen={isInspectionModalOpen}
+                    onClose={() => setIsInspectionModalOpen(false)}
+                    onSuccess={() => {
+                        setQcReloadKey((k) => k + 1);
+                        onRefreshDetail?.();
+                    }}
+                    onRefresh={() => {
+                        setQcReloadKey((k) => k + 1);
+                        onRefreshDetail?.();
+                    }}
+                    onToast={onToast}
+                    qcSummary={qcSummary}
+                    returnItem={returnItem}
+                />
+            )}
         </div>
     );
 }
 
-function ReturnStatusBadge({ status }: { status?: ReturnStatus | null }) {
-    const statusClass =
-        status === "RECEIVED"
-            ? styles.completedBadge
-            : status === "COMPLETED"
-                ? styles.completedBadge
-                : status === "CANCELLED"
-                    ? styles.cancelledBadge
-                    : styles.createdBadge;
+function ReturnStatusBadge({
+    status,
+    displayStatus
+}: {
+    status?: ReturnStatus | null;
+    displayStatus?: ReturnDisplayStatus | null;
+}) {
+    const effectiveStatus: ReturnDisplayStatus | ReturnStatus | undefined =
+        displayStatus ?? status ?? undefined;
+
+    let statusClass = styles.createdBadge;
+    if (effectiveStatus === "RECEIVED") {
+        statusClass = styles.receivedBadge;
+    } else if (effectiveStatus === "PROCESSING") {
+        statusClass = styles.processingBadge;
+    } else if (effectiveStatus === "PROCESSING_FAILED") {
+        statusClass = styles.processingFailedBadge;
+    } else if (effectiveStatus === "PENDING_REFUND") {
+        statusClass = styles.pendingRefundBadge;
+    } else if (effectiveStatus === "COMPLETED") {
+        statusClass = styles.completedBadge;
+    } else if (effectiveStatus === "CANCELLED") {
+        statusClass = styles.cancelledBadge;
+    }
+
+    const label = displayStatus
+        ? getReturnDisplayStatusLabel(displayStatus)
+        : getReturnStatusLabel(status);
 
     return (
         <span className={`${styles.statusBadge} ${statusClass}`}>
-            {getReturnStatusLabel(status)}
+            {label}
         </span>
     );
 }

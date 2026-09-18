@@ -75,6 +75,17 @@ export function getOrderReturnList(params: OrderReturnQueryParams = {}) {
     );
 }
 
+export function getOrderReturnStatusCounts(
+    params: Pick<OrderReturnQueryParams, "fromDate" | "keyword" | "toDate"> = {}
+) {
+    return apiClient.get<Record<string, number>>(
+        "/orders/returns/status-counts",
+        {
+            query: compactQuery(params)
+        }
+    );
+}
+
 export function createOrderReturn(
     orderId: string,
     payload: CreateOrderReturnPayload

@@ -52,6 +52,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -210,14 +211,46 @@ public class OrderController {
     @GetMapping("/returns")
     public Page<OrderReturnSummaryResponse> getReturns(
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) ReturnStatus status,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String displayStatus,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "createdAt,desc") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return orderReturnService.getReturns(keyword, status, fromDate, toDate, sort, page, size);
+        String effectiveDisplayStatus = displayStatus != null && !displayStatus.isBlank() ? displayStatus : status;
+        ReturnStatus rawStatus = null;
+        if (effectiveDisplayStatus != null) {
+            try {
+                rawStatus = ReturnStatus.valueOf(effectiveDisplayStatus.trim().toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                // Not a raw ReturnStatus enum, will be handled as displayStatus
+            }
+        }
+        return orderReturnService.getReturns(keyword, rawStatus, effectiveDisplayStatus, fromDate, toDate, sort, page, size);
+    }
+
+    public Page<OrderReturnSummaryResponse> getReturns(
+            String keyword,
+            ReturnStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    ) {
+        return orderReturnService.getReturns(keyword, status, null, fromDate, toDate, sort, page, size);
+    }
+
+    @Operation(summary = "thong ke so luong phieu hoan theo trang thai hien thi")
+    @GetMapping("/returns/status-counts")
+    public Map<String, Long> getReturnStatusCounts(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return orderReturnService.getReturnStatusCounts(keyword, fromDate, toDate);
     }
 
     @Operation(summary = "lay danh sach hoan tien tu phieu hoan hang")

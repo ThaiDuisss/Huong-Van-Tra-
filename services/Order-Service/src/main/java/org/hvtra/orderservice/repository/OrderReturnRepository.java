@@ -138,6 +138,55 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
     );
 
     @Query("""
+            select new org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse(
+                orderReturn.id,
+                orderReturn.returnCode,
+                orders.id,
+                orders.orderCode,
+                orderReturn.status,
+                orderReturn.createdAt,
+                orderReturn.updatedAt,
+                count(items.id),
+                orders.customerNameSnapshot,
+                orders.customerPhoneSnapshot,
+                orderReturn.refundRequired
+            )
+            from OrderReturn orderReturn
+            join orderReturn.order orders
+            left join orderReturn.items items on items.isDeleted = false
+            where orderReturn.isDeleted = false
+              and orders.isDeleted = false
+              and (:status is null or orderReturn.status = :status)
+              and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+              and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+              and (
+                  :keywordPattern is null
+                  or lower(orderReturn.returnCode) like :keywordPattern
+                  or lower(orders.orderCode) like :keywordPattern
+                  or lower(orders.customerNameSnapshot) like :keywordPattern
+                  or lower(orders.customerPhoneSnapshot) like :keywordPattern
+              )
+            group by
+                orderReturn.id,
+                orderReturn.returnCode,
+                orders.id,
+                orders.orderCode,
+                orderReturn.status,
+                orderReturn.createdAt,
+                orderReturn.updatedAt,
+                orders.customerNameSnapshot,
+                orders.customerPhoneSnapshot,
+                orderReturn.refundRequired
+            order by orderReturn.createdAt desc, orderReturn.id desc
+            """)
+    List<OrderReturnSummaryResponse> findReturnSummariesList(
+            @Param("keywordPattern") String keywordPattern,
+            @Param("status") ReturnStatus status,
+            @Param("fromCreatedAt") Instant fromCreatedAt,
+            @Param("toCreatedBefore") Instant toCreatedBefore
+    );
+
+    @Query("""
             select new org.hvtra.orderservice.dto.response.OrderReturnReportBaseRow(
                 orderReturn.id,
                 orderReturn.returnCode,

@@ -100,19 +100,49 @@ public interface InventoryClient {
             UUID branchId,
             UUID orderId,
             String orderCode,
+            UUID inspectionId,
+            String inspectionStatus,
             String qcStatus,
             List<CustomerReturnQcLineResponse> lines
-    ) {}
+    ) {
+        public CustomerReturnQcSummaryResponse(
+                UUID returnId,
+                String returnCode,
+                String returnStatus,
+                UUID branchId,
+                UUID orderId,
+                String orderCode,
+                String qcStatus,
+                List<CustomerReturnQcLineResponse> lines
+        ) {
+            this(returnId, returnCode, returnStatus, branchId, orderId, orderCode, null, null, qcStatus, lines);
+        }
+    }
 
     record CustomerReturnQcLineResponse(
             UUID returnItemId,
             UUID orderItemId,
+            UUID productVariantId,
             BigDecimal returnedQuantity,
+            BigDecimal postedQcQuantity,
+            BigDecimal remainingQcQuantity,
             BigDecimal inspectedQuantity,
             BigDecimal acceptedQuantity,
             BigDecimal rejectedQuantity,
             String qcStatus
-    ) {}
+    ) {
+        public CustomerReturnQcLineResponse(
+                UUID returnItemId,
+                UUID orderItemId,
+                BigDecimal returnedQuantity,
+                BigDecimal inspectedQuantity,
+                BigDecimal acceptedQuantity,
+                BigDecimal rejectedQuantity,
+                String qcStatus
+        ) {
+            this(returnItemId, orderItemId, null, returnedQuantity, inspectedQuantity, BigDecimal.ZERO, inspectedQuantity, acceptedQuantity, rejectedQuantity, qcStatus);
+        }
+    }
 
     record CustomerReturnQcDispositionReportResponse(
             String result,

@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -81,6 +82,14 @@ public interface OrderReturnInventoryCommandRepository
             UUID returnId,
             OrderReturnInventoryCommandStatus status
     );
+
+    @Query("""
+            select c.orderReturn.id, c.status
+            from OrderReturnInventoryCommand c
+            where c.orderReturn.id in :returnIds
+              and c.isDeleted = false
+            """)
+    List<Object[]> findCommandStatusesByReturnIds(@Param("returnIds") Collection<UUID> returnIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

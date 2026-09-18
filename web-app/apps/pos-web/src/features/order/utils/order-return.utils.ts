@@ -1,9 +1,13 @@
 import type { OrderDetailResponse, OrderItemResponse } from "../types/order.types";
 import type {
+    CustomerReturnInspectionStatus,
     CustomerReturnQcResult,
     CustomerReturnQcStatus,
+    CustomerReturnQcSummaryResponse,
+    OrderRefundStatus,
     OrderReturnResponse,
     ReturnCondition,
+    ReturnDisplayStatus,
     ReturnReason,
     ReturnStatus
 } from "../types/order-return.types";
@@ -11,6 +15,18 @@ import type {
 export const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {
     CREATED: "Đã tạo",
     RECEIVED: "Đã nhận hàng",
+    COMPLETED: "Hoàn tất",
+    CANCELLED: "Đã hủy"
+};
+
+export type { ReturnDisplayStatus };
+
+export const RETURN_DISPLAY_STATUS_LABELS: Record<ReturnDisplayStatus, string> = {
+    CREATED: "Đã tạo",
+    RECEIVED: "Đã nhận hàng",
+    PROCESSING: "Đang xử lý hàng trả",
+    PROCESSING_FAILED: "Xử lý kho thất bại",
+    PENDING_REFUND: "Chờ hoàn tiền",
     COMPLETED: "Hoàn tất",
     CANCELLED: "Đã hủy"
 };
@@ -125,6 +141,135 @@ export function getReturnStatusLabel(status?: ReturnStatus | null) {
     return status ? RETURN_STATUS_LABELS[status] ?? status : "--";
 }
 
+export function getReturnDisplayStatusLabel(displayStatus?: ReturnDisplayStatus | null) {
+    return displayStatus ? RETURN_DISPLAY_STATUS_LABELS[displayStatus] ?? displayStatus : "--";
+}
+
+export const ORDER_REFUND_STATUS_LABELS: Record<OrderRefundStatus, string> = {
+    PENDING: "Chờ hoàn tiền",
+    REFUNDED: "Đã hoàn tiền",
+    NOT_READY: "Chưa sẵn sàng",
+    FAILED: "Hoàn tiền thất bại",
+    NOT_REQUIRED: "Không phát sinh"
+};
+
+export function getOrderRefundStatusLabel(status?: OrderRefundStatus | null) {
+    return status ? ORDER_REFUND_STATUS_LABELS[status] ?? status : "--";
+}
+
+export interface ResolveReturnDisplayStatusParams {
+    status?: ReturnStatus | null;
+    refundRequired?: boolean | null;
+    qcSummary?: CustomerReturnQcSummaryResponse | null;
+    refundStatus?: OrderRefundStatus | null;
+    isPendingDisposition?: boolean | null;
+    hasFailedDisposition?: boolean | null;
+    qcStatus?: CustomerReturnQcStatus | string | null;
+    inspectionStatus?: CustomerReturnInspectionStatus | string | null;
+    postedQcQuantity?: number | string | null;
+    remainingQcQuantity?: number | string | null;
+}
+
+export function resolveReturnDisplayStatus({
+    status,
+    refundRequired,
+    qcSummary,
+    refundStatus,
+    isPendingDisposition = false,
+    hasFailedDisposition = false,
+    qcStatus,
+    inspectionStatus,
+    postedQcQuantity,
+    remainingQcQuantity
+}: ResolveReturnDisplayStatusParams): ReturnDisplayStatus {
+    if (status === "CREATED") {
+        return "CREATED";
+    }
+
+    if (status === "CANCELLED") {
+        return "CANCELLED";
+    }
+
+    if (status === "COMPLETED") {
+        return "COMPLETED";
+    }
+
+    if (status === "RECEIVED") {
+        // Ưu tiên kiểm tra failed disposition trước:
+        // FAILED: không được map thành "Đang xử lý hàng trả"
+        if (hasFailedDisposition) {
+            return "PROCESSING_FAILED";
+        }
+
+        const lines = qcSummary?.lines ?? [];
+        const hasQcLines = lines.length > 0;
+
+        const effectiveRemaining: number | null = hasQcLines
+            ? lines.reduce((sum, line) => sum + toReturnNumber(line.remainingQcQuantity), 0)
+            : remainingQcQuantity !== undefined && remainingQcQuantity !== null
+              ? toReturnNumber(remainingQcQuantity)
+              : null;
+
+        const effectivePosted: number | null = hasQcLines
+            ? lines.reduce((sum, line) => sum + toReturnNumber(line.postedQcQuantity), 0)
+            : postedQcQuantity !== undefined && postedQcQuantity !== null
+              ? toReturnNumber(postedQcQuantity)
+              : null;
+
+        const effectiveQcStatus = qcSummary?.qcStatus ?? qcStatus ?? null;
+        const effectiveInspectionStatus = qcSummary?.inspectionStatus ?? inspectionStatus ?? null;
+
+        if (
+            !qcSummary &&
+            effectiveQcStatus === null &&
+            effectiveRemaining === null &&
+            effectiveInspectionStatus === null
+        ) {
+            return "RECEIVED";
+        }
+
+        // Đang có quá trình kiểm tra hoặc xử lý kho (lệnh pending, inspection CREATED, hoặc QC một phần)
+        const isInspectionPending =
+            Boolean(isPendingDisposition) ||
+            effectiveInspectionStatus === "CREATED" ||
+            effectiveQcStatus === "PARTIAL" ||
+            (effectivePosted !== null && effectiveRemaining !== null && effectivePosted > 0 && effectiveRemaining > 0);
+
+        if (isInspectionPending) {
+            return "PROCESSING";
+        }
+
+        // Rule 2: QC chỉ được coi hoàn tất khi:
+        // remainingQcQuantity == 0 AND (qcStatus == "COMPLETED" OR inspectionStatus == "POSTED")
+        // Không được chỉ dựa vào inspectionStatus == POSTED hoặc qcStatus == COMPLETED nếu remaining vẫn > 0.
+        const isQcFullyCompleted =
+            effectiveRemaining !== null &&
+            effectiveRemaining === 0 &&
+            (effectiveQcStatus === "COMPLETED" || effectiveInspectionStatus === "POSTED");
+
+        if (isQcFullyCompleted) {
+            const isRefundNeeded = refundRequired !== false;
+
+            if (isRefundNeeded) {
+                // Nếu đã hoàn tiền xong
+                if (refundStatus === "REFUNDED") {
+                    return "COMPLETED";
+                }
+                // Chưa hoàn tiền hoặc đang chờ hoàn tiền
+                return "PENDING_REFUND";
+            }
+
+            // Không cần hoàn tiền (refundRequired === false)
+            return "COMPLETED";
+        }
+
+        // Còn sản phẩm chưa kiểm tra và chưa có tiến trình nào
+        return "RECEIVED";
+    }
+
+    return "RECEIVED";
+}
+
 export function getReturnReasonLabel(reason?: ReturnReason | null) {
     return reason ? RETURN_REASON_LABELS[reason] ?? reason : "--";
 }
@@ -203,11 +348,12 @@ export function calculateAvailableReturnQuantity(
     );
 }
 
-export function getReturnErrorMessage(error: unknown) {
+export function getReturnErrorMessage(error: unknown, fallbackMessage?: string) {
+    const defaultMsg = fallbackMessage || "Không thể xử lý phiếu hoàn. Vui lòng thử lại.";
     const message =
         error instanceof Error && error.message
             ? error.message
-            : "Không thể xử lý phiếu hoàn. Vui lòng thử lại.";
+            : defaultMsg;
 
     if (
         message.includes("Order is not eligible for return") ||
@@ -244,6 +390,22 @@ export function getReturnErrorMessage(error: unknown) {
     }
 
     if (
+        message.includes("Downstream service authentication failed") ||
+        message.includes("REMOTE_SERVICE_AUTH_ERROR") ||
+        message.includes("Missing internal authentication headers") ||
+        message.includes("Invalid internal authentication signature")
+    ) {
+        return "Lỗi xác thực nội bộ giữa các service. Vui lòng liên hệ quản trị hệ thống.";
+    }
+
+    if (
+        message.includes("Upstream service error") ||
+        message.includes("REMOTE_SERVICE_ERROR")
+    ) {
+        return "Lỗi kết nối tới dịch vụ phụ thuộc (Inventory-Service). Vui lòng thử lại sau.";
+    }
+
+    if (
         message.includes("Only CREATED return can be received") ||
         message.includes("Only created returns can be received")
     ) {
@@ -260,6 +422,13 @@ export function getReturnErrorMessage(error: unknown) {
         message.includes("Only received returns can request inventory disposition")
     ) {
         return "Chỉ phiếu hoàn ở trạng thái đã nhận hàng mới được xử lý kho.";
+    }
+
+    if (
+        message.includes("No remaining quantity available for inventory disposition") ||
+        message.includes("Inventory disposition quantity exceeds return item quantity")
+    ) {
+        return "Sản phẩm này đã được xử lý kho hoặc không còn số lượng cần xử lý. Vui lòng tải lại dữ liệu.";
     }
 
     if (

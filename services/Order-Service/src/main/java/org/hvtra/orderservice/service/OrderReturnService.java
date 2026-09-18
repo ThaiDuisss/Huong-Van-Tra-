@@ -17,6 +17,7 @@ import org.springframework.data.domain.Page;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface OrderReturnService {
@@ -51,7 +52,7 @@ public interface OrderReturnService {
 
     OrderRefundStatsResponse getRefundStats(String keyword, LocalDate fromDate, LocalDate toDate);
 
-    Page<OrderReturnSummaryResponse> getReturns(
+    default Page<OrderReturnSummaryResponse> getReturns(
             String keyword,
             ReturnStatus status,
             LocalDate fromDate,
@@ -59,7 +60,22 @@ public interface OrderReturnService {
             String sort,
             int page,
             int size
+    ) {
+        return getReturns(keyword, status, null, fromDate, toDate, sort, page, size);
+    }
+
+    Page<OrderReturnSummaryResponse> getReturns(
+            String keyword,
+            ReturnStatus status,
+            String displayStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
     );
+
+    Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate);
 
     List<OrderReturnResponse> getReturnsByOrder(UUID orderId);
 

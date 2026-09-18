@@ -123,16 +123,20 @@ public class OrderReturnInventoryReconciliationTransactionServiceImpl
             return;
         }
 
+        Instant now = Instant.now();
         int currentRecoveryAttempts = command.getRecoveryAttemptCount() == null ? 0 : command.getRecoveryAttemptCount();
 
-        // If recovery attempts are already exhausted: do not increment counter, do not save to DB, do not spam error logs
+        // If recovery attempts are already exhausted: transition command to FAILED
         if (currentRecoveryAttempts >= maxRecoveryAttempts) {
-            log.debug("Command has exhausted max recovery attempts ({}/{}): commandId={}, returnId={}. Skipping counter update and log spam.",
+            command.setStatus(OrderReturnInventoryCommandStatus.FAILED);
+            command.setFailedAt(now);
+            command.setFailureCode("ORPHAN_RECOVERY_EXHAUSTED");
+            command.setFailureReason("Command not found in inventory inbox after " + maxRecoveryAttempts + " recovery attempts");
+            commandRepository.saveAndFlush(command);
+            log.warn("Command exhausted max recovery attempts ({}/{}): marked as FAILED. commandId={}, returnId={}",
                     currentRecoveryAttempts, maxRecoveryAttempts, commandId, returnId);
             return;
         }
-
-        Instant now = Instant.now();
         int currentNotFoundCount = (command.getNotFoundCount() == null ? 0 : command.getNotFoundCount()) + 1;
         command.setNotFoundCount(currentNotFoundCount);
         command.setLastNotFoundAt(now);

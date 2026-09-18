@@ -16,9 +16,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -110,11 +112,50 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
         }
 
         if (statusResponse.status() == ReturnDispositionReconciliationStatus.NOT_FOUND) {
+            // Fallback check: Did Inventory already complete QC for this return?
+            UUID returnId = command.getOrderReturn() != null ? command.getOrderReturn().getId() : null;
+            if (returnId != null) {
+                try {
+                    InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
+                            inventoryClient.getCustomerReturnQcSummary(returnId);
+                    if (qcSummary != null && isInventoryQcComplete(qcSummary)) {
+                        log.info("Command {} was NOT_FOUND in inventory inbox, but return {} is already fully completed in Inventory. Reconciling to PROCESSED.",
+                                commandId, returnId);
+                        transactionService.applyReconciledStatus(commandId, ReturnDispositionStatusResponse.builder()
+                                .commandId(commandId)
+                                .status(ReturnDispositionReconciliationStatus.PROCESSED)
+                                .returnId(returnId)
+                                .inspectionId(qcSummary.inspectionId())
+                                .processedAt(Instant.now())
+                                .build());
+                        return;
+                    }
+                } catch (Exception ex) {
+                    log.debug("Fallback QC summary check for returnId {} failed: {}", returnId, ex.getMessage());
+                }
+            }
+
             transactionService.handleNotFound(commandId);
             return;
         }
 
         // STEP 3: Terminal status (PROCESSED or FAILED) -> delegate to short transaction service
         transactionService.applyReconciledStatus(commandId, statusResponse);
+    }
+
+    private boolean isInventoryQcComplete(InventoryClient.CustomerReturnQcSummaryResponse qcSummary) {
+        if (qcSummary == null || qcSummary.lines() == null || qcSummary.lines().isEmpty()) {
+            return false;
+        }
+        boolean hasTerminalStatus = "COMPLETED".equals(qcSummary.qcStatus())
+                || "POSTED".equals(qcSummary.inspectionStatus());
+        if (!hasTerminalStatus) {
+            return false;
+        }
+        BigDecimal remaining = qcSummary.lines().stream()
+                .map(InventoryClient.CustomerReturnQcLineResponse::remainingQcQuantity)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return remaining.compareTo(BigDecimal.ZERO) == 0;
     }
 }

@@ -31,6 +31,19 @@ export type OrderRefundStatus = "PENDING" | "REFUNDED" | "NOT_READY" | "FAILED" 
 
 export type OrderReturnStatus = "NONE" | "PARTIALLY_RETURNED" | "FULLY_RETURNED";
 
+export type ReturnDisplayStatus =
+    | "CREATED"
+    | "RECEIVED"
+    | "PROCESSING"
+    | "PROCESSING_FAILED"
+    | "PENDING_REFUND"
+    | "COMPLETED"
+    | "CANCELLED";
+
+export type ReturnFilterKey = "ALL" | ReturnDisplayStatus;
+
+export type OrderReturnStatusCounts = Record<ReturnFilterKey, number>;
+
 export interface CreateOrderReturnItemPayload {
     orderItemId: string;
     quantity: number;
@@ -85,6 +98,14 @@ export interface OrderReturnSummaryResponse {
     itemCount?: number | string | null;
     customerName?: string | null;
     customerPhone?: string | null;
+    qcStatus?: CustomerReturnQcStatus | string | null;
+    remainingQcQuantity?: number | string | null;
+    inspectionStatus?: CustomerReturnInspectionStatus | string | null;
+    refundStatus?: OrderRefundStatus | null;
+    hasFailedDisposition?: boolean | null;
+    isPendingDisposition?: boolean | null;
+    postedQcQuantity?: number | string | null;
+    displayStatus?: ReturnDisplayStatus | null;
 }
 
 export interface OrderReturnListRow extends OrderReturnSummaryResponse {
@@ -95,7 +116,8 @@ export interface OrderReturnListRow extends OrderReturnSummaryResponse {
 export interface OrderReturnQueryParams {
     fromDate?: string;
     keyword?: string;
-    status?: ReturnStatus;
+    status?: ReturnStatus | string;
+    displayStatus?: string;
     toDate?: string;
     page?: number;
     size?: number;
