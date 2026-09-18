@@ -4,6 +4,7 @@ import feign.FeignException;
 import feign.RetryableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hvtra.commonservice.exception.FeignClientException;
 import org.hvtra.commonservice.utils.SecurityUtils;
 import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.client.PaymentClient;
@@ -575,8 +576,11 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             OrderReturnItem returnItem
     ) {
         BigDecimal quantity = requirePositiveQuantity(lineRequest.getQuantity());
+        if (ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult()) {
+            throw new InvalidOrderReturnException(
+                    "QUARANTINE is no longer supported for return inventory disposition");
+        }
         if ((ReturnInventoryDispositionResult.RESTOCK == lineRequest.getResult()
-                || ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult()
                 || ReturnInventoryDispositionResult.DAMAGED == lineRequest.getResult())
                 && lineRequest.getDestinationLocationId() == null) {
             throw new InvalidOrderReturnException("Destination location is required for inventory disposition");
@@ -989,6 +993,17 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         } catch (RetryableException ex) {
             logDownstreamUnavailable("Inventory-Service", "customer return QC batch summary", ex, ex.status());
             return new DownstreamLookupResult<>(Map.of(), false);
+        } catch (FeignClientException ex) {
+            if (isDownstreamReadUnavailableStatus(ex.getStatus())) {
+                logDownstreamUnavailable(
+                        "Inventory-Service",
+                        "customer return QC batch summary",
+                        ex,
+                        ex.getStatus()
+                );
+                return new DownstreamLookupResult<>(Map.of(), false);
+            }
+            throw ex;
         } catch (FeignException ex) {
             if (isAvailabilityStatus(ex.status())) {
                 logDownstreamUnavailable("Inventory-Service", "customer return QC batch summary", ex, ex.status());
@@ -1011,6 +1026,17 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         } catch (RetryableException ex) {
             logDownstreamUnavailable("Inventory-Service", "customer return QC summary", ex, ex.status());
             return new DownstreamLookupResult<>(null, false);
+        } catch (FeignClientException ex) {
+            if (isDownstreamReadUnavailableStatus(ex.getStatus())) {
+                logDownstreamUnavailable(
+                        "Inventory-Service",
+                        "customer return QC summary",
+                        ex,
+                        ex.getStatus()
+                );
+                return new DownstreamLookupResult<>(null, false);
+            }
+            throw ex;
         } catch (FeignException ex) {
             if (isAvailabilityStatus(ex.status())) {
                 logDownstreamUnavailable("Inventory-Service", "customer return QC summary", ex, ex.status());
@@ -1078,6 +1104,12 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         } catch (RetryableException ex) {
             logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.status());
             return new DownstreamLookupResult<>(Map.of(), false);
+        } catch (FeignClientException ex) {
+            if (isDownstreamReadUnavailableStatus(ex.getStatus())) {
+                logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.getStatus());
+                return new DownstreamLookupResult<>(Map.of(), false);
+            }
+            throw ex;
         } catch (FeignException ex) {
             if (isAvailabilityStatus(ex.status())) {
                 logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.status());
@@ -1099,6 +1131,12 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         } catch (RetryableException ex) {
             logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.status());
             return new DownstreamLookupResult<>(null, false);
+        } catch (FeignClientException ex) {
+            if (isDownstreamReadUnavailableStatus(ex.getStatus())) {
+                logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.getStatus());
+                return new DownstreamLookupResult<>(null, false);
+            }
+            throw ex;
         } catch (FeignException ex) {
             if (isAvailabilityStatus(ex.status())) {
                 logDownstreamUnavailable("Payment-Service", "refund summary lookup", ex, ex.status());
@@ -1158,6 +1196,10 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
     private boolean isAvailabilityStatus(int status) {
         return status == 502 || status == 503 || status == 504;
+    }
+
+    private boolean isDownstreamReadUnavailableStatus(int status) {
+        return status == 401 || status == 403 || isAvailabilityStatus(status);
     }
 
     private void logDownstreamUnavailable(

@@ -11,6 +11,7 @@ import {
     X,
     XCircle
 } from "lucide-react";
+import { ApiError } from "@hvt/api-client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
@@ -50,7 +51,6 @@ import {
     formatReturnQuantity,
     getAllowedCustomerReturnQcResults,
     getCustomerReturnQcResultLabel,
-    getCustomerReturnQcStatusLabel,
     getReturnCode,
     getReturnConditionLabel,
     getReturnErrorMessage,
@@ -133,7 +133,7 @@ function getQcQuantity(draft?: QcDraftLine) {
 }
 
 function getDefaultQcResult(condition?: ReturnCondition | null) {
-    return condition === "SEALED" ? "RESTOCK" : "QUARANTINE";
+    return condition === "SEALED" ? "RESTOCK" : "DAMAGED";
 }
 
 function createDefaultQcDraftLine(
@@ -198,6 +198,38 @@ function getLocationOptionLabel(location: InventoryLocationResponse) {
     return name || code || "Vị trí kho";
 }
 
+const QC_DISPOSITION_DISPLAY_LABELS: Record<CustomerReturnQcResult, string> = {
+    RESTOCK: "Nhập lại kho",
+    DAMAGED: "Hàng hỏng",
+    QUARANTINE: "Cách ly",
+    WRITE_OFF: "Tiêu hủy"
+};
+
+function getQcDispositionDisplayLabel(result: CustomerReturnQcResult) {
+    return QC_DISPOSITION_DISPLAY_LABELS[result] ?? result;
+}
+
+function logQcSummaryError(returnId: string, error: unknown) {
+    if (!import.meta.env.DEV) {
+        return;
+    }
+
+    if (error instanceof ApiError) {
+        console.error("Không thể tải QC summary của phiếu hoàn", {
+            returnId,
+            status: error.status,
+            code: error.code,
+            requestId: error.requestId
+        });
+        return;
+    }
+
+    console.error("Không thể tải QC summary của phiếu hoàn", {
+        returnId,
+        error
+    });
+}
+
 function DispositionBadge({ result }: { result?: CustomerReturnQcResult | null }) {
     if (!result) {
         return (
@@ -212,19 +244,19 @@ function DispositionBadge({ result }: { result?: CustomerReturnQcResult | null }
         { label: string; className: string }
     > = {
         RESTOCK: {
-            label: "Nhập lại kho",
+            label: QC_DISPOSITION_DISPLAY_LABELS.RESTOCK,
             className: styles.dispositionRestock
         },
         DAMAGED: {
-            label: "Hàng hỏng",
+            label: QC_DISPOSITION_DISPLAY_LABELS.DAMAGED,
             className: styles.dispositionDamaged
         },
         QUARANTINE: {
-            label: "Cách ly",
+            label: QC_DISPOSITION_DISPLAY_LABELS.QUARANTINE,
             className: styles.dispositionQuarantine
         },
         WRITE_OFF: {
-            label: "Tiêu hủy",
+            label: QC_DISPOSITION_DISPLAY_LABELS.WRITE_OFF,
             className: styles.dispositionWriteOff
         }
     };
@@ -780,9 +812,6 @@ function ReturnDetailModal({
     const [activeLocations, setActiveLocations] = useState<
         InventoryLocationResponse[]
     >([]);
-    const [quarantineLocations, setQuarantineLocations] = useState<
-        InventoryLocationResponse[]
-    >([]);
     const [damagedLocations, setDamagedLocations] = useState<
         InventoryLocationResponse[]
     >([]);
@@ -796,7 +825,6 @@ function ReturnDetailModal({
     const [activeDispositionCommand, setActiveDispositionCommand] =
         useState<OrderReturnInventoryDispositionResponse | null>(null);
 
-    const branchId = qcSummary?.branchId ?? returnItem.branchId ?? null;
     const summaryLines = useMemo(
         () => qcSummary?.lines ?? [],
         [qcSummary?.lines]
@@ -811,24 +839,13 @@ function ReturnDetailModal({
     const allLocationsMap = useMemo(() => {
         const map = new Map<string, InventoryLocationResponse>();
         activeLocations.forEach((loc) => map.set(String(loc.id), loc));
-        quarantineLocations.forEach((loc) => map.set(String(loc.id), loc));
         damagedLocations.forEach((loc) => map.set(String(loc.id), loc));
         return map;
-    }, [activeLocations, quarantineLocations, damagedLocations]);
+    }, [activeLocations, damagedLocations]);
     const restockLocations = useMemo(
         () => activeLocations.filter(isSaleableReturnLocation),
         [activeLocations]
     );
-    const normalizedQuarantineLocations = useMemo(() => {
-        const map = new Map<string, InventoryLocationResponse>();
-        activeLocations
-            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
-            .forEach((l) => map.set(String(l.id), l));
-        quarantineLocations
-            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
-            .forEach((l) => map.set(String(l.id), l));
-        return Array.from(map.values());
-    }, [activeLocations, quarantineLocations]);
     const normalizedDamagedLocations = useMemo(() => {
         const map = new Map<string, InventoryLocationResponse>();
         activeLocations
@@ -839,19 +856,32 @@ function ReturnDetailModal({
             .forEach((l) => map.set(String(l.id), l));
         return Array.from(map.values());
     }, [activeLocations, damagedLocations]);
+    const shouldLoadQcSummary =
+        returnItem.status === "RECEIVED" || returnItem.status === "COMPLETED";
     const isQcCompleted = qcSummary?.qcStatus === "COMPLETED";
     const qcStatusLabel = (() => {
         if (isQcSummaryLoading) {
             return "Đang tải...";
         }
 
-        if (qcSummary?.qcStatus === "PENDING") {
-            return qcSummary.inspectionStatus === "CREATED"
-                ? "Đang kiểm tra hàng trả"
-                : "Chờ kiểm tra hàng trả";
+        if (qcSummaryError) {
+            return "Không thể tải";
         }
 
-        return getCustomerReturnQcStatusLabel(qcSummary?.qcStatus);
+        if (
+            !qcSummary ||
+            qcSummary.qcStatus === "PENDING" ||
+            qcSummary.qcStatus === "UNAVAILABLE" ||
+            qcSummary.qcStatus === "UNKNOWN"
+        ) {
+            return "Chờ kiểm tra chất lượng";
+        }
+
+        if (qcSummary.qcStatus === "PARTIAL") {
+            return "Đang kiểm tra chất lượng";
+        }
+
+        return "Đã kiểm tra chất lượng";
     })();
 
     useEffect(() => {
@@ -867,7 +897,6 @@ function ReturnDetailModal({
             setQcNote("");
             setQcFormError(null);
             setActiveLocations([]);
-            setQuarantineLocations([]);
             setDamagedLocations([]);
             setLocationError(null);
         }, 0);
@@ -876,7 +905,7 @@ function ReturnDetailModal({
     }, [returnItem.id]);
 
     useEffect(() => {
-        if (returnItem.status !== "RECEIVED") {
+        if (!shouldLoadQcSummary) {
             const timerId = window.setTimeout(() => {
                 setQcSummary(null);
                 setQcSummaryError(null);
@@ -899,8 +928,11 @@ function ReturnDetailModal({
                 })
                 .catch((error: unknown) => {
                     if (!ignore) {
+                        logQcSummaryError(returnItem.id, error);
                         setQcSummary(null);
-                        setQcSummaryError(getReturnErrorMessage(error));
+                        setQcSummaryError(
+                            "Không thể tải thông tin kiểm tra hàng trả"
+                        );
                     }
                 })
                 .finally(() => {
@@ -914,10 +946,10 @@ function ReturnDetailModal({
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [qcReloadKey, returnItem.id, returnItem.status]);
+    }, [qcReloadKey, returnItem.id, shouldLoadQcSummary]);
 
     useEffect(() => {
-        if (!isQcOpen || !branchId) {
+        if (!isQcOpen) {
             return;
         }
 
@@ -928,37 +960,26 @@ function ReturnDetailModal({
 
             Promise.all([
                 inventoryLocationApi.list({
-                    branchId,
                     page: 0,
                     size: 100,
                     status: "ACTIVE"
                 }),
                 inventoryLocationApi.list({
-                    branchId,
-                    page: 0,
-                    size: 100,
-                    status: "ACTIVE",
-                    type: "QUARANTINE"
-                }),
-                inventoryLocationApi.list({
-                    branchId,
                     page: 0,
                     size: 100,
                     status: "ACTIVE",
                     type: "DAMAGED"
                 })
             ])
-                .then(([activePage, quarantinePage, damagedPage]) => {
+                .then(([activePage, damagedPage]) => {
                     if (!ignore) {
                         setActiveLocations(activePage.content ?? []);
-                        setQuarantineLocations(quarantinePage.content ?? []);
                         setDamagedLocations(damagedPage.content ?? []);
                     }
                 })
                 .catch((error: unknown) => {
                     if (!ignore) {
                         setActiveLocations([]);
-                        setQuarantineLocations([]);
                         setDamagedLocations([]);
                         setLocationError(getReturnErrorMessage(error));
                     }
@@ -974,7 +995,7 @@ function ReturnDetailModal({
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [branchId, isQcOpen]);
+    }, [isQcOpen]);
 
     useEffect(() => {
         if (!isQcOpen || activeDispositionCommand) {
@@ -1046,10 +1067,6 @@ function ReturnDetailModal({
 
     const getLocationOptions = useCallback(
         (result: CustomerReturnQcResult) => {
-            if (result === "QUARANTINE") {
-                return normalizedQuarantineLocations;
-            }
-
             if (result === "RESTOCK") {
                 return restockLocations;
             }
@@ -1060,11 +1077,7 @@ function ReturnDetailModal({
 
             return [];
         },
-        [
-            normalizedDamagedLocations,
-            normalizedQuarantineLocations,
-            restockLocations
-        ]
+        [normalizedDamagedLocations, restockLocations]
     );
 
     const selectedLines = useMemo(
@@ -1073,6 +1086,18 @@ function ReturnDetailModal({
                 (line) => qcDraftLines[line.returnItemId]?.selected
             ),
         [qcDraftLines, remainingLines]
+    );
+
+    const selectedLinesRequireLocation = useMemo(
+        () =>
+            selectedLines.some((line) => {
+                const draft =
+                    qcDraftLines[line.returnItemId] ??
+                    createDefaultQcDraftLine(line);
+
+                return draft.result !== "WRITE_OFF";
+            }),
+        [qcDraftLines, selectedLines]
     );
 
     const hasEmptyLocationConflict = useMemo(
@@ -1090,10 +1115,6 @@ function ReturnDetailModal({
     );
 
     const validateQcDraft = () => {
-        if (!branchId) {
-            return "Phiếu hoàn chưa có thông tin chi nhánh để chọn vị trí kho.";
-        }
-
         if (selectedLines.length === 0) {
             return "Vui lòng chọn ít nhất một sản phẩm cần kiểm tra.";
         }
@@ -1122,7 +1143,7 @@ function ReturnDetailModal({
 
             if (draft.result === "RESTOCK") {
                 if (restockLocations.length === 0) {
-                    return `Chi nhánh chưa cấu hình vị trí kho bán được.`;
+                    return `Chưa cấu hình vị trí kho bán được.`;
                 }
 
                 const isValidLocation = restockLocations.some(
@@ -1137,7 +1158,7 @@ function ReturnDetailModal({
 
             if (draft.result === "DAMAGED") {
                 if (normalizedDamagedLocations.length === 0) {
-                    return `Chi nhánh chưa cấu hình khu vực hàng hỏng.`;
+                    return `Chưa cấu hình vị trí hàng hỏng.`;
                 }
 
                 const isValidLocation = normalizedDamagedLocations.some(
@@ -1147,21 +1168,6 @@ function ReturnDetailModal({
 
                 if (!draft.destinationLocationId || !isValidLocation) {
                     return `Vui lòng chọn vị trí kho hàng hỏng.`;
-                }
-            }
-
-            if (draft.result === "QUARANTINE") {
-                if (normalizedQuarantineLocations.length === 0) {
-                    return `Chi nhánh chưa cấu hình khu vực cách ly.`;
-                }
-
-                const isValidLocation = normalizedQuarantineLocations.some(
-                    (location) =>
-                        String(location.id) === draft.destinationLocationId
-                );
-
-                if (!draft.destinationLocationId || !isValidLocation) {
-                    return `Vui lòng chọn vị trí cách ly.`;
                 }
             }
 
@@ -1396,7 +1402,7 @@ function ReturnDetailModal({
                                 />
                                 <InfoRow
                                     label="Khách hàng"
-                                    value={returnItem.customerName || "--"}
+                                    value={returnItem.customerName || "Khách lẻ"}
                                 />
                                 <InfoRow
                                     label="Chính sách hoàn tiền"
@@ -1416,9 +1422,10 @@ function ReturnDetailModal({
                                 />
                             </div>
                             {returnItem.note ? (
-                                <p className={styles.detailNote}>
-                                    {returnItem.note}
-                                </p>
+                                <div className={styles.detailNote}>
+                                    <strong>Ghi chú</strong>
+                                    <p>{returnItem.note}</p>
+                                </div>
                             ) : null}
                         </section>
 
@@ -1430,35 +1437,50 @@ function ReturnDetailModal({
                                         className={styles.detailItem}
                                         key={item.id ?? index}
                                     >
-                                        <div>
+                                        <div className={styles.detailItemIdentity}>
                                             <strong>
                                                 {item.productNameSnapshot ||
                                                     "Sản phẩm"}
                                             </strong>
                                             <span>
-                                                {item.skuSnapshot || "--"} ·{" "}
-                                                {item.variantNameSnapshot ||
-                                                    "Không có phân loại"}
+                                                SKU: {item.skuSnapshot || "--"}
+                                                {item.variantNameSnapshot
+                                                    ? ` · ${item.variantNameSnapshot}`
+                                                    : ""}
                                             </span>
                                         </div>
-                                        <div>
+                                        <div className={styles.detailItemQuantity}>
+                                            <span>Số lượng hoàn</span>
                                             <strong>
-                                                SL{" "}
                                                 {formatReturnQuantity(
                                                     item.quantity
                                                 )}
                                             </strong>
-                                            <small>
-                                                {getReturnReasonLabel(
-                                                    item.reason
-                                                )}{" "}
-                                                ·{" "}
-                                                {getReturnConditionLabel(
-                                                    item.condition
-                                                )}
-                                            </small>
                                         </div>
-                                        {item.note ? <p>{item.note}</p> : null}
+                                        <dl className={styles.detailItemMeta}>
+                                            <div>
+                                                <dt>Lý do</dt>
+                                                <dd>
+                                                    {getReturnReasonLabel(
+                                                        item.reason
+                                                    )}
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt>Tình trạng</dt>
+                                                <dd>
+                                                    {getReturnConditionLabel(
+                                                        item.condition
+                                                    )}
+                                                </dd>
+                                            </div>
+                                        </dl>
+                                        {item.note ? (
+                                            <p className={styles.detailItemNote}>
+                                                <span>Ghi chú</span>
+                                                {item.note}
+                                            </p>
+                                        ) : null}
                                     </div>
                                 ))}
                             </div>
@@ -1468,7 +1490,7 @@ function ReturnDetailModal({
                             <div className={styles.qcHeader}>
                                 <div>
                                     <h3>Kiểm tra hàng trả</h3>
-                                    {returnItem.status === "RECEIVED" ? (
+                                    {shouldLoadQcSummary && !qcSummaryError ? (
                                         <p>
                                             Trạng thái xử lý kho:{" "}
                                             <strong>
@@ -1499,14 +1521,14 @@ function ReturnDetailModal({
 
                             {returnItem.status === "CREATED" ? (
                                 <PanelMessage
-                                    description="Phiếu hoàn chưa được nhận hàng nên chưa thể QC."
-                                    title="Chưa được QC"
+                                    description="Phiếu hoàn cần được xác nhận nhận hàng trước khi kiểm tra chất lượng."
+                                    title="Chưa thể kiểm tra hàng trả"
                                 />
                             ) : null}
                             {returnItem.status === "CANCELLED" ? (
                                 <PanelMessage
-                                    description="Phiếu hoàn đã hủy nên không được QC."
-                                    title="Không được QC"
+                                    description="Phiếu hoàn đã hủy nên không phát sinh kiểm tra chất lượng."
+                                    title="Không thể kiểm tra hàng trả"
                                 />
                             ) : null}
                             {returnItem.status === "COMPLETED" ? (
@@ -1520,18 +1542,17 @@ function ReturnDetailModal({
                                 />
                             ) : null}
 
-                            {returnItem.status === "RECEIVED" ? (
+                            {shouldLoadQcSummary ? (
                                 <>
                                     {isQcSummaryLoading ? (
                                         <PanelMessage
-                                            description="Đang tải số lượng đã kiểm tra và còn lại."
-                                            title="Đang tải QC summary"
+                                            description="Đang tải kết quả và tiến độ xử lý kho."
+                                            title="Đang tải thông tin kiểm tra"
                                         />
                                     ) : null}
                                     {!isQcSummaryLoading && qcSummaryError ? (
                                         <PanelMessage
-                                            description={qcSummaryError}
-                                            title="Không tải được QC summary"
+                                            title={qcSummaryError}
                                         />
                                     ) : null}
                                     {!isQcSummaryLoading &&
@@ -1541,9 +1562,9 @@ function ReturnDetailModal({
                                             description={
                                                 qcSummary.inspectionStatus === "CREATED"
                                                     ? "Phiếu kiểm tra đã được tạo và đang chờ hoàn tất xử lý kho."
-                                                    : "Phiếu hoàn đã được nhận hàng và đang chờ kiểm tra hàng trả."
+                                                    : "Phiếu hoàn đã được nhận hàng và đang chờ kiểm tra chất lượng."
                                             }
-                                            title={qcStatusLabel}
+                                            title="Chờ kiểm tra chất lượng"
                                         />
                                     ) : null}
                                     {!isQcSummaryLoading &&
@@ -1593,7 +1614,7 @@ function ReturnDetailModal({
                                                                 <span
                                                                     key={disposition.result}
                                                                 >
-                                                                    {getCustomerReturnQcResultLabel(
+                                                                    {getQcDispositionDisplayLabel(
                                                                         disposition.result
                                                                     )}
                                                                     :{" "}
@@ -1788,10 +1809,7 @@ function ReturnDetailModal({
                                                                                 </div>
                                                                                 <div
                                                                                     className={
-                                                                                        draft.result ===
-                                                                                        "WRITE_OFF"
-                                                                                            ? styles.qcInputGridTwoCol
-                                                                                            : styles.qcInputGrid
+                                                                                        styles.qcInputGrid
                                                                                     }
                                                                                 >
                                                                                     <label>
@@ -1879,11 +1897,11 @@ function ReturnDetailModal({
                                                                                             )}
                                                                                         </select>
                                                                                     </label>
-                                                                                    {isLocationRequired ? (
-                                                                                        <label>
-                                                                                            <span>
-                                                                                                Vị trí đích
-                                                                                            </span>
+                                                                                    <label>
+                                                                                        <span>
+                                                                                            Vị trí đích
+                                                                                        </span>
+                                                                                        {isLocationRequired ? (
                                                                                             <select
                                                                                                 disabled={
                                                                                                     !draft.selected ||
@@ -1911,8 +1929,6 @@ function ReturnDetailModal({
                                                                                                 {isLocationEmpty
                                                                                                     ? draft.result === "DAMAGED"
                                                                                                         ? "-- Chưa có kho hàng hỏng --"
-                                                                                                        : draft.result === "QUARANTINE"
-                                                                                                        ? "-- Chưa có kho cách ly --"
                                                                                                         : "-- Chưa có kho bán được --"
                                                                                                     : "Chọn vị trí"}
                                                                                             </option>
@@ -1935,8 +1951,19 @@ function ReturnDetailModal({
                                                                                                 )
                                                                                             )}
                                                                                         </select>
+                                                                                        ) : (
+                                                                                            <div
+                                                                                                aria-disabled={
+                                                                                                    !draft.selected
+                                                                                                }
+                                                                                                className={
+                                                                                                    styles.qcReadonlyField
+                                                                                                }
+                                                                                            >
+                                                                                                Không áp dụng
+                                                                                            </div>
+                                                                                        )}
                                                                                     </label>
-                                                                                ) : null}
                                                                                 <label
                                                                                     className={
                                                                                         styles.fullField
@@ -1997,19 +2024,13 @@ function ReturnDetailModal({
                                                                             {draft.selected && draft.result === "DAMAGED" && normalizedDamagedLocations.length === 0 ? (
                                                                                 <div className={styles.emptyLocationWarning}>
                                                                                     <AlertTriangle size={15} aria-hidden="true" />
-                                                                                    Chi nhánh chưa cấu hình khu vực hàng hỏng.
-                                                                                </div>
-                                                                            ) : null}
-                                                                            {draft.selected && draft.result === "QUARANTINE" && normalizedQuarantineLocations.length === 0 ? (
-                                                                                <div className={styles.emptyLocationWarning}>
-                                                                                    <AlertTriangle size={15} aria-hidden="true" />
-                                                                                    Chi nhánh chưa cấu hình khu vực cách ly.
+                                                                                    Chưa cấu hình vị trí hàng hỏng.
                                                                                 </div>
                                                                             ) : null}
                                                                             {draft.selected && draft.result === "RESTOCK" && restockLocations.length === 0 ? (
                                                                                 <div className={styles.emptyLocationWarning}>
                                                                                     <AlertTriangle size={15} aria-hidden="true" />
-                                                                                    Chi nhánh chưa cấu hình vị trí kho bán được.
+                                                                                    Chưa cấu hình vị trí kho bán được.
                                                                                 </div>
                                                                             ) : null}
                                                                         </div>
@@ -2052,7 +2073,7 @@ function ReturnDetailModal({
                                                             />
                                                         </label>
 
-                                                        {locationError ? (
+                                                        {selectedLinesRequireLocation && locationError ? (
                                                             <p className={styles.qcError}>
                                                                 {locationError}
                                                             </p>
@@ -2084,7 +2105,8 @@ function ReturnDetailModal({
                                                                     styles.primaryButton
                                                                 }
                                                                 disabled={
-                                                                    isLocationLoading ||
+                                                                    (selectedLinesRequireLocation &&
+                                                                        isLocationLoading) ||
                                                                     remainingLines.length === 0 ||
                                                                     selectedLines.length === 0 ||
                                                                     hasEmptyLocationConflict
@@ -2585,13 +2607,13 @@ function PanelMessage({
     description,
     title
 }: {
-    description: string;
+    description?: string;
     title: string;
 }) {
     return (
         <div className={styles.panelMessage}>
             <strong>{title}</strong>
-            <span>{description}</span>
+            {description ? <span>{description}</span> : null}
         </div>
     );
 }

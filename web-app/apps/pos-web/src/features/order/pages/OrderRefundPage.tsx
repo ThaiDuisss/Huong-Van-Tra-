@@ -1,7 +1,6 @@
 import {
     ChevronLeft,
     ChevronRight,
-    Eye,
     RefreshCw,
     Search,
     WalletCards,
@@ -41,6 +40,23 @@ import styles from "./OrderRefundPage.module.css";
 
 type RefundFilterKey = "ALL" | OrderRefundStatus;
 type ToastState = { message: string; type: "success" | "error" };
+type RefundProgress =
+    | "WAITING_RECEIPT"
+    | "WAITING_QC"
+    | "WAITING_REFUND"
+    | "REFUNDED"
+    | "FAILED";
+
+const REFUND_PROGRESS: Record<
+    RefundProgress,
+    { label: string; tone: "amber" | "gray" | "green" | "orange" | "red" }
+> = {
+    WAITING_RECEIPT: { label: "Chờ nhận hàng", tone: "gray" },
+    WAITING_QC: { label: "Chờ QC", tone: "amber" },
+    WAITING_REFUND: { label: "Chờ hoàn tiền", tone: "orange" },
+    REFUNDED: { label: "Đã hoàn tiền", tone: "green" },
+    FAILED: { label: "Hoàn tiền thất bại", tone: "red" }
+};
 
 const PAGE_SIZE = 20;
 
@@ -183,6 +199,34 @@ function getQcStatusLabel(status?: string | null) {
 
 function getMethodLabel(method?: string | null) {
     return method ? METHOD_LABELS[method] ?? method : "--";
+}
+
+function getRefundProgress(row: OrderRefundSummaryResponse) {
+    let progress: RefundProgress;
+
+    if (row.refundStatus === "FAILED") {
+        progress = "FAILED";
+    } else if (row.refundStatus === "REFUNDED") {
+        progress = "REFUNDED";
+    } else if (row.returnStatus === "CREATED") {
+        progress = "WAITING_RECEIPT";
+    } else if (
+        row.qcStatus === "COMPLETED" ||
+        row.refundStatus === "PENDING"
+    ) {
+        progress = "WAITING_REFUND";
+    } else if (
+        row.returnStatus === "RECEIVED" ||
+        row.returnStatus === "COMPLETED" ||
+        row.qcStatus === "PENDING" ||
+        row.qcStatus === "PARTIAL"
+    ) {
+        progress = "WAITING_QC";
+    } else {
+        progress = "WAITING_RECEIPT";
+    }
+
+    return REFUND_PROGRESS[progress];
 }
 
 function canRefund(row: OrderRefundSummaryResponse) {
@@ -520,27 +564,21 @@ export function OrderRefundPage() {
                         <div className={styles.tableWrap}>
                             <table className={styles.refundTable}>
                                 <colgroup>
+                                    <col style={{ width: "17%" }} />
                                     <col style={{ width: "14%" }} />
+                                    <col style={{ width: "16%" }} />
+                                    <col style={{ width: "24%" }} />
+                                    <col style={{ width: "16%" }} />
                                     <col style={{ width: "13%" }} />
-                                    <col style={{ width: "18%" }} />
-                                    <col style={{ width: "13%" }} />
-                                    <col style={{ width: "11%" }} />
-                                    <col style={{ width: "12%" }} />
-                                    <col style={{ width: "12%" }} />
-                                    <col style={{ width: "11%" }} />
-                                    <col style={{ width: "12%" }} />
                                 </colgroup>
                                 <thead>
                                     <tr>
                                         <th>Mã phiếu hoàn</th>
+                                        <th>Tiến trình</th>
                                         <th>Mã đơn hàng</th>
                                         <th>Khách hàng</th>
                                         <th>Số tiền hoàn</th>
-                                        <th>Phương thức</th>
-                                        <th>Trạng thái QC</th>
-                                        <th>Trạng thái hoàn tiền</th>
                                         <th>Ngày tạo</th>
-                                        <th>Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -556,65 +594,33 @@ export function OrderRefundPage() {
                                                 className={index % 2 === 0 ? styles.zebraFirstRow : styles.zebraSecondRow}
                                                 key={row.returnId}
                                                 onClick={() => openDetail(row)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter" || event.key === " ") {
+                                                        event.preventDefault();
+                                                        openDetail(row);
+                                                    }
+                                                }}
+                                                tabIndex={0}
                                             >
-                                                <td>
-                                                    <button className={styles.linkButton} type="button">
-                                                        {displayText(row.returnCode)}
-                                                    </button>
+                                                <td className={styles.code}>
+                                                    {displayText(row.returnCode)}
                                                 </td>
-                                                <td>{displayText(row.orderCode)}</td>
                                                 <td>
+                                                    <RefundProgressPill row={row} />
+                                                </td>
+                                                <td className={styles.code}>{displayText(row.orderCode)}</td>
+                                                <td className={styles.customerCell}>
                                                     <strong>{displayText(row.customerName, "Khách lẻ")}</strong>
-                                                    <span>{displayText(row.customerPhone)}</span>
+                                                    {row.customerPhone?.trim() ? (
+                                                        <span>{row.customerPhone.trim()}</span>
+                                                    ) : null}
                                                 </td>
                                                 <td>
                                                     {row.refundAmount === null || row.refundAmount === undefined
-                                                        ? "Chưa xác định"
-                                                        : formatCurrency(row.refundAmount)}
-                                                </td>
-                                                <td>{getMethodLabel(row.method)}</td>
-                                                <td>
-                                                    <StatusPill tone={row.qcStatus === "COMPLETED" ? "green" : "amber"}>
-                                                        {getQcStatusLabel(row.qcStatus)}
-                                                    </StatusPill>
-                                                </td>
-                                                <td>
-                                                    <StatusPill tone={row.refundStatus === "REFUNDED" ? "blue" : row.refundStatus === "PENDING" ? "green" : "gray"}>
-                                                        {getRefundStatusLabel(row.refundStatus)}
-                                                    </StatusPill>
+                                                        ? <span className={styles.unknownAmount}>Chưa xác định</span>
+                                                        : <span className={styles.refundAmount}>{formatCurrency(row.refundAmount)}</span>}
                                                 </td>
                                                 <td>{formatDateTime(row.returnCreatedAt)}</td>
-                                                <td>
-                                                    <div className={styles.rowActions}>
-                                                        <button
-                                                            aria-label={`Xem chi tiết ${displayText(row.returnCode)}`}
-                                                            className={styles.iconButton}
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                openDetail(row);
-                                                            }}
-                                                            type="button"
-                                                        >
-                                                            <Eye size={16} aria-hidden="true" />
-                                                        </button>
-                                                        {canRefund(row) ? (
-                                                            <button
-                                                                className={styles.refundButton}
-                                                                onClick={(event) => {
-                                                                    event.stopPropagation();
-                                                                    openConfirm(row);
-                                                                }}
-                                                                type="button"
-                                                            >
-                                                                <WalletCards size={15} aria-hidden="true" />
-                                                                Hoàn tiền
-                                                            </button>
-                                                        ) : null}
-                                                        {row.refundStatus === "PENDING" && row.method === "BANK_TRANSFER" ? (
-                                                            <span className={styles.unsupportedText}>Chưa hỗ trợ</span>
-                                                        ) : null}
-                                                    </div>
-                                                </td>
                                             </tr>
                                         ))
                                         : null}
@@ -677,6 +683,10 @@ export function OrderRefundPage() {
                     error={detailError}
                     loading={isDetailLoading}
                     onClose={closeDetail}
+                    onRefund={(row) => {
+                        closeDetail();
+                        openConfirm(row);
+                    }}
                 />
             ) : null}
 
@@ -704,7 +714,7 @@ export function OrderRefundPage() {
 function EmptyRow({ message, subText }: { message: string; subText?: string }) {
     return (
         <tr>
-            <td className={styles.emptyCell} colSpan={9}>
+            <td className={styles.emptyCell} colSpan={6}>
                 <strong>{message}</strong>
                 {subText ? <span>{subText}</span> : null}
             </td>
@@ -717,21 +727,29 @@ function StatusPill({
     tone
 }: {
     children: string;
-    tone: "amber" | "blue" | "gray" | "green";
+    tone: "amber" | "gray" | "green" | "orange" | "red";
 }) {
     return <span className={`${styles.statusPill} ${styles[tone]}`}>{children}</span>;
+}
+
+function RefundProgressPill({ row }: { row: OrderRefundSummaryResponse }) {
+    const progress = getRefundProgress(row);
+
+    return <StatusPill tone={progress.tone}>{progress.label}</StatusPill>;
 }
 
 function RefundDetailModal({
     detail,
     error,
     loading,
-    onClose
+    onClose,
+    onRefund
 }: {
     detail: OrderRefundDetailResponse | null;
     error: string | null;
     loading: boolean;
     onClose: () => void;
+    onRefund: (row: OrderRefundDetailResponse) => void;
 }) {
     return (
         <div className={styles.modalBackdrop} onClick={onClose} role="presentation">
@@ -801,6 +819,19 @@ function RefundDetailModal({
                                 ))}
                             </div>
                         </section>
+
+                        {canRefund(detail) ? (
+                            <div className={styles.detailActions}>
+                                <button
+                                    className={styles.refundButton}
+                                    onClick={() => onRefund(detail)}
+                                    type="button"
+                                >
+                                    <WalletCards size={16} aria-hidden="true" />
+                                    Hoàn tiền
+                                </button>
+                            </div>
+                        ) : null}
                     </div>
                 ) : null}
             </aside>

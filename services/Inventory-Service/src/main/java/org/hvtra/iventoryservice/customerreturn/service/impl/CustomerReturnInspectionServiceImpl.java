@@ -63,6 +63,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -98,12 +99,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         Map<UUID, OrderReturnItemResponse> returnItems = returnItemsById(orderReturn);
         Map<UUID, BigDecimal> postedQuantities = postedQuantities(returnId);
         Set<UUID> requestedReturnItems = new HashSet<>();
+        UUID inspectionBranchId = resolveInspectionBranch(orderReturn, request.lines());
 
         CustomerReturnInspection inspection = new CustomerReturnInspection();
         inspection.setInspectionCode(generateInspectionCode());
         inspection.setReturnId(orderReturn.id());
         inspection.setReturnCode(orderReturn.returnCode());
-        inspection.setBranchId(orderReturn.branchId());
+        inspection.setBranchId(inspectionBranchId);
         inspection.setOrderId(orderReturn.orderId());
         inspection.setOrderCode(orderReturn.orderCode());
         inspection.setStatus(CustomerReturnInspectionStatus.CREATED);
@@ -124,7 +126,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
 
             InventoryItem item = activeProductVariantItem(returnItem.productVariantId());
             InventoryLocation destination = resolveDestination(
-                    orderReturn.branchId(),
+                    inspectionBranchId,
                     lineRequest.result(),
                     lineRequest.destinationLocationId());
 
@@ -372,9 +374,6 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         if (orderReturn == null) {
             throw new ResourceNotFoundException("Order return", returnId);
         }
-        if (orderReturn.branchId() == null) {
-            throw new BadRequestException("Order return branchId is required for inventory QC");
-        }
         if (orderReturn.status() != OrderReturnStatus.RECEIVED) {
             throw new BadRequestException("Only RECEIVED order returns can be QC'd");
         }
@@ -441,6 +440,35 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         return validateDestinationForPosting(branchId, result, location);
     }
 
+    private UUID resolveInspectionBranch(
+            OrderReturnResponse orderReturn,
+            List<CreateCustomerReturnInspectionLineRequest> lines) {
+        Optional<UUID> destinationBranchId = lines.stream()
+                .map(CreateCustomerReturnInspectionLineRequest::destinationLocationId)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .map(destinationLocationId -> locationRepository.findById(destinationLocationId)
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "Inventory location",
+                                destinationLocationId))
+                        .getBranchId());
+        if (destinationBranchId.isPresent()) {
+            return destinationBranchId.get();
+        }
+        if (orderReturn.branchId() != null) {
+            return orderReturn.branchId();
+        }
+
+        List<UUID> activeBranchIds = locationRepository.findDistinctBranchIdsByStatus(InventoryStatus.ACTIVE);
+        if (activeBranchIds.size() == 1) {
+            return activeBranchIds.getFirst();
+        }
+        if (activeBranchIds.isEmpty()) {
+            throw new BadRequestException("No active inventory location is configured");
+        }
+        throw new BadRequestException("Cannot resolve the single inventory branch from active locations");
+    }
+
     private InventoryLocation validateDestinationForPosting(
             UUID branchId,
             CustomerReturnQcResult result,
@@ -471,6 +499,9 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             CustomerReturnQcResult result,
             String lineNote,
             String inspectionNote) {
+        if (result == CustomerReturnQcResult.QUARANTINE) {
+            throw new BadRequestException("QUARANTINE is no longer supported for customer return QC");
+        }
         if (condition == OrderReturnCondition.SEALED) {
             if (result == CustomerReturnQcResult.WRITE_OFF && !hasReasonableNote(lineNote, inspectionNote)) {
                 throw new BadRequestException("WRITE_OFF for SEALED return item requires a reason note");

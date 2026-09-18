@@ -939,6 +939,7 @@ export function PosSalePage() {
         try {
             const order = await posOrderApi.addDraftItem({
                 orderId: draftOrder?.id ?? null,
+                branchId: currentBranchId,
                 customerId: selectedCustomerId,
                 orderType,
                 productVariantId: variantId,

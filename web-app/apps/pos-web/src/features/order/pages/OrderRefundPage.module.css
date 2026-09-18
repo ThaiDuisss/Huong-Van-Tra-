@@ -38,7 +38,7 @@
   margin: 0;
   color: #172317;
   font-size: 30px;
-  font-weight: 950;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -46,7 +46,7 @@
   margin: 6px 0 0;
   color: #536078;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .body {
@@ -68,20 +68,20 @@
 .filterPanel {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 12px 16px;
 }
 
 .searchBox {
   display: flex;
-  flex: 0 1 560px;
+  flex: 0 0 460px;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   height: 44px;
   border: 1px solid #dfe6ee;
   border-radius: 8px;
   background: #ffffff;
-  padding: 0 14px;
+  padding: 0 16px;
 }
 
 .searchBox input {
@@ -107,7 +107,7 @@
   gap: 8px;
   color: #536078;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .statusFilters {
@@ -118,21 +118,21 @@
 }
 
 .statusChip {
-  height: 30px;
+  height: 28px;
   border: 1px solid #dfe6ee;
   border-radius: 999px;
   background: #ffffff;
   color: #536078;
   padding: 0 10px;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .statusChip strong {
   margin-left: 4px;
   color: inherit;
   font-size: 12px;
-  font-weight: 950;
+  font-weight: 600;
 }
 
 .activeStatusChip {
@@ -155,18 +155,18 @@
 
 .refundTable {
   width: 100%;
-  min-width: 1160px;
+  min-width: 760px;
   border-collapse: collapse;
-  color: #172317;
+  color: #334155;
   font-size: 14px;
   table-layout: fixed;
 }
 
 .refundTable th,
 .refundTable td {
-  height: 56px;
+  height: 52px;
   border-bottom: 1px solid #edf0f4;
-  padding: 0 12px;
+  padding: 0 10px;
   text-align: left;
   vertical-align: middle;
 }
@@ -177,21 +177,41 @@
   z-index: 2;
   border-bottom-color: #d7f0df;
   background: #f3f7f4;
-  color: #172317;
+  color: #0f172a;
   font-size: 13px;
-  font-weight: 950;
+  font-weight: 900;
 }
 
 .refundTable tbody tr {
   cursor: pointer;
+  transition: background-color 0.16s ease;
 }
 
-.refundTable td span {
+.refundTable tbody tr:focus-visible {
+  outline: 2px solid #07883a;
+  outline-offset: -2px;
+}
+
+.refundTable th:first-child,
+.refundTable td:first-child {
+  padding-left: 18px;
+}
+
+.customerCell strong {
   display: block;
-  margin-top: 3px;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.customerCell span {
+  display: block;
+  margin-top: 2px;
   color: #697684;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .zebraFirstRow {
@@ -199,7 +219,7 @@
 }
 
 .zebraSecondRow {
-  background: #f8fbf9;
+  background: #f3f7f4;
 }
 
 .zebraFirstRow:hover,
@@ -207,30 +227,43 @@
   background: #ecfdf3;
 }
 
-.linkButton {
-  border: 0;
-  background: transparent;
-  color: #172317;
-  padding: 0;
-  text-align: left;
-  font-weight: 950;
+.code {
+  overflow: hidden;
+  color: #0f172a;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.linkButton:hover {
-  color: #07883a;
+.refundAmount,
+.unknownAmount {
+  display: inline;
+  margin: 0;
+}
+
+.refundAmount {
+  color: #172317;
+  font-weight: 600;
+}
+
+.unknownAmount {
+  color: #8a94a6;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .statusPill {
   display: inline-flex;
   width: fit-content;
-  min-width: 86px;
-  height: 26px;
+  min-width: 96px;
+  height: 28px;
   align-items: center;
   justify-content: center;
   border-radius: 6px;
   padding: 0 9px;
-  font-size: 11px;
-  font-weight: 950;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .green {
@@ -238,14 +271,14 @@
   color: #159734;
 }
 
-.blue {
-  background: #e8f4ff;
-  color: #1687e8;
-}
-
 .amber {
   background: #fff4e5;
   color: #bc6a00;
+}
+
+.orange {
+  background: #fff0df;
+  color: #c55a11;
 }
 
 .gray {
@@ -253,11 +286,9 @@
   color: #536078;
 }
 
-.rowActions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
+.red {
+  background: #ffecec;
+  color: #df2525;
 }
 
 .iconButton {
@@ -307,12 +338,6 @@
 .secondaryButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.unsupportedText {
-  color: #a15c00;
-  font-size: 12px;
-  font-weight: 900;
 }
 
 .emptyCell {
@@ -437,6 +462,13 @@
   gap: 18px;
   overflow: auto;
   padding: 20px;
+}
+
+.detailActions {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #edf0f4;
+  padding-top: 16px;
 }
 
 .detailContent section h3 {

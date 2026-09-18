@@ -64,9 +64,11 @@ export const CUSTOMER_RETURN_QC_RESULT_EFFECTS: Record<
     WRITE_OFF: "Sản phẩm sẽ bị tiêu hủy và không tăng tồn kho."
 };
 
-export const CUSTOMER_RETURN_QC_RESULTS = Object.keys(
-    CUSTOMER_RETURN_QC_RESULT_LABELS
-) as CustomerReturnQcResult[];
+export const CUSTOMER_RETURN_QC_RESULTS: CustomerReturnQcResult[] = [
+    "RESTOCK",
+    "DAMAGED",
+    "WRITE_OFF"
+];
 
 export const RETURN_REASONS = Object.keys(
     RETURN_REASON_LABELS

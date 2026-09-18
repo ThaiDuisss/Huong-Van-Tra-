@@ -418,7 +418,7 @@
 .detailModal {
   display: grid;
   grid-template-rows: auto minmax(0, auto) auto;
-  width: min(820px, calc(100vw - 32px));
+  width: min(800px, calc(100vw - 32px));
   max-height: min(780px, calc(100vh - 48px));
   overflow: auto;
 }
@@ -429,18 +429,18 @@
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid #edf0f4;
-  padding: 18px 22px;
+  padding: 15px 22px;
 }
 
 .modalHeader h2 {
   margin: 0;
   color: #172317;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 950;
 }
 
 .modalHeader p {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: #536078;
   font-size: 13px;
   font-weight: 800;
@@ -827,11 +827,11 @@
 .detailItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px 16px;
+  gap: 10px 18px;
   border: 1px solid #edf0f4;
   border-radius: 8px;
   background: #f8faf9;
-  padding: 12px;
+  padding: 13px 14px;
 }
 
 .confirmItem strong,
@@ -859,6 +859,70 @@
   font-weight: 750;
 }
 
+.detailItemIdentity,
+.detailItemQuantity {
+  display: grid;
+  gap: 3px;
+}
+
+.detailItemQuantity {
+  min-width: 90px;
+  align-content: start;
+  justify-items: end;
+}
+
+.detailItemQuantity span {
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.detailItemMeta {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin: 0;
+  border-top: 1px solid #e7ece9;
+  padding-top: 10px;
+}
+
+.detailItemMeta div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.detailItemMeta dt,
+.detailItemMeta dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.detailItemMeta dt {
+  color: #697684;
+  font-weight: 750;
+}
+
+.detailItemMeta dd {
+  color: #334155;
+  font-weight: 850;
+}
+
+.detailItem .detailItemNote {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid #e7ece9;
+  padding-top: 9px;
+  font-size: 12px;
+}
+
+.detailItemNote span {
+  flex: 0 0 auto;
+  color: #697684;
+  font-weight: 750;
+}
+
 .detailSection {
   border-bottom: 1px solid #edf0f4;
   padding: 18px 22px;
@@ -874,13 +938,29 @@
 .detailInfoGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 28px;
+  gap: 12px 28px;
 }
 
 .detailNote {
+  display: grid;
+  gap: 5px;
   margin-top: 14px;
   background: #f3f7f4;
   color: #334155;
+}
+
+.detailNote strong {
+  color: #536078;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.detailNote p {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .detailActions {
@@ -1020,12 +1100,6 @@
   gap: 12px;
 }
 
-.qcInputGridTwoCol {
-  display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.5fr);
-  gap: 12px;
-}
-
 .qcInputGrid label {
   display: grid;
   gap: 7px;
@@ -1051,6 +1125,24 @@
 .qcInputGrid select {
   height: 40px;
   padding: 0 10px;
+}
+
+.qcReadonlyField {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #f8faf9;
+  padding: 0 10px;
+  color: #536078;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.qcReadonlyField[aria-disabled="true"] {
+  opacity: 0.6;
 }
 
 .qcInputGrid textarea {
@@ -1406,6 +1498,7 @@
   .orderPickerGrid,
   .reasonGrid,
   .detailInfoGrid,
+  .detailItemMeta,
   .qcMetaGrid,
   .qcInputGrid,
   .qcSummaryItem,
