@@ -2,15 +2,18 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { ReturnBusinessProgress } from "../components/ReturnBusinessProgress";
 import {
     getCustomerReturnQcSummary,
     getOrderRefundDetail,
-    getOrderReturnDetail
+    getOrderReturnDetail,
+    getOrderReturnTimeline
 } from "../services/order-return.api";
 import type {
     CustomerReturnQcSummaryResponse,
     OrderRefundDetailResponse,
-    OrderReturnResponse
+    OrderReturnResponse,
+    OrderReturnTimelineResponse
 } from "../types/order-return.types";
 import {
     formatReturnQuantity,
@@ -38,6 +41,7 @@ export function OrderReturnDetailPage() {
     const [detail, setDetail] = useState<OrderReturnResponse | null>(null);
     const [qcSummary, setQcSummary] = useState<CustomerReturnQcSummaryResponse | null>(null);
     const [refundDetail, setRefundDetail] = useState<OrderRefundDetailResponse | null>(null);
+    const [timeline, setTimeline] = useState<OrderReturnTimelineResponse[]>([]);
     const [loading, setLoading] = useState(Boolean(returnId));
     const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +69,11 @@ export function OrderReturnDetailPage() {
                         getOrderRefundDetail(returnId)
                             .then((rf) => {
                                 if (!ignore) setRefundDetail(rf);
+                            })
+                            .catch(() => {});
+                        getOrderReturnTimeline(returnId)
+                            .then((entries) => {
+                                if (!ignore) setTimeline(entries ?? []);
                             })
                             .catch(() => {});
                     }
@@ -185,6 +194,12 @@ export function OrderReturnDetailPage() {
                             <Info label="Ghi chú" value={detail.note} wide />
                         ) : null}
                     </section>
+
+                    <ReturnBusinessProgress
+                        qcSummary={qcSummary}
+                        returnData={detail}
+                        timeline={timeline}
+                    />
 
                     <section className={styles.card}>
                         <h2>Sản phẩm hoàn</h2>

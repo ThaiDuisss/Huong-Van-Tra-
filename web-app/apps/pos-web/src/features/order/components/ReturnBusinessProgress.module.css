@@ -1,0 +1,99 @@
+.container {
+    display: grid;
+    gap: 0;
+    padding: 18px;
+    border: 1px solid #e1e9e3;
+    border-radius: 14px;
+    background: #fbfdfb;
+}
+
+.container h3 {
+    margin: 0 0 14px;
+    color: #172317;
+    font-size: 15px;
+    font-weight: 900;
+}
+
+.step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 10px;
+    min-height: 58px;
+    color: #697684;
+}
+
+.step:not(:last-child)::after {
+    position: absolute;
+    top: 25px;
+    bottom: 0;
+    left: 13px;
+    width: 2px;
+    background: #dce5df;
+    content: "";
+}
+
+.step strong,
+.step span {
+    display: block;
+}
+
+.step > div > strong {
+    color: #536078;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.step > div > span {
+    margin-top: 3px;
+    font-size: 12px;
+}
+
+.completed > div > strong {
+    color: #176b2f;
+}
+
+.marker {
+    z-index: 1;
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 2px solid #cbd6ce;
+    border-radius: 999px;
+    background: #fff;
+}
+
+.completed .marker {
+    border-color: #159734;
+    background: #159734;
+    color: #fff;
+}
+
+.dispositionList {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.evidence {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid #d9e8dc;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.evidence strong {
+    color: #172317 !important;
+}
+
+.evidence span {
+    color: #536078;
+}
+
+.transactionId {
+    overflow-wrap: anywhere;
+    color: #718096 !important;
+}

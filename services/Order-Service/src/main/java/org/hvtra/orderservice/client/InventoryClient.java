@@ -147,10 +147,7 @@ public interface InventoryClient {
             BigDecimal returnedQuantity,
             BigDecimal postedQcQuantity,
             BigDecimal remainingQcQuantity,
-            BigDecimal inspectedQuantity,
-            BigDecimal acceptedQuantity,
-            BigDecimal rejectedQuantity,
-            String qcStatus
+            String status
     ) {
         public CustomerReturnQcLineResponse(
                 UUID returnItemId,
@@ -161,7 +158,7 @@ public interface InventoryClient {
                 BigDecimal rejectedQuantity,
                 String qcStatus
         ) {
-            this(returnItemId, orderItemId, null, returnedQuantity, inspectedQuantity, BigDecimal.ZERO, inspectedQuantity, acceptedQuantity, rejectedQuantity, qcStatus);
+            this(returnItemId, orderItemId, (UUID) null, returnedQuantity, inspectedQuantity, BigDecimal.ZERO, qcStatus);
         }
     }
 

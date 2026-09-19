@@ -24,6 +24,10 @@ public class OrderRefundSummaryResponse {
     private ReturnStatus returnStatus;
     private Boolean refundRequired;
     private String qcStatus;
+    private Boolean physicalDone;
+    private String inventoryProcessingStatus;
+    private UUID inspectionId;
+    private Instant inventoryProcessedAt;
     private OrderRefundStatus refundStatus;
     private BigDecimal refundAmount;
     private String paymentStatus;

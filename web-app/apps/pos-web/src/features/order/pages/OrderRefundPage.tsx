@@ -209,10 +209,11 @@ function getRefundProgress(row: OrderRefundSummaryResponse): { label: string; cl
 }
 
 function canRefund(row: OrderRefundSummaryResponse | OrderRefundDetailResponse) {
+    const refundAmount = Number(row.refundAmount);
     return (
         row.refundStatus === "PENDING" &&
-        typeof row.refundAmount === "number" &&
-        row.refundAmount > 0 &&
+        Number.isFinite(refundAmount) &&
+        refundAmount > 0 &&
         row.refundRequired !== false
     );
 }
@@ -769,7 +770,8 @@ function RefundDetailModal({
                                     ["Số điện thoại", displayText(detail.customerPhone)],
                                     ["Trạng thái Return", displayText(detail.returnStatus)],
                                     ["Chính sách hoàn tiền", detail.refundRequired === false ? "Không hoàn tiền" : "Có hoàn tiền"],
-                                    ["QC", getQcStatusLabel(detail.qcStatus)]
+                                    ["QC", getQcStatusLabel(detail.qcStatus)],
+                                    ["Xử lý kho", detail.physicalDone ? "Đã xử lý" : "Chờ kiểm hàng"]
                                 ]}
                             />
                         </section>
@@ -881,7 +883,7 @@ function RefundConfirmModal({
 
                 <div className={styles.modalFooter}>
                     <button className={styles.secondaryButton} disabled={refunding} onClick={onCancel} type="button">
-                        Hủy
+                        Đóng
                     </button>
                     <button className={styles.primaryButton} disabled={!canSubmit} onClick={onConfirm} type="button">
                         {refunding ? (

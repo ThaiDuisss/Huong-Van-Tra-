@@ -14,6 +14,7 @@ import type {
     OrderReturnRefundResponse,
     OrderReturnSummaryResponse,
     OrderReturnResponse,
+    OrderReturnTimelineResponse,
     OrderReturnInventoryDispositionResponse,
     SubmitReturnInventoryDispositionPayload
 } from "../types/order-return.types";
@@ -105,6 +106,12 @@ export function getOrderReturns(orderId: string) {
 export function getOrderReturnDetail(returnId: string) {
     return apiClient.get<OrderReturnResponse>(
         `/orders/returns/${encodeURIComponent(returnId)}`
+    );
+}
+
+export function getOrderReturnTimeline(returnId: string) {
+    return apiClient.get<OrderReturnTimelineResponse[]>(
+        `/orders/returns/${encodeURIComponent(returnId)}/timeline`
     );
 }
 

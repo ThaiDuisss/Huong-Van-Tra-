@@ -110,7 +110,7 @@ class OrderReturnRefundTransactionServiceImplTest {
     }
 
     @Test
-    void applyRefundSuccessUpdatesOrderAndKeepsReturnStatusReceived() {
+    void applyRefundSuccessUpdatesOrderAndCompletesReturn() {
         when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
         when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
         when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
@@ -134,8 +134,8 @@ class OrderReturnRefundTransactionServiceImplTest {
         assertEquals(orderId, response.getOrderId());
         assertEquals(paymentId, response.getPaymentId());
         assertEquals(transactionId, response.getRefundTransactionId());
-        assertEquals(ReturnStatus.RECEIVED, response.getReturnStatus());
-        assertEquals(ReturnStatus.RECEIVED, orderReturn.getStatus());
+        assertEquals(ReturnStatus.COMPLETED, response.getReturnStatus());
+        assertEquals(ReturnStatus.COMPLETED, orderReturn.getStatus());
         assertEquals(PaymentStatus.REFUNDED, order.getPaymentStatus());
         assertEquals(OrderReturnStatus.FULLY_RETURNED, order.getReturnStatus());
 
@@ -145,7 +145,7 @@ class OrderReturnRefundTransactionServiceImplTest {
                 orderReturn,
                 OrderReturnHistoryAction.REFUND_COMPLETED,
                 ReturnStatus.RECEIVED,
-                ReturnStatus.RECEIVED,
+                ReturnStatus.COMPLETED,
                 null,
                 "Refund completed",
                 "PAYMENT_TRANSACTION",
@@ -153,9 +153,14 @@ class OrderReturnRefundTransactionServiceImplTest {
         );
         verify(orderOutboxPublisher).publishReturnRefundCompletedNotification(
                 eq(orderReturn),
-                eq(ReturnStatus.RECEIVED),
+                eq(ReturnStatus.COMPLETED),
                 isNull(),
                 eq(paymentRefund)
+        );
+        verify(orderOutboxPublisher).publishReturnCompletedNotification(
+                eq(orderReturn),
+                eq(ReturnStatus.RECEIVED),
+                isNull()
         );
     }
 

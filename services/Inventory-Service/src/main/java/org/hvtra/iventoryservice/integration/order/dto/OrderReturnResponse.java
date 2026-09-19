@@ -17,4 +17,18 @@ public record OrderReturnResponse(
         Instant updatedAt,
         List<OrderReturnItemResponse> items
 ) {
+    public OrderReturnResponse(
+            UUID id,
+            String returnCode,
+            UUID orderId,
+            String orderCode,
+            UUID branchId,
+            OrderReturnStatus status,
+            String note,
+            Instant createdAt,
+            Instant updatedAt,
+            List<OrderReturnItemResponse> items
+    ) {
+        this(id, returnCode, orderId, orderCode, null, branchId, status, note, createdAt, updatedAt, items);
+    }
 }

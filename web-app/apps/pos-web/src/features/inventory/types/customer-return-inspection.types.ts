@@ -17,6 +17,7 @@ export interface CustomerReturnInspectionLine {
     note?: string;
     posted: boolean;
     transactionId?: string;
+    transactionType?: "CUSTOMER_RETURN_RECEIPT" | "WRITE_OFF" | string;
     condition?: string;
     returnReason?: string;
 }

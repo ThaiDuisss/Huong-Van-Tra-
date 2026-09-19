@@ -4,7 +4,9 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
 import org.hvtra.commonservice.kafka.outbox.service.OutboxEventService;
 import org.hvtra.orderservice.domain.entity.Order;
+import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommandLine;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
@@ -193,6 +195,10 @@ public class OrderOutboxPublisher {
             ReturnStatus oldStatus,
             UUID actorUserId
     ) {
+        String message = Boolean.TRUE.equals(orderReturn.getRefundRequired())
+                ? "Phiếu hoàn " + orderReturn.getReturnCode() + " đã hoàn tất xử lý và hoàn tiền."
+                : "Phiếu hoàn " + orderReturn.getReturnCode() + " đã hoàn tất xử lý hàng. Không phát sinh hoàn tiền.";
+
         publishReturnNotification(
                 orderReturn,
                 OrderEventType.RETURN_COMPLETED,
@@ -201,7 +207,7 @@ public class OrderOutboxPublisher {
                 ReturnStatus.COMPLETED,
                 actorUserId,
                 "Xử lý hàng trả hoàn tất",
-                "Phiếu hoàn " + orderReturn.getReturnCode() + " đã hoàn tất xử lý hàng. Không phát sinh hoàn tiền.",
+                message,
                 null,
                 null
         );
@@ -449,6 +455,10 @@ public class OrderOutboxPublisher {
         payload.put("causationId", causationId);
         payload.put("occurredAt", Instant.now());
 
+        if (OrderEventType.ORDER_COMPLETED.equals(eventType)) {
+            payload.put("items", orderItems(order));
+        }
+
         return payload;
     }
 
@@ -526,6 +536,7 @@ public class OrderOutboxPublisher {
         payload.put("correlationId", orderReturn.getId().toString());
         payload.put("causationId", actorUserId);
         payload.put("occurredAt", Instant.now());
+        payload.put("items", returnItems(orderReturn));
 
         return payload;
     }
@@ -673,4 +684,59 @@ public class OrderOutboxPublisher {
                 .toList();
     }
 
+    private List<Map<String, Object>> orderItems(Order order) {
+        if (order.getItems() == null) {
+            return List.of();
+        }
+
+        return order.getItems().stream()
+                .filter(item -> item != null && !Boolean.TRUE.equals(item.getIsDeleted()))
+                .map(this::orderItem)
+                .toList();
+    }
+
+    private Map<String, Object> orderItem(OrderItem item) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("orderItemId", item.getId() == null ? null : item.getId().toString());
+        map.put("productVariantId", item.getProductVariantId() == null ? null : item.getProductVariantId().toString());
+        map.put("sku", item.getSkuSnapshot());
+        map.put("productName", item.getProductNameSnapshot());
+        map.put("variantName", item.getVariantNameSnapshot());
+        map.put("quantity", item.getQuantity());
+        map.put("originalUnitPrice", item.getOriginalUnitPrice());
+        map.put("unitPrice", item.getActualUnitPrice());
+        map.put("discountAmount", item.getDiscountAmount());
+        map.put("lineTotal", item.getLineTotal());
+        map.put("bomVersionId", item.getBomVersionId() == null ? null : item.getBomVersionId().toString());
+        return map;
+    }
+
+    private List<Map<String, Object>> returnItems(OrderReturn orderReturn) {
+        if (orderReturn.getItems() == null) {
+            return List.of();
+        }
+
+        return orderReturn.getItems().stream()
+                .filter(item -> item != null && !Boolean.TRUE.equals(item.getIsDeleted()))
+                .map(this::returnItem)
+                .toList();
+    }
+
+    private Map<String, Object> returnItem(OrderReturnItem item) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("returnItemId", item.getId() == null ? null : item.getId().toString());
+        map.put("orderItemId", item.getOrderItem() == null || item.getOrderItem().getId() == null
+                ? null
+                : item.getOrderItem().getId().toString());
+        map.put("productVariantId", item.getOrderItem() == null || item.getOrderItem().getProductVariantId() == null
+                ? null
+                : item.getOrderItem().getProductVariantId().toString());
+        map.put("sku", item.getOrderItem() == null ? null : item.getOrderItem().getSkuSnapshot());
+        map.put("productName", item.getOrderItem() == null ? null : item.getOrderItem().getProductNameSnapshot());
+        map.put("quantity", item.getQuantity());
+        map.put("returnReason", item.getReason() == null ? null : item.getReason().name());
+        map.put("condition", item.getCondition() == null ? null : item.getCondition().name());
+        map.put("note", item.getNote());
+        return map;
+    }
 }

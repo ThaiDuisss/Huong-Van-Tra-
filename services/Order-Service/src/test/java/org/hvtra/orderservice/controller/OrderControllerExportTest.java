@@ -222,6 +222,7 @@ class OrderControllerExportTest {
         when(orderReturnService.getReturns(
                 "RET00001",
                 ReturnStatus.CREATED,
+                null,
                 LocalDate.of(2026, 9, 1),
                 LocalDate.of(2026, 9, 30),
                 "createdAt,desc",
@@ -244,6 +245,7 @@ class OrderControllerExportTest {
         verify(orderReturnService).getReturns(
                 "RET00001",
                 ReturnStatus.CREATED,
+                null,
                 LocalDate.of(2026, 9, 1),
                 LocalDate.of(2026, 9, 30),
                 "createdAt,desc",

@@ -92,6 +92,12 @@ public class OrderReturnRefundTransactionServiceImpl implements OrderReturnRefun
                 paymentRefund
         );
 
+        orderOutboxPublisher.publishReturnCompletedNotification(
+                orderReturn,
+                previousStatus,
+                actorUserId
+        );
+
         return OrderReturnRefundResponse.builder()
                 .returnId(orderReturn.getId())
                 .orderId(lockedOrder.getId())

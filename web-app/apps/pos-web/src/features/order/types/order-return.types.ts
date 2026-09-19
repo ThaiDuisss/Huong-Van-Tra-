@@ -145,6 +145,10 @@ export interface OrderRefundSummaryResponse {
     returnStatus?: ReturnStatus | null;
     refundRequired?: boolean | null;
     qcStatus?: CustomerReturnQcStatus | null;
+    physicalDone?: boolean | null;
+    inventoryProcessingStatus?: string | null;
+    inspectionId?: string | null;
+    inventoryProcessedAt?: string | null;
     refundStatus?: OrderRefundStatus | null;
     refundAmount?: number | string | null;
     paymentStatus?: string | null;
@@ -207,6 +211,22 @@ export interface CustomerReturnQcDispositionSummary {
     quantity?: number | string | null;
     destinationLocationId?: string | null;
     destinationLocationName?: string | null;
+    transactionId?: string | null;
+    transactionType?: "CUSTOMER_RETURN_RECEIPT" | "WRITE_OFF" | string | null;
+    processingStatus?: string | null;
+    processedAt?: string | null;
+}
+
+export interface OrderReturnTimelineResponse {
+    id: string;
+    action: "CREATED" | "RECEIVED" | "CANCELLED" | "QC_COMPLETED" | "REFUND_COMPLETED" | "COMPLETED";
+    fromStatus?: ReturnStatus | null;
+    toStatus?: ReturnStatus | null;
+    actorUserId?: string | null;
+    note?: string | null;
+    referenceType?: string | null;
+    referenceId?: string | null;
+    occurredAt?: string | null;
 }
 
 export interface CustomerReturnQcSummaryResponse {

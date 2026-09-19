@@ -177,6 +177,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         // Idempotency check 1: before pessimistic lock
         if (inspectionSnapshot.getStatus() == CustomerReturnInspectionStatus.POSTED) {
             log.info("Customer return inspection is already POSTED. Returning existing inspection without reprocessing: inspectionId={}", inspectionId);
+            acknowledgePostedInspection(inspectionSnapshot);
             return getInspection(inspectionId);
         }
         if (inspectionSnapshot.getStatus() == CustomerReturnInspectionStatus.CANCELLED) {
@@ -193,6 +194,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         // Idempotency check 2: under pessimistic lock
         if (inspection.getStatus() == CustomerReturnInspectionStatus.POSTED) {
             log.info("Customer return inspection is already POSTED (under lock). Returning existing inspection without reprocessing: inspectionId={}", inspectionId);
+            acknowledgePostedInspection(inspection);
             return toEnrichedResponse(inspection, orderReturn);
         }
         if (inspection.getStatus() == CustomerReturnInspectionStatus.CANCELLED) {
@@ -235,40 +237,48 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         inspection.setPostedAt(Instant.now());
         CustomerReturnInspection saved = inspectionRepository.saveAndFlush(inspection);
 
-        // Publish PROCESSED outbox event and transition inbox to PROCESSED
+        acknowledgePostedInspection(saved);
+
+        return toEnrichedResponse(saved, orderReturn);
+    }
+
+    private void acknowledgePostedInspection(CustomerReturnInspection inspection) {
+        // A POSTED inspection is durable evidence that stock was already handled. Keep
+        // acknowledgement repair idempotent so a retry never posts balances twice.
         Optional<InventoryInbox> inboxOpt = inboxRepository
-                .findFirstByInspectionIdAndConsumerGroup(saved.getId().toString(), consumerGroup);
+                .findFirstByInspectionIdAndConsumerGroup(inspection.getId().toString(), consumerGroup);
         if (inboxOpt.isEmpty()) {
-            inboxOpt = inboxRepository.findFirstByInspectionId(saved.getId().toString());
+            inboxOpt = inboxRepository.findFirstByInspectionId(inspection.getId().toString());
         }
         if (inboxOpt.isEmpty()) {
-            inboxOpt = inboxRepository.findFirstByEntityIdAndConsumerGroup(saved.getReturnId().toString(), consumerGroup);
+            inboxOpt = inboxRepository.findFirstByEntityIdAndConsumerGroup(
+                    inspection.getReturnId().toString(),
+                    consumerGroup
+            );
         }
         if (inboxOpt.isPresent()) {
             InventoryInbox inbox = inboxOpt.get();
             if (inbox.getStatus() != InboxStatus.PROCESSED) {
                 inbox.setStatus(InboxStatus.PROCESSED);
                 inbox.setProcessedAt(Instant.now());
-                inbox.setInspectionId(saved.getId().toString());
+                inbox.setInspectionId(inspection.getId().toString());
+                inbox.setLastError(null);
                 inboxRepository.saveAndFlush(inbox);
-
-                inventoryOutboxPublisher.publishReturnInventoryDispositionProcessed(
-                        inbox.getCommandId(),
-                        saved.getReturnId().toString(),
-                        saved.getId().toString(),
-                        inbox.getSagaId(),
-                        inbox.getCorrelationId()
-                );
-                log.info("Published processed outbox event after manual post. inspectionId={}, commandId={}, returnId={}",
-                        saved.getId(), inbox.getCommandId(), saved.getReturnId());
-            } else {
-                log.debug("Inbox record already PROCESSED. inspectionId={}, commandId={}", saved.getId(), inbox.getCommandId());
             }
-        } else {
-            log.warn("No inbox record found for inspectionId={}. Manual post completed without outbox event.", saved.getId());
-        }
 
-        return toEnrichedResponse(saved, orderReturn);
+            inventoryOutboxPublisher.publishReturnInventoryDispositionProcessed(
+                    inbox.getCommandId(),
+                    inspection.getReturnId().toString(),
+                    inspection.getId().toString(),
+                    inbox.getSagaId(),
+                    inbox.getCorrelationId()
+            );
+            log.info("Ensured processed outbox event for posted inspection. inspectionId={}, commandId={}, returnId={}",
+                    inspection.getId(), inbox.getCommandId(), inspection.getReturnId());
+        } else {
+            log.warn("No inbox record found for posted inspectionId={}. Cannot publish disposition acknowledgement.",
+                    inspection.getId());
+        }
     }
 
     @Override
@@ -729,7 +739,10 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     private record DispositionKey(
             CustomerReturnQcResult result,
             UUID destinationLocationId,
-            String destinationLocationName
+            String destinationLocationName,
+            UUID transactionId,
+            InventoryTransactionType transactionType,
+            Instant processedAt
     ) {}
 
     private QcProgress buildQcProgress(List<CustomerReturnInspection> inspections) {
@@ -739,17 +752,27 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
 
         inspections.stream()
                 .filter(inspection -> inspection.getStatus() == CustomerReturnInspectionStatus.POSTED)
-                .flatMap(inspection -> inspection.getLines().stream())
+                .forEach(inspection -> inspection.getLines().stream()
                 .filter(line -> Boolean.TRUE.equals(line.getPosted()))
                 .forEach(line -> {
                     postedQuantities.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
                     UUID locId = line.getDestinationLocation() != null ? line.getDestinationLocation().getId() : null;
                     String locName = line.getDestinationLocation() != null ? line.getDestinationLocation().getName() : null;
-                    DispositionKey key = new DispositionKey(line.getResult(), locId, locName);
+                    InventoryTransactionType transactionType = line.getResult() == CustomerReturnQcResult.WRITE_OFF
+                            ? InventoryTransactionType.WRITE_OFF
+                            : InventoryTransactionType.CUSTOMER_RETURN_RECEIPT;
+                    DispositionKey key = new DispositionKey(
+                            line.getResult(),
+                            locId,
+                            locName,
+                            line.getTransactionId(),
+                            transactionType,
+                            inspection.getPostedAt()
+                    );
                     dispositionsByItem
                             .computeIfAbsent(line.getReturnItemId(), ignored -> new LinkedHashMap<>())
                             .merge(key, line.getQuantity(), BigDecimal::add);
-                });
+                }));
 
         Instant inspectedAt = inspections.stream()
                 .filter(inspection -> inspection.getStatus() == CustomerReturnInspectionStatus.POSTED)
@@ -787,7 +810,11 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                             entry.getKey().result(),
                             entry.getValue(),
                             entry.getKey().destinationLocationId(),
-                            entry.getKey().destinationLocationName()
+                            entry.getKey().destinationLocationName(),
+                            entry.getKey().transactionId(),
+                            entry.getKey().transactionType(),
+                            "PROCESSED",
+                            entry.getKey().processedAt()
                     ))
                     .toList();
         }

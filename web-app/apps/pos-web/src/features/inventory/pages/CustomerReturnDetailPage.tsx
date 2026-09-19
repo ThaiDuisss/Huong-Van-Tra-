@@ -37,38 +37,41 @@ export function CustomerReturnDetailPage() {
     useEffect(() => {
         if (!inspectionId) return;
         let active = true;
-        setLoading(true);
-        setError("");
+        const timerId = window.setTimeout(() => {
+            setLoading(true);
+            setError("");
 
-        void customerReturnApi.getInspection(inspectionId)
-            .then(async (response) => {
-                if (!active) return;
-                setDetail(response);
+            void customerReturnApi.getInspection(inspectionId)
+                .then(async (response) => {
+                    if (!active) return;
+                    setDetail(response);
 
-                // Fetch active locations for the branch
-                try {
-                    const locRes = await inventoryLocationApi.list({
-                        branchId: response.branchId,
-                        status: "ACTIVE"
-                    });
-                    if (active && locRes?.content) {
-                        setLocations(locRes.content);
+                    // Fetch active locations for the branch
+                    try {
+                        const locRes = await inventoryLocationApi.list({
+                            branchId: response.branchId,
+                            status: "ACTIVE"
+                        });
+                        if (active && locRes?.content) {
+                            setLocations(locRes.content);
+                        }
+                    } catch {
+                        // non-fatal, proceed with existing locations
                     }
-                } catch {
-                    // non-fatal, proceed with existing locations
-                }
-            })
-            .catch((loadError: unknown) => {
-                if (active) {
-                    setError(loadError instanceof Error ? loadError.message : "Không thể tải phiếu kiểm định.");
-                }
-            })
-            .finally(() => {
-                if (active) setLoading(false);
-            });
+                })
+                .catch((loadError: unknown) => {
+                    if (active) {
+                        setError(loadError instanceof Error ? loadError.message : "Không thể tải phiếu kiểm định.");
+                    }
+                })
+                .finally(() => {
+                    if (active) setLoading(false);
+                });
+        }, 0);
 
         return () => {
             active = false;
+            window.clearTimeout(timerId);
         };
     }, [inspectionId]);
 
@@ -258,9 +261,17 @@ export function CustomerReturnDetailPage() {
                                             </td>
                                             <td className="border-t border-[#edf0f4]">
                                                 {line.posted ? (
-                                                    <span className="inline-flex items-center gap-1 rounded bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">
-                                                        <CheckCircle2 size={13} /> Đã tạo
-                                                    </span>
+                                                    <div className="grid gap-1">
+                                                        <span className="inline-flex w-fit items-center gap-1 rounded bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">
+                                                            <CheckCircle2 size={13} /> Đã xử lý
+                                                        </span>
+                                                        <span className="text-xs font-bold text-[#172317]">
+                                                            {line.transactionType ?? (line.result === "WRITE_OFF" ? "WRITE_OFF" : "CUSTOMER_RETURN_RECEIPT")}
+                                                        </span>
+                                                        <span className="text-[11px] text-[#697684]">
+                                                            Mã giao dịch: {line.transactionId ?? "Chưa xác định"}
+                                                        </span>
+                                                    </div>
                                                 ) : (
                                                     <span className="inline-flex rounded bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
                                                         Chưa tạo

@@ -20,6 +20,7 @@ import {
     type TimeNode
 } from "../../../components/shared/TimeHierarchyFilter.utils";
 import { ReturnInspectionModal } from "../components/ReturnInspectionModal";
+import { ReturnBusinessProgress } from "../components/ReturnBusinessProgress";
 import {
     cancelOrderReturn,
     getCustomerReturnQcSummary,
@@ -27,6 +28,7 @@ import {
     getOrderReturnList,
     getOrderReturnStatusCounts,
     getOrderReturnDetail,
+    getOrderReturnTimeline,
     receiveOrderReturn
 } from "../services/order-return.api";
 import type { OrderPageResponse } from "../types/order.types";
@@ -37,6 +39,7 @@ import type {
     OrderRefundDetailResponse,
     OrderReturnListRow,
     OrderReturnResponse,
+    OrderReturnTimelineResponse,
     ReturnFilterKey,
     ReturnStatus
 } from "../types/order-return.types";
@@ -836,6 +839,7 @@ function ReturnDetailModal({
         useState<CustomerReturnQcSummaryResponse | null>(null);
     const [refundDetail, setRefundDetail] =
         useState<OrderRefundDetailResponse | null>(null);
+    const [timeline, setTimeline] = useState<OrderReturnTimelineResponse[]>([]);
     const [isQcSummaryLoading, setIsQcSummaryLoading] = useState(false);
     const [qcSummaryError, setQcSummaryError] = useState<string | null>(null);
     const [qcReloadKey, setQcReloadKey] = useState(0);
@@ -942,6 +946,7 @@ function ReturnDetailModal({
         const timerId = window.setTimeout(() => {
             setQcSummary(null);
             setRefundDetail(null);
+            setTimeline([]);
             setQcSummaryError(null);
             setIsInspectionModalOpen(false);
         }, 0);
@@ -954,6 +959,7 @@ function ReturnDetailModal({
             const timerId = window.setTimeout(() => {
                 setQcSummary(null);
                 setRefundDetail(null);
+                setTimeline([]);
                 setQcSummaryError(null);
                 setIsQcSummaryLoading(false);
             }, 0);
@@ -999,6 +1005,18 @@ function ReturnDetailModal({
                 .catch(() => {
                     if (!ignore) {
                         setRefundDetail(null);
+                    }
+                });
+
+            getOrderReturnTimeline(returnItem.id)
+                .then((entries) => {
+                    if (!ignore) {
+                        setTimeline(entries ?? []);
+                    }
+                })
+                .catch(() => {
+                    if (!ignore) {
+                        setTimeline([]);
                     }
                 });
         }, 0);
@@ -1163,6 +1181,12 @@ function ReturnDetailModal({
                                 ))}
                             </div>
                         </section>
+
+                        <ReturnBusinessProgress
+                            qcSummary={qcSummary}
+                            returnData={returnItem}
+                            timeline={timeline}
+                        />
 
                         {/* Section C: Kiểm tra hàng trả (Summary Only) */}
                         <section className={styles.detailSection}>

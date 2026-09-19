@@ -364,6 +364,14 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .returnStatus(orderReturn.getStatus())
                 .refundRequired(orderReturn.getRefundRequired())
                 .qcStatus(qcStatus)
+                .physicalDone(physicalDone)
+                .inventoryProcessingStatus(resolveInventoryProcessingStatus(
+                        qcLookup.available(),
+                        qcSummary,
+                        physicalDone
+                ))
+                .inspectionId(qcSummary == null ? null : qcSummary.inspectionId())
+                .inventoryProcessedAt(qcSummary == null ? null : qcSummary.inspectedAt())
                 .refundStatus(refundStatus)
                 .refundAmount(refundAmount)
                 .totalAmountRefunded(paymentLookup.available() && paymentSummary != null
@@ -1357,6 +1365,14 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                             .returnStatus(summary.getStatus())
                             .refundRequired(orderReturn == null ? summary.getRefundRequired() : orderReturn.getRefundRequired())
                             .qcStatus(qcStatus)
+                            .physicalDone(physicalDone)
+                            .inventoryProcessingStatus(resolveInventoryProcessingStatus(
+                                    qcLookup.available(),
+                                    qcSummary,
+                                    physicalDone
+                            ))
+                            .inspectionId(qcSummary == null ? null : qcSummary.inspectionId())
+                            .inventoryProcessedAt(qcSummary == null ? null : qcSummary.inspectedAt())
                             .refundStatus(refundStatus)
                             .refundAmount(refundAmount)
                             .paymentStatus(paymentStatus)
@@ -1704,10 +1720,28 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             boolean paymentAvailable,
             boolean physicalDone
     ) {
-        if (!inventoryAvailable || !paymentAvailable) {
+        return resolveRefundStatus(
+                orderReturn,
+                paymentSummary,
+                inventoryAvailable,
+                paymentAvailable,
+                physicalDone,
+                null
+        );
+    }
+
+    private OrderRefundStatus resolveRefundStatus(
+            OrderReturn orderReturn,
+            PaymentClient.PaymentRefundSummaryResponse paymentSummary,
+            boolean inventoryAvailable,
+            boolean paymentAvailable,
+            boolean physicalDone,
+            BigDecimal refundAmount
+    ) {
+        if (!paymentAvailable || (!inventoryAvailable && !physicalDone)) {
             return OrderRefundStatus.NOT_READY;
         }
-        if (Boolean.FALSE.equals(orderReturn.getRefundRequired())) {
+        if (!Boolean.TRUE.equals(orderReturn.getRefundRequired())) {
             return OrderRefundStatus.NOT_REQUIRED;
         }
         if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
@@ -1716,10 +1750,33 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         if (paymentSummary != null && "FAILED".equals(paymentSummary.refundStatus())) {
             return OrderRefundStatus.FAILED;
         }
-        if (ReturnStatus.RECEIVED == orderReturn.getStatus() && physicalDone) {
+        if (ReturnStatus.RECEIVED == orderReturn.getStatus()
+                && physicalDone
+                && refundAmount != null
+                && refundAmount.compareTo(BigDecimal.ZERO) > 0) {
             return OrderRefundStatus.PENDING;
         }
         return OrderRefundStatus.NOT_READY;
+    }
+
+    private String resolveInventoryProcessingStatus(
+            boolean inventoryAvailable,
+            InventoryClient.CustomerReturnQcSummaryResponse qcSummary,
+            boolean physicalDone
+    ) {
+        if (physicalDone) {
+            return "PROCESSED";
+        }
+        if (!inventoryAvailable) {
+            return DOWNSTREAM_STATUS_UNAVAILABLE;
+        }
+        if (qcSummary == null) {
+            return "PENDING";
+        }
+        if ("PARTIAL".equals(qcSummary.qcStatus())) {
+            return "PROCESSING";
+        }
+        return qcSummary.inspectionStatus() == null ? "PENDING" : qcSummary.inspectionStatus();
     }
 
     private boolean isAvailabilityStatus(int status) {
