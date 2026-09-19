@@ -15,6 +15,7 @@ public record CustomerReturnInspectionResponse(
         UUID orderId,
         String orderCode,
         CustomerReturnInspectionStatus status,
+        Instant createdAt,
         Instant postedAt,
         String note,
         List<CustomerReturnInspectionLineResponse> lines

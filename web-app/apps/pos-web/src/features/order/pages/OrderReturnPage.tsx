@@ -1289,6 +1289,12 @@ function ReturnDetailModal({
                                                 </div>
                                             </div>
 
+                                            {qcSummary.inspectedAt ? (
+                                                <div style={{ fontSize: "12px", color: "var(--color-text-secondary, #64748b)", marginTop: "8px" }}>
+                                                    Kiểm hàng gần nhất: {formatDateTime(qcSummary.inspectedAt)}
+                                                </div>
+                                            ) : null}
+
                                             {qcSummary.qcStatus === "PENDING" ? (
                                                 <PanelMessage
                                                     description="Phiếu hoàn đã được nhận hàng và đang chờ kiểm tra chất lượng."
@@ -1337,9 +1343,9 @@ function ReturnDetailModal({
                                                                 )}
                                                             </span>
                                                             {(line.dispositions ?? []).map(
-                                                                (disposition) => (
+                                                                (disposition, dIdx) => (
                                                                     <span
-                                                                        key={disposition.result}
+                                                                        key={`${disposition.result}-${disposition.destinationLocationId ?? dIdx}`}
                                                                         style={{
                                                                             display: "inline-flex",
                                                                             alignItems: "center",
@@ -1356,6 +1362,11 @@ function ReturnDetailModal({
                                                                                 disposition.quantity
                                                                             )}
                                                                         </span>
+                                                                        {disposition.destinationLocationName ? (
+                                                                            <span style={{ fontSize: "12px", color: "var(--color-text-secondary, #64748b)" }}>
+                                                                                ({disposition.destinationLocationName})
+                                                                            </span>
+                                                                        ) : null}
                                                                     </span>
                                                                 )
                                                             )}

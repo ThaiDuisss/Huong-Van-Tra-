@@ -205,6 +205,8 @@ export interface CustomerReturnQcSummaryLine {
 export interface CustomerReturnQcDispositionSummary {
     result: CustomerReturnQcResult;
     quantity?: number | string | null;
+    destinationLocationId?: string | null;
+    destinationLocationName?: string | null;
 }
 
 export interface CustomerReturnQcSummaryResponse {
@@ -218,6 +220,7 @@ export interface CustomerReturnQcSummaryResponse {
     inspectionStatus?: CustomerReturnInspectionStatus | null;
     qcStatus?: CustomerReturnQcStatus | null;
     lines?: CustomerReturnQcSummaryLine[] | null;
+    inspectedAt?: string | null;
 }
 
 export interface CreateCustomerReturnInspectionLinePayload {

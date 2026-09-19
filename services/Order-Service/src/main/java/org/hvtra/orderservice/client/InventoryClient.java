@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
 import org.hvtra.orderservice.domain.enums.ReturnCondition;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
@@ -59,8 +60,10 @@ public interface InventoryClient {
     @Builder
     record ReleaseInventoryReservationItemRequest(
             UUID orderId,
+            UUID branchId,
             UUID productVariantId,
-            UUID locationId
+            UUID locationId,
+            BigDecimal quantity
     ) {}
 
     @Builder
@@ -68,10 +71,6 @@ public interface InventoryClient {
 
     record CustomerReturnQcSummaryBatchRequest(
             List<CustomerReturnSnapshot> returns
-    ) {}
-
-    record CustomerReturnQcDispositionReportRequest(
-            List<UUID> returnIds
     ) {}
 
     record CustomerReturnSnapshot(
@@ -93,6 +92,11 @@ public interface InventoryClient {
             String reason
     ) {}
 
+    record CustomerReturnQcDispositionReportRequest(
+            List<UUID> returnIds
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record CustomerReturnQcSummaryResponse(
             UUID returnId,
             String returnCode,
@@ -103,8 +107,24 @@ public interface InventoryClient {
             UUID inspectionId,
             String inspectionStatus,
             String qcStatus,
-            List<CustomerReturnQcLineResponse> lines
+            List<CustomerReturnQcLineResponse> lines,
+            Instant inspectedAt
     ) {
+        public CustomerReturnQcSummaryResponse(
+                UUID returnId,
+                String returnCode,
+                String returnStatus,
+                UUID branchId,
+                UUID orderId,
+                String orderCode,
+                UUID inspectionId,
+                String inspectionStatus,
+                String qcStatus,
+                List<CustomerReturnQcLineResponse> lines
+        ) {
+            this(returnId, returnCode, returnStatus, branchId, orderId, orderCode, inspectionId, inspectionStatus, qcStatus, lines, null);
+        }
+
         public CustomerReturnQcSummaryResponse(
                 UUID returnId,
                 String returnCode,
@@ -115,10 +135,11 @@ public interface InventoryClient {
                 String qcStatus,
                 List<CustomerReturnQcLineResponse> lines
         ) {
-            this(returnId, returnCode, returnStatus, branchId, orderId, orderCode, null, null, qcStatus, lines);
+            this(returnId, returnCode, returnStatus, branchId, orderId, orderCode, null, null, qcStatus, lines, null);
         }
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record CustomerReturnQcLineResponse(
             UUID returnItemId,
             UUID orderItemId,

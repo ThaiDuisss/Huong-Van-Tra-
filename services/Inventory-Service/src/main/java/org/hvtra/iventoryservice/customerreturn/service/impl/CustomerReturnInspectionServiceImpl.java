@@ -1,7 +1,9 @@
 package org.hvtra.iventoryservice.customerreturn.service.impl;
 
 import feign.FeignException;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.kafka.inbox.InboxStatus;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
@@ -13,9 +15,12 @@ import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDis
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryLineResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
+import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionReconciliationStatus;
+import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionStatusResponse;
 import org.hvtra.iventoryservice.customerreturn.repository.CustomerReturnInspectionRepository;
 import org.hvtra.iventoryservice.customerreturn.service.CustomerReturnInspectionService;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
+import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
@@ -39,10 +44,6 @@ import org.hvtra.iventoryservice.integration.order.dto.OrderReturnCondition;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnItemResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnStatus;
-import org.hvtra.commonservice.kafka.inbox.InboxStatus;
-import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionReconciliationStatus;
-import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionStatusResponse;
-import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
 import org.hvtra.iventoryservice.integration.order.repository.InventoryInboxRepository;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
@@ -53,15 +54,23 @@ import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -184,6 +193,59 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     }
 
     @Override
+    public CustomerReturnInspectionResponse getInspection(UUID inspectionId) {
+        return inspectionRepository.findByIdAndIsDeletedFalse(inspectionId)
+                .map(this::toResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer return inspection", inspectionId));
+    }
+
+    @Override
+    public Page<CustomerReturnInspectionResponse> listInspections(
+            String returnCode,
+            String orderCode,
+            CustomerReturnInspectionStatus status,
+            Pageable pageable
+    ) {
+        Specification<CustomerReturnInspection> specification = (root, query, builder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(builder.isFalse(root.get("isDeleted")));
+            if (returnCode != null && !returnCode.isBlank()) {
+                predicates.add(builder.like(
+                        builder.lower(root.get("returnCode")),
+                        "%" + returnCode.trim().toLowerCase(Locale.ROOT) + "%"));
+            }
+            if (orderCode != null && !orderCode.isBlank()) {
+                predicates.add(builder.like(
+                        builder.lower(root.get("orderCode")),
+                        "%" + orderCode.trim().toLowerCase(Locale.ROOT) + "%"));
+            }
+            if (status != null) {
+                predicates.add(builder.equal(root.get("status"), status));
+            }
+            return builder.and(predicates.toArray(Predicate[]::new));
+        };
+
+        Page<CustomerReturnInspection> inspectionPage = inspectionRepository.findAll(specification, pageable);
+        if (inspectionPage.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        List<UUID> inspectionIds = inspectionPage.getContent().stream()
+                .map(CustomerReturnInspection::getId)
+                .toList();
+        Map<UUID, CustomerReturnInspection> inspectionsById = inspectionRepository
+                .findAllByIdInWithLines(inspectionIds)
+                .stream()
+                .collect(Collectors.toMap(CustomerReturnInspection::getId, Function.identity()));
+        List<CustomerReturnInspectionResponse> content = inspectionIds.stream()
+                .map(inspectionsById::get)
+                .filter(Objects::nonNull)
+                .map(this::toResponse)
+                .toList();
+        return new PageImpl<>(content, pageable, inspectionPage.getTotalElements());
+    }
+
+    @Override
     public CustomerReturnQcSummaryResponse getQcSummary(UUID returnId) {
         OrderReturnResponse orderReturn = fetchReturn(returnId);
         QcProgress qcProgress = buildQcProgress(
@@ -221,7 +283,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 qcProgress.inspectionId(),
                 qcProgress.inspectionStatus(),
                 overallQcStatus(lines),
-                lines);
+                lines,
+                qcProgress.inspectedAt());
     }
 
     @Override
@@ -577,13 +640,20 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 qcProgress.inspectionId(),
                 qcProgress.inspectionStatus(),
                 overallQcStatus(lines),
-                lines);
+                lines,
+                qcProgress.inspectedAt());
     }
+
+    private record DispositionKey(
+            CustomerReturnQcResult result,
+            UUID destinationLocationId,
+            String destinationLocationName
+    ) {}
 
     private QcProgress buildQcProgress(List<CustomerReturnInspection> inspections) {
         CustomerReturnInspection latestInspection = inspections.isEmpty() ? null : inspections.getFirst();
         Map<UUID, BigDecimal> postedQuantities = new HashMap<>();
-        Map<UUID, Map<CustomerReturnQcResult, BigDecimal>> dispositionsByItem = new HashMap<>();
+        Map<UUID, Map<DispositionKey, BigDecimal>> dispositionsByItem = new HashMap<>();
 
         inspections.stream()
                 .filter(inspection -> inspection.getStatus() == CustomerReturnInspectionStatus.POSTED)
@@ -591,19 +661,27 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 .filter(line -> Boolean.TRUE.equals(line.getPosted()))
                 .forEach(line -> {
                     postedQuantities.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
+                    UUID locId = line.getDestinationLocation() != null ? line.getDestinationLocation().getId() : null;
+                    String locName = line.getDestinationLocation() != null ? line.getDestinationLocation().getName() : null;
+                    DispositionKey key = new DispositionKey(line.getResult(), locId, locName);
                     dispositionsByItem
-                            .computeIfAbsent(
-                                    line.getReturnItemId(),
-                                    ignored -> new EnumMap<>(CustomerReturnQcResult.class)
-                            )
-                            .merge(line.getResult(), line.getQuantity(), BigDecimal::add);
+                            .computeIfAbsent(line.getReturnItemId(), ignored -> new LinkedHashMap<>())
+                            .merge(key, line.getQuantity(), BigDecimal::add);
                 });
+
+        Instant inspectedAt = inspections.stream()
+                .filter(inspection -> inspection.getStatus() == CustomerReturnInspectionStatus.POSTED)
+                .map(CustomerReturnInspection::getPostedAt)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(latestInspection != null ? latestInspection.getPostedAt() : null);
 
         return new QcProgress(
                 latestInspection == null ? null : latestInspection.getId(),
                 latestInspection == null ? null : latestInspection.getStatus(),
                 postedQuantities,
-                dispositionsByItem
+                dispositionsByItem,
+                inspectedAt
         );
     }
 
@@ -611,7 +689,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             UUID inspectionId,
             CustomerReturnInspectionStatus inspectionStatus,
             Map<UUID, BigDecimal> postedQuantities,
-            Map<UUID, Map<CustomerReturnQcResult, BigDecimal>> dispositionsByItem
+            Map<UUID, Map<DispositionKey, BigDecimal>> dispositionsByItem,
+            Instant inspectedAt
     ) {
         private BigDecimal postedQuantity(UUID returnItemId) {
             return postedQuantities.getOrDefault(returnItemId, BigDecimal.ZERO);
@@ -623,8 +702,10 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                     .entrySet()
                     .stream()
                     .map(entry -> new CustomerReturnQcDispositionSummaryResponse(
-                            entry.getKey(),
-                            entry.getValue()
+                            entry.getKey().result(),
+                            entry.getValue(),
+                            entry.getKey().destinationLocationId(),
+                            entry.getKey().destinationLocationName()
                     ))
                     .toList();
         }
@@ -640,6 +721,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 inspection.getOrderId(),
                 inspection.getOrderCode(),
                 inspection.getStatus(),
+                inspection.getCreatedAt(),
                 inspection.getPostedAt(),
                 inspection.getNote(),
                 inspection.getLines().stream().map(this::toLineResponse).toList());
@@ -653,9 +735,12 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 line.getOrderItemId(),
                 line.getProductVariantId(),
                 line.getInventoryItem().getId(),
+                line.getInventoryItem().getReferenceCode(),
+                line.getInventoryItem().getName(),
                 line.getQuantity(),
                 line.getResult(),
                 destination == null ? null : destination.getId(),
+                destination == null ? null : destination.getName(),
                 line.getNote(),
                 line.getPosted(),
                 line.getTransactionId());
@@ -690,7 +775,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         String code;
         do {
             code = "CR-QC-" + LocalDate.now().format(CODE_DATE)
-                    + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+                + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         } while (inspectionRepository.existsByInspectionCode(code));
         return code;
     }

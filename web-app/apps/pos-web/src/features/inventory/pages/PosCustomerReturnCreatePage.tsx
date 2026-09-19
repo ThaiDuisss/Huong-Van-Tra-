@@ -10,7 +10,7 @@ import {
     customerReturnReasons,
     customerReturnResolutionLabels
 } from "../constants/customer-return.constants";
-import { customerReturnApi } from "../services/customerReturn.api";
+import { posCustomerReturnApi as customerReturnApi } from "../services/posCustomerReturn.mock-api";
 import type {
     CustomerReturnCondition,
     CustomerReturnReason,

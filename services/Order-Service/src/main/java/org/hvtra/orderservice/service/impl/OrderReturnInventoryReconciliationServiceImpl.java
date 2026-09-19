@@ -20,7 +20,6 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -106,6 +105,10 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
         }
 
         if (statusResponse.status() == ReturnDispositionReconciliationStatus.PROCESSING) {
+            UUID returnId = command.getOrderReturn() != null ? command.getOrderReturn().getId() : null;
+            if (reconcileFromCompletedQc(commandId, returnId)) {
+                return;
+            }
             log.debug("Command {} is still PROCESSING in Inventory-Service. Leaving as PENDING and resetting consecutive NOT_FOUND counter.", commandId);
             transactionService.resetNotFoundCounter(commandId);
             return;
@@ -114,25 +117,8 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
         if (statusResponse.status() == ReturnDispositionReconciliationStatus.NOT_FOUND) {
             // Fallback check: Did Inventory already complete QC for this return?
             UUID returnId = command.getOrderReturn() != null ? command.getOrderReturn().getId() : null;
-            if (returnId != null) {
-                try {
-                    InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
-                            inventoryClient.getCustomerReturnQcSummary(returnId);
-                    if (qcSummary != null && isInventoryQcComplete(qcSummary)) {
-                        log.info("Command {} was NOT_FOUND in inventory inbox, but return {} is already fully completed in Inventory. Reconciling to PROCESSED.",
-                                commandId, returnId);
-                        transactionService.applyReconciledStatus(commandId, ReturnDispositionStatusResponse.builder()
-                                .commandId(commandId)
-                                .status(ReturnDispositionReconciliationStatus.PROCESSED)
-                                .returnId(returnId)
-                                .inspectionId(qcSummary.inspectionId())
-                                .processedAt(Instant.now())
-                                .build());
-                        return;
-                    }
-                } catch (Exception ex) {
-                    log.debug("Fallback QC summary check for returnId {} failed: {}", returnId, ex.getMessage());
-                }
+            if (reconcileFromCompletedQc(commandId, returnId)) {
+                return;
             }
 
             transactionService.handleNotFound(commandId);
@@ -141,6 +127,35 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
 
         // STEP 3: Terminal status (PROCESSED or FAILED) -> delegate to short transaction service
         transactionService.applyReconciledStatus(commandId, statusResponse);
+    }
+
+    private boolean reconcileFromCompletedQc(UUID commandId, UUID returnId) {
+        if (returnId == null) {
+            return false;
+        }
+        try {
+            InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
+                    inventoryClient.getCustomerReturnQcSummary(returnId);
+            if (!isInventoryQcComplete(qcSummary)) {
+                return false;
+            }
+            log.info(
+                    "Command {} is not terminal in inventory inbox, but return {} is fully completed in Inventory QC. Reconciling to PROCESSED.",
+                    commandId,
+                    returnId
+            );
+            transactionService.applyReconciledStatus(commandId, ReturnDispositionStatusResponse.builder()
+                    .commandId(commandId)
+                    .status(ReturnDispositionReconciliationStatus.PROCESSED)
+                    .returnId(returnId)
+                    .inspectionId(qcSummary.inspectionId())
+                    .processedAt(qcSummary.inspectedAt() != null ? qcSummary.inspectedAt() : Instant.now())
+                    .build());
+            return true;
+        } catch (Exception ex) {
+            log.debug("Fallback QC summary check for returnId {} failed: {}", returnId, ex.getMessage());
+            return false;
+        }
     }
 
     private boolean isInventoryQcComplete(InventoryClient.CustomerReturnQcSummaryResponse qcSummary) {
@@ -152,10 +167,14 @@ public class OrderReturnInventoryReconciliationServiceImpl implements OrderRetur
         if (!hasTerminalStatus) {
             return false;
         }
-        BigDecimal remaining = qcSummary.lines().stream()
-                .map(InventoryClient.CustomerReturnQcLineResponse::remainingQcQuantity)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return remaining.compareTo(BigDecimal.ZERO) == 0;
+        boolean anyPosted = qcSummary.lines().stream()
+                .anyMatch(line -> line.postedQcQuantity() != null
+                        && line.postedQcQuantity().compareTo(BigDecimal.ZERO) > 0);
+        return anyPosted && qcSummary.lines().stream()
+                .allMatch(line -> line.remainingQcQuantity() != null
+                        && line.remainingQcQuantity().compareTo(BigDecimal.ZERO) == 0
+                        && line.postedQcQuantity() != null
+                        && line.returnedQuantity() != null
+                        && line.postedQcQuantity().compareTo(line.returnedQuantity()) >= 0);
     }
 }

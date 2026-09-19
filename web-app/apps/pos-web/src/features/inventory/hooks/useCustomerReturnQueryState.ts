@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { customerReturnReasons, customerReturnStatuses } from "../constants/customer-return.constants";
-import type { CustomerReturnListQuery } from "../types/customer-return.types";
+import type { CustomerReturnInspectionListQuery } from "../types/customer-return-inspection.types";
 
 function numberParam(value: string | null, fallback: number) {
     const parsed = Number(value);
@@ -15,24 +14,18 @@ function oneOf<T extends string>(value: string | null, options: T[], fallback: T
 
 export function useCustomerReturnQueryState() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const query = useMemo<CustomerReturnListQuery>(
+    const query = useMemo<CustomerReturnInspectionListQuery>(
         () => ({
-            branchId: searchParams.get("branchId") ?? "ALL",
-            code: searchParams.get("code") ?? "",
-            customer: searchParams.get("customer") ?? "",
             orderCode: searchParams.get("orderCode") ?? "",
             page: numberParam(searchParams.get("page"), 1) - 1,
-            reason: oneOf(searchParams.get("reason"), ["ALL", ...customerReturnReasons], "ALL"),
-            requestedFrom: searchParams.get("requestedFrom") ?? "",
-            requestedTo: searchParams.get("requestedTo") ?? "",
+            returnCode: searchParams.get("returnCode") ?? "",
             size: numberParam(searchParams.get("size"), 10),
-            status: oneOf(searchParams.get("status"), ["ALL", ...customerReturnStatuses], "ALL"),
-            tab: oneOf(searchParams.get("tab"), ["MANAGER_REVIEW", "AWAITING_RECEIVE", "PENDING_QC", "RESTOCK", "DISPOSAL", "COMPLETED"], "MANAGER_REVIEW")
+            status: oneOf(searchParams.get("status"), ["ALL", "CREATED", "POSTED", "CANCELLED"], "ALL")
         }),
         [searchParams]
     );
 
-    function setQuery(patch: Partial<CustomerReturnListQuery>) {
+    function setQuery(patch: Partial<CustomerReturnInspectionListQuery>) {
         const merged = { ...query, ...patch };
         const next = new URLSearchParams();
         Object.entries(merged).forEach(([key, value]) => {

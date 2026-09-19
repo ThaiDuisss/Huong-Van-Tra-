@@ -186,6 +186,17 @@ public class ReturnInventoryDispositionInboxService {
             return;
         }
 
+        if (inbox.getStatus() == InboxStatus.PROCESSED && hasText(inbox.getInspectionId())) {
+            inventoryOutboxPublisher.publishReturnInventoryDispositionProcessed(
+                    inbox.getCommandId(),
+                    event.getReturnId(),
+                    inbox.getInspectionId(),
+                    event.getSagaId(),
+                    event.getCorrelationId()
+            );
+            log.info("Re-published processed event for duplicate commandId={}", inbox.getCommandId());
+        }
+
         log.debug("Duplicate return inventory disposition already terminal. commandId={}, status={}",
                 inbox.getCommandId(), inbox.getStatus());
     }

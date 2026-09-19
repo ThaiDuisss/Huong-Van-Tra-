@@ -12,15 +12,21 @@ import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionSt
 import org.hvtra.iventoryservice.customerreturn.service.CustomerReturnInspectionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.UUID;
+import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 
 @RestController
 @RequestMapping("/api/inventory")
@@ -40,6 +46,22 @@ public class CustomerReturnInspectionController {
     @PostMapping("/customer-return-inspections/{inspectionId}/post")
     public ResponseEntity<CustomerReturnInspectionResponse> postInspection(@PathVariable UUID inspectionId) {
         return ResponseEntity.ok(service.postInspection(inspectionId));
+    }
+
+    @GetMapping("/customer-return-inspections/{inspectionId}")
+    public ResponseEntity<CustomerReturnInspectionResponse> getInspection(@PathVariable UUID inspectionId) {
+        return ResponseEntity.ok(service.getInspection(inspectionId));
+    }
+
+    @GetMapping("/customer-return-inspections")
+    public ResponseEntity<Page<CustomerReturnInspectionResponse>> listInspections(
+            @RequestParam(required = false) String returnCode,
+            @RequestParam(required = false) String orderCode,
+            @RequestParam(required = false) CustomerReturnInspectionStatus status,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable
+    ) {
+        return ResponseEntity.ok(service.listInspections(returnCode, orderCode, status, pageable));
     }
 
     @GetMapping("/customer-returns/{returnId}/qc-summary")

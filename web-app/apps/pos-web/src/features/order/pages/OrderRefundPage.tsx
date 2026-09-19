@@ -40,23 +40,6 @@ import styles from "./OrderRefundPage.module.css";
 
 type RefundFilterKey = "ALL" | OrderRefundStatus;
 type ToastState = { message: string; type: "success" | "error" };
-type RefundProgress =
-    | "WAITING_RECEIPT"
-    | "WAITING_QC"
-    | "WAITING_REFUND"
-    | "REFUNDED"
-    | "FAILED";
-
-const REFUND_PROGRESS: Record<
-    RefundProgress,
-    { label: string; tone: "amber" | "gray" | "green" | "orange" | "red" }
-> = {
-    WAITING_RECEIPT: { label: "Chờ nhận hàng", tone: "gray" },
-    WAITING_QC: { label: "Chờ QC", tone: "amber" },
-    WAITING_REFUND: { label: "Chờ hoàn tiền", tone: "orange" },
-    REFUNDED: { label: "Đã hoàn tiền", tone: "green" },
-    FAILED: { label: "Hoàn tiền thất bại", tone: "red" }
-};
 
 const PAGE_SIZE = 20;
 
@@ -73,12 +56,14 @@ const FILTERS: {
     label: string;
     status?: OrderRefundStatus;
     countKey: keyof OrderRefundStatsResponse;
+    isError?: boolean;
 }[] = [
-        { key: "ALL", label: "Tất cả", countKey: "total" },
-        { key: "NOT_READY", label: "Chờ xử lý", status: "NOT_READY", countKey: "notReady" },
-        { key: "PENDING", label: "Chờ hoàn tiền", status: "PENDING", countKey: "pendingRefund" },
-        { key: "REFUNDED", label: "Đã hoàn tiền", status: "REFUNDED", countKey: "refunded" }
-    ];
+    { key: "ALL", label: "Tất cả", countKey: "total" },
+    { key: "PENDING", label: "Chờ hoàn tiền", status: "PENDING", countKey: "pendingRefund" },
+    { key: "NOT_READY", label: "Chờ xử lý", status: "NOT_READY", countKey: "notReady" },
+    { key: "REFUNDED", label: "Đã hoàn tiền", status: "REFUNDED", countKey: "refunded" },
+    { key: "FAILED", label: "Có lỗi", status: "FAILED", countKey: "failed", isError: true }
+];
 
 const REFUND_STATUS_LABELS: Record<OrderRefundStatus, string> = {
     FAILED: "Hoàn tiền thất bại",
@@ -201,32 +186,26 @@ function getMethodLabel(method?: string | null) {
     return method ? METHOD_LABELS[method] ?? method : "--";
 }
 
-function getRefundProgress(row: OrderRefundSummaryResponse) {
-    let progress: RefundProgress;
-
+function getRefundProgress(row: OrderRefundSummaryResponse): { label: string; className: string } {
     if (row.refundStatus === "FAILED") {
-        progress = "FAILED";
-    } else if (row.refundStatus === "REFUNDED") {
-        progress = "REFUNDED";
-    } else if (row.returnStatus === "CREATED") {
-        progress = "WAITING_RECEIPT";
-    } else if (
-        row.qcStatus === "COMPLETED" ||
-        row.refundStatus === "PENDING"
-    ) {
-        progress = "WAITING_REFUND";
-    } else if (
-        row.returnStatus === "RECEIVED" ||
-        row.returnStatus === "COMPLETED" ||
-        row.qcStatus === "PENDING" ||
-        row.qcStatus === "PARTIAL"
-    ) {
-        progress = "WAITING_QC";
-    } else {
-        progress = "WAITING_RECEIPT";
+        return { label: "Hoàn tiền thất bại", className: styles.failedBadge };
     }
-
-    return REFUND_PROGRESS[progress];
+    if (row.refundStatus === "REFUNDED") {
+        return { label: "Đã hoàn tiền", className: styles.refundedBadge };
+    }
+    if (row.refundStatus === "NOT_REQUIRED" || row.refundRequired === false) {
+        return { label: "Không hoàn tiền", className: styles.notRequiredBadge };
+    }
+    if (row.refundStatus === "PENDING" || row.qcStatus === "COMPLETED") {
+        return { label: "Chờ hoàn tiền", className: styles.pendingRefundBadge };
+    }
+    if (row.returnStatus === "CREATED") {
+        return { label: "Chờ nhận hàng", className: styles.waitingReceiptBadge };
+    }
+    if (row.returnStatus === "RECEIVED" || row.qcStatus === "PENDING" || row.qcStatus === "PARTIAL") {
+        return { label: "Chờ kiểm hàng", className: styles.waitingQcBadge };
+    }
+    return { label: "Chờ xử lý", className: styles.waitingReceiptBadge };
 }
 
 function canRefund(row: OrderRefundSummaryResponse) {
@@ -240,7 +219,6 @@ function canRefund(row: OrderRefundSummaryResponse) {
 
     return (
         row.refundStatus === "PENDING" &&
-        row.qcStatus === "COMPLETED" &&
         Boolean(paymentStatus) &&
         !hasUnavailablePaymentStatus &&
         !hasUnavailableMethod &&
@@ -519,43 +497,59 @@ export function OrderRefundPage() {
                 </header>
 
                 <div className={styles.body}>
-                    <div className={styles.filterPanel}>
-                        <label className={styles.searchBox}>
-                            <Search size={20} aria-hidden="true" />
-                            <input
-                                aria-label="Tìm kiếm phiếu hoàn tiền"
-                                onChange={(event) => {
-                                    setSearchTerm(event.target.value);
-                                    setCurrentPage(0);
-                                }}
-                                onKeyDown={(event) => {
-                                    if (event.key === "Escape") {
-                                        setSearchTerm("");
+                    <div className={styles.filterRows}>
+                        <div className={styles.filterToolbar}>
+                            <label className={styles.searchBox}>
+                                <Search size={20} aria-hidden="true" />
+                                <input
+                                    aria-label="Tìm kiếm phiếu hoàn tiền"
+                                    onChange={(event) => {
+                                        setSearchTerm(event.target.value);
                                         setCurrentPage(0);
-                                    }
-                                }}
-                                placeholder="Tìm mã phiếu hoàn, mã đơn, khách hàng, SĐT..."
-                                value={searchTerm}
-                            />
-                        </label>
-
-                        <div className={styles.filterGroup}>
-                            <span>Trạng thái:</span>
-                            <div className={styles.statusFilters}>
-                                {FILTERS.map((filter) => (
-                                    <button
-                                        className={`${styles.statusChip} ${activeFilter === filter.key ? styles.activeStatusChip : ""
-                                            }`}
-                                        key={filter.key}
-                                        onClick={() => {
-                                            setActiveFilter(filter.key);
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Escape") {
+                                            setSearchTerm("");
                                             setCurrentPage(0);
-                                        }}
-                                        type="button"
-                                    >
-                                        {filter.label} <strong>{stats[filter.countKey] ?? 0}</strong>
-                                    </button>
-                                ))}
+                                        }
+                                    }}
+                                    placeholder="Tìm mã đơn, phiếu hoàn, khách hàng..."
+                                    value={searchTerm}
+                                />
+                            </label>
+
+                            <div className={styles.filterGroup}>
+                                <span className={styles.filterLabel}>Trạng thái:</span>
+                                <div className={styles.quickFilters}>
+                                    {FILTERS.map((filter) => {
+                                        const isActive = activeFilter === filter.key;
+                                        const count = stats[filter.countKey] ?? 0;
+                                        const chipClass = filter.isError
+                                            ? `${styles.filterChip} ${styles.errorFilterChip} ${
+                                                  isActive ? styles.activeErrorFilterChip : ""
+                                              }`
+                                            : `${styles.filterChip} ${
+                                                  isActive ? styles.activeFilterChip : ""
+                                              }`;
+
+                                        return (
+                                            <button
+                                                className={chipClass}
+                                                key={filter.key}
+                                                onClick={() => {
+                                                    setActiveFilter(filter.key);
+                                                    setCurrentPage(0);
+                                                }}
+                                                type="button"
+                                            >
+                                                {filter.label}{" "}
+                                                <span className={styles.filterChipCount}>
+                                                    {count.toLocaleString("vi-VN")}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -564,29 +558,35 @@ export function OrderRefundPage() {
                         <div className={styles.tableWrap}>
                             <table className={styles.refundTable}>
                                 <colgroup>
+                                    <col style={{ width: "18%" }} />
                                     <col style={{ width: "17%" }} />
-                                    <col style={{ width: "14%" }} />
                                     <col style={{ width: "16%" }} />
-                                    <col style={{ width: "24%" }} />
+                                    <col style={{ width: "20%" }} />
                                     <col style={{ width: "16%" }} />
                                     <col style={{ width: "13%" }} />
                                 </colgroup>
                                 <thead>
                                     <tr>
                                         <th>Mã phiếu hoàn</th>
-                                        <th>Tiến trình</th>
-                                        <th>Mã đơn hàng</th>
-                                        <th>Khách hàng</th>
+                                        <th>Trạng thái</th>
                                         <th>Số tiền hoàn</th>
+                                        <th>Khách hàng</th>
+                                        <th>Mã đơn hàng</th>
                                         <th>Ngày tạo</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {isListLoading ? (
-                                        <EmptyRow message="Đang tải phiếu hoàn tiền" />
+                                        <RefundTableMessage
+                                            description="Dữ liệu đang được tải từ Order-Service"
+                                            title="Đang tải phiếu hoàn tiền"
+                                        />
                                     ) : null}
                                     {!isListLoading && listError ? (
-                                        <EmptyRow message="Không tải được danh sách hoàn tiền" subText={listError} />
+                                        <RefundTableMessage
+                                            description={listError}
+                                            title="Không tải được danh sách hoàn tiền"
+                                        />
                                     ) : null}
                                     {!isListLoading && !listError
                                         ? visibleRefunds.map((row, index) => (
@@ -606,34 +606,34 @@ export function OrderRefundPage() {
                                                     {displayText(row.returnCode)}
                                                 </td>
                                                 <td>
-                                                    <RefundProgressPill row={row} />
-                                                </td>
-                                                <td className={styles.code}>{displayText(row.orderCode)}</td>
-                                                <td className={styles.customerCell}>
-                                                    <strong>{displayText(row.customerName, "Khách lẻ")}</strong>
-                                                    {row.customerPhone?.trim() ? (
-                                                        <span>{row.customerPhone.trim()}</span>
-                                                    ) : null}
+                                                    <RefundStatusBadge row={row} />
                                                 </td>
                                                 <td>
                                                     {row.refundAmount === null || row.refundAmount === undefined
                                                         ? <span className={styles.unknownAmount}>Chưa xác định</span>
                                                         : <span className={styles.refundAmount}>{formatCurrency(row.refundAmount)}</span>}
                                                 </td>
+                                                <td className={styles.customerCell}>
+                                                    <strong>{displayText(row.customerName, "Khách lẻ")}</strong>
+                                                    {row.customerPhone?.trim() ? (
+                                                        <span>{row.customerPhone.trim()}</span>
+                                                    ) : null}
+                                                </td>
+                                                <td className={styles.code}>{displayText(row.orderCode)}</td>
                                                 <td>{formatDateTime(row.returnCreatedAt)}</td>
                                             </tr>
                                         ))
                                         : null}
                                     {!isListLoading && !listError && visibleRefunds.length === 0 ? (
-                                        <EmptyRow
-                                            message={
+                                        <RefundTableMessage
+                                            description="Thử đổi bộ lọc thời gian, trạng thái hoặc từ khóa"
+                                            title={
                                                 activeFilter === "PENDING"
                                                     ? "Không có phiếu nào đang chờ hoàn tiền."
                                                     : debouncedKeyword
                                                         ? "Không tìm thấy phiếu hoàn tiền phù hợp."
                                                         : "Không có phiếu hoàn tiền."
                                             }
-                                            subText="Thử đổi bộ lọc thời gian, trạng thái hoặc từ khóa"
                                         />
                                     ) : null}
                                 </tbody>
@@ -642,16 +642,16 @@ export function OrderRefundPage() {
 
                         <div className={styles.pagination}>
                             <span>
-                                Hiển thị <strong>{fromRecord} - {toRecord}</strong> trong {totalElements} dòng
+                                Hiển thị <strong>{fromRecord} - {toRecord}</strong> trong {totalElements.toLocaleString("vi-VN")} phiếu hoàn tiền
                             </span>
-                            <div className={styles.pageTools}>
+                            <div className={styles.pages}>
                                 <button
                                     className={styles.pageButton}
                                     disabled={currentPage === 0}
                                     onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
                                     type="button"
                                 >
-                                    <ChevronLeft size={15} aria-hidden="true" />
+                                    <ChevronLeft size={18} aria-hidden="true" />
                                 </button>
                                 {getPageNumbers(totalPages, currentPage).map((page) => (
                                     <button
@@ -663,13 +663,14 @@ export function OrderRefundPage() {
                                         {page + 1}
                                     </button>
                                 ))}
+                                {totalPages > 5 ? <span>...</span> : null}
                                 <button
                                     className={styles.pageButton}
                                     disabled={currentPage >= totalPages - 1}
                                     onClick={() => setCurrentPage((page) => Math.min(totalPages - 1, page + 1))}
                                     type="button"
                                 >
-                                    <ChevronRight size={15} aria-hidden="true" />
+                                    <ChevronRight size={18} aria-hidden="true" />
                                 </button>
                             </div>
                         </div>
@@ -711,31 +712,27 @@ export function OrderRefundPage() {
     );
 }
 
-function EmptyRow({ message, subText }: { message: string; subText?: string }) {
+function RefundTableMessage({
+    title,
+    description
+}: {
+    title: string;
+    description?: string;
+}) {
     return (
         <tr>
             <td className={styles.emptyCell} colSpan={6}>
-                <strong>{message}</strong>
-                {subText ? <span>{subText}</span> : null}
+                <strong>{title}</strong>
+                {description ? <span>{description}</span> : null}
             </td>
         </tr>
     );
 }
 
-function StatusPill({
-    children,
-    tone
-}: {
-    children: string;
-    tone: "amber" | "gray" | "green" | "orange" | "red";
-}) {
-    return <span className={`${styles.statusPill} ${styles[tone]}`}>{children}</span>;
-}
-
-function RefundProgressPill({ row }: { row: OrderRefundSummaryResponse }) {
+function RefundStatusBadge({ row }: { row: OrderRefundSummaryResponse }) {
     const progress = getRefundProgress(row);
 
-    return <StatusPill tone={progress.tone}>{progress.label}</StatusPill>;
+    return <span className={`${styles.statusBadge} ${progress.className}`}>{progress.label}</span>;
 }
 
 function RefundDetailModal({

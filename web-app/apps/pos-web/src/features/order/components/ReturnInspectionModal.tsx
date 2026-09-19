@@ -105,7 +105,6 @@ export function ReturnInspectionModal({
 }: ReturnInspectionModalProps) {
     const [step, setStep] = useState<1 | 2>(1);
     const [qcDraftLines, setQcDraftLines] = useState<Record<string, QcDraftLine>>({});
-    const [exhaustedReturnItemIds, setExhaustedReturnItemIds] = useState<Set<string>>(new Set());
     const [generalNote, setGeneralNote] = useState("");
     const [isGeneralNoteOpen, setIsGeneralNoteOpen] = useState(false);
     const [activeLocations, setActiveLocations] = useState<InventoryLocationResponse[]>([]);
@@ -115,13 +114,6 @@ export function ReturnInspectionModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
-    // Reset exhausted return items on modal open/close or returnItem change
-    useEffect(() => {
-        if (!isOpen) {
-            setExhaustedReturnItemIds(new Set());
-        }
-    }, [isOpen, returnItem.id]);
-
     const summaryLines = useMemo(
         () => qcSummary?.lines ?? [],
         [qcSummary?.lines]
@@ -130,11 +122,9 @@ export function ReturnInspectionModal({
     const remainingLines = useMemo(
         () =>
             summaryLines.filter(
-                (line) =>
-                    !exhaustedReturnItemIds.has(line.returnItemId) &&
-                    toReturnNumber(line.remainingQcQuantity) > 0
+                (line) => toReturnNumber(line.remainingQcQuantity) > 0
             ),
-        [exhaustedReturnItemIds, summaryLines]
+        [summaryLines]
     );
 
     const totalRemainingQuantity = useMemo(
@@ -493,25 +483,6 @@ export function ReturnInspectionModal({
                 }
             })
             .catch((error: unknown) => {
-                const rawMsg =
-                    error instanceof Error
-                        ? error.message
-                        : typeof error === "object" && error !== null && "message" in error
-                            ? String((error as { message: unknown }).message)
-                            : "";
-
-                const isNoRemaining =
-                    rawMsg.includes("No remaining quantity available for inventory disposition") ||
-                    rawMsg.includes("Inventory disposition quantity exceeds return item quantity");
-
-                if (isNoRemaining) {
-                    setExhaustedReturnItemIds((prev) => {
-                        const next = new Set(prev);
-                        selectedLines.forEach((l) => next.add(l.returnItemId));
-                        return next;
-                    });
-                }
-
                 const mappedError = getReturnErrorMessage(error);
                 setFormError(mappedError);
                 setStep(1);

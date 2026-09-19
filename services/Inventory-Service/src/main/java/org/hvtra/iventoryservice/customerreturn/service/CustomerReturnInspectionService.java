@@ -7,6 +7,9 @@ import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspe
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionStatusResponse;
+import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -15,6 +18,15 @@ public interface CustomerReturnInspectionService {
     CustomerReturnInspectionResponse createInspection(UUID returnId, CreateCustomerReturnInspectionRequest request);
 
     CustomerReturnInspectionResponse postInspection(UUID inspectionId);
+
+    CustomerReturnInspectionResponse getInspection(UUID inspectionId);
+
+    Page<CustomerReturnInspectionResponse> listInspections(
+            String returnCode,
+            String orderCode,
+            CustomerReturnInspectionStatus status,
+            Pageable pageable
+    );
 
     CustomerReturnQcSummaryResponse getQcSummary(UUID returnId);
 

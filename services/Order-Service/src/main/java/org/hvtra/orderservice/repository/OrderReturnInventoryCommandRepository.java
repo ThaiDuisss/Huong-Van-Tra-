@@ -91,6 +91,35 @@ public interface OrderReturnInventoryCommandRepository
             """)
     List<Object[]> findCommandStatusesByReturnIds(@Param("returnIds") Collection<UUID> returnIds);
 
+    @Query("""
+            select inventoryCommand.orderReturn.id, line.returnItem.id, coalesce(sum(line.quantity), 0)
+            from OrderReturnInventoryCommandLine line
+            join line.command inventoryCommand
+            where inventoryCommand.orderReturn.id in :returnIds
+              and inventoryCommand.status = :status
+              and line.isDeleted = false
+              and inventoryCommand.isDeleted = false
+            group by inventoryCommand.orderReturn.id, line.returnItem.id
+            """)
+    List<Object[]> sumQuantityByReturnIdsAndCommandStatus(
+            @Param("returnIds") Collection<UUID> returnIds,
+            @Param("status") OrderReturnInventoryCommandStatus status
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select inventoryCommand
+            from OrderReturnInventoryCommand inventoryCommand
+            join fetch inventoryCommand.orderReturn
+            where inventoryCommand.orderReturn.id in :returnIds
+              and inventoryCommand.status = :status
+              and inventoryCommand.isDeleted = false
+            """)
+    List<OrderReturnInventoryCommand> findByOrderReturnIdsAndStatusForUpdate(
+            @Param("returnIds") Collection<UUID> returnIds,
+            @Param("status") OrderReturnInventoryCommandStatus status
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select distinct inventoryCommand
@@ -102,4 +131,15 @@ public interface OrderReturnInventoryCommandRepository
     Optional<OrderReturnInventoryCommand> findByCommandIdForUpdate(
             @Param("commandId") UUID commandId
     );
+
+    @Query("""
+            select distinct inventoryCommand
+            from OrderReturnInventoryCommand inventoryCommand
+            left join fetch inventoryCommand.lines lines
+            left join fetch lines.returnItem
+            where inventoryCommand.orderReturn.id = :returnId
+              and inventoryCommand.isDeleted = false
+            order by inventoryCommand.createdAt desc
+            """)
+    List<OrderReturnInventoryCommand> findByOrderReturnIdWithLines(@Param("returnId") UUID returnId);
 }

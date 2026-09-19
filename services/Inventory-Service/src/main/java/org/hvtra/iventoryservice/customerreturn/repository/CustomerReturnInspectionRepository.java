@@ -31,6 +31,17 @@ public interface CustomerReturnInspectionRepository
             """)
     Optional<CustomerReturnInspection> findByIdAndIsDeletedFalse(@Param("id") UUID id);
 
+    @Query("""
+            select distinct inspection
+            from CustomerReturnInspection inspection
+            left join fetch inspection.lines lines
+            left join fetch lines.inventoryItem
+            left join fetch lines.destinationLocation
+            where inspection.id in :ids
+              and inspection.isDeleted = false
+            """)
+    List<CustomerReturnInspection> findAllByIdInWithLines(@Param("ids") Collection<UUID> ids);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select distinct inspection

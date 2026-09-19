@@ -115,6 +115,9 @@ class OrderReturnServiceImplTest {
     @Mock
     private OrderReturnRefundTransactionService orderReturnRefundTransactionService;
 
+    @Mock
+    private OrderReturnInventoryCommandReconciliationWriter inventoryCommandReconciliationWriter;
+
     private OrderReturnServiceImpl service;
 
     private UUID orderId;
@@ -139,7 +142,8 @@ class OrderReturnServiceImplTest {
                 returnRefundCalculator,
                 orderReturnHistoryWriter,
                 orderOutboxPublisher,
-                orderReturnRefundTransactionService
+                orderReturnRefundTransactionService,
+                inventoryCommandReconciliationWriter
         );
         orderId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();

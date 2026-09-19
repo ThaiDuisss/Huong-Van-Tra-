@@ -11,9 +11,12 @@ public record CustomerReturnInspectionLineResponse(
         UUID orderItemId,
         UUID productVariantId,
         UUID inventoryItemId,
+        String itemCode,
+        String itemName,
         BigDecimal quantity,
         CustomerReturnQcResult result,
         UUID destinationLocationId,
+        String destinationLocationName,
         String note,
         Boolean posted,
         UUID transactionId
