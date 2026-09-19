@@ -12,12 +12,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import org.hvtra.iventoryservice.customerreturn.dto.request.PostCustomerReturnInspectionRequest;
 import java.util.UUID;
 
 public interface CustomerReturnInspectionService {
     CustomerReturnInspectionResponse createInspection(UUID returnId, CreateCustomerReturnInspectionRequest request);
 
     CustomerReturnInspectionResponse postInspection(UUID inspectionId);
+
+    CustomerReturnInspectionResponse postInspection(UUID inspectionId, PostCustomerReturnInspectionRequest request);
 
     CustomerReturnInspectionResponse getInspection(UUID inspectionId);
 

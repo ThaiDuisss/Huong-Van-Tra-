@@ -11,7 +11,7 @@
     "topic.prefix": "inventory-cdc",
     "database.include.list": "inventory_db",
     "table.include.list": "inventory_db.outbox_events",
-    "schema.history.internal.kafka.bootstrap.servers": "kafka:9092",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
     "schema.history.internal.kafka.topic": "schema-changes.inventory-db",
     "include.schema.changes": "false",
     "tombstones.on.delete": "false",

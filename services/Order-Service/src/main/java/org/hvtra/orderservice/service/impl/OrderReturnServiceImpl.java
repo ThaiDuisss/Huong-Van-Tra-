@@ -320,12 +320,28 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             reconcileCompletedInventoryCommands(completedInventoryReturns(Map.of(returnId, qcSummary)));
         }
         boolean physicalDone = inventoryPhysicalDone || isPhysicalDispositionCompleted(returnId);
+        BigDecimal refundAmount = null;
+        if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
+            refundAmount = paymentSummary.refundAmount();
+        } else if (Boolean.TRUE.equals(orderReturn.getRefundRequired())) {
+            Order order = orderRepository.findByIdAndIsDeletedFalse(orderReturn.getOrder().getId()).orElse(null);
+            if (order != null) {
+                List<OrderReturn> orderReturns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(order.getId());
+                try {
+                    refundAmount = returnRefundCalculator.calculate(order, orderReturn, orderReturns).refundAmount();
+                } catch (Exception ex) {
+                    log.warn("Could not calculate refund amount for returnId={}: {}", returnId, ex.getMessage());
+                }
+            }
+        }
+
         OrderRefundStatus refundStatus = resolveRefundStatus(
                 orderReturn,
                 paymentSummary,
                 qcLookup.available(),
                 paymentLookup.available(),
-                physicalDone
+                physicalDone,
+                refundAmount
         );
         String qcStatus = qcLookup.available()
                 ? (qcSummary == null ? null : qcSummary.qcStatus())
@@ -349,7 +365,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .refundRequired(orderReturn.getRefundRequired())
                 .qcStatus(qcStatus)
                 .refundStatus(refundStatus)
-                .refundAmount(paymentLookup.available() && paymentSummary != null ? paymentSummary.refundAmount() : null)
+                .refundAmount(refundAmount)
                 .totalAmountRefunded(paymentLookup.available() && paymentSummary != null
                         ? paymentSummary.totalAmountRefunded()
                         : null)
@@ -1201,7 +1217,10 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             return;
         }
 
-        // Return status remains RECEIVED - only order return status is updated
+        // For no-refund returns, physical disposition completion completes the return
+        orderReturn.setStatus(ReturnStatus.COMPLETED);
+        orderReturnRepository.save(orderReturn);
+
         Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderReturn.getOrder().getId())
                 .orElse(null);
         if (lockedOrder != null) {
@@ -1211,7 +1230,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         }
 
         UUID actorUserId = currentActorUserIdOrNull();
-        orderOutboxPublisher.publishReturnCompletedNotification(orderReturn, ReturnStatus.RECEIVED, actorUserId);
+        orderOutboxPublisher.publishReturnCompletedNotification(orderReturn, ReturnStatus.COMPLETED, actorUserId);
         log.info("Processed no-refund return completion: returnId={}, returnCode={}", orderReturn.getId(), orderReturn.getReturnCode());
     }
 
@@ -1258,6 +1277,21 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .findByIdInAndIsDeletedFalseWithItems(returnIds)
                 .stream()
                 .collect(Collectors.toMap(OrderReturn::getId, Function.identity()));
+
+        List<UUID> orderIds = summaries.stream()
+                .map(OrderReturnSummaryResponse::getOrderId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, Order> ordersById = orderIds.isEmpty()
+                ? Map.of()
+                : orderRepository.findAllWithItemsByIdIn(orderIds).stream()
+                        .collect(Collectors.toMap(Order::getId, Function.identity(), (a, b) -> a));
+        Map<UUID, List<OrderReturn>> returnsByOrderId = orderIds.isEmpty()
+                ? Map.of()
+                : orderReturnRepository.findByOrderIdInAndIsDeletedFalseWithItems(orderIds).stream()
+                        .collect(Collectors.groupingBy(r -> r.getOrder().getId()));
+
         DownstreamLookupResult<Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse>> qcLookup =
                 lookupQcSummariesForRefundRead(summaries, returnsById);
         DownstreamLookupResult<Map<UUID, PaymentClient.PaymentRefundSummaryResponse>> paymentLookup =
@@ -1276,6 +1310,22 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                     PaymentClient.PaymentRefundSummaryResponse paymentSummary = paymentByReturnId.get(summary.getId());
                     boolean physicalDone = completedInventoryReturns.containsKey(summary.getId())
                             || isLocalPhysicalDispositionCompleted(orderReturn, localProgress);
+
+                    BigDecimal refundAmount = null;
+                    if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
+                        refundAmount = paymentSummary.refundAmount();
+                    } else if (orderReturn != null && Boolean.TRUE.equals(orderReturn.getRefundRequired())) {
+                        Order order = ordersById.get(summary.getOrderId());
+                        List<OrderReturn> orderReturns = returnsByOrderId.getOrDefault(summary.getOrderId(), List.of());
+                        if (order != null) {
+                            try {
+                                refundAmount = returnRefundCalculator.calculate(order, orderReturn, orderReturns).refundAmount();
+                            } catch (Exception ex) {
+                                log.warn("Could not calculate refund amount for returnId={}: {}", orderReturn.getId(), ex.getMessage());
+                            }
+                        }
+                    }
+
                     OrderRefundStatus refundStatus = orderReturn == null
                             ? OrderRefundStatus.NOT_READY
                             : resolveRefundStatus(
@@ -1283,7 +1333,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                                     paymentSummary,
                                     qcLookup.available(),
                                     paymentLookup.available(),
-                                    physicalDone
+                                    physicalDone,
+                                    refundAmount
                             );
                     String qcStatus = qcLookup.available()
                             ? (qcSummary == null ? null : qcSummary.qcStatus())
@@ -1307,9 +1358,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                             .refundRequired(orderReturn == null ? summary.getRefundRequired() : orderReturn.getRefundRequired())
                             .qcStatus(qcStatus)
                             .refundStatus(refundStatus)
-                            .refundAmount(paymentLookup.available() && paymentSummary != null
-                                    ? paymentSummary.refundAmount()
-                                    : null)
+                            .refundAmount(refundAmount)
                             .paymentStatus(paymentStatus)
                             .method(method)
                             .refundedAt(paymentLookup.available() && paymentSummary != null

@@ -14,8 +14,8 @@ import type {
 
 export const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {
     CREATED: "Đã tạo",
-    RECEIVED: "Đã nhận hàng",
-    COMPLETED: "Hoàn tất",
+    RECEIVED: "Chờ kiểm hàng",
+    COMPLETED: "Hoàn thành",
     CANCELLED: "Đã hủy"
 };
 
@@ -23,11 +23,11 @@ export type { ReturnDisplayStatus };
 
 export const RETURN_DISPLAY_STATUS_LABELS: Record<ReturnDisplayStatus, string> = {
     CREATED: "Đã tạo",
-    RECEIVED: "Đã nhận hàng",
+    RECEIVED: "Chờ kiểm hàng",
     PROCESSING: "Đang xử lý hàng trả",
     PROCESSING_FAILED: "Xử lý kho thất bại",
     PENDING_REFUND: "Chờ hoàn tiền",
-    COMPLETED: "Hoàn tất",
+    COMPLETED: "Hoàn thành",
     CANCELLED: "Đã hủy"
 };
 
@@ -83,6 +83,7 @@ export const CUSTOMER_RETURN_QC_RESULT_EFFECTS: Record<
 export const CUSTOMER_RETURN_QC_RESULTS: CustomerReturnQcResult[] = [
     "RESTOCK",
     "DAMAGED",
+    "QUARANTINE",
     "WRITE_OFF"
 ];
 

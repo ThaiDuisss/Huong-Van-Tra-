@@ -15,6 +15,8 @@ public class OrderReturnResponse {
     private String returnCode;
     private UUID orderId;
     private String orderCode;
+    private String customerName;
+    private String customerPhone;
     private UUID branchId;
     private ReturnStatus status;
     private String note;

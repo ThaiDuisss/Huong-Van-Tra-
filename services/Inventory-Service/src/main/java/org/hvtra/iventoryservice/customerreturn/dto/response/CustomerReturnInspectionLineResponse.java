@@ -19,6 +19,26 @@ public record CustomerReturnInspectionLineResponse(
         String destinationLocationName,
         String note,
         Boolean posted,
-        UUID transactionId
+        UUID transactionId,
+        String condition,
+        String returnReason
 ) {
+    public CustomerReturnInspectionLineResponse(
+            UUID id,
+            UUID returnItemId,
+            UUID orderItemId,
+            UUID productVariantId,
+            UUID inventoryItemId,
+            String itemCode,
+            String itemName,
+            BigDecimal quantity,
+            CustomerReturnQcResult result,
+            UUID destinationLocationId,
+            String destinationLocationName,
+            String note,
+            Boolean posted,
+            UUID transactionId
+    ) {
+        this(id, returnItemId, orderItemId, productVariantId, inventoryItemId, itemCode, itemName, quantity, result, destinationLocationId, destinationLocationName, note, posted, transactionId, null, null);
+    }
 }

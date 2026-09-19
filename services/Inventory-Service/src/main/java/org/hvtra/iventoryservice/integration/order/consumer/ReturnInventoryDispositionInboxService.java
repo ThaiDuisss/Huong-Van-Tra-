@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -46,6 +48,7 @@ public class ReturnInventoryDispositionInboxService {
     private static final String EVENT_TYPE = "RETURN_INVENTORY_DISPOSITION_REQUESTED";
     private static final String TOPIC = "order.event.RETURN_INVENTORY_DISPOSITION_REQUESTED";
     private static final String UNKNOWN_EVENT_TYPE = "UNKNOWN_ORDER_EVENT";
+    private static final Pattern UUID_PATTERN = Pattern.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
     private final CustomerReturnInspectionService customerReturnInspectionService;
     private final InventoryInboxRepository inventoryInboxRepository;
@@ -121,25 +124,23 @@ public class ReturnInventoryDispositionInboxService {
         inbox.setStatus(InboxStatus.PROCESSING);
         UUID returnId = parseRequiredUuid(event.getReturnId(), "returnId");
         parseRequiredUuid(event.getCommandId(), "commandId");
-        CreateCustomerReturnInspectionRequest request = toInspectionRequest(event);
 
+        // If inspection was already created for this inbox command (e.g. redelivery), do not create again
+        if (hasText(inbox.getInspectionId())) {
+            log.info("Inspection already created for commandId={}, inspectionId={}. Waiting for manual approval.",
+                    commandId, inbox.getInspectionId());
+            inventoryInboxRepository.saveAndFlush(inbox);
+            return;
+        }
+
+        CreateCustomerReturnInspectionRequest request = toInspectionRequest(event);
         CustomerReturnInspectionResponse createdInspection =
                 customerReturnInspectionService.createInspection(returnId, request);
-        CustomerReturnInspectionResponse postedInspection =
-                customerReturnInspectionService.postInspection(createdInspection.id());
 
-        inbox.setInspectionId(postedInspection.id().toString());
-        markProcessed(inbox);
+        inbox.setInspectionId(createdInspection.id().toString());
         inventoryInboxRepository.saveAndFlush(inbox);
-        inventoryOutboxPublisher.publishReturnInventoryDispositionProcessed(
-                commandId,
-                returnId.toString(),
-                postedInspection.id().toString(),
-                event.getSagaId(),
-                event.getCorrelationId()
-        );
-        log.info("Processed return inventory disposition. commandId={}, eventId={}, returnId={}, inspectionId={}",
-                commandId, eventId, returnId, postedInspection.id());
+        log.info("Created return inventory inspection in CREATED status (awaiting manual approval). commandId={}, returnId={}, inspectionId={}",
+                commandId, returnId, createdInspection.id());
     }
 
     private InventoryInbox claimInbox(
@@ -394,7 +395,7 @@ public class ReturnInventoryDispositionInboxService {
         inbox.setEventVersion(1);
         inbox.setSourceService(metadataResolver.sourceService(record, "order-service"));
         inbox.setEntityType("ORDER_RETURN_INVENTORY_COMMAND");
-        inbox.setEntityId(record.key());
+        inbox.setEntityId(sanitizeEntityId(record.key()));
         inbox.setCorrelationId(metadataResolver.correlationId(record, record.key()));
         inbox.setPayloadJson(record.value());
         inbox.setHeadersJson(metadataResolver.serializeHeaders(record));
@@ -541,5 +542,16 @@ public class ReturnInventoryDispositionInboxService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String sanitizeEntityId(String key) {
+        if (!hasText(key)) {
+            return null;
+        }
+        Matcher matcher = UUID_PATTERN.matcher(key);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        return key.length() <= 36 ? key : key.substring(0, 36);
     }
 }

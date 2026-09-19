@@ -1,6 +1,6 @@
 export type CustomerReturnInspectionStatus = "CREATED" | "POSTED" | "CANCELLED";
 
-export type CustomerReturnQcResult = "RESTOCK" | "DAMAGED" | "WRITE_OFF";
+export type CustomerReturnQcResult = "RESTOCK" | "DAMAGED" | "QUARANTINE" | "WRITE_OFF";
 
 export interface CustomerReturnInspectionLine {
     id: string;
@@ -17,6 +17,8 @@ export interface CustomerReturnInspectionLine {
     note?: string;
     posted: boolean;
     transactionId?: string;
+    condition?: string;
+    returnReason?: string;
 }
 
 export interface CustomerReturnInspection {
@@ -27,6 +29,7 @@ export interface CustomerReturnInspection {
     branchId: string;
     orderId?: string;
     orderCode?: string;
+    customerName?: string;
     status: CustomerReturnInspectionStatus;
     createdAt: string;
     postedAt?: string;

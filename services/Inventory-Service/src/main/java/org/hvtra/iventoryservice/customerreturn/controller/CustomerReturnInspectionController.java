@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcDispositionReportRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSummaryBatchRequest;
+import org.hvtra.iventoryservice.customerreturn.dto.request.PostCustomerReturnInspectionRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
@@ -44,8 +45,11 @@ public class CustomerReturnInspectionController {
     }
 
     @PostMapping("/customer-return-inspections/{inspectionId}/post")
-    public ResponseEntity<CustomerReturnInspectionResponse> postInspection(@PathVariable UUID inspectionId) {
-        return ResponseEntity.ok(service.postInspection(inspectionId));
+    public ResponseEntity<CustomerReturnInspectionResponse> postInspection(
+            @PathVariable UUID inspectionId,
+            @RequestBody(required = false) PostCustomerReturnInspectionRequest request
+    ) {
+        return ResponseEntity.ok(service.postInspection(inspectionId, request));
     }
 
     @GetMapping("/customer-return-inspections/{inspectionId}")

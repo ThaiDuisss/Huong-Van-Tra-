@@ -22,6 +22,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -30,6 +32,7 @@ public class ReturnInventoryDispositionAckInboxService {
 
     private static final String PROCESSED_EVENT_TYPE = "RETURN_INVENTORY_DISPOSITION_PROCESSED";
     private static final String FAILED_EVENT_TYPE = "RETURN_INVENTORY_DISPOSITION_FAILED";
+    private static final Pattern UUID_PATTERN = Pattern.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
     private final OrderReturnInventoryCommandRepository orderReturnInventoryCommandRepository;
     private final OrderInboxRepository orderInboxRepository;
@@ -230,13 +233,34 @@ public class ReturnInventoryDispositionAckInboxService {
         inbox.setEventVersion(1);
         inbox.setSourceService(metadataResolver.sourceService(record, "inventory-service"));
         inbox.setEntityType("ORDER_RETURN_INVENTORY_COMMAND");
-        inbox.setEntityId(record.key());
+        inbox.setEntityId(resolveEntityId(event, record.key()));
         inbox.setCorrelationId(metadataResolver.correlationId(record, record.key()));
         inbox.setPayloadJson(record.value());
         inbox.setHeadersJson(metadataResolver.serializeHeaders(record));
         inbox.setStatus(InboxStatus.RECEIVED);
         inbox.setReceivedAt(Instant.now());
         return inbox;
+    }
+
+    private String resolveEntityId(CommonEventPayload event, String recordKey) {
+        if (event instanceof ReturnInventoryDispositionProcessedEvent p && p.getCommandId() != null && !p.getCommandId().isBlank()) {
+            return p.getCommandId().trim();
+        }
+        if (event instanceof ReturnInventoryDispositionFailedEvent f && f.getCommandId() != null && !f.getCommandId().isBlank()) {
+            return f.getCommandId().trim();
+        }
+        return sanitizeUuid(recordKey);
+    }
+
+    private String sanitizeUuid(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = UUID_PATTERN.matcher(text);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        return text.length() <= 36 ? text : text.substring(0, 36);
     }
 
     private void normalizeMetadata(

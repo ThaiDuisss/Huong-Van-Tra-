@@ -70,10 +70,10 @@ const RETURN_STATUS_FILTERS: {
 }[] = [
     { key: "ALL", label: "Tất cả" },
     { key: "CREATED", label: "Đã tạo" },
-    { key: "RECEIVED", label: "Đã nhận hàng" },
+    { key: "RECEIVED", label: "Chờ kiểm hàng" },
     { key: "PROCESSING", label: "Đang xử lý" },
     { key: "PENDING_REFUND", label: "Chờ hoàn tiền" },
-    { key: "COMPLETED", label: "Hoàn tất" },
+    { key: "COMPLETED", label: "Hoàn thành" },
     { key: "CANCELLED", label: "Đã hủy" },
     { key: "PROCESSING_FAILED", label: "Có lỗi", isError: true }
 ];

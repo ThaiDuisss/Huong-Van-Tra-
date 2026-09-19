@@ -61,8 +61,9 @@ public class OrderReturnRefundTransactionServiceImpl implements OrderReturnRefun
                 lockedOrder.getId()
         );
 
-        // Keep returnStatus as RECEIVED - lifecycle is strictly CREATED -> RECEIVED and CREATED -> CANCELLED
-        orderReturn.setStatus(ReturnStatus.RECEIVED);
+        // Transition returnStatus to COMPLETED upon successful refund
+        ReturnStatus previousStatus = orderReturn.getStatus();
+        orderReturn.setStatus(ReturnStatus.COMPLETED);
         lockedOrder.setPaymentStatus(paymentStatus);
         lockedOrder.setReturnStatus(resolveOrderReturnStatus(lockedOrder, orderReturns));
 
@@ -76,8 +77,8 @@ public class OrderReturnRefundTransactionServiceImpl implements OrderReturnRefun
         orderReturnHistoryWriter.writeIfAbsent(
                 orderReturn,
                 OrderReturnHistoryAction.REFUND_COMPLETED,
-                ReturnStatus.RECEIVED,
-                ReturnStatus.RECEIVED,
+                previousStatus,
+                ReturnStatus.COMPLETED,
                 actorUserId,
                 "Refund completed",
                 "PAYMENT_TRANSACTION",
@@ -86,7 +87,7 @@ public class OrderReturnRefundTransactionServiceImpl implements OrderReturnRefun
 
         orderOutboxPublisher.publishReturnRefundCompletedNotification(
                 orderReturn,
-                ReturnStatus.RECEIVED,
+                ReturnStatus.COMPLETED,
                 actorUserId,
                 paymentRefund
         );

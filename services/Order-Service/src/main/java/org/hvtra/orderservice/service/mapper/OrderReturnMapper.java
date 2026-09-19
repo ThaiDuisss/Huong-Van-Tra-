@@ -16,6 +16,8 @@ public class OrderReturnMapper {
                 .returnCode(orderReturn.getReturnCode())
                 .orderId(orderReturn.getOrder().getId())
                 .orderCode(orderReturn.getOrder().getOrderCode())
+                .customerName(orderReturn.getOrder().getCustomerNameSnapshot())
+                .customerPhone(orderReturn.getOrder().getCustomerPhoneSnapshot())
                 .branchId(orderReturn.getOrder().getBranchId())
                 .status(orderReturn.getStatus())
                 .note(orderReturn.getNote())

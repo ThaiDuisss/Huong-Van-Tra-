@@ -82,6 +82,8 @@ class CustomerReturnInspectionServiceImplTest {
     private InventoryTransactionRepository transactionRepository;
     @Mock
     private InventoryInboxRepository inboxRepository;
+    @Mock
+    private org.hvtra.iventoryservice.outbox.publisher.InventoryOutboxPublisher inventoryOutboxPublisher;
 
     private CustomerReturnInspectionServiceImpl service;
     private UUID returnId;
@@ -105,7 +107,8 @@ class CustomerReturnInspectionServiceImplTest {
                 batchRepository,
                 balanceRepository,
                 transactionRepository,
-                inboxRepository);
+                inboxRepository,
+                inventoryOutboxPublisher);
         returnId = UUID.randomUUID();
         returnItemId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();

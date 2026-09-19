@@ -9,6 +9,7 @@ public record OrderReturnResponse(
         String returnCode,
         UUID orderId,
         String orderCode,
+        String customerName,
         UUID branchId,
         OrderReturnStatus status,
         String note,

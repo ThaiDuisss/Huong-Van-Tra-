@@ -196,7 +196,7 @@ function getRefundProgress(row: OrderRefundSummaryResponse): { label: string; cl
     if (row.refundStatus === "NOT_REQUIRED" || row.refundRequired === false) {
         return { label: "Không hoàn tiền", className: styles.notRequiredBadge };
     }
-    if (row.refundStatus === "PENDING" || row.qcStatus === "COMPLETED") {
+    if (row.refundStatus === "PENDING") {
         return { label: "Chờ hoàn tiền", className: styles.pendingRefundBadge };
     }
     if (row.returnStatus === "CREATED") {
@@ -208,22 +208,11 @@ function getRefundProgress(row: OrderRefundSummaryResponse): { label: string; cl
     return { label: "Chờ xử lý", className: styles.waitingReceiptBadge };
 }
 
-function canRefund(row: OrderRefundSummaryResponse) {
-    const paymentStatus = row.paymentStatus?.trim();
-    const method = row.method?.trim();
-    const hasUnavailablePaymentStatus =
-        paymentStatus === "UNAVAILABLE" || paymentStatus === "UNKNOWN";
-    const hasUnavailableMethod = method === "UNKNOWN" || method === "UNAVAILABLE";
-    const hasRefundablePaymentStatus =
-        paymentStatus === "PAID" || paymentStatus === "PARTIALLY_REFUNDED";
-
+function canRefund(row: OrderRefundSummaryResponse | OrderRefundDetailResponse) {
     return (
         row.refundStatus === "PENDING" &&
-        Boolean(paymentStatus) &&
-        !hasUnavailablePaymentStatus &&
-        !hasUnavailableMethod &&
-        hasRefundablePaymentStatus &&
-        method === "CASH" &&
+        typeof row.refundAmount === "number" &&
+        row.refundAmount > 0 &&
         row.refundRequired !== false
     );
 }
@@ -817,18 +806,25 @@ function RefundDetailModal({
                             </div>
                         </section>
 
-                        {canRefund(detail) ? (
-                            <div className={styles.detailActions}>
+                        <div className={styles.detailActions}>
+                            <button
+                                className={styles.secondaryButton}
+                                onClick={onClose}
+                                type="button"
+                            >
+                                Đóng
+                            </button>
+                            {canRefund(detail) ? (
                                 <button
                                     className={styles.refundButton}
                                     onClick={() => onRefund(detail)}
                                     type="button"
                                 >
                                     <WalletCards size={16} aria-hidden="true" />
-                                    Hoàn tiền
+                                    Thực hiện hoàn tiền
                                 </button>
-                            </div>
-                        ) : null}
+                            ) : null}
+                        </div>
                     </div>
                 ) : null}
             </aside>
@@ -875,8 +871,9 @@ function RefundConfirmModal({
                     items={[
                         ["Mã phiếu hoàn", displayText(row.returnCode)],
                         ["Mã đơn", displayText(row.orderCode)],
+                        ["Khách hàng", displayText(row.customerName, "Khách lẻ")],
                         ["Số tiền hoàn", loading ? "Đang tải..." : amount ? formatCurrency(amount) : "Chưa xác định"],
-                        ["Phương thức", getMethodLabel(preview?.paymentMethod ?? row.method)]
+                        ["Phương thức hoàn", getMethodLabel(preview?.paymentMethod ?? row.method)]
                     ]}
                 />
 

@@ -297,6 +297,17 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
             from OrderReturn orderReturn
             left join fetch orderReturn.items items
             left join fetch items.orderItem
+            where orderReturn.order.id in :orderIds
+              and orderReturn.isDeleted = false
+            order by orderReturn.createdAt desc
+            """)
+    List<OrderReturn> findByOrderIdInAndIsDeletedFalseWithItems(@Param("orderIds") Collection<UUID> orderIds);
+
+    @Query("""
+            select distinct orderReturn
+            from OrderReturn orderReturn
+            left join fetch orderReturn.items items
+            left join fetch items.orderItem
             left join fetch orderReturn.order
             where orderReturn.id = :id
               and orderReturn.isDeleted = false

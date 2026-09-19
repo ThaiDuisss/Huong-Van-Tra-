@@ -6,6 +6,14 @@ import type {
     CustomerReturnInspectionListResult
 } from "../types/customer-return-inspection.types";
 
+export interface PostCustomerReturnInspectionRequest {
+    lines?: Array<{
+        lineId?: string;
+        returnItemId?: string;
+        destinationLocationId?: string;
+    }>;
+}
+
 export const customerReturnApi = {
     getInspection(inspectionId: string) {
         return apiClient.get<CustomerReturnInspection>(
@@ -28,9 +36,10 @@ export const customerReturnApi = {
         );
     },
 
-    postInspection(inspectionId: string) {
-        return apiClient.post<CustomerReturnInspection>(
-            `/inventory/customer-return-inspections/${encodeURIComponent(inspectionId)}/post`
+    postInspection(inspectionId: string, body?: PostCustomerReturnInspectionRequest) {
+        return apiClient.post<CustomerReturnInspection, PostCustomerReturnInspectionRequest | undefined>(
+            `/inventory/customer-return-inspections/${encodeURIComponent(inspectionId)}/post`,
+            body
         );
     }
 };

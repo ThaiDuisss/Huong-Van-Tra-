@@ -77,8 +77,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import org.hvtra.commonservice.kafka.inbox.InboxStatus;
+import org.hvtra.iventoryservice.customerreturn.dto.request.PostCustomerReturnInspectionRequest;
+import org.hvtra.iventoryservice.outbox.publisher.InventoryOutboxPublisher;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -95,6 +101,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryTransactionRepository transactionRepository;
     private final InventoryInboxRepository inboxRepository;
+    private final InventoryOutboxPublisher inventoryOutboxPublisher;
 
     @Value("${inventory.order.events.return-disposition.group-id:inventory-return-disposition}")
     private String consumerGroup;
@@ -157,23 +164,60 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     @Override
     @Transactional
     public CustomerReturnInspectionResponse postInspection(UUID inspectionId) {
+        return postInspection(inspectionId, null);
+    }
+
+    @Override
+    @Transactional
+    public CustomerReturnInspectionResponse postInspection(UUID inspectionId, PostCustomerReturnInspectionRequest request) {
         CustomerReturnInspection inspectionSnapshot = inspectionRepository
                 .findByIdAndIsDeletedFalse(inspectionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer return inspection", inspectionId));
+
+        // Idempotency check 1: before pessimistic lock
+        if (inspectionSnapshot.getStatus() == CustomerReturnInspectionStatus.POSTED) {
+            log.info("Customer return inspection is already POSTED. Returning existing inspection without reprocessing: inspectionId={}", inspectionId);
+            return getInspection(inspectionId);
+        }
+        if (inspectionSnapshot.getStatus() == CustomerReturnInspectionStatus.CANCELLED) {
+            throw new BadRequestException("Cancelled customer return inspection cannot be posted: " + inspectionId);
+        }
+
         OrderReturnResponse orderReturn = verifiedReceivedReturn(inspectionSnapshot.getReturnId());
         Map<UUID, OrderReturnItemResponse> returnItems = returnItemsById(orderReturn);
 
         CustomerReturnInspection inspection = inspectionRepository
-                .findByReturnIdForUpdate(inspectionSnapshot.getReturnId())
-                .stream()
-                .filter(candidate -> candidate.getId().equals(inspectionId))
-                .findFirst()
+                .findByIdAndIsDeletedFalseForUpdate(inspectionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer return inspection", inspectionId));
+
+        // Idempotency check 2: under pessimistic lock
         if (inspection.getStatus() == CustomerReturnInspectionStatus.POSTED) {
-            throw new BadRequestException("Customer return inspection is already posted: " + inspectionId);
+            log.info("Customer return inspection is already POSTED (under lock). Returning existing inspection without reprocessing: inspectionId={}", inspectionId);
+            return toEnrichedResponse(inspection, orderReturn);
         }
         if (inspection.getStatus() == CustomerReturnInspectionStatus.CANCELLED) {
             throw new BadRequestException("Cancelled customer return inspection cannot be posted: " + inspectionId);
+        }
+
+        // Apply optional destination location overrides if provided from UI
+        if (request != null && request.lines() != null && !request.lines().isEmpty()) {
+            Map<UUID, PostCustomerReturnInspectionRequest.LineOverride> overridesByReturnItemId = request.lines().stream()
+                    .filter(o -> o.returnItemId() != null)
+                    .collect(Collectors.toMap(PostCustomerReturnInspectionRequest.LineOverride::returnItemId, Function.identity(), (a, b) -> a));
+            Map<UUID, PostCustomerReturnInspectionRequest.LineOverride> overridesByLineId = request.lines().stream()
+                    .filter(o -> o.lineId() != null)
+                    .collect(Collectors.toMap(PostCustomerReturnInspectionRequest.LineOverride::lineId, Function.identity(), (a, b) -> a));
+
+            for (CustomerReturnInspectionLine line : inspection.getLines()) {
+                PostCustomerReturnInspectionRequest.LineOverride override = overridesByReturnItemId.get(line.getReturnItemId());
+                if (override == null && line.getId() != null) {
+                    override = overridesByLineId.get(line.getId());
+                }
+                if (override != null && override.destinationLocationId() != null && line.getResult() != CustomerReturnQcResult.WRITE_OFF) {
+                    InventoryLocation newDest = resolveDestination(inspection.getBranchId(), line.getResult(), override.destinationLocationId());
+                    line.setDestinationLocation(newDest);
+                }
+            }
         }
 
         Map<UUID, BigDecimal> postedQuantities = postedQuantities(inspection.getReturnId());
@@ -189,14 +233,55 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
 
         inspection.setStatus(CustomerReturnInspectionStatus.POSTED);
         inspection.setPostedAt(Instant.now());
-        return toResponse(inspectionRepository.saveAndFlush(inspection));
+        CustomerReturnInspection saved = inspectionRepository.saveAndFlush(inspection);
+
+        // Publish PROCESSED outbox event and transition inbox to PROCESSED
+        Optional<InventoryInbox> inboxOpt = inboxRepository
+                .findFirstByInspectionIdAndConsumerGroup(saved.getId().toString(), consumerGroup);
+        if (inboxOpt.isEmpty()) {
+            inboxOpt = inboxRepository.findFirstByInspectionId(saved.getId().toString());
+        }
+        if (inboxOpt.isEmpty()) {
+            inboxOpt = inboxRepository.findFirstByEntityIdAndConsumerGroup(saved.getReturnId().toString(), consumerGroup);
+        }
+        if (inboxOpt.isPresent()) {
+            InventoryInbox inbox = inboxOpt.get();
+            if (inbox.getStatus() != InboxStatus.PROCESSED) {
+                inbox.setStatus(InboxStatus.PROCESSED);
+                inbox.setProcessedAt(Instant.now());
+                inbox.setInspectionId(saved.getId().toString());
+                inboxRepository.saveAndFlush(inbox);
+
+                inventoryOutboxPublisher.publishReturnInventoryDispositionProcessed(
+                        inbox.getCommandId(),
+                        saved.getReturnId().toString(),
+                        saved.getId().toString(),
+                        inbox.getSagaId(),
+                        inbox.getCorrelationId()
+                );
+                log.info("Published processed outbox event after manual post. inspectionId={}, commandId={}, returnId={}",
+                        saved.getId(), inbox.getCommandId(), saved.getReturnId());
+            } else {
+                log.debug("Inbox record already PROCESSED. inspectionId={}, commandId={}", saved.getId(), inbox.getCommandId());
+            }
+        } else {
+            log.warn("No inbox record found for inspectionId={}. Manual post completed without outbox event.", saved.getId());
+        }
+
+        return toEnrichedResponse(saved, orderReturn);
     }
 
     @Override
     public CustomerReturnInspectionResponse getInspection(UUID inspectionId) {
-        return inspectionRepository.findByIdAndIsDeletedFalse(inspectionId)
-                .map(this::toResponse)
+        CustomerReturnInspection inspection = inspectionRepository.findByIdAndIsDeletedFalse(inspectionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer return inspection", inspectionId));
+        OrderReturnResponse orderReturn = null;
+        try {
+            orderReturn = orderReturnClient.getReturnById(inspection.getReturnId());
+        } catch (Exception ex) {
+            log.warn("Could not fetch OrderReturnResponse for returnId={}: {}", inspection.getReturnId(), ex.getMessage());
+        }
+        return toEnrichedResponse(inspection, orderReturn);
     }
 
     @Override
@@ -562,16 +647,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             CustomerReturnQcResult result,
             String lineNote,
             String inspectionNote) {
-        if (result == CustomerReturnQcResult.QUARANTINE) {
-            throw new BadRequestException("QUARANTINE is no longer supported for customer return QC");
+        if (result == CustomerReturnQcResult.WRITE_OFF) {
+            return;
+        }
+        if (result == CustomerReturnQcResult.QUARANTINE || result == CustomerReturnQcResult.DAMAGED) {
+            return;
         }
         if (condition == OrderReturnCondition.SEALED) {
-            if (result == CustomerReturnQcResult.WRITE_OFF && !hasReasonableNote(lineNote, inspectionNote)) {
-                throw new BadRequestException("WRITE_OFF for SEALED return item requires a reason note");
-            }
-            if (result == CustomerReturnQcResult.DAMAGED && !hasReasonableNote(lineNote, inspectionNote)) {
-                throw new BadRequestException("DAMAGED for SEALED return item requires a reason note");
-            }
             return;
         }
         if (result == CustomerReturnQcResult.RESTOCK) {
@@ -709,6 +791,61 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                     ))
                     .toList();
         }
+    }
+
+    private CustomerReturnInspectionResponse toEnrichedResponse(
+            CustomerReturnInspection inspection,
+            OrderReturnResponse orderReturn
+    ) {
+        String customerName = orderReturn == null ? null : orderReturn.customerName();
+        Map<UUID, OrderReturnItemResponse> itemsByReturnItemId = orderReturn == null
+                ? Map.of()
+                : returnItemsById(orderReturn);
+
+        List<CustomerReturnInspectionLineResponse> lines = inspection.getLines().stream()
+                .map(line -> {
+                    OrderReturnItemResponse returnItem = itemsByReturnItemId.get(line.getReturnItemId());
+                    String condition = returnItem == null || returnItem.condition() == null
+                            ? null
+                            : returnItem.condition().name();
+                    String returnReason = returnItem == null ? null : returnItem.reason();
+                    InventoryLocation destination = line.getDestinationLocation();
+                    return new CustomerReturnInspectionLineResponse(
+                            line.getId(),
+                            line.getReturnItemId(),
+                            line.getOrderItemId(),
+                            line.getProductVariantId(),
+                            line.getInventoryItem().getId(),
+                            line.getInventoryItem().getReferenceCode(),
+                            line.getInventoryItem().getName(),
+                            line.getQuantity(),
+                            line.getResult(),
+                            destination == null ? null : destination.getId(),
+                            destination == null ? null : destination.getName(),
+                            line.getNote(),
+                            line.getPosted(),
+                            line.getTransactionId(),
+                            condition,
+                            returnReason
+                    );
+                })
+                .toList();
+
+        return new CustomerReturnInspectionResponse(
+                inspection.getId(),
+                inspection.getInspectionCode(),
+                inspection.getReturnId(),
+                inspection.getReturnCode(),
+                inspection.getBranchId(),
+                inspection.getOrderId(),
+                inspection.getOrderCode(),
+                customerName,
+                inspection.getStatus(),
+                inspection.getCreatedAt(),
+                inspection.getPostedAt(),
+                inspection.getNote(),
+                lines
+        );
     }
 
     private CustomerReturnInspectionResponse toResponse(CustomerReturnInspection inspection) {
