@@ -90,7 +90,8 @@ public class OrderCheckoutServiceImpl implements OrderCheckoutService {
                     actualUnitPrice,
                     itemDiscount,
                     lineTotal,
-                    itemRequest.getBomVersionId()
+                    itemRequest.getBomVersionId(),
+                    itemRequest.getNote()
             );
 
             order.addItem(item);

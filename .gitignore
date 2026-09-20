@@ -53,3 +53,7 @@ build/
 
 /.local/
 .claude/
+.agent/
+.agents/
+docs/
+thai_agents/

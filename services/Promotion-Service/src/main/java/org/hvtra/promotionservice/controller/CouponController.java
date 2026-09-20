@@ -8,6 +8,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.coupon.CouponSuccessMessage;
 import org.hvtra.promotionservice.dto.request.coupon.*;
@@ -35,6 +36,7 @@ public class CouponController {
             summary = "Tạo coupon",
             description = "Tạo mới một mã coupon. Khi gọi API này cần truyền promotionId trong request."
     )
+    @UserAction(value = "COUPON_CREATE", entityType = "Coupon", entityId = "#result.data.id")
     @PostMapping("/coupons")
     public ApiResponse<CouponResponse> createCoupon(
             @Valid @RequestBody CouponCreateRequest request
@@ -47,6 +49,7 @@ public class CouponController {
             summary = "Tạo coupon theo khuyến mãi",
             description = "Tạo mới một mã coupon trực tiếp dưới một khuyến mãi cụ thể. promotionId được lấy từ path variable."
     )
+    @UserAction(value = "COUPON_CREATE", entityType = "Coupon", entityId = "#result.data.id", detail = "#promotionId")
     @PostMapping("/promotions/{promotionId}/coupons")
     public ApiResponse<CouponResponse> createCouponByPromotion(
             @Parameter(description = "ID của khuyến mãi chứa coupon", required = true)
@@ -114,6 +117,7 @@ public class CouponController {
             summary = "Cập nhật coupon",
             description = "Cập nhật thông tin coupon như mã, phạm vi sử dụng, khách hàng được gán, số lần sử dụng và thời gian hết hạn."
     )
+    @UserAction(value = "COUPON_UPDATE", entityType = "Coupon", entityId = "#couponId")
     @PutMapping("/coupons/{couponId}")
     public ApiResponse<CouponResponse> updateCoupon(
             @Parameter(description = "ID của coupon cần cập nhật", required = true)
@@ -129,6 +133,7 @@ public class CouponController {
             summary = "Cập nhật trạng thái coupon",
             description = "Cập nhật trạng thái vòng đời của coupon. Ví dụ: ACTIVE, PAUSED, EXPIRED, CANCELLED hoặc ARCHIVED."
     )
+    @UserAction(value = "COUPON_STATUS_UPDATE", entityType = "Coupon", entityId = "#couponId", detail = "#request.status")
     @PatchMapping("/coupons/{couponId}/status")
     public ApiResponse<CouponResponse> updateCouponStatus(
             @Parameter(description = "ID của coupon cần cập nhật trạng thái", required = true)
@@ -144,6 +149,7 @@ public class CouponController {
             summary = "Xóa coupon",
             description = "Xóa mềm coupon. Dữ liệu không bị xóa vật lý khỏi database."
     )
+    @UserAction(value = "COUPON_DELETE", entityType = "Coupon", entityId = "#couponId")
     @DeleteMapping("/coupons/{couponId}")
     public ApiResponse<Void> deleteCoupon(
             @Parameter(description = "ID của coupon cần xóa", required = true)
@@ -157,6 +163,7 @@ public class CouponController {
             summary = "Kích hoạt coupon",
             description = "Chuyển coupon sang trạng thái ACTIVE để có thể sử dụng."
     )
+    @UserAction(value = "COUPON_ACTIVATE", entityType = "Coupon", entityId = "#couponId")
     @PostMapping("/coupons/{couponId}/activate")
     public ApiResponse<CouponResponse> activateCoupon(
             @Parameter(description = "ID của coupon cần kích hoạt", required = true)
@@ -170,6 +177,7 @@ public class CouponController {
             summary = "Tạm dừng coupon",
             description = "Chuyển coupon sang trạng thái PAUSED. Coupon tạm dừng sẽ không được sử dụng cho đến khi kích hoạt lại."
     )
+    @UserAction(value = "COUPON_PAUSE", entityType = "Coupon", entityId = "#couponId")
     @PostMapping("/coupons/{couponId}/pause")
     public ApiResponse<CouponResponse> pauseCoupon(
             @Parameter(description = "ID của coupon cần tạm dừng", required = true)
@@ -183,6 +191,7 @@ public class CouponController {
             summary = "Hủy coupon",
             description = "Chuyển coupon sang trạng thái CANCELLED. Coupon đã hủy không nên được kích hoạt lại."
     )
+    @UserAction(value = "COUPON_CANCEL", entityType = "Coupon", entityId = "#couponId")
     @PostMapping("/coupons/{couponId}/cancel")
     public ApiResponse<CouponResponse> cancelCoupon(
             @Parameter(description = "ID của coupon cần hủy", required = true)
@@ -196,6 +205,7 @@ public class CouponController {
             summary = "Expire coupon",
             description = "Change coupon status to EXPIRED."
     )
+    @UserAction(value = "COUPON_EXPIRE", entityType = "Coupon", entityId = "#couponId")
     @PostMapping("/coupons/{couponId}/expire")
     public ApiResponse<CouponResponse> expireCoupon(
             @Parameter(description = "ID coupon", required = true)
@@ -209,6 +219,7 @@ public class CouponController {
             summary = "Lưu trữ coupon",
             description = "Chuyển coupon sang trạng thái ARCHIVED. Dùng để ẩn coupon khỏi danh sách quản lý chính nhưng vẫn giữ lịch sử."
     )
+    @UserAction(value = "COUPON_ARCHIVE", entityType = "Coupon", entityId = "#couponId")
     @PostMapping("/coupons/{couponId}/archive")
     public ApiResponse<CouponResponse> archiveCoupon(
             @Parameter(description = "ID của coupon cần lưu trữ", required = true)
@@ -222,6 +233,7 @@ public class CouponController {
             summary = "Tạo mã coupon public",
             description = "Tạo một mã coupon public cho một khuyến mãi. Mã public có thể được dùng bởi bất kỳ khách hàng nào nếu thỏa điều kiện."
     )
+    @UserAction(value = "COUPON_GENERATE_PUBLIC", entityType = "Coupon", entityId = "#result.data.id", detail = "#promotionId")
     @PostMapping("/promotions/{promotionId}/coupons/generate-public")
     public ApiResponse<CouponResponse> generatePublicCoupon(
             @Parameter(description = "ID của khuyến mãi cần tạo coupon", required = true)
@@ -237,6 +249,7 @@ public class CouponController {
             summary = "Tạo mã coupon cá nhân",
             description = "Tạo một mã coupon cá nhân cho một khách hàng cụ thể."
     )
+    @UserAction(value = "COUPON_GENERATE_PERSONAL", entityType = "Coupon", entityId = "#result.data.id", detail = "#promotionId")
     @PostMapping("/promotions/{promotionId}/coupons/generate-personal")
     public ApiResponse<CouponResponse> generatePersonalCoupon(
             @Parameter(description = "ID của khuyến mãi cần tạo coupon", required = true)
@@ -252,6 +265,7 @@ public class CouponController {
             summary = "Tạo hàng loạt coupon",
             description = "Tạo hàng loạt coupon public hoặc coupon cá nhân cho một khuyến mãi."
     )
+    @UserAction(value = "COUPON_BULK_GENERATE", entityType = "Coupon", detail = "#promotionId")
     @PostMapping("/promotions/{promotionId}/coupons/bulk-generate")
     public ApiResponse<List<CouponResponse>> bulkGenerateCoupons(
             @Parameter(description = "ID của khuyến mãi cần tạo coupon", required = true)

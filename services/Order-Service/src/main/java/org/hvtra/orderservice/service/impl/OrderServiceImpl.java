@@ -213,6 +213,7 @@ public class OrderServiceImpl implements OrderService {
                     .discountAmount(itemDiscount)
                     .lineTotal(lineTotal)
                     .bomVersionId(itemRequest.getBomVersionId())
+                    .note(normalizeNote(itemRequest.getNote()))
                     .build();
 
             order.addItem(item);
@@ -381,7 +382,8 @@ public class OrderServiceImpl implements OrderService {
             OrderItem item = findDraftItem(
                     order,
                     itemRequest.getProductVariantId(),
-                    itemRequest.getBomVersionId()
+                    itemRequest.getBomVersionId(),
+                    itemRequest.getNote()
             );
 
             if (item == null) {
@@ -836,7 +838,12 @@ public class OrderServiceImpl implements OrderService {
         var variant = catalogClient.getProductVariantPosView(request.getProductVariantId());
         log.info("variant: {}", variant);
         BigDecimal addQuantity = defaultPositive(request.getQuantity());
-        OrderItem item = findDraftItem(order, variant.variantId(), request.getBomVersionId());
+        OrderItem item = findDraftItem(
+                order,
+                variant.variantId(),
+                request.getBomVersionId(),
+                request.getNote()
+        );
         BigDecimal oldQuantity = item == null ? BigDecimal.ZERO : defaultZero(item.getQuantity());
         BigDecimal targetQuantity = oldQuantity.add(addQuantity);
         log.info("varient{} {}", variant.variantId(), request.getProductVariantId());
@@ -853,6 +860,7 @@ public class OrderServiceImpl implements OrderService {
                     .actualUnitPrice(defaultZero(variant.sellingPrice()))
                     .discountAmount(defaultZero(request.getDiscountAmount()))
                     .bomVersionId(request.getBomVersionId())
+                    .note(normalizeNote(request.getNote()))
                     .build();
             recalculateLine(item);
             order.addItem(item);
@@ -1184,13 +1192,19 @@ public class OrderServiceImpl implements OrderService {
         return order;
     }
 
-    private OrderItem findDraftItem(Order order, UUID productVariantId, UUID bomVersionId) {
+    private OrderItem findDraftItem(
+            Order order,
+            UUID productVariantId,
+            UUID bomVersionId,
+            String note
+    ) {
         if (order.getItems() == null) {
             return null;
         }
         return order.getItems().stream()
                 .filter(item -> item.getProductVariantId().equals(productVariantId))
                 .filter(item -> bomVersionMatches(item.getBomVersionId(), bomVersionId))
+                .filter(item -> notesMatch(item.getNote(), note))
                 .findFirst()
                 .orElse(null);
     }
@@ -1204,6 +1218,16 @@ public class OrderServiceImpl implements OrderService {
 
     private boolean bomVersionMatches(UUID current, UUID requested) {
         return current == null ? requested == null : current.equals(requested);
+    }
+
+    private boolean notesMatch(String current, String requested) {
+        String currentNote = normalizeNote(current);
+        String requestedNote = normalizeNote(requested);
+        return currentNote == null ? requestedNote == null : currentNote.equals(requestedNote);
+    }
+
+    private String normalizeNote(String note) {
+        return note == null || note.isBlank() ? null : note.trim();
     }
 
     private Instant nextDraftExpiresAt() {
@@ -1848,6 +1872,7 @@ public class OrderServiceImpl implements OrderService {
                 .discountAmount(item.getDiscountAmount())
                 .lineTotal(item.getLineTotal())
                 .bomVersionId(item.getBomVersionId())
+                .note(item.getNote())
                 .build();
     }
 

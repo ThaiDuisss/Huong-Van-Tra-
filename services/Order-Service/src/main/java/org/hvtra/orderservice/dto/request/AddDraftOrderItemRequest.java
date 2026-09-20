@@ -29,4 +29,5 @@ public class AddDraftOrderItemRequest {
     private BigDecimal discountAmount = BigDecimal.ZERO;
     private UUID bomVersionId;
     private UUID inventoryLocationId;
+    private String note;
 }

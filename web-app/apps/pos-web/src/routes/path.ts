@@ -8,6 +8,7 @@ export const routePaths = {
   salesHistory: "/sales-history",
   system: "/system",
   systemDashboard: "/system/dashboard",
+  systemActionLogs: "/system/action-logs",
   management: "/management",
   orders: "/system/orders",
   orderReturnCreate: "/system/orders/:orderId/returns/create",

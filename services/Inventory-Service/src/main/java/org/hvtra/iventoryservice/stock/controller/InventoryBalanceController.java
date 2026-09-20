@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.stock.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
@@ -69,6 +70,7 @@ public class InventoryBalanceController {
         return service.findWarehouseBalances(sku, productName);
     }
 
+    @UserAction(value = "INVENTORY_BALANCE_LOCATION_BULK_UPDATE", entityType = "InventoryBalance")
     @PutMapping("/location")
     public void bulkUpdateLocation() {
         service.bulkUpdateLocation();

@@ -9,6 +9,8 @@ import feign.Target;
 import feign.codec.ErrorDecoder;
 import jakarta.servlet.http.HttpServletRequest;
 import org.hvtra.commonservice.domain.constants.HeaderConstants;
+import org.hvtra.commonservice.logging.MdcKeys;
+import org.slf4j.MDC;
 import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -49,26 +51,24 @@ public class FeignConfig {
             ServletRequestAttributes attributes =
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
-            if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
-                String existingUserId = request.getHeader(HeaderConstants.HEADER_USER_ID);
-                String existingSignature = request.getHeader(HeaderConstants.HEADER_SIGNATURE);
-                String existingAuth = request.getHeader(HeaderConstants.HEADER_AUTHOR);
-
-                if (StringUtils.hasText(existingUserId)
-                        && StringUtils.hasText(existingSignature)
-                        && StringUtils.hasText(existingAuth)) {
-                    HeaderConstants.FORWARD_HEADERS.forEach(headerName -> {
-                        String headerValue = request.getHeader(headerName);
-                        if (StringUtils.hasText(headerValue)) {
-                            requestTemplate.header(headerName, headerValue);
-                        }
-                    });
-                    return;
+            if (attributes == null) {
+                // Gọi Feign ngoài luồng HTTP (consumer Kafka, @Async, scheduler):
+                // vẫn truyền X-Request-ID lấy từ MDC để nối log giữa các service
+                String requestId = MDC.get(MdcKeys.REQUEST_ID);
+                if (StringUtils.hasText(requestId)) {
+                    requestTemplate.header(HeaderConstants.HEADER_CORRELATION_ID, requestId);
                 }
+                return;
             }
 
-            attachInternalServiceAuthentication(requestTemplate);
+            HttpServletRequest request = attributes.getRequest();
+            HeaderConstants.FORWARD_HEADERS.forEach(headerName -> {
+                String headerValue = request.getHeader(headerName);
+
+                if (StringUtils.hasText(headerValue)) {
+                    requestTemplate.header(headerName, headerValue);
+                }
+            });
         };
     }
 
