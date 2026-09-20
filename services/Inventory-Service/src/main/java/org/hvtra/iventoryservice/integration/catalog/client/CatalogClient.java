@@ -66,6 +66,10 @@ public interface CatalogClient {
     @PostMapping("/internal/catalog/suppliers/batch")
     List<SupplierResponse> getSuppliersBatch(@RequestBody List<UUID> ids);
 
+    /** Toàn bộ nhà cung cấp (id/code/name) — dùng để resolve theo mã lúc parse Excel phiếu nhập kho. */
+    @GetMapping("/internal/catalog/suppliers")
+    List<SupplierLookupResponse> getAllSuppliers();
+
     @GetMapping("/internal/catalog/product-variants/{variantId}/bom-items")
     List<BomItemResponse> getBomItems(@PathVariable("variantId") UUID variantId);
 
@@ -83,6 +87,13 @@ public interface CatalogClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record UnitRef(UUID id, String name, String symbol) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SupplierLookupResponse(
+            UUID id,
+            String code,
+            String name
+    ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record SupplierResponse(

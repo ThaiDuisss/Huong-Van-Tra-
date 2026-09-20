@@ -398,12 +398,7 @@ public class ProductServiceImpl implements ProductService {
 
         sheet.createFreezePane(0, 1);
         sheet.setAutoFilter(new CellRangeAddress(0, 2, 0, headers.length - 1));
-
-        for (int i = 0; i < headers.length; i++) {
-            try {
-                sheet.autoSizeColumn(i);
-            } catch (Exception ignored) {}
-        }
+        widenColumns(sheet, headers.length);
     }
 
     private void buildImportReferenceSheet(Workbook workbook) {
@@ -435,9 +430,16 @@ public class ProductServiceImpl implements ProductService {
         }
 
         sheet.createFreezePane(0, 1);
-        for (int i = 0; i < headers.length; i++) {
+        widenColumns(sheet, headers.length);
+    }
+
+    /** Auto-size rồi thêm đệm cho các cột trong file mẫu Excel để dễ đọc hơn, không bị chật chữ. */
+    private void widenColumns(Sheet sheet, int columnCount) {
+        for (int i = 0; i < columnCount; i++) {
             try {
                 sheet.autoSizeColumn(i);
+                int width = sheet.getColumnWidth(i) + 3000;
+                sheet.setColumnWidth(i, Math.min(Math.max(width, 4500), 18000));
             } catch (Exception ignored) {}
         }
     }

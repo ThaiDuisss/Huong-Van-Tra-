@@ -5,5 +5,7 @@ package org.hvtra.commonservice.importing.domain.enums;
  * khi service sở hữu loại đó thực sự triển khai {@code ImportTypeHandler} cho nó.
  */
 public enum ImportType {
-    PRODUCT
+    PRODUCT,
+    PRODUCT_VARIANT,
+    GOODS_RECEIPT
 }

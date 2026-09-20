@@ -139,7 +139,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
   },
   {
     key: "import-excel",
-    label: "Quản lý nhập Excel",
+    label: "Nhập Excel",
     icon: Upload,
     roles: PRODUCT_ROLES,
     children: [
