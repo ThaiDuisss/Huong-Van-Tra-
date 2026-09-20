@@ -12,7 +12,7 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
-import { importBatchApi } from "../services/importBatch.api";
+import { importBatchApi as defaultImportBatchApi, type ImportBatchApi } from "../services/importBatch.api";
 import type { ImportBatch, ImportBatchItem, ImportBatchStatus, ImportType } from "../types/import-batch.types";
 
 const STATUS_LABEL: Record<ImportBatchStatus, { label: string; className: string }> = {
@@ -49,9 +49,11 @@ interface ImportBatchPanelProps {
     onBatchChange?: (batch: ImportBatch) => void;
     /** Component hiển thị danh sách dòng theo từng loại import — bắt buộc, thêm loại mới chỉ cần thêm 1 entry ở đây. */
     itemsListRegistry: Partial<Record<ImportType, ComponentType<ImportItemsListProps>>>;
+    /** API import-batch dùng cho panel này — mặc định trỏ Catalog, service khác (vd Inventory) truyền bộ riêng qua createImportBatchApi(). */
+    api?: ImportBatchApi;
 }
 
-export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry }: ImportBatchPanelProps) {
+export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, api = defaultImportBatchApi }: ImportBatchPanelProps) {
     const { hasAnyRole } = useAuthorization();
     const canApprove = hasAnyRole(["ADMIN", "BRANCH_MANAGER"]);
 
@@ -79,7 +81,7 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry }: 
         let active = true;
         setLoading(true);
         setError("");
-        importBatchApi
+        api
             .detail(batchId)
             .then((res) => {
                 if (active) applyBatch(res);
@@ -93,7 +95,7 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry }: 
         return () => {
             active = false;
         };
-    }, [batchId, applyBatch]);
+    }, [batchId, applyBatch, api]);
 
     useEffect(() => loadBatch(), [loadBatch]);
 
@@ -109,7 +111,7 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry }: 
     async function handleUpdateItem(itemId: string, payload: Record<string, unknown>) {
         if (!batch) return;
         try {
-            const updated = await importBatchApi.updateItem(batch.id, itemId, payload);
+            const updated = await api.updateItem(batch.id, itemId, payload);
             applyBatch(updated);
             showToast("Đã lưu dòng.", true);
         } catch (err) {
@@ -120,7 +122,7 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry }: 
     async function handleDeleteItem(itemId: string) {
         if (!batch) return;
         try {
-            const updated = await importBatchApi.deleteItem(batch.id, itemId);
+            const updated = await api.deleteItem(batch.id, itemId);
             applyBatch(updated);
             showToast("Đã xóa dòng.", true);
         } catch (err) {
@@ -153,13 +155,13 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry }: 
 
     async function handleSubmit() {
         if (!batch) return;
-        await runVersionedAction(() => importBatchApi.submit(batch.id, batch.version), "Đã gửi quản lý duyệt.");
+        await runVersionedAction(() => api.submit(batch.id, batch.version), "Đã gửi quản lý duyệt.");
     }
 
     async function handleApprove() {
         if (!batch) return;
         await runVersionedAction(
-            () => importBatchApi.approve(batch.id, batch.version),
+            () => api.approve(batch.id, batch.version),
             "Đã duyệt — dữ liệu đã được ghi chính thức vào hệ thống."
         );
     }
@@ -171,7 +173,7 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry }: 
             return;
         }
         await runVersionedAction(
-            () => importBatchApi.reject(batch.id, batch.version, rejectReason.trim()),
+            () => api.reject(batch.id, batch.version, rejectReason.trim()),
             "Đã từ chối phiếu import."
         );
         setRejectOpen(false);

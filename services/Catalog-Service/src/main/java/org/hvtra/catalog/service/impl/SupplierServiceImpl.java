@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.catalog.dto.request.SupplierRequest;
+import org.hvtra.catalog.dto.response.InternalSupplierLookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.SupplierResponse;
 import org.hvtra.catalog.entity.BusinessSequence;
@@ -133,6 +134,15 @@ public class SupplierServiceImpl implements SupplierService {
                 .toList();
         warmUpIngredients(suppliers);
         return suppliers.stream().map(mapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InternalSupplierLookupResponse> findAllForLookup() {
+        return repository.findAll().stream()
+                .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
+                .map(s -> new InternalSupplierLookupResponse(s.getId(), s.getSupplierCode(), s.getName()))
+                .toList();
     }
 
     private void warmUpIngredients(List<Supplier> suppliers) {

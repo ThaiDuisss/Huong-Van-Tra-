@@ -1,11 +1,12 @@
 import { Download, Upload } from "lucide-react";
+import type { ComponentType } from "react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { routePaths } from "../../../routes/path";
-import { ImportBatchPanel } from "../components/ImportBatchPanel";
+import { ImportBatchPanel, type ImportItemsListProps } from "../components/ImportBatchPanel";
 import { IMPORT_ITEMS_LIST_REGISTRY } from "../import-batch-registry";
-import { importBatchApi } from "../services/importBatch.api";
+import { importBatchApi as defaultImportBatchApi, type ImportBatchApi } from "../services/importBatch.api";
 import type { ImportType } from "../types/import-batch.types";
 
 interface ImportUploadPageProps {
@@ -14,9 +15,24 @@ interface ImportUploadPageProps {
     description: string;
     templateFileName: string;
     downloadTemplate(): Promise<Blob>;
+    /** API import-batch dùng cho trang này — mặc định trỏ Catalog, service khác truyền bộ riêng qua createImportBatchApi(). */
+    api?: ImportBatchApi;
+    /** Registry hiển thị danh sách dòng theo loại import — mặc định là registry của Catalog (Sản phẩm/Mặt hàng). */
+    itemsListRegistry?: Partial<Record<ImportType, ComponentType<ImportItemsListProps>>>;
+    /** Route "Quay lại danh sách yêu cầu nhập" — mặc định là trang danh sách của Catalog. */
+    backTo?: string;
 }
 
-export function ImportUploadPage({ importType, title, description, templateFileName, downloadTemplate }: ImportUploadPageProps) {
+export function ImportUploadPage({
+    importType,
+    title,
+    description,
+    templateFileName,
+    downloadTemplate,
+    api = defaultImportBatchApi,
+    itemsListRegistry = IMPORT_ITEMS_LIST_REGISTRY,
+    backTo = routePaths.importExcelRequests
+}: ImportUploadPageProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -48,7 +64,7 @@ export function ImportUploadPage({ importType, title, description, templateFileN
         setError("");
         setUploading(true);
         try {
-            const batch = await importBatchApi.create(importType, selectedFile);
+            const batch = await api.create(importType, selectedFile);
             setCreatedBatchId(batch.id);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Tải file lên thất bại.");
@@ -69,7 +85,7 @@ export function ImportUploadPage({ importType, title, description, templateFileN
     return (
         <section className="grid gap-4">
             <div className="flex items-center justify-between">
-                <Link className="text-sm font-black text-[#159734] hover:underline" to={routePaths.importExcelRequests}>
+                <Link className="text-sm font-black text-[#159734] hover:underline" to={backTo}>
                     ← Quay lại danh sách yêu cầu nhập
                 </Link>
             </div>
@@ -97,7 +113,7 @@ export function ImportUploadPage({ importType, title, description, templateFileN
                             Nhập file khác
                         </button>
                     </div>
-                    <ImportBatchPanel batchId={createdBatchId} itemsListRegistry={IMPORT_ITEMS_LIST_REGISTRY} />
+                    <ImportBatchPanel api={api} batchId={createdBatchId} itemsListRegistry={itemsListRegistry} />
                 </>
             ) : (
                 <div className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">

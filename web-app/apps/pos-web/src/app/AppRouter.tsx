@@ -18,6 +18,9 @@ import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalan
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
 import { GoodsReceiptDetailPage } from "../features/inventory/pages/GoodsReceiptDetailPage";
 import { GoodsReceiptListPage } from "../features/inventory/pages/GoodsReceiptListPage";
+import { GoodsReceiptImportPage } from "../features/inventory/pages/GoodsReceiptImportPage";
+import { GoodsReceiptImportReviewPage } from "../features/inventory/pages/GoodsReceiptImportReviewPage";
+import { GoodsReceiptImportListPage } from "../features/inventory/pages/GoodsReceiptImportListPage";
 import { CustomerReturnDetailPage } from "../features/inventory/pages/CustomerReturnDetailPage";
 import { CustomerReturnListPage } from "../features/inventory/pages/CustomerReturnListPage";
 import { CustomBundleManagementDetailPage } from "../features/inventory/pages/CustomBundleManagementDetailPage";
@@ -301,6 +304,9 @@ export function AppRouter() {
           <Route path="inventory/receipts" element={<GoodsReceiptListPage />} />
           <Route path="inventory/receipts/new" element={<GoodsReceiptCreatePage />} />
           <Route path="inventory/receipts/:receiptId" element={<GoodsReceiptDetailPage />} />
+          <Route path="import-excel" element={<GoodsReceiptImportListPage />} />
+          <Route path="import-excel/new" element={<GoodsReceiptImportPage />} />
+          <Route path="import-excel/:batchId" element={<GoodsReceiptImportReviewPage />} />
         </Route>
         <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
           <Route
