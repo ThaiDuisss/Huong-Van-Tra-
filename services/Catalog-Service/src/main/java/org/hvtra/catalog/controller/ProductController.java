@@ -11,6 +11,7 @@ import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductService;
 import org.hvtra.catalog.service.ProductVariantService;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +27,7 @@ import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/catalog/products")
@@ -59,24 +61,33 @@ public class ProductController {
         return service.findById(id);
     }
 
+    @PostMapping("/batch")
+    public List<ProductResponse> findByIds(@RequestBody List<UUID> ids) {
+        return service.findAllByIds(ids);
+    }
+
+    @UserAction(value = "PRODUCT_CREATE", entityType = "Product", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse create(@Valid @RequestBody ProductRequest request) {
         return service.create(request);
     }
 
+    @UserAction(value = "PRODUCT_UPDATE", entityType = "Product", entityId = "#id")
     @PutMapping("/{id}")
     public ProductResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody ProductRequest request) {
         return service.update(id, request);
     }
 
+    @UserAction(value = "PRODUCT_STATUS_UPDATE", entityType = "Product", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public ProductResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "PRODUCT_VARIANT_CREATE", entityType = "ProductVariant", entityId = "#result.id", detail = "#productId")
     @PostMapping("/{productId}/variants")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse.VariantResponse createVariant(
@@ -104,6 +115,13 @@ public class ProductController {
                 .body(resource);
     }
 
+    @UserAction(value = "PRODUCT_IMPORT", entityType = "Product", detail = "#file.originalFilename")
+    @PostMapping("/import")
+    @ResponseStatus(HttpStatus.OK)
+    public void importProducts(@RequestParam("file") MultipartFile file) {
+        service.importFromExcel(file);
+    }
+
     @GetMapping("/import/template")
     public ResponseEntity<Resource> downloadTemplate() {
         byte[] excelBytes = service.getImportTemplate();
@@ -114,6 +132,7 @@ public class ProductController {
                 .body(resource);
     }
 
+    @UserAction(value = "PRODUCT_DELETE", entityType = "Product", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {

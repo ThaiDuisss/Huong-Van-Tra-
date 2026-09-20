@@ -16,6 +16,7 @@ import {
   Plane,
   RefreshCw,
   Ruler,
+  ScrollText,
   Settings,
   ShoppingCart,
   Trash2,
@@ -28,6 +29,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import {
+  ACTION_LOG_ROLES,
   BACKOFFICE_ROLES,
   INVENTORY_OPERATION_ROLES,
   INVENTORY_ROLES,
@@ -389,6 +391,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     label: "Báo cáo",
     icon: BarChart3,
     roles: REPORT_ROLES,
+  },
+  {
+    key: "action-logs",
+    label: "Nhật ký hoạt động",
+    icon: ScrollText,
+    to: routePaths.systemActionLogs,
+    roles: ACTION_LOG_ROLES,
   },
   {
     key: "settings",

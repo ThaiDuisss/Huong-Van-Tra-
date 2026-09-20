@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.counting.controller;
 
 import jakarta.validation.Valid;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.iventoryservice.counting.dto.request.CreateAdjustmentRequest;
 import org.hvtra.iventoryservice.counting.dto.response.AdjustmentResponse;
 import org.hvtra.iventoryservice.counting.service.InventoryAdjustmentService;
@@ -36,22 +37,26 @@ public class InventoryAdjustmentController {
         return service.findById(id);
     }
 
+    @UserAction(value = "INVENTORY_ADJUSTMENT_CREATE", entityType = "InventoryAdjustment", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AdjustmentResponse create(@Valid @RequestBody CreateAdjustmentRequest request) {
         return service.create(request);
     }
 
+    @UserAction(value = "INVENTORY_ADJUSTMENT_APPROVE", entityType = "InventoryAdjustment", entityId = "#id")
     @PostMapping("/{id}/approve")
     public AdjustmentResponse approve(@PathVariable UUID id) {
         return service.approve(id);
     }
 
+    @UserAction(value = "INVENTORY_ADJUSTMENT_POST", entityType = "InventoryAdjustment", entityId = "#id")
     @PostMapping("/{id}/post")
     public AdjustmentResponse post(@PathVariable UUID id) {
         return service.post(id);
     }
 
+    @UserAction(value = "INVENTORY_ADJUSTMENT_REJECT", entityType = "InventoryAdjustment", entityId = "#id")
     @PostMapping("/{id}/reject")
     public AdjustmentResponse reject(@PathVariable UUID id) {
         return service.reject(id);

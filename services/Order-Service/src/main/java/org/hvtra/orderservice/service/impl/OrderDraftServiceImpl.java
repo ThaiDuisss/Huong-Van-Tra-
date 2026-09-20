@@ -65,7 +65,12 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         var variant = productSnapshotResolver.resolvePosView(request.getProductVariantId());
         log.info("variant: {}", variant);
         BigDecimal addQuantity = orderValidator.requirePositiveQuantity(request.getQuantity());
-        OrderItem item = findDraftItem(order, variant.variantId(), request.getBomVersionId());
+        OrderItem item = findDraftItem(
+                order,
+                variant.variantId(),
+                request.getBomVersionId(),
+                request.getNote()
+        );
         BigDecimal oldQuantity = item == null
                 ? BigDecimal.ZERO
                 : orderAmountCalculator.defaultZero(item.getQuantity());
@@ -84,7 +89,8 @@ public class OrderDraftServiceImpl implements OrderDraftService {
                     targetQuantity,
                     orderAmountCalculator.defaultZero(variant.sellingPrice()),
                     orderAmountCalculator.defaultZero(request.getDiscountAmount()),
-                    request.getBomVersionId()
+                    request.getBomVersionId(),
+                    request.getNote()
             );
             orderAmountCalculator.recalculateLine(item);
             order.addItem(item);
@@ -219,13 +225,19 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         return order;
     }
 
-    private OrderItem findDraftItem(Order order, UUID productVariantId, UUID bomVersionId) {
+    private OrderItem findDraftItem(
+            Order order,
+            UUID productVariantId,
+            UUID bomVersionId,
+            String note
+    ) {
         if (order.getItems() == null) {
             return null;
         }
         return order.getItems().stream()
                 .filter(item -> item.getProductVariantId().equals(productVariantId))
                 .filter(item -> bomVersionMatches(item.getBomVersionId(), bomVersionId))
+                .filter(item -> notesMatch(item.getNote(), note))
                 .findFirst()
                 .orElse(null);
     }
@@ -239,6 +251,16 @@ public class OrderDraftServiceImpl implements OrderDraftService {
 
     private boolean bomVersionMatches(UUID current, UUID requested) {
         return current == null ? requested == null : current.equals(requested);
+    }
+
+    private boolean notesMatch(String current, String requested) {
+        String currentNote = normalizeNote(current);
+        String requestedNote = normalizeNote(requested);
+        return currentNote == null ? requestedNote == null : currentNote.equals(requestedNote);
+    }
+
+    private String normalizeNote(String note) {
+        return note == null || note.isBlank() ? null : note.trim();
     }
 
     private String firstNonBlank(String primary, String fallback) {

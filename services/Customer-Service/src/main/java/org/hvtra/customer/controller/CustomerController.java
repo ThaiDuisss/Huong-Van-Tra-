@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
@@ -57,6 +58,7 @@ public class CustomerController {
         return customerService.getById(id);
     }
 
+    @UserAction(value = "CUSTOMER_CREATE", entityType = "Customer", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Tạo khách hàng")
@@ -64,6 +66,7 @@ public class CustomerController {
         return customerService.create(request);
     }
 
+    @UserAction(value = "CUSTOMER_UPDATE", entityType = "Customer", entityId = "#id")
     @PutMapping(ApiPath.ID)
     @Operation(summary = "Cập nhật khách hàng")
     public CustomerResponse update(
@@ -81,6 +84,7 @@ public class CustomerController {
         return customerService.updatePurchase(orderId);
     }
 
+    @UserAction(value = "CUSTOMER_DELETE", entityType = "Customer", entityId = "#id")
     @DeleteMapping(ApiPath.ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Xóa mềm khách hàng")

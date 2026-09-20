@@ -13,6 +13,9 @@ export function normalizeRole(role: string): Role {
     if (withoutPrefix === "SHIPPER") {
         return ROLES.DELIVERY;
     }
+    if (withoutPrefix === "SUPERADMIN") {
+        return ROLES.SUPER_ADMIN;
+    }
 
     const key = withoutPrefix as keyof typeof ROLES;
     if (key in ROLES) {

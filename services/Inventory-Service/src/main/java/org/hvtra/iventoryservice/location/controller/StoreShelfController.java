@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.location.controller;
 
 import jakarta.validation.Valid;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
 import org.hvtra.iventoryservice.location.dto.request.StoreShelfRequest;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
@@ -45,6 +46,7 @@ public class StoreShelfController {
         return service.findById(id);
     }
 
+    @UserAction(value = "STORE_SHELF_CREATE", entityType = "StoreShelf", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryLocationResponse create(
@@ -52,6 +54,7 @@ public class StoreShelfController {
         return service.create(request);
     }
 
+    @UserAction(value = "STORE_SHELF_UPDATE", entityType = "StoreShelf", entityId = "#id")
     @PutMapping("/{id}")
     public InventoryLocationResponse update(
             @PathVariable("id") UUID id,
@@ -59,6 +62,7 @@ public class StoreShelfController {
         return service.update(id, request);
     }
 
+    @UserAction(value = "STORE_SHELF_STATUS_UPDATE", entityType = "StoreShelf", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public InventoryLocationResponse updateStatus(
             @PathVariable("id") UUID id,
@@ -66,6 +70,7 @@ public class StoreShelfController {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "STORE_SHELF_DELETE", entityType = "StoreShelf", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {
