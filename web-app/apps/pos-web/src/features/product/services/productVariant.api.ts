@@ -60,7 +60,7 @@ export const productVariantApi = {
     },
     update(id: string, input: ProductVariantInput) {
         const body: Omit<ProductVariantInput, "productId"> = {
-            variantName: input.variantName,
+            quantity: input.quantity,
             sellingPrice: input.sellingPrice,
             costPrice: input.costPrice,
             unitId: input.unitId,
@@ -88,13 +88,6 @@ export const productVariantApi = {
     export(productId?: string) {
         return apiClient.download("/catalog/product-variants/export", {
             query: productId && productId !== "ALL" ? { productId } : {}
-        });
-    },
-    import(file: File, productId: string) {
-        const formData = new FormData();
-        formData.append("file", file);
-        return apiClient.upload<void>("/catalog/product-variants/import", formData, {
-            query: { productId }
         });
     },
     downloadTemplate() {

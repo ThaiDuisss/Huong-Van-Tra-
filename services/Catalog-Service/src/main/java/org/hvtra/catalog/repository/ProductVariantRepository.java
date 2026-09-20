@@ -23,4 +23,15 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             where p.id in :productIds
             """)
     List<ProductVariant> findByProductIds(@Param("productIds") Collection<UUID> productIds);
+
+    @Query("""
+            select distinct v from ProductVariant v
+            join fetch v.product p
+            left join fetch p.category
+            left join fetch v.unit
+            left join fetch v.barcodes
+            where p.id in :productIds
+            order by v.sku
+            """)
+    List<ProductVariant> findByProductIdsWithDetails(@Param("productIds") Collection<UUID> productIds);
 }

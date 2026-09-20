@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/inventory/inventorytakes")
@@ -30,10 +31,11 @@ public class InventoryTakeController {
     @GetMapping
     public PageResponse<InventoryTakeResponse> findAll(
             @RequestParam(required = false) UUID branchId,
-            @RequestParam(required = false) InventoryCountStatus status,
+            @RequestParam(name = "statuses", required = false) List<InventoryCountStatus> statuses,
             @RequestParam(required = false) InventoryCountScopeType scopeType,
+            @RequestParam(required = false) String keyword,
             Pageable pageable) {
-        return service.findAll(branchId, status, scopeType, pageable);
+        return service.findAll(branchId, statuses, scopeType, keyword, pageable);
     }
 
     @GetMapping("/{id}")

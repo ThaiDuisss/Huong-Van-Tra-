@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { productVariantApi } from "../services/productVariant.api";
 import { unitApi } from "../services/unit.api";
 import { bomApi } from "../../manufacturing/services/bom.api";
 import type { ProductVariant, Unit } from "../types/product.types";
-import type { BomResponse } from "../../manufacturing/types/bom.types";
+import type { BomItemResponse } from "../../manufacturing/types/bom.types";
 import { formatCurrency } from "../utils/product-formatters";
 import { CatalogStatusBadge } from "../components/CatalogStatusBadge";
-import { ArrowLeft, Plus, Eye, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, Pencil, AlertCircle } from "lucide-react";
 
 export function ProductVariantDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -15,8 +15,8 @@ export function ProductVariantDetailPage() {
 
     const [variant, setVariant] = useState<ProductVariant | null>(null);
     const [unit, setUnit] = useState<Unit | null>(null);
-    const [boms, setBoms] = useState<BomResponse[]>([]);
-    
+    const [bomItems, setBomItems] = useState<BomItemResponse[]>([]);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -37,9 +37,9 @@ export function ProductVariantDetailPage() {
                 }
             }
 
-            const bomPage = await bomApi.list({ productVariantId: id, size: 100 });
-            setBoms(bomPage.content ?? []);
-        } catch (err: any) {
+            const items = await bomApi.listByVariant(id);
+            setBomItems(items);
+        } catch (err) {
             console.error("Error loading product variant details", err);
             setError("Không thể tải thông tin chi tiết Mặt hàng. Vui lòng thử lại sau.");
         } finally {
@@ -113,13 +113,13 @@ export function ProductVariantDetailPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Link
-                        to={`/system/manufacturing/boms?create=true&variantId=${variant.id}`}
+                    <button
+                        onClick={() => navigate("/system/product-variants", { state: { editVariantId: variant.id } })}
                         className="flex items-center gap-1.5 rounded-xl bg-[#07883a] px-4.5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-hvt-green-700 active:scale-95 transition-all cursor-pointer"
                     >
-                        <Plus size={16} />
-                        Tạo công thức sản xuất
-                    </Link>
+                        <Pencil size={16} />
+                        Chỉnh sửa Mặt hàng / BOM
+                    </button>
                 </div>
             </div>
 
@@ -145,6 +145,10 @@ export function ProductVariantDetailPage() {
                                 <span className="text-sm font-bold text-gray-800 text-right font-mono">{variant.sku}</span>
                             </div>
                             <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
+                                <span className="text-sm font-medium text-gray-500">Định lượng</span>
+                                <span className="text-sm font-bold text-gray-800 text-right">{variant.quantity}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
                                 <span className="text-sm font-medium text-gray-500">Đơn vị bán</span>
                                 <span className="text-sm font-semibold text-gray-800 text-right">
                                     {unit ? `${unit.name} (${unit.symbol})` : "N/A"}
@@ -165,97 +169,54 @@ export function ProductVariantDetailPage() {
                                 </span>
                             </div>
                         </div>
-
-                        {/* Profit margin summary card */}
-                        {/* <div className="rounded-xl bg-neutral-50 p-4 border border-neutral-200/60 mt-2">
-                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Ước tính lợi nhuận</h3>
-                            <div className="grid grid-cols-2 gap-y-1 text-sm font-medium text-gray-700">
-                                <div>Lợi nhuận:</div>
-                                <div className="text-right font-bold text-gray-900">{formatCurrency(profit)}</div>
-                                <div>Tỷ suất biên:</div>
-                                <div className={`text-right font-bold ${profitMargin >= 30 ? 'text-emerald-600' : profitMargin > 0 ? 'text-pos-gold' : 'text-red-500'}`}>
-                                    {profitMargin.toFixed(1)}%
-                                </div>
-                            </div>
-                        </div> */}
                     </div>
                 </div>
 
-                {/* Right column - BOMs list */}
+                {/* Right column - BOM items list */}
                 <div className="flex flex-col lg:col-span-2 rounded-2xl bg-white border border-neutral-100 shadow-pos-card overflow-hidden">
                     <div className="bg-[#eaf7ec] px-5 py-4 border-b border-[#edf0f4] flex items-center justify-between">
-                        <h2 className="text-base font-bold text-gray-900">Công thức sản xuất (BOM)</h2>
+                        <h2 className="text-base font-bold text-gray-900">Định mức nguyên liệu (BOM)</h2>
                         <span className="text-xs font-bold bg-[#07883a]/10 text-[#07883a] px-2 py-0.5 rounded-full">
-                            Có {boms.length} công thức
+                            {bomItems.length} nguyên liệu
                         </span>
                     </div>
 
                     <div className="flex-1 p-5 min-h-[300px]">
-                        {boms.length === 0 ? (
+                        {bomItems.length === 0 ? (
                             <div className="flex flex-col items-center justify-center text-center p-8 h-full min-h-[250px]">
                                 <div className="rounded-full bg-emerald-50 p-4 text-emerald-600 mb-3 border border-emerald-100">
-                                    <Plus size={30} />
+                                    <Pencil size={30} />
                                 </div>
-                                <h3 className="text-lg font-bold text-gray-700">Chưa có công thức sản xuất</h3>
+                                <h3 className="text-lg font-bold text-gray-700">Chưa có định mức nguyên liệu</h3>
                                 <p className="text-sm text-gray-500 mt-1 max-w-sm mb-5">
-                                    Mặt hàng này hiện tại chưa được khai báo công thức định lượng (BOM). Bạn cần tạo công thức để thực hiện sản xuất.
+                                    Mặt hàng này hiện chưa được khai báo định mức nguyên liệu (BOM). Bạn cần khai báo để thực hiện sản xuất.
                                 </p>
-                                <Link
-                                    to={`/system/manufacturing/boms?create=true&variantId=${variant.id}`}
+                                <button
+                                    onClick={() => navigate("/system/product-variants", { state: { editVariantId: variant.id } })}
                                     className="flex items-center gap-1.5 rounded-xl bg-[#07883a] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-hvt-green-700 active:scale-95 transition-all cursor-pointer"
                                 >
-                                    <Plus size={16} />
-                                    Tạo công thức ngay
-                                </Link>
+                                    <Pencil size={16} />
+                                    Khai báo ngay
+                                </button>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
                                     <thead className="bg-neutral-50 text-xs font-bold text-gray-500 uppercase tracking-wider">
                                         <tr>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Mã BOM</th>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Tên công thức</th>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Phiên bản</th>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Mặc định</th>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Trạng thái</th>
-                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80 text-right">Hành động</th>
+                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Nguyên liệu</th>
+                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80 text-right">Định lượng</th>
+                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80">Đơn vị</th>
+                                            <th className="h-10 align-middle px-4 py-0 border-b border-neutral-200/80 text-right">Hao hụt</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-neutral-100 font-medium text-gray-700">
-                                        {boms.map((bom) => (
-                                            <tr key={bom.id} className="hover:bg-neutral-50/50 transition-colors">
-                                                <td className="h-12 align-middle px-4 py-0 font-bold text-gray-800">{bom.bomCode}</td>
-                                                <td className="h-12 align-middle px-4 py-0">{bom.name || "N/A"}</td>
-                                                <td className="h-12 align-middle px-4 py-0 text-center font-mono">v{bom.version}</td>
-                                                <td className="h-12 align-middle px-4 py-0">
-                                                    {bom.isDefault ? (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                                            <Check size={10} /> Mặc định
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-gray-400 text-xs">-</span>
-                                                    )}
-                                                </td>
-                                                <td className="h-12 align-middle px-4 py-0">
-                                                    <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded-full border ${
-                                                        bom.status === "ACTIVE"
-                                                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                                                            : bom.status === "INACTIVE"
-                                                            ? "bg-neutral-100 border-neutral-200 text-neutral-600"
-                                                            : "bg-amber-50 border-amber-200 text-amber-700"
-                                                    }`}>
-                                                        {bom.status === "ACTIVE" ? "Đang hoạt động" : bom.status === "INACTIVE" ? "Ngừng hoạt động" : bom.status}
-                                                    </span>
-                                                </td>
-                                                <td className="h-12 align-middle px-4 py-0 text-right">
-                                                    <Link
-                                                        to={`/system/manufacturing/boms/${bom.id}`}
-                                                        className="inline-flex items-center gap-1 text-xs text-[#07883a] hover:underline font-bold"
-                                                    >
-                                                        <Eye size={12} />
-                                                        Chi tiết
-                                                    </Link>
-                                                </td>
+                                        {bomItems.map((item) => (
+                                            <tr key={item.id} className="hover:bg-neutral-50/50 transition-colors">
+                                                <td className="h-12 align-middle px-4 py-0 font-bold text-gray-800">{item.ingredient.name}</td>
+                                                <td className="h-12 align-middle px-4 py-0 text-right font-mono">{item.quantity}</td>
+                                                <td className="h-12 align-middle px-4 py-0">{item.unit.symbol}</td>
+                                                <td className="h-12 align-middle px-4 py-0 text-right">{item.wasteRate}%</td>
                                             </tr>
                                         ))}
                                     </tbody>

@@ -8,16 +8,26 @@ import org.hibernate.annotations.NotFoundAction;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Entity
-@Table(name = "bom_items")
+@Table(
+        name = "bom_items",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_bom_items_variant_ingredient",
+                columnNames = {"product_variant_id", "ingredient_id"}
+        )
+)
 @Getter
 @Setter
 public class BomItem extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "bom_id", nullable = false)
-    private Bom bom;
+    @Column(name = "product_variant_id", nullable = false, columnDefinition = "BINARY(16)")
+    private UUID productVariantId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_variant_id", insertable = false, updatable = false)
+    private ProductVariant productVariant;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ingredient_id", nullable = false)

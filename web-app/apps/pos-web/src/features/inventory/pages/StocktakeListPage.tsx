@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { StocktakeFilterBar, StocktakePageHeader, StocktakeSummaryCards, StocktakeTable } from "../components/StocktakeComponents";
+import { StocktakeFilterBar, StocktakePageHeader, StocktakeTable } from "../components/StocktakeComponents";
 import { useStocktakeQueryState } from "../hooks/useStocktakeQueryState";
 import { stocktakeApi } from "../services/stocktake.api";
 import type { StocktakeListResult, StocktakeOptions } from "../types/stocktake.types";
@@ -42,7 +42,6 @@ export function StocktakeListPage() {
     return (
         <section className="flex h-full min-h-0 flex-col gap-4 text-[#172317]">
             <StocktakePageHeader onRefresh={() => setReloadKey((value) => value + 1)} />
-            <StocktakeSummaryCards result={result?.summary} />
             <StocktakeFilterBar branches={options.branches} onChange={setQuery} onReset={resetQuery} query={query} />
             {error ? <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"><span>{error}</span><button onClick={() => setReloadKey((value) => value + 1)} type="button">Thử lại</button></div> : null}
             <StocktakeTable loading={loading} onPageChange={(page) => setQuery({ page })} page={query.page} stocktakes={result?.content ?? []} totalElements={result?.totalElements ?? 0} totalPages={result?.totalPages ?? 0} />

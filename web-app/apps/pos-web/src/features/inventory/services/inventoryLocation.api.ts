@@ -4,6 +4,7 @@ import type {
     InventoryLocationQuery,
     InventoryLocationRequest,
     InventoryLocationResponse,
+    InventoryLocationType,
     InventoryStatus,
     PageResponse
 } from "../types/inventory.types";
@@ -19,6 +20,17 @@ export const inventoryLocationApi = {
         return apiClient.get<PageResponse<{ id: string; name: string }>>(
             "/inventory/inventory-locations/store/lookup",
             { query: { search, page, size } }
+        );
+    },
+    lookupByType(
+        type: InventoryLocationType,
+        search: string = "",
+        page: number = 0,
+        size: number = 20
+    ) {
+        return apiClient.get<PageResponse<InventoryLocationResponse>>(
+            "/inventory/inventory-locations",
+            { query: { type, query: search, status: "ACTIVE", page, size } }
         );
     },
     detail(id: EntityId) {

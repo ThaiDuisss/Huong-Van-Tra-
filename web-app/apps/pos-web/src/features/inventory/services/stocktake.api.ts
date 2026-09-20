@@ -1,5 +1,8 @@
 import { apiClient } from "../../../api/api-client";
-import { stocktakeScopeLabels } from "../constants/stocktake.constants";
+import {
+  stocktakeScopeLabels,
+  stocktakeStatusFilterOptions,
+} from "../constants/stocktake.constants";
 import type {
   InventoryBalanceViewResponse,
   InventoryLocationResponse,
@@ -146,8 +149,7 @@ export const stocktakeApi = {
           hasBatches: false,
           id: String(item.id),
           itemCode: view?.code ?? view?.productCode ?? String(item.referenceId),
-          itemName:
-            view?.name ?? view?.productName ?? `Mặt hàng ${String(item.id).slice(0, 8)}`,
+          itemName: view?.name ?? view?.productName ?? `Mặt hàng ${String(item.id).slice(0, 8)}`,
           trackingBatch: false,
           unit: view?.unitSymbol ?? view?.unitName ?? "",
         };
@@ -163,14 +165,19 @@ export const stocktakeApi = {
 
   async listStocktakes(query: StocktakeListQuery): Promise<StocktakeListResult> {
     const branchId = query.branchId === "ALL" ? undefined : query.branchId;
+    const statuses = stocktakeStatusFilterOptions.find(
+      (option) => option.value === query.status,
+    )?.statuses;
     const [response, enrichment] = await Promise.all([
       apiClient.get<PageResponse<InventoryTakeApiResponse>>("/inventory/inventorytakes", {
         query: {
           branchId,
+          keyword: query.keyword || undefined,
           page: query.page,
           scopeType: query.scopeType === "ALL" ? undefined : query.scopeType,
           size: query.size,
-          status: query.status === "ALL" ? undefined : query.status,
+          sort: query.sort,
+          statuses,
         },
       }),
       loadEnrichment(branchId, false),
@@ -313,10 +320,10 @@ function toSummary(response: InventoryTakeApiResponse, enrichment: Enrichment): 
     approvedAt: response.adjustmentDocument?.approvedAt ?? null,
     approvedBy: response.adjustmentDocument?.approvedBy
       ? {
-        id: response.adjustmentDocument.approvedBy,
-        name: response.adjustmentDocument.approvedBy,
-        role: "INVENTORY_STAFF",
-      }
+          id: response.adjustmentDocument.approvedBy,
+          name: response.adjustmentDocument.approvedBy,
+          role: "INVENTORY_STAFF",
+        }
       : null,
     branch: enrichment.branches.find((branch) => branch.id === response.branchId) ?? {
       branchCode: "",
@@ -329,7 +336,11 @@ function toSummary(response: InventoryTakeApiResponse, enrichment: Enrichment): 
     countedLines: response.lines.filter((line) => line.countedQuantity !== null).length,
     countingCompletedAt: response.countingCompletedAt,
     countingStartedAt: response.countingStartedAt,
-    createdBy: { id: response.createdBy ?? "", name: response.createdBy ?? "-", role: "INVENTORY_STAFF" },
+    createdBy: {
+      id: response.createdBy ?? "",
+      name: response.createdBy ?? "-",
+      role: "INVENTORY_STAFF",
+    },
     id: response.id,
     note: response.note,
     blindCount: response.blindCount,

@@ -83,14 +83,19 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
 
     @Override
     public PageResponse<InventoryTakeResponse> findAll(
-            UUID branchId, InventoryCountStatus status,
-            InventoryCountScopeType scopeType, Pageable pageable) {
+            UUID branchId, List<InventoryCountStatus> statuses,
+            InventoryCountScopeType scopeType, String keyword, Pageable pageable) {
         Specification<InventoryCount> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.isFalse(root.get("isDeleted")));
             if (branchId != null) predicates.add(cb.equal(root.get("branchId"), branchId));
-            if (status != null) predicates.add(cb.equal(root.get("status"), status));
+            if (statuses != null && !statuses.isEmpty()) predicates.add(root.get("status").in(statuses));
             if (scopeType != null) predicates.add(cb.equal(root.get("scopeType"), scopeType));
+            if (keyword != null && !keyword.isBlank()) {
+                predicates.add(cb.like(
+                        cb.lower(root.get("countCode")),
+                        "%" + keyword.trim().toLowerCase() + "%"));
+            }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         return PageResponse.from(

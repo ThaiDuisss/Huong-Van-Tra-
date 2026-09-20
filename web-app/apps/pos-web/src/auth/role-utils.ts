@@ -80,6 +80,11 @@ export const SETTINGS_ROLES: AppRole[] = [ROLES.SUPER_ADMIN, ROLES.ADMIN];
 /** Nhật ký hoạt động người dùng: chỉ quản trị viên. */
 export const ACTION_LOG_ROLES: AppRole[] = [ROLES.SUPER_ADMIN, ROLES.ADMIN];
 
+export const IMPORT_MANAGEMENT_ROLES: AppRole[] = [
+    "ADMIN",
+    "BRANCH_MANAGER"
+];
+
 const DEFAULT_ROUTE_BY_ROLE: Record<string, string> = {
     [ROLES.SUPER_ADMIN]: "/system/dashboard",
     [ROLES.ADMIN]: "/system/inventory/balances",

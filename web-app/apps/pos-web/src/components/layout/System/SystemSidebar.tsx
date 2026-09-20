@@ -186,13 +186,13 @@ export function SystemSidebar() {
     }
 
     return (
-        <aside className="flex h-dvh min-h-0 w-[210px] shrink-0 flex-col overflow-hidden border-r border-[#e8eef0] bg-white px-3 py-4 text-[#159734] shadow-[8px_0_30px_rgba(25,70,45,0.05)] xl:w-[224px]">
+        <aside className="flex h-dvh min-h-0 w-[228px] shrink-0 flex-col overflow-hidden border-r border-[#e8eef0] bg-white px-3 py-4 text-[#159734] shadow-[8px_0_30px_rgba(25,70,45,0.05)] xl:w-[244px]">
             <div className="mb-5 shrink-0 px-1">
                 <HvtLogo compact={false} />
             </div>
 
             <nav
-                className="min-h-0 flex-1 overflow-y-auto pr-1"
+                className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1"
                 aria-label="Điều hướng quản lý hệ thống"
             >
                 <ul className="grid gap-1.5">
