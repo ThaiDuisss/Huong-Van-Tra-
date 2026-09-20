@@ -19,6 +19,7 @@ public class PaymentRefundSummaryResponse {
     private UUID refundTransactionId;
     private BigDecimal refundAmount;
     private BigDecimal totalAmountRefunded;
+    private BigDecimal amountPaid;
     private String refundStatus;
     private String paymentStatus;
     private String method;

@@ -8,6 +8,7 @@ import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspe
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.repository.CustomerReturnInspectionRepository;
 import org.hvtra.iventoryservice.customerreturn.service.impl.CustomerReturnInspectionServiceImpl;
+import org.hvtra.iventoryservice.disposal.repository.DisposalRequestRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -15,6 +16,7 @@ import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspection;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspectionLine;
+import org.hvtra.iventoryservice.domain.entity.disposal.DisposalRequest;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
@@ -84,6 +86,8 @@ class CustomerReturnInspectionServiceImplTest {
     @Mock
     private InventoryTransactionRepository transactionRepository;
     @Mock
+    private DisposalRequestRepository disposalRequestRepository;
+    @Mock
     private InventoryInboxRepository inboxRepository;
     @Mock
     private InventoryOutboxPublisher inventoryOutboxPublisher;
@@ -110,6 +114,7 @@ class CustomerReturnInspectionServiceImplTest {
                 batchRepository,
                 balanceRepository,
                 transactionRepository,
+                disposalRequestRepository,
                 inboxRepository,
                 inventoryOutboxPublisher);
         returnId = UUID.randomUUID();
@@ -317,7 +322,7 @@ class CustomerReturnInspectionServiceImplTest {
     @Test
     void createInspectionRejectsQuantityOverRemainingAfterPostedQc() {
         stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
-        when(inspectionRepository.findByReturnIdAndStatus(returnId, CustomerReturnInspectionStatus.POSTED))
+        when(inspectionRepository.findQcProgressByReturnId(returnId))
                 .thenReturn(List.of(postedInspection("2.00")));
 
         assertThatThrownBy(() -> service.createInspection(returnId, request(
@@ -472,16 +477,19 @@ class CustomerReturnInspectionServiceImplTest {
         CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
         when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId()))
                 .thenReturn(Optional.of(inspection));
-        when(inspectionRepository.findByIdAndIsDeletedFalseForUpdate(inspection.getId()))
-                .thenReturn(Optional.of(inspection));
+        when(inspectionRepository.findByReturnIdForUpdate(returnId)).thenReturn(List.of(inspection));
         when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(OrderReturnStatus.RECEIVED));
+        when(disposalRequestRepository.findBySourceInspectionId(inspection.getId()))
+                .thenReturn(Optional.empty());
 
-        service.postInspection(inspection.getId());
+        CustomerReturnInspectionResponse response = service.postInspection(inspection.getId());
 
-        ArgumentCaptor<InventoryTransaction> captor = ArgumentCaptor.forClass(InventoryTransaction.class);
-        verify(transactionRepository).saveAndFlush(captor.capture());
-        assertThat(captor.getValue().getType()).isEqualTo(InventoryTransactionType.WRITE_OFF);
-        assertThat(captor.getValue().getLines()).isEmpty();
+        ArgumentCaptor<DisposalRequest> captor = ArgumentCaptor.forClass(DisposalRequest.class);
+        verify(disposalRequestRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getLines()).containsExactly(inspection.getLines().getFirst());
+        assertThat(response.status()).isEqualTo(CustomerReturnInspectionStatus.PROCESSING);
+        assertThat(inspection.getLines().getFirst().getPosted()).isFalse();
+        verify(transactionRepository, never()).saveAndFlush(any());
         verify(balanceRepository, never()).save(any());
     }
 
@@ -494,11 +502,12 @@ class CustomerReturnInspectionServiceImplTest {
         inbox.setSagaId(UUID.randomUUID().toString());
         inbox.setCorrelationId(UUID.randomUUID().toString());
         inbox.setStatus(InboxStatus.FAILED);
+        inspection.setCommandId(UUID.fromString(inbox.getCommandId()));
         inbox.setLastError("acknowledgement interrupted");
         when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId()))
                 .thenReturn(Optional.of(inspection));
         when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(OrderReturnStatus.RECEIVED));
-        when(inboxRepository.findFirstByInspectionIdAndConsumerGroup(inspection.getId().toString(), null))
+        when(inboxRepository.findByCommandIdAndConsumerGroup(inbox.getCommandId(), null))
                 .thenReturn(Optional.of(inbox));
 
         CustomerReturnInspectionResponse response = service.postInspection(inspection.getId());
@@ -536,11 +545,10 @@ class CustomerReturnInspectionServiceImplTest {
         CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.RESTOCK, shelf, "2.00");
         when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId()))
                 .thenReturn(Optional.of(inspection));
-        when(inspectionRepository.findByIdAndIsDeletedFalseForUpdate(inspection.getId()))
-                .thenReturn(Optional.of(inspection));
         when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(OrderReturnStatus.RECEIVED));
-        when(inspectionRepository.findByReturnIdAndStatus(returnId, CustomerReturnInspectionStatus.POSTED))
-                .thenReturn(List.of(postedInspection("2.00")));
+        CustomerReturnInspection posted = postedInspection("2.00");
+        when(inspectionRepository.findByReturnIdForUpdate(returnId))
+                .thenReturn(List.of(posted, inspection));
 
         assertThatThrownBy(() -> service.postInspection(inspection.getId()))
                 .isInstanceOf(BadRequestException.class)
@@ -598,8 +606,7 @@ class CustomerReturnInspectionServiceImplTest {
     private void stubPost(CustomerReturnInspection inspection, InventoryBalance balance) {
         when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId()))
                 .thenReturn(Optional.of(inspection));
-        when(inspectionRepository.findByIdAndIsDeletedFalseForUpdate(inspection.getId()))
-                .thenReturn(Optional.of(inspection));
+        when(inspectionRepository.findByReturnIdForUpdate(returnId)).thenReturn(List.of(inspection));
         when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(OrderReturnStatus.RECEIVED));
         when(batchRepository.findFirstByInventoryItemId(item.getId())).thenReturn(Optional.of(batch));
         when(balanceRepository.findForUpdateByBatchId(batch.getId(), inspection.getLines().getFirst()

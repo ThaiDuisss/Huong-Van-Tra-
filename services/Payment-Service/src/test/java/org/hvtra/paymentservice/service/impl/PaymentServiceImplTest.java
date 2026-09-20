@@ -153,6 +153,91 @@ class PaymentServiceImplTest {
         verify(paymentTransactionRepository, never()).save(any());
     }
 
+    @Test
+    void lookupRefundSummariesReturnsNotFoundWhenPaymentDoesNotExist() {
+        org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest request =
+                new org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest(
+                        java.util.List.of(new org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest.RefundSummaryLookupItem(returnId, orderId))
+                );
+        when(paymentRepository.findByOrderIdInAndIsDeletedFalse(java.util.List.of(orderId))).thenReturn(java.util.List.of());
+        when(paymentTransactionRepository.findRefundTransactions(
+                java.util.List.of(returnId.toString()),
+                PaymentTransactionType.REFUND,
+                PaymentTransactionStatus.SUCCEEDED
+        )).thenReturn(java.util.List.of());
+
+        java.util.List<org.hvtra.paymentservice.dto.response.PaymentRefundSummaryResponse> responses =
+                service.lookupRefundSummaries(request);
+
+        assertEquals(1, responses.size());
+        org.hvtra.paymentservice.dto.response.PaymentRefundSummaryResponse summary = responses.get(0);
+        assertEquals("NOT_FOUND", summary.getRefundStatus());
+        org.junit.jupiter.api.Assertions.assertNull(summary.getPaymentId());
+        org.junit.jupiter.api.Assertions.assertNull(summary.getAmountPaid());
+    }
+
+    @Test
+    void lookupRefundSummariesDistinguishesPartiallyRefundedVsFullRefunded() {
+        Payment partialPayment = payment(PaymentMethod.CASH, PaymentStatus.PARTIALLY_REFUNDED, "500000", "200000");
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .payment(partialPayment)
+                .transactionType(PaymentTransactionType.REFUND)
+                .method(PaymentMethod.CASH)
+                .provider(PaymentProvider.INTERNAL)
+                .status(PaymentTransactionStatus.SUCCEEDED)
+                .amount(new BigDecimal("200000"))
+                .refundReference(returnId.toString())
+                .build();
+        transaction.setId(UUID.randomUUID());
+
+        org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest request =
+                new org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest(
+                        java.util.List.of(new org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest.RefundSummaryLookupItem(returnId, orderId))
+                );
+        when(paymentRepository.findByOrderIdInAndIsDeletedFalse(java.util.List.of(orderId))).thenReturn(java.util.List.of(partialPayment));
+        when(paymentTransactionRepository.findRefundTransactions(
+                java.util.List.of(returnId.toString()),
+                PaymentTransactionType.REFUND,
+                PaymentTransactionStatus.SUCCEEDED
+        )).thenReturn(java.util.List.of(transaction));
+
+        java.util.List<org.hvtra.paymentservice.dto.response.PaymentRefundSummaryResponse> responses =
+                service.lookupRefundSummaries(request);
+
+        assertEquals(1, responses.size());
+        org.hvtra.paymentservice.dto.response.PaymentRefundSummaryResponse summary = responses.get(0);
+        assertEquals("PARTIALLY_REFUNDED", summary.getRefundStatus());
+        assertEquals(new BigDecimal("500000"), summary.getAmountPaid());
+        assertEquals(new BigDecimal("200000"), summary.getTotalAmountRefunded());
+        assertEquals(new BigDecimal("200000"), summary.getRefundAmount());
+    }
+
+    @Test
+    void lookupRefundSummariesReturnsPendingWhenPaymentPaidAndNoRefundTransaction() {
+        Payment paidPayment = payment(PaymentMethod.CASH, PaymentStatus.PAID, "500000", "0");
+
+        org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest request =
+                new org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest(
+                        java.util.List.of(new org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest.RefundSummaryLookupItem(returnId, orderId))
+                );
+        when(paymentRepository.findByOrderIdInAndIsDeletedFalse(java.util.List.of(orderId))).thenReturn(java.util.List.of(paidPayment));
+        when(paymentTransactionRepository.findRefundTransactions(
+                java.util.List.of(returnId.toString()),
+                PaymentTransactionType.REFUND,
+                PaymentTransactionStatus.SUCCEEDED
+        )).thenReturn(java.util.List.of());
+
+        java.util.List<org.hvtra.paymentservice.dto.response.PaymentRefundSummaryResponse> responses =
+                service.lookupRefundSummaries(request);
+
+        assertEquals(1, responses.size());
+        org.hvtra.paymentservice.dto.response.PaymentRefundSummaryResponse summary = responses.get(0);
+        assertEquals("PENDING", summary.getRefundStatus());
+        assertEquals("PAID", summary.getPaymentStatus());
+        assertEquals(new BigDecimal("500000"), summary.getAmountPaid());
+        org.junit.jupiter.api.Assertions.assertNull(summary.getRefundTransactionId());
+    }
+
     private RefundPaymentRequest refundRequest(String amount) {
         RefundPaymentRequest request = new RefundPaymentRequest();
         request.setReturnId(returnId);

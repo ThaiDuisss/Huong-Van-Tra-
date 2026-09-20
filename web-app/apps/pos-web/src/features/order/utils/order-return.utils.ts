@@ -23,8 +23,8 @@ export type { ReturnDisplayStatus };
 
 export const RETURN_DISPLAY_STATUS_LABELS: Record<ReturnDisplayStatus, string> = {
     CREATED: "Đã tạo",
-    RECEIVED: "Chờ kiểm hàng",
-    PROCESSING: "Đang xử lý hàng trả",
+    RECEIVED: "Chờ xử lý kho",
+    PROCESSING: "Đang xử lý kho",
     PROCESSING_FAILED: "Xử lý kho thất bại",
     PENDING_REFUND: "Chờ hoàn tiền",
     COMPLETED: "Hoàn thành",
@@ -159,6 +159,7 @@ export function getOrderRefundStatusLabel(status?: OrderRefundStatus | null) {
 }
 
 export interface ResolveReturnDisplayStatusParams {
+    displayStatus?: ReturnDisplayStatus | string | null;
     status?: ReturnStatus | null;
     refundRequired?: boolean | null;
     qcSummary?: CustomerReturnQcSummaryResponse | null;
@@ -172,102 +173,22 @@ export interface ResolveReturnDisplayStatusParams {
 }
 
 export function resolveReturnDisplayStatus({
-    status,
-    refundRequired,
-    qcSummary,
-    refundStatus,
-    isPendingDisposition = false,
-    hasFailedDisposition = false,
-    qcStatus,
-    inspectionStatus,
-    postedQcQuantity,
-    remainingQcQuantity
+    displayStatus,
+    status
 }: ResolveReturnDisplayStatusParams): ReturnDisplayStatus {
+    if (displayStatus && displayStatus in RETURN_DISPLAY_STATUS_LABELS) {
+        return displayStatus as ReturnDisplayStatus;
+    }
+
     if (status === "CREATED") {
         return "CREATED";
     }
-
     if (status === "CANCELLED") {
         return "CANCELLED";
     }
-
     if (status === "COMPLETED") {
         return "COMPLETED";
     }
-
-    if (status === "RECEIVED") {
-        // Ưu tiên kiểm tra failed disposition trước:
-        // FAILED: không được map thành "Đang xử lý hàng trả"
-        if (hasFailedDisposition) {
-            return "PROCESSING_FAILED";
-        }
-
-        const lines = qcSummary?.lines ?? [];
-        const hasQcLines = lines.length > 0;
-
-        const effectiveRemaining: number | null = hasQcLines
-            ? lines.reduce((sum, line) => sum + toReturnNumber(line.remainingQcQuantity), 0)
-            : remainingQcQuantity !== undefined && remainingQcQuantity !== null
-              ? toReturnNumber(remainingQcQuantity)
-              : null;
-
-        const effectivePosted: number | null = hasQcLines
-            ? lines.reduce((sum, line) => sum + toReturnNumber(line.postedQcQuantity), 0)
-            : postedQcQuantity !== undefined && postedQcQuantity !== null
-              ? toReturnNumber(postedQcQuantity)
-              : null;
-
-        const effectiveQcStatus = qcSummary?.qcStatus ?? qcStatus ?? null;
-        const effectiveInspectionStatus = qcSummary?.inspectionStatus ?? inspectionStatus ?? null;
-
-        if (
-            !qcSummary &&
-            effectiveQcStatus === null &&
-            effectiveRemaining === null &&
-            effectiveInspectionStatus === null
-        ) {
-            return "RECEIVED";
-        }
-
-        // Đang có quá trình kiểm tra hoặc xử lý kho (lệnh pending, inspection CREATED, hoặc QC một phần)
-        const isInspectionPending =
-            Boolean(isPendingDisposition) ||
-            effectiveInspectionStatus === "CREATED" ||
-            effectiveQcStatus === "PARTIAL" ||
-            (effectivePosted !== null && effectiveRemaining !== null && effectivePosted > 0 && effectiveRemaining > 0);
-
-        if (isInspectionPending) {
-            return "PROCESSING";
-        }
-
-        // Rule 2: QC chỉ được coi hoàn tất khi:
-        // remainingQcQuantity == 0 AND (qcStatus == "COMPLETED" OR inspectionStatus == "POSTED")
-        // Không được chỉ dựa vào inspectionStatus == POSTED hoặc qcStatus == COMPLETED nếu remaining vẫn > 0.
-        const isQcFullyCompleted =
-            effectiveRemaining !== null &&
-            effectiveRemaining === 0 &&
-            (effectiveQcStatus === "COMPLETED" || effectiveInspectionStatus === "POSTED");
-
-        if (isQcFullyCompleted) {
-            const isRefundNeeded = refundRequired !== false;
-
-            if (isRefundNeeded) {
-                // Nếu đã hoàn tiền xong
-                if (refundStatus === "REFUNDED") {
-                    return "COMPLETED";
-                }
-                // Chưa hoàn tiền hoặc đang chờ hoàn tiền
-                return "PENDING_REFUND";
-            }
-
-            // Không cần hoàn tiền (refundRequired === false)
-            return "COMPLETED";
-        }
-
-        // Còn sản phẩm chưa kiểm tra và chưa có tiến trình nào
-        return "RECEIVED";
-    }
-
     return "RECEIVED";
 }
 

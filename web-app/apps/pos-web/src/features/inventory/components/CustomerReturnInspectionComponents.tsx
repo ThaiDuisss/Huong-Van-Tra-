@@ -11,12 +11,14 @@ import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-f
 const inspectionStatusLabels: Record<CustomerReturnInspectionStatus, string> = {
     CANCELLED: "Đã hủy",
     CREATED: "Chờ xử lý",
+    PROCESSING: "Chờ duyệt tiêu hủy",
     POSTED: "Đã xử lý"
 };
 
 const statusTone: Record<CustomerReturnInspectionStatus, string> = {
     CANCELLED: "border-slate-200 bg-slate-50 text-slate-600",
     CREATED: "border-amber-200 bg-amber-50 text-amber-700",
+    PROCESSING: "border-blue-200 bg-blue-50 text-blue-700",
     POSTED: "border-green-200 bg-green-50 text-green-700"
 };
 
@@ -26,7 +28,7 @@ export function InspectionStatusBadge({ status }: { status: CustomerReturnInspec
 }
 
 export function InspectionFilterBar({ onChange, onReset, query }: { onChange: (patch: Partial<CustomerReturnInspectionListQuery>) => void; onReset: () => void; query: CustomerReturnInspectionListQuery }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card"><div className="grid gap-3 md:grid-cols-3"><TextField label="Mã trả hàng" onChange={(returnCode) => onChange({ page: 0, returnCode })} value={query.returnCode} /><TextField label="Mã đơn hàng" onChange={(orderCode) => onChange({ orderCode, page: 0 })} value={query.orderCode} /><label className="grid gap-1.5 text-xs font-black text-[#536078]">Trạng thái<select className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold text-[#172317]" onChange={(event) => onChange({ page: 0, status: event.currentTarget.value as CustomerReturnInspectionListQuery["status"] })} value={query.status}><option value="ALL">Tất cả</option><option value="CREATED">Chờ xử lý</option><option value="POSTED">Đã xử lý</option><option value="CANCELLED">Đã hủy</option></select></label></div><div className="flex justify-end"><button className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]" onClick={onReset} type="button">Xóa bộ lọc</button></div></section>;
+    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card"><div className="grid gap-3 md:grid-cols-3"><TextField label="Mã trả hàng" onChange={(returnCode) => onChange({ page: 0, returnCode })} value={query.returnCode} /><TextField label="Mã đơn hàng" onChange={(orderCode) => onChange({ orderCode, page: 0 })} value={query.orderCode} /><label className="grid gap-1.5 text-xs font-black text-[#536078]">Trạng thái<select className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold text-[#172317]" onChange={(event) => onChange({ page: 0, status: event.currentTarget.value as CustomerReturnInspectionListQuery["status"] })} value={query.status}><option value="ALL">Tất cả</option><option value="CREATED">Chờ xử lý</option><option value="PROCESSING">Chờ duyệt tiêu hủy</option><option value="POSTED">Đã xử lý</option><option value="CANCELLED">Đã hủy</option></select></label></div><div className="flex justify-end"><button className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]" onClick={onReset} type="button">Xóa bộ lọc</button></div></section>;
 }
 
 export function InspectionTable({ inspections }: { inspections: CustomerReturnInspection[] }) {

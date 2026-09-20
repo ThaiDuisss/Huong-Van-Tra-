@@ -40,7 +40,7 @@ eureka:
 
 kafka-config:
   enabled: true
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.93.252.63:19092}
 #  schema-registry-url-key: schema.registry.url
 #  schema-registry-url: http://localhost:8081
   num-of-partitions: 3

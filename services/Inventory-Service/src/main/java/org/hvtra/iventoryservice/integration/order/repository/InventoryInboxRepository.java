@@ -14,17 +14,6 @@ public interface InventoryInboxRepository extends BaseInboxRepository<InventoryI
             String commandId,
             String consumerGroup);
 
-    Optional<InventoryInbox> findFirstByInspectionIdAndConsumerGroup(
-            String inspectionId,
-            String consumerGroup);
-
-    Optional<InventoryInbox> findFirstByInspectionId(
-            String inspectionId);
-
-    Optional<InventoryInbox> findFirstByEntityIdAndConsumerGroup(
-            String entityId,
-            String consumerGroup);
-
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select inbox

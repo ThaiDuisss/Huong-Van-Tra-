@@ -20,6 +20,7 @@ import {
     getCustomerReturnQcStatusLabel,
     getReturnCode,
     getReturnConditionLabel,
+    getReturnDisplayStatusLabel,
     getReturnErrorMessage,
     getReturnReasonLabel,
     getReturnStatusLabel
@@ -147,12 +148,18 @@ export function OrderReturnDetailPage() {
                         />
                         <Info
                             label="Trạng thái hàng trả"
-                            value={getReturnStatusLabel(detail.status)}
+                            value={getReturnDisplayStatusLabel(detail.displayStatus) || getReturnStatusLabel(detail.status)}
                         />
                         <Info
-                            label="Kiểm kho (QC)"
+                            label="Xử lý kho"
                             value={
-                                qcSummary?.qcStatus
+                                detail.requiredQuantity != null
+                                    ? `Đã xử lý: ${formatReturnQuantity(detail.processedQuantity ?? 0)} / ${formatReturnQuantity(detail.requiredQuantity)}${
+                                        detail.remainingQuantity != null && Number(detail.remainingQuantity) > 0
+                                            ? ` (Còn lại: ${formatReturnQuantity(detail.remainingQuantity)})`
+                                            : ""
+                                      }`
+                                    : qcSummary?.qcStatus
                                     ? getCustomerReturnQcStatusLabel(qcSummary.qcStatus)
                                     : "Chưa kiểm"
                             }

@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.customerreturn.dto.response;
 
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
+import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -22,6 +23,9 @@ public record CustomerReturnInspectionLineResponse(
         Boolean posted,
         UUID transactionId,
         InventoryTransactionType transactionType,
+        UUID disposalRequestId,
+        String disposalRequestCode,
+        DisposalRequestStatus disposalStatus,
         String condition,
         String returnReason
 ) {
@@ -40,6 +44,9 @@ public record CustomerReturnInspectionLineResponse(
             String note,
             Boolean posted,
             UUID transactionId,
+            UUID disposalRequestId,
+            String disposalRequestCode,
+            DisposalRequestStatus disposalStatus,
             String condition,
             String returnReason
     ) {
@@ -59,6 +66,9 @@ public record CustomerReturnInspectionLineResponse(
                 posted,
                 transactionId,
                 transactionType(result),
+                disposalRequestId,
+                disposalRequestCode,
+                disposalStatus,
                 condition,
                 returnReason
         );
@@ -80,7 +90,7 @@ public record CustomerReturnInspectionLineResponse(
             Boolean posted,
             UUID transactionId
     ) {
-        this(id, returnItemId, orderItemId, productVariantId, inventoryItemId, itemCode, itemName, quantity, result, destinationLocationId, destinationLocationName, note, posted, transactionId, null, null);
+        this(id, returnItemId, orderItemId, productVariantId, inventoryItemId, itemCode, itemName, quantity, result, destinationLocationId, destinationLocationName, note, posted, transactionId, null, null, null, null, null);
     }
 
     private static InventoryTransactionType transactionType(CustomerReturnQcResult result) {

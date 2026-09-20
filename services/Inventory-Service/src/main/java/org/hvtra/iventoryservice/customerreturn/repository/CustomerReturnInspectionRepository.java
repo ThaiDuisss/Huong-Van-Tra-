@@ -20,6 +20,8 @@ public interface CustomerReturnInspectionRepository
 
     boolean existsByInspectionCode(String inspectionCode);
 
+    Optional<CustomerReturnInspection> findByCommandIdAndIsDeletedFalse(UUID commandId);
+
     @Query("""
             select distinct inspection
             from CustomerReturnInspection inspection
@@ -130,4 +132,8 @@ public interface CustomerReturnInspectionRepository
             @Param("returnIds") Collection<UUID> returnIds,
             @Param("status") CustomerReturnInspectionStatus status
     );
+
+    default List<CustomerReturnQcDispositionReportResponse> sumDispositionByReturnIds(Collection<UUID> returnIds) {
+        return sumDispositionByReturnIds(returnIds, CustomerReturnInspectionStatus.POSTED);
+    }
 }

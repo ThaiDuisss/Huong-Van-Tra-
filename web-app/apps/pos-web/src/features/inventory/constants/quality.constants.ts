@@ -27,6 +27,7 @@ export const qualityTabLabels: Record<QualityTab, string> = {
 
 export const disposalStatusLabels: Record<DisposalStatus, string> = {
     APPROVED: "Đã duyệt",
+    PENDING_APPROVAL: "Chờ duyệt",
     CANCELLED: "Đã hủy",
     COMPLETED: "Đã tiêu hủy",
     DRAFT: "Nháp",

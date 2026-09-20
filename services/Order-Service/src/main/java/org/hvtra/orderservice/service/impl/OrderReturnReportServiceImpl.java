@@ -232,7 +232,7 @@ public class OrderReturnReportServiceImpl implements OrderReturnReportService {
                         new InventoryClient.CustomerReturnQcDispositionReportRequest(chunk)
                 )
                 .forEach(row -> quantities.merge(
-                        "QUARANTINE".equals(row.result()) ? "DAMAGED" : row.result(),
+                        row.result(),
                         defaultZero(row.quantity()),
                         BigDecimal::add
                 )));
@@ -240,7 +240,7 @@ public class OrderReturnReportServiceImpl implements OrderReturnReportService {
         BigDecimal total = quantities.values().stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        return List.of("RESTOCK", "DAMAGED", "WRITE_OFF").stream()
+        return List.of("RESTOCK", "DAMAGED", "QUARANTINE", "WRITE_OFF").stream()
                 .map(result -> {
                     BigDecimal quantity = quantities.getOrDefault(result, BigDecimal.ZERO);
                     BigDecimal percentage = total.compareTo(BigDecimal.ZERO) == 0

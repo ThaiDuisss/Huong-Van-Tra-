@@ -114,7 +114,9 @@ export function CustomerReturnDetailPage() {
         try {
             const updated = await customerReturnApi.postInspection(detail.id, { lines: lineOverrides });
             setDetail(updated);
-            setSuccessMessage("Xác nhận xử lý thành công! Hàng trả đã được hạch toán giao dịch kho và cập nhật số dư tồn kho tương ứng.");
+            setSuccessMessage(updated.status === "PROCESSING"
+                ? "Đã hạch toán các dòng đủ điều kiện. Dòng tiêu hủy đang chờ phê duyệt và chưa được ghi nhận hoàn tất vật lý."
+                : "Xác nhận xử lý thành công. Hàng trả đã được hạch toán theo kết quả kiểm định.");
         } catch (postError) {
             setError(postError instanceof Error ? postError.message : "Không thể xử lý phiếu kiểm định.");
         } finally {
@@ -260,7 +262,19 @@ export function CustomerReturnDetailPage() {
                                                 )}
                                             </td>
                                             <td className="border-t border-[#edf0f4]">
-                                                {line.posted ? (
+                                                {line.disposalStatus === "PENDING_APPROVAL" && line.disposalRequestId ? (
+                                                    <div className="grid gap-1">
+                                                        <span className="inline-flex w-fit rounded bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
+                                                            Chờ duyệt tiêu hủy
+                                                        </span>
+                                                        <Link
+                                                            className="text-xs font-black text-[#159734] hover:underline"
+                                                            to={`/management/inventory/disposals/${line.disposalRequestId}`}
+                                                        >
+                                                            {line.disposalRequestCode ?? "Xem yêu cầu tiêu hủy"}
+                                                        </Link>
+                                                    </div>
+                                                ) : line.posted ? (
                                                     <div className="grid gap-1">
                                                         <span className="inline-flex w-fit items-center gap-1 rounded bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">
                                                             <CheckCircle2 size={13} /> Đã xử lý
@@ -268,9 +282,14 @@ export function CustomerReturnDetailPage() {
                                                         <span className="text-xs font-bold text-[#172317]">
                                                             {line.transactionType ?? (line.result === "WRITE_OFF" ? "WRITE_OFF" : "CUSTOMER_RETURN_RECEIPT")}
                                                         </span>
-                                                        <span className="text-[11px] text-[#697684]">
-                                                            Mã giao dịch: {line.transactionId ?? "Chưa xác định"}
-                                                        </span>
+                                                        {line.disposalRequestId ? (
+                                                            <Link
+                                                                className="text-[11px] font-bold text-[#159734] hover:underline"
+                                                                to={`/management/inventory/disposals/${line.disposalRequestId}`}
+                                                            >
+                                                                {line.disposalRequestCode ?? "Xem phiếu tiêu hủy"}
+                                                            </Link>
+                                                        ) : null}
                                                     </div>
                                                 ) : (
                                                     <span className="inline-flex rounded bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
@@ -288,6 +307,11 @@ export function CustomerReturnDetailPage() {
                     {detail.status === "POSTED" ? (
                         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-900">
                             Phiếu kiểm định đã ở trạng thái <strong>POSTED</strong>. Giao dịch kho và cập nhật tồn kho đã được hạch toán hoàn tất. Thao tác xác nhận không còn hiển thị để bảo đảm tính idempotent, tuyệt đối không ghi nhận hai lần.
+                        </div>
+                    ) : null}
+                    {detail.status === "PROCESSING" ? (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                            Các dòng nhập lại kho/hàng hỏng/cách ly đã được xử lý. Phiếu chỉ hoàn tất sau khi yêu cầu tiêu hủy được phê duyệt; hiện chưa gửi xác nhận hoàn tất về Order-Service.
                         </div>
                     ) : null}
                 </>

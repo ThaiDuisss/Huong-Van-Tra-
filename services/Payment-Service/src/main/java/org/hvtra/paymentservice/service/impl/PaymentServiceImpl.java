@@ -481,6 +481,24 @@ public class PaymentServiceImpl implements PaymentService {
             PaymentTransaction transaction
     ) {
         Payment effectivePayment = transaction == null ? payment : transaction.getPayment();
+        String refundStatus;
+        if (effectivePayment == null) {
+            refundStatus = "NOT_FOUND";
+        } else if (transaction != null) {
+            BigDecimal amountPaid = defaultZero(effectivePayment.getAmountPaid());
+            BigDecimal totalRefunded = defaultZero(effectivePayment.getAmountRefunded());
+            if (totalRefunded.compareTo(amountPaid) >= 0 || effectivePayment.getStatus() == PaymentStatus.REFUNDED) {
+                refundStatus = "REFUNDED";
+            } else {
+                refundStatus = "PARTIALLY_REFUNDED";
+            }
+        } else {
+            if (effectivePayment.getStatus() == PaymentStatus.REFUNDED) {
+                refundStatus = "REFUNDED";
+            } else {
+                refundStatus = "PENDING";
+            }
+        }
 
         return PaymentRefundSummaryResponse.builder()
                 .returnId(returnId)
@@ -489,7 +507,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .refundTransactionId(transaction == null ? null : transaction.getId())
                 .refundAmount(transaction == null ? null : transaction.getAmount())
                 .totalAmountRefunded(effectivePayment == null ? null : effectivePayment.getAmountRefunded())
-                .refundStatus(transaction == null ? "PENDING" : "REFUNDED")
+                .amountPaid(effectivePayment == null ? null : effectivePayment.getAmountPaid())
+                .refundStatus(refundStatus)
                 .paymentStatus(effectivePayment == null ? null : effectivePayment.getStatus().name())
                 .method(effectivePayment == null ? null : effectivePayment.getMethod().name())
                 .refundedAt(transaction == null ? null : transaction.getPaidAt())

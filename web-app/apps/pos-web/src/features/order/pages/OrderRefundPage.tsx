@@ -95,8 +95,29 @@ const ERROR_MESSAGES: Record<string, string> = {
     "Return already refunded": "Phiếu này đã được hoàn tiền.",
     "Return inventory inspection is not completed": "Cần hoàn tất kiểm tra hàng trả trước khi hoàn tiền.",
     "Return is not eligible for refund": "Phiếu hoàn chưa đủ điều kiện hoàn tiền.",
-    "Refund is not required for this return": "Phiếu hoàn này không phát sinh hoàn tiền."
+    "Refund is not required for this return": "Phiếu hoàn này không phát sinh hoàn tiền.",
+    "Payment service is temporarily unavailable": "Dịch vụ thanh toán tạm thời không khả dụng.",
+    "Payment is not eligible for refund": "Thanh toán không đủ điều kiện hoàn tiền.",
+    "Refund amount must be greater than 0": "Số tiền hoàn phải lớn hơn 0."
 };
+
+const BLOCK_REASON_LABELS: Record<string, string> = {
+    RETURN_NOT_RECEIVED: "Chưa nhận hàng trả lại",
+    PHYSICAL_DISPOSITION_NOT_COMPLETED: "Chưa hoàn tất kiểm hàng/nhập kho",
+    REFUND_NOT_REQUIRED: "Phiếu không yêu cầu hoàn tiền",
+    ALREADY_REFUNDED: "Đã hoàn tiền đầy đủ",
+    REFUND_FAILED: "Lần hoàn tiền trước đó thất bại",
+    PAYMENT_SERVICE_UNAVAILABLE: "Dịch vụ thanh toán tạm thời gián đoạn",
+    PAYMENT_NOT_FOUND: "Không tìm thấy giao dịch thanh toán",
+    PAYMENT_NOT_REFUNDABLE: "Thanh toán chưa ở trạng thái hợp lệ để hoàn",
+    UNSUPPORTED_PAYMENT_METHOD: "Phương thức thanh toán chưa hỗ trợ hoàn tự động",
+    NO_REFUND_AMOUNT: "Số tiền hoàn bằng 0",
+    REFUND_AMOUNT_EXCEEDS_REMAINING: "Số tiền hoàn vượt quá số tiền còn lại của thanh toán"
+};
+
+function getBlockReasonLabel(reason?: string | null) {
+    return reason ? BLOCK_REASON_LABELS[reason] ?? reason : "--";
+}
 
 function getErrorMessage(error: unknown) {
     if (
@@ -187,28 +208,49 @@ function getMethodLabel(method?: string | null) {
 }
 
 function getRefundProgress(row: OrderRefundSummaryResponse): { label: string; className: string } {
-    if (row.refundStatus === "FAILED") {
+    if (row.refundStatus === "FAILED" || row.refundBlockReason === "REFUND_FAILED") {
         return { label: "Hoàn tiền thất bại", className: styles.failedBadge };
     }
-    if (row.refundStatus === "REFUNDED") {
+    if (row.refundStatus === "REFUNDED" || row.refundBlockReason === "ALREADY_REFUNDED") {
         return { label: "Đã hoàn tiền", className: styles.refundedBadge };
     }
-    if (row.refundStatus === "NOT_REQUIRED" || row.refundRequired === false) {
+    if (row.refundStatus === "NOT_REQUIRED" || row.refundRequired === false || row.refundBlockReason === "REFUND_NOT_REQUIRED") {
         return { label: "Không hoàn tiền", className: styles.notRequiredBadge };
     }
-    if (row.refundStatus === "PENDING") {
+    if (row.refundEligible === true || row.refundStatus === "PENDING") {
         return { label: "Chờ hoàn tiền", className: styles.pendingRefundBadge };
     }
-    if (row.returnStatus === "CREATED") {
+    if (row.returnStatus === "CREATED" || row.refundBlockReason === "RETURN_NOT_RECEIVED") {
         return { label: "Chờ nhận hàng", className: styles.waitingReceiptBadge };
     }
-    if (row.returnStatus === "RECEIVED" || row.qcStatus === "PENDING" || row.qcStatus === "PARTIAL") {
+    if (row.physicalDone === false || row.refundBlockReason === "PHYSICAL_DISPOSITION_NOT_COMPLETED") {
         return { label: "Chờ kiểm hàng", className: styles.waitingQcBadge };
+    }
+    if (row.refundBlockReason === "PAYMENT_SERVICE_UNAVAILABLE") {
+        return { label: "Dịch vụ thanh toán bận", className: styles.waitingReceiptBadge };
+    }
+    if (row.refundBlockReason === "PAYMENT_NOT_FOUND") {
+        return { label: "Chưa có thanh toán", className: styles.waitingReceiptBadge };
+    }
+    if (row.refundBlockReason === "UNSUPPORTED_PAYMENT_METHOD") {
+        return { label: "Phương thức chưa hỗ trợ", className: styles.waitingReceiptBadge };
+    }
+    if (row.refundBlockReason === "PAYMENT_NOT_REFUNDABLE") {
+        return { label: "Không thể hoàn tiền", className: styles.failedBadge };
+    }
+    if (row.refundBlockReason === "NO_REFUND_AMOUNT") {
+        return { label: "Số tiền hoàn bằng 0", className: styles.notRequiredBadge };
+    }
+    if (row.refundBlockReason === "REFUND_AMOUNT_EXCEEDS_REMAINING") {
+        return { label: "Vượt tiền có thể hoàn", className: styles.failedBadge };
     }
     return { label: "Chờ xử lý", className: styles.waitingReceiptBadge };
 }
 
 function canRefund(row: OrderRefundSummaryResponse | OrderRefundDetailResponse) {
+    if (typeof row.refundEligible === "boolean") {
+        return row.refundEligible;
+    }
     const refundAmount = Number(row.refundAmount);
     return (
         row.refundStatus === "PENDING" &&
@@ -402,7 +444,13 @@ export function OrderRefundPage() {
             .then((response) => {
                 setPreview(response);
                 if (!response.eligible) {
-                    setPreviewError(response.reason ? getErrorMessage({ message: response.reason }) : "Phiếu hoàn chưa đủ điều kiện hoàn tiền.");
+                    setPreviewError(
+                        response.blockReason && response.blockReason !== "NONE"
+                            ? getBlockReasonLabel(response.blockReason)
+                            : response.reason
+                                ? getErrorMessage({ message: response.reason })
+                                : "Phiếu hoàn chưa đủ điều kiện hoàn tiền."
+                    );
                 }
             })
             .catch((error: unknown) => {
@@ -785,6 +833,9 @@ function RefundDetailModal({
                                     ["Phương thức", getMethodLabel(detail.method)],
                                     ["Payment status", getPaymentStatusLabel(detail.paymentStatus)],
                                     ["Refund status", getRefundStatusLabel(detail.refundStatus)],
+                                    ...(detail.refundBlockReason && detail.refundBlockReason !== "NONE"
+                                        ? [["Lý do chặn", getBlockReasonLabel(detail.refundBlockReason)] as [string, string]]
+                                        : []),
                                     ["Thời gian hoàn", formatDateTime(detail.refundedAt)]
                                 ]}
                             />

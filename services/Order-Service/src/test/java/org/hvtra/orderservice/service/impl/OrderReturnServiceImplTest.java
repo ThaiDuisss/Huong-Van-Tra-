@@ -13,10 +13,13 @@ import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnCondition;
+import org.hvtra.orderservice.domain.enums.ReturnInventoryDispositionResult;
 import org.hvtra.orderservice.domain.enums.ReturnReason;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionLineRequest;
+import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
@@ -33,7 +36,11 @@ import org.hvtra.orderservice.service.OrderReturnRefundTransactionService;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
+import org.hvtra.orderservice.service.support.OrderReturnDisplayStatusResolver;
 import org.hvtra.orderservice.service.support.OrderReturnHistoryWriter;
+import org.hvtra.orderservice.service.support.OrderReturnPhysicalCompletionHandler;
+import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgressResolver;
+import org.hvtra.orderservice.service.support.OrderReturnRefundEligibilityResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -144,7 +151,23 @@ class OrderReturnServiceImplTest {
                 orderReturnHistoryWriter,
                 orderOutboxPublisher,
                 orderReturnRefundTransactionService,
-                inventoryCommandReconciliationWriter
+                inventoryCommandReconciliationWriter,
+                new OrderReturnPhysicalProgressResolver(
+                        orderReturnRepository,
+                        orderReturnInventoryCommandRepository
+                ),
+                new OrderReturnDisplayStatusResolver(),
+                new OrderReturnRefundEligibilityResolver(),
+                new OrderReturnPhysicalCompletionHandler(
+                        orderReturnRepository,
+                        orderRepository,
+                        new OrderReturnPhysicalProgressResolver(
+                                orderReturnRepository,
+                                orderReturnInventoryCommandRepository
+                        ),
+                        orderReturnHistoryWriter,
+                        orderOutboxPublisher
+                )
         );
         orderId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();
@@ -631,9 +654,6 @@ class OrderReturnServiceImplTest {
         UUID returnId = UUID.randomUUID();
         OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.RECEIVED);
         when(orderReturnRepository.findByIdAndIsDeletedFalse(returnId)).thenReturn(Optional.of(orderReturn));
-        when(inventoryClient.getCustomerReturnQcSummary(returnId)).thenReturn(
-                qcSummary(returnId, "CREATED", "PENDING", "1.000", "0", "1.000")
-        );
 
         InvalidOrderReturnException exception = assertThrows(
                 InvalidOrderReturnException.class,
@@ -664,6 +684,21 @@ class OrderReturnServiceImplTest {
                 .thenReturn(List.of(orderReturn));
         when(returnRefundCalculator.calculate(order, orderReturn, List.of(orderReturn)))
                 .thenReturn(new ReturnRefundCalculator.RefundCalculationResult(new BigDecimal("120000")));
+        when(paymentClient.lookupRefundSummaries(any())).thenReturn(List.of(
+                new PaymentClient.PaymentRefundSummaryResponse(
+                        returnId,
+                        orderId,
+                        paymentId,
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        new BigDecimal("500000"),
+                        "PENDING",
+                        "PAID",
+                        "CASH",
+                        null
+                )
+        ));
         PaymentClient.PaymentRefundResponse refundResponse = new PaymentClient.PaymentRefundResponse(
                 paymentId,
                 orderId,
@@ -718,14 +753,33 @@ class OrderReturnServiceImplTest {
         UUID transactionId = UUID.randomUUID();
         OrderReturn orderReturn = orderReturn(returnId, ReturnStatus.RECEIVED, new BigDecimal("3.000"));
         when(orderReturnRepository.findByIdAndIsDeletedFalse(returnId)).thenReturn(Optional.of(orderReturn));
-        when(inventoryClient.getCustomerReturnQcSummary(returnId)).thenReturn(
-                qcSummary(returnId, "POSTED", "COMPLETED", "3.000", "3.000", "0")
-        );
+        when(orderReturnInventoryCommandRepository.sumQuantityByReturnIdAndCommandStatus(
+                returnId,
+                OrderReturnInventoryCommandStatus.PROCESSED
+        )).thenReturn(List.<Object[]>of(new Object[]{
+                orderReturn.getItems().getFirst().getId(),
+                new BigDecimal("3.000")
+        }));
         when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
         when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
                 .thenReturn(List.of(orderReturn));
         when(returnRefundCalculator.calculate(order, orderReturn, List.of(orderReturn)))
                 .thenReturn(new ReturnRefundCalculator.RefundCalculationResult(new BigDecimal("200000")));
+        when(paymentClient.lookupRefundSummaries(any())).thenReturn(List.of(
+                new PaymentClient.PaymentRefundSummaryResponse(
+                        returnId,
+                        orderId,
+                        paymentId,
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        new BigDecimal("500000"),
+                        "PENDING",
+                        "PAID",
+                        "CASH",
+                        null
+                )
+        ));
         PaymentClient.PaymentRefundResponse refundResponse = new PaymentClient.PaymentRefundResponse(
                 paymentId,
                 orderId,
@@ -774,14 +828,33 @@ class OrderReturnServiceImplTest {
         OrderReturn receivedReturn = orderReturn(receivedReturnId, ReturnStatus.RECEIVED, new BigDecimal("2.000"));
         OrderReturn cancelledReturn = orderReturn(cancelledReturnId, ReturnStatus.CANCELLED, new BigDecimal("2.000"));
         when(orderReturnRepository.findByIdAndIsDeletedFalse(returnId)).thenReturn(Optional.of(orderReturn));
-        when(inventoryClient.getCustomerReturnQcSummary(returnId)).thenReturn(
-                qcSummary(returnId, "POSTED", "COMPLETED", "1.000", "1.000", "0")
-        );
+        when(orderReturnInventoryCommandRepository.sumQuantityByReturnIdAndCommandStatus(
+                returnId,
+                OrderReturnInventoryCommandStatus.PROCESSED
+        )).thenReturn(List.<Object[]>of(new Object[]{
+                orderReturn.getItems().getFirst().getId(),
+                BigDecimal.ONE
+        }));
         when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
         when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
                 .thenReturn(List.of(orderReturn, receivedReturn, cancelledReturn));
         when(returnRefundCalculator.calculate(order, orderReturn, List.of(orderReturn, receivedReturn, cancelledReturn)))
                 .thenReturn(new ReturnRefundCalculator.RefundCalculationResult(new BigDecimal("120000")));
+        when(paymentClient.lookupRefundSummaries(any())).thenReturn(List.of(
+                new PaymentClient.PaymentRefundSummaryResponse(
+                        returnId,
+                        orderId,
+                        UUID.randomUUID(),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        new BigDecimal("500000"),
+                        "PENDING",
+                        "PAID",
+                        "CASH",
+                        null
+                )
+        ));
         PaymentClient.PaymentRefundResponse refundResponse = new PaymentClient.PaymentRefundResponse(
                 UUID.randomUUID(),
                 orderId,
@@ -822,6 +895,7 @@ class OrderReturnServiceImplTest {
                         orderId,
                         paymentId,
                         transactionId,
+                        new BigDecimal("120000"),
                         new BigDecimal("120000"),
                         new BigDecimal("120000"),
                         "REFUNDED",
@@ -1013,7 +1087,7 @@ class OrderReturnServiceImplTest {
         OrderReturnSummaryResponse summary = summary("RET-STATUS-DATE", ReturnStatus.RECEIVED, 1L);
         when(orderReturnRepository.findReturnSummariesList(
                 null,
-                ReturnStatus.RECEIVED,
+                null,
                 startOfDay(fromDate),
                 startOfDay(toDate.plusDays(1))
         )).thenReturn(List.of(summary));
@@ -1024,7 +1098,7 @@ class OrderReturnServiceImplTest {
         assertEquals(ReturnStatus.RECEIVED, result.getContent().getFirst().getStatus());
         verify(orderReturnRepository).findReturnSummariesList(
                 null,
-                ReturnStatus.RECEIVED,
+                null,
                 startOfDay(fromDate),
                 startOfDay(toDate.plusDays(1))
         );
@@ -1289,7 +1363,7 @@ class OrderReturnServiceImplTest {
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
         );
         if (status == ReturnStatus.RECEIVED) {
-            when(orderReturnRepository.findReturnSummariesList(null, status, null, null))
+            when(orderReturnRepository.findReturnSummariesList(null, null, null, null))
                     .thenReturn(List.of(summary));
         } else {
             when(orderReturnRepository.findReturnSummaries(null, status, null, null, expectedPageRequest))
@@ -1300,7 +1374,7 @@ class OrderReturnServiceImplTest {
 
         assertEquals(status, result.getContent().getFirst().getStatus());
         if (status == ReturnStatus.RECEIVED) {
-            verify(orderReturnRepository).findReturnSummariesList(null, status, null, null);
+            verify(orderReturnRepository).findReturnSummariesList(null, null, null, null);
         } else {
             verify(orderReturnRepository).findReturnSummaries(null, status, null, null, expectedPageRequest);
         }
@@ -1330,5 +1404,132 @@ class OrderReturnServiceImplTest {
                 .customerName("Nguyen Van A")
                 .customerPhone("0900000000")
                 .build();
+    }
+
+    @Test
+    void recordPhysicalCompletion_recordsQcCompletedHistory() {
+        UUID returnId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        UUID inspectionId = UUID.randomUUID();
+        OrderReturn orderReturn = OrderReturn.builder()
+                .status(ReturnStatus.RECEIVED)
+                .build();
+        orderReturn.setId(returnId);
+
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId))
+                .thenReturn(Optional.of(orderReturn));
+
+        service.recordPhysicalCompletion(returnId, actorUserId, inspectionId);
+
+        verify(orderReturnHistoryWriter).writeIfAbsent(
+                orderReturn,
+                OrderReturnHistoryAction.QC_COMPLETED,
+                ReturnStatus.RECEIVED,
+                ReturnStatus.RECEIVED,
+                actorUserId,
+                "Inventory physical disposition completed",
+                "INVENTORY_INSPECTION",
+                inspectionId.toString()
+        );
+    }
+
+    @Test
+    void recordPhysicalCompletion_whenReturnNotFound_doesNothing() {
+        UUID returnId = UUID.randomUUID();
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId))
+                .thenReturn(Optional.empty());
+
+        service.recordPhysicalCompletion(returnId, null, null);
+
+        verify(orderReturnHistoryWriter, never()).writeIfAbsent(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void submitReturnInventoryDisposition_quarantineWithoutDestination_throwsException() {
+        UUID returnId = UUID.randomUUID();
+        UUID returnItemId = UUID.randomUUID();
+        OrderReturn orderReturn = OrderReturn.builder()
+                .status(ReturnStatus.RECEIVED)
+                .build();
+        orderReturn.setId(returnId);
+
+        OrderReturnItem item = OrderReturnItem.builder()
+                .quantity(new BigDecimal("2.000"))
+                .build();
+        item.setId(returnItemId);
+        item.setIsDeleted(false);
+        orderReturn.setItems(List.of(item));
+
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId))
+                .thenReturn(Optional.of(orderReturn));
+
+        SubmitReturnInventoryDispositionRequest request = SubmitReturnInventoryDispositionRequest.builder()
+                .commandId(UUID.randomUUID())
+                .lines(List.of(
+                        SubmitReturnInventoryDispositionLineRequest.builder()
+                                .returnItemId(returnItemId)
+                                .quantity(new BigDecimal("1.000"))
+                                .result(ReturnInventoryDispositionResult.QUARANTINE)
+                                .destinationLocationId(null)
+                                .build()
+                ))
+                .build();
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.submitInventoryDisposition(returnId, request)
+        );
+    }
+
+    @Test
+    void submitReturnInventoryDisposition_quarantineWithDestination_succeeds() {
+        UUID returnId = UUID.randomUUID();
+        UUID returnItemId = UUID.randomUUID();
+        UUID locId = UUID.randomUUID();
+        UUID cmdId = UUID.randomUUID();
+
+        OrderReturn orderReturn = OrderReturn.builder()
+                .status(ReturnStatus.RECEIVED)
+                .build();
+        orderReturn.setId(returnId);
+
+        OrderItem ordItem = OrderItem.builder()
+                .productVariantId(UUID.randomUUID())
+                .build();
+        ordItem.setId(UUID.randomUUID());
+
+        OrderReturnItem item = OrderReturnItem.builder()
+                .quantity(new BigDecimal("2.000"))
+                .orderItem(ordItem)
+                .build();
+        item.setId(returnItemId);
+        item.setIsDeleted(false);
+        orderReturn.setItems(List.of(item));
+
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId))
+                .thenReturn(Optional.of(orderReturn));
+        when(orderReturnInventoryCommandRepository.findByCommandIdAndIsDeletedFalse(cmdId))
+                .thenReturn(Optional.empty());
+        when(orderReturnInventoryCommandRepository.sumCommandedQuantityByReturnItemId(returnItemId))
+                .thenReturn(BigDecimal.ZERO);
+        when(orderReturnInventoryCommandRepository.saveAndFlush(any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SubmitReturnInventoryDispositionRequest request = SubmitReturnInventoryDispositionRequest.builder()
+                .commandId(cmdId)
+                .lines(List.of(
+                        SubmitReturnInventoryDispositionLineRequest.builder()
+                                .returnItemId(returnItemId)
+                                .quantity(new BigDecimal("1.000"))
+                                .result(ReturnInventoryDispositionResult.QUARANTINE)
+                                .destinationLocationId(locId)
+                                .build()
+                ))
+                .build();
+
+        var response = service.submitInventoryDisposition(returnId, request);
+        org.junit.jupiter.api.Assertions.assertNotNull(response);
+        org.junit.jupiter.api.Assertions.assertEquals(cmdId, response.getCommandId());
+        verify(orderReturnInventoryCommandRepository).saveAndFlush(any());
     }
 }

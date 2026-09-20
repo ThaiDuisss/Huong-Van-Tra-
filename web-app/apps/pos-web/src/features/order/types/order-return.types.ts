@@ -29,6 +29,20 @@ export type CustomerReturnInspectionStatus = "CREATED" | "POSTED" | "CANCELLED";
 
 export type OrderRefundStatus = "PENDING" | "REFUNDED" | "NOT_READY" | "FAILED" | "NOT_REQUIRED";
 
+export type OrderRefundBlockReason =
+    | "NONE"
+    | "RETURN_NOT_RECEIVED"
+    | "PHYSICAL_DISPOSITION_NOT_COMPLETED"
+    | "REFUND_NOT_REQUIRED"
+    | "ALREADY_REFUNDED"
+    | "REFUND_FAILED"
+    | "PAYMENT_SERVICE_UNAVAILABLE"
+    | "PAYMENT_NOT_FOUND"
+    | "PAYMENT_NOT_REFUNDABLE"
+    | "UNSUPPORTED_PAYMENT_METHOD"
+    | "NO_REFUND_AMOUNT"
+    | "REFUND_AMOUNT_EXCEEDS_REMAINING";
+
 export type OrderReturnStatus = "NONE" | "PARTIALLY_RETURNED" | "FULLY_RETURNED";
 
 export type ReturnDisplayStatus =
@@ -79,10 +93,18 @@ export interface OrderReturnResponse {
     refundRequired?: boolean | null;
     branchId?: string | null;
     orderCode?: string | null;
+    customerName?: string | null;
+    customerPhone?: string | null;
     note?: string | null;
     createdAt?: string | null;
     updatedAt?: string | null;
     items?: OrderReturnItemResponse[] | null;
+    displayStatus?: ReturnDisplayStatus | null;
+    physicalDone?: boolean | null;
+    requiredQuantity?: number | string | null;
+    processedQuantity?: number | string | null;
+    remainingQuantity?: number | string | null;
+    inventoryProcessingStatus?: string | null;
 }
 
 export interface OrderReturnSummaryResponse {
@@ -106,6 +128,11 @@ export interface OrderReturnSummaryResponse {
     isPendingDisposition?: boolean | null;
     postedQcQuantity?: number | string | null;
     displayStatus?: ReturnDisplayStatus | null;
+    physicalDone?: boolean | null;
+    requiredQuantity?: number | string | null;
+    processedQuantity?: number | string | null;
+    remainingQuantity?: number | string | null;
+    inventoryProcessingStatus?: string | null;
 }
 
 export interface OrderReturnListRow extends OrderReturnSummaryResponse {
@@ -143,6 +170,7 @@ export interface OrderRefundSummaryResponse {
     customerPhone?: string | null;
     returnCreatedAt?: string | null;
     returnStatus?: ReturnStatus | null;
+    displayStatus?: ReturnDisplayStatus | string | null;
     refundRequired?: boolean | null;
     qcStatus?: CustomerReturnQcStatus | null;
     physicalDone?: boolean | null;
@@ -150,6 +178,8 @@ export interface OrderRefundSummaryResponse {
     inspectionId?: string | null;
     inventoryProcessedAt?: string | null;
     refundStatus?: OrderRefundStatus | null;
+    refundEligible?: boolean | null;
+    refundBlockReason?: OrderRefundBlockReason | string | null;
     refundAmount?: number | string | null;
     paymentStatus?: string | null;
     method?: string | null;
@@ -167,6 +197,7 @@ export interface OrderReturnRefundPreviewResponse {
     refundAmount?: number | string | null;
     paymentMethod?: string | null;
     eligible?: boolean;
+    blockReason?: OrderRefundBlockReason | string | null;
     reason?: string | null;
 }
 

@@ -3,12 +3,14 @@ package org.hvtra.iventoryservice.customerreturn.service.impl;
 import feign.FeignException;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.kafka.inbox.InboxStatus;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcDispositionReportRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CustomerReturnQcSummaryBatchRequest;
+import org.hvtra.iventoryservice.customerreturn.dto.request.PostCustomerReturnInspectionRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionLineResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcDispositionReportResponse;
@@ -19,6 +21,7 @@ import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionRe
 import org.hvtra.iventoryservice.customerreturn.dto.response.ReturnDispositionStatusResponse;
 import org.hvtra.iventoryservice.customerreturn.repository.CustomerReturnInspectionRepository;
 import org.hvtra.iventoryservice.customerreturn.service.CustomerReturnInspectionService;
+import org.hvtra.iventoryservice.disposal.repository.DisposalRequestRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -26,12 +29,14 @@ import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspection;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspectionLine;
+import org.hvtra.iventoryservice.domain.entity.disposal.DisposalRequest;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcStatus;
+import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
@@ -48,16 +53,17 @@ import org.hvtra.iventoryservice.integration.order.repository.InventoryInboxRepo
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
+import org.hvtra.iventoryservice.outbox.publisher.InventoryOutboxPublisher;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -77,11 +83,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import org.hvtra.commonservice.kafka.inbox.InboxStatus;
-import org.hvtra.iventoryservice.customerreturn.dto.request.PostCustomerReturnInspectionRequest;
-import org.hvtra.iventoryservice.outbox.publisher.InventoryOutboxPublisher;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -100,6 +101,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     private final InventoryBatchRepository batchRepository;
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryTransactionRepository transactionRepository;
+    private final DisposalRequestRepository disposalRequestRepository;
     private final InventoryInboxRepository inboxRepository;
     private final InventoryOutboxPublisher inventoryOutboxPublisher;
 
@@ -111,9 +113,18 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     public CustomerReturnInspectionResponse createInspection(
             UUID returnId,
             CreateCustomerReturnInspectionRequest request) {
+        return createInspection(returnId, null, request);
+    }
+
+    @Override
+    @Transactional
+    public CustomerReturnInspectionResponse createInspection(
+            UUID returnId,
+            UUID commandId,
+            CreateCustomerReturnInspectionRequest request) {
         OrderReturnResponse orderReturn = verifiedReceivedReturn(returnId);
         Map<UUID, OrderReturnItemResponse> returnItems = returnItemsById(orderReturn);
-        Map<UUID, BigDecimal> postedQuantities = postedQuantities(returnId);
+        Map<UUID, BigDecimal> allocatedQuantities = allocatedQuantities(returnId);
         Set<UUID> requestedReturnItems = new HashSet<>();
         UUID inspectionBranchId = resolveInspectionBranch(orderReturn, request.lines());
 
@@ -121,6 +132,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         inspection.setInspectionCode(generateInspectionCode());
         inspection.setReturnId(orderReturn.id());
         inspection.setReturnCode(orderReturn.returnCode());
+        inspection.setCommandId(commandId);
         inspection.setBranchId(inspectionBranchId);
         inspection.setOrderId(orderReturn.orderId());
         inspection.setOrderCode(orderReturn.orderCode());
@@ -137,7 +149,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 throw new BadRequestException("Return item does not belong to return: " + lineRequest.returnItemId());
             }
             validatePositive(lineRequest.quantity(), "quantity");
-            validateWithinReturnedQuantity(returnItem, postedQuantities.get(returnItem.id()), lineRequest.quantity());
+            validateWithinReturnedQuantity(returnItem, allocatedQuantities.get(returnItem.id()), lineRequest.quantity());
             validateConditionResult(returnItem.condition(), lineRequest.result(), lineRequest.note(), request.note());
 
             InventoryItem item = activeProductVariantItem(returnItem.productVariantId());
@@ -187,8 +199,11 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         OrderReturnResponse orderReturn = verifiedReceivedReturn(inspectionSnapshot.getReturnId());
         Map<UUID, OrderReturnItemResponse> returnItems = returnItemsById(orderReturn);
 
-        CustomerReturnInspection inspection = inspectionRepository
-                .findByIdAndIsDeletedFalseForUpdate(inspectionId)
+        List<CustomerReturnInspection> lockedInspections = inspectionRepository
+                .findByReturnIdForUpdate(inspectionSnapshot.getReturnId());
+        CustomerReturnInspection inspection = lockedInspections.stream()
+                .filter(candidate -> candidate.getId().equals(inspectionId))
+                .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Customer return inspection", inspectionId));
 
         // Idempotency check 2: under pessimistic lock
@@ -222,42 +237,115 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             }
         }
 
-        Map<UUID, BigDecimal> postedQuantities = postedQuantities(inspection.getReturnId());
+        Map<UUID, BigDecimal> postedQuantities = postedQuantities(lockedInspections);
         for (CustomerReturnInspectionLine line : inspection.getLines()) {
+            if (Boolean.TRUE.equals(line.getPosted())) {
+                continue;
+            }
             OrderReturnItemResponse returnItem = returnItems.get(line.getReturnItemId());
             if (returnItem == null) {
                 throw new BadRequestException("Return item no longer exists in Order-Service: " + line.getReturnItemId());
             }
             validateWithinReturnedQuantity(returnItem, postedQuantities.get(returnItem.id()), line.getQuantity());
+            if (line.getResult() == CustomerReturnQcResult.WRITE_OFF) {
+                continue;
+            }
             postLine(inspection, line);
             line.setPosted(true);
+            postedQuantities.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
         }
 
-        inspection.setStatus(CustomerReturnInspectionStatus.POSTED);
-        inspection.setPostedAt(Instant.now());
+        ensurePendingDisposal(inspection);
+        boolean allLinesPosted = inspection.getLines().stream()
+                .allMatch(line -> Boolean.TRUE.equals(line.getPosted()));
+        inspection.setStatus(allLinesPosted
+                ? CustomerReturnInspectionStatus.POSTED
+                : CustomerReturnInspectionStatus.PROCESSING);
+        inspection.setPostedAt(allLinesPosted ? Instant.now() : null);
         CustomerReturnInspection saved = inspectionRepository.saveAndFlush(inspection);
 
-        acknowledgePostedInspection(saved);
+        if (allLinesPosted) {
+            acknowledgePostedInspection(saved);
+        }
 
         return toEnrichedResponse(saved, orderReturn);
+    }
+
+    @Override
+    @Transactional
+    public void completeAfterDisposal(UUID inspectionId) {
+        CustomerReturnInspection inspection = inspectionRepository
+                .findByIdAndIsDeletedFalseForUpdate(inspectionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer return inspection", inspectionId));
+        if (inspection.getStatus() == CustomerReturnInspectionStatus.CANCELLED) {
+            throw new BadRequestException("Cancelled customer return inspection cannot be completed: " + inspectionId);
+        }
+        if (!inspection.getLines().stream().allMatch(line -> Boolean.TRUE.equals(line.getPosted()))) {
+            inspection.setStatus(CustomerReturnInspectionStatus.PROCESSING);
+            inspectionRepository.saveAndFlush(inspection);
+            return;
+        }
+        if (inspection.getStatus() != CustomerReturnInspectionStatus.POSTED) {
+            inspection.setStatus(CustomerReturnInspectionStatus.POSTED);
+            inspection.setPostedAt(Instant.now());
+            inspectionRepository.saveAndFlush(inspection);
+        }
+        acknowledgePostedInspection(inspection);
+    }
+
+    private void ensurePendingDisposal(CustomerReturnInspection inspection) {
+        List<CustomerReturnInspectionLine> writeOffLines = inspection.getLines().stream()
+                .filter(line -> line.getResult() == CustomerReturnQcResult.WRITE_OFF)
+                .filter(line -> !Boolean.TRUE.equals(line.getPosted()))
+                .toList();
+        if (writeOffLines.isEmpty()) {
+            return;
+        }
+
+        Optional<DisposalRequest> existing = disposalRequestRepository
+                .findBySourceInspectionId(inspection.getId());
+        if (existing.isPresent()) {
+            DisposalRequest request = existing.get();
+            for (CustomerReturnInspectionLine line : writeOffLines) {
+                if (line.getDisposalRequest() == null) {
+                    request.addLine(line);
+                }
+            }
+            disposalRequestRepository.saveAndFlush(request);
+            return;
+        }
+
+        DisposalRequest request = new DisposalRequest();
+        request.setRequestCode(generateDisposalCode());
+        request.setSourceType("CUSTOMER_RETURN_INSPECTION");
+        request.setSourceInspection(inspection);
+        request.setReturnId(inspection.getReturnId());
+        request.setReturnCode(inspection.getReturnCode());
+        request.setBranchId(inspection.getBranchId());
+        request.setStatus(DisposalRequestStatus.PENDING_APPROVAL);
+        request.setNote(inspection.getNote());
+        writeOffLines.forEach(request::addLine);
+        disposalRequestRepository.saveAndFlush(request);
     }
 
     private void acknowledgePostedInspection(CustomerReturnInspection inspection) {
         // A POSTED inspection is durable evidence that stock was already handled. Keep
         // acknowledgement repair idempotent so a retry never posts balances twice.
-        Optional<InventoryInbox> inboxOpt = inboxRepository
-                .findFirstByInspectionIdAndConsumerGroup(inspection.getId().toString(), consumerGroup);
-        if (inboxOpt.isEmpty()) {
-            inboxOpt = inboxRepository.findFirstByInspectionId(inspection.getId().toString());
+        if (inspection.getCommandId() == null) {
+            log.debug("Standalone inspection has no source command; skip disposition acknowledgement. inspectionId={}",
+                    inspection.getId());
+            return;
         }
-        if (inboxOpt.isEmpty()) {
-            inboxOpt = inboxRepository.findFirstByEntityIdAndConsumerGroup(
-                    inspection.getReturnId().toString(),
-                    consumerGroup
-            );
-        }
+        Optional<InventoryInbox> inboxOpt = inboxRepository.findByCommandIdAndConsumerGroup(
+                inspection.getCommandId().toString(),
+                consumerGroup
+        );
         if (inboxOpt.isPresent()) {
             InventoryInbox inbox = inboxOpt.get();
+            if (inbox.getInspectionId() != null
+                    && !inspection.getId().toString().equals(inbox.getInspectionId())) {
+                throw new IllegalStateException("Source command is linked to a different inspection");
+            }
             if (inbox.getStatus() != InboxStatus.PROCESSED) {
                 inbox.setStatus(InboxStatus.PROCESSED);
                 inbox.setProcessedAt(Instant.now());
@@ -276,8 +364,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             log.info("Ensured processed outbox event for posted inspection. inspectionId={}, commandId={}, returnId={}",
                     inspection.getId(), inbox.getCommandId(), inspection.getReturnId());
         } else {
-            log.warn("No inbox record found for posted inspectionId={}. Cannot publish disposition acknowledgement.",
-                    inspection.getId());
+            log.warn("No inbox record found for posted inspectionId={}, commandId={}. Cannot publish disposition acknowledgement.",
+                    inspection.getId(), inspection.getCommandId());
         }
     }
 
@@ -417,22 +505,10 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 .distinct()
                 .toList();
 
-        return inspectionRepository.sumDispositionByReturnIds(
-                returnIds,
-                CustomerReturnInspectionStatus.POSTED
-        );
+        return inspectionRepository.sumDispositionByReturnIds(returnIds);
     }
 
     private void postLine(CustomerReturnInspection inspection, CustomerReturnInspectionLine line) {
-        if (line.getResult() == CustomerReturnQcResult.WRITE_OFF) {
-            InventoryTransaction transaction = createTransaction(
-                    InventoryTransactionType.WRITE_OFF,
-                    inspection.getBranchId(),
-                    inspection.getReturnId());
-            line.setTransactionId(transactionRepository.saveAndFlush(transaction).getId());
-            return;
-        }
-
         InventoryLocation location = validateDestinationForPosting(
                 inspection.getBranchId(),
                 line.getResult(),
@@ -555,9 +631,26 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     }
 
     private Map<UUID, BigDecimal> postedQuantities(UUID returnId) {
+        return postedQuantities(inspectionRepository.findQcProgressByReturnId(returnId));
+    }
+
+    private Map<UUID, BigDecimal> allocatedQuantities(UUID returnId) {
         Map<UUID, BigDecimal> totals = new HashMap<>();
-        inspectionRepository.findByReturnIdAndStatus(returnId, CustomerReturnInspectionStatus.POSTED)
-                .stream()
+        inspectionRepository.findQcProgressByReturnId(returnId).stream()
+                .filter(inspection -> inspection.getStatus() != CustomerReturnInspectionStatus.CANCELLED)
+                .flatMap(inspection -> inspection.getLines().stream())
+                .filter(line -> !Boolean.TRUE.equals(line.getIsDeleted()))
+                .forEach(line -> totals.merge(
+                        line.getReturnItemId(),
+                        line.getQuantity(),
+                        BigDecimal::add
+                ));
+        return totals;
+    }
+
+    private Map<UUID, BigDecimal> postedQuantities(List<CustomerReturnInspection> inspections) {
+        Map<UUID, BigDecimal> totals = new HashMap<>();
+        inspections.stream()
                 .flatMap(inspection -> inspection.getLines().stream())
                 .filter(line -> Boolean.TRUE.equals(line.getPosted()))
                 .forEach(line -> totals.merge(
@@ -750,9 +843,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         Map<UUID, BigDecimal> postedQuantities = new HashMap<>();
         Map<UUID, Map<DispositionKey, BigDecimal>> dispositionsByItem = new HashMap<>();
 
-        inspections.stream()
-                .filter(inspection -> inspection.getStatus() == CustomerReturnInspectionStatus.POSTED)
-                .forEach(inspection -> inspection.getLines().stream()
+        inspections.forEach(inspection -> inspection.getLines().stream()
                 .filter(line -> Boolean.TRUE.equals(line.getPosted()))
                 .forEach(line -> {
                     postedQuantities.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
@@ -775,7 +866,6 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 }));
 
         Instant inspectedAt = inspections.stream()
-                .filter(inspection -> inspection.getStatus() == CustomerReturnInspectionStatus.POSTED)
                 .map(CustomerReturnInspection::getPostedAt)
                 .filter(Objects::nonNull)
                 .max(Comparator.naturalOrder())
@@ -837,6 +927,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                             : returnItem.condition().name();
                     String returnReason = returnItem == null ? null : returnItem.reason();
                     InventoryLocation destination = line.getDestinationLocation();
+                    DisposalRequest disposalRequest = line.getDisposalRequest();
                     return new CustomerReturnInspectionLineResponse(
                             line.getId(),
                             line.getReturnItemId(),
@@ -852,6 +943,9 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                             line.getNote(),
                             line.getPosted(),
                             line.getTransactionId(),
+                            disposalRequest == null ? null : disposalRequest.getId(),
+                            disposalRequest == null ? null : disposalRequest.getRequestCode(),
+                            disposalRequest == null ? null : disposalRequest.getStatus(),
                             condition,
                             returnReason
                     );
@@ -893,6 +987,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
 
     private CustomerReturnInspectionLineResponse toLineResponse(CustomerReturnInspectionLine line) {
         InventoryLocation destination = line.getDestinationLocation();
+        DisposalRequest disposalRequest = line.getDisposalRequest();
         return new CustomerReturnInspectionLineResponse(
                 line.getId(),
                 line.getReturnItemId(),
@@ -907,7 +1002,12 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 destination == null ? null : destination.getName(),
                 line.getNote(),
                 line.getPosted(),
-                line.getTransactionId());
+                line.getTransactionId(),
+                disposalRequest == null ? null : disposalRequest.getId(),
+                disposalRequest == null ? null : disposalRequest.getRequestCode(),
+                disposalRequest == null ? null : disposalRequest.getStatus(),
+                null,
+                null);
     }
 
     private CustomerReturnQcStatus lineQcStatus(BigDecimal returnedQuantity, BigDecimal postedQuantity) {
@@ -950,6 +1050,15 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 
+    private String generateDisposalCode() {
+        String code;
+        do {
+            code = "DSP-" + LocalDate.now().format(CODE_DATE)
+                    + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+        } while (disposalRequestRepository.existsByRequestCode(code));
+        return code;
+    }
+
     @Override
     public ReturnDispositionStatusResponse getDispositionStatus(UUID commandId) {
         if (commandId == null) {
@@ -960,6 +1069,27 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 consumerGroup
         );
         if (inboxOpt.isEmpty()) {
+            Optional<CustomerReturnInspection> inspectionOpt = inspectionRepository.findByCommandIdAndIsDeletedFalse(commandId);
+            if (inspectionOpt.isPresent()) {
+                CustomerReturnInspection inspection = inspectionOpt.get();
+                if (inspection.getStatus() == CustomerReturnInspectionStatus.POSTED) {
+                    return ReturnDispositionStatusResponse.builder()
+                            .commandId(commandId)
+                            .status(ReturnDispositionReconciliationStatus.PROCESSED)
+                            .returnId(inspection.getReturnId())
+                            .inspectionId(inspection.getId())
+                            .processedAt(inspection.getPostedAt() != null ? inspection.getPostedAt() : inspection.getCreatedAt())
+                            .build();
+                } else {
+                    return ReturnDispositionStatusResponse.builder()
+                            .commandId(commandId)
+                            .status(ReturnDispositionReconciliationStatus.PROCESSING)
+                            .returnId(inspection.getReturnId())
+                            .inspectionId(inspection.getId())
+                            .failureReason("Inspection exists but is not yet posted (status: " + inspection.getStatus() + ")")
+                            .build();
+                }
+            }
             return ReturnDispositionStatusResponse.builder()
                     .commandId(commandId)
                     .status(ReturnDispositionReconciliationStatus.NOT_FOUND)
@@ -984,34 +1114,37 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 } catch (IllegalArgumentException ignored) {
                 }
             }
+            Optional<CustomerReturnInspection> inspectionOpt = Optional.empty();
             if (inspectionId != null) {
-                Optional<CustomerReturnInspection> inspectionOpt = inspectionRepository.findById(inspectionId);
-                if (inspectionOpt.isPresent()) {
-                    CustomerReturnInspection inspection = inspectionOpt.get();
-                    if (inspection.getStatus() == CustomerReturnInspectionStatus.POSTED) {
-                        return ReturnDispositionStatusResponse.builder()
-                                .commandId(commandId)
-                                .status(ReturnDispositionReconciliationStatus.PROCESSED)
-                                .returnId(inspection.getReturnId())
-                                .inspectionId(inspection.getId())
-                                .processedAt(inbox.getProcessedAt())
-                                .build();
-                    } else {
-                        return ReturnDispositionStatusResponse.builder()
-                                .commandId(commandId)
-                                .status(ReturnDispositionReconciliationStatus.PROCESSING)
-                                .returnId(inspection.getReturnId())
-                                .inspectionId(inspection.getId())
-                                .failureReason("Inspection exists but is not yet posted (status: " + inspection.getStatus() + ")")
-                                .build();
-                    }
+                inspectionOpt = inspectionRepository.findById(inspectionId);
+            }
+            if (inspectionOpt.isEmpty()) {
+                inspectionOpt = inspectionRepository.findByCommandIdAndIsDeletedFalse(commandId);
+            }
+            if (inspectionOpt.isPresent()) {
+                CustomerReturnInspection inspection = inspectionOpt.get();
+                if (inspection.getStatus() == CustomerReturnInspectionStatus.POSTED) {
+                    return ReturnDispositionStatusResponse.builder()
+                            .commandId(commandId)
+                            .status(ReturnDispositionReconciliationStatus.PROCESSED)
+                            .returnId(inspection.getReturnId())
+                            .inspectionId(inspection.getId())
+                            .processedAt(inbox.getProcessedAt() != null ? inbox.getProcessedAt() : inspection.getPostedAt())
+                            .build();
+                } else {
+                    return ReturnDispositionStatusResponse.builder()
+                            .commandId(commandId)
+                            .status(ReturnDispositionReconciliationStatus.PROCESSING)
+                            .returnId(inspection.getReturnId())
+                            .inspectionId(inspection.getId())
+                            .failureReason("Inspection exists but is not yet posted (status: " + inspection.getStatus() + ")")
+                            .build();
                 }
             }
             return ReturnDispositionStatusResponse.builder()
                     .commandId(commandId)
-                    .status(ReturnDispositionReconciliationStatus.PROCESSED)
-                    .inspectionId(inspectionId)
-                    .processedAt(inbox.getProcessedAt())
+                    .status(ReturnDispositionReconciliationStatus.PROCESSING)
+                    .failureReason("Inspection not found or not yet posted")
                     .build();
         }
         return ReturnDispositionStatusResponse.builder()

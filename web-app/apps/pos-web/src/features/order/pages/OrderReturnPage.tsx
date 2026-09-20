@@ -52,7 +52,6 @@ import {
     getOrderRefundStatusLabel,
     getReturnReasonLabel,
     getReturnStatusLabel,
-    resolveReturnDisplayStatus,
     toReturnNumber,
     type ReturnDisplayStatus
 } from "../utils/order-return.utils";
@@ -630,17 +629,7 @@ export function OrderReturnPage() {
                                               </td>
                                               <td>
                                                   <ReturnStatusBadge
-                                                      displayStatus={row.displayStatus ?? resolveReturnDisplayStatus({
-                                                          status: row.status,
-                                                          refundRequired: row.refundRequired,
-                                                          qcStatus: row.qcStatus,
-                                                          postedQcQuantity: row.postedQcQuantity,
-                                                          remainingQcQuantity: row.remainingQcQuantity,
-                                                          inspectionStatus: row.inspectionStatus,
-                                                          refundStatus: row.refundStatus,
-                                                          hasFailedDisposition: row.hasFailedDisposition,
-                                                          isPendingDisposition: row.isPendingDisposition
-                                                      })}
+                                                      displayStatus={row.displayStatus}
                                                       status={row.status}
                                                   />
                                               </td>
@@ -890,32 +879,7 @@ function ReturnDetailModal({
         qcSummary?.inspectionStatus !== "CREATED" &&
         (qcSummary?.qcStatus === "COMPLETED" || qcSummary?.inspectionStatus === "POSTED");
 
-    const displayStatus = useMemo(
-        () =>
-            resolveReturnDisplayStatus({
-                status: returnItem.status,
-                refundRequired: returnItem.refundRequired,
-                qcSummary,
-                refundStatus: refundDetail?.refundStatus ?? returnItem.refundStatus,
-                qcStatus: returnItem.qcStatus,
-                remainingQcQuantity: returnItem.remainingQcQuantity,
-                inspectionStatus: returnItem.inspectionStatus,
-                hasFailedDisposition: returnItem.hasFailedDisposition,
-                isPendingDisposition: returnItem.isPendingDisposition
-            }),
-        [
-            qcSummary,
-            refundDetail?.refundStatus,
-            returnItem.hasFailedDisposition,
-            returnItem.inspectionStatus,
-            returnItem.isPendingDisposition,
-            returnItem.qcStatus,
-            returnItem.refundRequired,
-            returnItem.refundStatus,
-            returnItem.remainingQcQuantity,
-            returnItem.status
-        ]
-    );
+    const displayStatus = returnItem.displayStatus ?? "RECEIVED";
 
     const qcStatusLabel = (() => {
         if (isQcSummaryLoading) {

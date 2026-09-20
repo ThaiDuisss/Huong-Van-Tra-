@@ -5,7 +5,7 @@ import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
 import org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus;
 import org.hvtra.orderservice.dto.response.ReturnDispositionReconciliationStatus;
 import org.hvtra.orderservice.repository.OrderReturnInventoryCommandRepository;
-import org.hvtra.orderservice.service.OrderReturnService;
+import org.hvtra.orderservice.service.support.OrderReturnPhysicalCompletionHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,7 +35,7 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
     private OrderReturnInventoryCommandRepository commandRepository;
 
     @Mock
-    private OrderReturnService orderReturnService;
+    private OrderReturnPhysicalCompletionHandler physicalCompletionHandler;
 
     @InjectMocks
     private OrderReturnInventoryCommandReconciliationWriter writer;
@@ -69,7 +69,7 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
     @DisplayName("Case 1: PENDING command with Inventory POSTED transitions to PROCESSED")
     void testPendingCommandWithPostedEvidenceTransitionsToProcessed() {
         when(commandRepository.findByCommandIdForUpdate(commandId)).thenReturn(Optional.of(command));
-        when(orderReturnService.isPhysicalDispositionCompleted(returnId))
+        when(physicalCompletionHandler.isPhysicalDispositionCompleted(returnId))
                 .thenReturn(false) // beforePhysicalDone
                 .thenReturn(true);  // afterPhysicalDone
 
@@ -93,8 +93,8 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
         assertNull(command.getFailureCode());
         assertNull(command.getFailureReason());
         verify(commandRepository).saveAndFlush(command);
-        verify(orderReturnService).recordPhysicalCompletion(returnId, requestedBy, inspectionId);
-        verify(orderReturnService).checkAndAutoCompleteNoRefundReturn(returnId);
+        verify(physicalCompletionHandler).recordPhysicalCompletion(returnId, requestedBy, inspectionId);
+        verify(physicalCompletionHandler).checkAndAutoCompleteNoRefundReturn(returnId);
     }
 
     @Test
@@ -117,8 +117,8 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
 
         assertEquals(OrderReturnInventoryCommandStatus.PENDING, command.getStatus());
         verify(commandRepository, never()).saveAndFlush(any());
-        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
-        verify(orderReturnService, never()).checkAndAutoCompleteNoRefundReturn(any());
+        verify(physicalCompletionHandler, never()).recordPhysicalCompletion(any(), any(), any());
+        verify(physicalCompletionHandler, never()).checkAndAutoCompleteNoRefundReturn(any());
     }
 
     @Test
@@ -136,7 +136,7 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
         when(commandRepository.findByCommandIdForUpdate(commandId2)).thenReturn(Optional.of(command2));
 
         // When command1 is reconciled, physical progress is not done yet
-        when(orderReturnService.isPhysicalDispositionCompleted(returnId)).thenReturn(false);
+        when(physicalCompletionHandler.isPhysicalDispositionCompleted(returnId)).thenReturn(false);
 
         OrderReturnInventoryCommandReconciliationWriter.CommandEvidence evidence1 =
                 new OrderReturnInventoryCommandReconciliationWriter.CommandEvidence(
@@ -167,8 +167,8 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
         verify(commandRepository).saveAndFlush(command);
         verify(commandRepository, never()).saveAndFlush(command2);
         // Because physicalDone is still false, completion is NOT recorded
-        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
-        verify(orderReturnService, never()).checkAndAutoCompleteNoRefundReturn(any());
+        verify(physicalCompletionHandler, never()).recordPhysicalCompletion(any(), any(), any());
+        verify(physicalCompletionHandler, never()).checkAndAutoCompleteNoRefundReturn(any());
     }
 
     @Test
@@ -193,7 +193,7 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
 
         assertEquals(OrderReturnInventoryCommandStatus.PROCESSED, command.getStatus());
         verify(commandRepository, never()).saveAndFlush(any());
-        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+        verify(physicalCompletionHandler, never()).recordPhysicalCompletion(any(), any(), any());
     }
 
     @Test
@@ -239,14 +239,14 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
         writer.reconcileCommand(evidence);
 
         verify(commandRepository, never()).saveAndFlush(any());
-        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+        verify(physicalCompletionHandler, never()).recordPhysicalCompletion(any(), any(), any());
     }
 
     @Test
     @DisplayName("Case 8 & 9: false -> true physicalDone transition triggers QC_COMPLETED once and checks auto-complete")
     void testPhysicalDoneTransitionTriggersQcCompletedAndAutoComplete() {
         when(commandRepository.findByCommandIdForUpdate(commandId)).thenReturn(Optional.of(command));
-        when(orderReturnService.isPhysicalDispositionCompleted(returnId))
+        when(physicalCompletionHandler.isPhysicalDispositionCompleted(returnId))
                 .thenReturn(false) // before
                 .thenReturn(true);  // after
 
@@ -263,8 +263,8 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
 
         writer.reconcileCommand(evidence);
 
-        verify(orderReturnService, times(1)).recordPhysicalCompletion(returnId, requestedBy, inspectionId);
-        verify(orderReturnService, times(1)).checkAndAutoCompleteNoRefundReturn(returnId);
+        verify(physicalCompletionHandler, times(1)).recordPhysicalCompletion(returnId, requestedBy, inspectionId);
+        verify(physicalCompletionHandler, times(1)).checkAndAutoCompleteNoRefundReturn(returnId);
     }
 
     @Test
@@ -291,7 +291,7 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
         assertEquals("Item broken beyond repair", command.getFailureReason());
         assertEquals(failedAt, command.getFailedAt());
         verify(commandRepository).saveAndFlush(command);
-        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+        verify(physicalCompletionHandler, never()).recordPhysicalCompletion(any(), any(), any());
     }
 
     @Test
@@ -316,6 +316,6 @@ class OrderReturnInventoryCommandReconciliationWriterTest {
 
         assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
         verify(commandRepository, never()).saveAndFlush(any());
-        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+        verify(physicalCompletionHandler, never()).recordPhysicalCompletion(any(), any(), any());
     }
 }

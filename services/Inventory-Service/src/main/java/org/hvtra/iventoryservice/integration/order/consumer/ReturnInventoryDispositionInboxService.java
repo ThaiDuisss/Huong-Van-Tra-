@@ -135,7 +135,11 @@ public class ReturnInventoryDispositionInboxService {
 
         CreateCustomerReturnInspectionRequest request = toInspectionRequest(event);
         CustomerReturnInspectionResponse createdInspection =
-                customerReturnInspectionService.createInspection(returnId, request);
+                customerReturnInspectionService.createInspection(
+                        returnId,
+                        UUID.fromString(commandId),
+                        request
+                );
 
         inbox.setInspectionId(createdInspection.id().toString());
         inventoryInboxRepository.saveAndFlush(inbox);

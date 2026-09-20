@@ -2,6 +2,7 @@ package org.hvtra.orderservice.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+import org.hvtra.orderservice.domain.enums.OrderRefundBlockReason;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -16,4 +17,5 @@ public class OrderReturnRefundPreviewResponse {
     private String paymentMethod;
     private boolean eligible;
     private String reason;
+    private OrderRefundBlockReason blockReason;
 }

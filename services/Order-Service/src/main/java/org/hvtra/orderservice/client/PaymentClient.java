@@ -79,6 +79,7 @@ public interface PaymentClient {
             UUID refundTransactionId,
             BigDecimal refundAmount,
             BigDecimal totalAmountRefunded,
+            BigDecimal amountPaid,
             String refundStatus,
             String paymentStatus,
             String method,

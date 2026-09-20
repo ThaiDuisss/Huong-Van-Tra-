@@ -1,4 +1,4 @@
-export type CustomerReturnInspectionStatus = "CREATED" | "POSTED" | "CANCELLED";
+export type CustomerReturnInspectionStatus = "CREATED" | "PROCESSING" | "POSTED" | "CANCELLED";
 
 export type CustomerReturnQcResult = "RESTOCK" | "DAMAGED" | "QUARANTINE" | "WRITE_OFF";
 
@@ -18,6 +18,9 @@ export interface CustomerReturnInspectionLine {
     posted: boolean;
     transactionId?: string;
     transactionType?: "CUSTOMER_RETURN_RECEIPT" | "WRITE_OFF" | string;
+    disposalRequestId?: string;
+    disposalRequestCode?: string;
+    disposalStatus?: "PENDING_APPROVAL" | "APPROVED";
     condition?: string;
     returnReason?: string;
 }

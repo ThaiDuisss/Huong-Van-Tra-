@@ -15,6 +15,7 @@ import org.hvtra.orderservice.domain.entity.OrderReturnHistory;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommandLine;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
+import org.hvtra.orderservice.domain.enums.OrderRefundBlockReason;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus;
 import org.hvtra.orderservice.domain.enums.OrderReturnHistoryAction;
@@ -55,7 +56,13 @@ import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
+import org.hvtra.orderservice.service.support.OrderReturnDisplayStatusResolver;
 import org.hvtra.orderservice.service.support.OrderReturnHistoryWriter;
+import org.hvtra.orderservice.service.support.OrderReturnPhysicalCompletionHandler;
+import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgress;
+import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgressResolver;
+import org.hvtra.orderservice.service.support.OrderReturnRefundEligibilityResolver;
+import org.hvtra.orderservice.service.support.OrderReturnRefundEligibilityResolver.RefundEligibilityResult;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -140,6 +147,10 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     private final OrderOutboxPublisher orderOutboxPublisher;
     private final OrderReturnRefundTransactionService orderReturnRefundTransactionService;
     private final OrderReturnInventoryCommandReconciliationWriter inventoryCommandReconciliationWriter;
+    private final OrderReturnPhysicalProgressResolver physicalProgressResolver;
+    private final OrderReturnDisplayStatusResolver displayStatusResolver;
+    private final OrderReturnRefundEligibilityResolver refundEligibilityResolver;
+    private final OrderReturnPhysicalCompletionHandler physicalCompletionHandler;
 
     @Override
     @Transactional
@@ -315,16 +326,13 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 lookupPaymentRefundSummaryForRefundRead(orderReturn);
         InventoryClient.CustomerReturnQcSummaryResponse qcSummary = qcLookup.value();
         PaymentClient.PaymentRefundSummaryResponse paymentSummary = paymentLookup.value();
-        boolean inventoryPhysicalDone = isInventoryQcAllLinesCompleted(qcSummary);
-        if (inventoryPhysicalDone) {
-            reconcileCompletedInventoryCommands(completedInventoryReturns(Map.of(returnId, qcSummary)));
-        }
-        boolean physicalDone = inventoryPhysicalDone || isPhysicalDispositionCompleted(returnId);
+        OrderReturnPhysicalProgress physicalProgress = physicalProgressResolver.resolve(orderReturn);
+        boolean physicalDone = physicalProgress.physicalDone();
+        Order order = orderRepository.findByIdAndIsDeletedFalse(orderReturn.getOrder().getId()).orElse(null);
         BigDecimal refundAmount = null;
         if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
             refundAmount = paymentSummary.refundAmount();
         } else if (Boolean.TRUE.equals(orderReturn.getRefundRequired())) {
-            Order order = orderRepository.findByIdAndIsDeletedFalse(orderReturn.getOrder().getId()).orElse(null);
             if (order != null) {
                 List<OrderReturn> orderReturns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(order.getId());
                 try {
@@ -335,14 +343,24 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             }
         }
 
-        OrderRefundStatus refundStatus = resolveRefundStatus(
+        RefundEligibilityResult eligibility = refundEligibilityResolver.resolve(
                 orderReturn,
+                physicalProgress,
                 paymentSummary,
-                qcLookup.available(),
                 paymentLookup.available(),
-                physicalDone,
-                refundAmount
+                refundAmount,
+                order == null ? null : order.getPaidAmount()
         );
+
+        boolean refundCompleted = orderReturn.getStatus() == ReturnStatus.COMPLETED
+                || (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus()));
+        String displayStatus = displayStatusResolver.resolveDisplayStatus(
+                orderReturn.getStatus(),
+                physicalProgress,
+                orderReturn.getRefundRequired(),
+                refundCompleted
+        );
+
         String qcStatus = qcLookup.available()
                 ? (qcSummary == null ? null : qcSummary.qcStatus())
                 : DOWNSTREAM_STATUS_UNAVAILABLE;
@@ -362,17 +380,16 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .customerPhone(orderReturn.getOrder().getCustomerPhoneSnapshot())
                 .returnCreatedAt(orderReturn.getCreatedAt())
                 .returnStatus(orderReturn.getStatus())
+                .displayStatus(displayStatus)
                 .refundRequired(orderReturn.getRefundRequired())
                 .qcStatus(qcStatus)
                 .physicalDone(physicalDone)
-                .inventoryProcessingStatus(resolveInventoryProcessingStatus(
-                        qcLookup.available(),
-                        qcSummary,
-                        physicalDone
-                ))
+                .inventoryProcessingStatus(physicalProgress.inventoryProcessingStatus())
                 .inspectionId(qcSummary == null ? null : qcSummary.inspectionId())
                 .inventoryProcessedAt(qcSummary == null ? null : qcSummary.inspectedAt())
-                .refundStatus(refundStatus)
+                .refundStatus(eligibility.refundStatus())
+                .refundEligible(eligibility.refundEligible())
+                .refundBlockReason(eligibility.blockReason())
                 .refundAmount(refundAmount)
                 .totalAmountRefunded(paymentLookup.available() && paymentSummary != null
                         ? paymentSummary.totalAmountRefunded()
@@ -389,20 +406,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     public OrderReturnRefundPreviewResponse getRefundPreview(UUID returnId) {
         OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalse(returnId)
                 .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
-        InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
-                inventoryClient.getCustomerReturnQcSummary(returnId);
+        OrderReturnPhysicalProgress physicalProgress = physicalProgressResolver.resolve(orderReturn);
         PaymentClient.PaymentRefundSummaryResponse paymentSummary = lookupPaymentRefundSummary(orderReturn);
-
-        String ineligibleReason = refundIneligibleReason(orderReturn, qcSummary, paymentSummary);
-        if (ineligibleReason != null) {
-            return OrderReturnRefundPreviewResponse.builder()
-                    .returnId(returnId)
-                    .orderId(orderReturn.getOrder().getId())
-                    .paymentMethod(paymentSummary == null ? null : paymentSummary.method())
-                    .eligible(false)
-                    .reason(ineligibleReason)
-                    .build();
-        }
 
         Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(
                         orderReturn.getOrder().getId()
@@ -411,17 +416,32 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         List<OrderReturn> orderReturns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(
                 lockedOrder.getId()
         );
-        BigDecimal refundAmount = returnRefundCalculator
-                .calculate(lockedOrder, orderReturn, orderReturns)
-                .refundAmount();
+        BigDecimal refundAmount = null;
+        try {
+            refundAmount = returnRefundCalculator
+                    .calculate(lockedOrder, orderReturn, orderReturns)
+                    .refundAmount();
+        } catch (Exception ex) {
+            log.warn("Could not calculate refund amount for returnId={}: {}", returnId, ex.getMessage());
+        }
+
+        RefundEligibilityResult eligibility = refundEligibilityResolver.resolve(
+                orderReturn,
+                physicalProgress,
+                paymentSummary,
+                true,
+                refundAmount,
+                lockedOrder.getPaidAmount()
+        );
 
         return OrderReturnRefundPreviewResponse.builder()
                 .returnId(returnId)
                 .orderId(lockedOrder.getId())
                 .refundAmount(refundAmount)
                 .paymentMethod(paymentSummary == null ? null : paymentSummary.method())
-                .eligible(refundAmount.compareTo(BigDecimal.ZERO) > 0)
-                .reason(refundAmount.compareTo(BigDecimal.ZERO) > 0 ? null : "Refund amount must be greater than 0")
+                .eligible(eligibility.refundEligible())
+                .blockReason(eligibility.blockReason())
+                .reason(eligibility.message())
                 .build();
     }
 
@@ -462,12 +482,27 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         }
 
         if (!isPhysicalDispositionCompleted(returnId)) {
-            InventoryClient.CustomerReturnQcSummaryResponse qcSummary =
-                    inventoryClient.getCustomerReturnQcSummary(returnId);
-            if (!isInventoryQcAllLinesCompleted(qcSummary)) {
+            List<OrderReturnInventoryCommand> pendingCommands =
+                    orderReturnInventoryCommandRepository.findByOrderReturnIdWithLines(returnId).stream()
+                            .filter(c -> c.getStatus() == OrderReturnInventoryCommandStatus.PENDING)
+                            .toList();
+            for (OrderReturnInventoryCommand pending : pendingCommands) {
+                try {
+                    ReturnDispositionStatusResponse invStatus =
+                            inventoryClient.getReturnDispositionStatus(pending.getCommandId());
+                    if (invStatus != null) {
+                        inventoryCommandReconciliationWriter.reconcileCommand(
+                                OrderReturnInventoryCommandReconciliationWriter.CommandEvidence.from(invStatus)
+                        );
+                    }
+                } catch (Exception ex) {
+                    log.warn("Failed to reconcile command {} during refund execution: {}",
+                            pending.getCommandId(), ex.getMessage());
+                }
+            }
+            if (!isPhysicalDispositionCompleted(returnId)) {
                 throw new InvalidOrderReturnException("Return inventory inspection is not completed");
             }
-            reconcileCompletedInventoryCommands(completedInventoryReturns(Map.of(returnId, qcSummary)));
         }
 
         Order order = orderRepository.findByIdAndIsDeletedFalse(orderReturn.getOrder().getId())
@@ -480,8 +515,21 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         BigDecimal refundAmount = returnRefundCalculator
                 .calculate(order, orderReturn, orderReturns)
                 .refundAmount();
-        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new InvalidOrderReturnException("Refund amount must be greater than 0");
+
+        OrderReturnPhysicalProgress physicalProgress = physicalProgressResolver.resolve(orderReturn);
+        RefundEligibilityResult eligibility = refundEligibilityResolver.resolve(
+                orderReturn,
+                physicalProgress,
+                existingRefund,
+                true,
+                refundAmount,
+                order.getPaidAmount()
+        );
+
+        if (!eligibility.refundEligible()) {
+            throw new InvalidOrderReturnException(
+                    eligibility.message() != null ? eligibility.message() : "Return is not eligible for refund"
+            );
         }
 
         // Feign call over network - NO DB locks held!
@@ -528,15 +576,13 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                     try {
                         ReturnDispositionStatusResponse invStatus =
                                 inventoryClient.getReturnDispositionStatus(existing.getCommandId());
-                        if (invStatus != null && invStatus.status() == ReturnDispositionReconciliationStatus.PROCESSED) {
-                            existing.setStatus(OrderReturnInventoryCommandStatus.PROCESSED);
-                            existing.setProcessedAt(invStatus.processedAt() != null ? invStatus.processedAt() : Instant.now());
-                            existing.setFailureCode(null);
-                            existing.setFailureReason(null);
-                            if (invStatus.inspectionId() != null) {
-                                existing.setInspectionId(invStatus.inspectionId());
-                            }
-                            orderReturnInventoryCommandRepository.saveAndFlush(existing);
+                        if (invStatus != null) {
+                            inventoryCommandReconciliationWriter.reconcileCommand(
+                                    OrderReturnInventoryCommandReconciliationWriter.CommandEvidence.from(invStatus)
+                            );
+                            existing = orderReturnInventoryCommandRepository
+                                    .findByCommandIdAndIsDeletedFalse(existing.getCommandId())
+                                    .orElse(existing);
                         }
                     } catch (Exception ex) {
                         log.warn("Failed to reconcile disposition status with inventory for commandId {}: {}",
@@ -666,12 +712,9 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             OrderReturnItem returnItem
     ) {
         BigDecimal quantity = requirePositiveQuantity(lineRequest.getQuantity());
-        if (ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult()) {
-            throw new InvalidOrderReturnException(
-                    "QUARANTINE is no longer supported for return inventory disposition");
-        }
         if ((ReturnInventoryDispositionResult.RESTOCK == lineRequest.getResult()
-                || ReturnInventoryDispositionResult.DAMAGED == lineRequest.getResult())
+                || ReturnInventoryDispositionResult.DAMAGED == lineRequest.getResult()
+                || ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult())
                 && lineRequest.getDestinationLocationId() == null) {
             throw new InvalidOrderReturnException("Destination location is required for inventory disposition");
         }
@@ -879,7 +922,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
         List<OrderReturnSummaryResponse> candidates = new ArrayList<>(orderReturnRepository.findReturnSummariesList(
                 keywordPattern(keyword),
-                ReturnStatus.RECEIVED,
+                null,
                 startOfDay(fromDate),
                 startOfDay(nextDay(toDate))
         ));
@@ -962,60 +1005,10 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         return null;
     }
 
-    private String resolveDerivedDisplayStatus(OrderReturnSummaryResponse summary, boolean physicalDone) {
-        if (summary == null) {
-            return "RECEIVED";
-        }
-        if (summary.getStatus() == ReturnStatus.CREATED) {
-            return "CREATED";
-        }
-        if (summary.getStatus() == ReturnStatus.CANCELLED) {
-            return "CANCELLED";
-        }
-        if (summary.getStatus() == ReturnStatus.RECEIVED) {
-            if (physicalDone) {
-                if (Boolean.FALSE.equals(summary.getRefundRequired())) {
-                    return "COMPLETED";
-                }
-                return summary.getRefundStatus() == OrderRefundStatus.REFUNDED
-                        ? "COMPLETED"
-                        : "PENDING_REFUND";
-            }
-
-            boolean hasPartialPostedQc =
-                    summary.getPostedQcQuantity() != null
-                            && summary.getPostedQcQuantity().compareTo(BigDecimal.ZERO) > 0
-                            && summary.getRemainingQcQuantity() != null
-                            && summary.getRemainingQcQuantity().compareTo(BigDecimal.ZERO) > 0;
-
-            if (Boolean.TRUE.equals(summary.getIsPendingDisposition())) {
-                return "PROCESSING";
-            }
-
-            if (Boolean.TRUE.equals(summary.getHasFailedDisposition())) {
-                return "PROCESSING_FAILED";
-            }
-
-            if ("CREATED".equals(summary.getInspectionStatus())
-                    || "PARTIAL".equals(summary.getQcStatus())
-                    || hasPartialPostedQc) {
-                return "PROCESSING";
-            }
-
-            return "RECEIVED";
-        }
-
-        return "RECEIVED";
-    }
-
     private void enrichReturnSummaries(List<OrderReturnSummaryResponse> summaries) {
         if (summaries == null || summaries.isEmpty()) {
             return;
         }
-
-        List<OrderReturnSummaryResponse> receivedSummaries = summaries.stream()
-                .filter(s -> s.getStatus() == ReturnStatus.RECEIVED)
-                .toList();
 
         for (OrderReturnSummaryResponse summary : summaries) {
             if (summary.getStatus() == ReturnStatus.CREATED) {
@@ -1026,43 +1019,81 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 summary.setHasFailedDisposition(false);
                 summary.setIsPendingDisposition(false);
                 summary.setDisplayStatus("CREATED");
+                summary.setPhysicalDone(false);
+                summary.setRequiredQuantity(BigDecimal.ZERO);
+                summary.setProcessedQuantity(BigDecimal.ZERO);
+                summary.setRemainingQuantity(BigDecimal.ZERO);
+                summary.setInventoryProcessingStatus("PENDING");
             } else if (summary.getStatus() == ReturnStatus.CANCELLED) {
                 summary.setHasFailedDisposition(false);
                 summary.setIsPendingDisposition(false);
                 summary.setDisplayStatus("CANCELLED");
+                summary.setPhysicalDone(false);
+                summary.setRequiredQuantity(BigDecimal.ZERO);
+                summary.setProcessedQuantity(BigDecimal.ZERO);
+                summary.setRemainingQuantity(BigDecimal.ZERO);
+                summary.setInventoryProcessingStatus("PENDING");
+            } else if (summary.getStatus() == ReturnStatus.COMPLETED) {
+                summary.setHasFailedDisposition(false);
+                summary.setIsPendingDisposition(false);
+                summary.setDisplayStatus("COMPLETED");
+                summary.setPhysicalDone(true);
+                summary.setInventoryProcessingStatus("COMPLETED");
+                summary.setRefundStatus(Boolean.FALSE.equals(summary.getRefundRequired())
+                        ? OrderRefundStatus.NOT_REQUIRED
+                        : OrderRefundStatus.REFUNDED);
             }
         }
 
-        if (receivedSummaries.isEmpty()) {
+        List<OrderReturnSummaryResponse> activeSummaries = summaries.stream()
+                .filter(s -> s.getStatus() == ReturnStatus.RECEIVED || s.getStatus() == ReturnStatus.COMPLETED)
+                .toList();
+
+        if (activeSummaries.isEmpty()) {
             return;
         }
 
-        List<UUID> receivedReturnIds = receivedSummaries.stream()
+        List<UUID> activeReturnIds = activeSummaries.stream()
                 .map(OrderReturnSummaryResponse::getId)
                 .toList();
 
-        LocalDispositionProgress localProgress = loadLocalDispositionProgress(receivedReturnIds);
-        Set<UUID> returnsWithFailedCommand = new HashSet<>(localProgress.failedReturnIds());
-        Set<UUID> returnsWithPendingCommand = new HashSet<>(localProgress.pendingReturnIds());
-
-        Set<UUID> completedRefundReturnIds = orderReturnHistoryRepository.findCompletedRefundReturnIds(receivedReturnIds);
+        Set<UUID> completedRefundReturnIds = orderReturnHistoryRepository.findCompletedRefundReturnIds(activeReturnIds);
 
         Map<UUID, OrderReturn> returnsById = orderReturnRepository
-                .findByIdInAndIsDeletedFalseWithItems(receivedReturnIds)
+                .findByIdInAndIsDeletedFalseWithItems(activeReturnIds)
                 .stream()
                 .collect(Collectors.toMap(OrderReturn::getId, Function.identity()));
+
+        Map<UUID, OrderReturnPhysicalProgress> physicalProgressMap =
+                physicalProgressResolver.resolveBatch(returnsById.values());
+
+        List<OrderReturnSummaryResponse> receivedSummaries = activeSummaries.stream()
+                .filter(s -> s.getStatus() == ReturnStatus.RECEIVED)
+                .toList();
 
         DownstreamLookupResult<Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse>> qcLookup =
                 lookupQcSummariesForRefundRead(receivedSummaries, returnsById);
         Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> qcByReturnId = qcLookup.value();
-        Map<UUID, OrderReturnInventoryCommandReconciliationWriter.CompletionEvidence> completedInventoryReturns =
-                completedInventoryReturns(qcByReturnId);
-        reconcileCompletedInventoryCommands(completedInventoryReturns);
-        returnsWithPendingCommand.removeAll(completedInventoryReturns.keySet());
-        returnsWithFailedCommand.removeAll(completedInventoryReturns.keySet());
 
-        for (OrderReturnSummaryResponse summary : receivedSummaries) {
+        for (OrderReturnSummaryResponse summary : activeSummaries) {
             UUID returnId = summary.getId();
+
+            OrderReturnPhysicalProgress progress = physicalProgressMap.getOrDefault(
+                    returnId,
+                    OrderReturnPhysicalProgress.empty()
+            );
+
+            summary.setPhysicalDone(progress.physicalDone());
+            summary.setRequiredQuantity(progress.requiredQuantity());
+            summary.setProcessedQuantity(progress.processedQuantity());
+            summary.setRemainingQuantity(progress.remainingQuantity());
+            summary.setInventoryProcessingStatus(progress.inventoryProcessingStatus());
+
+            if (summary.getStatus() == ReturnStatus.COMPLETED) {
+                summary.setPhysicalDone(true);
+                summary.setDisplayStatus("COMPLETED");
+                continue;
+            }
 
             InventoryClient.CustomerReturnQcSummaryResponse qcSummary = qcByReturnId.get(returnId);
             BigDecimal remainingQcQuantity = null;
@@ -1089,23 +1120,18 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             summary.setRemainingQcQuantity(remainingQcQuantity);
             summary.setPostedQcQuantity(postedQcQuantity);
 
-            boolean isAllQcPosted = isInventoryQcAllLinesCompleted(qcSummary);
-            boolean isAllCommandsPosted = isLocalPhysicalDispositionCompleted(
-                    returnsById.get(returnId),
-                    localProgress
-            );
-            boolean physicalDone = isAllQcPosted || isAllCommandsPosted;
-
-            boolean hasActivePending = !physicalDone && returnsWithPendingCommand.contains(returnId);
-            boolean hasActiveFailure = !physicalDone && !hasActivePending && returnsWithFailedCommand.contains(returnId);
+            boolean physicalDone = progress.physicalDone();
+            boolean hasActivePending = !physicalDone && progress.hasPendingCommand();
+            boolean hasActiveFailure = !physicalDone && progress.hasFailedCommand();
 
             summary.setHasFailedDisposition(hasActiveFailure);
             summary.setIsPendingDisposition(hasActivePending);
 
+            boolean refundCompleted = completedRefundReturnIds.contains(returnId);
             OrderRefundStatus refundStatus;
             if (Boolean.FALSE.equals(summary.getRefundRequired())) {
                 refundStatus = OrderRefundStatus.NOT_REQUIRED;
-            } else if (completedRefundReturnIds.contains(returnId)) {
+            } else if (refundCompleted) {
                 refundStatus = OrderRefundStatus.REFUNDED;
             } else if (physicalDone) {
                 refundStatus = OrderRefundStatus.PENDING;
@@ -1113,7 +1139,14 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 refundStatus = OrderRefundStatus.NOT_READY;
             }
             summary.setRefundStatus(refundStatus);
-            summary.setDisplayStatus(resolveDerivedDisplayStatus(summary, physicalDone));
+
+            String derivedDisplayStatus = displayStatusResolver.resolveDisplayStatus(
+                    summary.getStatus(),
+                    progress,
+                    summary.getRefundRequired(),
+                    refundCompleted
+            );
+            summary.setDisplayStatus(derivedDisplayStatus);
         }
     }
 
@@ -1124,9 +1157,27 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             throw new OrderNotFoundException("Order not found: " + orderId);
         }
 
-        return orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId)
-                .stream()
-                .map(orderReturnMapper::toResponse)
+        List<OrderReturn> returns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId);
+        if (returns.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> returnIds = returns.stream().map(OrderReturn::getId).toList();
+        Set<UUID> completedRefundReturnIds = orderReturnHistoryRepository.findCompletedRefundReturnIds(returnIds);
+        Map<UUID, OrderReturnPhysicalProgress> progressMap = physicalProgressResolver.resolveBatch(returns);
+
+        return returns.stream()
+                .map(r -> {
+                    OrderReturnPhysicalProgress progress = progressMap.getOrDefault(r.getId(), OrderReturnPhysicalProgress.empty());
+                    boolean refundCompleted = completedRefundReturnIds.contains(r.getId());
+                    String displayStatus = displayStatusResolver.resolveDisplayStatus(
+                            r.getStatus(),
+                            progress,
+                            r.getRefundRequired(),
+                            refundCompleted
+                    );
+                    return orderReturnMapper.toResponse(r, progress, displayStatus);
+                })
                 .toList();
     }
 
@@ -1135,7 +1186,18 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     public OrderReturnResponse getReturnById(UUID returnId) {
         OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalse(returnId)
                 .orElseThrow(() -> new OrderNotFoundException("Return not found: " + returnId));
-        return orderReturnMapper.toResponse(orderReturn);
+        OrderReturnPhysicalProgress progress = physicalProgressResolver.resolve(orderReturn);
+        boolean refundCompleted = orderReturnHistoryRepository.existsByOrderReturnIdAndActionAndIsDeletedFalse(
+                returnId,
+                OrderReturnHistoryAction.REFUND_COMPLETED
+        );
+        String displayStatus = displayStatusResolver.resolveDisplayStatus(
+                orderReturn.getStatus(),
+                progress,
+                orderReturn.getRefundRequired(),
+                refundCompleted
+        );
+        return orderReturnMapper.toResponse(orderReturn, progress, displayStatus);
     }
 
     @Override
@@ -1155,91 +1217,19 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     @Override
     @Transactional(readOnly = true)
     public boolean isPhysicalDispositionCompleted(UUID returnId) {
-        if (returnId == null) {
-            return false;
-        }
-        OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalse(returnId).orElse(null);
-        if (orderReturn == null || orderReturn.getItems() == null) {
-            return false;
-        }
-
-        List<OrderReturnItem> activeItems = orderReturn.getItems().stream()
-                .filter(item -> !Boolean.TRUE.equals(item.getIsDeleted()))
-                .toList();
-        if (activeItems.isEmpty()) {
-            return false;
-        }
-
-        List<Object[]> rows = orderReturnInventoryCommandRepository.sumQuantityByReturnIdAndCommandStatus(
-                returnId,
-                OrderReturnInventoryCommandStatus.PROCESSED
-        );
-        Map<UUID, BigDecimal> processedByItemId = rows.stream()
-                .filter(row -> row != null && row.length >= 2 && row[0] instanceof UUID && row[1] instanceof BigDecimal)
-                .collect(Collectors.toMap(
-                        row -> (UUID) row[0],
-                        row -> (BigDecimal) row[1],
-                        BigDecimal::add
-                ));
-
-        for (OrderReturnItem item : activeItems) {
-            BigDecimal processedQty = defaultZero(processedByItemId.get(item.getId()));
-            BigDecimal requiredQty = defaultZero(item.getQuantity());
-            if (processedQty.compareTo(requiredQty) < 0) {
-                return false;
-            }
-            if (processedQty.compareTo(requiredQty) > 0) {
-                log.warn("Physical disposition anomaly: returnItemId={} has processedQty={} exceeding requiredQty={}",
-                        item.getId(), processedQty, requiredQty);
-            }
-        }
-
-        return true;
+        return physicalCompletionHandler.isPhysicalDispositionCompleted(returnId);
     }
 
     @Override
     @Transactional
     public void checkAndAutoCompleteNoRefundReturn(UUID returnId) {
-        if (returnId == null) {
-            return;
-        }
+        physicalCompletionHandler.checkAndAutoCompleteNoRefundReturn(returnId);
+    }
 
-        OrderReturn orderReturn = orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId).orElse(null);
-        if (orderReturn == null) {
-            log.warn("Cannot auto-complete no-refund return: return not found: {}", returnId);
-            return;
-        }
-
-        if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
-            log.debug("Skip no-refund auto-completion: returnId={} status is not RECEIVED (current: {})",
-                    returnId, orderReturn.getStatus());
-            return;
-        }
-        if (Boolean.TRUE.equals(orderReturn.getRefundRequired())) {
-            log.debug("Skip no-refund auto-completion: returnId={} requires refund", returnId);
-            return;
-        }
-
-        if (!isPhysicalDispositionCompleted(returnId)) {
-            log.debug("Skip no-refund auto-completion: returnId={} physical disposition is not fully completed yet", returnId);
-            return;
-        }
-
-        // For no-refund returns, physical disposition completion completes the return
-        orderReturn.setStatus(ReturnStatus.COMPLETED);
-        orderReturnRepository.save(orderReturn);
-
-        Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderReturn.getOrder().getId())
-                .orElse(null);
-        if (lockedOrder != null) {
-            List<OrderReturn> orderReturns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(lockedOrder.getId());
-            lockedOrder.setReturnStatus(resolveOrderReturnStatus(lockedOrder, orderReturns));
-            orderRepository.save(lockedOrder);
-        }
-
-        UUID actorUserId = currentActorUserIdOrNull();
-        orderOutboxPublisher.publishReturnCompletedNotification(orderReturn, ReturnStatus.COMPLETED, actorUserId);
-        log.info("Processed no-refund return completion: returnId={}, returnCode={}", orderReturn.getId(), orderReturn.getReturnCode());
+    @Override
+    @Transactional
+    public void recordPhysicalCompletion(UUID returnId, UUID actorUserId, UUID inspectionId) {
+        physicalCompletionHandler.recordPhysicalCompletion(returnId, actorUserId, inspectionId);
     }
 
     private OrderReturn getExistingReturnForUpdate(UUID returnId) {
@@ -1306,24 +1296,25 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 lookupPaymentRefundSummariesForRefundRead(summaries);
         Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> qcByReturnId = qcLookup.value();
         Map<UUID, PaymentClient.PaymentRefundSummaryResponse> paymentByReturnId = paymentLookup.value();
-        LocalDispositionProgress localProgress = loadLocalDispositionProgress(returnIds);
-        Map<UUID, OrderReturnInventoryCommandReconciliationWriter.CompletionEvidence> completedInventoryReturns =
-                completedInventoryReturns(qcByReturnId);
-        reconcileCompletedInventoryCommands(completedInventoryReturns);
+        Map<UUID, OrderReturnPhysicalProgress> physicalProgressMap =
+                physicalProgressResolver.resolveBatch(returnsById.values());
 
         return summaries.stream()
                 .map(summary -> {
                     OrderReturn orderReturn = returnsById.get(summary.getId());
                     InventoryClient.CustomerReturnQcSummaryResponse qcSummary = qcByReturnId.get(summary.getId());
                     PaymentClient.PaymentRefundSummaryResponse paymentSummary = paymentByReturnId.get(summary.getId());
-                    boolean physicalDone = completedInventoryReturns.containsKey(summary.getId())
-                            || isLocalPhysicalDispositionCompleted(orderReturn, localProgress);
+                    OrderReturnPhysicalProgress physicalProgress = physicalProgressMap.getOrDefault(
+                            summary.getId(),
+                            OrderReturnPhysicalProgress.empty()
+                    );
+                    boolean physicalDone = physicalProgress.physicalDone();
 
+                    Order order = ordersById.get(summary.getOrderId());
                     BigDecimal refundAmount = null;
                     if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
                         refundAmount = paymentSummary.refundAmount();
                     } else if (orderReturn != null && Boolean.TRUE.equals(orderReturn.getRefundRequired())) {
-                        Order order = ordersById.get(summary.getOrderId());
                         List<OrderReturn> orderReturns = returnsByOrderId.getOrDefault(summary.getOrderId(), List.of());
                         if (order != null) {
                             try {
@@ -1334,16 +1325,27 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                         }
                     }
 
-                    OrderRefundStatus refundStatus = orderReturn == null
-                            ? OrderRefundStatus.NOT_READY
-                            : resolveRefundStatus(
-                                    orderReturn,
-                                    paymentSummary,
-                                    qcLookup.available(),
-                                    paymentLookup.available(),
-                                    physicalDone,
-                                    refundAmount
-                            );
+                    RefundEligibilityResult eligibility = refundEligibilityResolver.resolve(
+                            orderReturn,
+                            physicalProgress,
+                            paymentSummary,
+                            paymentLookup.available(),
+                            refundAmount,
+                            order == null ? null : order.getPaidAmount()
+                    );
+
+                    boolean refundRequired = orderReturn == null
+                            ? Boolean.TRUE.equals(summary.getRefundRequired())
+                            : Boolean.TRUE.equals(orderReturn.getRefundRequired());
+                    boolean refundCompleted = (orderReturn != null && orderReturn.getStatus() == ReturnStatus.COMPLETED)
+                            || (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus()));
+                    String displayStatus = displayStatusResolver.resolveDisplayStatus(
+                            orderReturn != null ? orderReturn.getStatus() : summary.getStatus(),
+                            physicalProgress,
+                            refundRequired,
+                            refundCompleted
+                    );
+
                     String qcStatus = qcLookup.available()
                             ? (qcSummary == null ? null : qcSummary.qcStatus())
                             : DOWNSTREAM_STATUS_UNAVAILABLE;
@@ -1363,17 +1365,16 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                             .customerPhone(summary.getCustomerPhone())
                             .returnCreatedAt(summary.getCreatedAt())
                             .returnStatus(summary.getStatus())
-                            .refundRequired(orderReturn == null ? summary.getRefundRequired() : orderReturn.getRefundRequired())
+                            .displayStatus(displayStatus)
+                            .refundRequired(refundRequired)
                             .qcStatus(qcStatus)
                             .physicalDone(physicalDone)
-                            .inventoryProcessingStatus(resolveInventoryProcessingStatus(
-                                    qcLookup.available(),
-                                    qcSummary,
-                                    physicalDone
-                            ))
+                            .inventoryProcessingStatus(physicalProgress.inventoryProcessingStatus())
                             .inspectionId(qcSummary == null ? null : qcSummary.inspectionId())
                             .inventoryProcessedAt(qcSummary == null ? null : qcSummary.inspectedAt())
-                            .refundStatus(refundStatus)
+                            .refundStatus(eligibility.refundStatus())
+                            .refundEligible(eligibility.refundEligible())
+                            .refundBlockReason(eligibility.blockReason())
                             .refundAmount(refundAmount)
                             .paymentStatus(paymentStatus)
                             .method(method)
@@ -1585,199 +1586,6 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .orElse(null);
     }
 
-    private boolean isInventoryQcAllLinesCompleted(InventoryClient.CustomerReturnQcSummaryResponse qcSummary) {
-        if (qcSummary == null || qcSummary.lines() == null || qcSummary.lines().isEmpty()) {
-            return false;
-        }
-        boolean terminalInspection = "POSTED".equals(qcSummary.inspectionStatus())
-                || "COMPLETED".equals(qcSummary.qcStatus());
-        if (!terminalInspection) {
-            return false;
-        }
-        boolean anyPosted = qcSummary.lines().stream()
-                .anyMatch(line -> line.postedQcQuantity() != null && line.postedQcQuantity().compareTo(BigDecimal.ZERO) > 0);
-        if (!anyPosted) {
-            return false;
-        }
-        return qcSummary.lines().stream()
-                .allMatch(line -> line.remainingQcQuantity() != null
-                        && line.remainingQcQuantity().compareTo(BigDecimal.ZERO) == 0
-                        && line.postedQcQuantity() != null
-                        && line.returnedQuantity() != null
-                        && line.postedQcQuantity().compareTo(line.returnedQuantity()) >= 0);
-    }
-
-    private LocalDispositionProgress loadLocalDispositionProgress(Collection<UUID> returnIds) {
-        if (returnIds == null || returnIds.isEmpty()) {
-            return new LocalDispositionProgress(Set.of(), Set.of(), Map.of());
-        }
-
-        Set<UUID> pendingReturnIds = new HashSet<>();
-        Set<UUID> failedReturnIds = new HashSet<>();
-        for (Object[] row : orderReturnInventoryCommandRepository.findCommandStatusesByReturnIds(returnIds)) {
-            if (row == null || row.length < 2
-                    || !(row[0] instanceof UUID returnId)
-                    || !(row[1] instanceof OrderReturnInventoryCommandStatus status)) {
-                continue;
-            }
-            if (status == OrderReturnInventoryCommandStatus.PENDING) {
-                pendingReturnIds.add(returnId);
-            } else if (status == OrderReturnInventoryCommandStatus.FAILED) {
-                failedReturnIds.add(returnId);
-            }
-        }
-
-        Map<UUID, Map<UUID, BigDecimal>> processedQuantitiesByReturnId = new HashMap<>();
-        List<Object[]> processedRows = orderReturnInventoryCommandRepository.sumQuantityByReturnIdsAndCommandStatus(
-                returnIds,
-                OrderReturnInventoryCommandStatus.PROCESSED
-        );
-        for (Object[] row : processedRows) {
-            if (row == null || row.length < 3
-                    || !(row[0] instanceof UUID returnId)
-                    || !(row[1] instanceof UUID returnItemId)
-                    || !(row[2] instanceof BigDecimal quantity)) {
-                continue;
-            }
-            processedQuantitiesByReturnId
-                    .computeIfAbsent(returnId, ignored -> new HashMap<>())
-                    .merge(returnItemId, quantity, BigDecimal::add);
-        }
-
-        return new LocalDispositionProgress(
-                pendingReturnIds,
-                failedReturnIds,
-                processedQuantitiesByReturnId
-        );
-    }
-
-    private boolean isLocalPhysicalDispositionCompleted(
-            OrderReturn orderReturn,
-            LocalDispositionProgress progress
-    ) {
-        if (orderReturn == null || orderReturn.getItems() == null) {
-            return false;
-        }
-        List<OrderReturnItem> activeItems = orderReturn.getItems().stream()
-                .filter(item -> !Boolean.TRUE.equals(item.getIsDeleted()))
-                .toList();
-        if (activeItems.isEmpty()) {
-            return false;
-        }
-
-        Map<UUID, BigDecimal> processedByItemId = progress.processedQuantitiesByReturnId()
-                .getOrDefault(orderReturn.getId(), Map.of());
-        return activeItems.stream().allMatch(item -> defaultZero(processedByItemId.get(item.getId()))
-                .compareTo(defaultZero(item.getQuantity())) >= 0);
-    }
-
-    private Map<UUID, OrderReturnInventoryCommandReconciliationWriter.CompletionEvidence> completedInventoryReturns(
-            Map<UUID, InventoryClient.CustomerReturnQcSummaryResponse> qcByReturnId
-    ) {
-        if (qcByReturnId == null || qcByReturnId.isEmpty()) {
-            return Map.of();
-        }
-
-        return qcByReturnId.entrySet().stream()
-                .filter(entry -> entry.getKey() != null && isInventoryQcAllLinesCompleted(entry.getValue()))
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> new OrderReturnInventoryCommandReconciliationWriter.CompletionEvidence(
-                                entry.getValue().inspectionId(),
-                                entry.getValue().inspectedAt()
-                        )
-                ));
-    }
-
-    private void reconcileCompletedInventoryCommands(
-            Map<UUID, OrderReturnInventoryCommandReconciliationWriter.CompletionEvidence> completedReturns
-    ) {
-        if (completedReturns == null || completedReturns.isEmpty()) {
-            return;
-        }
-        try {
-            inventoryCommandReconciliationWriter.reconcileCompletedReturns(completedReturns);
-        } catch (RuntimeException ex) {
-            log.warn(
-                    "Could not persist return inventory command reconciliation for completed returns {}: {}",
-                    completedReturns.keySet(),
-                    shortMessage(ex)
-            );
-        }
-    }
-
-    private record LocalDispositionProgress(
-            Set<UUID> pendingReturnIds,
-            Set<UUID> failedReturnIds,
-            Map<UUID, Map<UUID, BigDecimal>> processedQuantitiesByReturnId
-    ) {
-    }
-
-    private OrderRefundStatus resolveRefundStatus(
-            OrderReturn orderReturn,
-            PaymentClient.PaymentRefundSummaryResponse paymentSummary,
-            boolean inventoryAvailable,
-            boolean paymentAvailable,
-            boolean physicalDone
-    ) {
-        return resolveRefundStatus(
-                orderReturn,
-                paymentSummary,
-                inventoryAvailable,
-                paymentAvailable,
-                physicalDone,
-                null
-        );
-    }
-
-    private OrderRefundStatus resolveRefundStatus(
-            OrderReturn orderReturn,
-            PaymentClient.PaymentRefundSummaryResponse paymentSummary,
-            boolean inventoryAvailable,
-            boolean paymentAvailable,
-            boolean physicalDone,
-            BigDecimal refundAmount
-    ) {
-        if (!paymentAvailable || (!inventoryAvailable && !physicalDone)) {
-            return OrderRefundStatus.NOT_READY;
-        }
-        if (!Boolean.TRUE.equals(orderReturn.getRefundRequired())) {
-            return OrderRefundStatus.NOT_REQUIRED;
-        }
-        if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
-            return OrderRefundStatus.REFUNDED;
-        }
-        if (paymentSummary != null && "FAILED".equals(paymentSummary.refundStatus())) {
-            return OrderRefundStatus.FAILED;
-        }
-        if (ReturnStatus.RECEIVED == orderReturn.getStatus()
-                && physicalDone
-                && refundAmount != null
-                && refundAmount.compareTo(BigDecimal.ZERO) > 0) {
-            return OrderRefundStatus.PENDING;
-        }
-        return OrderRefundStatus.NOT_READY;
-    }
-
-    private String resolveInventoryProcessingStatus(
-            boolean inventoryAvailable,
-            InventoryClient.CustomerReturnQcSummaryResponse qcSummary,
-            boolean physicalDone
-    ) {
-        if (physicalDone) {
-            return "PROCESSED";
-        }
-        if (!inventoryAvailable) {
-            return DOWNSTREAM_STATUS_UNAVAILABLE;
-        }
-        if (qcSummary == null) {
-            return "PENDING";
-        }
-        if ("PARTIAL".equals(qcSummary.qcStatus())) {
-            return "PROCESSING";
-        }
-        return qcSummary.inspectionStatus() == null ? "PENDING" : qcSummary.inspectionStatus();
-    }
 
     private boolean isAvailabilityStatus(int status) {
         return status == 502 || status == 503 || status == 504;
@@ -1871,33 +1679,6 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         }
     }
 
-    private String refundIneligibleReason(
-            OrderReturn orderReturn,
-            InventoryClient.CustomerReturnQcSummaryResponse qcSummary,
-            PaymentClient.PaymentRefundSummaryResponse paymentSummary
-    ) {
-        if (Boolean.FALSE.equals(orderReturn.getRefundRequired())) {
-            return "Refund is not required for this return";
-        }
-        if (paymentSummary != null && "REFUNDED".equals(paymentSummary.refundStatus())) {
-            return "Return already refunded";
-        }
-        boolean inventoryPhysicalDone = isInventoryQcAllLinesCompleted(qcSummary);
-        if (inventoryPhysicalDone) {
-            reconcileCompletedInventoryCommands(completedInventoryReturns(Map.of(orderReturn.getId(), qcSummary)));
-        }
-        boolean physicalDone = inventoryPhysicalDone || isPhysicalDispositionCompleted(orderReturn.getId());
-        if (ReturnStatus.RECEIVED != orderReturn.getStatus() || !physicalDone) {
-            return "Return inventory inspection is not completed";
-        }
-        if (paymentSummary == null || paymentSummary.paymentId() == null) {
-            return "Payment not found";
-        }
-        if (!"CASH".equals(paymentSummary.method())) {
-            return "Refund method is not supported yet";
-        }
-        return null;
-    }
 
     private static int getRefundPriority(OrderRefundSummaryResponse row) {
         if (row == null) {

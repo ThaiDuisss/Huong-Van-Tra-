@@ -5,12 +5,27 @@ import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.dto.response.OrderReturnItemResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnResponse;
+import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgress;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 public class OrderReturnMapper {
 
     public OrderReturnResponse toResponse(OrderReturn orderReturn) {
+        return toResponse(orderReturn, null, null);
+    }
+
+    public OrderReturnResponse toResponse(OrderReturn orderReturn, OrderReturnPhysicalProgress progress) {
+        return toResponse(orderReturn, progress, null);
+    }
+
+    public OrderReturnResponse toResponse(
+            OrderReturn orderReturn,
+            OrderReturnPhysicalProgress progress,
+            String displayStatus
+    ) {
         return OrderReturnResponse.builder()
                 .id(orderReturn.getId())
                 .returnCode(orderReturn.getReturnCode())
@@ -24,9 +39,15 @@ public class OrderReturnMapper {
                 .refundRequired(orderReturn.getRefundRequired())
                 .createdAt(orderReturn.getCreatedAt())
                 .updatedAt(orderReturn.getUpdatedAt())
-                .items(orderReturn.getItems().stream()
+                .items(orderReturn.getItems() == null ? List.of() : orderReturn.getItems().stream()
                         .map(this::toItemResponse)
                         .toList())
+                .physicalDone(progress != null ? progress.physicalDone() : null)
+                .requiredQuantity(progress != null ? progress.requiredQuantity() : null)
+                .processedQuantity(progress != null ? progress.processedQuantity() : null)
+                .remainingQuantity(progress != null ? progress.remainingQuantity() : null)
+                .inventoryProcessingStatus(progress != null ? progress.inventoryProcessingStatus() : null)
+                .displayStatus(displayStatus)
                 .build();
     }
 

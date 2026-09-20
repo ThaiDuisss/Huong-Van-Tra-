@@ -2,6 +2,7 @@ package org.hvtra.orderservice.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+import org.hvtra.orderservice.domain.enums.OrderRefundBlockReason;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 
@@ -22,6 +23,7 @@ public class OrderRefundSummaryResponse {
     private String customerPhone;
     private Instant returnCreatedAt;
     private ReturnStatus returnStatus;
+    private String displayStatus;
     private Boolean refundRequired;
     private String qcStatus;
     private Boolean physicalDone;
@@ -29,6 +31,8 @@ public class OrderRefundSummaryResponse {
     private UUID inspectionId;
     private Instant inventoryProcessedAt;
     private OrderRefundStatus refundStatus;
+    private Boolean refundEligible;
+    private OrderRefundBlockReason refundBlockReason;
     private BigDecimal refundAmount;
     private String paymentStatus;
     private String method;

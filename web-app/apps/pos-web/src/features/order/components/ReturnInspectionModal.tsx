@@ -65,6 +65,11 @@ const QC_RESULT_OPTIONS: {
         desc: "Chuyển sang khu hàng hỏng, không được bán"
     },
     {
+        result: "QUARANTINE",
+        title: "Cách ly",
+        desc: "Chuyển sang khu cách ly, chờ kiểm định thêm"
+    },
+    {
         result: "WRITE_OFF",
         title: "Tiêu hủy",
         desc: "Không nhập lại tồn kho bán được"
@@ -109,6 +114,7 @@ export function ReturnInspectionModal({
     const [isGeneralNoteOpen, setIsGeneralNoteOpen] = useState(false);
     const [activeLocations, setActiveLocations] = useState<InventoryLocationResponse[]>([]);
     const [damagedLocations, setDamagedLocations] = useState<InventoryLocationResponse[]>([]);
+    const [quarantineLocations, setQuarantineLocations] = useState<InventoryLocationResponse[]>([]);
     const [isLocationLoading, setIsLocationLoading] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -152,12 +158,24 @@ export function ReturnInspectionModal({
         return Array.from(map.values());
     }, [activeLocations, damagedLocations]);
 
+    const normalizedQuarantineLocations = useMemo(() => {
+        const map = new Map<string, InventoryLocationResponse>();
+        activeLocations
+            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
+            .forEach((l) => map.set(String(l.id), l));
+        quarantineLocations
+            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
+            .forEach((l) => map.set(String(l.id), l));
+        return Array.from(map.values());
+    }, [activeLocations, quarantineLocations]);
+
     const allLocationsMap = useMemo(() => {
         const map = new Map<string, InventoryLocationResponse>();
         activeLocations.forEach((loc) => map.set(String(loc.id), loc));
         damagedLocations.forEach((loc) => map.set(String(loc.id), loc));
+        quarantineLocations.forEach((loc) => map.set(String(loc.id), loc));
         return map;
-    }, [activeLocations, damagedLocations]);
+    }, [activeLocations, damagedLocations, quarantineLocations]);
 
     const getValidLocations = useCallback(
         (result: CustomerReturnQcResult) => {
@@ -167,9 +185,12 @@ export function ReturnInspectionModal({
             if (result === "DAMAGED") {
                 return normalizedDamagedLocations;
             }
+            if (result === "QUARANTINE") {
+                return normalizedQuarantineLocations;
+            }
             return [];
         },
-        [normalizedDamagedLocations, restockLocations]
+        [normalizedDamagedLocations, normalizedQuarantineLocations, restockLocations]
     );
 
     // Load locations when modal opens
@@ -194,18 +215,26 @@ export function ReturnInspectionModal({
                     size: 100,
                     status: "ACTIVE",
                     type: "DAMAGED"
+                }),
+                inventoryLocationApi.list({
+                    page: 0,
+                    size: 100,
+                    status: "ACTIVE",
+                    type: "QUARANTINE"
                 })
             ])
-                .then(([activePage, damagedPage]) => {
+                .then(([activePage, damagedPage, quarantinePage]) => {
                     if (!ignore) {
                         setActiveLocations(activePage.content ?? []);
                         setDamagedLocations(damagedPage.content ?? []);
+                        setQuarantineLocations(quarantinePage.content ?? []);
                     }
                 })
                 .catch((error: unknown) => {
                     if (!ignore) {
                         setActiveLocations([]);
                         setDamagedLocations([]);
+                        setQuarantineLocations([]);
                         setLocationError(getReturnErrorMessage(error));
                     }
                 })
@@ -225,10 +254,14 @@ export function ReturnInspectionModal({
     // Initialize draft lines when remaining lines or modal open status changes
     useEffect(() => {
         if (!isOpen) {
+            // Reset the modal-owned draft when it closes so a later multi-line
+            // inspection never inherits selections from the previous return.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setStep(1);
             setFormError(null);
             setGeneralNote("");
             setIsGeneralNoteOpen(false);
+            setQcDraftLines({});
             return;
         }
 
@@ -264,7 +297,7 @@ export function ReturnInspectionModal({
                 const autoLocationId = validLocs.length === 1 ? String(validLocs[0].id) : "";
 
                 const initialLine: QcDraftLine = {
-                    selected: isSingleItem || true, // Default all to selected
+                    selected: isSingleItem,
                     quantity: String(remainingQty || 1),
                     result: defaultResult,
                     destinationLocationId: autoLocationId,
@@ -276,12 +309,15 @@ export function ReturnInspectionModal({
 
             return Object.fromEntries(nextEntries);
         });
-    }, [isOpen, normalizedDamagedLocations, remainingLines, restockLocations]);
+    }, [isOpen, normalizedDamagedLocations, normalizedQuarantineLocations, remainingLines, restockLocations]);
 
     // Handle updating location when location lists finish loading
     useEffect(() => {
         if (!isOpen) return;
 
+        // Location options arrive asynchronously and may provide the only valid
+        // destination after the draft was initialized.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setQcDraftLines((current) => {
             let changed = false;
             const updated = { ...current };
@@ -301,7 +337,7 @@ export function ReturnInspectionModal({
 
             return changed ? updated : current;
         });
-    }, [getValidLocations, isOpen, normalizedDamagedLocations, restockLocations]);
+    }, [getValidLocations, isOpen, normalizedDamagedLocations, normalizedQuarantineLocations, restockLocations]);
 
     const updateDraftLine = (
         returnItemId: string,
@@ -415,12 +451,24 @@ export function ReturnInspectionModal({
                 }
             }
 
-            // Backend rule: SEALED item marked DAMAGED or WRITE_OFF requires reason note >= 5 chars
-            if (line.condition === "SEALED" && (draft.result === "DAMAGED" || draft.result === "WRITE_OFF")) {
+            if (draft.result === "QUARANTINE") {
+                if (normalizedQuarantineLocations.length === 0) {
+                    setFormError(`Chưa có vị trí kho cách ly trong hệ thống.`);
+                    return false;
+                }
+                const isValid = normalizedQuarantineLocations.some((l) => String(l.id) === draft.destinationLocationId);
+                if (!draft.destinationLocationId || !isValid) {
+                    setFormError(`Vui lòng chọn vị trí kho cách ly cho "${name}".`);
+                    return false;
+                }
+            }
+
+            // Backend rule: SEALED item marked DAMAGED, QUARANTINE or WRITE_OFF requires reason note >= 5 chars
+            if (line.condition === "SEALED" && (draft.result === "DAMAGED" || draft.result === "QUARANTINE" || draft.result === "WRITE_OFF")) {
                 const hasLineNote = draft.note.trim().length >= 5;
                 const hasGenNote = generalNote.trim().length >= 5;
                 if (!hasLineNote && !hasGenNote) {
-                    setFormError(`Sản phẩm "${name}" còn nguyên seal nhưng chọn ${draft.result === "DAMAGED" ? "hàng hỏng" : "tiêu hủy"} cần ghi chú lý do tối thiểu 5 ký tự.`);
+                    setFormError(`Sản phẩm "${name}" còn nguyên seal nhưng chọn ${draft.result === "DAMAGED" ? "hàng hỏng" : draft.result === "QUARANTINE" ? "cách ly" : "tiêu hủy"} cần ghi chú lý do tối thiểu 5 ký tự.`);
                     return false;
                 }
             }
@@ -477,7 +525,7 @@ export function ReturnInspectionModal({
                     setFormError(failureMsg);
                     onRefresh?.();
                 } else {
-                    onToast("Đã gửi lệnh xử lý kho. Đang cập nhật tồn kho...");
+                    onToast("Đã tạo lệnh kiểm định. Vào Kho > Hàng khách trả để xác nhận xử lý tồn kho.");
                     onSuccess();
                     onClose();
                 }
@@ -782,7 +830,9 @@ export function ReturnInspectionModal({
                                                             <span>
                                                                 {draft.result === "RESTOCK"
                                                                     ? "Vị trí kho bán được"
-                                                                    : "Vị trí kho hàng hỏng"}
+                                                                    : draft.result === "DAMAGED"
+                                                                        ? "Vị trí kho hàng hỏng"
+                                                                        : "Vị trí kho cách ly"}
                                                             </span>
                                                             {isLocationLoading ? (
                                                                 <span className={styles.fieldHelp}>

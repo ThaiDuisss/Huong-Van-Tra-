@@ -31,19 +31,36 @@ export function ReturnBusinessProgress({
     timeline = []
 }: ReturnBusinessProgressProps) {
     const qcLines = qcSummary?.lines ?? [];
-    const dispositions = qcLines.flatMap((line) => line.dispositions ?? []);
     const receivedDone = returnData.status === "RECEIVED" || returnData.status === "COMPLETED";
-    const inspectedDone =
+    const isPhysicalDone = Boolean(returnData.physicalDone || returnData.status === "COMPLETED");
+    const invStatus = returnData.inventoryProcessingStatus ?? (isPhysicalDone ? "COMPLETED" : "PENDING");
+
+    const inspectedDone = isPhysicalDone || (
         qcSummary?.inspectionStatus === "POSTED" &&
         qcLines.length > 0 &&
-        qcLines.every((line) => toReturnNumber(line.remainingQcQuantity) === 0);
-    const inventoryDone =
-        inspectedDone &&
-        dispositions.length > 0 &&
-        dispositions.every(
-            (disposition) =>
-                Boolean(disposition.transactionId) && disposition.processingStatus === "PROCESSED"
-        );
+        qcLines.every((line) => toReturnNumber(line.remainingQcQuantity) === 0)
+    );
+
+    const inventoryTitle = (() => {
+        if (isPhysicalDone) {
+            return "Đã xử lý hàng trong kho";
+        }
+        if (invStatus === "FAILED") {
+            return "Xử lý kho thất bại";
+        }
+        if (invStatus === "PROCESSING") {
+            return "Đang xử lý hàng trong kho";
+        }
+        return "Chờ xử lý hàng trong kho";
+    })();
+
+    const progressDescription = returnData.requiredQuantity != null && toReturnNumber(returnData.requiredQuantity) > 0
+        ? `Đã xử lý: ${formatReturnQuantity(returnData.processedQuantity ?? 0)} / ${formatReturnQuantity(returnData.requiredQuantity)}${
+            returnData.remainingQuantity != null && toReturnNumber(returnData.remainingQuantity) > 0
+                ? ` · Còn lại: ${formatReturnQuantity(returnData.remainingQuantity)}`
+                : ""
+          }`
+        : undefined;
 
     const createdAt = findOccurredAt(timeline, "CREATED") ?? returnData.createdAt;
     const receivedAt = findOccurredAt(timeline, "RECEIVED");
@@ -67,8 +84,9 @@ export function ReturnBusinessProgress({
                 title={inspectedDone ? "Đã kiểm hàng" : "Chờ kiểm hàng"}
             />
             <ProgressStep
-                completed={inventoryDone}
-                title={inventoryDone ? "Đã xử lý hàng trong kho" : "Chờ xử lý hàng trong kho"}
+                completed={isPhysicalDone}
+                description={progressDescription}
+                title={inventoryTitle}
             >
                 {inspectedDone ? (
                     <div className={styles.dispositionList}>

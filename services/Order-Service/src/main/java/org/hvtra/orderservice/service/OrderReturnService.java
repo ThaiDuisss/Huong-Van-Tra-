@@ -85,5 +85,7 @@ public interface OrderReturnService {
 
     boolean isPhysicalDispositionCompleted(UUID returnId);
 
+    void recordPhysicalCompletion(UUID returnId, UUID actorUserId, UUID inspectionId);
+
     void checkAndAutoCompleteNoRefundReturn(UUID returnId);
 }

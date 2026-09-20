@@ -35,6 +35,11 @@ public class OrderReturnSummaryResponse {
     private Boolean isPendingDisposition;
     private BigDecimal postedQcQuantity;
     private String displayStatus;
+    private Boolean physicalDone;
+    private BigDecimal requiredQuantity;
+    private BigDecimal processedQuantity;
+    private BigDecimal remainingQuantity;
+    private String inventoryProcessingStatus;
 
     public OrderReturnSummaryResponse(
             UUID id,
@@ -48,7 +53,7 @@ public class OrderReturnSummaryResponse {
             String customerName,
             String customerPhone
     ) {
-        this(id, returnCode, orderId, orderCode, status, createdAt, updatedAt, itemCount, customerName, customerPhone, true, null, null, null, null, false, false, null, null);
+        this(id, returnCode, orderId, orderCode, status, createdAt, updatedAt, itemCount, customerName, customerPhone, true, null, null, null, null, false, false, null, null, null, null, null, null, null);
     }
 
     public OrderReturnSummaryResponse(
@@ -64,7 +69,7 @@ public class OrderReturnSummaryResponse {
             String customerPhone,
             Boolean refundRequired
     ) {
-        this(id, returnCode, orderId, orderCode, status, createdAt, updatedAt, itemCount, customerName, customerPhone, refundRequired, null, null, null, null, false, false, null, null);
+        this(id, returnCode, orderId, orderCode, status, createdAt, updatedAt, itemCount, customerName, customerPhone, refundRequired, null, null, null, null, false, false, null, null, null, null, null, null, null);
     }
 
     public OrderReturnSummaryResponse(
@@ -86,6 +91,6 @@ public class OrderReturnSummaryResponse {
             Boolean hasFailedDisposition,
             Boolean isPendingDisposition
     ) {
-        this(id, returnCode, orderId, orderCode, status, createdAt, updatedAt, itemCount, customerName, customerPhone, refundRequired, qcStatus, remainingQcQuantity, inspectionStatus, refundStatus, hasFailedDisposition, isPendingDisposition, null, null);
+        this(id, returnCode, orderId, orderCode, status, createdAt, updatedAt, itemCount, customerName, customerPhone, refundRequired, qcStatus, remainingQcQuantity, inspectionStatus, refundStatus, hasFailedDisposition, isPendingDisposition, null, null, null, null, null, null, null);
     }
 }

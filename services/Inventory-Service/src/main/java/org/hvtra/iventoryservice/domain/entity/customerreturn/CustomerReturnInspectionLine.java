@@ -14,6 +14,7 @@ import lombok.Setter;
 import org.hvtra.commonservice.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
+import org.hvtra.iventoryservice.domain.entity.disposal.DisposalRequest;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 
 import java.math.BigDecimal;
@@ -69,4 +70,8 @@ public class CustomerReturnInspectionLine extends BaseEntity {
 
     @Column(name = "transaction_id", columnDefinition = "BINARY(16)")
     private UUID transactionId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "disposal_request_id")
+    private DisposalRequest disposalRequest;
 }

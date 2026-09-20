@@ -99,9 +99,31 @@ public class ReturnInventoryDispositionAckInboxService {
             return;
         }
 
+        if (command.getStatus() == OrderReturnInventoryCommandStatus.PROCESSED) {
+            log.debug("Duplicate processed ack event: command already PROCESSED. commandId={}, eventId={}",
+                    command.getCommandId(), eventId);
+            markProcessed(inbox);
+            return;
+        }
+
+        if (command.getStatus() != OrderReturnInventoryCommandStatus.PENDING) {
+            log.warn("Cannot process ack: command not in PENDING status (current: {}). commandId={}, eventId={}",
+                    command.getStatus(), command.getCommandId(), eventId);
+            markProcessed(inbox);
+            return;
+        }
+
+        UUID returnId = command.getOrderReturn() != null ? command.getOrderReturn().getId() : null;
+        boolean beforePhysicalDone = returnId != null && orderReturnService.isPhysicalDispositionCompleted(returnId);
+
         applyProcessedAck(command, event);
-        if (command.getOrderReturn() != null && command.getOrderReturn().getId() != null) {
-            orderReturnService.checkAndAutoCompleteNoRefundReturn(command.getOrderReturn().getId());
+
+        if (returnId != null) {
+            boolean afterPhysicalDone = orderReturnService.isPhysicalDispositionCompleted(returnId);
+            if (!beforePhysicalDone && afterPhysicalDone) {
+                orderReturnService.recordPhysicalCompletion(returnId, command.getRequestedBy(), command.getInspectionId());
+                orderReturnService.checkAndAutoCompleteNoRefundReturn(returnId);
+            }
         }
         markProcessed(inbox);
     }

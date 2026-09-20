@@ -25,8 +25,8 @@ public class InventoryTransactionLine extends BaseEntity {
     @JoinColumn(name = "inventory_item_id", nullable = false)
     private InventoryItem inventoryItem;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "location_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
     private InventoryLocation location;
 
     @Column(nullable = false, precision = 18, scale = 2)
