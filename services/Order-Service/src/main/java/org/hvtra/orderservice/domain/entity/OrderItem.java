@@ -49,4 +49,7 @@ public class OrderItem extends BaseEntity {
 
     @Column(name = "bom_version_id", columnDefinition = "BINARY(16)")
     private UUID bomVersionId;
+
+    @Column(name = "note", length = 1000)
+    private String note;
 }

@@ -19,6 +19,26 @@ public class OrderItemMapper {
             BigDecimal lineTotal,
             UUID bomVersionId
     ) {
+        return toOrderItem(
+                variant,
+                quantity,
+                unitPrice,
+                discountAmount,
+                lineTotal,
+                bomVersionId,
+                null
+        );
+    }
+
+    public OrderItem toOrderItem(
+            CatalogClient.ProductVariantPosViewResponse variant,
+            BigDecimal quantity,
+            BigDecimal unitPrice,
+            BigDecimal discountAmount,
+            BigDecimal lineTotal,
+            UUID bomVersionId,
+            String note
+    ) {
         return OrderItem.builder()
                 .productVariantId(variant.variantId())
                 .skuSnapshot(variant.sku())
@@ -30,6 +50,7 @@ public class OrderItemMapper {
                 .discountAmount(discountAmount)
                 .lineTotal(lineTotal)
                 .bomVersionId(bomVersionId)
+                .note(normalizeNote(note))
                 .build();
     }
 
@@ -39,6 +60,24 @@ public class OrderItemMapper {
             BigDecimal unitPrice,
             BigDecimal discountAmount,
             UUID bomVersionId
+    ) {
+        return toDraftOrderItem(
+                variant,
+                quantity,
+                unitPrice,
+                discountAmount,
+                bomVersionId,
+                null
+        );
+    }
+
+    public OrderItem toDraftOrderItem(
+            CatalogClient.ProductVariantPosViewResponse variant,
+            BigDecimal quantity,
+            BigDecimal unitPrice,
+            BigDecimal discountAmount,
+            UUID bomVersionId,
+            String note
     ) {
         return OrderItem.builder()
                 .productVariantId(variant.variantId())
@@ -50,6 +89,7 @@ public class OrderItemMapper {
                 .actualUnitPrice(unitPrice)
                 .discountAmount(discountAmount)
                 .bomVersionId(bomVersionId)
+                .note(normalizeNote(note))
                 .build();
     }
 
@@ -69,6 +109,11 @@ public class OrderItemMapper {
                 .discountAmount(item.getDiscountAmount())
                 .lineTotal(item.getLineTotal())
                 .bomVersionId(item.getBomVersionId())
+                .note(item.getNote())
                 .build();
+    }
+
+    private String normalizeNote(String note) {
+        return note == null || note.isBlank() ? null : note.trim();
     }
 }

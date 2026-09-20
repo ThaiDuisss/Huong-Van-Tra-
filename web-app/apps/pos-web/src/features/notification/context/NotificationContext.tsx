@@ -24,6 +24,10 @@ const apiBaseUrl =
     import.meta.env.VITE_API_BASE_URL ??
     "http://localhost:8080/api";
 
+const RETRY_INTERVAL_MS = 1000;
+const MAX_FAST_RETRIES = 5;
+const RETRY_COOLDOWN_MS = 5 * 60 * 1000;
+
 function mergeNewest(
     current: NotificationResponse[],
     incoming: NotificationResponse
@@ -118,6 +122,7 @@ export function NotificationProvider({
     useEffect(() => {
         const streamController = new AbortController();
         const url = `${apiBaseUrl}/notifications/stream`;
+        let failedAttempts = 0;
 
         streamControllerRef.current = streamController;
 
@@ -151,12 +156,34 @@ export function NotificationProvider({
                     console.error("Không parse được notification SSE", error);
                 }
             },
+            async onopen(response) {
+                const contentType = response.headers.get("content-type");
+
+                if (!response.ok || !contentType?.startsWith(EventStreamContentType)) {
+                    throw new Error(`Luồng thông báo trả về ${response.status}`);
+                }
+
+                failedAttempts = 0;
+            },
             onclose() {
                 setConnected(false);
+                // Ném lỗi để thư viện kết nối lại theo chính sách retry ở onerror.
+                throw new Error("Luồng thông báo bị đóng");
             },
             onerror(error) {
                 setConnected(false);
-                console.error("Kết nối thông báo bị gián đoạn", error);
+                failedAttempts += 1;
+
+                if (failedAttempts >= MAX_FAST_RETRIES) {
+                    failedAttempts = 0;
+                    console.warn(
+                        `Không kết nối được luồng thông báo sau ${MAX_FAST_RETRIES} lần, thử lại sau 5 phút`,
+                        error
+                    );
+                    return RETRY_COOLDOWN_MS;
+                }
+
+                return RETRY_INTERVAL_MS;
             }
         }).catch((error) => {
             if (!streamController.signal.aborted) {
