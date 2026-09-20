@@ -1,14 +1,15 @@
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useParams } from "react-router-dom";
 
 import { NotFoundPage } from "./NotFoundPage";
 import { SystemShell } from "../components/layout/System/SystemShell";
-import { BomListPage } from "../features/manufacturing/pages/BomListPage";
-import { BomDetailPage } from "../features/manufacturing/pages/BomDetailPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
+import { ProductionOrderCreatePage as ManufacturingProductionOrderCreatePage } from "../features/manufacturing/pages/ProductionOrderCreatePage";
+import { ProductionOrderDetailPage as ManufacturingProductionOrderDetailPage } from "../features/manufacturing/pages/ProductionOrderDetailPage";
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
+import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
 import { CreateReturnPage } from "../features/order/pages/CreateReturnPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
@@ -22,6 +23,9 @@ import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalan
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
 import { GoodsReceiptDetailPage } from "../features/inventory/pages/GoodsReceiptDetailPage";
 import { GoodsReceiptListPage } from "../features/inventory/pages/GoodsReceiptListPage";
+import { GoodsReceiptImportPage } from "../features/inventory/pages/GoodsReceiptImportPage";
+import { GoodsReceiptImportReviewPage } from "../features/inventory/pages/GoodsReceiptImportReviewPage";
+import { GoodsReceiptImportListPage } from "../features/inventory/pages/GoodsReceiptImportListPage";
 import { CustomerReturnDetailPage } from "../features/inventory/pages/CustomerReturnDetailPage";
 import { CustomerReturnListPage } from "../features/inventory/pages/CustomerReturnListPage";
 import { CustomBundleManagementDetailPage } from "../features/inventory/pages/CustomBundleManagementDetailPage";
@@ -31,9 +35,6 @@ import { InventoryManagementPage } from "../features/inventory/pages/InventoryMa
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
 import { DisposalDetailPage } from "../features/inventory/pages/DisposalDetailPage";
 import { DisposalListPage } from "../features/inventory/pages/DisposalListPage";
-import { ProductionOrderCreatePage } from "../features/inventory/pages/ProductionOrderCreatePage";
-import { ProductionOrderDetailPage } from "../features/inventory/pages/ProductionOrderDetailPage";
-import { ProductionOrderListPage as InventoryProductionOrderListPage } from "../features/inventory/pages/ProductionOrderListPage";
 import { QualityBatchDetailPage } from "../features/inventory/pages/QualityBatchDetailPage";
 import { QualityDashboardPage } from "../features/inventory/pages/QualityDashboardPage";
 import { ReorderPolicyPage } from "../features/inventory/pages/ReorderPolicyPage";
@@ -66,6 +67,10 @@ import { CategoryListPage } from "../features/product/pages/CategoryListPage";
 import { UnitListPage } from "../features/product/pages/UnitListPage";
 import { PriceListPage } from "../features/product/pages/PriceListPage";
 import { ProductListPage } from "../features/product/pages/ProductListPage";
+import { ProductImportPage } from "../features/product/pages/ProductImportPage";
+import { ProductVariantImportPage } from "../features/product/pages/ProductVariantImportPage";
+import { ProductImportReviewPage } from "../features/product/pages/ProductImportReviewPage";
+import { ImportBatchListPage } from "../features/product/pages/ImportBatchListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
 import { ProductVariantDetailPage } from "../features/product/pages/ProductVariantDetailPage";
 import { routePaths } from "../routes/path";
@@ -93,6 +98,16 @@ function RoleGate({ roles }: { roles: AppRole[] }) {
     <ProtectedRoute roles={roles}>
       <Outlet />
     </ProtectedRoute>
+  );
+}
+
+function RedirectToManufacturingProductionOrderDetail() {
+  const { productionOrderId } = useParams();
+  return (
+    <Navigate
+      to={routePaths.productionOrderDetail.replace(":id", productionOrderId ?? "")}
+      replace
+    />
   );
 }
 
@@ -182,7 +197,8 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to={routePaths.inventoryBalances} replace />} />
+        <Route index element={<Navigate to={routePaths.systemDashboard} replace />} />
+        <Route path="dashboard" element={<DashboardOverviewPage />} />
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/:orderId/returns/create" element={<CreateReturnPage />} />
@@ -206,6 +222,13 @@ export function AppRouter() {
           <Route path="product-variants/:id" element={<ProductVariantDetailPage />} />
 
           <Route path="price-lists" element={<PriceListPage />} />
+        </Route>
+
+        <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
+          <Route path="import-excel" element={<ImportBatchListPage />} />
+          <Route path="import-excel/new" element={<ProductImportPage />} />
+          <Route path="import-excel/variants/new" element={<ProductVariantImportPage />} />
+          <Route path="import-excel/:batchId" element={<ProductImportReviewPage />} />
         </Route>
 
         <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
@@ -268,9 +291,9 @@ export function AppRouter() {
           <Route path="marketing/discount-history" element={<CouponUsageListPage />} />
         </Route>
         <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
-          <Route path="manufacturing/boms" element={<BomListPage />} />
-          <Route path="manufacturing/boms/:id" element={<BomDetailPage />} />
           <Route path="manufacturing/production-orders" element={<ProductionOrderListPage />} />
+          <Route path="manufacturing/production-orders/new" element={<ManufacturingProductionOrderCreatePage />} />
+          <Route path="manufacturing/production-orders/:id" element={<ManufacturingProductionOrderDetailPage />} />
           <Route path="manufacturing/ingredients" element={<RawMaterialListPage />} />
           <Route path="manufacturing/suppliers" element={<SupplierListPage />} />
         </Route>
@@ -293,16 +316,22 @@ export function AppRouter() {
           <Route path="inventory/receipts" element={<GoodsReceiptListPage />} />
           <Route path="inventory/receipts/new" element={<GoodsReceiptCreatePage />} />
           <Route path="inventory/receipts/:receiptId" element={<GoodsReceiptDetailPage />} />
+          <Route path="import-excel" element={<GoodsReceiptImportListPage />} />
+          <Route path="import-excel/new" element={<GoodsReceiptImportPage />} />
+          <Route path="import-excel/:batchId" element={<GoodsReceiptImportReviewPage />} />
         </Route>
         <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
           <Route
             path="inventory/production-orders"
-            element={<InventoryProductionOrderListPage />}
+            element={<Navigate to={routePaths.productionOrders} replace />}
           />
-          <Route path="inventory/production-orders/new" element={<ProductionOrderCreatePage />} />
+          <Route
+            path="inventory/production-orders/new"
+            element={<Navigate to={routePaths.productionOrderCreate} replace />}
+          />
           <Route
             path="inventory/production-orders/:productionOrderId"
-            element={<ProductionOrderDetailPage />}
+            element={<RedirectToManufacturingProductionOrderDetail />}
           />
           <Route path="inventory/custom-bundles" element={<CustomBundleManagementListPage />} />
           <Route

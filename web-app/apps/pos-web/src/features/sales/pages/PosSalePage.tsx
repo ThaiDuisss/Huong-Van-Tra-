@@ -7,6 +7,7 @@ import { useNotifications } from "../../notification/context/useNotifications";
 import type { NotificationResponse } from "../../notification/types/notification.types";
 import { CheckoutPanel } from "../components/checkout/CheckoutPanel";
 import { DeliveryCheckoutPanel } from "../components/delivery/DeliveryCheckoutPanel";
+import { CustomTeaRequestDialog } from "../components/dialogs/CustomTeaRequestDialog";
 import type { PaymentStatusValue } from "../components/dialogs/PaymentStatus";
 import { SaleWorkspace } from "../components/workspace/SaleWorkspace";
 import { deliveryApi } from "../services/delivery.api";
@@ -275,18 +276,30 @@ function orderToCartItemsById(
     currentItemsById: Record<string, SaleCartItem> = {}
 ): Record<string, SaleCartItem> {
     const items = order.items ?? [];
+    const currentItems = Object.values(currentItemsById);
 
     return Object.fromEntries(
         items.map((item) => {
             const productVariantId = item.productVariantId;
             const quantity = toNumber(item.quantity);
             const unitPrice = toNumber(item.actualUnitPrice ?? item.unitPrice);
+            const note = item.note?.trim() || undefined;
+            const cartKey = item.id ?? `${productVariantId}:${note ?? ""}`;
+            const currentItem =
+                currentItemsById[cartKey] ??
+                currentItems.find((candidate) =>
+                    candidate.itemId === item.id ||
+                    (
+                        candidate.productVariantId === productVariantId &&
+                        (candidate.note?.trim() || undefined) === note
+                    )
+                );
 
             return [
-                productVariantId,
+                cartKey,
                 {
                     itemId: item.id,
-                    productId: productVariantId,
+                    productId: cartKey,
                     productVariantId,
                     name:
                         item.productNameSnapshot ??
@@ -298,8 +311,8 @@ function orderToCartItemsById(
                     unitPrice,
                     inventoryLocationId: null,
                     manualDiscount:
-                        currentItemsById[productVariantId]?.manualDiscount ??
-                        null
+                        currentItem?.manualDiscount ?? null,
+                    note
                 }
             ];
         })
@@ -360,6 +373,14 @@ export function PosSalePage() {
     >([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchError, setSearchError] = useState("");
+    const [customTeaOpen, setCustomTeaOpen] = useState(false);
+    const [customTeaSearchQuery, setCustomTeaSearchQuery] = useState("");
+    const [customTeaSearchResults, setCustomTeaSearchResults] = useState<
+        SaleProductPreview[]
+    >([]);
+    const [customTeaSearchLoading, setCustomTeaSearchLoading] = useState(false);
+    const [customTeaSearchError, setCustomTeaSearchError] = useState("");
+    const [customTeaSubmitLoading, setCustomTeaSubmitLoading] = useState(false);
     const [addingProductId, setAddingProductId] = useState<string | null>(
         null
     );
@@ -476,6 +497,46 @@ export function PosSalePage() {
         };
     }, [searchQuery]);
 
+    useEffect(() => {
+        const normalizedQuery = customTeaSearchQuery.trim();
+
+        if (!customTeaOpen || !normalizedQuery) {
+            return undefined;
+        }
+
+        let active = true;
+        const timeoutId = window.setTimeout(() => {
+            setCustomTeaSearchLoading(true);
+            setCustomTeaSearchError("");
+
+            void posProductApi
+                .search(normalizedQuery)
+                .then((products) => {
+                    if (active) {
+                        setCustomTeaSearchResults(products);
+                    }
+                })
+                .catch((error: unknown) => {
+                    logApiError(error);
+
+                    if (active) {
+                        setCustomTeaSearchResults([]);
+                        setCustomTeaSearchError(getErrorMessage(error));
+                    }
+                })
+                .finally(() => {
+                    if (active) {
+                        setCustomTeaSearchLoading(false);
+                    }
+                });
+        }, 300);
+
+        return () => {
+            active = false;
+            window.clearTimeout(timeoutId);
+        };
+    }, [customTeaOpen, customTeaSearchQuery]);
+
     const cartItems = useMemo(
         () => Object.values(cartItemsById),
         [cartItemsById]
@@ -580,6 +641,7 @@ export function PosSalePage() {
             window.clearTimeout(timeoutId);
         };
     }, [
+        cartItems,
         cartItems.length,
         discountableSubtotal,
         selectedCustomerId,
@@ -709,6 +771,11 @@ export function PosSalePage() {
         setBankTransferStatus("WAITING");
         setBankTransferPayment(null);
         setBankTransferEventMessage("");
+        setCustomTeaOpen(false);
+        setCustomTeaSearchQuery("");
+        setCustomTeaSearchResults([]);
+        setCustomTeaSearchError("");
+        setCustomTeaSearchLoading(false);
         handledBankNotificationIdRef.current = null;
         clearCustomer();
     }, [clearCustomer]);
@@ -987,6 +1054,26 @@ export function PosSalePage() {
         setSearchLoading(false);
     }
 
+    function changeCustomTeaSearchQuery(value: string) {
+        setCustomTeaSearchQuery(value);
+
+        if (!value.trim()) {
+            setCustomTeaSearchResults([]);
+            setCustomTeaSearchError("");
+            setCustomTeaSearchLoading(false);
+        } else {
+            setCustomTeaSearchLoading(true);
+        }
+    }
+
+    function closeCustomTeaDialog() {
+        setCustomTeaOpen(false);
+        setCustomTeaSearchQuery("");
+        setCustomTeaSearchResults([]);
+        setCustomTeaSearchError("");
+        setCustomTeaSearchLoading(false);
+    }
+
     async function updateCartItemQuantity(productId: string, quantity: number) {
         const currentItem = cartItemsById[productId];
 
@@ -1066,6 +1153,90 @@ export function PosSalePage() {
         setCheckoutSuccess("");
     }
 
+    async function changeProductNote(productId: string, nextNote: string) {
+        const currentItem = cartItemsById[productId];
+        const productVariantId = currentItem?.productVariantId;
+
+        if (!draftOrder?.id || !currentItem?.itemId || !productVariantId) {
+            setCheckoutError("Hóa đơn nháp chưa sẵn sàng.");
+            return;
+        }
+
+        try {
+            const orderAfterRemove = await posOrderApi.removeDraftItem(
+                draftOrder.id,
+                currentItem.itemId
+            );
+            const orderAfterAdd = await posOrderApi.addDraftItem({
+                orderId: orderAfterRemove.id,
+                customerId: selectedCustomerId,
+                orderType,
+                productVariantId,
+                inventoryLocationId: currentItem.inventoryLocationId,
+                quantity: currentItem.quantity,
+                note: nextNote
+            });
+            applyDraftOrder(orderAfterAdd);
+            setCheckoutError("");
+            setCheckoutSuccess("");
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(
+                `Không thể cập nhật yêu cầu: ${getErrorMessage(error)}`
+            );
+        }
+    }
+
+    async function addCustomTeaRequest(input: {
+        product: SaleProductPreview;
+        quantity: number;
+        note: string;
+    }) {
+        const variantId = input.product.productVariantId ?? input.product.id;
+
+        if (customTeaSubmitLoading) {
+            return;
+        }
+
+        if (!variantId) {
+            setCheckoutError("Không xác định được mã Mặt hàng.");
+            return;
+        }
+
+        if (
+            input.product.availableQuantity !== null &&
+            input.product.availableQuantity < input.quantity
+        ) {
+            setCheckoutError("Số lượng yêu cầu vượt tồn khả dụng.");
+            return;
+        }
+
+        setCustomTeaSubmitLoading(true);
+
+        try {
+            const order = await posOrderApi.addDraftItem({
+                orderId: draftOrder?.id ?? null,
+                customerId: selectedCustomerId,
+                orderType,
+                productVariantId: variantId,
+                inventoryLocationId: input.product.inventoryLocationId,
+                quantity: input.quantity,
+                note: input.note
+            });
+            applyDraftOrder(order);
+            closeCustomTeaDialog();
+            setCheckoutError("");
+            setCheckoutSuccess("");
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(
+                `Không thể thêm trà theo yêu cầu: ${getErrorMessage(error)}`
+            );
+        } finally {
+            setCustomTeaSubmitLoading(false);
+        }
+    }
+
     function changeSelectedDiscount(discountId: string) {
         setSelectedDiscountId(discountId);
         setBankTransferPayment(null);
@@ -1104,6 +1275,11 @@ export function PosSalePage() {
             setBankTransferPayment(null);
             setBankTransferStatus("WAITING");
             setBankTransferEventMessage("");
+            setCustomTeaOpen(false);
+            setCustomTeaSearchQuery("");
+            setCustomTeaSearchResults([]);
+            setCustomTeaSearchError("");
+            setCustomTeaSearchLoading(false);
             patchCurrentDeliveryState(initialDeliveryState);
         } catch (error) {
             logApiError(error);
@@ -1785,12 +1961,31 @@ export function PosSalePage() {
                 onProductDecrement={decrementProduct}
                 onProductRemove={removeProduct}
                 onProductDiscountChange={changeProductDiscount}
+                onProductNoteChange={(productId, nextNote) => {
+                    void changeProductNote(productId, nextNote);
+                }}
+                onCustomTeaOpen={() => setCustomTeaOpen(true)}
                 onInvoiceClose={() => {
                     void closeCurrentInvoice();
                 }}
                 onNoteChange={setNote}
                 onOrderTypeChange={setOrderType}
             />
+            {customTeaOpen ? (
+                <CustomTeaRequestDialog
+                    open={customTeaOpen}
+                    products={customTeaSearchResults}
+                    searchQuery={customTeaSearchQuery}
+                    searchLoading={customTeaSearchLoading}
+                    searchError={customTeaSearchError}
+                    submitLoading={customTeaSubmitLoading}
+                    onClose={closeCustomTeaDialog}
+                    onSearchChange={changeCustomTeaSearchQuery}
+                    onSubmit={(input) => {
+                        void addCustomTeaRequest(input);
+                    }}
+                />
+            ) : null}
         </PosShell>
     );
 }

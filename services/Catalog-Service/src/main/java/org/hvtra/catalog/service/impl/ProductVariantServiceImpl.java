@@ -1,8 +1,10 @@
 package org.hvtra.catalog.service.impl;
 
+import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
+import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.LookupResponse;
@@ -15,40 +17,41 @@ import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.InventoryItemType;
 import org.hvtra.catalog.enums.Status;
-import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.ProductMapper;
+import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.service.ProductVariantService;
+import org.hvtra.catalog.util.ExcelExportHelper;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.DataFormat;
-import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.DefaultIndexedColorMap;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.Arrays;
 import java.util.Objects;
@@ -58,12 +61,14 @@ import org.hvtra.catalog.enums.InventoryPolicy;
 @Service
 @Transactional(readOnly = true)
 public class ProductVariantServiceImpl implements ProductVariantService {
+
     private final ProductVariantRepository repository;
     private final ProductRepository productRepository;
     private final ProductMapper mapper;
     private final InventoryClient inventoryClient;
     private final UnitRepository unitRepository;
     private final BusinessSequenceRepository businessSequenceRepository;
+    private final IngredientRepository ingredientRepository;
 
     public ProductVariantServiceImpl(
             ProductVariantRepository repository,
@@ -71,13 +76,15 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             ProductMapper mapper,
             InventoryClient inventoryClient,
             UnitRepository unitRepository,
-            BusinessSequenceRepository businessSequenceRepository) {
+            BusinessSequenceRepository businessSequenceRepository,
+            IngredientRepository ingredientRepository) {
         this.repository = repository;
         this.productRepository = productRepository;
         this.mapper = mapper;
         this.inventoryClient = inventoryClient;
         this.unitRepository = unitRepository;
         this.businessSequenceRepository = businessSequenceRepository;
+        this.ingredientRepository = ingredientRepository;
     }
 
     @Override
@@ -91,14 +98,26 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             Status status,
             Pageable pageable) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
+            Class<?> resultType = query.getResultType();
+            boolean isCountQuery = Long.class.equals(resultType) || long.class.equals(resultType);
+            Join<ProductVariant, Product> productJoin;
+            if (isCountQuery) {
+                productJoin = root.join("product", JoinType.LEFT);
+            } else {
+                jakarta.persistence.criteria.Fetch<ProductVariant, Product> productFetch =
+                        root.fetch("product", JoinType.LEFT);
+                productFetch.fetch("category", JoinType.LEFT);
+                root.fetch("unit", JoinType.LEFT);
+                productJoin = (Join<ProductVariant, Product>) (Object) productFetch;
+            }
+
             var predicates = new ArrayList<Predicate>();
-            predicates.add(cb.equal(root.get("isDeleted"), false));
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.toLowerCase() + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("sku")), pattern),
                         cb.like(cb.lower(root.get("variantName")), pattern),
-                        cb.like(cb.lower(root.get("product").get("name")), pattern)
+                        cb.like(cb.lower(productJoin.get("name")), pattern)
                 ));
             }
             if (sku != null && !sku.isBlank()) {
@@ -115,7 +134,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                         "%" + barcode.toLowerCase() + "%"));
             }
             if (productId != null) predicates.add(cb.equal(root.get("product").get("id"), productId));
-            if (categoryId != null) predicates.add(cb.equal(root.get("product").get("category").get("id"), categoryId));
+            if (categoryId != null) predicates.add(cb.equal(productJoin.get("category").get("id"), categoryId));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
@@ -143,7 +162,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             prefix = "PR";
         }
 
-        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("SKU")
+        BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("SKU")
                 .orElseThrow(() -> new RuntimeException("SKU sequence not initialized"));
         long nextVal = seq.getCurrentValue() + 1;
         seq.setCurrentValue(nextVal);
@@ -172,21 +191,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 : 10;
         Integer reorderPoint = request.reorderPoint() != null ? request.reorderPoint() : defaultReorder;
 
-        String variantDisplayName = (savedVariant.getVariantName() != null && !savedVariant.getVariantName().isBlank())
-                ? product.getName() + " - " + savedVariant.getVariantName()
-                : product.getName();
-
         inventoryClient.createProductVariantItem(
                 InventoryClient.CreateInventoryItemRequest.builder()
                         .status(savedVariant.getStatus().toString())
                         .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
                         .referenceId(savedVariant.getId())
                         .referenceCode(savedVariant.getSku())
-                        .name(variantDisplayName)
+                        .name(savedVariant.getVariantName())
                         .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                         .reorderPoint(reorderPoint)
                         .build());
-        return mapper.toVariantResponse(savedVariant);
+        return mapper.toVariantResponseForNewlyCreated(savedVariant);
     }
 
     @Override
@@ -207,9 +222,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         ProductVariant variant = get(id);
         variant.setStatus(status);
         ProductVariant savedVariant = repository.save(variant);
-
         syncInventoryItem(savedVariant);
-
         return mapper.toVariantResponse(savedVariant);
     }
 
@@ -218,19 +231,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             return;
         }
         try {
-            Product product = variant.getProduct();
-            String productName = product != null ? product.getName() : "";
-            String variantDisplayName = (variant.getVariantName() != null && !variant.getVariantName().isBlank() && !productName.isBlank())
-                    ? productName + " - " + variant.getVariantName()
-                    : (!productName.isBlank() ? productName : variant.getVariantName());
-
             inventoryClient.updateInventoryItemByReference(
                     InventoryItemType.PRODUCT_VARIANT.toString(),
                     variant.getId(),
                     InventoryClient.CreateInventoryItemRequest.builder()
                             .referenceId(variant.getId())
                             .referenceCode(variant.getSku())
-                            .name(variantDisplayName)
+                            .name(variant.getVariantName())
                             .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
                             .unitId(variant.getUnit() != null ? variant.getUnit().getId() : null)
                             .status(variant.getStatus() != null ? variant.getStatus().toString() : "ACTIVE")
@@ -238,24 +245,39 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                             .build()
             );
         } catch (Exception e) {
-            // Log/gracefully continue
+            log.error("Failed to sync inventory item for variant id: {}", variant.getId(), e);
         }
     }
 
     private ProductVariant get(UUID id) {
         return repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Product variant", id));
+                .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
     }
 
     private void apply(ProductVariant variant, ProductVariantRequest request) {
-        Unit unit = unitRepository.findById(request.unitId())
-                .orElseThrow(() -> new ResourceNotFoundException("Unit", request.unitId()));
-        variant.setVariantName(request.variantName().trim());
+        variant.setQuantity(request.quantity());
         variant.setSellingPrice(request.sellingPrice());
         variant.setCostPrice(request.costPrice());
+
+        Unit unit = unitRepository.findById(request.unitId())
+                .orElseThrow(() -> new ResourceNotFoundException("Unit", request.unitId()));
         variant.setUnit(unit);
+
         variant.setInventoryPolicy(request.inventoryPolicy());
         variant.setStatus(request.status());
+
+        variant.setVariantName(composeVariantName(variant.getProduct(), request.quantity(), unit));
+    }
+
+    /**
+     * Tên Mặt hàng luôn được hệ thống tự sinh, không cho người dùng tự nhập,
+     * theo công thức "{Tên sản phẩm} {Định lượng} {Tên đơn vị}".
+     */
+    private String composeVariantName(Product product, BigDecimal quantity, Unit unit) {
+        String productName = product != null && product.getName() != null ? product.getName().trim() : "";
+        String qtyStr = quantity != null ? quantity.stripTrailingZeros().toPlainString() : "";
+        String unitName = unit != null && unit.getName() != null ? unit.getName().trim() : "";
+        return (productName + " " + qtyStr + " " + unitName).trim().replaceAll("\\s+", " ");
     }
 
     @Override
@@ -266,80 +288,89 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         } else {
             variants = repository.findAll();
         }
-        var units = unitRepository.findAll();
+
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-             
+
             Sheet sheet = workbook.createSheet("Danh sách Mặt hàng");
-            
-            Font headerFont = workbook.createFont();
-            headerFont.setBold(true);
-            CellStyle headerStyle = workbook.createCellStyle();
-            headerStyle.setFont(headerFont);
-            
-            CellStyle priceStyle = workbook.createCellStyle();
-            DataFormat format = workbook.createDataFormat();
-            priceStyle.setDataFormat(format.getFormat("#,##0"));
-            
-            String[] headers = {"Mã sản phẩm", "Tên Mặt hàng", "SKU", "Giá bán", "Giá vốn", "Đơn vị bán", "Chính sách tồn kho", "Trạng thái"};
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                cell.setCellStyle(headerStyle);
-            }
-            
-            int rowIdx = 1;
-            for (var v : variants) {
+            ExcelExportHelper.ExportStyles styles = ExcelExportHelper.createExportStyles(workbook);
+
+            String[] headers = {
+                "STT",
+                "Mã sản phẩm",
+                "Tên sản phẩm",
+                "Tên Mặt hàng",
+                "SKU",
+                "Định lượng",
+                "Giá bán",
+                "Giá vốn",
+                "Đơn vị",
+                "Chính sách tồn kho",
+                "Trạng thái"
+            };
+
+            ExcelExportHelper.createReportHeader(sheet, styles, "BÁO CÁO DANH SÁCH MẶT HÀNG", headers);
+
+            // Fill data starting at row 5
+            int rowIdx = 5;
+            int stt = 1;
+            for (ProductVariant v : variants) {
                 Row row = sheet.createRow(rowIdx++);
-                
-                row.createCell(0).setCellValue(v.getProduct() != null ? v.getProduct().getProductCode() : "");
-                row.createCell(1).setCellValue(v.getVariantName());
-                row.createCell(2).setCellValue(v.getSku());
-                
-                Cell cellSelling = row.createCell(3);
-                if (v.getSellingPrice() != null) {
-                    cellSelling.setCellValue(v.getSellingPrice().doubleValue());
-                } else {
-                    cellSelling.setCellValue(0.0);
-                }
-                cellSelling.setCellStyle(priceStyle);
-                
-                Cell cellCost = row.createCell(4);
-                if (v.getCostPrice() != null) {
-                    cellCost.setCellValue(v.getCostPrice().doubleValue());
-                } else {
-                    cellCost.setCellValue(0.0);
-                }
-                cellCost.setCellStyle(priceStyle);
-                
-                String unitStr = "";
-                if (v.getUnit() != null) {
-                    unitStr = v.getUnit().getName();
-                }
-                row.createCell(5).setCellValue(unitStr);
-                
-                String policyStr = "Không theo dõi";
-                if (v.getInventoryPolicy() == InventoryPolicy.TRACK_STOCK) {
-                    policyStr = "Theo dõi tồn kho";
-                }
-                row.createCell(6).setCellValue(policyStr);
-                
-                row.createCell(7).setCellValue(v.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động");
-            }
-            
-            sheet.createFreezePane(0, 1);
-            
-            if (rowIdx > 1) {
-                sheet.setAutoFilter(new CellRangeAddress(0, rowIdx - 1, 0, headers.length - 1));
+                row.setHeightInPoints(22);
+
+                String prodCode = v.getProduct() != null ? v.getProduct().getProductCode() : "";
+                String prodName = v.getProduct() != null ? v.getProduct().getName() : "";
+
+                Cell cellStt = row.createCell(1);
+                cellStt.setCellValue(stt++);
+                cellStt.setCellStyle(styles.centerStyle());
+
+                Cell cellProdCode = row.createCell(2);
+                cellProdCode.setCellValue(prodCode != null ? prodCode : "");
+                cellProdCode.setCellStyle(styles.textStyle());
+
+                Cell cellProdName = row.createCell(3);
+                cellProdName.setCellValue(prodName != null ? prodName : "");
+                cellProdName.setCellStyle(styles.textStyle());
+
+                Cell cellVariantName = row.createCell(4);
+                cellVariantName.setCellValue(v.getVariantName() != null ? v.getVariantName() : "");
+                cellVariantName.setCellStyle(styles.textStyle());
+
+                Cell cellSku = row.createCell(5);
+                cellSku.setCellValue(v.getSku() != null ? v.getSku() : "");
+                cellSku.setCellStyle(styles.textStyle());
+
+                Cell cellQuantity = row.createCell(6);
+                cellQuantity.setCellValue(v.getQuantity() != null ? v.getQuantity().doubleValue() : 0.0);
+                cellQuantity.setCellStyle(styles.centerStyle());
+
+                Cell cellSelling = row.createCell(7);
+                cellSelling.setCellValue(v.getSellingPrice() != null ? v.getSellingPrice().doubleValue() : 0.0);
+                cellSelling.setCellStyle(styles.moneyStyle());
+
+                Cell cellCost = row.createCell(8);
+                cellCost.setCellValue(v.getCostPrice() != null ? v.getCostPrice().doubleValue() : 0.0);
+                cellCost.setCellStyle(styles.moneyStyle());
+
+                String unitStr = v.getUnit() != null ? v.getUnit().getName() : "";
+                Cell cellUnit = row.createCell(9);
+                cellUnit.setCellValue(unitStr);
+                cellUnit.setCellStyle(styles.centerStyle());
+
+                String policyStr = v.getInventoryPolicy() == InventoryPolicy.TRACK_STOCK ? "Theo dõi tồn kho" : "Không theo dõi";
+                Cell cellPolicy = row.createCell(10);
+                cellPolicy.setCellValue(policyStr);
+                cellPolicy.setCellStyle(styles.centerStyle());
+
+                String statusStr = v.getStatus() == Status.ACTIVE ? "Đang hoạt động" : "Ngừng hoạt động";
+                Cell cellStatus = row.createCell(11);
+                cellStatus.setCellValue(statusStr);
+                cellStatus.setCellStyle(styles.centerStyle());
             }
 
-            for (int i = 0; i < headers.length; i++) {
-                try {
-                    sheet.autoSizeColumn(i);
-                } catch (Exception ignored) {}
-            }
-            
+            ExcelExportHelper.finalizeSheet(sheet, headers.length, rowIdx);
+
             workbook.write(out);
             return out.toByteArray();
         } catch (Exception e) {
@@ -348,252 +379,242 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Override
-    @Transactional
-    public void importFromExcel(MultipartFile file, UUID productId) {
-        var units = unitRepository.findAll();
-        
-        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
-            Sheet sheet = workbook.getSheetAt(0);
-            int rowCount = sheet.getPhysicalNumberOfRows();
-            
-            Map<String, Product> productsByCode = productRepository.findAll().stream()
-                    .filter(p -> p.getProductCode() != null)
-                    .collect(Collectors.toMap(p -> p.getProductCode().toUpperCase().trim(), p -> p, (a, b) -> a));
-
-            Set<String> existingSkus = repository.findAll().stream()
-                    .map(ProductVariant::getSku)
-                    .filter(Objects::nonNull)
-                    .map(s -> s.trim().toLowerCase())
-                    .collect(Collectors.toSet());
-
-            Set<String> seenSkusInFile = new HashSet<>(existingSkus);
-            List<ProductVariant> variantsToSave = new ArrayList<>();
-
-            for (int r = 1; r < rowCount; r++) {
-                Row row = sheet.getRow(r);
-                if (row == null) continue;
-                
-                String productCode = getCellValueAsString(row.getCell(0));
-                String variantName = getCellValueAsString(row.getCell(1));
-                String sku = getCellValueAsString(row.getCell(2));
-                String sellingPriceStr = getCellValueAsString(row.getCell(3));
-                String costPriceStr = getCellValueAsString(row.getCell(4));
-                String unitName = getCellValueAsString(row.getCell(5));
-                String policyStr = getCellValueAsString(row.getCell(6));
-                String statusStr = getCellValueAsString(row.getCell(7));
-                
-                if (variantName.isBlank() && sku.isBlank() && productCode.isBlank()) {
-                    continue;
-                }
-                
-                final int rowNum = r + 1;
-                if (productCode.isBlank()) {
-                    throw new BadRequestException("Row " + rowNum + ": Product Code is blank.");
-                }
-                if (variantName.isBlank()) {
-                    throw new BadRequestException("Row " + rowNum + ": Variant Name is blank.");
-                }
-
-                Product product = productsByCode.get(productCode.trim().toUpperCase());
-                if (product == null) {
-                    throw new BadRequestException("Row " + rowNum + ": Product Code '" + productCode + "' does not exist.");
-                }
-
-                String finalSku;
-                if (sku.isBlank()) {
-                    finalSku = generateSku(product);
-                    seenSkusInFile.add(finalSku.toLowerCase());
-                } else {
-                    finalSku = sku.trim();
-                    // Skip if SKU already exists in database or previous rows
-                    if (seenSkusInFile.contains(finalSku.toLowerCase())) {
-                        continue;
-                    }
-                    seenSkusInFile.add(finalSku.toLowerCase());
-                }
-
-                BigDecimal sellingPrice = BigDecimal.ZERO;
-                if (!sellingPriceStr.isBlank()) {
-                    try {
-                        sellingPrice = new BigDecimal(sellingPriceStr);
-                    } catch (Exception ignored) {}
-                }
-
-                BigDecimal costPrice = BigDecimal.ZERO;
-                if (!costPriceStr.isBlank()) {
-                    try {
-                        costPrice = new BigDecimal(costPriceStr);
-                    } catch (Exception ignored) {}
-                }
-
-                Unit resolvedUnit = null;
-                for (var u : units) {
-                    if (u.getName().equalsIgnoreCase(unitName) || u.getSymbol().equalsIgnoreCase(unitName)) {
-                        resolvedUnit = u;
-                        break;
-                    }
-                }
-                if (resolvedUnit == null && !units.isEmpty()) {
-                    resolvedUnit = units.get(0);
-                }
-                if (resolvedUnit == null) {
-                    continue;
-                }
-
-                InventoryPolicy policy = InventoryPolicy.TRACK_STOCK;
-                if ("Theo dõi tồn kho".equalsIgnoreCase(policyStr) || "TRACK_STOCK".equalsIgnoreCase(policyStr)) {
-                    policy = InventoryPolicy.TRACK_STOCK;
-                } else if ("Không theo dõi".equalsIgnoreCase(policyStr) || "DO_NOT_TRACK".equalsIgnoreCase(policyStr)) {
-                    policy = InventoryPolicy.DO_NOT_TRACK;
-                }
-
-                Status status = "Ngừng hoạt động".equals(statusStr) || "INACTIVE".equalsIgnoreCase(statusStr) 
-                        ? Status.INACTIVE : Status.ACTIVE;
-
-                ProductVariant variant = new ProductVariant();
-                variant.setProduct(product);
-                variant.setSku(finalSku);
-                variant.setVariantName(variantName.trim());
-                variant.setSellingPrice(sellingPrice);
-                variant.setCostPrice(costPrice);
-                variant.setUnit(resolvedUnit);
-                variant.setInventoryPolicy(policy);
-                variant.setStatus(status);
-                
-                variantsToSave.add(variant);
-            }
-
-            if (!variantsToSave.isEmpty()) {
-                List<ProductVariant> savedVariants = repository.saveAll(variantsToSave);
-
-                for (ProductVariant savedVariant : savedVariants) {
-                    String variantDisplayName = (savedVariant.getVariantName() != null && !savedVariant.getVariantName().isBlank())
-                            ? savedVariant.getProduct().getName() + " - " + savedVariant.getVariantName()
-                            : savedVariant.getProduct().getName();
-
-                    inventoryClient.createProductVariantItem(
-                            InventoryClient.CreateInventoryItemRequest.builder()
-                                    .status(savedVariant.getStatus().toString())
-                                    .unitId(savedVariant.getUnit() != null ? savedVariant.getUnit().getId() : null)
-                                    .referenceId(savedVariant.getId())
-                                    .referenceCode(savedVariant.getSku())
-                                    .name(variantDisplayName)
-                                    .itemType(InventoryItemType.PRODUCT_VARIANT.toString())
-                                    .reorderPoint(10)
-                                    .build());
-                }
-            }
-        } catch (BadRequestException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException("Lỗi nhập dữ liệu từ Excel: " + e.getMessage(), e);
-        }
-    }
-
-    private String getCellValueAsString(Cell cell) {
-        if (cell == null) return "";
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue().trim();
-            case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getDateCellValue().toString();
-                }
-                double val = cell.getNumericCellValue();
-                if (val == (long) val) {
-                    return String.format("%d", (long) val);
-                } else {
-                    return String.format("%s", val);
-                }
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                try {
-                    return cell.getStringCellValue().trim();
-                } catch (Exception e) {
-                    try {
-                        return String.valueOf(cell.getNumericCellValue());
-                    } catch (Exception ex) {
-                        return "";
-                    }
-                }
-            default:
-                return "";
-        }
-    }
-
-    @Override
     public byte[] getImportTemplate() {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-             
-            Sheet sheet = workbook.createSheet("Mẫu nhập Mặt hàng");
-            
-            Font headerFont = workbook.createFont();
-            headerFont.setBold(true);
-            CellStyle headerStyle = workbook.createCellStyle();
-            headerStyle.setFont(headerFont);
-            
-            CellStyle priceStyle = workbook.createCellStyle();
-            DataFormat format = workbook.createDataFormat();
-            priceStyle.setDataFormat(format.getFormat("#,##0"));
-            
-            String[] headers = {"Mã sản phẩm", "Tên Mặt hàng", "SKU", "Giá bán", "Giá vốn", "Đơn vị", "Định lượng", "Chính sách tồn kho", "Trạng thái"};
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                cell.setCellStyle(headerStyle);
-            }
-            
-            // Add template rows
-            Row row1 = sheet.createRow(1);
-            row1.createCell(0).setCellValue("PRD00001");
-            row1.createCell(1).setCellValue("Thiết Quan Âm 100g");
-            row1.createCell(2).setCellValue("TQA-100G");
-            
-            Cell cellSelling1 = row1.createCell(3);
-            cellSelling1.setCellValue(150000.0);
-            cellSelling1.setCellStyle(priceStyle);
-            
-            Cell cellCost1 = row1.createCell(4);
-            cellCost1.setCellValue(100000.0);
-            cellCost1.setCellStyle(priceStyle);
-            
-            row1.createCell(5).setCellValue("Gói 100g");
-            row1.createCell(6).setCellValue("Theo dõi tồn kho");
-            row1.createCell(7).setCellValue("Đang hoạt động");
-            
-            Row row2 = sheet.createRow(2);
-            row2.createCell(0).setCellValue("PRD00001");
-            row2.createCell(1).setCellValue("Thiết Quan Âm 250g");
-            row2.createCell(2).setCellValue("TQA-250G");
-            
-            Cell cellSelling2 = row2.createCell(3);
-            cellSelling2.setCellValue(350000.0);
-            cellSelling2.setCellStyle(priceStyle);
-            
-            Cell cellCost2 = row2.createCell(4);
-            cellCost2.setCellValue(230000.0);
-            cellCost2.setCellStyle(priceStyle);
-            
-            row2.createCell(5).setCellValue("Gói 250g");
-            row2.createCell(6).setCellValue("Theo dõi tồn kho");
-            row2.createCell(7).setCellValue("Đang hoạt động");
-            
-            sheet.createFreezePane(0, 1);
-            sheet.setAutoFilter(new CellRangeAddress(0, 2, 0, headers.length - 1));
-            
-            for (int i = 0; i < headers.length; i++) {
-                try {
-                    sheet.autoSizeColumn(i);
-                } catch (Exception ignored) {}
-            }
-            
+
+            buildImportInstructionSheet(workbook);
+            buildImportVariantSheet(workbook);
+            buildImportBomSheet(workbook);
+            buildImportReferenceSheet(workbook);
+
             workbook.write(out);
             return out.toByteArray();
         } catch (Exception e) {
             throw new RuntimeException("Lỗi tạo file mẫu Excel Mặt hàng: " + e.getMessage(), e);
+        }
+    }
+
+    private void buildImportInstructionSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Hướng dẫn");
+
+        Font titleFont = workbook.createFont();
+        titleFont.setBold(true);
+        titleFont.setFontHeightInPoints((short) 14);
+        CellStyle titleStyle = workbook.createCellStyle();
+        titleStyle.setFont(titleFont);
+
+        Font sectionFont = workbook.createFont();
+        sectionFont.setBold(true);
+        CellStyle sectionStyle = workbook.createCellStyle();
+        sectionStyle.setFont(sectionFont);
+
+        CellStyle textStyle = workbook.createCellStyle();
+
+        String[] titleLines = {"HƯỚNG DẪN NHẬP MẶT HÀNG (KÈM BOM) TỪ EXCEL"};
+        String[][] sections = {
+                {
+                        "1. Cấu trúc file",
+                        "File gồm 4 sheet:",
+                        "- \"Hướng dẫn\": sheet này.",
+                        "- \"Mặt hàng\": nhập dữ liệu mặt hàng cần tạo, mỗi dòng là 1 mặt hàng.",
+                        "- \"BOM\": nhập định mức nguyên liệu (nếu có) cho từng mặt hàng ở sheet \"Mặt hàng\".",
+                        "- \"Tham chiếu\": tra cứu mã sản phẩm/nguyên liệu/đơn vị để điền vào 2 sheet trên."
+                },
+                {
+                        "2. Cách liên kết sheet \"Mặt hàng\" và sheet \"BOM\"",
+                        "- Ở sheet \"Mặt hàng\", cột \"Ref\" là mã tự đặt riêng cho từng dòng trong file này (ví dụ MH1, MH2...), dùng để liên kết — không phải mã hệ thống.",
+                        "- Ở sheet \"BOM\", cột \"Ref mặt hàng\" phải điền đúng giá trị \"Ref\" tương ứng ở sheet \"Mặt hàng\" để hệ thống biết dòng nguyên liệu đó thuộc mặt hàng nào.",
+                        "- 1 mặt hàng có thể có nhiều dòng BOM (nhiều nguyên liệu); mặt hàng không cần BOM thì không cần thêm dòng nào ở sheet \"BOM\"."
+                },
+                {
+                        "3. Cách điền sheet \"Mặt hàng\"",
+                        "- Mã sản phẩm (*): bắt buộc, lấy từ cột \"Mã sản phẩm\" ở sheet \"Tham chiếu\".",
+                        "- Định lượng (*), Đơn vị (*): bắt buộc. Tên Mặt hàng và SKU sẽ được hệ thống tự sinh, không cần nhập.",
+                        "- Giá bán, Giá vốn: để trống sẽ mặc định là 0.",
+                        "- Chính sách tồn kho: \"Theo dõi tồn kho\" hoặc \"Không theo dõi\" (mặc định Theo dõi tồn kho).",
+                        "- Trạng thái: \"Đang hoạt động\" hoặc \"Ngừng hoạt động\" (mặc định Đang hoạt động)."
+                },
+                {
+                        "4. Cách điền sheet \"BOM\"",
+                        "- Ref mặt hàng (*): phải khớp với 1 giá trị \"Ref\" ở sheet \"Mặt hàng\".",
+                        "- Mã nguyên liệu (*): lấy từ cột \"Mã nguyên liệu\" ở sheet \"Tham chiếu\".",
+                        "- Định lượng (*), Đơn vị (*): bắt buộc.",
+                        "- Tỷ lệ hao hụt: để trống sẽ mặc định là 0."
+                },
+                {
+                        "5. Sau khi tải file lên hệ thống",
+                        "- Dữ liệu được phân tích thành bản nháp để bạn kiểm tra/sửa trực tiếp trên hệ thống trước khi gửi duyệt.",
+                        "- Dữ liệu (mặt hàng + BOM) chỉ được ghi chính thức vào hệ thống sau khi quản lý duyệt."
+                },
+                {
+                        "6. Lưu ý",
+                        "- Không đổi tên các sheet, không đổi tên cột header ở dòng đầu tiên của sheet \"Mặt hàng\" và \"BOM\".",
+                        "- Không xoá dòng header."
+                }
+        };
+
+        int rowIdx = 0;
+        for (String line : titleLines) {
+            Row row = sheet.createRow(rowIdx++);
+            row.setHeightInPoints(22);
+            Cell cell = row.createCell(0);
+            cell.setCellValue(line);
+            cell.setCellStyle(titleStyle);
+        }
+        rowIdx++;
+
+        for (String[] section : sections) {
+            Row sectionRow = sheet.createRow(rowIdx++);
+            Cell sectionCell = sectionRow.createCell(0);
+            sectionCell.setCellValue(section[0]);
+            sectionCell.setCellStyle(sectionStyle);
+            for (int i = 1; i < section.length; i++) {
+                Row row = sheet.createRow(rowIdx++);
+                Cell cell = row.createCell(0);
+                cell.setCellValue(section[i]);
+                cell.setCellStyle(textStyle);
+            }
+            rowIdx++;
+        }
+
+        sheet.setColumnWidth(0, 100 * 256);
+    }
+
+    private CellStyle createGreenHeaderStyle(Workbook workbook) {
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setColor(IndexedColors.WHITE.getIndex());
+        CellStyle headerStyle = workbook.createCellStyle();
+        headerStyle.setFont(headerFont);
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        if (headerStyle instanceof XSSFCellStyle xssfHeaderStyle) {
+            xssfHeaderStyle.setFillForegroundColor(new XSSFColor(ExcelExportHelper.BRAND_GREEN_RGB, new DefaultIndexedColorMap()));
+        }
+        headerStyle.setAlignment(HorizontalAlignment.CENTER);
+        headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        return headerStyle;
+    }
+
+    private void buildImportVariantSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Mặt hàng");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
+
+        String[] headers = {"Ref", "Mã sản phẩm", "Định lượng", "Đơn vị", "Giá bán", "Giá vốn", "Chính sách tồn kho", "Trạng thái"};
+        Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        Row row1 = sheet.createRow(1);
+        row1.createCell(0).setCellValue("MH1");
+        row1.createCell(1).setCellValue("PRD00001");
+        row1.createCell(2).setCellValue(100.0);
+        row1.createCell(3).setCellValue("Kg");
+        row1.createCell(4).setCellValue(150000.0);
+        row1.createCell(5).setCellValue(100000.0);
+        row1.createCell(6).setCellValue("Theo dõi tồn kho");
+        row1.createCell(7).setCellValue("Đang hoạt động");
+
+        Row row2 = sheet.createRow(2);
+        row2.createCell(0).setCellValue("MH2");
+        row2.createCell(1).setCellValue("PRD00001");
+        row2.createCell(2).setCellValue(250.0);
+        row2.createCell(3).setCellValue("Kg");
+        row2.createCell(4).setCellValue(350000.0);
+        row2.createCell(5).setCellValue(230000.0);
+        row2.createCell(6).setCellValue("Theo dõi tồn kho");
+        row2.createCell(7).setCellValue("Đang hoạt động");
+
+        sheet.createFreezePane(0, 1);
+        sheet.setAutoFilter(new CellRangeAddress(0, 2, 0, headers.length - 1));
+        widenColumns(sheet, headers.length);
+    }
+
+    private void buildImportBomSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("BOM");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
+
+        String[] headers = {"Ref mặt hàng", "Mã nguyên liệu", "Định lượng", "Đơn vị", "Tỷ lệ hao hụt (%)"};
+        Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        Row row1 = sheet.createRow(1);
+        row1.createCell(0).setCellValue("MH1");
+        row1.createCell(1).setCellValue("ING00001");
+        row1.createCell(2).setCellValue(0.05);
+        row1.createCell(3).setCellValue("Kg");
+        row1.createCell(4).setCellValue(0.0);
+
+        sheet.createFreezePane(0, 1);
+        sheet.setAutoFilter(new CellRangeAddress(0, 1, 0, headers.length - 1));
+        widenColumns(sheet, headers.length);
+    }
+
+    private void buildImportReferenceSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Tham chiếu");
+
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        CellStyle headerStyle = workbook.createCellStyle();
+        headerStyle.setFont(headerFont);
+
+        // Mỗi thực thể tham chiếu chiếm 1 cột — thêm thực thể mới thì thêm 1 cột kế tiếp tại đây.
+        String[] headers = {"Mã sản phẩm", "Mã nguyên liệu", "Đơn vị"};
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        List<String> productCodes = productRepository.findAll().stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
+                .map(Product::getProductCode)
+                .filter(code -> code != null && !code.isBlank())
+                .sorted()
+                .toList();
+        List<String> ingredientCodes = ingredientRepository.findAll().stream()
+                .filter(i -> !Boolean.TRUE.equals(i.getIsDeleted()))
+                .map(org.hvtra.catalog.entity.Ingredient::getIngredientCode)
+                .filter(code -> code != null && !code.isBlank())
+                .sorted()
+                .toList();
+        List<String> unitSymbols = unitRepository.findAll().stream()
+                .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
+                .map(Unit::getSymbol)
+                .filter(symbol -> symbol != null && !symbol.isBlank())
+                .sorted()
+                .toList();
+
+        int maxRows = Math.max(productCodes.size(), Math.max(ingredientCodes.size(), unitSymbols.size()));
+        for (int i = 0; i < maxRows; i++) {
+            Row row = sheet.createRow(i + 1);
+            if (i < productCodes.size()) row.createCell(0).setCellValue(productCodes.get(i));
+            if (i < ingredientCodes.size()) row.createCell(1).setCellValue(ingredientCodes.get(i));
+            if (i < unitSymbols.size()) row.createCell(2).setCellValue(unitSymbols.get(i));
+        }
+
+        sheet.createFreezePane(0, 1);
+        widenColumns(sheet, headers.length);
+    }
+
+    /** Auto-size rồi thêm đệm cho các cột trong file mẫu Excel để dễ đọc hơn, không bị chật chữ. */
+    private void widenColumns(Sheet sheet, int columnCount) {
+        for (int i = 0; i < columnCount; i++) {
+            try {
+                sheet.autoSizeColumn(i);
+                int width = sheet.getColumnWidth(i) + 3000;
+                sheet.setColumnWidth(i, Math.min(Math.max(width, 4500), 18000));
+            } catch (Exception ignored) {}
         }
     }
 
@@ -666,20 +687,26 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Override
     public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
-            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            Class<?> resultType = query.getResultType();
+            boolean isCountQuery = Long.class.equals(resultType) || long.class.equals(resultType);
+            Join<ProductVariant, Product> productJoin = isCountQuery
+                    ? root.join("product", JoinType.LEFT)
+                    : (Join<ProductVariant, Product>) (Object) root.fetch("product", JoinType.LEFT);
+
+            var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
             predicates.add(cb.equal(root.get("status"), Status.ACTIVE));
 
             if (search != null && !search.trim().isEmpty()) {
                 String searchPattern = "%" + search.trim().toLowerCase() + "%";
-                var searchPredicates = new jakarta.persistence.criteria.Predicate[] {
+                var searchPredicates = new Predicate[] {
                     cb.like(cb.lower(root.get("variantName")), searchPattern),
                     cb.like(cb.lower(root.get("sku")), searchPattern),
-                    cb.like(cb.lower(root.join("product").get("name")), searchPattern)
+                    cb.like(cb.lower(productJoin.get("name")), searchPattern)
                 };
                 predicates.add(cb.or(searchPredicates));
             }
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            return cb.and(predicates.toArray(new Predicate[0]));
         };
 
         org.springframework.data.domain.Page<ProductVariant> page = repository.findAll(spec, pageable);

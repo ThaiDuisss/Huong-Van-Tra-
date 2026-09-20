@@ -101,7 +101,10 @@ export interface ProductVariant {
     productId: EntityId;
     productName: string;
     sku: string;
+    /** Tên hiển thị, hệ thống tự sinh = "{Tên sản phẩm} {Định lượng} {Tên đơn vị}", không nhập tay */
     variantName: string;
+    /** Định lượng, ví dụ 100, 250, 500 */
+    quantity: number;
     sellingPrice: number;
     costPrice: number;
     /** ID đơn vị bán thương mại (thay thế baseUnitId + packQuantity cũ) */
@@ -114,7 +117,8 @@ export interface ProductVariant {
 
 export interface ProductVariantInput {
     productId: EntityId;
-    variantName: string;
+    /** Định lượng, ví dụ 100, 250, 500 — variantName được server tự sinh từ trường này */
+    quantity: number;
     sellingPrice: number;
     costPrice: number;
     /** ID đơn vị bán thương mại */

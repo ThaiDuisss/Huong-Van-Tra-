@@ -1,33 +1,12 @@
-import type { BomStatus } from "../../types/bom.types";
 import type { ProductionOrderStatus } from "../../types/production-order.types";
 
 const statusCopy: Record<
-    BomStatus | ProductionOrderStatus,
+    ProductionOrderStatus,
     {
         label: string;
         className: string;
     }
 > = {
-    ACTIVE: {
-        label: "Đang áp dụng",
-        className: "bg-emerald-50 text-emerald-700"
-    },
-    PENDING_APPROVAL: {
-        label: "Chờ duyệt",
-        className: "bg-blue-50 text-blue-700"
-    },
-    MATERIAL_SHORTAGE: {
-        label: "Thiếu nguyên liệu",
-        className: "bg-orange-50 text-orange-700"
-    },
-    NEEDS_UPDATE: {
-        label: "Sắp cập nhật",
-        className: "bg-amber-50 text-amber-700"
-    },
-    INACTIVE: {
-        label: "Ngừng sử dụng",
-        className: "bg-neutral-100 text-neutral-600"
-    },
     DRAFT: {
         label: "Mới tạo",
         className: "bg-neutral-100 text-neutral-700"
@@ -59,7 +38,7 @@ const statusCopy: Record<
 };
 
 interface StatusBadgeProps {
-    status: BomStatus | ProductionOrderStatus;
+    status: ProductionOrderStatus;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {

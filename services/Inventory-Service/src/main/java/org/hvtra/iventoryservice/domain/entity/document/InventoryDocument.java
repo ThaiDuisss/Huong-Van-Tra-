@@ -127,11 +127,7 @@ public class InventoryDocument extends BaseEntity {
         line.setDocument(this);
     }
 
-    // ====== State Transition Methods ======
-
-    /**
-     * Phê duyệt phiếu: DRAFT → APPROVED.
-     */
+//     Phê duyệt phiếu: DRAFT → APPROVED.
     public void approve(UUID approvedByUser) {
         if (this.status != InventoryDocumentStatus.DRAFT) {
             throw new BadRequestException("Chỉ có thể phê duyệt phiếu ở trạng thái DRAFT");
@@ -141,9 +137,7 @@ public class InventoryDocument extends BaseEntity {
         this.approvedAt = Instant.now();
     }
 
-    /**
-     * Hạch toán phiếu: APPROVED → POSTED.
-     */
+//     Hạch toán phiếu: APPROVED → POSTED
     public void post() {
         if (this.status != InventoryDocumentStatus.APPROVED) {
             throw new BadRequestException("Chỉ có thể hạch toán phiếu đã được phê duyệt");
@@ -152,9 +146,7 @@ public class InventoryDocument extends BaseEntity {
         this.postedAt = Instant.now();
     }
 
-    /**
-     * Từ chối phiếu: DRAFT/APPROVED → REJECTED.
-     */
+//     Từ chối phiếu: DRAFT/APPROVED → REJECTED.
     public void reject() {
         if (this.status == InventoryDocumentStatus.POSTED) {
             throw new BadRequestException("Không thể từ chối phiếu đã hạch toán");

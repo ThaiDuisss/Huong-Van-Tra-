@@ -1,170 +1,165 @@
-import { Download, Plus, RefreshCw, Upload } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Plus } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
+import { routePaths } from "../../../routes/path";
 import {
-    productionOrderAttentionItems,
-    productionOrderMetrics,
-    productionOrders
-} from "../mock/production-orders.mock";
-import {
-    defaultProductionOrderFilters,
-    filterProductionOrders
-} from "../utils/production-order-filters";
-import { ActionButton } from "../components/shared/ActionButton";
-import { BomAttentionList } from "../components/bom/BomAttentionList";
-import { BomSummary } from "../components/bom/BomSummary";
-import { Breadcrumbs } from "../components/shared/Breadcrumbs";
-import { PageHeader } from "../components/shared/PageHeader";
-import { Pagination } from "../components/shared/Pagination";
-import { ProductionOrderDetailPanel } from "../components/production-orders/ProductionOrderDetailPanel";
-import { ProductionOrderFilters } from "../components/production-orders/ProductionOrderFilters";
-import { ProductionOrderTable } from "../components/production-orders/ProductionOrderTable";
-import { SearchBox } from "../components/shared/SearchBox";
-import { TableToolbar } from "../components/shared/TableToolbar";
-import type {
-    ProductionOrderFiltersState,
-    ProductionOrderListItem
-} from "../types/production-order.types";
+    InventoryResourceManagement,
+    TableCell,
+    type Column
+} from "../../inventory/components/InventoryResourceManagement";
+import { productionOrderApi } from "../services/production-order.api";
+import type { ProductionOrder, ProductionOrderApiStatus } from "../types/production-order.types";
+
+const columns: Column[] = [
+    { key: "orderCode", label: "Mã lệnh sản xuất" },
+    { align: "right", key: "plannedQuantity", label: "Số lượng kế hoạch" },
+    { key: "status", label: "Trạng thái" },
+    { key: "createdAt", label: "Ngày tạo" }
+];
+
+const STATUS_LABEL: Record<ProductionOrderApiStatus, string> = {
+    DRAFT: "Mới tạo",
+    PENDING_APPROVAL: "Chờ duyệt",
+    APPROVED: "Đã duyệt",
+    RELEASED: "Đã xuất kho",
+    IN_PROGRESS: "Đang sản xuất",
+    COMPLETED: "Hoàn thành",
+    CANCELLED: "Đã hủy"
+};
+
+const STATUS_BADGE_CLASS: Record<ProductionOrderApiStatus, string> = {
+    DRAFT: "bg-neutral-100 text-neutral-700",
+    PENDING_APPROVAL: "bg-blue-50 text-blue-700",
+    APPROVED: "bg-indigo-50 text-indigo-700",
+    RELEASED: "bg-amber-50 text-amber-700",
+    IN_PROGRESS: "bg-emerald-50 text-emerald-700",
+    COMPLETED: "bg-neutral-100 text-neutral-700",
+    CANCELLED: "bg-red-50 text-red-700"
+};
+
+const statusOptions: Array<{ label: string; value: "ALL" | ProductionOrderApiStatus }> = [
+    { label: "Tất cả trạng thái", value: "ALL" },
+    { label: STATUS_LABEL.DRAFT, value: "DRAFT" },
+    { label: STATUS_LABEL.PENDING_APPROVAL, value: "PENDING_APPROVAL" },
+    { label: STATUS_LABEL.APPROVED, value: "APPROVED" },
+    { label: STATUS_LABEL.RELEASED, value: "RELEASED" },
+    { label: STATUS_LABEL.IN_PROGRESS, value: "IN_PROGRESS" },
+    { label: STATUS_LABEL.COMPLETED, value: "COMPLETED" },
+    { label: STATUS_LABEL.CANCELLED, value: "CANCELLED" }
+];
+
+function StatusPill({ status }: { status: ProductionOrderApiStatus }) {
+    return (
+        <span className={`inline-flex h-7 items-center rounded-full px-2.5 text-xs font-bold ${STATUS_BADGE_CLASS[status]}`}>
+            {STATUS_LABEL[status]}
+        </span>
+    );
+}
+
+function formatDateTime(value: string) {
+    return new Date(value).toLocaleString("vi-VN");
+}
 
 export function ProductionOrderListPage() {
-    const [query, setQuery] = useState("");
-    const [draftFilters, setDraftFilters] =
-        useState<ProductionOrderFiltersState>(
-            defaultProductionOrderFilters
-        );
-    const [appliedFilters, setAppliedFilters] =
-        useState<ProductionOrderFiltersState>(
-            defaultProductionOrderFilters
-        );
-    const [selectedOrder, setSelectedOrder] =
-        useState<ProductionOrderListItem | null>(
-            productionOrders[0] ?? null
-        );
-    const [checkedIds, setCheckedIds] = useState<string[]>([]);
+    const navigate = useNavigate();
+
+    const [search, setSearch] = useState("");
+    const [status, setStatus] = useState<"ALL" | ProductionOrderApiStatus>("ALL");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    const filteredOrders = useMemo(
-        () =>
-            filterProductionOrders(
-                productionOrders,
-                query,
-                appliedFilters
-            ),
-        [query, appliedFilters]
-    );
-    const pageCount = Math.max(
-        1,
-        Math.ceil(filteredOrders.length / pageSize)
-    );
-    const safePage = Math.min(page, pageCount);
-    const pagedOrders = filteredOrders.slice(
-        (safePage - 1) * pageSize,
-        safePage * pageSize
-    );
+    const [orders, setOrders] = useState<ProductionOrder[]>([]);
+    const [totalItems, setTotalItems] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-    function toggleChecked(id: string) {
-        setCheckedIds((current) =>
-            current.includes(id)
-                ? current.filter((item) => item !== id)
-                : [...current, id]
-        );
-    }
+    const loadOrders = useCallback(() => {
+        let active = true;
+        setLoading(true);
+        setError("");
+        productionOrderApi
+            .list({
+                page: page - 1,
+                size: pageSize,
+                search: search || undefined,
+                status: status === "ALL" ? undefined : status
+            })
+            .then((res) => {
+                if (!active) return;
+                setOrders(res.content ?? []);
+                setTotalItems(res.totalElements ?? 0);
+                setTotalPages(res.totalPages ?? 1);
+            })
+            .catch((err: unknown) => {
+                if (!active) return;
+                setError(err instanceof Error ? err.message : "Không thể tải danh sách lệnh sản xuất.");
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [page, pageSize, search, status, refreshKey]);
 
-    function applyFilters() {
-        setAppliedFilters(draftFilters);
-        setPage(1);
-    }
-
-    function resetFilters() {
-        setDraftFilters(defaultProductionOrderFilters);
-        setAppliedFilters(defaultProductionOrderFilters);
-        setQuery("");
-        setPage(1);
-    }
+    useEffect(() => loadOrders(), [loadOrders]);
 
     return (
-        <section className="grid gap-5">
-            <Breadcrumbs
-                items={["BOM & Sản xuất", "Lệnh sản xuất"]}
-            />
-
-            <PageHeader
-                title="Lệnh sản xuất"
-                description="Quản lý các lệnh sản xuất thành phẩm từ BOM."
-                search={
-                    <SearchBox
-                        value={query}
-                        placeholder="Tìm theo mã lệnh, thành phẩm, BOM..."
-                        onChange={(value) => {
-                            setQuery(value);
-                            setPage(1);
-                        }}
-                    />
-                }
-                actions={
-                    <div className="flex flex-wrap gap-2">
-                        <ActionButton variant="primary">
-                            <Plus size={17} aria-hidden="true" />
-                            Tạo lệnh sản xuất
-                        </ActionButton>
-                        <ActionButton>
-                            <Upload size={16} aria-hidden="true" />
-                            Import
-                        </ActionButton>
-                        <ActionButton>
-                            <Download size={16} aria-hidden="true" />
-                            Xuất Excel
-                        </ActionButton>
-                        <ActionButton>
-                            <RefreshCw size={16} aria-hidden="true" />
-                        </ActionButton>
-                    </div>
-                }
-            />
-
-            <BomSummary metrics={productionOrderMetrics} />
-            <BomAttentionList items={productionOrderAttentionItems} />
-
-            <div className="grid min-h-[680px] grid-cols-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)] min-[1800px]:grid-cols-[250px_minmax(0,1fr)_360px]">
-                <div className="min-w-0">
-                    <ProductionOrderFilters
-                        value={draftFilters}
-                        onChange={setDraftFilters}
-                        onApply={applyFilters}
-                        onReset={resetFilters}
-                    />
-                </div>
-
-                <section className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-pos-card">
-                    <TableToolbar selectedCount={checkedIds.length} />
-                    <ProductionOrderTable
-                        items={pagedOrders}
-                        selectedOrderId={selectedOrder?.id ?? ""}
-                        checkedIds={checkedIds}
-                        onRowClick={setSelectedOrder}
-                        onToggleCheck={toggleChecked}
-                    />
-                    <Pagination
-                        page={safePage}
-                        pageCount={pageCount}
-                        totalItems={filteredOrders.length}
-                        pageSize={pageSize}
-                        onPageChange={setPage}
-                        onPageSizeChange={(nextPageSize) => {
-                            setPageSize(nextPageSize);
-                            setPage(1);
-                        }}
-                    />
-                </section>
-
-                <div className="hidden min-h-0 min-[1800px]:block [&>aside]:h-full">
-                    <ProductionOrderDetailPanel
-                        order={selectedOrder}
-                        onClose={() => setSelectedOrder(null)}
-                    />
-                </div>
-            </div>
-        </section>
+        <InventoryResourceManagement<ProductionOrder, ProductionOrderApiStatus>
+            title="Lệnh sản xuất"
+            description="Quản lý các lệnh sản xuất thành phẩm từ định mức nguyên liệu (BOM)."
+            searchPlaceholder="Tìm theo mã lệnh sản xuất..."
+            columns={columns}
+            items={orders}
+            loading={loading}
+            error={error}
+            query={search}
+            status={status}
+            statusOptions={statusOptions}
+            page={page}
+            pageCount={totalPages}
+            totalItems={totalItems}
+            totalItemsLabel="Tổng số lệnh sản xuất"
+            pageSize={pageSize}
+            onQueryChange={(value) => {
+                setSearch(value);
+                setPage(1);
+            }}
+            onStatusChange={(value) => {
+                setStatus(value);
+                setPage(1);
+            }}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+            }}
+            onRefresh={() => setRefreshKey((v) => v + 1)}
+            detailPath={(item) => routePaths.productionOrderDetail.replace(":id", String(item.id))}
+            renderCells={(item) => (
+                <>
+                    <TableCell strong>{item.orderCode}</TableCell>
+                    <TableCell className="text-right pr-[18px]">{item.plannedQuantity}</TableCell>
+                    <TableCell>
+                        <StatusPill status={item.status} />
+                    </TableCell>
+                    <TableCell>{formatDateTime(item.createdAt)}</TableCell>
+                </>
+            )}
+            renderDetail={() => null}
+            extraHeaderActions={
+                <button
+                    className="inline-flex h-12 items-center justify-center gap-[9px] rounded-lg border-0 bg-[#07883a] px-[22px] text-sm font-black text-white shadow-[0_10px_24px_rgba(7,136,58,0.24)] hover:opacity-90 transition-all cursor-pointer"
+                    onClick={() => navigate(routePaths.productionOrderCreate)}
+                    type="button"
+                >
+                    <Plus size={17} aria-hidden="true" />
+                    Tạo lệnh sản xuất
+                </button>
+            }
+        />
     );
 }

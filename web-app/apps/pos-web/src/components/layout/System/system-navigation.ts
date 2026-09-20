@@ -20,6 +20,7 @@ import {
   ShoppingCart,
   Trash2,
   Truck,
+  Upload,
   User,
   WalletCards,
   Warehouse,
@@ -61,6 +62,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     key: "dashboard",
     label: "Tổng quan",
     icon: Home,
+    to: routePaths.systemDashboard,
     roles: BACKOFFICE_ROLES,
   },
   {
@@ -106,17 +108,17 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     roles: PRODUCT_ROLES,
     children: [
       {
-        key: "catalog-variants",
-        label: "Mặt hàng",
-        to: routePaths.productVariants,
-        icon: Layers3,
-        roles: PRODUCT_ROLES,
-      },
-      {
         key: "catalog-products",
         label: "Sản phẩm",
         to: routePaths.products,
         icon: Package,
+        roles: PRODUCT_ROLES,
+      },
+      {
+        key: "catalog-variants",
+        label: "Mặt hàng",
+        to: routePaths.productVariants,
+        icon: Layers3,
         roles: PRODUCT_ROLES,
       },
       {
@@ -132,6 +134,21 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         to: routePaths.units,
         icon: Ruler,
         roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"],
+      },
+    ],
+  },
+  {
+    key: "import-excel",
+    label: "Nhập Excel",
+    icon: Upload,
+    roles: PRODUCT_ROLES,
+    children: [
+      {
+        key: "import-excel-requests",
+        label: "Yêu cầu nhập",
+        to: routePaths.importExcelRequests,
+        icon: Upload,
+        roles: PRODUCT_ROLES,
       },
     ],
   },
@@ -153,13 +170,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Custom Tea Bundle",
         to: routePaths.customBundles,
         icon: Boxes,
-        roles: MANUFACTURING_ROLES,
-      },
-      {
-        key: "manufacturing-boms",
-        label: "Công thức",
-        to: routePaths.bomList,
-        icon: Layers3,
         roles: MANUFACTURING_ROLES,
       },
       {

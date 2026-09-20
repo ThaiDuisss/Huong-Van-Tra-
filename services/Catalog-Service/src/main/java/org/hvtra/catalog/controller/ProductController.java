@@ -26,7 +26,6 @@ import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/catalog/products")
@@ -58,11 +57,6 @@ public class ProductController {
     @GetMapping("/{id}")
     public ProductResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
-    }
-
-    @PostMapping("/batch")
-    public List<ProductResponse> findByIds(@RequestBody List<UUID> ids) {
-        return service.findAllByIds(ids);
     }
 
     @PostMapping
@@ -108,12 +102,6 @@ public class ProductController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
-    }
-
-    @PostMapping("/import")
-    @ResponseStatus(HttpStatus.OK)
-    public void importProducts(@RequestParam("file") MultipartFile file) {
-        service.importFromExcel(file);
     }
 
     @GetMapping("/import/template")

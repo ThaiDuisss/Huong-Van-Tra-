@@ -28,7 +28,6 @@ import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @RestController
@@ -58,23 +57,6 @@ public class ProductVariantController {
     @GetMapping("/{id}")
     public ProductResponse.VariantResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
-    }
-
-    @PostMapping("/batch")
-    public List<ProductResponse.VariantResponse> findByIds(@RequestBody List<UUID> ids) {
-        return service.findAllByIds(ids);
-    }
-
-    @GetMapping("/search-ids")
-    public List<UUID> searchIds(
-            @RequestParam(name = "keyword", required = false) String keyword,
-            @RequestParam(name = "sku", required = false) String sku,
-            @RequestParam(name = "productCode", required = false) String productCode,
-            @RequestParam(name = "productName", required = false) String productName,
-            @RequestParam(name = "categoryCode", required = false) String categoryCode,
-            @RequestParam(name = "categoryId", required = false) UUID categoryId,
-            @RequestParam(name = "unitId", required = false) UUID unitId) {
-        return service.searchVariantIds(keyword, sku, productCode, productName, categoryCode, categoryId, unitId);
     }
 
     @PutMapping("/{id}")
@@ -117,14 +99,6 @@ public class ProductVariantController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
-    }
-
-    @PostMapping("/import")
-    @ResponseStatus(HttpStatus.OK)
-    public void importVariants(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(name = "productId", required = false) UUID productId) {
-        service.importFromExcel(file, productId);
     }
 
     @GetMapping("/import/template")

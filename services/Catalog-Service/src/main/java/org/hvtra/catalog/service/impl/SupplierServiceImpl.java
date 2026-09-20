@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.catalog.dto.request.SupplierRequest;
+import org.hvtra.catalog.dto.response.InternalSupplierLookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.SupplierResponse;
 import org.hvtra.catalog.entity.BusinessSequence;
@@ -106,7 +107,9 @@ public class SupplierServiceImpl implements SupplierService {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
 
-        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
+        var page = repository.findAll(spec, pageable);
+        warmUpIngredients(page.getContent());
+        return PageResponse.from(page.map(mapper::toResponse));
     }
 
     @Override
@@ -116,6 +119,7 @@ public class SupplierServiceImpl implements SupplierService {
         if (Boolean.TRUE.equals(supplier.getIsDeleted())) {
             throw new ResourceNotFoundException("Supplier", id);
         }
+        warmUpIngredients(List.of(supplier));
         return mapper.toResponse(supplier);
     }
 
@@ -125,10 +129,28 @@ public class SupplierServiceImpl implements SupplierService {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
-        return repository.findAllById(ids).stream()
+        List<Supplier> suppliers = repository.findAllById(ids).stream()
                 .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
-                .map(mapper::toResponse)
                 .toList();
+        warmUpIngredients(suppliers);
+        return suppliers.stream().map(mapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InternalSupplierLookupResponse> findAllForLookup() {
+        return repository.findAll().stream()
+                .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
+                .map(s -> new InternalSupplierLookupResponse(s.getId(), s.getSupplierCode(), s.getName()))
+                .toList();
+    }
+
+    private void warmUpIngredients(List<Supplier> suppliers) {
+        if (suppliers.isEmpty()) {
+            return;
+        }
+        List<UUID> supplierIds = suppliers.stream().map(Supplier::getId).toList();
+        repository.fetchIngredientsForSuppliers(supplierIds);
     }
 
     @Override

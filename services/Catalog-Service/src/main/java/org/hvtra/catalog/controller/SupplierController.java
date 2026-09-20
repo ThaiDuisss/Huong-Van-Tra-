@@ -39,11 +39,6 @@ public class SupplierController {
         return service.findById(id);
     }
 
-    @PostMapping("/batch")
-    public List<SupplierResponse> getSuppliersBatch(@RequestBody List<UUID> ids) {
-        return service.findByIds(ids);
-    }
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public SupplierResponse create(@Valid @RequestBody SupplierRequest request) {
