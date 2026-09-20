@@ -1,0 +1,2 @@
+"""Recommendation-Service application package."""
+
