@@ -7,6 +7,7 @@ import { BomDetailPage } from "../features/manufacturing/pages/BomDetailPage";
 import { ProductionOrderListPage } from "../features/manufacturing/pages/ProductionOrderListPage";
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
+import { ActionLogPage } from "../features/action-log/pages/ActionLogPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
@@ -71,6 +72,7 @@ import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagement
 import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
 import {
+  ACTION_LOG_ROLES,
   BACKOFFICE_ROLES,
   INVENTORY_OPERATION_ROLES,
   INVENTORY_ROLES,
@@ -179,6 +181,9 @@ export function AppRouter() {
       >
         <Route index element={<Navigate to={routePaths.systemDashboard} replace />} />
         <Route path="dashboard" element={<DashboardOverviewPage />} />
+        <Route element={<RoleGate roles={ACTION_LOG_ROLES} />}>
+          <Route path="action-logs" element={<ActionLogPage />} />
+        </Route>
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />

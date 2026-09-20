@@ -7,6 +7,7 @@ import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.IngredientService;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
@@ -63,24 +64,28 @@ public class IngredientController {
         return service.searchIngredientIds(keyword, code, name, unitId);
     }
 
+    @UserAction(value = "INGREDIENT_CREATE", entityType = "Ingredient", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public IngredientResponse create(@Valid @RequestBody IngredientRequest request) {
         return service.create(request);
     }
 
+    @UserAction(value = "INGREDIENT_UPDATE", entityType = "Ingredient", entityId = "#id")
     @PutMapping("/{id}")
     public IngredientResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody IngredientRequest request) {
         return service.update(id, request);
     }
 
+    @UserAction(value = "INGREDIENT_STATUS_UPDATE", entityType = "Ingredient", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public IngredientResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "INGREDIENT_DELETE", entityType = "Ingredient", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {
@@ -109,6 +114,7 @@ public class IngredientController {
                 .body(resource);
     }
 
+    @UserAction(value = "INGREDIENT_IMPORT", entityType = "Ingredient", detail = "#file.originalFilename")
     @PostMapping("/import")
     @ResponseStatus(HttpStatus.OK)
     public void importIngredients(

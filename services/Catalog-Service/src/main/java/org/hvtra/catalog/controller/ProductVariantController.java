@@ -12,6 +12,7 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.hvtra.catalog.service.BarcodeService;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
@@ -77,18 +78,21 @@ public class ProductVariantController {
         return service.searchVariantIds(keyword, sku, productCode, productName, categoryCode, categoryId, unitId);
     }
 
+    @UserAction(value = "PRODUCT_VARIANT_UPDATE", entityType = "ProductVariant", entityId = "#id")
     @PutMapping("/{id}")
     public ProductResponse.VariantResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody ProductVariantRequest request) {
         return service.update(id, request);
     }
 
+    @UserAction(value = "PRODUCT_VARIANT_STATUS_UPDATE", entityType = "ProductVariant", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public ProductResponse.VariantResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "BARCODE_CREATE", entityType = "Barcode", entityId = "#result.id", detail = "#variantId")
     @PostMapping("/{variantId}/barcodes")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse.BarcodeResponse createBarcode(
@@ -119,6 +123,7 @@ public class ProductVariantController {
                 .body(resource);
     }
 
+    @UserAction(value = "PRODUCT_VARIANT_IMPORT", entityType = "ProductVariant", entityId = "#productId", detail = "#file.originalFilename")
     @PostMapping("/import")
     @ResponseStatus(HttpStatus.OK)
     public void importVariants(
@@ -144,6 +149,7 @@ public class ProductVariantController {
         return service.lookup(search, pageable);
     }
 
+    @UserAction(value = "PRODUCT_VARIANT_DELETE", entityType = "ProductVariant", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {

@@ -8,6 +8,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.promotionbenefit.PromotionBenefitSuccessMessage;
 import org.hvtra.promotionservice.dto.request.promotionbenefit.PromotionBenefitCreateRequest;
@@ -35,6 +36,7 @@ public class PromotionBenefitController {
             summary = "Tạo quyền lợi khuyến mãi",
             description = "Tạo mới quyền lợi cho khuyến mãi. Ví dụ: giảm phần trăm, giảm tiền cố định, miễn phí vận chuyển, tặng sản phẩm hoặc mua X tặng Y."
     )
+    @UserAction(value = "PROMOTION_BENEFIT_CREATE", entityType = "PromotionBenefit", entityId = "#result.data.id", detail = "#promotionId")
     @PostMapping
     public ApiResponse<PromotionBenefitResponse> createBenefit(
             @Parameter(
@@ -107,6 +109,7 @@ public class PromotionBenefitController {
             summary = "Cập nhật quyền lợi khuyến mãi",
             description = "Cập nhật cấu hình quyền lợi/hành động giảm giá của khuyến mãi."
     )
+    @UserAction(value = "PROMOTION_BENEFIT_UPDATE", entityType = "PromotionBenefit", entityId = "#benefitId", detail = "#promotionId")
     @PutMapping("/{benefitId}")
     public ApiResponse<PromotionBenefitResponse> updateBenefit(
             @Parameter(
@@ -135,6 +138,7 @@ public class PromotionBenefitController {
             summary = "Xóa quyền lợi khuyến mãi",
             description = "Xóa mềm một quyền lợi/hành động giảm giá của khuyến mãi. Dữ liệu không bị xóa vật lý khỏi database."
     )
+    @UserAction(value = "PROMOTION_BENEFIT_DELETE", entityType = "PromotionBenefit", entityId = "#benefitId", detail = "#promotionId")
     @DeleteMapping("/{benefitId}")
     public ApiResponse<Void> deleteBenefit(
             @Parameter(

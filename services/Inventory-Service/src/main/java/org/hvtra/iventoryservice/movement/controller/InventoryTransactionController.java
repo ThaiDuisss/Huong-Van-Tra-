@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.movement.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.iventoryservice.movement.dto.request.StockAdjustmentRequest;
 import org.hvtra.iventoryservice.movement.dto.request.StockInRequest;
 import org.hvtra.iventoryservice.movement.dto.request.StoreStockAdjustmentRequest;
@@ -93,12 +94,14 @@ public class InventoryTransactionController {
         return service.findById(id);
     }
 
+    @UserAction(value = "STOCK_IN", entityType = "InventoryTransaction", entityId = "#result.id")
     @PostMapping("/stock-in")
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryTransactionResponse stockIn(@Valid @RequestBody StockInRequest request) {
         return service.stockIn(request);
     }
 
+    @UserAction(value = "STOCK_ADJUST", entityType = "InventoryTransaction", entityId = "#result.id")
     @PostMapping("/adjustment")
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryTransactionResponse adjust(
@@ -106,6 +109,7 @@ public class InventoryTransactionController {
         return service.adjust(request);
     }
 
+    @UserAction(value = "STORE_STOCK_IN", entityType = "InventoryTransaction", entityId = "#result.id")
     @PostMapping("/store/stock-in")
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryTransactionResponse storeStockIn(
@@ -113,6 +117,7 @@ public class InventoryTransactionController {
         return service.storeStockIn(request);
     }
 
+    @UserAction(value = "STORE_STOCK_ADJUST", entityType = "InventoryTransaction", entityId = "#result.id")
     @PostMapping("/store/adjustment")
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryTransactionResponse storeAdjust(
@@ -124,6 +129,7 @@ public class InventoryTransactionController {
             name = "Tạo đơn xuất kho từ cửa hàng hiện tại",
             description = "Thực hiện xuất hàng hóa và tự động cập nhật số dư kho (before/after quantity) trong bảng INVENTORY_BALANCES dựa trên locationId của cửa hàng."
     )
+    @UserAction(value = "STORE_STOCK_OUT", entityType = "InventoryTransaction", entityId = "#result.id")
     @PostMapping("/store/stock-out")
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryTransactionResponse storeStockOut(
@@ -131,6 +137,7 @@ public class InventoryTransactionController {
         return service.storeStockOut(request);
     }
 
+    @UserAction(value = "STORE_STOCK_TRANSFER", entityType = "InventoryTransaction", entityId = "#result.id")
     @PostMapping("/store/transfer")
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryTransactionResponse storeTransfer(

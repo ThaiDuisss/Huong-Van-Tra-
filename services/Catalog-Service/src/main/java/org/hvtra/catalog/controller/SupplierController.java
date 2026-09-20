@@ -7,6 +7,7 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.SupplierResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.SupplierService;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -44,12 +45,14 @@ public class SupplierController {
         return service.findByIds(ids);
     }
 
+    @UserAction(value = "SUPPLIER_CREATE", entityType = "Supplier", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public SupplierResponse create(@Valid @RequestBody SupplierRequest request) {
         return service.create(request);
     }
 
+    @UserAction(value = "SUPPLIER_UPDATE", entityType = "Supplier", entityId = "#id")
     @PutMapping("/{id}")
     public SupplierResponse update(
             @PathVariable("id") UUID id,
@@ -57,6 +60,7 @@ public class SupplierController {
         return service.update(id, request);
     }
 
+    @UserAction(value = "SUPPLIER_STATUS_UPDATE", entityType = "Supplier", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public SupplierResponse updateStatus(
             @PathVariable("id") UUID id,
@@ -64,6 +68,7 @@ public class SupplierController {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "SUPPLIER_DELETE", entityType = "Supplier", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {

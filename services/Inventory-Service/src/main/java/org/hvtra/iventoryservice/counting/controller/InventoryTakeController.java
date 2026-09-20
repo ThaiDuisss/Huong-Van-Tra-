@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.counting.controller;
 
 import jakarta.validation.Valid;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.iventoryservice.counting.dto.request.CreateInventoryTakeRequest;
 import org.hvtra.iventoryservice.counting.dto.request.UpdateInventoryCountsRequest;
 import org.hvtra.iventoryservice.counting.dto.request.InventoryCountDecisionRequest;
@@ -40,22 +41,26 @@ public class InventoryTakeController {
         return service.findById(id);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_CREATE", entityType = "InventoryTake", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryTakeResponse create(@Valid @RequestBody CreateInventoryTakeRequest request) {
         return service.create(request);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_START", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/start")
     public InventoryTakeResponse start(@PathVariable UUID id) {
         return service.start(id);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_FREEZE", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/freeze")
     public InventoryTakeResponse freeze(@PathVariable UUID id) {
         return service.freeze(id);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_COUNTS_UPDATE", entityType = "InventoryTake", entityId = "#id")
     @PutMapping("/{id}/counts")
     public InventoryTakeResponse updateCounts(
             @PathVariable UUID id,
@@ -63,21 +68,25 @@ public class InventoryTakeController {
         return service.updateCounts(id, request);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_FINISH", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/finish")
     public InventoryTakeResponse finish(@PathVariable UUID id) {
         return service.finish(id);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_SUBMIT_APPROVAL", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/submit-approval")
     public InventoryTakeResponse submitApproval(@PathVariable UUID id) {
         return service.submitApproval(id);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_APPROVE", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/approve")
     public InventoryTakeResponse approve(@PathVariable UUID id) {
         return service.approve(id);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_RETURN", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/return")
     public InventoryTakeResponse returnForRecount(
             @PathVariable UUID id,
@@ -85,11 +94,13 @@ public class InventoryTakeController {
         return service.returnForRecount(id, request.reason());
     }
 
+    @UserAction(value = "INVENTORY_TAKE_REOPEN", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/reopen")
     public InventoryTakeResponse reopen(@PathVariable UUID id) {
         return service.reopen(id);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_REJECT", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/reject")
     public InventoryTakeResponse reject(
             @PathVariable UUID id,
@@ -97,6 +108,7 @@ public class InventoryTakeController {
         return service.reject(id, request.reason());
     }
 
+    @UserAction(value = "INVENTORY_TAKE_CANCEL", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/cancel")
     public InventoryTakeResponse cancel(
             @PathVariable UUID id,
@@ -104,11 +116,13 @@ public class InventoryTakeController {
         return service.cancel(id, request.reason());
     }
 
+    @UserAction(value = "INVENTORY_TAKE_CLOSE", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/close")
     public InventoryTakeResponse close(@PathVariable UUID id) {
         return service.close(id);
     }
 
+    @UserAction(value = "INVENTORY_TAKE_RECOUNT_REQUEST", entityType = "InventoryTake", entityId = "#id")
     @PostMapping("/{id}/recounts")
     public InventoryTakeResponse requestRecount(
             @PathVariable UUID id,
