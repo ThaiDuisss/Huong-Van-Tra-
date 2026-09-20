@@ -295,4 +295,13 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 reservation.getStatus(),
                 reservation.getExpiresAt());
     }
+
+    @Override
+    public List<InventoryReservationResponse> getExpiringReservations(int withinMinutes) {
+        java.time.Instant deadline = java.time.Instant.now().plus(withinMinutes > 0 ? withinMinutes : 60, java.time.temporal.ChronoUnit.MINUTES);
+        return reservationRepository.findByStatusAndExpiresAtBefore(ReservationStatus.RESERVED, deadline)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
 }
