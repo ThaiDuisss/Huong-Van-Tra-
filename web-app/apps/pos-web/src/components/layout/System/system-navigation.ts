@@ -373,6 +373,36 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     label: "Báo cáo",
     icon: BarChart3,
     roles: REPORT_ROLES,
+    children: [
+      {
+        key: "report-inventory-value",
+        label: "Giá trị tồn kho",
+        to: routePaths.reportInventoryValue,
+        icon: BarChart3,
+        roles: REPORT_ROLES,
+      },
+      {
+        key: "report-turnover",
+        label: "Hiệu suất luân chuyển",
+        to: routePaths.reportTurnover,
+        icon: RefreshCw,
+        roles: REPORT_ROLES,
+      },
+      {
+        key: "report-wastage",
+        label: "Hao hụt sản xuất",
+        to: routePaths.reportProductionWastage,
+        icon: ClipboardList,
+        roles: REPORT_ROLES,
+      },
+      {
+        key: "report-disposal",
+        label: "Hàng hỏng & Tiêu hủy",
+        to: routePaths.reportDisposalSummary,
+        icon: Trash2,
+        roles: REPORT_ROLES,
+      },
+    ],
   },
   {
     key: "settings",

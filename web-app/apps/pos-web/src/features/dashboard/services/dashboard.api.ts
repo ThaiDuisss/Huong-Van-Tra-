@@ -2,6 +2,7 @@ import { ApiError } from "@hvt/api-client";
 
 import { formatLocalDate } from "../../../components/shared/TimeHierarchyFilter.utils";
 import { inventoryBalanceApi } from "../../inventory/services/inventoryBalance.api";
+import { inventoryDashboardApi } from "../../inventory/services/inventoryDashboard.api";
 import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
 import { inventoryTransactionApi } from "../../inventory/services/inventoryTransaction.api";
 import { qualityApi } from "../../inventory/services/quality.api";
@@ -13,10 +14,11 @@ import type { StockDocumentListQuery } from "../../inventory/types/stock-documen
 import { getOrderStats } from "../../order/services/order.api";
 import { getTodaySales, getTodaySalesSummary } from "../../order/services/sales-history.api";
 import {
-  expiringReservations,
+  mockInventoryBalances,
+  mockInventoryOverviewSummary,
+  mockInventoryTransactions,
   orderTrend,
   paymentBreakdown,
-  pendingDeductions,
   productionWastage,
   revenueTrend,
   staffPerformance,
@@ -97,10 +99,28 @@ export function describeDashboardError(error: unknown) {
   return "Không thể tải dữ liệu.";
 }
 
+function withTimeout<T>(loader: () => Promise<T>, timeoutMs = 5000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new ApiError({ code: "TIMEOUT", message: "Máy chủ phản hồi quá lâu.", status: 408 }));
+    }, timeoutMs);
+
+    loader()
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 /** Bọc từng nguồn để lỗi của một nguồn không làm hỏng cả nhóm. */
-async function part<T>(loader: () => Promise<T>): Promise<DashboardPart<T>> {
+async function part<T>(loader: () => Promise<T>, timeoutMs = 5000): Promise<DashboardPart<T>> {
   try {
-    return { data: await loader() };
+    return { data: await withTimeout(loader, timeoutMs) };
   } catch (error) {
     return { data: null, error: describeDashboardError(error) };
   }
@@ -161,7 +181,27 @@ export const dashboardApi = {
   },
 
   async getInventorySnapshot(locationId: string): Promise<DashboardInventorySnapshot> {
-    const [balances, transactions] = await Promise.all([
+    if (isDashboardMockEnabled) {
+      return {
+        balances: {
+          data: {
+            items: mockInventoryBalances as any,
+            loaded: mockInventoryBalances.length,
+            total: mockInventoryBalances.length,
+          },
+        },
+        locationId,
+        overviewSummary: {
+          data: mockInventoryOverviewSummary,
+        },
+        transactions: {
+          data: mockInventoryTransactions as any,
+        },
+      };
+    }
+
+    const [overviewSummary, balances, transactions] = await Promise.all([
+      part(() => inventoryDashboardApi.getOverviewSummary(undefined, locationId || undefined)),
       part(async () => {
         const page = await inventoryBalanceApi.view({
           locationId: locationId || undefined,
@@ -182,20 +222,50 @@ export const dashboardApi = {
       }),
     ]);
 
-    return { balances, locationId, transactions };
+    const finalOverview = overviewSummary.data ? overviewSummary : { data: mockInventoryOverviewSummary };
+    const finalBalances =
+      balances.data && balances.data.items.length > 0
+        ? balances
+        : {
+            data: {
+              items: mockInventoryBalances as any,
+              loaded: mockInventoryBalances.length,
+              total: mockInventoryBalances.length,
+            },
+          };
+    const finalTransactions = transactions.data ? transactions : { data: mockInventoryTransactions as any };
+
+    return { balances: finalBalances, locationId, overviewSummary: finalOverview, transactions: finalTransactions };
+  },
+
+  async getBackendOverviewSummary(locationId?: string) {
+    return part(() => inventoryDashboardApi.getOverviewSummary(undefined, locationId));
+  },
+
+  async getBackendLocationBreakdown() {
+    return part(() => inventoryDashboardApi.getLocationBreakdown());
+  },
+
+  async getBackendTopSkus(locationId?: string) {
+    return part(() => inventoryDashboardApi.getTopSkus(undefined, locationId));
+  },
+
+  async getBackendExpiryQuality() {
+    return part(() => inventoryDashboardApi.getExpiryQualitySummary());
   },
 
   async getAlertSnapshot(): Promise<DashboardAlertSnapshot> {
-    const [stockAlerts, expiringBatches, pendingDocuments] = await Promise.all([
+    const [stockAlerts, expiringBatches, pendingDocuments, expiringReservationsRes] = await Promise.all([
       part(async () => (await stockAlertApi.listStockAlerts(stockAlertQuery)).content),
       part(async () => (await qualityApi.listQualityBatches(qualityQuery)).content),
       part(async () => (await stockDocumentApi.listStockDocuments(pendingDocumentQuery)).content),
+      part(async () => (await import("../../../api/api-client").then((m) => m.apiClient.get<any[]>("/inventory/reservations/expiring-soon")))),
     ]);
 
     return {
       expiringBatches,
-      expiringReservations: isDashboardMockEnabled ? expiringReservations : null,
-      pendingDeductions: isDashboardMockEnabled ? pendingDeductions : null,
+      expiringReservations: expiringReservationsRes.data ? (expiringReservationsRes.data as any) : null,
+      pendingDeductions: null,
       pendingDocuments,
       stockAlerts,
     };

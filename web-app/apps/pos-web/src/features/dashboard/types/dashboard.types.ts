@@ -1,3 +1,4 @@
+import type { InventoryDashboardSummaryResponse } from "../../inventory/services/inventoryDashboard.api";
 import type {
   InventoryBalanceViewResponse,
   InventoryTransactionResponse,
@@ -150,6 +151,7 @@ export interface DashboardSalesSnapshot {
 
 export interface DashboardInventorySnapshot {
   locationId: string;
+  overviewSummary: DashboardPart<InventoryDashboardSummaryResponse>;
   balances: DashboardPart<{
     items: InventoryBalanceViewResponse[];
     loaded: number;
@@ -195,3 +197,39 @@ export interface DashboardAlertItem {
   /** Route drill-down; undefined khi chưa có màn chi tiết. */
   to?: string;
 }
+
+export interface DashboardCategoryBreakdown {
+  category: string;
+  skuCount: number;
+  inventoryValue: number;
+  totalQuantity: number;
+  percentage: number;
+  source: "ADAPTED" | "MOCK";
+}
+
+export interface DashboardSlowMovingSku {
+  id: string;
+  skuCode: string;
+  skuName: string;
+  category: string;
+  locationName: string;
+  quantityOnHand: number;
+  inventoryValue: number;
+  daysUnmoved: number;
+  unitSymbol?: string;
+  source: "REAL" | "MOCK" | "GAP";
+}
+
+export interface DashboardCountAuditSummary {
+  id: string;
+  countCode: string;
+  title: string;
+  warehouseName: string;
+  status: "DRAFT" | "FROZEN" | "COUNTING" | "RECONCILING" | "PENDING_APPROVAL" | "APPROVED" | "POSTED" | "COMPLETED";
+  countType: string;
+  varianceItemsCount: number;
+  totalVarianceValue: number;
+  createdAt: string;
+  source: "ADAPTED" | "MOCK";
+}
+

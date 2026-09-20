@@ -43,6 +43,10 @@ import { StocktakeDetailPage } from "../features/inventory/pages/StocktakeDetail
 import { StocktakeListPage } from "../features/inventory/pages/StocktakeListPage";
 import { StocktakeReconciliationPage } from "../features/inventory/pages/StocktakeReconciliationPage";
 import { StockAlertDetailPage } from "../features/inventory/pages/StockAlertDetailPage";
+import { InventoryValueReportPage } from "../features/inventory/pages/InventoryValueReportPage";
+import { InventoryTurnoverReportPage } from "../features/inventory/pages/InventoryTurnoverReportPage";
+import { ProductionWastageReportPage } from "../features/inventory/pages/ProductionWastageReportPage";
+import { DisposalSummaryReportPage } from "../features/inventory/pages/DisposalSummaryReportPage";
 import { StockAlertListPage } from "../features/inventory/pages/StockAlertListPage";
 import { SupplierReturnCreatePage } from "../features/inventory/pages/SupplierReturnCreatePage";
 import { SupplierReturnDetailPage } from "../features/inventory/pages/SupplierReturnDetailPage";
@@ -344,6 +348,10 @@ export function AppRouter() {
           <Route path="inventory/alerts" element={<StockAlertListPage />} />
           <Route path="inventory/alerts/:alertId" element={<StockAlertDetailPage />} />
           <Route path="inventory/reorder-policies" element={<ReorderPolicyPage />} />
+          <Route path="inventory/reports/inventory-value" element={<InventoryValueReportPage />} />
+          <Route path="inventory/reports/turnover" element={<InventoryTurnoverReportPage />} />
+          <Route path="inventory/reports/wastage" element={<ProductionWastageReportPage />} />
+          <Route path="inventory/reports/disposal-summary" element={<DisposalSummaryReportPage />} />
         </Route>
       </Route>
 

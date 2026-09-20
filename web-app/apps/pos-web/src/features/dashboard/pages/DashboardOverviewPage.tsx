@@ -21,9 +21,9 @@ import { getDashboardCapabilities, getVisibleDashboardTabs } from "../utils/dash
 
 const tabMeta: Record<DashboardTab, { icon: ReactNode; label: string }> = {
   ALERTS: { icon: <Bell size={16} aria-hidden="true" />, label: "Cảnh báo" },
-  INVENTORY: { icon: <Boxes size={16} aria-hidden="true" />, label: "Kho" },
+  INVENTORY: { icon: <Boxes size={16} aria-hidden="true" />, label: "Kho hàng" },
   OVERVIEW: { icon: <Home size={16} aria-hidden="true" />, label: "Tổng quan" },
-  POS: { icon: <Store size={16} aria-hidden="true" />, label: "POS" },
+  POS: { icon: <Store size={16} aria-hidden="true" />, label: "Bán hàng tại cửa hàng" },
   PRODUCTION: { icon: <Factory size={16} aria-hidden="true" />, label: "Sản xuất" },
 };
 
@@ -77,9 +77,8 @@ export function DashboardOverviewPage() {
             </button>
           </>
         }
-        description="Kinh doanh, tồn kho, sản xuất và các cảnh báo cần xử lý."
-        eyebrow="Hệ thống / Tổng quan"
-        title="Tổng quan"
+        description="Theo dõi tình hình kinh doanh, kho hàng, sản xuất và các cảnh báo khẩn cấp."
+        title="Tổng quan kinh doanh & kho"
       />
 
       <DashboardFilterBar

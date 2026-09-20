@@ -70,6 +70,11 @@ export const routePaths = {
   inventoryWasteHandling: "/management/inventory/quality",
   inventoryReplenishmentAlerts: "/management/inventory/alerts",
 
+  reportInventoryValue: "/management/inventory/reports/inventory-value",
+  reportTurnover: "/management/inventory/reports/turnover",
+  reportProductionWastage: "/management/inventory/reports/wastage",
+  reportDisposalSummary: "/management/inventory/reports/disposal-summary",
+
   customers: "/system/customers",
   customerGroups: "/system/customers/groups",
   marketingEvents: "/system/marketing/events",

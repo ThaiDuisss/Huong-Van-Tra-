@@ -56,6 +56,7 @@ export interface InventoryKpiSummary {
   totalReserved: number;
   totalBlocked: number;
   belowReorder: InventoryBalanceViewResponse[];
+  outOfStock: InventoryBalanceViewResponse[];
   /** ADAPTED: sum(quantityOnHand × cost_price) trên các dòng đã tải. */
   inventoryValue: number;
 }
@@ -64,6 +65,7 @@ export function buildInventoryKpis(balances: InventoryBalanceViewResponse[]): In
   const summary: InventoryKpiSummary = {
     belowReorder: [],
     inventoryValue: 0,
+    outOfStock: [],
     skuCount: new Set(balances.map((balance) => balance.inventoryItemId)).size,
     totalAvailable: 0,
     totalBlocked: 0,
@@ -72,12 +74,17 @@ export function buildInventoryKpis(balances: InventoryBalanceViewResponse[]): In
   };
 
   balances.forEach((balance) => {
-    summary.totalOnHand += numeric(balance.quantityOnHand);
-    summary.totalAvailable += numeric(balance.availableQuantity);
+    const available = numeric(balance.availableQuantity);
+    const onHand = numeric(balance.quantityOnHand);
+    summary.totalOnHand += onHand;
+    summary.totalAvailable += available;
     summary.totalReserved += numeric(balance.quantityReserved);
     summary.totalBlocked += getBlockedQuantity(balance);
-    summary.inventoryValue += numeric(balance.quantityOnHand) * numeric(balance.cost_price);
+    summary.inventoryValue += onHand * numeric(balance.cost_price);
 
+    if (available <= 0) {
+      summary.outOfStock.push(balance);
+    }
     if (isBelowReorderPoint(balance)) {
       summary.belowReorder.push(balance);
     }
@@ -91,6 +98,45 @@ export function buildInventoryKpis(balances: InventoryBalanceViewResponse[]): In
 
   return summary;
 }
+
+export function buildCategoryBreakdown(balances: InventoryBalanceViewResponse[]) {
+  const map = new Map<string, { qty: number; skuSet: Set<string>; value: number }>();
+  let grandTotalValue = 0;
+
+  balances.forEach((balance) => {
+    const category = balance.categoryName || "Khác";
+    const current = map.get(category) ?? { qty: 0, skuSet: new Set<string>(), value: 0 };
+    const val = numeric(balance.quantityOnHand) * numeric(balance.cost_price);
+    current.skuSet.add(String(balance.inventoryItemId));
+    current.value += val;
+    current.qty += numeric(balance.quantityOnHand);
+    grandTotalValue += val;
+    map.set(category, current);
+  });
+
+  const result: Array<{
+    category: string;
+    inventoryValue: number;
+    percentage: number;
+    skuCount: number;
+    source: "ADAPTED";
+    totalQuantity: number;
+  }> = [];
+
+  map.forEach((item, category) => {
+    result.push({
+      category,
+      inventoryValue: item.value,
+      percentage: grandTotalValue > 0 ? (item.value / grandTotalValue) * 100 : 0,
+      skuCount: item.skuSet.size,
+      source: "ADAPTED",
+      totalQuantity: item.qty,
+    });
+  });
+
+  return result.sort((first, second) => second.inventoryValue - first.inventoryValue);
+}
+
 
 export function formatPercent(value: number, fractionDigits = 1) {
   return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: fractionDigits }).format(value)}%`;
