@@ -96,6 +96,7 @@ public interface CustomerReturnInspectionRepository
             select distinct inspection
             from CustomerReturnInspection inspection
             left join fetch inspection.lines lines
+            left join fetch lines.destinationLocation
             where inspection.returnId = :returnId
               and inspection.isDeleted = false
             order by inspection.createdAt desc, inspection.id desc
@@ -106,6 +107,7 @@ public interface CustomerReturnInspectionRepository
             select distinct inspection
             from CustomerReturnInspection inspection
             left join fetch inspection.lines lines
+            left join fetch lines.destinationLocation
             where inspection.returnId in :returnIds
               and inspection.isDeleted = false
             order by inspection.createdAt desc, inspection.id desc

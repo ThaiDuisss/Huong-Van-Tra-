@@ -34,6 +34,10 @@ class ProductVariantResponse(BaseModel):
     variantName: str
     categoryName: str | None = None
     sellingPrice: Decimal
+    costPrice: Decimal | None = None
+    imageUrl: str | None = None
+    unitId: str | None = None
+    inventoryPolicy: str | None = None
     status: str
     productStatus: str | None = None
     sellable: bool | None = None
@@ -54,18 +58,23 @@ class IngredientResponse(BaseModel):
     id: str
     ingredientCode: str
     name: str
-    status: str
     imageUrl: str | None = None
     unitId: str | None = None
     unitName: str | None = None
     unitSymbol: str | None = None
     reorderPoint: int | None = None
+    status: str
 
 
 class UnitResponse(BaseModel):
     id: str
     name: str
     symbol: str
+    precisionScale: int | None = None
+    type: str | None = None
+    baseUnitId: str | None = None
+    conversionRate: Decimal | None = None
+    status: str | None = None
 
 
 class BomItemResponse(BaseModel):
@@ -74,17 +83,3 @@ class BomItemResponse(BaseModel):
     quantity: Decimal
     unit: UnitResponse | None = None
     wasteRate: Decimal | None = None
-
-
-class BomResponse(BaseModel):
-    id: str
-    productVariantId: str
-    variantSku: str | None = None
-    variantName: str | None = None
-    productName: str | None = None
-    name: str | None = None
-    bomCode: str | None = None
-    isDefault: bool
-    version: int
-    status: str
-    items: list[BomItemResponse]

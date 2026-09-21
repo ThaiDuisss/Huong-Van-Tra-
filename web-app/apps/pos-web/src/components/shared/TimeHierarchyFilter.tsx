@@ -125,14 +125,6 @@ export function TimeHierarchyFilter({
     const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
     const today = useMemo(() => new Date(), []);
     const timeTree = useMemo(() => buildTimeTree(today), [today]);
-    const fallbackDate =
-        selectedNode || enableCalendar
-            ? null
-            : formatLegacyDate(
-                  today.getDate(),
-                  today.getMonth() + 1,
-                  today.getFullYear()
-              );
     const selectedDate =
         activeDate ?? (selectedNode?.type === "day" ? selectedNode.date : null);
     const selectedLabel = selectedNode ? getTimeNodeLabel(selectedNode) : null;
@@ -355,6 +347,21 @@ export function TimeHierarchyFilter({
         });
     };
 
+    const handleClear = () => {
+        if (activeOpenPath) {
+            if (activeOpenPath.year) {
+                setOpenYears((current) => new Set(current).add(activeOpenPath.year));
+            }
+            if (activeOpenPath.quarterId) {
+                setOpenQuarters((current) => new Set(current).add(activeOpenPath.quarterId));
+            }
+            if (activeOpenPath.monthId) {
+                setOpenMonths((current) => new Set(current).add(activeOpenPath.monthId));
+            }
+        }
+        onClear?.();
+    };
+
     return (
         <aside className={styles.timeline} aria-label="Bộ lọc thời gian">
             <div className={styles.header}>
@@ -368,7 +375,7 @@ export function TimeHierarchyFilter({
             {selectedNode ? (
                 <button
                     className={styles.clearButton}
-                    onClick={onClear}
+                    onClick={handleClear}
                     type="button"
                 >
                     Clear
@@ -620,8 +627,6 @@ export function TimeHierarchyFilter({
                                                                                   return (
                                                                                       <button
                                                                                           className={`${styles.item} ${styles.date} ${styles.dateRail} ${
-                                                                                              date ===
-                                                                                                  fallbackDate ||
                                                                                               daySelected
                                                                                                   ? styles.activeDate
                                                                                                   : ""
