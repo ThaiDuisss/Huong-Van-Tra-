@@ -199,7 +199,7 @@ export function GoodsReceiptListPage() {
                 detailPath={(item) => `/management/inventory/receipts/${item.id}`}
                 error={error}
                 extraHeaderActions={
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 w-full justify-start sm:w-auto sm:justify-end">
                         <ActionButton variant="secondary" onClick={() => navigate(routePaths.goodsReceiptImportCreate)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel

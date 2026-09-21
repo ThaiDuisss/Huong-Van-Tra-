@@ -32,6 +32,9 @@ export function ProductionOrderCreatePage() {
 
     const [bomItems, setBomItems] = useState<BomItemResponse[] | null>(null);
     const [bomItemsLoading, setBomItemsLoading] = useState(false);
+    // Tách riêng lỗi gọi API (mạng/401/500...) khỏi trường hợp BOM thật sự rỗng — nếu gộp chung thì
+    // 1 lỗi mạng thoáng qua sẽ hiển thị y hệt "sản phẩm chưa có BOM" dù dữ liệu BOM vẫn tồn tại.
+    const [bomFetchError, setBomFetchError] = useState<string | null>(null);
     const bomItemsRequestRef = useRef(0);
 
     const [submitting, setSubmitting] = useState(false);
@@ -111,30 +114,42 @@ export function ProductionOrderCreatePage() {
         }
     }, [locationLoading, locationHasMore, locationPage, loadLocationOptions]);
 
-    // Khi chọn sản phẩm: tải luôn danh sách nguyên liệu (BOM) của sản phẩm đó để xem trước
-    function handleVariantChange(newVariantId: string) {
-        setVariantId(newVariantId);
-
-        if (!newVariantId) {
-            setBomItems(null);
-            return;
-        }
-
+    function fetchBomItems(forVariantId: string) {
         const requestId = ++bomItemsRequestRef.current;
         setBomItemsLoading(true);
+        setBomFetchError(null);
         bomApi
-            .listByVariant(newVariantId)
+            .listByVariant(forVariantId)
             .then((items) => {
-                if (bomItemsRequestRef.current === requestId) setBomItems(items);
+                if (bomItemsRequestRef.current !== requestId) return;
+                setBomItems(items);
             })
             .catch((err) => {
                 if (bomItemsRequestRef.current !== requestId) return;
-                setError(err instanceof Error ? err.message : "Không thể tải định mức nguyên liệu của sản phẩm này.");
-                setBomItems([]);
+                // Lỗi gọi API (mạng/401/500...) khác với "sản phẩm chưa có BOM" — giữ bomItems ở null
+                // (chưa xác định) thay vì ép về [] để không hiển thị nhầm là BOM thật sự rỗng.
+                setBomFetchError(
+                    err instanceof Error ? err.message : "Không thể tải định mức nguyên liệu của sản phẩm này."
+                );
+                setBomItems(null);
             })
             .finally(() => {
                 if (bomItemsRequestRef.current === requestId) setBomItemsLoading(false);
             });
+    }
+
+    // Khi chọn sản phẩm: tải luôn danh sách nguyên liệu (BOM) của sản phẩm đó để xem trước
+    function handleVariantChange(newVariantId: string) {
+        setVariantId(newVariantId);
+        setBomFetchError(null);
+
+        if (!newVariantId) {
+            ++bomItemsRequestRef.current;
+            setBomItems(null);
+            return;
+        }
+
+        fetchBomItems(newVariantId);
     }
 
     const noBomAvailable = bomItems !== null && bomItems.length === 0;
@@ -167,6 +182,10 @@ export function ProductionOrderCreatePage() {
         }
         if (!locationId) {
             setError("Vui lòng chọn kho/vị trí sản xuất.");
+            return;
+        }
+        if (bomFetchError) {
+            setError(bomFetchError);
             return;
         }
         if (!bomItems || bomItems.length === 0) {
@@ -282,6 +301,17 @@ export function ProductionOrderCreatePage() {
 
                     {bomItemsLoading ? (
                         <div className="text-sm font-semibold text-[#697684]">Đang tải định mức nguyên liệu...</div>
+                    ) : bomFetchError ? (
+                        <div className="grid gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
+                            <span>Không thể tải định mức nguyên liệu: {bomFetchError}</span>
+                            <button
+                                className="w-fit rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-100"
+                                onClick={() => fetchBomItems(variantId)}
+                                type="button"
+                            >
+                                Thử lại
+                            </button>
+                        </div>
                     ) : noBomAvailable ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-700">
                             Sản phẩm này chưa có định mức nguyên liệu (BOM). Vui lòng cập nhật BOM cho mặt hàng trước khi sản xuất.

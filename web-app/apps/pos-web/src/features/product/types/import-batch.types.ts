@@ -1,6 +1,6 @@
 export type ImportBatchStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 
-export type ImportType = "PRODUCT" | "PRODUCT_VARIANT" | "GOODS_RECEIPT";
+export type ImportType = "PRODUCT" | "PRODUCT_VARIANT" | "INGREDIENT" | "GOODS_RECEIPT";
 
 export interface ValidationError {
     field: string;

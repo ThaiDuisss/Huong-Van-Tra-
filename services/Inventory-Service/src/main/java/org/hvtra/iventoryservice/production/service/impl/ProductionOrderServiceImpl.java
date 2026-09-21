@@ -210,29 +210,33 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                 if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                     break;
                 }
-                InventoryBalance balance = balanceRepository
-                        .findForUpdateByBatchId(batch.getId(), order.getLocationId())
-                        .orElse(null);
-                if (balance == null) {
-                    continue;
+                // Nguyên liệu không quản lý tồn theo kho sản xuất — lấy theo FEFO bất kể batch đang nằm
+                // ở kho nào. "Kho / vị trí sản xuất" của lệnh (order.getLocationId()) chỉ là nơi NHẬP
+                // thành phẩm sau khi hoàn tất, không phải nơi XUẤT nguyên liệu.
+                List<InventoryBalance> balances = balanceRepository.findForUpdateByBatchId(batch.getId());
+                for (InventoryBalance balance : balances) {
+                    if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                        break;
+                    }
+                    BigDecimal available = balance.getAvailableQuantity();
+                    if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                        continue;
+                    }
+                    BigDecimal take = available.min(remaining);
+
+                    balance.setQuantityReserved(balance.getQuantityReserved().add(take));
+                    balanceRepository.save(balance);
+
+                    ProductionOrderMaterialAllocation allocation = new ProductionOrderMaterialAllocation();
+                    allocation.setInventoryBatch(batch);
+                    allocation.setLocationId(balance.getLocation().getId());
+                    allocation.setReservedQuantity(take);
+                    allocation.setStatus(ReservationStatus.RESERVED);
+                    line.addAllocation(allocation);
+
+                    line.setReservedQuantity(line.getReservedQuantity().add(take));
+                    remaining = remaining.subtract(take);
                 }
-                BigDecimal available = balance.getAvailableQuantity();
-                if (available.compareTo(BigDecimal.ZERO) <= 0) {
-                    continue;
-                }
-                BigDecimal take = available.min(remaining);
-
-                balance.setQuantityReserved(balance.getQuantityReserved().add(take));
-                balanceRepository.save(balance);
-
-                ProductionOrderMaterialAllocation allocation = new ProductionOrderMaterialAllocation();
-                allocation.setInventoryBatch(batch);
-                allocation.setReservedQuantity(take);
-                allocation.setStatus(ReservationStatus.RESERVED);
-                line.addAllocation(allocation);
-
-                line.setReservedQuantity(line.getReservedQuantity().add(take));
-                remaining = remaining.subtract(take);
             }
 
             if (remaining.compareTo(BigDecimal.ZERO) > 0) {
@@ -270,8 +274,10 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     continue;
                 }
                 InventoryBatch batch = allocation.getInventoryBatch();
+                // Phải lấy đúng kho đã trừ tồn lúc approve() (allocation.getLocationId()) — KHÔNG phải
+                // order.getLocationId() (kho nhập thành phẩm), vì nguyên liệu không quản lý theo kho đó.
                 InventoryBalance balance = balanceRepository
-                        .findForUpdateByBatchId(batch.getId(), order.getLocationId())
+                        .findForUpdateByBatchId(batch.getId(), allocation.getLocationId())
                         .orElseThrow(() -> new ResourceNotFoundException("InventoryBalance for batch", batch.getId()));
 
                 BigDecimal before = balance.getQuantityOnHand();
@@ -286,7 +292,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
 
                 InventoryTransactionLine transLine = new InventoryTransactionLine();
                 transLine.setInventoryItem(line.getInventoryItem());
-                transLine.setLocation(location);
+                transLine.setLocation(balance.getLocation());
                 transLine.setQuantity(allocation.getReservedQuantity());
                 transLine.setBeforeQuantity(before);
                 transLine.setAfterQuantity(after);
@@ -426,8 +432,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     if (allocation.getStatus() != ReservationStatus.RESERVED) {
                         continue;
                     }
+                    // Đúng kho đã trừ tồn lúc approve() (allocation.getLocationId()), không phải kho sản xuất.
                     InventoryBalance balance = balanceRepository
-                            .findForUpdateByBatchId(allocation.getInventoryBatch().getId(), order.getLocationId())
+                            .findForUpdateByBatchId(allocation.getInventoryBatch().getId(), allocation.getLocationId())
                             .orElse(null);
                     if (balance != null) {
                         balance.setQuantityReserved(balance.getQuantityReserved().subtract(allocation.getReservedQuantity()));
@@ -445,8 +452,16 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         return mapper.toResponse(productionOrderRepository.save(order));
     }
 
+    /**
+     * Chỉ JOIN FETCH "lines" (1 bag) — không fetch kèm "lines.allocations" vì Hibernate không cho phép
+     * fetch nhiều collection dạng List cùng lúc (MultipleBagFetchException). "allocations" của từng dòng
+     * vẫn lazy-load bình thường khi thật sự cần (approve/release/cancel) — nhờ @BatchSize trên
+     * {@code ProductionOrderLine.allocations}, Hibernate tự gộp các lần lazy-load đó của nhiều dòng
+     * thành 1 câu "IN (...)" thay vì N query riêng lẻ, nên vẫn tránh được N+1 mà không cần tự tay
+     * nạp/gán lại collection (collection có orphanRemoval=true không được phép thay bằng List mới).
+     */
     private ProductionOrder getOrderWithDetails(UUID id) {
-        return productionOrderRepository.findByIdWithDetails(id)
+        return productionOrderRepository.findByIdWithLines(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductionOrder", id));
     }
 

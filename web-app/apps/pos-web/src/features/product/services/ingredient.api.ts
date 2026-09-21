@@ -47,11 +47,6 @@ export const ingredientApi = {
             }
         });
     },
-    import(file: File) {
-        const formData = new FormData();
-        formData.append("file", file);
-        return apiClient.upload<void>("/catalog/ingredients/import", formData);
-    },
     downloadTemplate() {
         return apiClient.download("/catalog/ingredients/import/template");
     }

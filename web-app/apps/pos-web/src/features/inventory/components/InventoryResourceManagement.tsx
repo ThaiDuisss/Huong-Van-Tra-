@@ -237,7 +237,7 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
 
     return (
         <section className="grid gap-5">
-            <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="grid gap-1 min-w-[240px]">
                     <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
                         {title}
@@ -247,24 +247,22 @@ export function InventoryResourceManagement<T extends RowBase, S extends string 
                     </p>
                 </div>
 
-                {createLabel && (
-                    <div className="flex items-center gap-3 min-w-[120px] justify-end">
-                        <ActionButton
-                            variant="primary"
-                            onClick={() => {
-                                setEditingItem(null);
-                                setActionError("");
-                                setShowForm(true);
-                            }}
-                        >
-                            <Plus size={17} aria-hidden="true" />
-                            {createLabel}
-                        </ActionButton>
-                    </div>
-                )}
-                {extraHeaderActions && (
-                    <div className="flex items-center gap-3 justify-end ml-auto">
+                {(createLabel || extraHeaderActions) && (
+                    <div className="flex flex-wrap items-center gap-3 w-full justify-start sm:w-auto sm:justify-end lg:ml-auto">
                         {extraHeaderActions}
+                        {createLabel && (
+                            <ActionButton
+                                variant="primary"
+                                onClick={() => {
+                                    setEditingItem(null);
+                                    setActionError("");
+                                    setShowForm(true);
+                                }}
+                            >
+                                <Plus size={17} aria-hidden="true" />
+                                {createLabel}
+                            </ActionButton>
+                        )}
                     </div>
                 )}
             </header>
