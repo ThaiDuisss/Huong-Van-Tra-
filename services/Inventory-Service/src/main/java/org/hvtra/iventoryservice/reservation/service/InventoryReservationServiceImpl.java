@@ -12,6 +12,7 @@ import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.ReservationStatus;
+import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.OutOfStockException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
@@ -151,7 +152,9 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                         int updated = balanceRepository.confirmReserved(
                                 reservation.getInventoryItem().getId(),
                                 reservation.getLocation().getId(),
-                                quantity);
+                                quantity,
+                                InventoryStatus.ACTIVE,
+                                InventoryLocationSaleability.nonSaleableTypes());
                         if (updated == 0) {
                             throw new OutOfStockException(
                                     "Reserved stock cannot be confirmed for productVariantId "
@@ -194,7 +197,12 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     }
 
     private void reserve(UUID itemId, UUID locationId, BigDecimal quantity, UUID productVariantId) {
-        int updated = balanceRepository.reserveAvailable(itemId, locationId, quantity);
+        int updated = balanceRepository.reserveAvailable(
+                itemId,
+                locationId,
+                quantity,
+                InventoryStatus.ACTIVE,
+                InventoryLocationSaleability.nonSaleableTypes());
         if (updated == 0) {
             throw new OutOfStockException("OUT_OF_STOCK productVariantId=" + productVariantId);
         }
@@ -228,7 +236,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     private InventoryLocation resolveApplyLocation(ApplyInventoryReservationRequest request) {
         if (request.locationId() != null) {
-            return activeLocation(request.locationId(), request.branchId());
+            return activeSaleableLocation(request.locationId(), request.branchId());
         }
 
         List<InventoryReservation> existingReservations =
@@ -237,7 +245,9 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                         .filter(reservation -> reservation.getProductVariantId().equals(request.productVariantId()))
                         .toList();
         if (existingReservations.size() == 1) {
-            return existingReservations.get(0).getLocation();
+            InventoryLocation location = existingReservations.get(0).getLocation();
+            validateSaleableLocation(location);
+            return location;
         }
         if (existingReservations.size() > 1) {
             throw new BadRequestException(
@@ -250,7 +260,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     private InventoryLocation resolveLocation(UUID locationId, UUID branchId) {
         if (locationId != null) {
-            return activeLocation(locationId, branchId);
+            return activeSaleableLocation(locationId, branchId);
         }
         return branchId == null
                 ? locationRepository.findFirstByTypeAndStatus(InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE)
@@ -272,6 +282,18 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             throw new BadRequestException("Inventory location " + locationId + " does not belong to branch " + branchId);
         }
         return location;
+    }
+
+    private InventoryLocation activeSaleableLocation(UUID locationId, UUID branchId) {
+        InventoryLocation location = activeLocation(locationId, branchId);
+        validateSaleableLocation(location);
+        return location;
+    }
+
+    private void validateSaleableLocation(InventoryLocation location) {
+        if (!InventoryLocationSaleability.isSaleable(location)) {
+            throw new BadRequestException("Inventory location is not saleable");
+        }
     }
 
     private BigDecimal normalizeQuantity(BigDecimal quantity) {

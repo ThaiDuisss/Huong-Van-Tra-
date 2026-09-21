@@ -13,12 +13,17 @@ public class OrderNotificationEventPayload implements CommonEventPayload {
     String eventId;
     String eventType;
     String eventKey;
+    String returnId;
+    String returnCode;
     String orderId;
     String orderCode;
+    String branchId;
     String customerId;
     String userId;
+    String actorUserId;
     String paymentId;
     String paymentCode;
+    String refundTransactionId;
     String oldStatus;
     String newStatus;
     String title;

@@ -5,17 +5,98 @@ import {
     qualityBatches,
     qualityLocations
 } from "../mocks/quality.mock";
+import { apiClient } from "../../../api/api-client";
 import type {
     BatchQualityDetail,
     DisposalActionInput,
     DisposalCompleteInput,
     DisposalCreateInput,
     DisposalListQuery,
+    DisposalListResult,
+    DisposalRequest,
     QualityActionInput,
     QualityApi,
     QualityBatchQuery,
     QualityCase
 } from "../types/quality.types";
+
+interface BackendDisposalLine {
+    id: string;
+    inspectionLineId: string;
+    inventoryItemId: string;
+    itemCode?: string;
+    itemName?: string;
+    quantity: number;
+    transactionId?: string;
+}
+
+interface BackendDisposalRequest {
+    id: string;
+    requestCode: string;
+    sourceInspectionId: string;
+    inspectionCode: string;
+    returnId: string;
+    returnCode: string;
+    branchId: string;
+    status: "PENDING_APPROVAL" | "APPROVED";
+    requestedAt: string;
+    approvedBy?: string;
+    approvedAt?: string;
+    transactionId?: string;
+    note?: string;
+    lines: BackendDisposalLine[];
+}
+
+interface BackendDisposalPage {
+    content: BackendDisposalRequest[];
+    number: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
+}
+
+function mapBackendDisposal(request: BackendDisposalRequest): DisposalRequest {
+    const systemActor = { id: "system", name: "Hệ thống", role: "INVENTORY_STAFF" as const };
+    const approvedActor = { id: "approver", name: "Người phê duyệt", role: "ADMIN" as const };
+    return {
+        auditEvents: request.status === "APPROVED" && request.approvedAt
+            ? [{ actor: approvedActor, happenedAt: request.approvedAt, id: `approve-${request.id}`, note: "Đã duyệt và ghi nhận WRITE_OFF.", roleSnapshot: approvedActor.role, type: "APPROVE" }]
+            : [],
+        approvedAt: request.approvedAt,
+        approvedBy: request.approvedAt ? approvedActor : undefined,
+        code: request.requestCode,
+        id: request.id,
+        inspectionCode: request.inspectionCode,
+        lines: request.lines.map((line) => ({
+            actualDisposedQuantity: request.status === "APPROVED" ? Number(line.quantity) : 0,
+            batchCode: "Không nhập kho",
+            batchId: "",
+            estimatedValue: 0,
+            evidence: [],
+            id: line.id,
+            quantity: Number(line.quantity),
+            reason: "Hàng khách trả được chỉ định tiêu hủy",
+            reservedQuantity: 0,
+            skuCode: line.itemCode ?? "Chưa có SKU",
+            skuName: line.itemName ?? "Sản phẩm",
+            unit: "",
+            unitCost: 0
+        })),
+        location: { code: "", id: request.branchId, isCentral: false, name: "Chi nhánh tiếp nhận" },
+        method: "DESTROY",
+        note: request.note,
+        reason: `Tiêu hủy từ phiếu trả ${request.returnCode}`,
+        requestedAt: request.requestedAt,
+        requestedBy: systemActor,
+        returnCode: request.returnCode,
+        scheduledAt: request.requestedAt,
+        sourceInspectionId: request.sourceInspectionId,
+        status: request.status,
+        stockDocumentCode: request.transactionId ? "WRITE_OFF" : undefined,
+        stockDocumentId: request.transactionId,
+        witnesses: []
+    };
+}
 
 function wait<T>(value: T, ms = 320) {
     return new Promise<T>((resolve) => window.setTimeout(() => resolve(value), ms));
@@ -43,13 +124,12 @@ function daysRemaining(expiryDate: string) {
 
 export const qualityApi: QualityApi = {
     approveDisposalRequest(input: DisposalActionInput) {
-        const disposal = disposalRequests.find((item) => item.id === input.disposalId);
-        if (!disposal) return Promise.reject(new Error("Không tìm thấy yêu cầu tiêu hủy."));
-        disposal.status = "APPROVED";
-        disposal.approvedAt = new Date().toISOString();
-        disposal.approvedBy = qualityActor("ADMIN");
-        disposal.auditEvents = [qualityAudit("APPROVE", "ADMIN", "Duyệt yêu cầu tiêu hủy."), ...disposal.auditEvents];
-        return wait(cloneDisposal(disposal.id));
+        return apiClient
+            .post<BackendDisposalRequest, undefined>(
+                `/inventory/disposal-requests/${encodeURIComponent(input.disposalId)}/approve`,
+                undefined
+            )
+            .then(mapBackendDisposal);
     },
 
     blockBatch(input: QualityActionInput) {
@@ -114,24 +194,29 @@ export const qualityApi: QualityApi = {
     },
 
     getDisposalRequest(disposalId: string) {
-        return wait(cloneDisposal(disposalId));
+        return apiClient
+            .get<BackendDisposalRequest>(
+                `/inventory/disposal-requests/${encodeURIComponent(disposalId)}`
+            )
+            .then(mapBackendDisposal);
     },
 
     listDisposalRequests(query: DisposalListQuery) {
-        const filtered = disposalRequests.filter((item) =>
-            (query.status === "ALL" || item.status === query.status) &&
-            (!query.code || item.code.includes(query.code)) &&
-            (query.locationId === "ALL" || item.location.id === query.locationId) &&
-            (!query.reason || item.reason.toLowerCase().includes(query.reason.toLowerCase()))
-        );
-        const start = query.page * query.size;
-        return wait({
-            content: filtered.slice(start, start + query.size).map((item) => cloneDisposal(item.id)),
-            page: query.page,
-            size: query.size,
-            totalElements: filtered.length,
-            totalPages: Math.max(1, Math.ceil(filtered.length / query.size))
-        });
+        return apiClient.get<BackendDisposalPage>("/inventory/disposal-requests", {
+            query: {
+                page: query.page,
+                requestCode: query.code || undefined,
+                returnCode: query.returnCode || query.reason || undefined,
+                size: query.size,
+                status: query.status === "ALL" ? undefined : query.status
+            }
+        }).then((response): DisposalListResult => ({
+            content: response.content.map(mapBackendDisposal),
+            page: response.number,
+            size: response.size,
+            totalElements: response.totalElements,
+            totalPages: response.totalPages
+        }));
     },
 
     listQualityBatches(query: QualityBatchQuery) {

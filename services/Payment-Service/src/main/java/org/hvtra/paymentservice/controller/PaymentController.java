@@ -3,9 +3,12 @@ package org.hvtra.paymentservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
+import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
+import org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest;
 import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
 import org.hvtra.paymentservice.dto.response.OrderPaymentMethodResponse;
-import org.hvtra.paymentservice.dto.response.SepayCheckoutResponse;
+import org.hvtra.paymentservice.dto.response.PaymentRefundResponse;
+import org.hvtra.paymentservice.dto.response.PaymentRefundSummaryResponse;
 import org.hvtra.paymentservice.dto.response.SepayWebhookResponse;
 import org.hvtra.paymentservice.service.PaymentService;
 import org.hvtra.paymentservice.service.SepayWebhookService;
@@ -13,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -35,6 +39,23 @@ public class PaymentController {
     @Operation(summary = "Lấy phương thức thanh toán mới nhất của đơn hàng")
     public OrderPaymentMethodResponse getPaymentByOrderId(@PathVariable("orderId") UUID orderId) {
         return paymentService.getPaymentByOrderId(orderId);
+    }
+
+    @PostMapping("/orders/{orderId}/refunds")
+    @Operation(summary = "Hoàn tiền cho phiếu trả hàng")
+    public PaymentRefundResponse refundOrderReturn(
+            @PathVariable("orderId") UUID orderId,
+            @Valid @RequestBody RefundPaymentRequest request
+    ) {
+        return paymentService.refundOrderReturn(orderId, request);
+    }
+
+    @PostMapping("/refunds/lookup")
+    @Operation(summary = "Tra cứu trạng thái hoàn tiền theo phiếu hoàn hàng")
+    public List<PaymentRefundSummaryResponse> lookupRefundSummaries(
+            @Valid @RequestBody RefundSummaryLookupRequest request
+    ) {
+        return paymentService.lookupRefundSummaries(request);
     }
 
     @PostMapping("/webhooks/sepay")

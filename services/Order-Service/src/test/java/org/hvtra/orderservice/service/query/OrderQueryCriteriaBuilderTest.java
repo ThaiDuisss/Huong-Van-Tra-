@@ -40,6 +40,12 @@ class OrderQueryCriteriaBuilderTest {
     }
 
     @Test
+    void acceptsCreatedAtDescSortCaseInsensitive() {
+        assertEquals("createdAt,desc", criteriaBuilder.normalizeSort("createdAt,desc"));
+        assertEquals("createdAt,desc", criteriaBuilder.normalizeSort("CREATEDAT,DESC"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void keepsKeywordUnpaidAliasAndOrderTypeNormalization() {
         Root<Order> root = mock(Root.class);
@@ -137,5 +143,33 @@ class OrderQueryCriteriaBuilderTest {
 
         assertSame(filterPredicate, result);
         verify(query).orderBy(priorityOrder, createdAtOrder, idOrder);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void createdAtDescSortSkipsPriorityAndUsesIdTieBreakerForStablePaging() {
+        Root<Order> root = mock(Root.class);
+        CriteriaQuery<?> query = mock(CriteriaQuery.class);
+        CriteriaBuilder jpaCriteriaBuilder = mock(CriteriaBuilder.class);
+        Specification<Order> filters = mock(Specification.class);
+        Predicate filterPredicate = mock(Predicate.class);
+        Path<Object> createdAtPath = mock(Path.class);
+        Path<Object> idPath = mock(Path.class);
+        jakarta.persistence.criteria.Order createdAtOrder = mock(jakarta.persistence.criteria.Order.class);
+        jakarta.persistence.criteria.Order idOrder = mock(jakarta.persistence.criteria.Order.class);
+
+        when(filters.toPredicate(root, query, jpaCriteriaBuilder)).thenReturn(filterPredicate);
+        when(query.getResultType()).thenReturn((Class) Order.class);
+        when(root.<Object>get("createdAt")).thenReturn(createdAtPath);
+        when(root.<Object>get("id")).thenReturn(idPath);
+        when(jpaCriteriaBuilder.desc(createdAtPath)).thenReturn(createdAtOrder);
+        when(jpaCriteriaBuilder.desc(idPath)).thenReturn(idOrder);
+
+        Predicate result = criteriaBuilder
+                .withBusinessOrder(filters, "createdAt,desc")
+                .toPredicate(root, query, jpaCriteriaBuilder);
+
+        assertSame(filterPredicate, result);
+        verify(query).orderBy(createdAtOrder, idOrder);
     }
 }

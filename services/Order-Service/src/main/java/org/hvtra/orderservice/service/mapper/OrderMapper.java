@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
+import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
@@ -152,6 +153,7 @@ public class OrderMapper {
                 .orderType(order.getOrderType())
                 .status(order.getStatus())
                 .paymentStatus(order.getPaymentStatus())
+                .returnStatus(order.getReturnStatus())
                 .paymentMethod(paymentMethod)
                 .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))
                 .payment(payment)
@@ -180,6 +182,7 @@ public class OrderMapper {
                 .orderTypeLabel(toOrderTypeLabel(order.getOrderType()))
                 .statusLabel(toOrderStatusLabel(order.getStatus()))
                 .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
+                .returnStatusLabel(toReturnStatusLabel(order.getReturnStatus()))
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
                 .createdByName(order.getCashierNameSnapshot())
                 .createdAt(createdAt)
@@ -201,6 +204,8 @@ public class OrderMapper {
                 .statusLabel(toOrderStatusLabel(order.getStatus()))
                 .paymentStatus(order.getPaymentStatus())
                 .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
+                .returnStatus(order.getReturnStatus())
+                .returnStatusLabel(toReturnStatusLabel(order.getReturnStatus()))
                 .finalAmount(order.getFinalAmount())
                 .createdAt(orderDateTimeHelper.toLocalDateTime(auditValue(order, "getCreatedAt")))
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
@@ -285,6 +290,17 @@ public class OrderMapper {
             case FAILED -> "Thanh toán thất bại";
             case REFUNDED -> "Đã hoàn tiền";
             case PARTIALLY_REFUNDED -> "Hoàn tiền một phần";
+        };
+    }
+
+    private String toReturnStatusLabel(OrderReturnStatus status) {
+        if (status == null) {
+            return null;
+        }
+        return switch (status) {
+            case NONE -> "Chưa hoàn hàng";
+            case PARTIALLY_RETURNED -> "Hoàn một phần";
+            case FULLY_RETURNED -> "Hoàn toàn bộ";
         };
     }
 

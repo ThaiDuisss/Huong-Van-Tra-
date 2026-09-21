@@ -1,125 +1,330 @@
-import { FileText } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { ArrowLeft, CheckCircle2, ShieldAlert } from "lucide-react";
 
-import { useAuth } from "../../../auth/auth-context";
-import { hasAnyRole } from "../../../auth/role-utils";
-import {
-    CustomerReturnStatusBadge
-} from "../components/CustomerReturnComponents";
-import {
-    customerReturnConditionLabels,
-    customerReturnRefundStatusLabels,
-    customerReturnResolutionLabels
-} from "../constants/customer-return.constants";
+import { InspectionStatusBadge } from "../components/CustomerReturnInspectionComponents";
 import { customerReturnApi } from "../services/customerReturn.api";
-import type {
-    CustomerReturnCondition,
-    CustomerReturnDetail
-} from "../types/customer-return.types";
-import {
-    formatVietnamDateTime,
-    formatVietnamNumber,
-    formatVnd
-} from "../utils/inventory-format";
+import { inventoryLocationApi } from "../services/inventoryLocation.api";
+import type { CustomerReturnInspection, CustomerReturnQcResult } from "../types/customer-return-inspection.types";
+import type { InventoryLocationResponse } from "../types/inventory.types";
+import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
-type DetailTab = "summary" | "lines" | "manager" | "receiving" | "qc" | "refund" | "documents" | "audit";
-const tabs: Array<{ id: DetailTab; label: string }> = [
-    { id: "summary", label: "Tổng quan" },
-    { id: "lines", label: "Return lines" },
-    { id: "manager", label: "Manager review" },
-    { id: "receiving", label: "Receiving" },
-    { id: "qc", label: "QC" },
-    { id: "refund", label: "Refund/exchange" },
-    { id: "documents", label: "Chứng từ" },
-    { id: "audit", label: "Audit" }
-];
+const resultLabels: Record<CustomerReturnQcResult, string> = {
+    RESTOCK: "Nhập lại kho",
+    DAMAGED: "Hàng hỏng",
+    QUARANTINE: "Cách ly",
+    WRITE_OFF: "Tiêu hủy"
+};
+
+const conditionLabels: Record<string, string> = {
+    SEALED: "Nguyên seal",
+    OPENED: "Đã mở hộp",
+    DAMAGED: "Hư hỏng",
+    DEFECTIVE: "Lỗi kỹ thuật",
+    EXPIRED: "Hết hạn"
+};
 
 export function CustomerReturnDetailPage() {
-    const { returnId } = useParams();
-    const { roles } = useAuth();
-    const [detail, setDetail] = useState<CustomerReturnDetail | null>(null);
-    const [activeTab, setActiveTab] = useState<DetailTab>("summary");
+    const { returnId: inspectionId } = useParams();
+    const [detail, setDetail] = useState<CustomerReturnInspection | null>(null);
+    const [locations, setLocations] = useState<InventoryLocationResponse[]>([]);
+    const [selectedLocations, setSelectedLocations] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
-    const [rejectReason, setRejectReason] = useState("");
-    const [quantityReason, setQuantityReason] = useState("");
-
-    const load = useCallback(() => {
-        if (!returnId) return;
-        let active = true;
-        setLoading(true);
-        void customerReturnApi.getCustomerReturn(returnId)
-            .then((response) => { if (active) setDetail(response); })
-            .catch((loadError: unknown) => { if (active) setError(loadError instanceof Error ? loadError.message : "Không thể tải yêu cầu trả hàng."); })
-            .finally(() => { if (active) setLoading(false); });
-        return () => { active = false; };
-    }, [returnId]);
+    const [error, setError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
 
     useEffect(() => {
-        let cleanup: void | (() => void);
-        let cancelled = false;
-        queueMicrotask(() => { if (!cancelled) cleanup = load(); });
-        return () => { cancelled = true; cleanup?.(); };
-    }, [load]);
+        if (!inspectionId) return;
+        let active = true;
+        const timerId = window.setTimeout(() => {
+            setLoading(true);
+            setError("");
 
-    if (!returnId) return <Navigate to="/management/inventory/customer-returns" replace />;
+            void customerReturnApi.getInspection(inspectionId)
+                .then(async (response) => {
+                    if (!active) return;
+                    setDetail(response);
 
-    async function runAction(action: () => Promise<CustomerReturnDetail>, fallback: string) {
+                    // Fetch active locations for the branch
+                    try {
+                        const locRes = await inventoryLocationApi.list({
+                            branchId: response.branchId,
+                            status: "ACTIVE"
+                        });
+                        if (active && locRes?.content) {
+                            setLocations(locRes.content);
+                        }
+                    } catch {
+                        // non-fatal, proceed with existing locations
+                    }
+                })
+                .catch((loadError: unknown) => {
+                    if (active) {
+                        setError(loadError instanceof Error ? loadError.message : "Không thể tải phiếu kiểm định.");
+                    }
+                })
+                .finally(() => {
+                    if (active) setLoading(false);
+                });
+        }, 0);
+
+        return () => {
+            active = false;
+            window.clearTimeout(timerId);
+        };
+    }, [inspectionId]);
+
+    if (!inspectionId) {
+        return <Navigate replace to="/management/inventory/customer-returns" />;
+    }
+
+    function handleLocationChange(lineId: string, locationId: string) {
+        setSelectedLocations((prev) => ({
+            ...prev,
+            [lineId]: locationId
+        }));
+    }
+
+    function filterLocationsForResult(result: CustomerReturnQcResult) {
+        if (result === "RESTOCK") {
+            return locations.filter((loc) => loc.type !== "DAMAGED" && loc.type !== "QUARANTINE");
+        }
+        if (result === "DAMAGED") {
+            return locations.filter((loc) => loc.type === "DAMAGED");
+        }
+        if (result === "QUARANTINE") {
+            return locations.filter((loc) => loc.type === "QUARANTINE");
+        }
+        return [];
+    }
+
+    async function handlePostInspection() {
+        if (!detail || detail.status !== "CREATED") return;
+        setSubmitting(true);
         setError("");
+        setSuccessMessage("");
+
+        const lineOverrides = detail.lines.map((line) => ({
+            lineId: line.id,
+            returnItemId: line.returnItemId,
+            destinationLocationId: selectedLocations[line.id] || line.destinationLocationId || undefined
+        }));
+
         try {
-            setSubmitting(true);
-            setDetail(await action());
-        } catch (actionError) {
-            setError(actionError instanceof Error ? actionError.message : fallback);
+            const updated = await customerReturnApi.postInspection(detail.id, { lines: lineOverrides });
+            setDetail(updated);
+            setSuccessMessage(updated.status === "PROCESSING"
+                ? "Đã hạch toán các dòng đủ điều kiện. Dòng tiêu hủy đang chờ phê duyệt và chưa được ghi nhận hoàn tất vật lý."
+                : "Xác nhận xử lý thành công. Hàng trả đã được hạch toán theo kết quả kiểm định.");
+        } catch (postError) {
+            setError(postError instanceof Error ? postError.message : "Không thể xử lý phiếu kiểm định.");
         } finally {
             setSubmitting(false);
         }
     }
 
-    const canManager = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
-    const canQc = hasAnyRole(roles, ["ADMIN", "QC", "INVENTORY_MANAGER"]);
+    return (
+        <section className="grid gap-4">
+            <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <Link
+                        className="inline-flex items-center gap-1.5 text-sm font-black text-[#159734] hover:underline"
+                        to="/management/inventory/customer-returns"
+                    >
+                        <ArrowLeft size={16} /> Quay lại danh sách
+                    </Link>
+                    <h1 className="mt-1 text-2xl font-black text-[#172317]">
+                        {detail?.inspectionCode ?? "Phiếu kiểm định trả hàng"}
+                    </h1>
+                    {detail ? (
+                        <p className="text-sm font-semibold text-[#697684]">
+                            Mã phiếu hoàn: <span className="font-bold text-[#172317]">{detail.returnCode}</span> · Mã đơn hàng: <span className="font-bold text-[#172317]">{detail.orderCode ?? "Không có mã đơn hàng"}</span>
+                        </p>
+                    ) : null}
+                </div>
+                {detail?.status === "CREATED" ? (
+                    <button
+                        className="h-10 rounded-lg bg-[#159734] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#12822c] disabled:opacity-60"
+                        disabled={submitting}
+                        onClick={() => void handlePostInspection()}
+                        type="button"
+                    >
+                        {submitting ? "Đang xử lý..." : "Xác nhận xử lý"}
+                    </button>
+                ) : null}
+            </header>
 
-    return <section className="grid gap-4"><header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><Link className="text-sm font-black text-[#159734]" to="/management/inventory/customer-returns">Quay lại danh sách</Link><h1 className="text-2xl font-black text-[#172317]">{detail?.code ?? "Khách trả hàng"}</h1>{detail ? <p className="text-sm font-semibold text-[#697684]">{detail.customerName} · {detail.orderCode}</p> : null}</div></header>{loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}{error ? <div className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : null}{detail ? <><section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="grid gap-2"><CustomerReturnStatusBadge status={detail.status} /><p className="text-sm font-semibold text-[#536078]">Phương án: {customerReturnResolutionLabels[detail.desiredResolution]} · Giá trị {formatVnd(detail.totalValue)}</p></div><div className="flex flex-wrap gap-2">{detail.status === "PENDING_MANAGER_REVIEW" && canManager ? <><button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.reviewCustomerReturn({ accepted: true, lines: detail.lines.map((line) => ({ acceptedQuantity: line.requestedQuantity, lineId: line.id })), note: "Đủ điều kiện đổi trả.", quantityChangeReason: quantityReason, returnId: detail.id }), "Không thể chấp nhận.")} type="button">Chấp nhận</button><input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(event) => setRejectReason(event.currentTarget.value)} placeholder="Lý do từ chối" value={rejectReason} /><button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.reviewCustomerReturn({ accepted: false, lines: [], rejectReason, returnId: detail.id }), "Không thể từ chối.")} type="button">Từ chối</button></> : null}{detail.status === "ACCEPTED" && canManager ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.receiveCustomerReturn({ lines: detail.lines.map((line) => ({ lineId: line.id, receivedCondition: line.condition, receivedQuantity: line.acceptedQuantity })), note: "Nhận vào khu cách ly trả hàng.", returnId: detail.id }), "Không thể nhận hàng.")} type="button">Nhận vào khu cách ly</button> : null}{["RECEIVED_IN_QUARANTINE", "PENDING_QC"].includes(detail.status) && canQc ? <><button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.inspectCustomerReturn({ evidence: "qc-evidence.jpg", lines: detail.lines.map((line) => ({ failedQuantity: 0, lineId: line.id, passedQuantity: line.receivedQuantity, qcCondition: "SEALED" as CustomerReturnCondition })), remainingShelfLifeDays: 90, returnId: detail.id, sealStatus: "SEALED" }), "Không thể xác nhận QC đạt.")} type="button">QC đạt</button><button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.inspectCustomerReturn({ evidence: "qc-fail.jpg", lines: detail.lines.map((line) => ({ failedQuantity: line.receivedQuantity, lineId: line.id, passedQuantity: 0, qcCondition: "DAMAGED" as CustomerReturnCondition })), remainingShelfLifeDays: 0, returnId: detail.id, sealStatus: "BROKEN" }), "Không thể xác nhận QC không đạt.")} type="button">QC không đạt</button></> : null}{detail.status === "RESTOCK_APPROVED" && canQc ? <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.approveCustomerReturnRestock({ returnId: detail.id }), "Không thể tạo PNK.")} type="button">Tạo PNK nhập lại</button> : null}{detail.status === "DISPOSAL_REQUIRED" && canQc ? <button className="h-10 rounded-lg border border-red-200 px-4 text-sm font-black text-red-700" disabled={submitting} onClick={() => void runAction(() => customerReturnApi.requestCustomerReturnDisposal({ returnId: detail.id }), "Không thể tạo yêu cầu tiêu hủy.")} type="button">Tạo yêu cầu tiêu hủy</button> : null}</div></div></section><nav className="flex gap-2 overflow-x-auto">{tabs.map((tab) => <button className={`h-10 shrink-0 rounded-lg px-4 text-sm font-black ${activeTab === tab.id ? "bg-[#159734] text-white" : "bg-white text-[#536078] shadow-pos-card"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} type="button">{tab.label}</button>)}</nav>{activeTab === "summary" ? <Summary detail={detail} /> : null}{activeTab === "lines" ? <Lines detail={detail} /> : null}{activeTab === "manager" ? <Manager detail={detail} quantityReason={quantityReason} setQuantityReason={setQuantityReason} /> : null}{activeTab === "receiving" ? <Receiving detail={detail} /> : null}{activeTab === "qc" ? <Qc detail={detail} /> : null}{activeTab === "refund" ? <Refund detail={detail} /> : null}{activeTab === "documents" ? <Documents detail={detail} /> : null}{activeTab === "audit" ? <Audit detail={detail} /> : null}</> : null}</section>;
-}
+            {loading ? (
+                <div className="rounded-xl bg-white p-6 text-sm font-bold text-[#697684]">Đang tải dữ liệu phiếu...</div>
+            ) : null}
 
-function Summary({ detail }: { detail: CustomerReturnDetail }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card md:grid-cols-4"><Info label="Khách hàng" value={`${detail.customerName} · ${detail.customerPhone}`} /><Info label="Đơn hàng" value={detail.orderCode} /><Info label="Hóa đơn" value={detail.invoiceCode} /><Info label="Chi nhánh" value={detail.branch.name} /><Info label="Thời gian yêu cầu" value={formatVietnamDateTime(detail.requestedAt)} /><Info label="Hoàn tiền" value={customerReturnRefundStatusLabels[detail.refundStatus]} /><Info label="Mã thanh toán" value={detail.paymentReference ?? "-"} /><Info label="Giá trị" value={formatVnd(detail.totalValue)} /></section>;
-}
+            {error ? (
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">
+                    <ShieldAlert size={18} /> {error}
+                </div>
+            ) : null}
 
-function Lines({ detail }: { detail: CustomerReturnDetail }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">{detail.lines.map((line) => <div className="grid gap-3 rounded-lg bg-[#f7f8fb] p-3 md:grid-cols-5" key={line.id}><Info label="SKU" value={`${line.skuCode} · ${line.productName}`} /><Info label="Yêu cầu" value={formatVietnamNumber(line.requestedQuantity)} /><Info label="Chấp nhận" value={formatVietnamNumber(line.acceptedQuantity)} /><Info label="Thực nhận" value={formatVietnamNumber(line.receivedQuantity)} /><Info label="Mã lô" value={line.unknownBatch ? "Không xác định lô" : line.batchCode ?? "-"} /></div>)}</section>;
-}
+            {successMessage ? (
+                <div className="flex items-center gap-2 rounded-xl bg-green-50 p-4 text-sm font-bold text-green-800">
+                    <CheckCircle2 size={18} /> {successMessage}
+                </div>
+            ) : null}
 
-function Manager({ detail, quantityReason, setQuantityReason }: { detail: CustomerReturnDetail; quantityReason: string; setQuantityReason: (value: string) => void }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card"><Info label="Thời hạn đổi trả" value="Còn trong chính sách" /><Info label="Loại hàng" value="Được phép xử lý" /><input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(event) => setQuantityReason(event.currentTarget.value)} placeholder="Lý do nếu chỉnh số lượng chấp nhận" value={quantityReason} />{detail.managerReview ? <Info label="Kết quả duyệt" value={detail.managerReview.accepted ? "Đã chấp nhận" : detail.managerReview.rejectReason ?? "Từ chối"} /> : null}</section>;
-}
+            {detail ? (
+                <>
+                    <section className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card md:grid-cols-3 lg:grid-cols-5">
+                        <div>
+                            <span className="text-xs font-black uppercase text-[#697684]">Trạng thái phiếu</span>
+                            <div className="mt-1">
+                                <InspectionStatusBadge status={detail.status} />
+                            </div>
+                        </div>
+                        <Info label="Khách hàng" value={detail.customerName || "Khách lẻ"} />
+                        <Info label="Chi nhánh tiếp nhận" value="Kho Chi nhánh chính" />
+                        <Info label="Thời gian tạo phiếu" value={formatVietnamDateTime(detail.createdAt)} />
+                        <Info
+                            label="Thời gian xử lý kho"
+                            value={detail.postedAt ? formatVietnamDateTime(detail.postedAt) : "Chờ xử lý"}
+                        />
+                    </section>
 
-function Receiving({ detail }: { detail: CustomerReturnDetail }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card"><Info label="Khu vực lưu" value={detail.receiving ? "Khu cách ly trả hàng" : "Chưa nhận"} /><p className="text-sm font-semibold text-[#697684]">Không cộng ngay vào tồn khả dụng khi nhận hàng.</p>{detail.receiving ? <Info label="Người nhận" value={`${detail.receiving.receivedBy.name} · ${formatVietnamDateTime(detail.receiving.receivedAt)}`} /> : null}</section>;
-}
+                    <section className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
+                        <table className="w-full min-w-[980px] text-left text-sm">
+                            <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]">
+                                <tr>
+                                    <th className="px-4 py-3">Sản phẩm</th>
+                                    <th>Số lượng trả</th>
+                                    <th>Tình trạng hàng</th>
+                                    <th>Lý do trả</th>
+                                    <th>Phân loại xử lý</th>
+                                    <th>Vị trí đích</th>
+                                    <th>Giao dịch kho</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {detail.lines.map((line) => {
+                                    const eligibleLocations = filterLocationsForResult(line.result);
+                                    const selectedLocId = selectedLocations[line.id] ?? line.destinationLocationId ?? "";
 
-function Qc({ detail }: { detail: CustomerReturnDetail }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">{detail.lines.map((line) => <div className="grid gap-3 rounded-lg bg-[#f7f8fb] p-3 md:grid-cols-4" key={line.id}><Info label="SKU" value={line.skuCode} /><Info label="Passed" value={formatVietnamNumber(line.passedQuantity)} /><Info label="Failed" value={formatVietnamNumber(line.failedQuantity)} /><Info label="QC condition" value={line.qcCondition ? customerReturnConditionLabels[line.qcCondition] : "-"} /></div>)}{detail.qc ? <Info label="QC note" value={detail.qc.note ?? "-"} /> : null}</section>;
-}
+                                    return (
+                                        <tr className="hover:bg-[#f8fbf8]" key={line.id}>
+                                            <td className="border-t border-[#edf0f4] px-4 py-3">
+                                                <strong className="text-[#172317]">{line.itemName ?? "Sản phẩm"}</strong>
+                                                <p className="text-xs text-[#697684]">{line.itemCode ?? "Chưa có SKU"}</p>
+                                            </td>
+                                            <td className="border-t border-[#edf0f4] font-bold">
+                                                {formatVietnamNumber(Number(line.quantity))}
+                                            </td>
+                                            <td className="border-t border-[#edf0f4]">
+                                                <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
+                                                    {conditionLabels[line.condition ?? ""] ?? line.condition ?? "Bình thường"}
+                                                </span>
+                                            </td>
+                                            <td className="border-t border-[#edf0f4] text-xs font-semibold text-[#536078]">
+                                                {line.returnReason || "Khách yêu cầu trả"}
+                                            </td>
+                                            <td className="border-t border-[#edf0f4]">
+                                                <span
+                                                    className={`inline-flex rounded-md px-2.5 py-1 text-xs font-black ${
+                                                        line.result === "RESTOCK"
+                                                            ? "bg-green-100 text-green-800"
+                                                            : line.result === "DAMAGED"
+                                                            ? "bg-red-100 text-red-800"
+                                                            : line.result === "QUARANTINE"
+                                                            ? "bg-amber-100 text-amber-800"
+                                                            : "bg-slate-200 text-slate-800"
+                                                    }`}
+                                                >
+                                                    {resultLabels[line.result] ?? line.result}
+                                                </span>
+                                            </td>
+                                            <td className="border-t border-[#edf0f4]">
+                                                {line.result === "WRITE_OFF" ? (
+                                                    <span className="text-xs font-semibold text-[#697684]">Không áp dụng</span>
+                                                ) : detail.status === "CREATED" && eligibleLocations.length > 0 ? (
+                                                    <select
+                                                        className="h-8 rounded border border-pos-border px-2 text-xs font-bold text-[#172317]"
+                                                        onChange={(e) => handleLocationChange(line.id, e.target.value)}
+                                                        value={selectedLocId}
+                                                    >
+                                                        <option value="">-- Chọn vị trí --</option>
+                                                        {eligibleLocations.map((loc) => (
+                                                            <option key={loc.id} value={loc.id}>
+                                                                {loc.name} ({loc.code})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                ) : (
+                                                    <span className="text-xs font-bold text-[#172317]">
+                                                        {line.destinationLocationName ?? "Chưa xác định"}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="border-t border-[#edf0f4]">
+                                                {line.disposalStatus === "PENDING_APPROVAL" && line.disposalRequestId ? (
+                                                    <div className="grid gap-1">
+                                                        <span className="inline-flex w-fit rounded bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
+                                                            Chờ duyệt tiêu hủy
+                                                        </span>
+                                                        <Link
+                                                            className="text-xs font-black text-[#159734] hover:underline"
+                                                            to={`/management/inventory/disposals/${line.disposalRequestId}`}
+                                                        >
+                                                            {line.disposalRequestCode ?? "Xem yêu cầu tiêu hủy"}
+                                                        </Link>
+                                                    </div>
+                                                ) : line.posted ? (
+                                                    <div className="grid gap-1">
+                                                        <span className="inline-flex w-fit items-center gap-1 rounded bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">
+                                                            <CheckCircle2 size={13} /> Đã xử lý
+                                                        </span>
+                                                        <span className="text-xs font-bold text-[#172317]">
+                                                            {line.transactionType ?? (line.result === "WRITE_OFF" ? "WRITE_OFF" : "CUSTOMER_RETURN_RECEIPT")}
+                                                        </span>
+                                                        {line.disposalRequestId ? (
+                                                            <Link
+                                                                className="text-[11px] font-bold text-[#159734] hover:underline"
+                                                                to={`/management/inventory/disposals/${line.disposalRequestId}`}
+                                                            >
+                                                                {line.disposalRequestCode ?? "Xem phiếu tiêu hủy"}
+                                                            </Link>
+                                                        ) : null}
+                                                    </div>
+                                                ) : (
+                                                    <span className="inline-flex rounded bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
+                                                        Chưa tạo
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </section>
 
-function Refund({ detail }: { detail: CustomerReturnDetail }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card md:grid-cols-4"><Info label="Refund requested" value={detail.desiredResolution === "REFUND" ? "Có" : "Không"} /><Info label="Refund status" value={customerReturnRefundStatusLabels[detail.refundStatus]} /><Info label="Exchange order" value={detail.exchangeOrderCode ?? "-"} /><Info label="Payment reference" value={detail.paymentReference ?? "-"} /><p className="text-sm font-semibold text-[#697684] md:col-span-4">Frontend chỉ hiển thị mock integration sang Order/Payment, không tự xử lý hoàn tiền.</p></section>;
-}
-
-function Documents({ detail }: { detail: CustomerReturnDetail }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card"><Doc label="PNK CUSTOMER_RETURN_RECEIPT" code={detail.stockDocumentCode} id={detail.stockDocumentId} /><Doc label="Disposal Request" code={detail.disposalRequestCode} id={detail.disposalRequestId} /></section>;
-}
-
-function Audit({ detail }: { detail: CustomerReturnDetail }) {
-    return <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">{detail.auditEvents.map((event) => <p className="text-sm font-semibold text-[#536078]" key={event.id}>{formatVietnamDateTime(event.happenedAt)} · {event.actor.name} · {event.note}</p>)}</section>;
-}
-
-function Doc({ code, id, label }: { code?: string; id?: string; label: string }) {
-    return <div className="flex items-center justify-between gap-3 rounded-lg bg-[#f7f8fb] p-3"><strong className="text-sm font-black text-[#172317]">{label}</strong>{id && code ? <Link className="inline-flex items-center gap-2 text-sm font-black text-[#159734] hover:underline" to={label.startsWith("PNK") ? `/management/inventory/documents/${id}` : "#"}><FileText size={16} />{code}</Link> : <span className="text-sm font-bold text-[#697684]">Chưa tạo</span>}</div>;
+                    {detail.status === "POSTED" ? (
+                        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-900">
+                            Phiếu kiểm định đã ở trạng thái <strong>POSTED</strong>. Giao dịch kho và cập nhật tồn kho đã được hạch toán hoàn tất. Thao tác xác nhận không còn hiển thị để bảo đảm tính idempotent, tuyệt đối không ghi nhận hai lần.
+                        </div>
+                    ) : null}
+                    {detail.status === "PROCESSING" ? (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                            Các dòng nhập lại kho/hàng hỏng/cách ly đã được xử lý. Phiếu chỉ hoàn tất sau khi yêu cầu tiêu hủy được phê duyệt; hiện chưa gửi xác nhận hoàn tất về Order-Service.
+                        </div>
+                    ) : null}
+                </>
+            ) : null}
+        </section>
+    );
 }
 
 function Info({ label, value }: { label: string; value: string }) {
-    return <div className="grid gap-1 rounded-lg bg-white px-3 py-2"><span className="text-xs font-black text-[#697684]">{label}</span><strong className="text-sm font-black text-[#172317]">{value || "-"}</strong></div>;
+    return (
+        <div>
+            <span className="text-xs font-black uppercase text-[#697684]">{label}</span>
+            <p className="mt-1 text-sm font-black text-[#172317]">{value}</p>
+        </div>
+    );
 }

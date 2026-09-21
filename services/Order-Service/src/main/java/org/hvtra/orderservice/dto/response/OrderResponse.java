@@ -2,6 +2,7 @@ package org.hvtra.orderservice.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 
@@ -26,6 +27,7 @@ public class OrderResponse {
     private String orderType;
     private OrderStatus status;
     private PaymentStatus paymentStatus;
+    private OrderReturnStatus returnStatus;
     private String paymentMethod;
     private String paymentMethodLabel;
     private PaymentResponse payment;
@@ -61,6 +63,7 @@ public class OrderResponse {
     private String orderTypeLabel;
     private String statusLabel;
     private String paymentStatusLabel;
+    private String returnStatusLabel;
 
     private String note;
 

@@ -3,24 +3,43 @@ package org.hvtra.orderservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.*;
+import org.hvtra.orderservice.domain.enums.OrderReturnEligibility;
+import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
 import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
 import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
+import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
+import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundDetailResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderRefundSummaryResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnInventoryDispositionResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnRefundPreviewResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnReportDetailResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnReportSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnTimelineResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
 import org.hvtra.orderservice.service.OrderExportService;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
+import org.hvtra.orderservice.service.OrderReturnReportService;
+import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -33,6 +52,8 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -46,6 +67,8 @@ public class OrderController {
 
     private final OrderService orderService;
     private final OrderExportService orderExportService;
+    private final OrderReturnService orderReturnService;
+    private final OrderReturnReportService orderReturnReportService;
 
     @Operation(summary = "checkout hoa don POS da tao draft")
     @UserAction(value = "ORDER_CHECKOUT", entityType = "Order", entityId = "#result.id")
@@ -175,6 +198,190 @@ public class OrderController {
     ) {
         return orderService.markOrderPaid(orderId, request);
     }
+
+    @Operation(summary = "tao yeu cau hoan hang cho don hang")
+    @PostMapping("/" + UUID_PATH + "/returns")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderReturnResponse createReturn(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody CreateOrderReturnRequest request
+    ) {
+        return orderReturnService.createReturn(orderId, request);
+    }
+
+    @Operation(summary = "lay danh sach hoan hang cua don hang")
+    @GetMapping("/" + UUID_PATH + "/returns")
+    public List<OrderReturnResponse> getReturnsByOrder(@PathVariable UUID orderId) {
+        return orderReturnService.getReturnsByOrder(orderId);
+    }
+
+    @Operation(summary = "lay danh sach phieu hoan hang toan he thong")
+    @GetMapping("/returns")
+    public Page<OrderReturnSummaryResponse> getReturns(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String displayStatus,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        String effectiveDisplayStatus = displayStatus != null && !displayStatus.isBlank() ? displayStatus : status;
+        ReturnStatus rawStatus = null;
+        if (effectiveDisplayStatus != null) {
+            try {
+                rawStatus = ReturnStatus.valueOf(effectiveDisplayStatus.trim().toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                // Not a raw ReturnStatus enum, will be handled as displayStatus
+            }
+        }
+        return orderReturnService.getReturns(keyword, rawStatus, effectiveDisplayStatus, fromDate, toDate, sort, page, size);
+    }
+
+    public Page<OrderReturnSummaryResponse> getReturns(
+            String keyword,
+            ReturnStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    ) {
+        return orderReturnService.getReturns(keyword, status, null, fromDate, toDate, sort, page, size);
+    }
+
+    @Operation(summary = "thong ke so luong phieu hoan theo trang thai hien thi")
+    @GetMapping("/returns/status-counts")
+    public Map<String, Long> getReturnStatusCounts(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return orderReturnService.getReturnStatusCounts(keyword, fromDate, toDate);
+    }
+
+    @Operation(summary = "lay danh sach hoan tien tu phieu hoan hang")
+    @GetMapping("/refunds")
+    public Page<OrderRefundSummaryResponse> getRefunds(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) OrderRefundStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return orderReturnService.getRefunds(keyword, status, fromDate, toDate, sort, page, size);
+    }
+
+    @Operation(summary = "thong ke trang thai hoan tien")
+    @GetMapping("/refunds/stats")
+    public OrderRefundStatsResponse getRefundStats(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return orderReturnService.getRefundStats(keyword, fromDate, toDate);
+    }
+
+    @Operation(summary = "lay chi tiet hoan tien")
+    @GetMapping("/refunds/{returnId:[0-9a-fA-F\\-]{36}}")
+    public OrderRefundDetailResponse getRefundDetail(@PathVariable UUID returnId) {
+        return orderReturnService.getRefundDetail(returnId);
+    }
+
+    @Operation(summary = "lay chi tiet hoan hang")
+    @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}")
+    public OrderReturnResponse getReturnById(@PathVariable UUID returnId) {
+        return orderReturnService.getReturnById(returnId);
+    }
+
+    @Operation(summary = "lay timeline xu ly hoan hang")
+    @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/timeline")
+    public List<OrderReturnTimelineResponse> getReturnTimeline(@PathVariable UUID returnId) {
+        return orderReturnService.getReturnTimeline(returnId);
+    }
+
+    @Operation(summary = "bao cao tong hop hoan hang va hoan tien")
+    @GetMapping("/reports/returns/summary")
+    public OrderReturnReportSummaryResponse getReturnReportSummary(
+            @RequestParam(required = false) UUID branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return orderReturnReportService.getSummary(branchId, fromDate, toDate);
+    }
+
+    @Operation(summary = "bao cao chi tiet hoan hang va hoan tien")
+    @GetMapping("/reports/returns")
+    public Page<OrderReturnReportDetailResponse> getReturnReportDetails(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) ReturnStatus returnStatus,
+            @RequestParam(required = false) String refundStatus,
+            @RequestParam(required = false) UUID branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return orderReturnReportService.getDetails(
+                keyword,
+                returnStatus,
+                refundStatus,
+                branchId,
+                fromDate,
+                toDate,
+                sort,
+                page,
+                size
+        );
+    }
+
+    @Operation(summary = "xem truoc so tien hoan tien")
+    @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund-preview")
+    public OrderReturnRefundPreviewResponse getRefundPreview(@PathVariable UUID returnId) {
+        return orderReturnService.getRefundPreview(returnId);
+    }
+
+    @Operation(summary = "xac nhan cua hang da nhan hang tra lai")
+    @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/receive")
+    public OrderReturnResponse receiveReturn(@PathVariable UUID returnId) {
+        return orderReturnService.receiveReturn(returnId);
+    }
+
+    @Operation(summary = "huy phieu hoan hang chua hoan tat")
+    @PutMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/cancel")
+    public OrderReturnResponse cancelReturn(@PathVariable UUID returnId) {
+        return orderReturnService.cancelReturn(returnId);
+    }
+
+    @Operation(summary = "hoan tien cho phieu hoan hang")
+    @PostMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/refund")
+    public OrderReturnRefundResponse refundReturn(@PathVariable UUID returnId) {
+        return orderReturnService.refundReturn(returnId);
+    }
+
+    @Operation(summary = "luu lenh xu ly ton kho cho phieu hoan hang")
+    @PostMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/inventory-disposition")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderReturnInventoryDispositionResponse submitReturnInventoryDisposition(
+            @PathVariable UUID returnId,
+            @Valid @RequestBody SubmitReturnInventoryDispositionRequest request
+    ) {
+        return orderReturnService.submitInventoryDisposition(returnId, request);
+    }
+
+    @Operation(summary = "lay trang thai lenh xu ly ton kho cua phieu hoan hang")
+    @GetMapping("/returns/{returnId:[0-9a-fA-F\\-]{36}}/inventory-dispositions/{commandId:[0-9a-fA-F\\-]{36}}")
+    public OrderReturnInventoryDispositionResponse getReturnInventoryDisposition(
+            @PathVariable UUID returnId,
+            @PathVariable UUID commandId
+    ) {
+        return orderReturnService.getInventoryDisposition(returnId, commandId);
+    }
+
     @GetMapping
     public Page<OrderSummaryResponse> getOrders(
             @RequestParam(required = false) String keyword,
@@ -183,6 +390,7 @@ public class OrderController {
             @RequestParam(required = false) String orderType,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) OrderReturnEligibility returnEligibility,
             @RequestParam(defaultValue = "businessStatus") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
@@ -194,10 +402,18 @@ public class OrderController {
                 orderType,
                 fromDate,
                 toDate,
+                returnEligibility,
                 sort,
                 page,
                 size
         );
+    }
+
+    @GetMapping("/return-eligibility-stats")
+    public OrderReturnEligibilityStatsResponse getOrderReturnEligibilityStats(
+            @RequestParam(required = false) String keyword
+    ) {
+        return orderService.getOrderReturnEligibilityStats(keyword);
     }
 
     @GetMapping("/today-sales")

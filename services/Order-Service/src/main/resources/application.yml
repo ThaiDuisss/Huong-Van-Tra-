@@ -168,7 +168,26 @@ order:
         expired: payment.expired
         cancelled: payment.cancelled
         need-review: payment.need-review
+  inventory:
+    events:
+      topics:
+        return-disposition-processed: ${ORDER_INVENTORY_RETURN_DISPOSITION_PROCESSED_TOPIC:inventory.event.RETURN_INVENTORY_DISPOSITION_PROCESSED}
+        return-disposition-failed: ${ORDER_INVENTORY_RETURN_DISPOSITION_FAILED_TOPIC:inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED}
+      return-disposition-ack:
+        group-id: ${ORDER_INVENTORY_RETURN_DISPOSITION_ACK_GROUP_ID:order-return-inventory-ack-events}
+  return:
+    inventory-reconciliation:
+      enabled: ${ORDER_RETURN_INVENTORY_RECONCILIATION_ENABLED:true}
+      fixed-delay-ms: ${ORDER_RETURN_INVENTORY_RECONCILIATION_FIXED_DELAY_MS:60000}
+      pending-threshold-minutes: ${ORDER_RETURN_INVENTORY_RECONCILIATION_PENDING_THRESHOLD_MINUTES:5}
+      batch-size: ${ORDER_RETURN_INVENTORY_RECONCILIATION_BATCH_SIZE:50}
+      orphan-recovery:
+        enabled: ${ORDER_RETURN_INVENTORY_ORPHAN_RECOVERY_ENABLED:true}
+        not-found-threshold: ${ORDER_RETURN_INVENTORY_ORPHAN_NOT_FOUND_THRESHOLD:3}
+        min-command-age-minutes: ${ORDER_RETURN_INVENTORY_ORPHAN_MIN_AGE_MINUTES:10}
+        cooldown-minutes: ${ORDER_RETURN_INVENTORY_ORPHAN_COOLDOWN_MINUTES:10}
+        max-recovery-attempts: ${ORDER_RETURN_INVENTORY_ORPHAN_MAX_ATTEMPTS:5}
 
 security:
   internal:
-      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}
+      header-secret: ${INTERNAL_HEADER_SECRET:kEV4x5IAXOxEnoEqPptGSYqS6Ujqly27dBhfjYp2pNc=}

@@ -5,4 +5,5 @@ public enum InventoryLocationType {
     STORAGE,
     DAMAGED,
     SHELF,
+    QUARANTINE,
 }

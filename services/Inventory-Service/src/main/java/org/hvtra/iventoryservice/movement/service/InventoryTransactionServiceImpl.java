@@ -26,6 +26,7 @@ import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
+import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -338,6 +339,12 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         }
     }
 
+    private void validateSaleableLocation(InventoryLocation location) {
+        if (!InventoryLocationSaleability.isSaleable(location)) {
+            throw new BadRequestException("Inventory location is not saleable");
+        }
+    }
+
     /**
      * Resolve và validate một kệ (SHELF) đang ACTIVE.
      * Dùng cho StoreStockIn, StoreAdjust, StoreTransfer.
@@ -351,6 +358,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
         if (loc.getStatus() != InventoryStatus.ACTIVE) {
             throw new BadRequestException("Kệ " + shelfId + " hiện không hoạt động (INACTIVE)");
         }
+        validateSaleableLocation(loc);
         return loc;
     }
 
@@ -359,12 +367,14 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
      * Vẫn dùng cho storeStockOut (xuất hàng POS).
      */
     private InventoryLocation resolveWarehouseLocation() {
-        return locationRepository.findFirstByTypeAndStatus(
+        InventoryLocation location = locationRepository.findFirstByTypeAndStatus(
                         InventoryLocationType.WAREHOUSE,
                         InventoryStatus.ACTIVE
                 )
                 .orElseThrow(() -> new BadRequestException(
                         "No active WAREHOUSE location found"));
+        validateSaleableLocation(location);
+        return location;
     }
 
     @Override
@@ -463,7 +473,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
                                 + " tại kệ nguồn " + fromShelf.getId()));
 
         // Validate số lượng đủ để chuyển
-        BigDecimal available = fromBalance.getQuantityOnHand();
+        BigDecimal available = fromBalance.getAvailableQuantity();
         if (available.compareTo(request.quantity()) < 0) {
             throw new BadRequestException(
                     "Số lượng tồn kho tại kệ nguồn ("
@@ -526,6 +536,12 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
                                     + item.getId() + " at location " + location.getId()));
 
             BigDecimal before = balance.getQuantityOnHand();
+            BigDecimal available = balance.getAvailableQuantity();
+            if (available.compareTo(requestLine.quantity()) < 0) {
+                throw new BadRequestException(
+                        "Saleable stock is not enough for item " + item.getId()
+                                + " at location " + location.getId());
+            }
             BigDecimal after = before.subtract(requestLine.quantity());
             validateNonNegative(after, "quantityOnHand");
             balance.setQuantityOnHand(after);

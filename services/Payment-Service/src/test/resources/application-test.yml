@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    # Fail-fast: Must be provided via environment variables.
+    # Absolutely NO fallback to dev DB (100.93.252.63)!
+    url: ${PAYMENT_TEST_DB_URL}
+    username: ${PAYMENT_TEST_DB_USERNAME}
+    password: ${PAYMENT_TEST_DB_PASSWORD}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+  cloud:
+    discovery:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false
+
+kafka-config:
+  enabled: false

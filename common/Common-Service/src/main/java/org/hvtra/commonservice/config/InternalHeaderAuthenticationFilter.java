@@ -5,7 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.domain.constants.HeaderConstants;
 import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
@@ -18,16 +18,30 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @FieldDefaults(level = AccessLevel.PRIVATE)
-@RequiredArgsConstructor
+@Slf4j
 public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
 
     final String headerSecret;
+    final String applicationName;
+
+    public InternalHeaderAuthenticationFilter(String headerSecret, String applicationName) {
+        this.headerSecret = headerSecret;
+        this.applicationName = applicationName;
+        log.info(
+                "Internal auth secret loaded: service={}, property=security.internal.header-secret, length={}, fingerprint={}",
+                applicationName,
+                headerSecret.length(),
+                secretFingerprint()
+        );
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -44,7 +58,26 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (isBlank(userId) || isBlank(signature) || isBlank(authorization)) {
+        boolean hasUserId = !isBlank(userId);
+        boolean hasRoles = !isBlank(rolesRaw);
+        boolean hasRequestId = !isBlank(correlationId);
+        boolean hasSignature = !isBlank(signature);
+        boolean hasAuthorization = !isBlank(authorization);
+
+        if (!hasUserId || !hasSignature || !hasAuthorization) {
+            log.warn(
+                    "Internal auth rejected: service={}, reason=missing_headers, method={}, path={}, requestId={}, "
+                            + "hasAuthorization={}, hasUserId={}, hasRoles={}, hasSignature={}, principalPresent={}",
+                    applicationName,
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    hasRequestId ? correlationId : "missing",
+                    hasAuthorization,
+                    hasUserId,
+                    hasRoles,
+                    hasSignature,
+                    SecurityContextHolder.getContext().getAuthentication() != null
+            );
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing internal authentication headers");
             return;
         }
@@ -55,7 +88,24 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
                 correlationId,
                 authorization);
 
-        if (!constantTimeEquals(expectedSignature, signature)) {
+        boolean signatureValid = constantTimeEquals(expectedSignature, signature);
+        if (!signatureValid) {
+            log.warn(
+                    "Internal auth rejected: service={}, reason=signature_mismatch, method={}, path={}, requestId={}, "
+                            + "hasAuthorization={}, hasUserId={}, hasRoles={}, hasSignature={}, secretLength={}, "
+                            + "secretFingerprint={}, signatureValid=false, principalPresent={}",
+                    applicationName,
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    hasRequestId ? correlationId : "missing",
+                    hasAuthorization,
+                    hasUserId,
+                    hasRoles,
+                    hasSignature,
+                    headerSecret.length(),
+                    secretFingerprint(),
+                    SecurityContextHolder.getContext().getAuthentication() != null
+            );
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid internal authentication signature");
             return;
         }
@@ -82,6 +132,16 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
                 authorities);
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        log.debug(
+                "Internal auth accepted: service={}, method={}, path={}, requestId={}, signatureValid=true, "
+                        + "principalPresent=true, authorities={}",
+                applicationName,
+                request.getMethod(),
+                request.getRequestURI(),
+                hasRequestId ? correlationId : "missing",
+                authorities
+        );
 
         filterChain.doFilter(request, response);
     }
@@ -143,6 +203,19 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private String value(String value) {
         return value == null ? "" : value;
+    }
+
+    private String secretFingerprint() {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(headerSecret.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of()
+                    .formatHex(hash)
+                    .substring(0, 8)
+                    .toUpperCase(Locale.ROOT);
+        } catch (Exception ex) {
+            return "UNAVAILABLE";
+        }
     }
 
 

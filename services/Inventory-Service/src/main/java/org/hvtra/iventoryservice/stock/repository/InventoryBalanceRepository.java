@@ -3,6 +3,8 @@ package org.hvtra.iventoryservice.stock.repository;
 import jakarta.persistence.LockModeType;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -53,12 +55,20 @@ public interface InventoryBalanceRepository
             set b.quantityReserved = b.quantityReserved + :quantity
             where b.inventoryItem.id = :inventoryItemId
               and b.location.id = :locationId
-              and (b.quantityOnHand - b.quantityReserved) >= :quantity
+              and (b.quantityOnHand - b.quantityReserved - b.quantityBlocked) >= :quantity
+              and b.location.id in (
+                    select l.id from InventoryLocation l
+                    where l.id = :locationId
+                      and l.status = :locationStatus
+                      and l.type not in :excludedLocationTypes
+              )
             """)
     int reserveAvailable(
             @Param("inventoryItemId") UUID inventoryItemId,
             @Param("locationId") UUID locationId,
-            @Param("quantity") BigDecimal quantity);
+            @Param("quantity") BigDecimal quantity,
+            @Param("locationStatus") InventoryStatus locationStatus,
+            @Param("excludedLocationTypes") Collection<InventoryLocationType> excludedLocationTypes);
 
     @Modifying
     @Query("""
@@ -81,12 +91,20 @@ public interface InventoryBalanceRepository
             where b.inventoryItem.id = :inventoryItemId
               and b.location.id = :locationId
               and b.quantityReserved >= :quantity
-              and b.quantityOnHand >= :quantity
+              and (b.quantityOnHand - b.quantityBlocked) >= :quantity
+              and b.location.id in (
+                    select l.id from InventoryLocation l
+                    where l.id = :locationId
+                      and l.status = :locationStatus
+                      and l.type not in :excludedLocationTypes
+              )
             """)
     int confirmReserved(
             @Param("inventoryItemId") UUID inventoryItemId,
             @Param("locationId") UUID locationId,
-            @Param("quantity") BigDecimal quantity);
+            @Param("quantity") BigDecimal quantity,
+            @Param("locationStatus") InventoryStatus locationStatus,
+            @Param("excludedLocationTypes") Collection<InventoryLocationType> excludedLocationTypes);
 
     @Query("""
             select b from InventoryBalance b
@@ -121,6 +139,19 @@ public interface InventoryBalanceRepository
             """)
     List<InventoryBalance> findActiveWarehouseBalancesByInventoryItemIds(
             @Param("inventoryItemIds") Collection<UUID> inventoryItemIds);
+
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.inventoryItem i
+            join fetch b.location l
+            where i.id in :inventoryItemIds
+              and l.status = :locationStatus
+              and l.type not in :excludedLocationTypes
+            """)
+    List<InventoryBalance> findSaleableBalancesByInventoryItemIds(
+            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds,
+            @Param("locationStatus") InventoryStatus locationStatus,
+            @Param("excludedLocationTypes") Collection<InventoryLocationType> excludedLocationTypes);
 
     @Query("""
             select b from InventoryBalance b

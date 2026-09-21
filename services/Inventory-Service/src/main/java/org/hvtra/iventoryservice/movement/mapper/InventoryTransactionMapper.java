@@ -19,7 +19,7 @@ public class InventoryTransactionMapper {
                 transaction.getLines().stream().map(line -> new InventoryTransactionResponse.LineResponse(
                         line.getId(),
                         line.getInventoryItem().getId(),
-                        line.getLocation().getId(),
+                        line.getLocation() == null ? null : line.getLocation().getId(),
                         line.getQuantity(),
                         line.getBeforeQuantity(),
                         line.getAfterQuantity()

@@ -9,7 +9,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(scanBasePackages = "org.hvtra")
+@SpringBootApplication(scanBasePackages = {
+		"org.hvtra.orderservice",
+		"org.hvtra.commonservice.config",
+		"org.hvtra.commonservice.kafka",
+		"org.hvtra.commonservice.utils",
+		"org.hvtra.commonservice.exception"
+})
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @EnableScheduling
 @EnableKafka
