@@ -1,6 +1,7 @@
 package org.hvtra.deliveryservice.controller;
 
 import jakarta.validation.Valid;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.deliveryservice.carrier.CarrierDeliveryFacade;
 import org.hvtra.deliveryservice.carrier.model.*;
 import org.hvtra.deliveryservice.carrier.support.CarrierProviderUtils;
@@ -28,6 +29,7 @@ public class CarrierDeliveryController {
         return facade.quote(shipmentId, CarrierProviderUtils.parse(provider), command);
     }
 
+    @UserAction(value = "CARRIER_SHIPMENT_CREATE", entityType = "Shipment", entityId = "#shipmentId", detail = "#provider")
     @PostMapping("/orders")
     public CarrierShipmentResult create(
             @PathVariable UUID shipmentId,
@@ -53,6 +55,7 @@ public class CarrierDeliveryController {
         return facade.refresh(shipmentId, CarrierProviderUtils.parse(provider));
     }
 
+    @UserAction(value = "CARRIER_SHIPMENT_CANCEL", entityType = "Shipment", entityId = "#shipmentId", detail = "#provider")
     @PostMapping("/cancel")
     public CarrierShipmentResult cancel(
             @PathVariable UUID shipmentId,

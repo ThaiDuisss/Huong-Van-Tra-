@@ -48,3 +48,26 @@ idp:
   client-id: ${KEYCLOAK_CLIENT_ID}
   clientSecret: ${KEYCLOAK_CLIENT_SECRET}
   realm: hvt
+
+
+# ===== Action log (nhận từ Kafka topic action.log, lưu bảng action_log) =====
+# Bật Kafka bằng KAFKA_ENABLED=true; mặc định tắt để chạy local không cần Kafka.
+kafka-config:
+  enabled: ${KAFKA_ENABLED:true}
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.93.252.63:19092}
+  num-of-partitions: 3
+  replication-factor: 1
+
+hvtra:
+  logging:
+    action-log:
+      topic: action.log
+  action-log:
+    max-poll-records: 500
+    retry-attempts: 3
+    retry-backoff-ms: 2000
+    retention-days: ${ACTION_LOG_RETENTION_DAYS:365}
+    purge:
+      enabled: true
+      cron: "0 0 3 * * *"
+      batch-size: 5000

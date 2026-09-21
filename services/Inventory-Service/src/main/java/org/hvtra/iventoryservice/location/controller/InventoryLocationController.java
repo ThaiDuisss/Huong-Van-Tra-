@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.location.controller;
 
 import jakarta.validation.Valid;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
 import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
@@ -45,6 +46,7 @@ public class InventoryLocationController {
         return service.findDefaultWarehouse(branchId);
     }
 
+    @UserAction(value = "INVENTORY_LOCATION_CREATE", entityType = "InventoryLocation", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryLocationResponse create(
@@ -52,12 +54,14 @@ public class InventoryLocationController {
         return service.create(request);
     }
 
+    @UserAction(value = "INVENTORY_LOCATION_UPDATE", entityType = "InventoryLocation", entityId = "#id")
     @PutMapping("/{id}")
     public InventoryLocationResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody InventoryLocationRequest request) {
         return service.update(id, request);
     }
 
+    @UserAction(value = "INVENTORY_LOCATION_STATUS_UPDATE", entityType = "InventoryLocation", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public InventoryLocationResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody InventoryStatusRequest request) {

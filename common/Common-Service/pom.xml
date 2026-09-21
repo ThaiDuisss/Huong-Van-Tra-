@@ -107,6 +107,12 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Janino: cần cho thẻ <if condition> trong logback-spring.xml -->
+        <dependency>
+            <groupId>org.codehaus.janino</groupId>
+            <artifactId>janino</artifactId>
+        </dependency>
+
         <!-- QueryDSL JPA for Jakarta -->
         <dependency>
             <groupId>com.querydsl</groupId>

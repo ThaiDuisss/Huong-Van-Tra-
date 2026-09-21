@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.ManualTierAdjustmentRequest;
@@ -117,6 +118,7 @@ public class CustomerLoyaltyTierController {
         );
     }
 
+    @UserAction(value = "CUSTOMER_TIER_ADJUST", entityType = "Customer", entityId = "#customerId")
     @PostMapping(ApiPath.TIER_ADJUSTMENTS)
     @Operation(summary = "Điều chỉnh hạng khách hàng thủ công")
     public CustomerTierAssignmentResponse adjustTier(

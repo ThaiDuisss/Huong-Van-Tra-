@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.ChangeTierStatusRequest;
@@ -53,6 +54,7 @@ public class CustomerTierController {
         return customerTierService.getById(id);
     }
 
+    @UserAction(value = "CUSTOMER_TIER_CREATE", entityType = "CustomerTier", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Tạo hạng khách hàng")
@@ -60,6 +62,7 @@ public class CustomerTierController {
         return customerTierService.create(request);
     }
 
+    @UserAction(value = "CUSTOMER_TIER_UPDATE", entityType = "CustomerTier", entityId = "#id")
     @PutMapping(ApiPath.ID)
     @Operation(summary = "Cập nhật hạng khách hàng (kể cả đổi status = INACTIVE để vô hiệu hóa)")
     public CustomerTierResponse update(
@@ -68,6 +71,7 @@ public class CustomerTierController {
         return customerTierService.update(id, request);
     }
 
+    @UserAction(value = "CUSTOMER_TIER_STATUS_UPDATE", entityType = "CustomerTier", entityId = "#id", detail = "#request.status")
     @PatchMapping(ApiPath.TIER_STATUS)
     @Operation(summary = "Đổi trạng thái hạng khách hàng")
     public void changeStatus(

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cấu hình log dùng chung cho mọi service (nằm trong Common-Service).
+  Service nào có logback-spring.xml riêng thì file đó được ưu tiên.
+
+  Biến môi trường:
+    LOG_PATH   thư mục ghi file, mặc định ./logs. Docker: mount /logs ra host.
+    LOG_LEVEL  mức log root (code của org.hvtra và thư viện chưa liệt kê), mặc định INFO.
+    LOG_LEVEL_FRAMEWORK  mức log của Spring/Hibernate/Tomcat/Kafka/Eureka..., mặc định WARN.
+                         Đặt INFO khi cần soi quá trình khởi động.
+    LOG_FILE_ENABLED  true/false, tắt ghi file khi chạy local nếu muốn.
+    LOG_ACCESS_CONSOLE  true/false, in access log ra console (mặc định true, production nên tắt).
+
+  File sinh ra trong ${LOG_PATH}/${service}/ :
+    app.log         toàn bộ log ứng dụng
+    access.log      một dòng cho mỗi request HTTP (logger ACCESS_LOG)
+    action-log.log  action log dạng JSON khi service không có Kafka hoặc Kafka lỗi (logger ACTION_LOG)
+-->
+<configuration scan="false">
+    <springProperty scope="context" name="SERVICE" source="spring.application.name" defaultValue="unknown"/>
+    <property name="LOG_PATH" value="${LOG_PATH:-./logs}"/>
+    <property name="LOG_DIR" value="${LOG_PATH}/${SERVICE}"/>
+    <property name="LOG_LEVEL" value="${LOG_LEVEL:-INFO}"/>
+    <property name="LOG_LEVEL_FRAMEWORK" value="${LOG_LEVEL_FRAMEWORK:-WARN}"/>
+    <property name="LOG_FILE_ENABLED" value="${LOG_FILE_ENABLED:-true}"/>
+    <property name="LOG_ACCESS_CONSOLE" value="${LOG_ACCESS_CONSOLE:-true}"/>
+
+    <!-- requestId và userId lấy từ MDC do RequestLoggingFilter đặt -->
+    <property name="PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [${SERVICE}] [req=%X{requestId:-}] [user=%X{userId:-}] [%thread] %logger{36} - %msg%n%ex"/>
+    <property name="CONSOLE_PATTERN"
+              value="%d{HH:mm:ss.SSS} %highlight(%-5level) [req=%X{requestId:-}] %cyan(%logger{30}) - %msg%n%ex"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/archive/app-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="ACCESS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/access.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/archive/access-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [req=%X{requestId:-}] [user=%X{userId:-}] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="ACTION_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/action-log.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/archive/action-log-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <!-- mỗi dòng là một JSON, sau này nạp lại bằng script hoặc Filebeat được -->
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Ghi file bất đồng bộ, queue nhỏ để không tốn RAM, không chặn thread nghiệp vụ -->
+    <appender name="ASYNC_APP_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="APP_FILE"/>
+    </appender>
+    <appender name="ASYNC_ACCESS_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="ACCESS_FILE"/>
+    </appender>
+
+    <!-- Access log: ra file, và ra console khi LOG_ACCESS_CONSOLE=true (hoặc khi tắt ghi file) -->
+    <logger name="ACCESS_LOG" level="INFO" additivity="false">
+        <if condition='property("LOG_FILE_ENABLED").equals("true")'>
+            <then><appender-ref ref="ASYNC_ACCESS_FILE"/></then>
+        </if>
+        <if condition='property("LOG_ACCESS_CONSOLE").equals("true") || !property("LOG_FILE_ENABLED").equals("true")'>
+            <then><appender-ref ref="CONSOLE"/></then>
+        </if>
+    </logger>
+
+    <!-- Action log fallback: ghi đồng bộ để không mất khi tắt service -->
+    <logger name="ACTION_LOG" level="INFO" additivity="false">
+        <if condition='property("LOG_FILE_ENABLED").equals("true")'>
+            <then><appender-ref ref="ACTION_FILE"/></then>
+            <else><appender-ref ref="CONSOLE"/></else>
+        </if>
+    </logger>
+
+    <!-- Giảm ồn: framework chỉ log từ WARN, code org.hvtra vẫn theo LOG_LEVEL -->
+    <logger name="org.springframework" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="org.hibernate" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="org.apache.catalina" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="org.apache.coyote" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="org.apache.tomcat" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="org.apache.kafka" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="com.zaxxer.hikari" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="com.netflix" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="org.flywaydb" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="io.lettuce" level="${LOG_LEVEL_FRAMEWORK}"/>
+    <logger name="org.redisson" level="${LOG_LEVEL_FRAMEWORK}"/>
+
+    <!-- Giữ lại vài dòng INFO có ích: port Tomcat, migration Flyway đã chạy -->
+    <logger name="org.springframework.boot.web.embedded.tomcat.TomcatWebServer" level="INFO"/>
+    <logger name="org.flywaydb.core.internal.command.DbMigrate" level="INFO"/>
+
+    <!-- Kafka mất kết nối: NetworkClient WARN mỗi giây một dòng cho tới khi broker sống lại.
+         Lỗi gửi/nhận thật vẫn được log ở ActionLogPublisher và spring-kafka. -->
+    <logger name="org.apache.kafka.clients.NetworkClient" level="ERROR"/>
+
+    <!-- WARN lặp lại mỗi lần khởi động, không mang thông tin mới -->
+    <logger name="org.springframework.boot.autoconfigure.orm.jpa.JpaBaseConfiguration$JpaWebConfiguration" level="ERROR"/>
+    <logger name="org.springframework.cloud.loadbalancer.config.LoadBalancerCacheAutoConfiguration$LoadBalancerCaffeineWarnLogger" level="ERROR"/>
+    <logger name="org.flywaydb.core.internal.database.base.Database" level="ERROR"/>
+    <logger name="com.netflix.discovery.InstanceInfoReplicator" level="ERROR"/>
+
+    <root level="${LOG_LEVEL}">
+        <appender-ref ref="CONSOLE"/>
+        <if condition='property("LOG_FILE_ENABLED").equals("true")'>
+            <then><appender-ref ref="ASYNC_APP_FILE"/></then>
+        </if>
+    </root>
+</configuration>

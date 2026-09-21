@@ -7,6 +7,8 @@ import feign.Retryer;
 import feign.codec.ErrorDecoder;
 import jakarta.servlet.http.HttpServletRequest;
 import org.hvtra.commonservice.domain.constants.HeaderConstants;
+import org.hvtra.commonservice.logging.MdcKeys;
+import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
@@ -27,6 +29,12 @@ public class FeignConfig {
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
             if (attributes == null) {
+                // Gọi Feign ngoài luồng HTTP (consumer Kafka, @Async, scheduler):
+                // vẫn truyền X-Request-ID lấy từ MDC để nối log giữa các service
+                String requestId = MDC.get(MdcKeys.REQUEST_ID);
+                if (StringUtils.hasText(requestId)) {
+                    requestTemplate.header(HeaderConstants.HEADER_CORRELATION_ID, requestId);
+                }
                 return;
             }
 

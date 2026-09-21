@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.document.controller;
 
 import jakarta.validation.Valid;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.iventoryservice.document.dto.request.*;
 import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
@@ -55,6 +56,7 @@ public class InventoryDocumentController {
         return ResponseEntity.ok(service.findById(id));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_CREATE", entityType = "InventoryDocument", entityId = "#result.body.id")
     @PostMapping
     public ResponseEntity<InventoryDocumentResponse> createPurchaseReceipt(
             @Valid @RequestBody CreatePurchaseReceiptRequest request
@@ -62,6 +64,7 @@ public class InventoryDocumentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createPurchaseReceipt(request));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_UPDATE", entityType = "InventoryDocument", entityId = "#id")
     @PutMapping("/{id}")
     public ResponseEntity<InventoryDocumentResponse> updatePurchaseReceipt(
             @PathVariable UUID id,
@@ -70,11 +73,13 @@ public class InventoryDocumentController {
         return ResponseEntity.ok(service.updatePurchaseReceipt(id, request));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_SUBMIT", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/submit")
     public ResponseEntity<InventoryDocumentResponse> submitForApproval(@PathVariable UUID id) {
         return ResponseEntity.ok(service.submitForApproval(id));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_APPROVE", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/approve")
     public ResponseEntity<InventoryDocumentResponse> approve(
             @PathVariable UUID id,
@@ -83,6 +88,7 @@ public class InventoryDocumentController {
         return ResponseEntity.ok(service.approve(id, request));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_REJECT", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/reject")
     public ResponseEntity<InventoryDocumentResponse> reject(
             @PathVariable UUID id,
@@ -91,11 +97,13 @@ public class InventoryDocumentController {
         return ResponseEntity.ok(service.reject(id, request));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_START_RECEIVING", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/start-receiving")
     public ResponseEntity<InventoryDocumentResponse> startReceiving(@PathVariable UUID id) {
         return ResponseEntity.ok(service.startReceiving(id));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_RECEIVE", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/receive")
     public ResponseEntity<InventoryDocumentResponse> confirmReceiving(
             @PathVariable UUID id,
@@ -104,6 +112,7 @@ public class InventoryDocumentController {
         return ResponseEntity.ok(service.confirmReceiving(id, request));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_QC", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/qc")
     public ResponseEntity<InventoryDocumentResponse> completeQc(
             @PathVariable UUID id,
@@ -112,11 +121,13 @@ public class InventoryDocumentController {
         return ResponseEntity.ok(service.completeQc(id, request));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_POST", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/post")
     public ResponseEntity<InventoryDocumentResponse> post(@PathVariable UUID id) {
         return ResponseEntity.ok(service.post(id));
     }
 
+    @UserAction(value = "PURCHASE_RECEIPT_CANCEL", entityType = "InventoryDocument", entityId = "#id", detail = "#note")
     @PostMapping("/{id}/cancel")
     public ResponseEntity<InventoryDocumentResponse> cancel(
             @PathVariable UUID id,

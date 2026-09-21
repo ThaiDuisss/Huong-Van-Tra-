@@ -3,6 +3,7 @@ package org.hvtra.orderservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.*;
+import org.hvtra.commonservice.logging.action.UserAction;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;
@@ -47,6 +48,7 @@ public class OrderController {
     private final OrderExportService orderExportService;
 
     @Operation(summary = "checkout hoa don POS da tao draft")
+    @UserAction(value = "ORDER_CHECKOUT", entityType = "Order", entityId = "#result.id")
     @PostMapping("/pos/checkout")
     public OrderResponse createOrder(@Valid @RequestBody CreateOrderRequest request) {
         if (request.getOrderId() == null) {
@@ -58,6 +60,7 @@ public class OrderController {
     }
 
     @Operation(summary = "them san pham vao hoa don nhap POS")
+    @UserAction(value = "ORDER_DRAFT_ITEM_ADD", entityType = "Order", entityId = "#result.id")
     @PostMapping("/pos/draft/items")
     @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse addDraftItem(@Valid @RequestBody AddDraftOrderItemRequest request) {
@@ -65,6 +68,7 @@ public class OrderController {
     }
 
     @Operation(summary = "cap nhat so luong san pham trong hoa don nhap POS")
+    @UserAction(value = "ORDER_DRAFT_ITEM_UPDATE", entityType = "Order", entityId = "#orderId", detail = "#itemId")
     @PutMapping("/pos/draft/" + UUID_PATH + "/items/{itemId}")
     public OrderResponse updateDraftItemQuantity(
             @PathVariable UUID orderId,
@@ -75,18 +79,21 @@ public class OrderController {
     }
 
     @Operation(summary = "xoa san pham khoi hoa don nhap POS")
+    @UserAction(value = "ORDER_DRAFT_ITEM_REMOVE", entityType = "Order", entityId = "#orderId", detail = "#itemId")
     @DeleteMapping("/pos/draft/" + UUID_PATH + "/items/{itemId}")
     public OrderResponse removeDraftItem(@PathVariable UUID orderId, @PathVariable UUID itemId) {
         return orderService.removeDraftItem(orderId, itemId);
     }
 
     @Operation(summary = "huy hoa don nhap POS")
+    @UserAction(value = "ORDER_DRAFT_CANCEL", entityType = "Order", entityId = "#orderId")
     @PostMapping("/pos/draft/" + UUID_PATH + "/cancel")
     public OrderResponse cancelDraftOrder(@PathVariable UUID orderId) {
         return orderService.cancelDraftOrder(orderId);
     }
 
     @Operation(summary = "thanh toan hoa don nhap POS da ton tai")
+    @UserAction(value = "ORDER_DRAFT_CHECKOUT", entityType = "Order", entityId = "#orderId")
     @PostMapping("/pos/" + UUID_PATH + "/checkout")
     public OrderResponse checkoutDraftOrder(
             @PathVariable UUID orderId,
@@ -160,6 +167,7 @@ public class OrderController {
     }
 
     @Operation(summary = "Api cho Payment-Service gọi sau khi thanh toán thành công để cập nhật trạng thái đơn hàng")
+    @UserAction(value = "ORDER_MARK_PAID", entityType = "Order", entityId = "#orderId")
     @PutMapping("/" + UUID_PATH + "/mark-paid")
     public OrderResponse markOrderPaid(
             @PathVariable UUID orderId,
@@ -216,6 +224,7 @@ public class OrderController {
         return orderService.getOrderStats(fromDate, toDate);
     }
 
+    @UserAction(value = "ORDER_STATUS_UPDATE", entityType = "Order", entityId = "#orderId", detail = "#request.status")
     @PutMapping("/" + UUID_PATH + "/status")
     public OrderResponse updateOrderStatus(
             @PathVariable UUID orderId,
@@ -224,6 +233,7 @@ public class OrderController {
         return orderService.updateOrderStatus(orderId, request);
     }
 
+    @UserAction(value = "ORDER_CANCEL", entityType = "Order", entityId = "#orderId", detail = "#request.reason")
     @PutMapping("/" + UUID_PATH + "/cancel")
     public OrderResponse cancelOrder(
             @PathVariable UUID orderId,
