@@ -4,12 +4,10 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.hvtra.catalog.client.InventoryClient;
@@ -33,17 +31,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -351,205 +344,176 @@ public class IngredientServiceImpl implements IngredientService {
     public byte[] getImportTemplate() {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-             
-            Sheet sheet = workbook.createSheet("Mẫu nhập nguyên liệu");
-            
-            Font headerFont = workbook.createFont();
-            headerFont.setBold(true);
-            CellStyle headerStyle = workbook.createCellStyle();
-            headerStyle.setFont(headerFont);
-            
-            String[] headers = {"Mã nguyên liệu", "Tên nguyên liệu", "Trạng thái (Đang hoạt động / Ngừng hoạt động)"};
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                cell.setCellStyle(headerStyle);
-            }
-            
-            Row row = sheet.createRow(1);
-            row.createCell(0).setCellValue("NL001");
-            row.createCell(1).setCellValue("Lá trà tươi ô long");
-            row.createCell(2).setCellValue("Đang hoạt động");
-            
-            sheet.createFreezePane(0, 1);
-            for (int i = 0; i < headers.length; i++) {
-                try {
-                    sheet.autoSizeColumn(i);
-                } catch (Exception ignored) {}
-            }
-            
+
+            buildImportInstructionSheet(workbook);
+            buildImportIngredientSheet(workbook);
+            buildImportReferenceSheet(workbook);
+
             workbook.write(out);
             return out.toByteArray();
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi tải file mẫu: " + e.getMessage(), e);
+            throw new RuntimeException("Lỗi tạo file mẫu Excel Nguyên liệu: " + e.getMessage(), e);
         }
     }
 
-    @Override
-    @Transactional
-    public void importFromExcel(MultipartFile file) {
-        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
-            Sheet sheet = workbook.getSheetAt(0);
-            int rowCount = sheet.getPhysicalNumberOfRows();
-            if (rowCount <= 1) {
-                return;
-            }
+    private void buildImportInstructionSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Hướng dẫn");
 
-            int headerRowIndex = 0;
-            for (int r = 0; r < Math.min(10, rowCount); r++) {
-                Row rRow = sheet.getRow(r);
-                if (rRow == null) continue;
-                boolean hasMatch = false;
-                for (int c = 0; c < rRow.getLastCellNum(); c++) {
-                    String h = getCellValueAsString(rRow.getCell(c)).toLowerCase().trim();
-                    String normalized = Normalizer.normalize(h, Normalizer.Form.NFD)
-                            .replaceAll("\\p{M}", "");
-                    if (normalized.contains("ma nguyen lieu") || normalized.contains("ma nl") || normalized.contains("ten nguyen lieu") || normalized.contains("ten nl")) {
-                        hasMatch = true;
-                        break;
-                    }
+        Font titleFont = workbook.createFont();
+        titleFont.setBold(true);
+        titleFont.setFontHeightInPoints((short) 14);
+        CellStyle titleStyle = workbook.createCellStyle();
+        titleStyle.setFont(titleFont);
+
+        Font sectionFont = workbook.createFont();
+        sectionFont.setBold(true);
+        CellStyle sectionStyle = workbook.createCellStyle();
+        sectionStyle.setFont(sectionFont);
+
+        CellStyle textStyle = workbook.createCellStyle();
+
+        String[] titleLines = {"HƯỚNG DẪN NHẬP NGUYÊN LIỆU TỪ EXCEL"};
+        String[][] sections = {
+                {
+                        "1. Cấu trúc file",
+                        "File gồm 3 sheet:",
+                        "- \"Hướng dẫn\": sheet này.",
+                        "- \"Nguyên liệu\": nhập dữ liệu nguyên liệu cần tạo, mỗi dòng là 1 nguyên liệu.",
+                        "- \"Tham chiếu\": tra cứu đơn vị để điền vào sheet \"Nguyên liệu\"."
+                },
+                {
+                        "2. Cách điền sheet \"Nguyên liệu\"",
+                        "- Tên nguyên liệu (*): bắt buộc. Mã nguyên liệu sẽ được hệ thống tự sinh, không cần nhập.",
+                        "- Đơn vị: lấy từ cột \"Đơn vị\" ở sheet \"Tham chiếu\", để trống nếu chưa xác định.",
+                        "- Ngưỡng tối thiểu: số nguyên, để trống sẽ mặc định là 0.",
+                        "- Trạng thái: \"Đang hoạt động\" hoặc \"Ngừng hoạt động\" (mặc định Đang hoạt động)."
+                },
+                {
+                        "3. Sau khi tải file lên hệ thống",
+                        "- Dữ liệu được phân tích thành bản nháp để bạn kiểm tra/sửa trực tiếp trên hệ thống trước khi gửi duyệt.",
+                        "- Dữ liệu chỉ được ghi chính thức vào hệ thống sau khi quản lý duyệt."
+                },
+                {
+                        "4. Lưu ý",
+                        "- Không đổi tên các sheet, không đổi tên cột header ở dòng đầu tiên của sheet \"Nguyên liệu\".",
+                        "- Không xoá dòng header."
                 }
-                if (hasMatch) {
-                    headerRowIndex = r;
-                    break;
-                }
-            }
+        };
 
-            Row headerRow = sheet.getRow(headerRowIndex);
-            int colCode = -1;
-            int colName = -1;
-            int colStatus = -1;
-
-            if (headerRow != null) {
-                for (int c = 0; c < headerRow.getLastCellNum(); c++) {
-                    String h = getCellValueAsString(headerRow.getCell(c)).toLowerCase().trim();
-                    String normalized = Normalizer.normalize(h, Normalizer.Form.NFD)
-                            .replaceAll("\\p{M}", "");
-                    if (normalized.contains("ma nguyen lieu") || normalized.contains("ma nl") || normalized.contains("ingredient code")) {
-                        colCode = c;
-                    } else if (normalized.contains("ten nguyen lieu") || normalized.contains("ten nl") || normalized.contains("ingredient name") || normalized.contains("nguyen lieu")) {
-                        colName = c;
-                    } else if (normalized.contains("trang thai") || normalized.contains("status")) {
-                        colStatus = c;
-                    }
-                }
-            }
-
-            if (colCode == -1) colCode = 0;
-            if (colName == -1) colName = 1;
-            if (colStatus == -1) colStatus = 2;
-
-            Map<String, Ingredient> existingByCode = repository.findAll().stream()
-                    .filter(i -> i.getIngredientCode() != null)
-                    .collect(Collectors.toMap(i -> i.getIngredientCode().toLowerCase().trim(), i -> i, (a, b) -> a));
-
-            Set<String> seenCodesInFile = new HashSet<>();
-            List<Ingredient> ingredientsToSave = new ArrayList<>();
-            List<Ingredient> newIngredients = new ArrayList<>();
-
-            for (int r = headerRowIndex + 1; r < rowCount; r++) {
-                Row row = sheet.getRow(r);
-                if (row == null) continue;
-
-                String ingredientCode = colCode >= 0 ? getCellValueAsString(row.getCell(colCode)) : "";
-                String name = colName >= 0 ? getCellValueAsString(row.getCell(colName)) : "";
-                String statusStr = colStatus >= 0 ? getCellValueAsString(row.getCell(colStatus)) : "";
-
-                if (name.isBlank() && ingredientCode.isBlank()) {
-                    continue;
-                }
-
-                final int rowNum = r + 1;
-                if (ingredientCode.isBlank()) {
-                    throw new BadRequestException("Dòng " + rowNum + ": Mã nguyên liệu không được để trống.");
-                }
-                if (name.isBlank()) {
-                    throw new BadRequestException("Dòng " + rowNum + ": Tên nguyên liệu không được để trống.");
-                }
-
-                String cleanCode = ingredientCode.trim();
-                String cleanName = name.trim();
-                String codeKey = cleanCode.toLowerCase();
-
-                if (seenCodesInFile.contains(codeKey)) {
-                    throw new BadRequestException("Dòng " + rowNum + ": Mã nguyên liệu '" + cleanCode + "' bị trùng lặp trong file excel.");
-                }
-                seenCodesInFile.add(codeKey);
-
-                Status status = Status.ACTIVE;
-                if (statusStr.equalsIgnoreCase("Ngừng hoạt động") || statusStr.equalsIgnoreCase("INACTIVE")) {
-                    status = Status.INACTIVE;
-                }
-
-                Ingredient ingredient = existingByCode.get(codeKey);
-                boolean isNew = false;
-                if (ingredient != null) {
-                    ingredient.setIsDeleted(false);
-                } else {
-                    ingredient = new Ingredient();
-                    isNew = true;
-                }
-
-                ingredient.setIngredientCode(cleanCode);
-                ingredient.setName(cleanName);
-                ingredient.setStatus(status);
-
-                ingredientsToSave.add(ingredient);
-                if (isNew) {
-                    newIngredients.add(ingredient);
-                }
-            }
-
-            if (!ingredientsToSave.isEmpty()) {
-                repository.saveAll(ingredientsToSave);
-
-                for (Ingredient saved : newIngredients) {
-                    inventoryClient.createProductVariantItem(
-                            CreateInventoryItemRequest.builder()
-                                    .status(saved.getStatus().toString())
-                                    .unitId(null)
-                                    .referenceId(saved.getId())
-                                    .referenceCode(saved.getIngredientCode())
-                                    .name(saved.getName())
-                                    .itemType("INGREDIENT")
-                                    .reorderPoint(0)
-                                    .build());
-                }
-            }
-        } catch (Exception e) {
-            if (e instanceof BadRequestException) {
-                throw (BadRequestException) e;
-            }
-            throw new RuntimeException("Lỗi nhập dữ liệu từ Excel: " + e.getMessage(), e);
+        int rowIdx = 0;
+        for (String line : titleLines) {
+            Row row = sheet.createRow(rowIdx++);
+            row.setHeightInPoints(22);
+            Cell cell = row.createCell(0);
+            cell.setCellValue(line);
+            cell.setCellStyle(titleStyle);
         }
+        rowIdx++;
+
+        for (String[] section : sections) {
+            Row sectionRow = sheet.createRow(rowIdx++);
+            Cell sectionCell = sectionRow.createCell(0);
+            sectionCell.setCellValue(section[0]);
+            sectionCell.setCellStyle(sectionStyle);
+            for (int i = 1; i < section.length; i++) {
+                Row row = sheet.createRow(rowIdx++);
+                Cell cell = row.createCell(0);
+                cell.setCellValue(section[i]);
+                cell.setCellStyle(textStyle);
+            }
+            rowIdx++;
+        }
+
+        sheet.setColumnWidth(0, 100 * 256);
     }
 
-    private String getCellValueAsString(Cell cell) {
-        if (cell == null) return "";
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue().trim();
-            case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getDateCellValue().toString();
-                }
-                double val = cell.getNumericCellValue();
-                if (val == (long) val) {
-                    return String.format("%d", (long) val);
-                } else {
-                    return String.format("%s", val);
-                }
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                try {
-                    return cell.getStringCellValue().trim();
-                } catch (Exception e) {
-                    return "";
-                }
-            default:
-                return "";
+    private CellStyle createGreenHeaderStyle(Workbook workbook) {
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setColor(org.apache.poi.ss.usermodel.IndexedColors.WHITE.getIndex());
+        CellStyle headerStyle = workbook.createCellStyle();
+        headerStyle.setFont(headerFont);
+        headerStyle.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
+        if (headerStyle instanceof org.apache.poi.xssf.usermodel.XSSFCellStyle xssfHeaderStyle) {
+            xssfHeaderStyle.setFillForegroundColor(new org.apache.poi.xssf.usermodel.XSSFColor(
+                    ExcelExportHelper.BRAND_GREEN_RGB, new org.apache.poi.xssf.usermodel.DefaultIndexedColorMap()));
+        }
+        headerStyle.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER);
+        headerStyle.setVerticalAlignment(org.apache.poi.ss.usermodel.VerticalAlignment.CENTER);
+        return headerStyle;
+    }
+
+    private void buildImportIngredientSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Nguyên liệu");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
+
+        String[] headers = {"Tên nguyên liệu", "Đơn vị", "Ngưỡng tối thiểu", "Trạng thái"};
+        Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        Row row1 = sheet.createRow(1);
+        row1.createCell(0).setCellValue("Lá trà tươi ô long");
+        row1.createCell(1).setCellValue("Kg");
+        row1.createCell(2).setCellValue(10.0);
+        row1.createCell(3).setCellValue("Đang hoạt động");
+
+        Row row2 = sheet.createRow(2);
+        row2.createCell(0).setCellValue("Hoa lài sấy khô");
+        row2.createCell(1).setCellValue("Kg");
+        row2.createCell(2).setCellValue(5.0);
+        row2.createCell(3).setCellValue("Đang hoạt động");
+
+        sheet.createFreezePane(0, 1);
+        sheet.setAutoFilter(new CellRangeAddress(0, 2, 0, headers.length - 1));
+        widenColumns(sheet, headers.length);
+    }
+
+    private void buildImportReferenceSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Tham chiếu");
+
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        CellStyle headerStyle = workbook.createCellStyle();
+        headerStyle.setFont(headerFont);
+
+        String[] headers = {"Đơn vị"};
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        List<String> unitSymbols = unitRepository.findAll().stream()
+                .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
+                .map(Unit::getSymbol)
+                .filter(symbol -> symbol != null && !symbol.isBlank())
+                .sorted()
+                .toList();
+
+        for (int i = 0; i < unitSymbols.size(); i++) {
+            Row row = sheet.createRow(i + 1);
+            row.createCell(0).setCellValue(unitSymbols.get(i));
+        }
+
+        sheet.createFreezePane(0, 1);
+        widenColumns(sheet, headers.length);
+    }
+
+    /** Auto-size rồi thêm đệm cho các cột trong file mẫu Excel để dễ đọc hơn, không bị chật chữ. */
+    private void widenColumns(Sheet sheet, int columnCount) {
+        for (int i = 0; i < columnCount; i++) {
+            try {
+                sheet.autoSizeColumn(i);
+                int width = sheet.getColumnWidth(i) + 3000;
+                sheet.setColumnWidth(i, Math.min(Math.max(width, 4500), 18000));
+            } catch (Exception ignored) {
+            }
         }
     }
 
