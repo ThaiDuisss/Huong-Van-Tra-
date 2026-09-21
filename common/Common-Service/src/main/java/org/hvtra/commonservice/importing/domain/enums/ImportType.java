@@ -7,5 +7,6 @@ package org.hvtra.commonservice.importing.domain.enums;
 public enum ImportType {
     PRODUCT,
     PRODUCT_VARIANT,
+    INGREDIENT,
     GOODS_RECEIPT
 }

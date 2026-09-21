@@ -20,6 +20,5 @@ public interface IngredientService {
     void delete(UUID id);
     byte[] exportToExcel(String search, Status status);
     byte[] getImportTemplate();
-    void importFromExcel(org.springframework.web.multipart.MultipartFile file);
 }
 

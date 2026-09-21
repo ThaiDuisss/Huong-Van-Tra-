@@ -37,6 +37,18 @@ public interface InventoryBalanceRepository
     Optional<InventoryBalance> findForUpdateByBatchId(
             @Param("batchId") UUID batchId, @Param("locationId") UUID locationId);
 
+    /**
+     * Toàn bộ bản ghi tồn của 1 batch, KHÔNG lọc theo kho — dùng lúc duyệt lệnh sản xuất để lấy nguyên
+     * liệu theo FEFO bất kể batch đang nằm ở kho nào (nguyên liệu không quản lý theo kho sản xuất).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.location
+            where b.inventoryBatch.id = :batchId
+            """)
+    List<InventoryBalance> findForUpdateByBatchId(@Param("batchId") UUID batchId);
+
     @Modifying
     @Query("""
             update InventoryBalance b

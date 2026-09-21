@@ -1,10 +1,10 @@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ImportItemsListProps } from "../../product/components/ImportBatchPanel";
 import type { ImportBatchItem } from "../../product/types/import-batch.types";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
-import type { GoodsReceiptOptions } from "../types/goods-receipt.types";
+import type { GoodsReceiptMaterialOption, GoodsReceiptOptions } from "../types/goods-receipt.types";
 
 interface ReceiptLineInput {
     inventoryItemId: string;
@@ -35,12 +35,32 @@ interface ItemRowProps {
     onSave(payload: Record<string, unknown>): Promise<void>;
     onDelete(): Promise<void>;
     options: GoodsReceiptOptions;
+    materialsBySupplierId: Record<string, GoodsReceiptMaterialOption[]>;
+    materialsLoadingSupplierId: string | null;
+    onEnsureMaterials(supplierId: string): void;
 }
 
-function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, options }: ItemRowProps) {
+function toDateInputValue(value: unknown): string {
+    if (!value) return "";
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+}
+
+function ItemRow({
+    item,
+    editable,
+    expanded,
+    onToggle,
+    onSave,
+    onDelete,
+    options,
+    materialsBySupplierId,
+    materialsLoadingSupplierId,
+    onEnsureMaterials
+}: ItemRowProps) {
     const [supplierId, setSupplierId] = useState(item.payload.supplierId ? String(item.payload.supplierId) : "");
     const [locationId, setLocationId] = useState(item.payload.locationId ? String(item.payload.locationId) : "");
-    const [referenceId, setReferenceId] = useState(item.payload.referenceId ? String(item.payload.referenceId) : "");
+    const [expectedDate, setExpectedDate] = useState(toDateInputValue(item.payload.expectedDate));
     const [note, setNote] = useState(item.payload.note ? String(item.payload.note) : "");
     const [lines, setLines] = useState<ReceiptLineInput[]>(toReceiptLineInputs(item.payload.items));
     const [saving, setSaving] = useState(false);
@@ -48,15 +68,25 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, options
     useEffect(() => {
         setSupplierId(item.payload.supplierId ? String(item.payload.supplierId) : "");
         setLocationId(item.payload.locationId ? String(item.payload.locationId) : "");
-        setReferenceId(item.payload.referenceId ? String(item.payload.referenceId) : "");
+        setExpectedDate(toDateInputValue(item.payload.expectedDate));
         setNote(item.payload.note ? String(item.payload.note) : "");
         setLines(toReceiptLineInputs(item.payload.items));
     }, [item]);
+
+    // Nguyên liệu phụ thuộc nhà cung cấp (mỗi NCC chỉ cung cấp 1 số nguyên liệu nhất định) — mỗi khi
+    // đổi nhà cung cấp của dòng này thì tải lại danh sách nguyên liệu tương ứng (có cache ở component cha).
+    useEffect(() => {
+        if (supplierId) {
+            onEnsureMaterials(supplierId);
+        }
+    }, [supplierId, onEnsureMaterials]);
 
     const errorByField = new Map(item.validationErrors.map((e) => [e.field, e.message]));
     const isValid = item.validationErrors.length === 0;
     const supplierName = options.suppliers.find((s) => String(s.id) === supplierId)?.name;
     const locationName = options.locations.find((l) => String(l.id) === locationId)?.name;
+    const materials = supplierId ? materialsBySupplierId[supplierId] ?? [] : [];
+    const materialsLoading = Boolean(supplierId) && materialsLoadingSupplierId === supplierId;
 
     function updateLine(index: number, field: keyof ReceiptLineInput, value: string | number) {
         setLines((prev) => prev.map((line, i) => (i === index ? { ...line, [field]: value } : line)));
@@ -77,9 +107,9 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, options
                 supplierId: supplierId || null,
                 locationId: locationId || null,
                 branchId: null,
-                expectedDate: null,
-                referenceType: "PURCHASE_ORDER",
-                referenceId: referenceId || null,
+                expectedDate: expectedDate ? new Date(`${expectedDate}T00:00:00`).toISOString() : null,
+                referenceType: null,
+                referenceId: null,
                 note: note || null,
                 items: lines.map((line) => ({
                     inventoryItemId: line.inventoryItemId || null,
@@ -104,17 +134,12 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, options
                     {expanded ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
                     <div className="min-w-0">
                         <div className="truncate font-bold text-[#172317]">
-                            {supplierName ? `${supplierName} — ${locationName ?? "?"}${referenceId ? ` (${referenceId})` : ""}` : `Dòng ${item.rowIndex}`}
+                            {supplierName ? `${supplierName} — ${locationName ?? "?"}` : `Dòng ${item.rowIndex}`}
                         </div>
                         <div className="truncate text-xs text-[#697684]">{lines.length} dòng nguyên liệu</div>
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                    {item.occurrenceCount > 1 ? (
-                        <span className="inline-flex h-6 items-center rounded-full bg-amber-50 px-2 text-[11px] font-bold text-amber-700">
-                            Gộp {item.occurrenceCount} dòng Excel
-                        </span>
-                    ) : null}
                     <span
                         className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${
                             isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
@@ -127,13 +152,6 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, options
 
             {expanded ? (
                 <div className="grid gap-3 border-t border-pos-border p-4">
-                    {item.occurrenceCount > 1 ? (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
-                            {item.occurrenceCount} dòng Excel cùng Nhà cung cấp + Kho nhận + Mã PO đã được tự động gộp
-                            thành 1 phiếu nhập duy nhất.
-                        </div>
-                    ) : null}
-
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Nhà cung cấp *</label>
@@ -176,13 +194,13 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, options
                         </div>
 
                         <div className="grid gap-1.5">
-                            <label className="text-xs font-bold text-[#536078]">Mã đơn mua (PO)</label>
+                            <label className="text-xs font-bold text-[#536078]">Ngày dự kiến giao</label>
                             <input
                                 className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
                                 disabled={!editable}
-                                onChange={(e) => setReferenceId(e.target.value)}
-                                type="text"
-                                value={referenceId}
+                                onChange={(e) => setExpectedDate(e.target.value)}
+                                type="date"
+                                value={expectedDate}
                             />
                         </div>
                     </div>
@@ -238,17 +256,28 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, options
                                                 <td className="p-2 align-top">
                                                     <select
                                                         className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
-                                                        disabled={!editable}
+                                                        disabled={!editable || !supplierId}
                                                         onChange={(e) => updateLine(index, "inventoryItemId", e.target.value)}
                                                         value={line.inventoryItemId}
                                                     >
-                                                        <option value="">-- Chọn nguyên liệu --</option>
-                                                        {options.materials.map((m) => (
+                                                        <option value="">
+                                                            {!supplierId
+                                                                ? "-- Chọn nhà cung cấp trước --"
+                                                                : materialsLoading
+                                                                  ? "Đang tải nguyên liệu..."
+                                                                  : "-- Chọn nguyên liệu --"}
+                                                        </option>
+                                                        {materials.map((m) => (
                                                             <option key={m.id} value={m.id}>
                                                                 {m.name} ({m.skuCode}) — {m.unit}
                                                             </option>
                                                         ))}
                                                     </select>
+                                                    {supplierId && !materialsLoading && materials.length === 0 ? (
+                                                        <p className="mt-1 text-[11px] font-bold text-amber-600">
+                                                            Nhà cung cấp này chưa có nguyên liệu nào.
+                                                        </p>
+                                                    ) : null}
                                                     {errorByField.get(`items[${index}].inventoryItemId`) ? (
                                                         <p className="mt-1 text-[11px] font-bold text-red-600">
                                                             {errorByField.get(`items[${index}].inventoryItemId`)}
@@ -327,12 +356,34 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, options
 
 export function GoodsReceiptImportItemsList({ items, editable, expandedId, onToggle, onSave, onDelete }: ImportItemsListProps) {
     const [options, setOptions] = useState<GoodsReceiptOptions>({ locations: [], materials: [], suppliers: [] });
+    // Nguyên liệu phụ thuộc nhà cung cấp — cache theo supplierId để nhiều dòng cùng NCC không tải lại nhiều lần.
+    const [materialsBySupplierId, setMaterialsBySupplierId] = useState<Record<string, GoodsReceiptMaterialOption[]>>({});
+    const [materialsLoadingSupplierId, setMaterialsLoadingSupplierId] = useState<string | null>(null);
+    const requestedSupplierIds = useRef(new Set<string>());
 
     useEffect(() => {
         goodsReceiptApi
             .getGoodsReceiptOptions()
             .then(setOptions)
             .catch((err: unknown) => console.error("Lỗi tải danh mục nhà cung cấp/kho/nguyên liệu", err));
+    }, []);
+
+    const ensureMaterials = useCallback((supplierId: string) => {
+        if (requestedSupplierIds.current.has(supplierId)) return;
+        requestedSupplierIds.current.add(supplierId);
+        setMaterialsLoadingSupplierId(supplierId);
+        goodsReceiptApi
+            .getGoodsReceiptOptions(supplierId)
+            .then((res) => {
+                setMaterialsBySupplierId((prev) => ({ ...prev, [supplierId]: res.materials }));
+            })
+            .catch((err: unknown) => {
+                console.error("Lỗi tải nguyên liệu theo nhà cung cấp", err);
+                requestedSupplierIds.current.delete(supplierId);
+            })
+            .finally(() => {
+                setMaterialsLoadingSupplierId((current) => (current === supplierId ? null : current));
+            });
     }, []);
 
     return (
@@ -343,7 +394,10 @@ export function GoodsReceiptImportItemsList({ items, editable, expandedId, onTog
                     expanded={expandedId === item.id}
                     item={item}
                     key={item.id}
+                    materialsBySupplierId={materialsBySupplierId}
+                    materialsLoadingSupplierId={materialsLoadingSupplierId}
                     onDelete={() => onDelete(item.id)}
+                    onEnsureMaterials={ensureMaterials}
                     onSave={(payload) => onSave(item.id, payload)}
                     onToggle={() => onToggle(item.id)}
                     options={options}

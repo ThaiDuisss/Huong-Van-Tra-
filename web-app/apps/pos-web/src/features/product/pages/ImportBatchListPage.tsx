@@ -13,20 +13,32 @@ import { StatusPill } from "../components/ImportBatchPanel";
 import { usePagedApiResource } from "../hooks/useApiResource";
 import { importBatchApi as defaultImportBatchApi, type ImportBatchApi } from "../services/importBatch.api";
 import type { ImportBatch, ImportBatchStatus, ImportType } from "../types/import-batch.types";
+import { importBatchApi as inventoryImportBatchApi } from "../../inventory/services/importBatch.api";
 
 const DEFAULT_IMPORT_TYPE_LABEL: Record<string, string> = {
     PRODUCT: "Sản phẩm",
-    PRODUCT_VARIANT: "Mặt hàng"
+    PRODUCT_VARIANT: "Mặt hàng",
+    INGREDIENT: "Nguyên liệu",
+    GOODS_RECEIPT: "Phiếu nhập kho"
 };
 
-// Mỗi service tự quản lý bảng import_batches riêng (Catalog-Service, Inventory-Service...) — trang này (mặc định)
-// chỉ gọi API của Catalog-Service nên không có lựa chọn "Tất cả" (sẽ phải gộp nhiều API khác nhau, không hợp lý).
-// Sản phẩm và Mặt hàng đều cùng Catalog-Service nên chuyển qua lại vẫn chỉ 1 API call, không phải gộp service khác.
-// Service khác (vd Inventory) truyền `importTypeOptions` riêng (1 phần tử) để tái dùng trang này mà không cần bộ lọc.
+// Trang trung tâm cho MỌI loại import trong hệ thống — mỗi loại chọn 1 lúc (không có "Tất cả") nên chỉ cần gọi
+// đúng 1 API tương ứng với loại đang chọn, dù các loại đó thuộc các service khác nhau (Catalog vs Inventory)
+// — không phải gộp nhiều API cùng lúc. `apiByType`/`detailRouteByType` map loại import sang đúng service sở hữu nó.
 const DEFAULT_IMPORT_TYPE_OPTIONS: Array<{ label: string; value: ImportType }> = [
     { label: "Sản phẩm", value: "PRODUCT" },
-    { label: "Mặt hàng", value: "PRODUCT_VARIANT" }
+    { label: "Mặt hàng", value: "PRODUCT_VARIANT" },
+    { label: "Nguyên liệu", value: "INGREDIENT" },
+    { label: "Phiếu nhập kho", value: "GOODS_RECEIPT" }
 ];
+
+const DEFAULT_API_BY_TYPE: Partial<Record<ImportType, ImportBatchApi>> = {
+    GOODS_RECEIPT: inventoryImportBatchApi
+};
+
+const DEFAULT_DETAIL_ROUTE_BY_TYPE: Partial<Record<ImportType, string>> = {
+    GOODS_RECEIPT: routePaths.goodsReceiptImportDetail
+};
 
 const columns: Column[] = [
     // { key: "batchCode", label: "Mã phiếu" },
@@ -50,22 +62,28 @@ function formatDateTime(value: string | null): string {
 }
 
 interface ImportBatchListPageProps {
-    /** API import-batch dùng cho trang này — mặc định trỏ Catalog, service khác truyền bộ riêng qua createImportBatchApi(). */
+    /** API import-batch mặc định (dùng cho loại nào không có override trong `apiByType`) — mặc định trỏ Catalog. */
     api?: ImportBatchApi;
-    /** Các loại import hiển thị được ở trang này — mặc định 2 loại của Catalog. Chỉ 1 phần tử thì ẩn luôn bộ lọc "Loại dữ liệu". */
+    /** Override API theo từng loại import — dùng khi loại đó thuộc service khác (vd GOODS_RECEIPT thuộc Inventory-Service). */
+    apiByType?: Partial<Record<ImportType, ImportBatchApi>>;
+    /** Các loại import hiển thị được ở trang này. Chỉ 1 phần tử thì ẩn luôn bộ lọc "Loại dữ liệu". */
     importTypeOptions?: Array<{ label: string; value: ImportType }>;
     /** Nhãn hiển thị cho từng loại import. */
     typeLabels?: Record<string, string>;
-    /** Route pattern có ":batchId" để điều hướng sang trang chi tiết. */
+    /** Route pattern có ":batchId" để điều hướng sang trang chi tiết — mặc định dùng cho loại không có override. */
     detailRoute?: string;
+    /** Override route chi tiết theo từng loại import (mỗi service có trang review riêng). */
+    detailRouteByType?: Partial<Record<ImportType, string>>;
     title?: string;
 }
 
 export function ImportBatchListPage({
     api = defaultImportBatchApi,
+    apiByType = DEFAULT_API_BY_TYPE,
     importTypeOptions = DEFAULT_IMPORT_TYPE_OPTIONS,
     typeLabels = DEFAULT_IMPORT_TYPE_LABEL,
     detailRoute = routePaths.importExcelDetail,
+    detailRouteByType = DEFAULT_DETAIL_ROUTE_BY_TYPE,
     title = "Yêu cầu nhập Excel"
 }: ImportBatchListPageProps = {}) {
     const navigate = useNavigate();
@@ -76,15 +94,18 @@ export function ImportBatchListPage({
     const [importType, setImportType] = useState<ImportType>(importTypeOptions[0].value);
     const [searchTerm, setSearchTerm] = useState("");
 
+    const effectiveApi = apiByType[importType] ?? api;
+    const effectiveDetailRoute = detailRouteByType[importType] ?? detailRoute;
+
     const loadBatches = useCallback(
         () =>
-            api.list({
+            effectiveApi.list({
                 page: page - 1,
                 size: pageSize,
                 status: status === "ALL" ? undefined : status,
                 type: importType
             }),
-        [api, page, pageSize, status, importType]
+        [effectiveApi, page, pageSize, status, importType]
     );
     const resource = usePagedApiResource(loadBatches);
 
@@ -101,14 +122,14 @@ export function ImportBatchListPage({
                 "Bạn chỉ có thể xóa phiếu import do chính mình tạo và đang ở trạng thái Nháp hoặc Bị từ chối."
             );
         }
-        await api.deleteBatch(String(item.id));
+        await effectiveApi.deleteBatch(String(item.id));
     }
 
     return (
         <InventoryResourceManagement<ImportBatch, ImportBatchStatus>
             columns={columns}
             description="Theo dõi toàn bộ phiếu nhập dữ liệu từ Excel — bản nháp, đang chờ duyệt, đã duyệt và bị từ chối."
-            detailPath={(item) => detailRoute.replace(":batchId", String(item.id))}
+            detailPath={(item) => effectiveDetailRoute.replace(":batchId", String(item.id))}
             error={resource.error}
             secondaryFilter={
                 importTypeOptions.length > 1
@@ -146,7 +167,7 @@ export function ImportBatchListPage({
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
                     onClick={() => {
                         closeMenu();
-                        navigate(detailRoute.replace(":batchId", String(item.id)));
+                        navigate(effectiveDetailRoute.replace(":batchId", String(item.id)));
                     }}
                     type="button"
                 >

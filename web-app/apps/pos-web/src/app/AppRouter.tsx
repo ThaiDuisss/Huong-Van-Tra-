@@ -26,7 +26,6 @@ import { GoodsReceiptDetailPage } from "../features/inventory/pages/GoodsReceipt
 import { GoodsReceiptListPage } from "../features/inventory/pages/GoodsReceiptListPage";
 import { GoodsReceiptImportPage } from "../features/inventory/pages/GoodsReceiptImportPage";
 import { GoodsReceiptImportReviewPage } from "../features/inventory/pages/GoodsReceiptImportReviewPage";
-import { GoodsReceiptImportListPage } from "../features/inventory/pages/GoodsReceiptImportListPage";
 import { CustomerReturnDetailPage } from "../features/inventory/pages/CustomerReturnDetailPage";
 import { CustomerReturnListPage } from "../features/inventory/pages/CustomerReturnListPage";
 import { CustomBundleManagementDetailPage } from "../features/inventory/pages/CustomBundleManagementDetailPage";
@@ -70,6 +69,7 @@ import { PriceListPage } from "../features/product/pages/PriceListPage";
 import { ProductListPage } from "../features/product/pages/ProductListPage";
 import { ProductImportPage } from "../features/product/pages/ProductImportPage";
 import { ProductVariantImportPage } from "../features/product/pages/ProductVariantImportPage";
+import { IngredientImportPage } from "../features/product/pages/IngredientImportPage";
 import { ProductImportReviewPage } from "../features/product/pages/ProductImportReviewPage";
 import { ImportBatchListPage } from "../features/product/pages/ImportBatchListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
@@ -233,6 +233,7 @@ export function AppRouter() {
           <Route path="import-excel" element={<ImportBatchListPage />} />
           <Route path="import-excel/new" element={<ProductImportPage />} />
           <Route path="import-excel/variants/new" element={<ProductVariantImportPage />} />
+          <Route path="import-excel/ingredients/new" element={<IngredientImportPage />} />
           <Route path="import-excel/:batchId" element={<ProductImportReviewPage />} />
         </Route>
 
@@ -321,9 +322,8 @@ export function AppRouter() {
           <Route path="inventory/receipts" element={<GoodsReceiptListPage />} />
           <Route path="inventory/receipts/new" element={<GoodsReceiptCreatePage />} />
           <Route path="inventory/receipts/:receiptId" element={<GoodsReceiptDetailPage />} />
-          <Route path="import-excel" element={<GoodsReceiptImportListPage />} />
-          <Route path="import-excel/new" element={<GoodsReceiptImportPage />} />
-          <Route path="import-excel/:batchId" element={<GoodsReceiptImportReviewPage />} />
+          <Route path="inventory/import-excel/new" element={<GoodsReceiptImportPage />} />
+          <Route path="inventory/import-excel/:batchId" element={<GoodsReceiptImportReviewPage />} />
         </Route>
         <Route element={<RoleGate roles={MANUFACTURING_ROLES} />}>
           <Route

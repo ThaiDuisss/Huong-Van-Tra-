@@ -211,62 +211,6 @@ export function exportGoodsReceiptsToExcel(receipts: GoodsReceiptSummary[]) {
     XLSX.writeFile(workbook, filename);
 }
 
-export function generateGoodsReceiptTemplate(options: GoodsReceiptOptions): Blob {
-    const defaultSupplier = options.suppliers[0];
-    const defaultLocation = options.locations[0];
-    const defaultMaterial = options.materials[0];
-
-    const sampleRows = [
-        {
-            "Mã nhà cung cấp": defaultSupplier?.code || "NCC00001",
-            "Tên nhà cung cấp": defaultSupplier?.name || "Công ty TNHH Trà Việt",
-            "Mã kho nhận": defaultLocation?.code || "KHO-TONG",
-            "Tên kho nhận": defaultLocation?.name || "Kho Tổng Hương Vân Trà",
-            "Mã đơn mua (PO)": "PO-2026-001",
-            "Mã nguyên liệu": defaultMaterial?.skuCode || "NL00001",
-            "Tên nguyên liệu": defaultMaterial?.name || "Búp trà tươi Tân Cương",
-            "Số lượng đặt": 100,
-            "Đơn vị": defaultMaterial?.unit || "kg",
-            "Số lô NCC (Tùy chọn)": "LOT-SUP-01",
-            "Ghi chú (Tùy chọn)": "Nhập nguyên liệu tươi vụ sớm"
-        },
-        {
-            "Mã nhà cung cấp": defaultSupplier?.code || "NCC00001",
-            "Tên nhà cung cấp": defaultSupplier?.name || "Công ty TNHH Trà Việt",
-            "Mã kho nhận": defaultLocation?.code || "KHO-TONG",
-            "Tên kho nhận": defaultLocation?.name || "Kho Tổng Hương Vân Trà",
-            "Mã đơn mua (PO)": "PO-2026-001",
-            "Mã nguyên liệu": options.materials[1]?.skuCode || "NL00002",
-            "Tên nguyên liệu": options.materials[1]?.name || "Hoa lài sấy khô",
-            "Số lượng đặt": 25,
-            "Đơn vị": options.materials[1]?.unit || "kg",
-            "Số lô NCC (Tùy chọn)": "LOT-SUP-02",
-            "Ghi chú (Tùy chọn)": "Dùng cho mẻ ướp hương trà"
-        }
-    ];
-
-    const worksheet = XLSX.utils.json_to_sheet(sampleRows);
-    worksheet["!cols"] = [
-        { wch: 18 }, // Mã NCC
-        { wch: 28 }, // Tên NCC
-        { wch: 16 }, // Mã kho
-        { wch: 26 }, // Tên kho
-        { wch: 18 }, // Mã PO
-        { wch: 18 }, // Mã NL
-        { wch: 28 }, // Tên NL
-        { wch: 14 }, // Số lượng đặt
-        { wch: 10 }, // Đơn vị
-        { wch: 20 }, // Số lô NCC
-        { wch: 30 }  // Ghi chú
-    ];
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Mẫu nhập phiếu");
-
-    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    return new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-}
-
 export function getExcelRowValue(row: any, ...keys: string[]): string {
     if (!row) return "";
     for (const k of keys) {
