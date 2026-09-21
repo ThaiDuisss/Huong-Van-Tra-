@@ -113,14 +113,6 @@ public class IngredientController {
                 .body(resource);
     }
 
-    @UserAction(value = "INGREDIENT_IMPORT", entityType = "Ingredient", detail = "#file.originalFilename")
-    @PostMapping("/import")
-    @ResponseStatus(HttpStatus.OK)
-    public void importIngredients(
-            @RequestParam("file") MultipartFile file) {
-        service.importFromExcel(file);
-    }
-
     @GetMapping("/import/template")
     public ResponseEntity<Resource> downloadTemplate() {
         byte[] excelBytes = service.getImportTemplate();

@@ -29,7 +29,6 @@ import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @RestController
@@ -121,15 +120,6 @@ public class ProductVariantController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
-    }
-
-    @UserAction(value = "PRODUCT_VARIANT_IMPORT", entityType = "ProductVariant", entityId = "#productId", detail = "#file.originalFilename")
-    @PostMapping("/import")
-    @ResponseStatus(HttpStatus.OK)
-    public void importVariants(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(name = "productId", required = false) UUID productId) {
-        service.importFromExcel(file, productId);
     }
 
     @GetMapping("/import/template")

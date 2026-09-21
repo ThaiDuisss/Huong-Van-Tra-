@@ -27,7 +27,6 @@ import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/catalog/products")
@@ -113,13 +112,6 @@ public class ProductController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + rawFilename + "\"; filename*=UTF-8''" + encodedFilename)
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(resource);
-    }
-
-    @UserAction(value = "PRODUCT_IMPORT", entityType = "Product", detail = "#file.originalFilename")
-    @PostMapping("/import")
-    @ResponseStatus(HttpStatus.OK)
-    public void importProducts(@RequestParam("file") MultipartFile file) {
-        service.importFromExcel(file);
     }
 
     @GetMapping("/import/template")
