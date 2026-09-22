@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ImportItemsListProps } from "../../product/components/ImportBatchPanel";
 import type { ImportBatchItem } from "../../product/types/import-batch.types";
+import { unitApi } from "../../product/services/unit.api";
+import type { Unit } from "../../product/types/product.types";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type { GoodsReceiptMaterialOption, GoodsReceiptOptions } from "../types/goods-receipt.types";
 
@@ -11,18 +13,29 @@ interface ReceiptLineInput {
     unitId: string;
     orderedQuantity: number;
     note: string;
+    /** true = nguyên liệu chưa có trong hệ thống, sẽ được tạo mới lúc duyệt (xem newIngredientName/newIngredientUnitId/newIngredientCode). */
+    isNewIngredient: boolean;
+    newIngredientCode: string;
+    newIngredientName: string;
+    newIngredientUnitId: string;
 }
 
 function toReceiptLineInputs(value: unknown): ReceiptLineInput[] {
     if (!Array.isArray(value)) return [];
     return value.map((raw) => {
         const line = (raw ?? {}) as Record<string, unknown>;
+        const newIngredientName = line.newIngredientName ? String(line.newIngredientName) : "";
+        const newIngredientCode = line.newIngredientCode ? String(line.newIngredientCode) : "";
         return {
             inventoryItemId: line.inventoryItemId ? String(line.inventoryItemId) : "",
             unitId: line.unitId ? String(line.unitId) : "",
             orderedQuantity:
                 typeof line.orderedQuantity === "number" ? line.orderedQuantity : Number(line.orderedQuantity ?? 0),
-            note: line.note ? String(line.note) : ""
+            note: line.note ? String(line.note) : "",
+            isNewIngredient: Boolean(newIngredientName),
+            newIngredientCode,
+            newIngredientName,
+            newIngredientUnitId: line.newIngredientUnitId ? String(line.newIngredientUnitId) : ""
         };
     });
 }
@@ -38,6 +51,7 @@ interface ItemRowProps {
     materialsBySupplierId: Record<string, GoodsReceiptMaterialOption[]>;
     materialsLoadingSupplierId: string | null;
     onEnsureMaterials(supplierId: string): void;
+    units: Unit[];
 }
 
 function toDateInputValue(value: unknown): string {
@@ -56,7 +70,8 @@ function ItemRow({
     options,
     materialsBySupplierId,
     materialsLoadingSupplierId,
-    onEnsureMaterials
+    onEnsureMaterials,
+    units
 }: ItemRowProps) {
     const [supplierId, setSupplierId] = useState(item.payload.supplierId ? String(item.payload.supplierId) : "");
     const [locationId, setLocationId] = useState(item.payload.locationId ? String(item.payload.locationId) : "");
@@ -83,9 +98,14 @@ function ItemRow({
 
     const errorByField = new Map(item.validationErrors.map((e) => [e.field, e.message]));
     const isValid = item.validationErrors.length === 0;
-    const supplierName = options.suppliers.find((s) => String(s.id) === supplierId)?.name;
+
+    const supplierDisplayName =
+        options.suppliers.find((s) => String(s.id) === supplierId)?.name ?? (supplierId ? "Nhà cung cấp đã chọn" : null);
+
     const locationName = options.locations.find((l) => String(l.id) === locationId)?.name;
+
     const materials = supplierId ? materialsBySupplierId[supplierId] ?? [] : [];
+
     const materialsLoading = Boolean(supplierId) && materialsLoadingSupplierId === supplierId;
 
     function updateLine(index: number, field: keyof ReceiptLineInput, value: string | number) {
@@ -93,17 +113,46 @@ function ItemRow({
     }
 
     function addLine() {
-        setLines((prev) => [...prev, { inventoryItemId: "", unitId: "", orderedQuantity: 1, note: "" }]);
+        setLines((prev) => [
+            ...prev,
+            {
+                inventoryItemId: "",
+                unitId: "",
+                orderedQuantity: 1,
+                note: "",
+                isNewIngredient: false,
+                newIngredientCode: "",
+                newIngredientName: "",
+                newIngredientUnitId: ""
+            }
+        ]);
     }
 
     function removeLine(index: number) {
         setLines((prev) => prev.filter((_, i) => i !== index));
     }
 
+    function toggleNewIngredient(index: number, isNew: boolean) {
+        setLines((prev) =>
+            prev.map((line, i) =>
+                i === index
+                    ? {
+                          ...line,
+                          isNewIngredient: isNew,
+                          inventoryItemId: isNew ? "" : line.inventoryItemId,
+                          newIngredientCode: isNew ? line.newIngredientCode : "",
+                          newIngredientName: isNew ? line.newIngredientName : "",
+                          newIngredientUnitId: isNew ? line.newIngredientUnitId : ""
+                      }
+                    : line
+            )
+        );
+    }
+
     async function handleSave() {
         setSaving(true);
         try {
-            await onSave({
+            const payloadToSave: Record<string, unknown> = {
                 supplierId: supplierId || null,
                 locationId: locationId || null,
                 branchId: null,
@@ -111,13 +160,27 @@ function ItemRow({
                 referenceType: null,
                 referenceId: null,
                 note: note || null,
-                items: lines.map((line) => ({
-                    inventoryItemId: line.inventoryItemId || null,
-                    unitId: line.unitId || null,
-                    orderedQuantity: line.orderedQuantity,
-                    note: line.note || null
-                }))
-            });
+                items: lines.map((line) =>
+                    line.isNewIngredient
+                        ? {
+                              inventoryItemId: null,
+                              unitId: null,
+                              orderedQuantity: line.orderedQuantity,
+                              note: line.note || null,
+                              newIngredientCode: line.newIngredientCode.trim() || null,
+                              newIngredientName: line.newIngredientName.trim() || null,
+                              newIngredientUnitId: line.newIngredientUnitId || null
+                          }
+                        : {
+                              inventoryItemId: line.inventoryItemId || null,
+                              unitId: line.unitId || null,
+                              orderedQuantity: line.orderedQuantity,
+                              note: line.note || null
+                          }
+                )
+            };
+
+            await onSave(payloadToSave);
         } finally {
             setSaving(false);
         }
@@ -134,7 +197,7 @@ function ItemRow({
                     {expanded ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
                     <div className="min-w-0">
                         <div className="truncate font-bold text-[#172317]">
-                            {supplierName ? `${supplierName} — ${locationName ?? "?"}` : `Dòng ${item.rowIndex}`}
+                            {supplierDisplayName ? `${supplierDisplayName} — ${locationName ?? "?"}` : `Dòng ${item.rowIndex}`}
                         </div>
                         <div className="truncate text-xs text-[#697684]">{lines.length} dòng nguyên liệu</div>
                     </div>
@@ -152,7 +215,8 @@ function ItemRow({
 
             {expanded ? (
                 <div className="grid gap-3 border-t border-pos-border p-4">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {/* Phần Thông tin phiếu nhập */}
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Nhà cung cấp *</label>
                             <select
@@ -192,7 +256,9 @@ function ItemRow({
                                 <p className="text-xs font-bold text-red-600">{errorByField.get("locationId")}</p>
                             ) : null}
                         </div>
+                    </div>
 
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Ngày dự kiến giao</label>
                             <input
@@ -203,17 +269,18 @@ function ItemRow({
                                 value={expectedDate}
                             />
                         </div>
-                    </div>
 
-                    <div className="grid gap-1.5">
-                        <label className="text-xs font-bold text-[#536078]">Ghi chú</label>
-                        <textarea
-                            className="rounded-lg border border-pos-border px-3 py-2 text-sm outline-none focus:border-hvt-green-600"
-                            disabled={!editable}
-                            onChange={(e) => setNote(e.target.value)}
-                            rows={2}
-                            value={note}
-                        />
+                        <div className="grid gap-1.5">
+                            <label className="text-xs font-bold text-[#536078]">Ghi chú</label>
+                            <input
+                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                                disabled={!editable}
+                                onChange={(e) => setNote(e.target.value)}
+                                placeholder="Ghi chú phiếu nhập..."
+                                type="text"
+                                value={note}
+                            />
+                        </div>
                     </div>
 
                     <div className="grid gap-2 border-t border-pos-border pt-3">
@@ -254,33 +321,86 @@ function ItemRow({
                                         {lines.map((line, index) => (
                                             <tr key={index}>
                                                 <td className="p-2 align-top">
-                                                    <select
-                                                        className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
-                                                        disabled={!editable || !supplierId}
-                                                        onChange={(e) => updateLine(index, "inventoryItemId", e.target.value)}
-                                                        value={line.inventoryItemId}
-                                                    >
-                                                        <option value="">
-                                                            {!supplierId
-                                                                ? "-- Chọn nhà cung cấp trước --"
-                                                                : materialsLoading
-                                                                  ? "Đang tải nguyên liệu..."
-                                                                  : "-- Chọn nguyên liệu --"}
-                                                        </option>
-                                                        {materials.map((m) => (
-                                                            <option key={m.id} value={m.id}>
-                                                                {m.name} ({m.skuCode}) — {m.unit}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    {supplierId && !materialsLoading && materials.length === 0 ? (
-                                                        <p className="mt-1 text-[11px] font-bold text-amber-600">
-                                                            Nhà cung cấp này chưa có nguyên liệu nào.
-                                                        </p>
-                                                    ) : null}
+                                                    <label className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-[#536078] cursor-pointer">
+                                                        <input
+                                                            checked={line.isNewIngredient}
+                                                            disabled={!editable}
+                                                            onChange={(e) => toggleNewIngredient(index, e.target.checked)}
+                                                            type="checkbox"
+                                                        />
+                                                        Nguyên liệu mới (chưa có trong hệ thống)
+                                                    </label>
+
+                                                    {line.isNewIngredient ? (
+                                                        <div className="grid gap-1.5">
+                                                            <input
+                                                                className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                                disabled={!editable}
+                                                                onChange={(e) => updateLine(index, "newIngredientName", e.target.value)}
+                                                                placeholder="Tên nguyên liệu mới *..."
+                                                                type="text"
+                                                                value={line.newIngredientName}
+                                                            />
+                                                            <div className="grid grid-cols-2 gap-1.5">
+                                                                <input
+                                                                    className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                                    disabled={!editable}
+                                                                    onChange={(e) => updateLine(index, "newIngredientCode", e.target.value)}
+                                                                    placeholder="Mã NL (để trống tự sinh)..."
+                                                                    type="text"
+                                                                    value={line.newIngredientCode}
+                                                                />
+                                                                <select
+                                                                    className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                                    disabled={!editable}
+                                                                    onChange={(e) => updateLine(index, "newIngredientUnitId", e.target.value)}
+                                                                    value={line.newIngredientUnitId}
+                                                                >
+                                                                    <option value="">-- Chọn đơn vị * --</option>
+                                                                    {units.map((u) => (
+                                                                        <option key={u.id} value={u.id}>
+                                                                            {u.symbol} ({u.name})
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                            {errorByField.get(`items[${index}].newIngredientUnitId`) ? (
+                                                                <p className="text-[11px] font-bold text-red-600">
+                                                                    {errorByField.get(`items[${index}].newIngredientUnitId`)}
+                                                                </p>
+                                                            ) : null}
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <select
+                                                                className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                                disabled={!editable || !supplierId}
+                                                                onChange={(e) => updateLine(index, "inventoryItemId", e.target.value)}
+                                                                value={line.inventoryItemId}
+                                                            >
+                                                                <option value="">
+                                                                    {!supplierId
+                                                                        ? "-- Chọn nhà cung cấp trước --"
+                                                                        : materialsLoading
+                                                                          ? "Đang tải nguyên liệu..."
+                                                                          : "-- Chọn nguyên liệu --"}
+                                                                </option>
+                                                                {materials.map((m) => (
+                                                                    <option key={m.id} value={m.id}>
+                                                                        {m.name} ({m.skuCode}) — {m.unit}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            {supplierId && !materialsLoading && materials.length === 0 ? (
+                                                                <p className="mt-1 text-[11px] font-bold text-amber-600">
+                                                                    Nhà cung cấp này chưa có nguyên liệu nào.
+                                                                </p>
+                                                            ) : null}
+                                                        </>
+                                                    )}
                                                     {errorByField.get(`items[${index}].inventoryItemId`) ? (
                                                         <p className="mt-1 text-[11px] font-bold text-red-600">
-                                                            {errorByField.get(`items[${index}].inventoryItemId`)}
+                                                             {errorByField.get(`items[${index}].inventoryItemId`)}
                                                         </p>
                                                     ) : null}
                                                 </td>
@@ -360,12 +480,21 @@ export function GoodsReceiptImportItemsList({ items, editable, expandedId, onTog
     const [materialsBySupplierId, setMaterialsBySupplierId] = useState<Record<string, GoodsReceiptMaterialOption[]>>({});
     const [materialsLoadingSupplierId, setMaterialsLoadingSupplierId] = useState<string | null>(null);
     const requestedSupplierIds = useRef(new Set<string>());
+    const [units, setUnits] = useState<Unit[]>([]);
 
     useEffect(() => {
         goodsReceiptApi
             .getGoodsReceiptOptions()
             .then(setOptions)
             .catch((err: unknown) => console.error("Lỗi tải danh mục nhà cung cấp/kho/nguyên liệu", err));
+    }, []);
+
+    // Dùng khi tạo nguyên liệu mới ngay trong lúc import (chưa có trong hệ thống) — cần chọn đơn vị.
+    useEffect(() => {
+        unitApi
+            .listAll()
+            .then((res) => setUnits(res ?? []))
+            .catch((err: unknown) => console.error("Lỗi tải đơn vị", err));
     }, []);
 
     const ensureMaterials = useCallback((supplierId: string) => {
@@ -401,6 +530,7 @@ export function GoodsReceiptImportItemsList({ items, editable, expandedId, onTog
                     onSave={(payload) => onSave(item.id, payload)}
                     onToggle={() => onToggle(item.id)}
                     options={options}
+                    units={units}
                 />
             ))}
         </>

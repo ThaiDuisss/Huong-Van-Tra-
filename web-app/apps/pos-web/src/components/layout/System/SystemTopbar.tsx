@@ -25,8 +25,11 @@ interface BreadcrumbResult {
 }
 
 const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
+    "/system/products/import": { parentTo: "/system/products", label: "Nhập excel" },
     "/system/products/": { parentTo: "/system/products", label: "Chi tiết sản phẩm" },
+    "/system/product-variants/import": { parentTo: "/system/product-variants", label: "Nhập excel" },
     "/system/product-variants/": { parentTo: "/system/product-variants", label: "Chi tiết mặt hàng" },
+    "/system/manufacturing/ingredients/import": { parentTo: "/system/manufacturing/ingredients", label: "Nhập excel" },
     "/system/orders/invoices/": { parentTo: "/system/orders/invoices", label: "Chi tiết hóa đơn" },
     "/system/manufacturing/boms/": { parentTo: "/system/manufacturing/boms", label: "Chi tiết công thức" },
     "/system/price-lists/": { parentTo: "/system/price-lists", label: "Chi tiết bảng giá" },
@@ -41,6 +44,10 @@ const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
     "/management/inventory/receipts/new": {
         parentTo: "/management/inventory/receipts",
         label: "Tạo phiếu nhập kho"
+    },
+    "/management/inventory/receipts/import": {
+        parentTo: "/management/inventory/receipts",
+        label: "Nhập excel"
     },
     "/management/inventory/receipts/": {
         parentTo: "/management/inventory/receipts",
@@ -102,8 +109,15 @@ const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
 
 function resolveSubRouteLabel(pathname: string) {
     for (const [prefix, config] of Object.entries(subRouteLabels)) {
+    // Sắp xếp các prefix có độ dài lớn hơn trước để match chính xác nhất (ví dụ /system/product-variants/import trước /system/product-variants/)
+    const sortedEntries = Object.entries(subRouteLabels).sort(
+        (a, b) => b[0].length - a[0].length
+    );
+
+    for (const [prefix, config] of sortedEntries) {
         if (
             (pathname === prefix || pathname.startsWith(prefix)) &&
+            (pathname === prefix || pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`)) &&
             pathname !== config.parentTo
         ) {
             return config.label;

@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.entity.BusinessSequence;
+import org.hvtra.commonservice.util.CodeUtils;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.LookupResponse;
@@ -147,28 +148,30 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Transactional
-    public String generateSku(Product product) {
-        String name = product.getName();
-        String normalized = java.text.Normalizer.normalize(name != null ? name : "", java.text.Normalizer.Form.NFD);
-        normalized = normalized.replaceAll("\\p{M}", "");
-        String clean = normalized.replaceAll("[^a-zA-Z0-9\\s]", "").toUpperCase().trim();
-        String[] words = clean.split("\\s+");
-        String prefix = Arrays.stream(words)
-                .filter(w -> !w.isEmpty())
-                .map(w -> w.substring(0, 1))
-                .collect(Collectors.joining());
-
-        if (prefix.isEmpty()) {
-            prefix = "PR";
-        }
-
+    public String generateSku(Product product, Integer quantity, String symbolUnit) {
+        String prefix = CodeUtils.getInitials(product != null ? product.getName() : null, "PR", quantity, symbolUnit);
         BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("SKU")
-                .orElseThrow(() -> new RuntimeException("SKU sequence not initialized"));
-        long nextVal = seq.getCurrentValue() + 1;
-        seq.setCurrentValue(nextVal);
-        businessSequenceRepository.saveAndFlush(seq);
+                .orElseGet(() -> {
+                    BusinessSequence newSeq = new BusinessSequence();
+                    newSeq.setSequenceKey("SKU");
+                    newSeq.setCurrentValue(0L);
+                    return businessSequenceRepository.saveAndFlush(newSeq);
+                });
 
-        return String.format("%s-%05d", prefix, nextVal);
+        String sku;
+        do {
+            long nextVal = seq.getCurrentValue() + 1;
+            seq.setCurrentValue(nextVal);
+            sku = String.format("%s-%05d", prefix, nextVal);
+        } while (repository.existsBySku(sku));
+
+        businessSequenceRepository.saveAndFlush(seq);
+        return sku;
+    }
+
+    @Transactional
+    public String generateSku(Product product) {
+        return generateSku(product, null, null);
     }
 
     @Override
@@ -180,7 +183,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setProduct(product);
         apply(variant, request);
 
-        String generatedSku = generateSku(product);
+        Integer quantity = variant.getQuantity() != null ? variant.getQuantity().intValue() : null;
+        String symbol = variant.getUnit() != null ? variant.getUnit().getSymbol() : null;
+        String generatedSku = generateSku(product, quantity, symbol);
         variant.setSku(generatedSku);
 
         ProductVariant savedVariant = repository.saveAndFlush(variant);

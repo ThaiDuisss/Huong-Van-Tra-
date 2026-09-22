@@ -35,6 +35,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import org.hvtra.commonservice.util.CodeUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -243,7 +245,7 @@ public class CustomerServiceImpl implements CustomerService {
     // Bổ sung mã khách hàng và trạng thái mặc định khi tạo mới nếu còn thiếu.
     private CustomerRequest normalizeCreateRequest(CustomerRequest request) {
         return new CustomerRequest(
-                hasText(request.customerCode()) ? request.customerCode() : generateCustomerCode(),
+                hasText(request.customerCode()) ? request.customerCode() : generateCustomerCode(request.fullName()),
                 request.fullName(),
                 request.phone(),
                 request.email(),
@@ -276,11 +278,14 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
-    // Sinh mã khách hàng ngẫu nhiên và bảo đảm mã chưa tồn tại.
-    private String generateCustomerCode() {
+    // Sinh mã khách hàng tự động: {Viết tắt họ tên}-{4 số ngẫu nhiên duy nhất}.
+    // Ví dụ: NVA-1024, LTH-8492
+    private String generateCustomerCode(String fullName) {
+        String prefix = CodeUtils.getInitials(fullName, "KH");
         String customerCode;
         do {
-            customerCode = "CUS-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            int randomNum = ThreadLocalRandom.current().nextInt(1000, 10000);
+            customerCode = String.format("%s-%04d", prefix, randomNum);
         } while (customerRepository.existsByCustomerCode(customerCode));
         return customerCode;
     }

@@ -21,6 +21,8 @@ interface ImportUploadPageProps {
     itemsListRegistry?: Partial<Record<ImportType, ComponentType<ImportItemsListProps>>>;
     /** Route "Quay lại danh sách yêu cầu nhập" — mặc định là trang danh sách của Catalog. */
     backTo?: string;
+    /** Nhãn nút quay lại — mặc định là "← Quay lại danh sách yêu cầu nhập" */
+    backLabel?: string;
 }
 
 export function ImportUploadPage({
@@ -31,7 +33,8 @@ export function ImportUploadPage({
     downloadTemplate,
     api = defaultImportBatchApi,
     itemsListRegistry = IMPORT_ITEMS_LIST_REGISTRY,
-    backTo = routePaths.importExcelRequests
+    backTo = routePaths.importExcelRequests,
+    backLabel = "← Quay lại danh sách yêu cầu nhập"
 }: ImportUploadPageProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,7 +89,7 @@ export function ImportUploadPage({
         <section className="grid gap-4">
             <div className="flex items-center justify-between">
                 <Link className="text-sm font-black text-[#159734] hover:underline" to={backTo}>
-                    ← Quay lại danh sách yêu cầu nhập
+                    {backLabel}
                 </Link>
             </div>
 

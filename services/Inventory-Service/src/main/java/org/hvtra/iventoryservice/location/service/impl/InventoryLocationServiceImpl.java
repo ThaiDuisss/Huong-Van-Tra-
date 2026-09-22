@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import org.hvtra.commonservice.util.CodeUtils;
 
 @Service
 @Transactional(readOnly = true)
@@ -65,7 +67,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     @Transactional
     public InventoryLocationResponse create(InventoryLocationRequest request) {
         InventoryLocation location = new InventoryLocation();
-        String code = generateCode(request.type());
+        String code = generateCode(request.name(), request.type());
         location.setCode(code);
         mapper.update(location, request, resolveParent(request, null));
         return mapper.toResponse(repository.save(location));
@@ -88,22 +90,23 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     }
 
     /**
-     * Sinh mã vị trí tự động dựa theo loại.
-     * Cấu trúc: {PREFIX}-{8 ký tự hex ngẫu nhiên viết hoa}
-     * Ví dụ: KHO-A3F9B2C1, KC-7E2D401F, HL-C5080BEE, KE-4D12A8F0
+     * Sinh mã vị trí tự động dựa theo chữ cái viết tắt của tên + số ngẫu nhiên 4 chữ số duy nhất.
+     * Ví dụ: KHO-1024, KTMB-4819, KC-2048, HL-9102
      */
-    private String generateCode(InventoryLocationType type) {
-        String prefix = switch (type) {
+    private String generateCode(String name, InventoryLocationType type) {
+        String fallback = switch (type) {
             case WAREHOUSE -> "KHO";
             case STORAGE   -> "KC";
             case DAMAGED   -> "HL";
             case SHELF     -> "KE";
         };
-        String suffix = UUID.randomUUID().toString()
-                .replace("-", "")
-                .substring(0, 8)
-                .toUpperCase();
-        return prefix + "-" + suffix;
+        String prefix = CodeUtils.getInitials(name, fallback);
+        String code;
+        do {
+            int randomNum = ThreadLocalRandom.current().nextInt(1000, 10000);
+            code = String.format("%s-%04d", prefix, randomNum);
+        } while (repository.existsByCode(code));
+        return code;
     }
 
     private InventoryLocation resolveParent(InventoryLocationRequest request, UUID locationId) {

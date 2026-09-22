@@ -9,6 +9,7 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Product;
+import org.hvtra.commonservice.util.CodeUtils;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
@@ -138,13 +139,30 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Transactional
-    public String generateProductCode() {
+    public String generateProductCode(String productName) {
+        String prefix = CodeUtils.getInitials(productName, "SP");
         BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("PRODUCT")
-                .orElseThrow(() -> new RuntimeException("Product sequence not initialized"));
-        long nextVal = seq.getCurrentValue() + 1;
-        seq.setCurrentValue(nextVal);
+                .orElseGet(() -> {
+                    BusinessSequence newSeq = new BusinessSequence();
+                    newSeq.setSequenceKey("PRODUCT");
+                    newSeq.setCurrentValue(0L);
+                    return businessSequenceRepository.saveAndFlush(newSeq);
+                });
+
+        String code;
+        do {
+            long nextVal = seq.getCurrentValue() + 1;
+            seq.setCurrentValue(nextVal);
+            code = String.format("%s-%02d", prefix, nextVal);
+        } while (productRepository.existsByProductCode(code));
+
         businessSequenceRepository.saveAndFlush(seq);
-        return String.format("PRD%05d", nextVal);
+        return code;
+    }
+
+    @Transactional
+    public String generateProductCode() {
+        return generateProductCode(null);
     }
 
     @Override
@@ -153,7 +171,7 @@ public class ProductServiceImpl implements ProductService {
         Product product = new Product();
         String code = request.productCode();
         if (code == null || code.isBlank()) {
-            code = generateProductCode();
+            code = generateProductCode(request.name());
         } else {
             code = code.trim();
             if (code.length() > 50) {

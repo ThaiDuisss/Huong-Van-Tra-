@@ -5,7 +5,9 @@ import org.hvtra.catalog.dto.request.CategoryRequest;
 import org.hvtra.catalog.dto.response.CategoryResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
+import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.entity.Category;
+import org.hvtra.commonservice.util.CodeUtils;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
@@ -56,13 +58,30 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Transactional
-    public String generateCategoryCode() {
-        org.hvtra.catalog.entity.BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("CATEGORY")
-                .orElseThrow(() -> new RuntimeException("Category sequence not initialized"));
-        long nextVal = seq.getCurrentValue() + 1;
-        seq.setCurrentValue(nextVal);
+    public String generateCategoryCode(String categoryName) {
+        String prefix = CodeUtils.getInitials(categoryName, "DM");
+        BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("CATEGORY")
+                .orElseGet(() -> {
+                    BusinessSequence newSeq = new BusinessSequence();
+                    newSeq.setSequenceKey("CATEGORY");
+                    newSeq.setCurrentValue(0L);
+                    return businessSequenceRepository.saveAndFlush(newSeq);
+                });
+
+        String code;
+        do {
+            long nextVal = seq.getCurrentValue() + 1;
+            seq.setCurrentValue(nextVal);
+            code = String.format("%s-%02d", prefix, nextVal);
+        } while (repository.existsByCategoryCode(code));
+
         businessSequenceRepository.saveAndFlush(seq);
-        return String.format("CAT%05d", nextVal);
+        return code;
+    }
+
+    @Transactional
+    public String generateCategoryCode() {
+        return generateCategoryCode(null);
     }
 
     @Override
@@ -72,7 +91,7 @@ public class CategoryServiceImpl implements CategoryService {
         
         String code = request.categoryCode();
         if (code == null || code.isBlank()) {
-            code = generateCategoryCode();
+            code = generateCategoryCode(request.name());
         } else {
             code = code.trim();
             if (code.length() > 50) {
