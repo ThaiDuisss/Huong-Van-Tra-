@@ -16,7 +16,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 })
 @EnableJpaRepositories(basePackages = "org.hvtra")
 @EntityScan(basePackages = "org.hvtra")
-@EnableFeignClients(defaultConfiguration = FeignConfig.class)
+@EnableFeignClients(basePackages = "org.hvtra", defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
 public class CatalogApplication {
 

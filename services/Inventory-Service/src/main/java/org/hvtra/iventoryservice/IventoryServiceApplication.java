@@ -17,7 +17,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 })
 @EnableJpaRepositories(basePackages = "org.hvtra")
 @EntityScan(basePackages = "org.hvtra")
-@EnableFeignClients(defaultConfiguration = FeignConfig.class)
+@EnableFeignClients(basePackages = "org.hvtra", defaultConfiguration = FeignConfig.class)
 @EnableScheduling
 @Import(SwaggerConfig.class)
 public class IventoryServiceApplication {

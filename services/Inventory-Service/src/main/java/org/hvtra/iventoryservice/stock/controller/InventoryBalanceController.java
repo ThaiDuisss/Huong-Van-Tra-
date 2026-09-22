@@ -9,6 +9,7 @@ import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.service.InventoryBalanceService;
 import org.hvtra.iventoryservice.domain.enums.StockType;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -29,7 +30,7 @@ public class InventoryBalanceController {
             @RequestParam(name = "inventoryItemId", required = false) UUID inventoryItemId,
             @RequestParam(name = "locationId", required = false) UUID locationId,
             @RequestParam(name = "branchId", required = false) UUID branchId,
-            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(inventoryItemId, locationId, branchId, pageable);
     }
 
@@ -54,7 +55,7 @@ public class InventoryBalanceController {
             @RequestParam(name = "status", required = false) StockType status,
             @RequestParam(name = "type", required = false) org.hvtra.iventoryservice.domain.enums.InventoryItemType type,
             @RequestParam(name = "itemType", required = false) org.hvtra.iventoryservice.domain.enums.InventoryItemType itemType,
-            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         org.hvtra.iventoryservice.domain.enums.InventoryItemType resolvedType = itemType != null ? itemType : type;
         return service.findAllView(keyword, code, sku, productCode, name, productName, categoryCode, categoryId, unitId, locationId, branchId, status, resolvedType, pageable);
     }

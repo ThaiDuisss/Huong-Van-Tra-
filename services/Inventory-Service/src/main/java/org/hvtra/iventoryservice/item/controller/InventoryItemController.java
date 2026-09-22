@@ -12,6 +12,7 @@ import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.stock.service.InventoryBalanceService;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -36,7 +37,7 @@ public class InventoryItemController {
             @RequestParam(name = "referenceCode", required = false) String referenceCode,
             @RequestParam(name = "itemType", required = false) InventoryItemType itemType,
             @RequestParam(name = "status", required = false) InventoryStatus status,
-            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(referenceId, referenceCode, itemType, status, pageable);
     }
 
@@ -48,7 +49,7 @@ public class InventoryItemController {
     @GetMapping("/{id}/balances")
     public PageResponse<InventoryBalanceResponse> findBalances(
             @PathVariable("id") UUID id,
-            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return balanceService.findByInventoryItem(id, pageable);
     }
 

@@ -27,6 +27,7 @@ import org.hvtra.iventoryservice.document.service.InventoryDocumentService;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
@@ -545,9 +546,18 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                     new CatalogClient.CreateIngredientRequest(name, unitId, null, "ACTIVE"));
 
             InventoryItem createdItem = inventoryItemRepository
-                    .findByReferenceIdAndItemType(created.id(), InventoryItemType.INGREDIENT)
-                    .orElseThrow(() -> new BadRequestException(
-                            "Vừa tạo nguyên liệu mới \"" + created.name() + "\" nhưng chưa thấy đồng bộ tồn kho — thử duyệt lại."));
+                    .findByReferenceIdAndItemTypeLocked(created.id(), InventoryItemType.INGREDIENT)
+                    .orElseGet(() -> {
+                        InventoryItem newItem = new InventoryItem();
+                        newItem.setReferenceId(created.id());
+                        newItem.setReferenceCode(created.ingredientCode());
+                        newItem.setName(created.name());
+                        newItem.setItemType(InventoryItemType.INGREDIENT);
+                        newItem.setUnitId(created.unitId());
+                        newItem.setStatus(InventoryStatus.ACTIVE);
+                        newItem.setReorderPoint(created.reorderPoint() != null ? created.reorderPoint() : 0);
+                        return inventoryItemRepository.save(newItem);
+                    });
 
             createdIngredientIds.add(created.id());
 
@@ -904,51 +914,70 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
 
     private void buildReferenceSheet(Workbook workbook) {
         Sheet sheet = workbook.createSheet("Tham chiếu");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        Font headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        CellStyle headerStyle = workbook.createCellStyle();
-        headerStyle.setFont(headerFont);
-
-        // Mỗi thực thể tham chiếu chiếm 1 cột — thêm thực thể mới thì thêm 1 cột kế tiếp tại đây.
-        String[] headers = {"Mã kho", "Mã nguyên liệu", "Mã nhà cung cấp", "Đơn vị"};
+        // Mỗi thực thể tham chiếu gồm 2 cột: Mã và Tên
+        String[] headers = {
+                "Mã kho", "Tên kho",
+                "Mã nguyên liệu", "Tên nguyên liệu",
+                "Mã nhà cung cấp", "Tên nhà cung cấp",
+                "Ký hiệu đơn vị", "Tên đơn vị"
+        };
         Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        List<String> locationCodes = locationRepository.findAll().stream()
+        record CodeName(String code, String name) {}
+
+        List<CodeName> locations = locationRepository.findAll().stream()
                 .filter(l -> !Boolean.TRUE.equals(l.getIsDeleted()))
-                .map(InventoryLocation::getCode)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
-                .toList();
-        List<String> itemCodes = inventoryItemRepository.findAll().stream()
-                .filter(i -> i.getItemType() == InventoryItemType.INGREDIENT && !Boolean.TRUE.equals(i.getIsDeleted()))
-                .map(InventoryItem::getReferenceCode)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
-                .toList();
-        List<String> supplierCodes = catalogClient.getAllSuppliers().stream()
-                .map(CatalogClient.SupplierLookupResponse::code)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
-                .toList();
-        List<String> unitSymbols = catalogClient.getAllUnits().stream()
-                .map(CatalogClient.UnitResponse::symbol)
-                .filter(symbol -> symbol != null && !symbol.isBlank())
-                .sorted()
+                .filter(l -> l.getCode() != null && !l.getCode().isBlank())
+                .sorted((a, b) -> a.getCode().compareToIgnoreCase(b.getCode()))
+                .map(l -> new CodeName(l.getCode(), l.getName() != null ? l.getName() : ""))
                 .toList();
 
-        int maxRows = Math.max(Math.max(locationCodes.size(), itemCodes.size()), Math.max(supplierCodes.size(), unitSymbols.size()));
+        List<CodeName> items = inventoryItemRepository.findAll().stream()
+                .filter(i -> i.getItemType() == InventoryItemType.INGREDIENT && !Boolean.TRUE.equals(i.getIsDeleted()))
+                .filter(i -> i.getReferenceCode() != null && !i.getReferenceCode().isBlank())
+                .sorted((a, b) -> a.getReferenceCode().compareToIgnoreCase(b.getReferenceCode()))
+                .map(i -> new CodeName(i.getReferenceCode(), i.getName() != null ? i.getName() : ""))
+                .toList();
+
+        List<CodeName> suppliers = catalogClient.getAllSuppliers().stream()
+                .filter(s -> s.code() != null && !s.code().isBlank())
+                .sorted((a, b) -> a.code().compareToIgnoreCase(b.code()))
+                .map(s -> new CodeName(s.code(), s.name() != null ? s.name() : ""))
+                .toList();
+
+        List<CodeName> units = catalogClient.getAllUnits().stream()
+                .filter(u -> u.symbol() != null && !u.symbol().isBlank())
+                .sorted((a, b) -> a.symbol().compareToIgnoreCase(b.symbol()))
+                .map(u -> new CodeName(u.symbol(), u.name() != null ? u.name() : ""))
+                .toList();
+
+        int maxRows = Math.max(Math.max(locations.size(), items.size()), Math.max(suppliers.size(), units.size()));
         for (int i = 0; i < maxRows; i++) {
             Row row = sheet.createRow(i + 1);
-            if (i < locationCodes.size()) row.createCell(0).setCellValue(locationCodes.get(i));
-            if (i < itemCodes.size()) row.createCell(1).setCellValue(itemCodes.get(i));
-            if (i < supplierCodes.size()) row.createCell(2).setCellValue(supplierCodes.get(i));
-            if (i < unitSymbols.size()) row.createCell(3).setCellValue(unitSymbols.get(i));
+            if (i < locations.size()) {
+                row.createCell(0).setCellValue(locations.get(i).code());
+                row.createCell(1).setCellValue(locations.get(i).name());
+            }
+            if (i < items.size()) {
+                row.createCell(2).setCellValue(items.get(i).code());
+                row.createCell(3).setCellValue(items.get(i).name());
+            }
+            if (i < suppliers.size()) {
+                row.createCell(4).setCellValue(suppliers.get(i).code());
+                row.createCell(5).setCellValue(suppliers.get(i).name());
+            }
+            if (i < units.size()) {
+                row.createCell(6).setCellValue(units.get(i).code());
+                row.createCell(7).setCellValue(units.get(i).name());
+            }
         }
 
         sheet.createFreezePane(0, 1);

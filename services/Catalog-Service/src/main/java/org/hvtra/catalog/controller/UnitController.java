@@ -13,6 +13,7 @@ import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -42,7 +43,7 @@ public class UnitController {
             @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "status", required = false) Status status,
             @RequestParam(name = "type", required = false) UnitType type,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(name, status, type, pageable);
     }
 
@@ -54,7 +55,7 @@ public class UnitController {
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, pageable);
     }
 

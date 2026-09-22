@@ -241,7 +241,8 @@ public class FileService {
         Set<String> allowed = Set.of(
                 "image/png",
                 "image/jpeg",
-                "application/pdf"
+                "application/pdf",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
 
         if (!allowed.contains(request.contentType())) {

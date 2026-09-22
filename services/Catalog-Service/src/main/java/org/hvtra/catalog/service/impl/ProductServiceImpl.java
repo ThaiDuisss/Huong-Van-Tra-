@@ -1,7 +1,7 @@
 package org.hvtra.catalog.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.catalog.client.FileClient;
+import org.hvtra.commonservice.common_core.client.FileClient;
 import org.hvtra.catalog.dto.request.ProductRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
@@ -378,9 +378,7 @@ public class ProductServiceImpl implements ProductService {
         sheet.setColumnWidth(0, 100 * 256);
     }
 
-    private void buildImportDataEntrySheet(Workbook workbook) {
-        Sheet sheet = workbook.createSheet("Nhập thông tin sản phẩm");
-
+    private CellStyle createGreenHeaderStyle(Workbook workbook) {
         Font headerFont = workbook.createFont();
         headerFont.setBold(true);
         headerFont.setColor(IndexedColors.WHITE.getIndex());
@@ -392,6 +390,12 @@ public class ProductServiceImpl implements ProductService {
         }
         headerStyle.setAlignment(HorizontalAlignment.CENTER);
         headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        return headerStyle;
+    }
+
+    private void buildImportDataEntrySheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Nhập thông tin sản phẩm");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
         String[] headers = {"Mã danh mục", "Tên sản phẩm", "Trạng thái", "Mô tả"};
         Row headerRow = sheet.createRow(0);
@@ -421,30 +425,30 @@ public class ProductServiceImpl implements ProductService {
 
     private void buildImportReferenceSheet(Workbook workbook) {
         Sheet sheet = workbook.createSheet("Danh mục tham chiếu");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        Font headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        CellStyle headerStyle = workbook.createCellStyle();
-        headerStyle.setFont(headerFont);
-
-        // Mỗi thực thể tham chiếu chiếm 1 cột (mã) — thêm thực thể mới thì thêm 1 cột kế tiếp tại đây.
-        String[] headers = {"Danh mục"};
+        String[] headers = {"Mã danh mục", "Tên danh mục"};
         Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        List<String> categoryCodes = categoryRepository.findAll().stream()
-                .map(Category::getCategoryCode)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
+        record CodeName(String code, String name) {}
+
+        List<CodeName> categories = categoryRepository.findAll().stream()
+                .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
+                .filter(c -> c.getCategoryCode() != null && !c.getCategoryCode().isBlank())
+                .sorted((a, b) -> a.getCategoryCode().compareToIgnoreCase(b.getCategoryCode()))
+                .map(c -> new CodeName(c.getCategoryCode(), c.getName() != null ? c.getName() : ""))
                 .toList();
 
-        for (int i = 0; i < categoryCodes.size(); i++) {
+        for (int i = 0; i < categories.size(); i++) {
             Row row = sheet.createRow(i + 1);
-            row.createCell(0).setCellValue(categoryCodes.get(i));
+            row.createCell(0).setCellValue(categories.get(i).code());
+            row.createCell(1).setCellValue(categories.get(i).name());
         }
 
         sheet.createFreezePane(0, 1);

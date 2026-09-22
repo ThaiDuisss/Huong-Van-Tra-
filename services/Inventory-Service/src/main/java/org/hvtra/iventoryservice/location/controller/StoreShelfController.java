@@ -9,6 +9,7 @@ import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.location.service.StoreShelfService;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -29,7 +30,7 @@ public class StoreShelfController {
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, pageable);
     }
 
@@ -37,7 +38,7 @@ public class StoreShelfController {
     public PageResponse<InventoryLocationResponse> findAll(
             @RequestParam(name = "query", required = false) String query,
             @RequestParam(name = "status", required = false) InventoryStatus status,
-            @PageableDefault(size = 20, sort = "code") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(query, status, pageable);
     }
 

@@ -34,5 +34,13 @@ public class AuditableEntity {
 
     @Version
     @Column(name = "version")
-    private Long version;
+    private Long version = 0L;
+
+    @PostLoad
+    @PrePersist
+    public void ensureVersion() {
+        if (this.version == null) {
+            this.version = 0L;
+        }
+    }
 }

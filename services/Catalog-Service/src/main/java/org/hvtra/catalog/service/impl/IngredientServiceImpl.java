@@ -472,30 +472,30 @@ public class IngredientServiceImpl implements IngredientService {
 
     private void buildImportReferenceSheet(Workbook workbook) {
         Sheet sheet = workbook.createSheet("Tham chiếu");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        Font headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        CellStyle headerStyle = workbook.createCellStyle();
-        headerStyle.setFont(headerFont);
-
-        String[] headers = {"Đơn vị"};
+        String[] headers = {"Ký hiệu đơn vị", "Tên đơn vị"};
         Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        List<String> unitSymbols = unitRepository.findAll().stream()
+        record CodeName(String code, String name) {}
+
+        List<CodeName> units = unitRepository.findAll().stream()
                 .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
-                .map(Unit::getSymbol)
-                .filter(symbol -> symbol != null && !symbol.isBlank())
-                .sorted()
+                .filter(u -> u.getSymbol() != null && !u.getSymbol().isBlank())
+                .sorted((a, b) -> a.getSymbol().compareToIgnoreCase(b.getSymbol()))
+                .map(u -> new CodeName(u.getSymbol(), u.getName() != null ? u.getName() : ""))
                 .toList();
 
-        for (int i = 0; i < unitSymbols.size(); i++) {
+        for (int i = 0; i < units.size(); i++) {
             Row row = sheet.createRow(i + 1);
-            row.createCell(0).setCellValue(unitSymbols.get(i));
+            row.createCell(0).setCellValue(units.get(i).code());
+            row.createCell(1).setCellValue(units.get(i).name());
         }
 
         sheet.createFreezePane(0, 1);

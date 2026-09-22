@@ -72,6 +72,7 @@ export interface SaveImportDraftItemRequest {
 export interface SaveImportDraftRequest {
     type: ImportType;
     sourceFileName?: string | null;
+    fileId?: string | null;
     items: SaveImportDraftItemRequest[];
 }
 

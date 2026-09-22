@@ -13,6 +13,7 @@ import org.hvtra.commonservice.common_importing.dto.response.ImportBatchResponse
 import org.hvtra.commonservice.common_importing.dto.response.ImportPreviewResponse;
 import org.hvtra.commonservice.common_importing.service.ImportBatchService;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -55,7 +56,7 @@ public class ImportBatchController {
     public PageResponse<ImportBatchResponse> findAll(
             @RequestParam(required = false) ImportType type,
             @RequestParam(required = false) ImportBatchStatus status,
-            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return PageResponse.from(service.findAll(type, status, pageable));
     }
 

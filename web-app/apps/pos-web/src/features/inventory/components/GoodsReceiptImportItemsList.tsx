@@ -137,13 +137,13 @@ function ItemRow({
             prev.map((line, i) =>
                 i === index
                     ? {
-                          ...line,
-                          isNewIngredient: isNew,
-                          inventoryItemId: isNew ? "" : line.inventoryItemId,
-                          newIngredientCode: isNew ? line.newIngredientCode : "",
-                          newIngredientName: isNew ? line.newIngredientName : "",
-                          newIngredientUnitId: isNew ? line.newIngredientUnitId : ""
-                      }
+                        ...line,
+                        isNewIngredient: isNew,
+                        inventoryItemId: isNew ? "" : line.inventoryItemId,
+                        newIngredientCode: isNew ? line.newIngredientCode : "",
+                        newIngredientName: isNew ? line.newIngredientName : "",
+                        newIngredientUnitId: isNew ? line.newIngredientUnitId : ""
+                    }
                     : line
             )
         );
@@ -163,20 +163,20 @@ function ItemRow({
                 items: lines.map((line) =>
                     line.isNewIngredient
                         ? {
-                              inventoryItemId: null,
-                              unitId: null,
-                              orderedQuantity: line.orderedQuantity,
-                              note: line.note || null,
-                              newIngredientCode: line.newIngredientCode.trim() || null,
-                              newIngredientName: line.newIngredientName.trim() || null,
-                              newIngredientUnitId: line.newIngredientUnitId || null
-                          }
+                            inventoryItemId: null,
+                            unitId: null,
+                            orderedQuantity: line.orderedQuantity,
+                            note: line.note || null,
+                            newIngredientCode: line.newIngredientCode.trim() || null,
+                            newIngredientName: line.newIngredientName.trim() || null,
+                            newIngredientUnitId: line.newIngredientUnitId || null
+                        }
                         : {
-                              inventoryItemId: line.inventoryItemId || null,
-                              unitId: line.unitId || null,
-                              orderedQuantity: line.orderedQuantity,
-                              note: line.note || null
-                          }
+                            inventoryItemId: line.inventoryItemId || null,
+                            unitId: line.unitId || null,
+                            orderedQuantity: line.orderedQuantity,
+                            note: line.note || null
+                        }
                 )
             };
 
@@ -204,9 +204,8 @@ function ItemRow({
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     <span
-                        className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${
-                            isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                        }`}
+                        className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] font-bold ${isValid ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                            }`}
                     >
                         {isValid ? "Hợp lệ" : `${item.validationErrors.length} lỗi`}
                     </span>
@@ -321,15 +320,6 @@ function ItemRow({
                                         {lines.map((line, index) => (
                                             <tr key={index}>
                                                 <td className="p-2 align-top">
-                                                    <label className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-[#536078] cursor-pointer">
-                                                        <input
-                                                            checked={line.isNewIngredient}
-                                                            disabled={!editable}
-                                                            onChange={(e) => toggleNewIngredient(index, e.target.checked)}
-                                                            type="checkbox"
-                                                        />
-                                                        Nguyên liệu mới (chưa có trong hệ thống)
-                                                    </label>
 
                                                     {line.isNewIngredient ? (
                                                         <div className="grid gap-1.5">
@@ -382,8 +372,8 @@ function ItemRow({
                                                                     {!supplierId
                                                                         ? "-- Chọn nhà cung cấp trước --"
                                                                         : materialsLoading
-                                                                          ? "Đang tải nguyên liệu..."
-                                                                          : "-- Chọn nguyên liệu --"}
+                                                                            ? "Đang tải nguyên liệu..."
+                                                                            : "-- Chọn nguyên liệu --"}
                                                                 </option>
                                                                 {materials.map((m) => (
                                                                     <option key={m.id} value={m.id}>
@@ -398,9 +388,18 @@ function ItemRow({
                                                             ) : null}
                                                         </>
                                                     )}
+                                                    <label className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-[#536078] cursor-pointer">
+                                                        <input
+                                                            checked={line.isNewIngredient}
+                                                            disabled={!editable}
+                                                            onChange={(e) => toggleNewIngredient(index, e.target.checked)}
+                                                            type="checkbox"
+                                                        />
+                                                        Nguyên liệu mới (chưa có trong hệ thống)
+                                                    </label>
                                                     {errorByField.get(`items[${index}].inventoryItemId`) ? (
                                                         <p className="mt-1 text-[11px] font-bold text-red-600">
-                                                             {errorByField.get(`items[${index}].inventoryItemId`)}
+                                                            {errorByField.get(`items[${index}].inventoryItemId`)}
                                                         </p>
                                                     ) : null}
                                                 </td>

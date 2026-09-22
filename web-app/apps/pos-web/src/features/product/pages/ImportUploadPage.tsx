@@ -120,6 +120,7 @@ export function ImportUploadPage({
                         api={api}
                         itemsListRegistry={itemsListRegistry}
                         previewData={previewData}
+                        sourceFile={selectedFile}
                     />
                 </>
             ) : (

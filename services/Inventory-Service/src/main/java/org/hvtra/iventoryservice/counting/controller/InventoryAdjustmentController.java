@@ -8,6 +8,8 @@ import org.hvtra.iventoryservice.counting.service.InventoryAdjustmentService;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,7 +30,7 @@ public class InventoryAdjustmentController {
             @RequestParam(required = false) UUID branchId,
             @RequestParam(required = false) InventoryDocumentStatus status,
             @RequestParam(required = false) String keyword,
-            Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(branchId, status, keyword, pageable);
     }
 

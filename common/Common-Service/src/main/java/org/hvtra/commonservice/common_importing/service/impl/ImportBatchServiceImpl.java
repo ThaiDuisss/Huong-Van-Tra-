@@ -22,6 +22,8 @@ import org.hvtra.commonservice.common_importing.handler.ParsedImportRow;
 import org.hvtra.commonservice.common_importing.repository.ImportBatchRepository;
 import org.hvtra.commonservice.common_importing.repository.ImportBatchSequenceRepository;
 import org.hvtra.commonservice.common_importing.service.ImportBatchService;
+import lombok.extern.slf4j.Slf4j;
+import org.hvtra.commonservice.common_core.client.FileClient;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +44,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 public class ImportBatchServiceImpl implements ImportBatchService {
@@ -56,16 +59,19 @@ public class ImportBatchServiceImpl implements ImportBatchService {
     private final ImportBatchSequenceRepository sequenceRepository;
     private final ObjectMapper objectMapper;
     private final Map<ImportType, ImportTypeHandler> handlers;
+    private final FileClient fileClient;
 
     public ImportBatchServiceImpl(
             ImportBatchRepository repository,
             ImportBatchSequenceRepository sequenceRepository,
             ObjectMapper objectMapper,
-            List<ImportTypeHandler> handlerList) {
+            List<ImportTypeHandler> handlerList,
+            FileClient fileClient) {
         this.repository = repository;
         this.sequenceRepository = sequenceRepository;
         this.objectMapper = objectMapper;
         this.handlers = handlerList.stream().collect(Collectors.toMap(ImportTypeHandler::type, Function.identity()));
+        this.fileClient = fileClient;
     }
 
     @Override
@@ -137,7 +143,20 @@ public class ImportBatchServiceImpl implements ImportBatchService {
             batch.addItem(item);
         }
 
-        return toResponse(repository.save(batch));
+        ImportBatch savedBatch = repository.save(batch);
+
+        if (request.fileId() != null && fileClient != null) {
+            try {
+                fileClient.attachFile(FileClient.FileAttach.builder()
+                        .fieldId(request.fileId())
+                        .refId(savedBatch.getId())
+                        .build());
+            } catch (Exception e) {
+                log.error("Failed to attach file {} to import batch {}: {}", request.fileId(), savedBatch.getId(), e.getMessage());
+            }
+        }
+
+        return toResponse(savedBatch);
     }
 
     @Override
