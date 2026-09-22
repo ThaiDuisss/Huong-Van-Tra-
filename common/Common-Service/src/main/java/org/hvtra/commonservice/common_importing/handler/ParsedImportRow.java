@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.importing.handler;
+package org.hvtra.commonservice.common_importing.handler;
 
 import java.util.Map;
 

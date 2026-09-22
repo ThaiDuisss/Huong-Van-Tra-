@@ -17,7 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.promotionservice.entity.coupon.Coupon;
 import org.hvtra.promotionservice.enums.promotion.PromotionApplyMethod;
 import org.hvtra.promotionservice.enums.promotion.PromotionStatus;

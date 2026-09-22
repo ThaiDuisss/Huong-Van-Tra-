@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.stock.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;

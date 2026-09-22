@@ -3,7 +3,7 @@ package org.hvtra.deliveryservice.controller;
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.deliveryservice.model.request.ghn.GhnCancelShipmentCommand;
 import org.hvtra.deliveryservice.model.request.ghn.GhnCreateShipmentCommand;
 import org.hvtra.deliveryservice.model.request.ghn.GhnQuoteCommand;

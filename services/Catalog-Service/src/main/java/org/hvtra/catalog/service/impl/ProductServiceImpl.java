@@ -9,7 +9,7 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Product;
-import org.hvtra.commonservice.util.CodeUtils;
+import org.hvtra.commonservice.common_core.util.CodeUtils;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;

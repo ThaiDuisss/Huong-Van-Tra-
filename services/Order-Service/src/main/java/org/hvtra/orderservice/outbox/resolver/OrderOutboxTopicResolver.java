@@ -1,6 +1,6 @@
 package org.hvtra.orderservice.outbox.resolver;
 
-import org.hvtra.commonservice.kafka.outbox.resolver.OutboxTopicResolver;
+import org.hvtra.commonservice.common_core.kafka.outbox.resolver.OutboxTopicResolver;
 import org.hvtra.orderservice.outbox.event.OrderEventType;
 import org.springframework.stereotype.Component;
 

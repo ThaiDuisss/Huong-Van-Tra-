@@ -108,7 +108,6 @@ const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
 };
 
 function resolveSubRouteLabel(pathname: string) {
-    for (const [prefix, config] of Object.entries(subRouteLabels)) {
     // Sắp xếp các prefix có độ dài lớn hơn trước để match chính xác nhất (ví dụ /system/product-variants/import trước /system/product-variants/)
     const sortedEntries = Object.entries(subRouteLabels).sort(
         (a, b) => b[0].length - a[0].length
@@ -116,7 +115,6 @@ function resolveSubRouteLabel(pathname: string) {
 
     for (const [prefix, config] of sortedEntries) {
         if (
-            (pathname === prefix || pathname.startsWith(prefix)) &&
             (pathname === prefix || pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`)) &&
             pathname !== config.parentTo
         ) {

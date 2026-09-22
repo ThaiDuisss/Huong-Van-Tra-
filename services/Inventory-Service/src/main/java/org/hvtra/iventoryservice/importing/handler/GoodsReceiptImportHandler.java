@@ -31,10 +31,10 @@ import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
-import org.hvtra.commonservice.importing.domain.enums.ImportType;
-import org.hvtra.commonservice.importing.dto.response.ValidationErrorResponse;
-import org.hvtra.commonservice.importing.handler.ImportTypeHandler;
-import org.hvtra.commonservice.importing.handler.ParsedImportRow;
+import org.hvtra.commonservice.common_importing.enums.ImportType;
+import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
+import org.hvtra.commonservice.common_importing.handler.ImportTypeHandler;
+import org.hvtra.commonservice.common_importing.handler.ParsedImportRow;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 

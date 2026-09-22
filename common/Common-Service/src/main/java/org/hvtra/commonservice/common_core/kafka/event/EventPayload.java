@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.event;
+package org.hvtra.commonservice.common_core.kafka.event;
 
 import java.io.Serializable;
 

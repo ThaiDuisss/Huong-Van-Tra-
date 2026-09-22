@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.exception;
+package org.hvtra.commonservice.common_core.exception;
 
 public class FeignClientException extends RuntimeException {
 

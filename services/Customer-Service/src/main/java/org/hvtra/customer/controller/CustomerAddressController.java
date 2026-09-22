@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerAddressRequest;

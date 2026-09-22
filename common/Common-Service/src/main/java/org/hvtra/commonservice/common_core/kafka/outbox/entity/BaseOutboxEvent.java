@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.outbox.entity;
+package org.hvtra.commonservice.common_core.kafka.outbox.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;

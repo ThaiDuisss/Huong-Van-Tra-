@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.producer.dto;
+package org.hvtra.commonservice.common_core.kafka.producer.dto;
 
 public record SagaMessage<T>(
         SagaMetadata metadata,

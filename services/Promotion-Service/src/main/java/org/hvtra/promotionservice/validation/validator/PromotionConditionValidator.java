@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.exception.BusinessException;
+import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.hvtra.promotionservice.dto.request.promotioncondition.PromotionConditionCreateRequest;
 import org.hvtra.promotionservice.dto.request.promotioncondition.PromotionConditionUpdateRequest;
 import org.hvtra.promotionservice.entity.Promotion;

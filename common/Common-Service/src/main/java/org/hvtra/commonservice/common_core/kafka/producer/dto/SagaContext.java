@@ -1,5 +1,5 @@
 
-package org.hvtra.commonservice.kafka.producer.dto;
+package org.hvtra.commonservice.common_core.kafka.producer.dto;
 
 import java.util.UUID;
 

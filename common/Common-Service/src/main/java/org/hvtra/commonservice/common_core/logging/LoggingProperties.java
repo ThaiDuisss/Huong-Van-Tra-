@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.logging;
+package org.hvtra.commonservice.common_core.logging;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

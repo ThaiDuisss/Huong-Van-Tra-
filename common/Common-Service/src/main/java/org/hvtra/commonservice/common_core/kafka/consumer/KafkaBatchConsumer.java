@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.consumer;
+package org.hvtra.commonservice.common_core.kafka.consumer;
 
 import java.util.List;
 

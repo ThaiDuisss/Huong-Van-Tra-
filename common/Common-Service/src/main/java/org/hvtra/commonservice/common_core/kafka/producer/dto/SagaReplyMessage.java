@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.kafka.producer.dto;
+package org.hvtra.commonservice.common_core.kafka.producer.dto;
 
-import org.hvtra.commonservice.kafka.saga.enums.SagaReplyStatus;
+import org.hvtra.commonservice.common_core.kafka.saga.enums.SagaReplyStatus;
 
 public record SagaReplyMessage<T>(
         SagaMetadata metadata,

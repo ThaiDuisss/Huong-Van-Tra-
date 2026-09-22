@@ -1,9 +1,9 @@
-package org.hvtra.commonservice.config;
+package org.hvtra.commonservice.common_core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.Request;
 import feign.Response;
-import org.hvtra.commonservice.exception.FeignClientException;
+import org.hvtra.commonservice.common_core.exception.FeignClientException;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;

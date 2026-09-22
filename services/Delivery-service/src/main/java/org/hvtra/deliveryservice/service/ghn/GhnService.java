@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.exception.ResourceNotFoundException;
+import org.hvtra.commonservice.common_core.exception.ResourceNotFoundException;
 import org.hvtra.deliveryservice.client.GhnClient;
 import org.hvtra.deliveryservice.config.GhnProperties;
 import org.hvtra.deliveryservice.exception.GhnIntegrationException;

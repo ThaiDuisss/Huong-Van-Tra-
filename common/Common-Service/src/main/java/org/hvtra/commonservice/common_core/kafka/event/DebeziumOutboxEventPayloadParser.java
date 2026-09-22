@@ -1,11 +1,11 @@
-package org.hvtra.commonservice.kafka.event;
+package org.hvtra.commonservice.common_core.kafka.event;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.kafka.outbox.enums.DebeziumOp;
+import org.hvtra.commonservice.common_core.kafka.outbox.enums.DebeziumOp;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;

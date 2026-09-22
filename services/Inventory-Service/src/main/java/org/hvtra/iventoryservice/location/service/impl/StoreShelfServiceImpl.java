@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.hvtra.commonservice.util.CodeUtils;
+import org.hvtra.commonservice.common_core.util.CodeUtils;
 import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.springframework.data.domain.Page;
 

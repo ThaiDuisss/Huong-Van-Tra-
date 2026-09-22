@@ -26,7 +26,7 @@ import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionLineRepository;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
-import org.hvtra.commonservice.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;

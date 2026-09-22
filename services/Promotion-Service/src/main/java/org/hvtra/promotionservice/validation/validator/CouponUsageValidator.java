@@ -3,7 +3,7 @@ package org.hvtra.promotionservice.validation.validator;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.exception.BusinessException;
+import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.hvtra.promotionservice.entity.coupon.CouponUsage;
 import org.hvtra.promotionservice.enums.coupon.CouponUsageStatus;
 import org.springframework.stereotype.Component;

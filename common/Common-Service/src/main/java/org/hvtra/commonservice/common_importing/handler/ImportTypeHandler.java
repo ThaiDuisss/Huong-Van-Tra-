@@ -1,7 +1,7 @@
-package org.hvtra.commonservice.importing.handler;
+package org.hvtra.commonservice.common_importing.handler;
 
-import org.hvtra.commonservice.importing.domain.enums.ImportType;
-import org.hvtra.commonservice.importing.dto.response.ValidationErrorResponse;
+import org.hvtra.commonservice.common_importing.enums.ImportType;
+import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -18,7 +18,7 @@ public interface ImportTypeHandler {
     ImportType type();
 
     /** Đọc file Excel, KHÔNG ghi DB — chỉ trả về danh sách dòng đã parse (có thể còn thiếu/sai). */
-    List<ParsedImportRow> parseExcel(MultipartFile file);
+    List<org.hvtra.commonservice.common_importing.handler.ParsedImportRow> parseExcel(MultipartFile file);
 
     /** Validate lại 1 payload, trả về danh sách lỗi (rỗng nếu hợp lệ). */
     List<ValidationErrorResponse> validate(Map<String, Object> payload);

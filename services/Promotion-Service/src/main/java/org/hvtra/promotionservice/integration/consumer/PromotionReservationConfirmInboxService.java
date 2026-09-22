@@ -3,7 +3,7 @@ package org.hvtra.promotionservice.integration.consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.hvtra.commonservice.kafka.inbox.InboxStatus;
+import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.promotionservice.dto.event.OrderPromotionEventPayload;
 import org.hvtra.promotionservice.entity.PromotionInbox;
 import org.hvtra.promotionservice.repository.PromotionInboxRepository;

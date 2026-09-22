@@ -3,7 +3,7 @@ package org.hvtra.iventoryservice.domain.entity.counting;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountScopeType;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountAssignmentStatus;

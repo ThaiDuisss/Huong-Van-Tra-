@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.exception;
+package org.hvtra.commonservice.common_core.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;

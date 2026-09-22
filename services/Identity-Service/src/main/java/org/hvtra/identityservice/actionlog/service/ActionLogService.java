@@ -3,7 +3,7 @@ package org.hvtra.identityservice.actionlog.service;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.logging.action.ActionLogEvent;
+import org.hvtra.commonservice.common_core.logging.action.ActionLogEvent;
 import org.hvtra.identityservice.actionlog.config.ActionLogProperties;
 import org.hvtra.identityservice.actionlog.dto.ActionLogResponse;
 import org.hvtra.identityservice.actionlog.dto.ActionLogSearchRequest;
@@ -25,8 +25,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.apache.commons.lang.StringUtils.defaultIfBlank;
 
 @Slf4j
 @Service

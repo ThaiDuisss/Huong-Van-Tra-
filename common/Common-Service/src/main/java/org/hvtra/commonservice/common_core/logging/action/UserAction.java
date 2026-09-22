@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.logging.action;
+package org.hvtra.commonservice.common_core.logging.action;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

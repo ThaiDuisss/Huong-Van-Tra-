@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.config;
+package org.hvtra.commonservice.common_core.kafka.config;
 
 import lombok.AccessLevel;
 import lombok.Data;

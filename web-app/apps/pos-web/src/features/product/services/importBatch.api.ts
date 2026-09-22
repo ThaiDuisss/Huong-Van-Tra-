@@ -3,7 +3,9 @@ import type { PageResult } from "../types/product.types";
 import type {
     ImportBatch,
     ImportBatchQuery,
-    ImportType
+    ImportType,
+    ImportPreviewResponse,
+    SaveImportDraftRequest
 } from "../types/import-batch.types";
 
 /**
@@ -13,6 +15,16 @@ import type {
  */
 export function createImportBatchApi(basePath: string) {
     return {
+        preview(type: ImportType, file: File) {
+            const formData = new FormData();
+            formData.append("file", file);
+            return apiClient.upload<ImportPreviewResponse>(`${basePath}/preview`, formData, {
+                query: { type }
+            });
+        },
+        saveDraft(request: SaveImportDraftRequest) {
+            return apiClient.post<ImportBatch, SaveImportDraftRequest>(`${basePath}/draft`, request);
+        },
         create(type: ImportType, file: File) {
             const formData = new FormData();
             formData.append("file", file);

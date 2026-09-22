@@ -1,7 +1,7 @@
-package org.hvtra.commonservice.importing.repository;
+package org.hvtra.commonservice.common_importing.repository;
 
 import jakarta.persistence.LockModeType;
-import org.hvtra.commonservice.importing.entity.ImportBatchSequence;
+import org.hvtra.commonservice.common_importing.entity.ImportBatchSequence;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;

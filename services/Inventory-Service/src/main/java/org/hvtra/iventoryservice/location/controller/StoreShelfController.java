@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.location.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
 import org.hvtra.iventoryservice.location.dto.request.StoreShelfRequest;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;

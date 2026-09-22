@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.importing.dto.response;
+package org.hvtra.commonservice.common_importing.dto.response;
 
 public record ValidationErrorResponse(
         String field,

@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.kafka.outbox.repository;
+package org.hvtra.commonservice.common_core.kafka.outbox.repository;
 
-import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.common_core.kafka.outbox.entity.BaseOutboxEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.NoRepositoryBean;
 

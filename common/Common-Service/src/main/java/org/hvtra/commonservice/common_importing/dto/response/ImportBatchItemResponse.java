@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.importing.dto.response;
+package org.hvtra.commonservice.common_importing.dto.response;
 
 import java.util.List;
 import java.util.Map;

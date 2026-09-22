@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.domain.entity;
+package org.hvtra.commonservice.common_core.domain.entity;
 
-import org.hvtra.commonservice.domain.constants.HeaderConstants;
+import org.hvtra.commonservice.common_core.domain.constants.HeaderConstants;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;

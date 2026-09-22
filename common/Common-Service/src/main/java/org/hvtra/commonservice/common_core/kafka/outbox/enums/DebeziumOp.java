@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.outbox.enums;
+package org.hvtra.commonservice.common_core.kafka.outbox.enums;
 
 import java.util.Arrays;
 import java.util.Optional;

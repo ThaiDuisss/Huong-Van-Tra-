@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.item.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;

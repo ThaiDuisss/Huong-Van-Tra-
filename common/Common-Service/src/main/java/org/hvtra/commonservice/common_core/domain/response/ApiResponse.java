@@ -1,12 +1,12 @@
-package org.hvtra.commonservice.domain.response;
+package org.hvtra.commonservice.common_core.domain.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hvtra.commonservice.domain.constants.ApiStatus;
-import org.hvtra.commonservice.domain.constants.CommonMessage;
-import org.hvtra.commonservice.domain.constants.SuccessCode;
+import org.hvtra.commonservice.common_core.domain.constants.ApiStatus;
+import org.hvtra.commonservice.common_core.domain.constants.CommonMessage;
+import org.hvtra.commonservice.common_core.domain.constants.SuccessCode;
 
 @Builder
 @Data

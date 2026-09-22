@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.importing.repository;
+package org.hvtra.commonservice.common_importing.repository;
 
-import org.hvtra.commonservice.importing.entity.ImportBatch;
+import org.hvtra.commonservice.common_importing.entity.ImportBatch;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;

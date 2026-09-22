@@ -1,10 +1,10 @@
-package org.hvtra.commonservice.config;
+package org.hvtra.commonservice.common_core.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.Response;
 import feign.codec.ErrorDecoder;
-import org.hvtra.commonservice.exception.FeignClientException;
+import org.hvtra.commonservice.common_core.exception.FeignClientException;
 import org.springframework.http.HttpStatus;
 
 import java.io.InputStream;

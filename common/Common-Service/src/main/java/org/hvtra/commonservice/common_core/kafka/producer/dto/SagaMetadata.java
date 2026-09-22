@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.kafka.producer.dto;
+package org.hvtra.commonservice.common_core.kafka.producer.dto;
 
-import org.hvtra.commonservice.kafka.saga.enums.SagaAction;
+import org.hvtra.commonservice.common_core.kafka.saga.enums.SagaAction;
 
 import java.time.Instant;
 import java.util.UUID;

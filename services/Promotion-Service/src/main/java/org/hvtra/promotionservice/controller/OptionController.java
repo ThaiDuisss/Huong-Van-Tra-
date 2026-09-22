@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.enums.benefit.BenefitType;
 import org.hvtra.promotionservice.enums.condition.ConditionOperator;

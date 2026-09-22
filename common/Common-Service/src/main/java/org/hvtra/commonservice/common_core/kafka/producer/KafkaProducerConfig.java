@@ -1,9 +1,9 @@
-package org.hvtra.commonservice.kafka.producer;
+package org.hvtra.commonservice.common_core.kafka.producer;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.hvtra.commonservice.kafka.config.KafkaConfigData;
-import org.hvtra.commonservice.kafka.config.KafkaProducerConfigData;
+import org.hvtra.commonservice.common_core.kafka.config.KafkaConfigData;
+import org.hvtra.commonservice.common_core.kafka.config.KafkaProducerConfigData;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

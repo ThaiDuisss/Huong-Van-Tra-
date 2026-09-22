@@ -3,7 +3,7 @@ package org.hvtra.orderservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.*;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.request.CancelOrderRequest;

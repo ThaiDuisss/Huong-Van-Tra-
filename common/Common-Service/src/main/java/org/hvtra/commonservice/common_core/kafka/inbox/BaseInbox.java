@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.inbox;
+package org.hvtra.commonservice.common_core.kafka.inbox;
 
 import jakarta.persistence.*;
 import lombok.*;

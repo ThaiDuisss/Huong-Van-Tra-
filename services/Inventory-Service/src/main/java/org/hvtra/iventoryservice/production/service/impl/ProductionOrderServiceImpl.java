@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.production.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
-import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;

@@ -7,7 +7,7 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.SupplierResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.SupplierService;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;

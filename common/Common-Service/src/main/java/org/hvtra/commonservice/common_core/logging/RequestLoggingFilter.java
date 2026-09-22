@@ -1,11 +1,11 @@
-package org.hvtra.commonservice.logging;
+package org.hvtra.commonservice.common_core.logging;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.domain.constants.HeaderConstants;
+import org.hvtra.commonservice.common_core.domain.constants.HeaderConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;

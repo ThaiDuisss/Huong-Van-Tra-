@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.importing.entity;
+package org.hvtra.commonservice.common_importing.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

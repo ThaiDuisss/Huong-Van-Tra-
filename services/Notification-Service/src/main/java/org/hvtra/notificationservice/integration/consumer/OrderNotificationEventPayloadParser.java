@@ -1,7 +1,7 @@
 package org.hvtra.notificationservice.integration.consumer;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.kafka.event.DebeziumOutboxEventPayloadParser;
+import org.hvtra.commonservice.common_core.kafka.event.DebeziumOutboxEventPayloadParser;
 import org.hvtra.notificationservice.dto.event.OrderNotificationEventPayload;
 import org.springframework.stereotype.Component;
 

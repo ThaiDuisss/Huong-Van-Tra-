@@ -1,7 +1,7 @@
-package org.hvtra.commonservice.importing.dto.response;
+package org.hvtra.commonservice.common_importing.dto.response;
 
-import org.hvtra.commonservice.importing.domain.enums.ImportBatchStatus;
-import org.hvtra.commonservice.importing.domain.enums.ImportType;
+import org.hvtra.commonservice.common_importing.enums.ImportBatchStatus;
+import org.hvtra.commonservice.common_importing.enums.ImportType;
 
 import java.time.Instant;
 import java.util.List;

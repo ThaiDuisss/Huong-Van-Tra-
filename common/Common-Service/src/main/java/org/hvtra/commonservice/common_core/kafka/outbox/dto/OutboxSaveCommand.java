@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.outbox.dto;
+package org.hvtra.commonservice.common_core.kafka.outbox.dto;
 
 public record OutboxSaveCommand(
         String eventId,

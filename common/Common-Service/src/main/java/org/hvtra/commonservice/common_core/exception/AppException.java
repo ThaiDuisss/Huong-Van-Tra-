@@ -1,10 +1,10 @@
-package org.hvtra.commonservice.exception;
+package org.hvtra.commonservice.common_core.exception;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.constants.ErrorEnum;
+import org.hvtra.commonservice.common_core.domain.constants.ErrorEnum;
 
 import java.util.List;
 

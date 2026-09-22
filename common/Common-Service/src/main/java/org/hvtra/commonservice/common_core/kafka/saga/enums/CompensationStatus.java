@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.saga.enums;
+package org.hvtra.commonservice.common_core.kafka.saga.enums;
 
 public enum CompensationStatus {
     NONE,

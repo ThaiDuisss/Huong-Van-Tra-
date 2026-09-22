@@ -1,6 +1,6 @@
 package org.hvtra.orderservice.dto.saga;
 
-import org.hvtra.commonservice.kafka.saga.service.SagaContext;
+import org.hvtra.commonservice.common_core.kafka.saga.service.SagaContext;
 
 import java.math.BigDecimal;
 import java.util.UUID;

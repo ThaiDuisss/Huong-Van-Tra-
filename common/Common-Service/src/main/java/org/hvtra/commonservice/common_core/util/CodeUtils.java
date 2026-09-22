@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.util;
+package org.hvtra.commonservice.common_core.util;
 
 import java.text.Normalizer;
 import java.util.Arrays;

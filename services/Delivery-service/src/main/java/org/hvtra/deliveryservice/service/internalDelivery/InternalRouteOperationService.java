@@ -1,7 +1,7 @@
 package org.hvtra.deliveryservice.service.internalDelivery;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.exception.ResourceNotFoundException;
+import org.hvtra.commonservice.common_core.exception.ResourceNotFoundException;
 import org.hvtra.deliveryservice.model.entity.*;
 import org.hvtra.deliveryservice.model.enums.*;
 import org.hvtra.deliveryservice.model.request.internal.*;

@@ -1,11 +1,11 @@
-package org.hvtra.commonservice.kafka.saga.domain;
+package org.hvtra.commonservice.common_core.kafka.saga.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.UuidGenerator;
-import org.hvtra.commonservice.kafka.saga.enums.SagaStepStatus;
+import org.hvtra.commonservice.common_core.kafka.saga.enums.SagaStepStatus;
 
 import java.time.Instant;
 import java.util.UUID;

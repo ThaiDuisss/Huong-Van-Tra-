@@ -1,11 +1,11 @@
-package org.hvtra.commonservice.importing.entity;
+package org.hvtra.commonservice.common_importing.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
-import org.hvtra.commonservice.importing.domain.enums.ImportBatchStatus;
-import org.hvtra.commonservice.importing.domain.enums.ImportType;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_importing.enums.ImportBatchStatus;
+import org.hvtra.commonservice.common_importing.enums.ImportType;
 
 import java.time.Instant;
 import java.util.ArrayList;

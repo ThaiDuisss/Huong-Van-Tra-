@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.logging.action;
+package org.hvtra.commonservice.common_core.logging.action;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -7,8 +7,8 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
-import org.hvtra.commonservice.logging.RequestLoggingFilter;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.common_core.logging.RequestLoggingFilter;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.expression.EvaluationContext;

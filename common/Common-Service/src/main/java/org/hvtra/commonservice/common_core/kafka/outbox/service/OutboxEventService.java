@@ -1,11 +1,11 @@
-package org.hvtra.commonservice.kafka.outbox.service;
+package org.hvtra.commonservice.common_core.kafka.outbox.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
-import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
-import org.hvtra.commonservice.kafka.outbox.factory.OutboxEventFactory;
-import org.hvtra.commonservice.kafka.outbox.repository.BaseOutboxEventRepository;
+import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
+import org.hvtra.commonservice.common_core.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.common_core.kafka.outbox.factory.OutboxEventFactory;
+import org.hvtra.commonservice.common_core.kafka.outbox.repository.BaseOutboxEventRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;

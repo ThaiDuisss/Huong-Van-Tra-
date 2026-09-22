@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.config;
+package org.hvtra.commonservice.common_core.config;
 
-import org.hvtra.commonservice.domain.common.AuditorAwareImpl;
+import org.hvtra.commonservice.common_core.domain.common.AuditorAwareImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;

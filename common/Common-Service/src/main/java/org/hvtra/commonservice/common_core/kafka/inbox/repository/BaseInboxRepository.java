@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.kafka.inbox.repository;
+package org.hvtra.commonservice.common_core.kafka.inbox.repository;
 
-import org.hvtra.commonservice.kafka.inbox.BaseInbox;
+import org.hvtra.commonservice.common_core.kafka.inbox.BaseInbox;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.NoRepositoryBean;
 

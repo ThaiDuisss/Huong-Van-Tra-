@@ -1,7 +1,7 @@
 package org.hvtra.pos;
 
-import org.hvtra.commonservice.config.FeignConfig;
-import org.hvtra.commonservice.config.SwaggerConfig;
+import org.hvtra.commonservice.common_core.config.FeignConfig;
+import org.hvtra.commonservice.common_core.config.SwaggerConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;

@@ -1,7 +1,7 @@
 package org.hvtra.notificationservice.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.notificationservice.dto.response.NotificationResponse;
 import org.hvtra.notificationservice.dto.response.UnreadCountResponse;
 import org.hvtra.notificationservice.service.NotificationQueryService;

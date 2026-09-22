@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.config;
+package org.hvtra.commonservice.common_core.config;
 
 
 import org.springframework.beans.factory.annotation.Value;

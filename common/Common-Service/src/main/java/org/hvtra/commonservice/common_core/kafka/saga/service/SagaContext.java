@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.saga.service;
+package org.hvtra.commonservice.common_core.kafka.saga.service;
 
 import java.util.UUID;
 

@@ -1,8 +1,8 @@
-package org.hvtra.commonservice.kafka.producer.service.impl;
+package org.hvtra.commonservice.common_core.kafka.producer.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.kafka.producer.exception.KafkaProducerException;
-import org.hvtra.commonservice.kafka.producer.service.KafkaProducer;
+import org.hvtra.commonservice.common_core.kafka.producer.exception.KafkaProducerException;
+import org.hvtra.commonservice.common_core.kafka.producer.service.KafkaProducer;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 @Slf4j

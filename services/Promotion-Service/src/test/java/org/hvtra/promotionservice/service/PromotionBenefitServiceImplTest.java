@@ -1,6 +1,6 @@
 //package org.hvtra.promotionservice.service;
 //
-//import org.hvtra.commonservice.exception.ResourceNotFoundException;
+//import org.hvtra.commonservice.common_core.exception.ResourceNotFoundException;
 //import org.hvtra.promotionservice.dto.request.promotionbenefit.PromotionBenefitCreateRequest;
 //import org.hvtra.promotionservice.dto.request.promotionbenefit.PromotionBenefitUpdateRequest;
 //import org.hvtra.promotionservice.dto.response.PageResponse;

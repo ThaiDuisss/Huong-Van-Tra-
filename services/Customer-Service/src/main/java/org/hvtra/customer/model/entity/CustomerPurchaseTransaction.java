@@ -7,7 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.customer.model.enums.CustomerPurchaseTransactionType;
 
 import java.math.BigDecimal;

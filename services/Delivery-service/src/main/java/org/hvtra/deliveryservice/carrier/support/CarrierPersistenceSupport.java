@@ -3,7 +3,7 @@ package org.hvtra.deliveryservice.carrier.support;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 
-import org.hvtra.commonservice.exception.ResourceNotFoundException;
+import org.hvtra.commonservice.common_core.exception.ResourceNotFoundException;
 import org.hvtra.deliveryservice.carrier.model.CarrierShipmentResult;
 import org.hvtra.deliveryservice.model.entity.CarrierShipment;
 import org.hvtra.deliveryservice.model.entity.Shipment;

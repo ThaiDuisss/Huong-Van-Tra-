@@ -24,7 +24,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import org.hvtra.commonservice.util.CodeUtils;
+import org.hvtra.commonservice.common_core.util.CodeUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

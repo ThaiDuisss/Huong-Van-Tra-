@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.kafka.outbox.resolver;
+package org.hvtra.commonservice.common_core.kafka.outbox.resolver;
 
 public interface OutboxTopicResolver {
 

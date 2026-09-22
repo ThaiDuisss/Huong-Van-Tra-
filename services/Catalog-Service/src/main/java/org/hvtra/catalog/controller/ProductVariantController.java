@@ -1,6 +1,5 @@
 package org.hvtra.catalog.controller;
 
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
@@ -12,7 +11,7 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.hvtra.catalog.service.BarcodeService;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;

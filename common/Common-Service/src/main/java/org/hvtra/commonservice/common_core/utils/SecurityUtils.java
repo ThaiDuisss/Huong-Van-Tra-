@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.utils;
+package org.hvtra.commonservice.common_core.utils;
 
-import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;

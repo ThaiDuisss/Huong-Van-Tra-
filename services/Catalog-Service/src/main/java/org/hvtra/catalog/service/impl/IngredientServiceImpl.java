@@ -33,7 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
-import org.hvtra.commonservice.util.CodeUtils;
+import org.hvtra.commonservice.common_core.util.CodeUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;

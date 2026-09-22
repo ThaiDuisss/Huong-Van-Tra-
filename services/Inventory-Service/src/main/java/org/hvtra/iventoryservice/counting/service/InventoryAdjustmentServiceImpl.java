@@ -29,7 +29,7 @@ import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
-import org.hvtra.commonservice.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;

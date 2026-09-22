@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.config;
+package org.hvtra.commonservice.common_core.config;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -7,8 +7,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.domain.constants.HeaderConstants;
-import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.common_core.domain.constants.HeaderConstants;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;

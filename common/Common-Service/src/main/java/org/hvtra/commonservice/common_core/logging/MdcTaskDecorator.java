@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.logging;
+package org.hvtra.commonservice.common_core.logging;
 
 import org.slf4j.MDC;
 import org.springframework.core.task.TaskDecorator;

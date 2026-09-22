@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.counting.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.counting.dto.request.CreateAdjustmentRequest;
 import org.hvtra.iventoryservice.counting.dto.response.AdjustmentResponse;
 import org.hvtra.iventoryservice.counting.service.InventoryAdjustmentService;

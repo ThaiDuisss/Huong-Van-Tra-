@@ -7,7 +7,7 @@ import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.IngredientService;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;

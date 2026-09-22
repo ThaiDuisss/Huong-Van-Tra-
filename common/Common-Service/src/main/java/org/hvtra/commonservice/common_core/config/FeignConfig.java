@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.config;
+package org.hvtra.commonservice.common_core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.Logger;
@@ -6,8 +6,8 @@ import feign.RequestInterceptor;
 import feign.Retryer;
 import feign.codec.ErrorDecoder;
 import jakarta.servlet.http.HttpServletRequest;
-import org.hvtra.commonservice.domain.constants.HeaderConstants;
-import org.hvtra.commonservice.logging.MdcKeys;
+import org.hvtra.commonservice.common_core.domain.constants.HeaderConstants;
+import org.hvtra.commonservice.common_core.logging.MdcKeys;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

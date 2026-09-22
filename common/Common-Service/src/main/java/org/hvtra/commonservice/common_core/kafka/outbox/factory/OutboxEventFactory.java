@@ -1,10 +1,10 @@
-package org.hvtra.commonservice.kafka.outbox.factory;
+package org.hvtra.commonservice.common_core.kafka.outbox.factory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
-import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
+import org.hvtra.commonservice.common_core.kafka.outbox.entity.BaseOutboxEvent;
 
 import java.time.Instant;
 

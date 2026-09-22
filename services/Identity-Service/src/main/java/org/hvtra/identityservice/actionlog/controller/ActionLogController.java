@@ -2,9 +2,9 @@ package org.hvtra.identityservice.actionlog.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.domain.constants.ErrorEnum;
-import org.hvtra.commonservice.domain.response.ApiResponse;
-import org.hvtra.commonservice.exception.AppException;
+import org.hvtra.commonservice.common_core.domain.constants.ErrorEnum;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.exception.AppException;
 import org.hvtra.identityservice.actionlog.dto.ActionLogResponse;
 import org.hvtra.identityservice.actionlog.dto.ActionLogSearchRequest;
 import org.hvtra.identityservice.actionlog.dto.PageResponse;

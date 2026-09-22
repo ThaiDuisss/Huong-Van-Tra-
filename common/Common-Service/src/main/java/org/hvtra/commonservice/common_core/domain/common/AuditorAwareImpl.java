@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.domain.common;
+package org.hvtra.commonservice.common_core.domain.common;
 
-import org.hvtra.commonservice.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.security.access.AccessDeniedException;
 

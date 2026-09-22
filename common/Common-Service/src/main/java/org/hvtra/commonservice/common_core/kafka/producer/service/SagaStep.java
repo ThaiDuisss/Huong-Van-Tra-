@@ -1,6 +1,6 @@
-package org.hvtra.commonservice.kafka.producer.service;
+package org.hvtra.commonservice.common_core.kafka.producer.service;
 
-import org.hvtra.commonservice.kafka.producer.dto.SagaContext;
+import org.hvtra.commonservice.common_core.kafka.producer.dto.SagaContext;
 
 public interface SagaStep<C extends SagaContext> {
 

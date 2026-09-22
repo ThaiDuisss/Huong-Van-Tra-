@@ -2,14 +2,16 @@ package org.hvtra.iventoryservice.importing.controller;
 
 import jakarta.validation.Valid;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
-import org.hvtra.commonservice.importing.domain.enums.ImportBatchStatus;
-import org.hvtra.commonservice.importing.domain.enums.ImportType;
-import org.hvtra.commonservice.importing.dto.request.ApproveImportBatchRequest;
-import org.hvtra.commonservice.importing.dto.request.RejectImportBatchRequest;
-import org.hvtra.commonservice.importing.dto.request.SubmitImportBatchRequest;
-import org.hvtra.commonservice.importing.dto.request.UpdateImportItemRequest;
-import org.hvtra.commonservice.importing.dto.response.ImportBatchResponse;
-import org.hvtra.commonservice.importing.service.ImportBatchService;
+import org.hvtra.commonservice.common_importing.enums.ImportBatchStatus;
+import org.hvtra.commonservice.common_importing.enums.ImportType;
+import org.hvtra.commonservice.common_importing.dto.request.ApproveImportBatchRequest;
+import org.hvtra.commonservice.common_importing.dto.request.RejectImportBatchRequest;
+import org.hvtra.commonservice.common_importing.dto.request.SaveImportDraftRequest;
+import org.hvtra.commonservice.common_importing.dto.request.SubmitImportBatchRequest;
+import org.hvtra.commonservice.common_importing.dto.request.UpdateImportItemRequest;
+import org.hvtra.commonservice.common_importing.dto.response.ImportBatchResponse;
+import org.hvtra.commonservice.common_importing.dto.response.ImportPreviewResponse;
+import org.hvtra.commonservice.common_importing.service.ImportBatchService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,19 @@ public class ImportBatchController {
 
     public ImportBatchController(ImportBatchService service) {
         this.service = service;
+    }
+
+    @PostMapping(value = "/preview", consumes = "multipart/form-data")
+    public ImportPreviewResponse preview(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("type") ImportType type) {
+        return service.preview(type, file);
+    }
+
+    @PostMapping("/draft")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ImportBatchResponse saveDraft(@Valid @RequestBody SaveImportDraftRequest request) {
+        return service.saveDraft(request);
     }
 
     @PostMapping(consumes = "multipart/form-data")

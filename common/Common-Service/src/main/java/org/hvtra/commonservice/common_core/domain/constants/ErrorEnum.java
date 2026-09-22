@@ -1,4 +1,4 @@
-package org.hvtra.commonservice.domain.constants;
+package org.hvtra.commonservice.common_core.domain.constants;
 
 import lombok.*;
 

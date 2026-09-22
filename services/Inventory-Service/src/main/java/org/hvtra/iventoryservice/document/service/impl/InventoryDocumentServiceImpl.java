@@ -1,8 +1,8 @@
 package org.hvtra.iventoryservice.document.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
-import org.hvtra.commonservice.exception.FeignClientException;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.common_core.exception.FeignClientException;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.dto.request.*;
 import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
