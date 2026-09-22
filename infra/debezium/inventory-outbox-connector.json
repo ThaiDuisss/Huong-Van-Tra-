@@ -1,0 +1,32 @@
+{
+  "name": "inventory-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "100.93.252.63",
+    "database.port": "3306",
+    "database.user": "debezium",
+    "database.password": "debezium",
+    "database.server.id": "5403",
+    "topic.prefix": "inventory-cdc",
+    "database.include.list": "inventory_db",
+    "table.include.list": "inventory_db.outbox_events",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
+    "schema.history.internal.kafka.topic": "schema-changes.inventory-db",
+    "include.schema.changes": "false",
+    "tombstones.on.delete": "false",
+    "snapshot.mode": "initial",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.by.field": "topic",
+    "transforms.outbox.route.topic.replacement": "${routedByValue}",
+    "transforms.outbox.table.field.event.id": "event_id",
+    "transforms.outbox.table.field.event.key": "message_key",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.field.event.timestamp": "occurred_at",
+    "transforms.outbox.table.fields.additional.placement": "event_id:header:event_id,event_type:header:event_type,event_version:header:event_version,source_service:header:source_service,saga_id:header:saga_id,correlation_id:header:correlation_id,causation_id:header:causation_id,aggregate_type:header:aggregate_type,aggregate_id:header:aggregate_id,business_key:header:business_key",
+    "decimal.handling.mode": "string",
+    "time.precision.mode": "adaptive_time_microseconds",
+    "binary.handling.mode": "base64"
+  }
+}

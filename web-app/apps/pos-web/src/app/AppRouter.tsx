@@ -11,9 +11,14 @@ import { ActionLogPage } from "../features/action-log/pages/ActionLogPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
+import { CreateReturnPage } from "../features/order/pages/CreateReturnPage";
 import { InvoiceDetailPage } from "../features/order/pages/InvoiceDetailPage";
 import { InvoiceListPage } from "../features/order/pages/InvoiceListPage";
 import { OrderListPage } from "../features/order/pages/OrderListPage";
+import { OrderRefundPage } from "../features/order/pages/OrderRefundPage";
+import { OrderReturnDetailPage } from "../features/order/pages/OrderReturnDetailPage";
+import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
+import { ReturnRefundReportPage } from "../features/order/pages/ReturnRefundReportPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
@@ -85,6 +90,7 @@ import {
   ORDER_ROLES,
   POS_WORKSPACE_ROLES,
   PRODUCT_ROLES,
+  REPORT_ROLES,
   getDefaultRouteForRoles,
   type AppRole,
 } from "../auth/role-utils";
@@ -200,10 +206,16 @@ export function AppRouter() {
         </Route>
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
+          <Route path="orders/:orderId/returns/create" element={<CreateReturnPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />
           <Route path="orders/invoices/:invoiceId" element={<InvoiceDetailPage />} />
-          <Route path="orders/returns" element={<OrderListPage />} />
-          <Route path="orders/refunds" element={<OrderListPage />} />
+          <Route path="orders/returns" element={<OrderReturnPage />} />
+          <Route path="orders/returns/create" element={<CreateReturnPage />} />
+          <Route path="orders/returns/:returnId" element={<OrderReturnDetailPage />} />
+          <Route path="orders/refunds" element={<OrderRefundPage />} />
+        </Route>
+        <Route element={<RoleGate roles={REPORT_ROLES} />}>
+          <Route path="reports/returns" element={<ReturnRefundReportPage />} />
         </Route>
         <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
           <Route path="categories" element={<CategoryListPage />} />

@@ -160,4 +160,4 @@ springdoc:
 
 security:
   internal:
-      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}
+      header-secret: ${INTERNAL_HEADER_SECRET:kEV4x5IAXOxEnoEqPptGSYqS6Ujqly27dBhfjYp2pNc=}

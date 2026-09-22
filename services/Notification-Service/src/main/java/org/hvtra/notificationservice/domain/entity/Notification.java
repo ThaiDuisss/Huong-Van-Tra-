@@ -47,6 +47,9 @@ public class Notification {
     @Column(name = "customer_id", length = 36)
     private String customerId;
 
+    @Column(name = "branch_id", length = 36)
+    private String branchId;
+
     @Column(name = "type", nullable = false, length = 100)
     private String type;
 
@@ -74,8 +77,20 @@ public class Notification {
     @Column(name = "order_code", length = 50)
     private String orderCode;
 
+    @Column(name = "return_id", length = 36)
+    private String returnId;
+
+    @Column(name = "return_code", length = 50)
+    private String returnCode;
+
     @Column(name = "payment_id", length = 36)
     private String paymentId;
+
+    @Column(name = "refund_transaction_id", length = 36)
+    private String refundTransactionId;
+
+    @Column(name = "actor_user_id", length = 36)
+    private String actorUserId;
 
     @Column(name = "saga_id", length = 36)
     private String sagaId;

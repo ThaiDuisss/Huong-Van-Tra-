@@ -6,5 +6,7 @@ public enum PaymentTransactionStatus {
     UNMATCHED,
     NEED_REVIEW,
     DUPLICATE,
-    IGNORED
+    IGNORED,
+    SUCCEEDED,
+    FAILED
 }

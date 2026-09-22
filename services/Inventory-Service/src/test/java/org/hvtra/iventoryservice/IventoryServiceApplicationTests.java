@@ -7,16 +7,12 @@ import org.hvtra.iventoryservice.movement.service.InventoryTransactionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:inventory;MODE=MySQL;DB_CLOSE_DELAY=-1",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "eureka.client.enabled=false",
-        "spring.cloud.discovery.enabled=false"
-})
+@SpringBootTest
+@ActiveProfiles("test")
 class IventoryServiceApplicationTests {
     @Autowired
     private InventoryItemService itemService;

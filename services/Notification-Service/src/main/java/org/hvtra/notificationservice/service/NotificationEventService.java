@@ -122,7 +122,8 @@ public class NotificationEventService {
             NotificationInbox inbox = buildInbox(record, event, eventId);
             return notificationInboxRepository.saveAndFlush(inbox);
         } catch (DataIntegrityViolationException ex) {
-            throw ex;
+            return notificationInboxRepository.findByEventIdAndConsumerGroup(eventId, consumerGroup)
+                    .orElseThrow(() -> ex);
         }
     }
 
@@ -181,6 +182,7 @@ public class NotificationEventService {
         Notification notification = new Notification();
         notification.setUserId(recipientUserId);
         notification.setCustomerId(event.getCustomerId());
+        notification.setBranchId(event.getBranchId());
         notification.setType(event.getEventType());
         notification.setTitle(firstNonBlank(event.getTitle(), defaultTitle(event)));
         notification.setMessage(firstNonBlank(event.getMessage(), defaultMessage(event)));
@@ -190,7 +192,11 @@ public class NotificationEventService {
         notification.setAggregateId(metadataResolver.aggregateId(record, event));
         notification.setOrderId(event.getOrderId());
         notification.setOrderCode(event.getOrderCode());
+        notification.setReturnId(event.getReturnId());
+        notification.setReturnCode(event.getReturnCode());
         notification.setPaymentId(event.getPaymentId());
+        notification.setRefundTransactionId(event.getRefundTransactionId());
+        notification.setActorUserId(event.getActorUserId());
         notification.setSagaId(event.getSagaId());
         notification.setStatus("UNREAD");
 
@@ -235,13 +241,17 @@ public class NotificationEventService {
     }
 
     private boolean isNotificationEvent(String eventType) {
-        return
-                "ORDER_COMPLETED" .equals(eventType) ||
-                        "ORDER_PAYMENT_SUCCEEDED".equals(eventType)
+        return "ORDER_COMPLETED".equals(eventType)
+                || "ORDER_PAYMENT_SUCCEEDED".equals(eventType)
                 || "ORDER_PAYMENT_FAILED".equals(eventType)
                 || "ORDER_CONFIRMED".equals(eventType)
                 || "ORDER_CANCELLED".equals(eventType)
-                || "ORDER_STATUS_CHANGED".equals(eventType);
+                || "ORDER_STATUS_CHANGED".equals(eventType)
+                || "RETURN_CREATED".equals(eventType)
+                || "RETURN_RECEIVED".equals(eventType)
+                || "RETURN_CANCELLED".equals(eventType)
+                || "RETURN_REFUND_COMPLETED".equals(eventType)
+                || "RETURN_COMPLETED".equals(eventType);
     }
 
     private boolean isTerminal(InboxStatus status) {
@@ -257,23 +267,37 @@ public class NotificationEventService {
             case "ORDER_PAYMENT_FAILED" -> "Payment failed";
             case "ORDER_CANCELLED" -> "Order cancelled";
             case "ORDER_STATUS_CHANGED" -> "Order status changed";
+            case "RETURN_CREATED" -> "Phiếu hoàn hàng đã được tạo";
+            case "RETURN_RECEIVED" -> "Đã nhận hàng trả";
+            case "RETURN_CANCELLED" -> "Phiếu hoàn hàng đã bị hủy";
+            case "RETURN_REFUND_COMPLETED" -> "Hoàn tiền thành công";
+            case "RETURN_COMPLETED" -> "Xử lý hàng trả hoàn tất";
             default -> "Order notification";
         };
     }
 
     private String defaultMessage(OrderNotificationEventPayload event) {
         String orderCode = firstNonBlank(event.getOrderCode(), event.getOrderId());
+        String returnCode = firstNonBlank(event.getReturnCode(), event.getReturnId());
         return switch (event.getEventType()) {
             case "ORDER_PAYMENT_SUCCEEDED", "ORDER_CONFIRMED" -> "Order " + orderCode + " has been confirmed.";
             case "ORDER_PAYMENT_FAILED" -> "Order " + orderCode + " payment failed.";
             case "ORDER_CANCELLED" -> "Order " + orderCode + " was cancelled.";
             case "ORDER_STATUS_CHANGED" -> "Order " + orderCode + " status changed to " + event.getNewStatus() + ".";
+            case "RETURN_CREATED" -> "Phiếu hoàn hàng " + returnCode + " đã được tạo.";
+            case "RETURN_RECEIVED" -> "Cửa hàng đã nhận hàng trả của phiếu " + returnCode + ".";
+            case "RETURN_CANCELLED" -> "Phiếu hoàn hàng " + returnCode + " đã bị hủy.";
+            case "RETURN_REFUND_COMPLETED" -> "Phiếu " + returnCode + " đã hoàn tiền thành công.";
+            case "RETURN_COMPLETED" -> "Phiếu hoàn " + returnCode + " đã hoàn tất xử lý hàng. Không phát sinh hoàn tiền.";
             default -> "Order " + orderCode + " has a new update.";
         };
     }
 
-    private String firstNonBlank(String first, String second) {
-        return first != null && !first.isBlank() ? first : second;
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback != null ? fallback : "";
     }
 
     private String header(ConsumerRecord<String, String> record, String name) {

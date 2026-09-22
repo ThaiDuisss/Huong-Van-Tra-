@@ -12,7 +12,8 @@ export type InventoryLocationType =
     | "WAREHOUSE"
     | "STORAGE"
     | "DAMAGED"
-    | "SHELF";
+    | "SHELF"
+    | "QUARANTINE";
 
 export type InventoryStatus = "ACTIVE" | "INACTIVE";
 

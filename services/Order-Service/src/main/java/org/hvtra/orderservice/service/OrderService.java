@@ -11,10 +11,12 @@ import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderSummaryResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
+import org.hvtra.orderservice.domain.enums.OrderReturnEligibility;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.springframework.data.domain.Page;
@@ -34,6 +36,7 @@ public interface OrderService {
             String orderType,
             LocalDate fromDate,
             LocalDate toDate,
+            OrderReturnEligibility returnEligibility,
             String sort,
             int page,
             int size
@@ -46,6 +49,7 @@ public interface OrderService {
             int size
     );
     TodaySalesSummaryResponse getTodaySalesSummary();
+    OrderReturnEligibilityStatsResponse getOrderReturnEligibilityStats(String keyword);
     OrderStatsResponse getOrderStats(LocalDate fromDate, LocalDate toDate);
     OrderResponse updateOrderStatus(UUID orderId, UpdateOrderStatusRequest request);
     OrderResponse cancelOrder(UUID orderId, CancelOrderRequest request);

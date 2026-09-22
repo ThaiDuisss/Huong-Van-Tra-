@@ -12,6 +12,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -143,7 +144,8 @@ public abstract class BaseGlobalExceptionHandler {
             FeignClientException ex,
             HttpServletRequest request
     ) {
-        HttpStatus status = HttpStatus.resolve(ex.getStatus());
+        int downstreamStatus = ex.getStatus();
+        HttpStatus status = HttpStatus.resolve(downstreamStatus);
 
         if (status == null) {
             status = HttpStatus.BAD_GATEWAY;
@@ -154,13 +156,20 @@ public abstract class BaseGlobalExceptionHandler {
          * Service hiện tại nên báo 502 Bad Gateway,
          * nghĩa là lỗi đến từ service phụ thuộc.
          */
-        if (status.is5xxServerError()) {
+        boolean downstreamAuthFailure = downstreamStatus == HttpStatus.UNAUTHORIZED.value()
+                || downstreamStatus == HttpStatus.FORBIDDEN.value();
+
+        if (downstreamAuthFailure || status.is5xxServerError()) {
             status = HttpStatus.BAD_GATEWAY;
         }
 
-
-        String code = "REMOTE_SERVICE_ERROR";
-        String message = ex.getMessage() != null ? ex.getMessage() : "Upstream service error";
+        String code = downstreamAuthFailure
+                ? "REMOTE_SERVICE_AUTH_ERROR"
+                : "REMOTE_SERVICE_ERROR";
+        String message = downstreamAuthFailure
+                ? "Downstream service authentication failed"
+                : (ex.getMessage() != null ? ex.getMessage() : "Upstream service error");
+        String requestId = request.getHeader(HeaderConstants.HEADER_CORRELATION_ID);
 
         ErrorResponse response = new ErrorResponse(
                 code,
@@ -168,9 +177,22 @@ public abstract class BaseGlobalExceptionHandler {
                 status.value()
         );
 
-        log.error("Feign client error at {}: status={} path={} message={}", Instant.now(), status.value(), request.getRequestURI(), message, ex);
+        log.error(
+                "Feign client error at {}: downstreamStatus={} responseStatus={} path={} requestId={} message={}",
+                Instant.now(),
+                downstreamStatus,
+                status.value(),
+                request.getRequestURI(),
+                StringUtils.hasText(requestId) ? requestId : "missing",
+                message,
+                ex
+        );
 
-        return ResponseEntity.status(status).body(response);
+        ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.status(status);
+        if (StringUtils.hasText(requestId)) {
+            responseBuilder.header(HeaderConstants.HEADER_CORRELATION_ID, requestId);
+        }
+        return responseBuilder.body(response);
     }
 
     @ExceptionHandler(RetryableException.class)

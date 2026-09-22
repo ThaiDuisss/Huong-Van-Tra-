@@ -71,9 +71,12 @@ kafka-consumer-config:
 inventory:
   order:
     events:
+      return-disposition:
+        group-id: inventory-return-disposition
       topics:
         reservation-confirm: inventory.reservation-confirm.requested
+        return-disposition-requested: order.event.RETURN_INVENTORY_DISPOSITION_REQUESTED
 
 security:
   internal:
-      header-secret: ${INTERNAL_HEADER_SECRET}
+      header-secret: ${INTERNAL_HEADER_SECRET:kEV4x5IAXOxEnoEqPptGSYqS6Ujqly27dBhfjYp2pNc=}

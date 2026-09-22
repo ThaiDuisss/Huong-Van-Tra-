@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { RotateCcw, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type {
@@ -26,6 +26,7 @@ interface OrderDetailPanelProps {
     summary?: OrderSummaryResponse | null;
     loading?: boolean;
     error?: string | null;
+    onCreateReturn?: (orderId: string) => void;
     onClose?: () => void;
 }
 
@@ -77,6 +78,7 @@ export function OrderDetailPanel({
     summary,
     loading = false,
     error,
+    onCreateReturn,
     onClose
 }: OrderDetailPanelProps) {
     const displayOrder = order ?? summary;
@@ -92,16 +94,28 @@ export function OrderDetailPanel({
                 <h2 className="m-0 text-xl font-black text-[#172317]">
                     Chi tiết đơn hàng
                 </h2>
-                {onClose ? (
-                    <button
-                        aria-label="Đóng chi tiết đơn hàng"
-                        className="grid size-9 place-items-center rounded-lg border-0 bg-transparent text-[#536078] hover:bg-[#f4f7f5]"
-                        onClick={onClose}
-                        type="button"
-                    >
-                        <X size={18} aria-hidden="true" />
-                    </button>
-                ) : null}
+                <div className="flex items-center gap-2">
+                    {displayOrder?.id && onCreateReturn ? (
+                        <button
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe6ee] bg-white px-3 text-sm font-black text-[#172317] hover:bg-[#f4f7f5]"
+                            onClick={() => onCreateReturn(displayOrder.id)}
+                            type="button"
+                        >
+                            <RotateCcw size={16} aria-hidden="true" />
+                            Tạo phiếu hoàn
+                        </button>
+                    ) : null}
+                    {onClose ? (
+                        <button
+                            aria-label="Đóng chi tiết đơn hàng"
+                            className="grid size-9 place-items-center rounded-lg border-0 bg-transparent text-[#536078] hover:bg-[#f4f7f5]"
+                            onClick={onClose}
+                            type="button"
+                        >
+                            <X size={18} aria-hidden="true" />
+                        </button>
+                    ) : null}
+                </div>
             </div>
 
             {!displayOrder && !loading && !error ? (

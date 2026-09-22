@@ -56,6 +56,7 @@ interface CreatePosOrderRequestBody {
 
 interface AddDraftOrderItemRequestBody {
     orderId?: string;
+    branchId?: string;
     customerId?: string;
     orderType: string;
     productVariantId: string;
@@ -194,6 +195,7 @@ export const posOrderApi = {
 
     addDraftItem(input: {
         orderId: string | null;
+        branchId?: string | null;
         customerId: string | null;
         orderType: SaleOrderType;
         productVariantId: string;
@@ -205,10 +207,23 @@ export const posOrderApi = {
             throw new Error("Không xác định được productVariantId dạng UUID.");
         }
 
+        if (
+            !input.orderId &&
+            (!input.branchId || !uuidPattern.test(input.branchId))
+        ) {
+            throw new Error(
+                "POS chưa được cấu hình chi nhánh để tạo đơn hàng."
+            );
+        }
+
         return apiClient.post<PosOrderDto, AddDraftOrderItemRequestBody>(
             "/orders/pos/draft/items",
             {
                 orderId: input.orderId ?? undefined,
+                branchId:
+                    input.branchId && uuidPattern.test(input.branchId)
+                        ? input.branchId
+                        : undefined,
                 customerId: getCustomerId(input.customerId),
                 orderType: orderTypeMap[input.orderType],
                 productVariantId: input.productVariantId,

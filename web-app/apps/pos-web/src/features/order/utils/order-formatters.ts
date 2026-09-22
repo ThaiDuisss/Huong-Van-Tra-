@@ -28,7 +28,9 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
     PARTIAL: "Thanh toán một phần",
     FAILED: "Thanh toán thất bại",
     REFUNDED: "Đã hoàn tiền",
-    PARTIALLY_REFUNDED: "Hoàn tiền một phần"
+    PARTIALLY_REFUNDED: "Hoàn tiền một phần",
+    UNAVAILABLE: "Không xác định",
+    UNKNOWN: "Không xác định"
 };
 
 const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -80,8 +82,8 @@ export function formatQuantity(value?: number | string | null) {
     return Number.isInteger(numericValue)
         ? numericValue.toLocaleString("vi-VN")
         : numericValue.toLocaleString("vi-VN", {
-              maximumFractionDigits: 3
-          });
+            maximumFractionDigits: 3
+        });
 }
 
 export function formatDateTime(value?: string | null) {
@@ -239,8 +241,8 @@ export function buildInvoiceCode(
     const datePart =
         date && !Number.isNaN(date.getTime())
             ? `${String(date.getFullYear()).slice(-2)}${pad(
-                  date.getMonth() + 1
-              )}${pad(date.getDate())}`
+                date.getMonth() + 1
+            )}${pad(date.getDate())}`
             : "ORDER";
     const idPart = order.id ? order.id.slice(0, 4).toUpperCase() : pad(index + 1);
 

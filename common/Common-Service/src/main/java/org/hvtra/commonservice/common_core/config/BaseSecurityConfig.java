@@ -13,10 +13,14 @@ public abstract class BaseSecurityConfig {
     @Value("${security.internal.header-secret}")
     private String headerSecret;
 
+    @Value("${spring.application.name:unknown-service}")
+    private String applicationName;
+
     @Bean
     public InternalHeaderAuthenticationFilter internalHeaderAuthenticationFilter() {
         return new InternalHeaderAuthenticationFilter(
-                headerSecret
+                headerSecret,
+                applicationName
         );
     }
 

@@ -9,7 +9,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Import;
 
-@SpringBootApplication(scanBasePackages = "org.hvtra")
+@SpringBootApplication(scanBasePackages = {
+        "org.hvtra.paymentservice",
+        "org.hvtra.commonservice.config"
+})
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
 @EnableConfigurationProperties(SepayProperties.class)

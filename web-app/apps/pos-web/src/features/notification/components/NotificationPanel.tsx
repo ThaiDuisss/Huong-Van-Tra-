@@ -97,6 +97,11 @@ export function NotificationPanel({
                                     Đơn {notification.orderCode}
                                 </span>
                             ) : null}
+                            {notification.returnCode ? (
+                                <span className="text-[10px] font-bold text-[#c05621]">
+                                    Phiếu {notification.returnCode}
+                                </span>
+                            ) : null}
                         </button>
                     );
                 })}
