@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {
+        "org.hvtra.iventoryservice",
         "org.hvtra.commonservice.common_core",
         "org.hvtra.commonservice.common_importing"
 })

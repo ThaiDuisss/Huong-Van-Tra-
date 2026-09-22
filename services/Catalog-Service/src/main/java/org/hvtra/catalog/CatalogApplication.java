@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(scanBasePackages = {
+        "org.hvtra.catalog",
         "org.hvtra.commonservice.common_core",
         "org.hvtra.commonservice.common_importing"
 })

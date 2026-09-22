@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Import;
 
 @SpringBootApplication(
         scanBasePackages = {
+                "org.hvtra.fileservice",
                 "org.hvtra.commonservice.common_core"
         }
 )
