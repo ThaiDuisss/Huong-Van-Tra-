@@ -287,28 +287,26 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 .distinct()
                 .toList();
 
-        List<CatalogClient.VariantResponse> variants = !variantIds.isEmpty() ? catalogClient.getVariantsBatch(variantIds) : Collections.emptyList();
-        Map<UUID, CatalogClient.VariantResponse> variantMap = variants != null
-                ? variants.stream().collect(Collectors.toMap(CatalogClient.VariantResponse::id, v -> v, (v1, v2) -> v1))
+        List<CatalogClient.VariantInventorySummaryResponse> summaries = Collections.emptyList();
+        if (!variantIds.isEmpty()) {
+            try {
+                summaries = catalogClient.getVariantInventorySummariesBatch(variantIds);
+            } catch (Exception ignored) {
+                // Fallback to basic inventoryItem info if catalog call fails
+            }
+        }
+        Map<UUID, CatalogClient.VariantInventorySummaryResponse> variantSummaryMap = summaries != null
+                ? summaries.stream().collect(Collectors.toMap(CatalogClient.VariantInventorySummaryResponse::id, s -> s, (s1, s2) -> s1))
                 : Collections.emptyMap();
 
-        List<UUID> productIds = variants != null
-                ? variants.stream().map(CatalogClient.VariantResponse::productId).filter(Objects::nonNull).distinct().toList()
-                : Collections.emptyList();
-        List<CatalogClient.ProductResponse> products = !productIds.isEmpty() ? catalogClient.getProductsBatch(productIds) : Collections.emptyList();
-        Map<UUID, CatalogClient.ProductResponse> productMap = products != null
-                ? products.stream().collect(Collectors.toMap(CatalogClient.ProductResponse::id, p -> p, (p1, p2) -> p1))
-                : Collections.emptyMap();
-
-        List<UUID> unitIds = variants != null
-                ? variants.stream().map(CatalogClient.VariantResponse::unitId).filter(Objects::nonNull).distinct().toList()
-                : Collections.emptyList();
-        List<CatalogClient.UnitResponse> units = !unitIds.isEmpty() ? catalogClient.getUnitsBatch(unitIds) : Collections.emptyList();
-        Map<UUID, CatalogClient.UnitResponse> unitMap = units != null
-                ? units.stream().collect(Collectors.toMap(CatalogClient.UnitResponse::id, u -> u, (u1, u2) -> u1))
-                : Collections.emptyMap();
-
-        List<CatalogClient.IngredientResponse> ingredients = !ingredientIds.isEmpty() ? catalogClient.getIngredientsBatch(ingredientIds) : Collections.emptyList();
+        List<CatalogClient.IngredientResponse> ingredients = Collections.emptyList();
+        if (!ingredientIds.isEmpty()) {
+            try {
+                ingredients = catalogClient.getIngredientsBatch(ingredientIds);
+            } catch (Exception ignored) {
+                // Fallback to basic inventoryItem info if catalog call fails
+            }
+        }
         Map<UUID, CatalogClient.IngredientResponse> ingredientMap = ingredients != null
                 ? ingredients.stream().collect(Collectors.toMap(CatalogClient.IngredientResponse::id, i -> i, (i1, i2) -> i1))
                 : Collections.emptyMap();
@@ -361,15 +359,12 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                                 .updatedAt(agg.updatedAt)
                                 .build();
                     } else {
-                        CatalogClient.VariantResponse v = variantMap.get(agg.inventoryItem.getReferenceId());
-                        CatalogClient.ProductResponse p = (v != null && v.productId() != null) ? productMap.get(v.productId()) : null;
-                        CatalogClient.CategoryResponse cat = (p != null) ? p.category() : null;
-                        CatalogClient.UnitResponse u = (v != null && v.unitId() != null) ? unitMap.get(v.unitId()) : null;
+                        CatalogClient.VariantInventorySummaryResponse v = variantSummaryMap.get(agg.inventoryItem.getReferenceId());
 
-                        String codeVal = v != null ? (v.sku() != null ? v.sku() : v.productCode()) : agg.inventoryItem.getReferenceCode();
+                        String codeVal = v != null && v.sku() != null ? v.sku() : (v != null && v.productCode() != null ? v.productCode() : agg.inventoryItem.getReferenceCode());
                         String nameVal = agg.inventoryItem.getName() != null && !agg.inventoryItem.getName().isBlank()
                                 ? agg.inventoryItem.getName()
-                                : (v != null && v.variantName() != null ? v.variantName() : (p != null ? p.name() : (v != null ? v.productName() : "N/A")));
+                                : (v != null && v.variantName() != null && !v.variantName().isBlank() ? v.variantName() : (v != null && v.productName() != null ? v.productName() : "N/A"));
 
                         return InventoryBalanceViewResponse.builder()
                                 .id(agg.representativeBalanceId)
@@ -379,19 +374,19 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                                 .itemType(itemTypeVal)
                                 .code(codeVal)
                                 .name(nameVal)
-                                .productId(p != null ? p.id() : null)
-                                .productCode(p != null ? p.productCode() : (v != null ? v.productCode() : null))
-                                .productName(p != null ? p.name() : (v != null ? v.productName() : null))
-                                .categoryId(cat != null ? cat.id() : null)
-                                .categoryCode(cat != null ? cat.categoryCode() : null)
-                                .categoryName(cat != null ? cat.name() : "Thành phẩm/HH")
-                                .unitId(u != null ? u.id() : (v != null ? v.unitId() : null))
-                                .unitName(u != null ? u.name() : null)
-                                .unitSymbol(u != null ? u.symbol() : null)
+                                .productId(v != null ? v.productId() : null)
+                                .productCode(v != null ? v.productCode() : null)
+                                .productName(v != null ? v.productName() : null)
+                                .categoryId(v != null ? v.categoryId() : null)
+                                .categoryCode(v != null ? v.categoryCode() : null)
+                                .categoryName(v != null && v.categoryName() != null ? v.categoryName() : "Thành phẩm/HH")
+                                .unitId(v != null ? v.unitId() : null)
+                                .unitName(v != null ? v.unitName() : null)
+                                .unitSymbol(v != null ? v.unitSymbol() : null)
                                 .locationId(loc != null ? loc.getId() : null)
                                 .locationName(loc != null ? loc.getName() : null)
                                 .branchId(loc != null ? loc.getBranchId() : null)
-                                .imageUrl(p != null ? p.imageUrl() : null)
+                                .imageUrl(v != null ? v.imageUrl() : null)
                                 .costPrice(v != null && v.costPrice() != null ? v.costPrice() : BigDecimal.ZERO)
                                 .sellingPrice(v != null && v.sellingPrice() != null ? v.sellingPrice() : BigDecimal.ZERO)
                                 .quantityOnHand(agg.quantityOnHand)

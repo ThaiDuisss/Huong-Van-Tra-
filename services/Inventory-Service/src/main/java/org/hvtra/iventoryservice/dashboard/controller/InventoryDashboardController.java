@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.dashboard.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryDashboardSummaryResponse;
+import org.hvtra.iventoryservice.dashboard.dto.response.InventoryExpiringBatchResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryExpiryQualitySummaryResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryLocationSummaryResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryTopSkuResponse;
@@ -61,5 +62,16 @@ public class InventoryDashboardController {
             @RequestParam(required = false) UUID locationId
     ) {
         return ResponseEntity.ok(service.getExpiryQualitySummary(branchId, locationId));
+    }
+
+    @Operation(summary = "Lấy danh sách lô hàng sắp hết hạn (FEFO)", description = "Danh sách các lô hàng cận hạn hoặc đã hết hạn ưu tiên xuất kho trước")
+    @GetMapping("/expiring-batches")
+    public ResponseEntity<List<InventoryExpiringBatchResponse>> getExpiringBatches(
+            @RequestParam(required = false) UUID branchId,
+            @RequestParam(required = false) UUID locationId,
+            @RequestParam(required = false, defaultValue = "30") int daysThreshold,
+            @RequestParam(required = false, defaultValue = "5") int limit
+    ) {
+        return ResponseEntity.ok(service.getExpiringBatches(branchId, locationId, daysThreshold, limit));
     }
 }

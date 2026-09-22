@@ -44,6 +44,7 @@ import { StocktakeListPage } from "../features/inventory/pages/StocktakeListPage
 import { StocktakeReconciliationPage } from "../features/inventory/pages/StocktakeReconciliationPage";
 import { StockAlertDetailPage } from "../features/inventory/pages/StockAlertDetailPage";
 import { InventoryValueReportPage } from "../features/inventory/pages/InventoryValueReportPage";
+import { StockCategoryAnalysisPage } from "../features/inventory/pages/StockCategoryAnalysisPage";
 import { InventoryTurnoverReportPage } from "../features/inventory/pages/InventoryTurnoverReportPage";
 import { ProductionWastageReportPage } from "../features/inventory/pages/ProductionWastageReportPage";
 import { DisposalSummaryReportPage } from "../features/inventory/pages/DisposalSummaryReportPage";
@@ -188,8 +189,8 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to={routePaths.systemDashboard} replace />} />
-        <Route path="dashboard" element={<DashboardOverviewPage />} />
+        <Route index element={<Navigate to={routePaths.systemDashboardOverview} replace />} />
+        <Route path="dashboard/*" element={<DashboardOverviewPage />} />
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/invoices" element={<InvoiceListPage />} />
@@ -253,6 +254,10 @@ export function AppRouter() {
           <Route
             path="inventory/replenishment-alerts"
             element={<Navigate to={routePaths.inventoryAlerts} replace />}
+          />
+          <Route
+            path="inventory/reports/stock-category-analysis"
+            element={<Navigate to={routePaths.stockCategoryAnalysis} replace />}
           />
           <Route path="inventory/:workspaceId" element={<InventoryManagementPage />} />
         </Route>
@@ -348,6 +353,7 @@ export function AppRouter() {
           <Route path="inventory/alerts" element={<StockAlertListPage />} />
           <Route path="inventory/alerts/:alertId" element={<StockAlertDetailPage />} />
           <Route path="inventory/reorder-policies" element={<ReorderPolicyPage />} />
+          <Route path="inventory/reports/stock-category-analysis" element={<StockCategoryAnalysisPage />} />
           <Route path="inventory/reports/inventory-value" element={<InventoryValueReportPage />} />
           <Route path="inventory/reports/turnover" element={<InventoryTurnoverReportPage />} />
           <Route path="inventory/reports/wastage" element={<ProductionWastageReportPage />} />

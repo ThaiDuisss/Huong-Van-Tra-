@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.dashboard.service;
 
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryDashboardSummaryResponse;
+import org.hvtra.iventoryservice.dashboard.dto.response.InventoryExpiringBatchResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryExpiryQualitySummaryResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryLocationSummaryResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryTopSkuResponse;
@@ -17,4 +18,6 @@ public interface InventoryDashboardService {
     List<InventoryTopSkuResponse> getTopSkus(UUID branchId, UUID locationId, int limit);
 
     InventoryExpiryQualitySummaryResponse getExpiryQualitySummary(UUID branchId, UUID locationId);
+
+    List<InventoryExpiringBatchResponse> getExpiringBatches(UUID branchId, UUID locationId, int daysThreshold, int limit);
 }

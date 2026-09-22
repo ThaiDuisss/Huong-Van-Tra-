@@ -37,7 +37,7 @@ export function ProductionTab({
   const wastage = data?.wastage ?? null;
   const overThreshold = wastage?.filter((item) => item.status === "OVER_THRESHOLD").length ?? 0;
   const totalWastage = wastage?.reduce((sum, item) => sum + item.wastageQuantity, 0) ?? 0;
-  const source = wastage ? "DEMO" : "GAP";
+  const source = wastage && wastage.length > 0 ? (wastage[0].source ?? "DEMO") : "GAP";
 
   const kpis: DashboardKpiCardProps[] = [
     {

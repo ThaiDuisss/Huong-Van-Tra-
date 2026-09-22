@@ -39,6 +39,24 @@ export interface InventoryExpiryQualitySummaryResponse {
   pendingDisposalApprovals: number;
 }
 
+export interface InventoryExpiringBatchResponse {
+  id: string;
+  batchCode: string;
+  inventoryItemId: string;
+  skuCode: string;
+  productName: string;
+  locationId: string;
+  locationName: string;
+  onHandQuantity: number;
+  availableQuantity: number;
+  unit: string;
+  expiryDate: string;
+  daysRemaining: number;
+  urgency: "CRITICAL" | "HIGH" | "MEDIUM";
+  urgencyLabel: string;
+  status: string;
+}
+
 export const inventoryDashboardApi = {
   getOverviewSummary(branchId?: string, locationId?: string) {
     return apiClient.get<InventoryDashboardSummaryResponse>("/inventory/dashboards/overview", {
@@ -59,8 +77,14 @@ export const inventoryDashboardApi = {
   },
 
   getExpiryQualitySummary(branchId?: string, locationId?: string) {
-    return apiClient.get<InventoryExpiryQualitySummaryResponse[]>("/inventory/dashboards/expiry-quality", {
+    return apiClient.get<InventoryExpiryQualitySummaryResponse>("/inventory/dashboards/expiry-quality", {
       query: { branchId, locationId },
+    });
+  },
+
+  getExpiringBatches(branchId?: string, locationId?: string, daysThreshold = 30, limit = 5) {
+    return apiClient.get<InventoryExpiringBatchResponse[]>("/inventory/dashboards/expiring-batches", {
+      query: { branchId, locationId, daysThreshold, limit },
     });
   },
 };

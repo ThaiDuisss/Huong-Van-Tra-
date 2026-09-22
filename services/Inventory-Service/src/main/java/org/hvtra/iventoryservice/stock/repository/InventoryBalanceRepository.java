@@ -3,6 +3,10 @@ package org.hvtra.iventoryservice.stock.repository;
 import jakarta.persistence.LockModeType;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -18,6 +22,14 @@ import java.util.UUID;
 
 public interface InventoryBalanceRepository
         extends JpaRepository<InventoryBalance, UUID>, JpaSpecificationExecutor<InventoryBalance> {
+
+    @Override
+    @EntityGraph(attributePaths = {"inventoryItem", "location"})
+    List<InventoryBalance> findAll(Specification<InventoryBalance> spec);
+
+    @Override
+    @EntityGraph(attributePaths = {"inventoryItem", "location"})
+    Page<InventoryBalance> findAll(Specification<InventoryBalance> spec, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

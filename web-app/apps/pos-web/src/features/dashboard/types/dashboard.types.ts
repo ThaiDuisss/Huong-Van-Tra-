@@ -123,7 +123,7 @@ export interface DashboardProductionWastage {
   wastageRate: number;
   thresholdRate: number;
   status: "NORMAL" | "WATCH" | "OVER_THRESHOLD";
-  source: "MOCK" | "GAP";
+  source: DashboardSourceStatus;
 }
 
 /** Dữ liệu demo chỉ tồn tại khi bật mock (dev). Production nhận null → widget hiển thị GAP. */

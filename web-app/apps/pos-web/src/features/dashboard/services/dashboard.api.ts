@@ -4,11 +4,12 @@ import { formatLocalDate } from "../../../components/shared/TimeHierarchyFilter.
 import { inventoryBalanceApi } from "../../inventory/services/inventoryBalance.api";
 import { inventoryDashboardApi } from "../../inventory/services/inventoryDashboard.api";
 import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
+import { inventoryReportApi } from "../../inventory/services/inventoryReport.api";
 import { inventoryTransactionApi } from "../../inventory/services/inventoryTransaction.api";
 import { qualityApi } from "../../inventory/services/quality.api";
 import { stockAlertApi } from "../../inventory/services/stockAlert.api";
 import { stockDocumentApi } from "../../inventory/services/stockDocument.api";
-import type { QualityBatchQuery } from "../../inventory/types/quality.types";
+import type { QualityBatchQuery, QualityBatchSummary } from "../../inventory/types/quality.types";
 import type { StockAlertListQuery } from "../../inventory/types/stock-alert.types";
 import type { StockDocumentListQuery } from "../../inventory/types/stock-document.types";
 import { getOrderStats } from "../../order/services/order.api";
@@ -30,6 +31,7 @@ import type {
   DashboardInventorySnapshot,
   DashboardPart,
   DashboardProductionSnapshot,
+  DashboardProductionWastage,
   DashboardSalesSnapshot,
   DashboardTimeRange,
 } from "../types/dashboard.types";
@@ -99,7 +101,7 @@ export function describeDashboardError(error: unknown) {
   return "Không thể tải dữ liệu.";
 }
 
-function withTimeout<T>(loader: () => Promise<T>, timeoutMs = 5000): Promise<T> {
+function withTimeout<T>(loader: () => Promise<T>, timeoutMs = 15000): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new ApiError({ code: "TIMEOUT", message: "Máy chủ phản hồi quá lâu.", status: 408 }));
@@ -118,7 +120,7 @@ function withTimeout<T>(loader: () => Promise<T>, timeoutMs = 5000): Promise<T> 
 }
 
 /** Bọc từng nguồn để lỗi của một nguồn không làm hỏng cả nhóm. */
-async function part<T>(loader: () => Promise<T>, timeoutMs = 5000): Promise<DashboardPart<T>> {
+async function part<T>(loader: () => Promise<T>, timeoutMs = 15000): Promise<DashboardPart<T>> {
   try {
     return { data: await withTimeout(loader, timeoutMs) };
   } catch (error) {
@@ -222,18 +224,30 @@ export const dashboardApi = {
       }),
     ]);
 
-    const finalOverview = overviewSummary.data ? overviewSummary : { data: mockInventoryOverviewSummary };
+    const finalOverview = overviewSummary.data
+      ? overviewSummary
+      : isDashboardMockEnabled
+        ? { data: mockInventoryOverviewSummary }
+        : overviewSummary;
+
     const finalBalances =
       balances.data && balances.data.items.length > 0
         ? balances
-        : {
-            data: {
-              items: mockInventoryBalances as any,
-              loaded: mockInventoryBalances.length,
-              total: mockInventoryBalances.length,
-            },
-          };
-    const finalTransactions = transactions.data ? transactions : { data: mockInventoryTransactions as any };
+        : isDashboardMockEnabled
+          ? {
+              data: {
+                items: mockInventoryBalances as any,
+                loaded: mockInventoryBalances.length,
+                total: mockInventoryBalances.length,
+              },
+            }
+          : balances;
+
+    const finalTransactions = transactions.data
+      ? transactions
+      : isDashboardMockEnabled
+        ? { data: mockInventoryTransactions as any }
+        : transactions;
 
     return { balances: finalBalances, locationId, overviewSummary: finalOverview, transactions: finalTransactions };
   },
@@ -257,7 +271,48 @@ export const dashboardApi = {
   async getAlertSnapshot(): Promise<DashboardAlertSnapshot> {
     const [stockAlerts, expiringBatches, pendingDocuments, expiringReservationsRes] = await Promise.all([
       part(async () => (await stockAlertApi.listStockAlerts(stockAlertQuery)).content),
-      part(async () => (await qualityApi.listQualityBatches(qualityQuery)).content),
+      part(async () => {
+        try {
+          const realBatches = await inventoryDashboardApi.getExpiringBatches(undefined, undefined, 30, 10);
+          if (realBatches && realBatches.length > 0) {
+            return realBatches.map((b): QualityBatchSummary => ({
+              id: b.id,
+              batchCode: b.batchCode,
+              skuCode: b.skuCode,
+              skuName: b.productName,
+              productType: "Sản phẩm",
+              supplier: "Nhà cung cấp",
+              supplierLot: b.batchCode,
+              location: {
+                id: b.locationId,
+                name: b.locationName,
+                code: "LOC",
+                isCentral: true,
+              },
+              onHandQuantity: b.onHandQuantity,
+              reservedQuantity: 0,
+              blockedQuantity: 0,
+              availableQuantity: b.availableQuantity,
+              damagedQuantity: 0,
+              manufacturingDate: "",
+              expiryDate: b.expiryDate,
+              status: b.daysRemaining < 0 ? "EXPIRED" : "NEAR_EXPIRY",
+              unit: b.unit,
+              unitCost: 0,
+              estimatedValue: 0,
+            }));
+          }
+          if (isDashboardMockEnabled) {
+            return (await qualityApi.listQualityBatches(qualityQuery)).content;
+          }
+          return [];
+        } catch {
+          if (isDashboardMockEnabled) {
+            return (await qualityApi.listQualityBatches(qualityQuery)).content;
+          }
+          return [];
+        }
+      }),
       part(async () => (await stockDocumentApi.listStockDocuments(pendingDocumentQuery)).content),
       part(async () => (await import("../../../api/api-client").then((m) => m.apiClient.get<any[]>("/inventory/reservations/expiring-soon")))),
     ]);
@@ -272,7 +327,41 @@ export const dashboardApi = {
   },
 
   async getProductionSnapshot(): Promise<DashboardProductionSnapshot> {
-    // TODO(BE): thay bằng API hao hụt sản xuất khi có (DASH-GAP-013).
+    const reportRes = await part(() => inventoryReportApi.getProductionWastage());
+
+    if (reportRes.data?.materials && reportRes.data.materials.length > 0) {
+      const wastage: DashboardProductionWastage[] = reportRes.data.materials.map((m, index) => {
+        const plannedQuantity = m.plannedQuantity ?? 0;
+        const actualQuantity = m.actualQuantity ?? 0;
+        const wastageQuantity = m.wastageQuantity ?? (actualQuantity > plannedQuantity ? actualQuantity - plannedQuantity : 0);
+        const wastageRate = m.wastageRate ?? (plannedQuantity > 0 ? (wastageQuantity / plannedQuantity) * 100 : 0);
+        const thresholdRate = 5.0;
+
+        let status: "NORMAL" | "WATCH" | "OVER_THRESHOLD" = "NORMAL";
+        if (wastageRate > thresholdRate) {
+          status = "OVER_THRESHOLD";
+        } else if (wastageRate >= 3.0) {
+          status = "WATCH";
+        }
+
+        return {
+          actualQuantity,
+          id: `wastage-mat-${index}-${m.materialCode}`,
+          materialCode: m.materialCode,
+          materialName: m.materialName,
+          plannedQuantity,
+          productionOrderCode: "Báo cáo tổng hợp",
+          source: "ADAPTED",
+          status,
+          thresholdRate,
+          wastageQuantity,
+          wastageRate: Math.round(wastageRate * 10) / 10,
+        };
+      });
+
+      return { wastage };
+    }
+
     return { wastage: isDashboardMockEnabled ? productionWastage : null };
   },
 

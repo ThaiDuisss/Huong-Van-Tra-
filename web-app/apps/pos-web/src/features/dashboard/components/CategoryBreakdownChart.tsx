@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { DashboardCategoryBreakdown } from "../types/dashboard.types";
-import { formatCompactVnd, formatPercent } from "../utils/dashboard-mappers";
+import { distributePercentages, formatCompactVnd, formatPercent } from "../utils/dashboard-mappers";
 
 const categoryColors = [
   "bg-[#159734]",
@@ -65,13 +65,21 @@ export function CategoryBreakdownChart({
   loading?: boolean;
 }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const totalVal = categories.reduce((sum, c) => sum + c.inventoryValue, 0);
+
+  const safeCategories = useMemo(() => {
+    if (categories.length > 0 && categories.some((c) => c.inventoryValue > 0)) {
+      return distributePercentages(categories, (c) => c.inventoryValue, 1);
+    }
+    return categories;
+  }, [categories]);
+
+  const totalVal = safeCategories.reduce((sum, c) => sum + c.inventoryValue, 0);
 
   if (loading) {
     return <div className="h-48 w-full animate-pulse rounded-xl bg-[#f0f4f1]" />;
   }
 
-  if (categories.length === 0) {
+  if (safeCategories.length === 0) {
     return (
       <div className="p-6 text-center text-sm font-medium text-[#697684]">
         Chưa có dữ liệu phân bổ theo nhóm sản phẩm.
@@ -80,14 +88,14 @@ export function CategoryBreakdownChart({
   }
 
   let accumulatedAngle = 0;
-  const sliceAngles = categories.map((cat) => {
+  const sliceAngles = safeCategories.map((cat) => {
     const start = accumulatedAngle;
     const sweep = (cat.percentage / 100) * 360;
     accumulatedAngle += sweep;
     return { end: start + sweep, start };
   });
 
-  const activeCategory = activeIndex !== null ? categories[activeIndex] : null;
+  const activeCategory = activeIndex !== null ? safeCategories[activeIndex] : null;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[210px_minmax(0,1fr)] items-center">
@@ -160,7 +168,7 @@ export function CategoryBreakdownChart({
           <span className="text-right">Số lượng</span>
           <span className="text-right">Giá trị (VNĐ)</span>
         </div>
-        {categories.map((cat, index) => {
+        {safeCategories.map((cat, index) => {
           const color = categoryColors[index % categoryColors.length];
           const colorHex = categoryHexColors[index % categoryHexColors.length];
           const formattedValue = `${cat.inventoryValue.toLocaleString("vi-VN")} đ`;
@@ -209,6 +217,20 @@ export function CategoryBreakdownChart({
             </div>
           );
         })}
+
+        {/* Dòng tổng cộng */}
+        {safeCategories.length > 0 && (
+          <div className="grid grid-cols-[1fr_135px_70px_105px] items-center gap-2 pt-2.5 text-xs font-black text-[#172317] border-t border-[#edf2ee]">
+            <span className="text-[#697684]">Tổng cộng</span>
+            <span className="text-[11px] font-black text-[#159734]">100,0%</span>
+            <span className="text-right font-bold text-[#172317]">
+              {safeCategories.reduce((s, c) => s + c.totalQuantity, 0).toLocaleString("vi-VN")} sp
+            </span>
+            <span className="text-right font-black text-[#159734]">
+              {totalVal.toLocaleString("vi-VN")} đ
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

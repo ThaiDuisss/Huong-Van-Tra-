@@ -1,22 +1,22 @@
 package org.hvtra.iventoryservice.dashboard.service.impl;
 
-import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryDashboardSummaryResponse;
+import org.hvtra.iventoryservice.dashboard.dto.response.InventoryExpiringBatchResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryExpiryQualitySummaryResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryLocationSummaryResponse;
 import org.hvtra.iventoryservice.dashboard.dto.response.InventoryTopSkuResponse;
+import org.hvtra.iventoryservice.dashboard.repository.InventoryDashboardRepository;
+import org.hvtra.iventoryservice.dashboard.repository.projection.DashboardExpiryQualityRow;
+import org.hvtra.iventoryservice.dashboard.repository.projection.DashboardExpiringBatchRow;
+import org.hvtra.iventoryservice.dashboard.repository.projection.DashboardKpiRow;
+import org.hvtra.iventoryservice.dashboard.repository.projection.VariantOnHandRow;
 import org.hvtra.iventoryservice.dashboard.service.InventoryDashboardService;
-import org.hvtra.iventoryservice.document.repository.InventoryDocumentRepository;
-import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
-import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
-import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
-import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,81 +27,43 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class InventoryDashboardServiceImpl implements InventoryDashboardService {
 
-    private final InventoryBalanceRepository balanceRepository;
-    private final InventoryDocumentRepository documentRepository;
-    private final InventoryBatchRepository batchRepository;
+    private final InventoryDashboardRepository dashboardRepository;
     private final CatalogClient catalogClient;
 
     public InventoryDashboardServiceImpl(
-            InventoryBalanceRepository balanceRepository,
-            InventoryDocumentRepository documentRepository,
-            InventoryBatchRepository batchRepository,
+            InventoryDashboardRepository dashboardRepository,
             CatalogClient catalogClient) {
-        this.balanceRepository = balanceRepository;
-        this.documentRepository = documentRepository;
-        this.batchRepository = batchRepository;
+        this.dashboardRepository = dashboardRepository;
         this.catalogClient = catalogClient;
     }
 
     @Override
     public InventoryDashboardSummaryResponse getOverviewSummary(UUID branchId, UUID locationId) {
-        List<InventoryBalance> balances = balanceRepository.findAll();
+        DashboardKpiRow kpi = dashboardRepository.getOverviewKpi(branchId, locationId);
 
-        List<InventoryBalance> filteredBalances = balances.stream()
-                .filter(b -> locationId == null || (b.getLocation() != null && locationId.equals(b.getLocation().getId())))
-                .filter(b -> branchId == null || (b.getLocation() != null && branchId.equals(b.getLocation().getBranchId())))
-                .toList();
+        List<VariantOnHandRow> variantRows = dashboardRepository.getVariantOnHandQuantities(branchId, locationId);
+        BigDecimal totalInventoryValue = BigDecimal.ZERO;
 
-        long skuCount = filteredBalances.stream()
-                .filter(b -> b.getInventoryItem() != null)
-                .map(b -> b.getInventoryItem().getId())
-                .distinct()
-                .count();
+        if (variantRows != null && !variantRows.isEmpty()) {
+            List<UUID> variantIds = variantRows.stream()
+                    .map(r -> {
+                        try {
+                            return UUID.fromString(r.getReferenceId());
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .toList();
 
-        BigDecimal totalOnHand = filteredBalances.stream()
-                .map(InventoryBalance::getQuantityOnHand)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal totalReserved = filteredBalances.stream()
-                .map(InventoryBalance::getQuantityReserved)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal totalBlocked = filteredBalances.stream()
-                .map(InventoryBalance::getQuantityBlocked)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal totalAvailable = totalOnHand.subtract(totalReserved).subtract(totalBlocked);
-
-        long belowReorderCount = filteredBalances.stream()
-                .filter(b -> b.getInventoryItem() != null && b.getInventoryItem().getReorderPoint() != null && b.getInventoryItem().getReorderPoint() > 0)
-                .filter(b -> {
-                    BigDecimal onHand = b.getQuantityOnHand() != null ? b.getQuantityOnHand() : BigDecimal.ZERO;
-                    BigDecimal reserved = b.getQuantityReserved() != null ? b.getQuantityReserved() : BigDecimal.ZERO;
-                    BigDecimal blocked = b.getQuantityBlocked() != null ? b.getQuantityBlocked() : BigDecimal.ZERO;
-                    BigDecimal avail = onHand.subtract(reserved).subtract(blocked);
-                    return avail.compareTo(BigDecimal.valueOf(b.getInventoryItem().getReorderPoint())) <= 0;
-                })
-                .count();
-
-        List<UUID> variantIds = filteredBalances.stream()
-                .filter(b -> b.getInventoryItem() != null && b.getInventoryItem().getItemType() == InventoryItemType.PRODUCT_VARIANT)
-                .map(b -> b.getInventoryItem().getReferenceId())
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-
-        Map<UUID, BigDecimal> costPriceMap = new HashMap<>();
-        if (!variantIds.isEmpty()) {
+            Map<UUID, BigDecimal> costPriceMap = new HashMap<>();
             try {
                 int batchSize = 100;
                 for (int i = 0; i < variantIds.size(); i += batchSize) {
                     List<UUID> batch = variantIds.subList(i, Math.min(i + batchSize, variantIds.size()));
-                    List<CatalogClient.VariantResponse> variants = catalogClient.getVariantsBatch(batch);
+                    List<CatalogClient.VariantCostResponse> variants = catalogClient.getVariantCostsBatch(batch);
                     if (variants != null) {
-                        for (CatalogClient.VariantResponse v : variants) {
+                        for (CatalogClient.VariantCostResponse v : variants) {
                             if (v.id() != null && v.costPrice() != null) {
                                 costPriceMap.put(v.id(), v.costPrice());
                             }
@@ -109,32 +71,33 @@ public class InventoryDashboardServiceImpl implements InventoryDashboardService 
                     }
                 }
             } catch (Exception e) {
-                // Fail-safe: fallback gracefully if catalog service is unreachable or times out
+                // Fail-safe: fallback gracefully if catalog service is unreachable
+            }
+
+            for (VariantOnHandRow row : variantRows) {
+                try {
+                    UUID vid = UUID.fromString(row.getReferenceId());
+                    BigDecimal cost = costPriceMap.getOrDefault(vid, BigDecimal.ZERO);
+                    if (row.getTotalOnHand() != null) {
+                        totalInventoryValue = totalInventoryValue.add(row.getTotalOnHand().multiply(cost));
+                    }
+                } catch (Exception ignored) {
+                }
             }
         }
 
-        BigDecimal totalInventoryValue = filteredBalances.stream()
-                .map(b -> {
-                    if (b.getInventoryItem() == null || b.getQuantityOnHand() == null) {
-                        return BigDecimal.ZERO;
-                    }
-                    BigDecimal costPrice = costPriceMap.getOrDefault(b.getInventoryItem().getReferenceId(), BigDecimal.ZERO);
-                    return b.getQuantityOnHand().multiply(costPrice);
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        long pendingDocumentsCount = documentRepository.findAll().stream()
-                .filter(d -> !d.getIsDeleted())
-                .filter(d -> d.getStatus() == InventoryDocumentStatus.DRAFT
-                        || d.getStatus() == InventoryDocumentStatus.PENDING_APPROVAL
-                        || d.getStatus() == InventoryDocumentStatus.RECEIVING
-                        || d.getStatus() == InventoryDocumentStatus.QC_PENDING)
-                .count();
+        long skuCount = kpi != null && kpi.getSkuCount() != null ? kpi.getSkuCount() : 0L;
+        BigDecimal totalOnHand = kpi != null && kpi.getTotalOnHand() != null ? kpi.getTotalOnHand() : BigDecimal.ZERO;
+        BigDecimal totalAvailable = kpi != null && kpi.getTotalAvailable() != null ? kpi.getTotalAvailable().max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        BigDecimal totalReserved = kpi != null && kpi.getTotalReserved() != null ? kpi.getTotalReserved() : BigDecimal.ZERO;
+        BigDecimal totalBlocked = kpi != null && kpi.getTotalBlocked() != null ? kpi.getTotalBlocked() : BigDecimal.ZERO;
+        long belowReorderCount = kpi != null && kpi.getBelowReorderCount() != null ? kpi.getBelowReorderCount() : 0L;
+        long pendingDocumentsCount = kpi != null && kpi.getPendingDocumentsCount() != null ? kpi.getPendingDocumentsCount() : 0L;
 
         return new InventoryDashboardSummaryResponse(
                 skuCount,
                 totalOnHand,
-                totalAvailable.max(BigDecimal.ZERO),
+                totalAvailable,
                 totalReserved,
                 totalBlocked,
                 totalInventoryValue,
@@ -145,84 +108,41 @@ public class InventoryDashboardServiceImpl implements InventoryDashboardService 
 
     @Override
     public List<InventoryLocationSummaryResponse> getLocationBreakdown(UUID branchId) {
-        List<InventoryBalance> balances = balanceRepository.findAll();
-
-        return balances.stream()
-                .filter(b -> b.getLocation() != null)
-                .filter(b -> branchId == null || branchId.equals(b.getLocation().getBranchId()))
-                .collect(java.util.stream.Collectors.groupingBy(InventoryBalance::getLocation))
-                .entrySet().stream()
-                .map(entry -> {
-                    var loc = entry.getKey();
-                    var list = entry.getValue();
-                    BigDecimal onHand = list.stream().map(InventoryBalance::getQuantityOnHand).reduce(BigDecimal.ZERO, BigDecimal::add);
-                    BigDecimal reserved = list.stream().map(InventoryBalance::getQuantityReserved).reduce(BigDecimal.ZERO, BigDecimal::add);
-                    BigDecimal blocked = list.stream().map(InventoryBalance::getQuantityBlocked).reduce(BigDecimal.ZERO, BigDecimal::add);
-                    BigDecimal available = onHand.subtract(reserved).subtract(blocked).max(BigDecimal.ZERO);
-
-                    return new InventoryLocationSummaryResponse(
-                            loc.getId(),
-                            loc.getCode(),
-                            loc.getName(),
-                            onHand,
-                            available,
-                            reserved
-                    );
-                })
+        return dashboardRepository.getLocationBreakdown(branchId).stream()
+                .map(r -> new InventoryLocationSummaryResponse(
+                        UUID.fromString(r.getLocationId()),
+                        r.getLocationCode(),
+                        r.getLocationName(),
+                        r.getTotalOnHand(),
+                        r.getTotalAvailable(),
+                        r.getTotalReserved()
+                ))
                 .toList();
     }
 
     @Override
     public List<InventoryTopSkuResponse> getTopSkus(UUID branchId, UUID locationId, int limit) {
-        List<InventoryBalance> balances = balanceRepository.findAll();
-
-        return balances.stream()
-                .filter(b -> locationId == null || (b.getLocation() != null && locationId.equals(b.getLocation().getId())))
-                .sorted((b1, b2) -> b2.getQuantityOnHand().compareTo(b1.getQuantityOnHand()))
-                .limit(limit > 0 ? limit : 6)
-                .map(b -> new InventoryTopSkuResponse(
-                        b.getInventoryItem().getId(),
-                        b.getInventoryItem().getReferenceCode() != null ? b.getInventoryItem().getReferenceCode() : "N/A",
-                        b.getInventoryItem().getName() != null ? b.getInventoryItem().getName() : "Sản phẩm",
-                        b.getLocation() != null ? b.getLocation().getName() : "Kho",
-                        b.getQuantityOnHand(),
-                        b.getAvailableQuantity(),
-                        "Cái"
+        return dashboardRepository.getTopSkus(branchId, locationId, limit > 0 ? limit : 6).stream()
+                .map(r -> new InventoryTopSkuResponse(
+                        UUID.fromString(r.getInventoryItemId()),
+                        r.getSkuCode(),
+                        r.getProductName(),
+                        r.getLocationName(),
+                        r.getQuantityOnHand(),
+                        r.getAvailableQuantity(),
+                        r.getUnitSymbol()
                 ))
                 .toList();
     }
 
     @Override
     public InventoryExpiryQualitySummaryResponse getExpiryQualitySummary(UUID branchId, UUID locationId) {
-        LocalDate today = LocalDate.now();
-        LocalDate in7Days = today.plusDays(7);
-        LocalDate in30Days = today.plusDays(30);
-
-        long exp7 = batchRepository.findAll().stream()
-                .filter(b -> b.getExpiryDate() != null)
-                .filter(b -> b.getExpiryDate().isAfter(today) && b.getExpiryDate().isBefore(in7Days))
-                .count();
-
-        long exp30 = batchRepository.findAll().stream()
-                .filter(b -> b.getExpiryDate() != null)
-                .filter(b -> b.getExpiryDate().isAfter(today) && b.getExpiryDate().isBefore(in30Days))
-                .count();
-
-        long expiredUnhandled = batchRepository.findAll().stream()
-                .filter(b -> b.getExpiryDate() != null && b.getExpiryDate().isBefore(today))
-                .count();
-
-        long quarantineOverSla = batchRepository.findAll().stream()
-                .filter(b -> b.getStatus() == org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus.AWAITING_QC
-                        || b.getStatus() == org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus.QUARANTINED)
-                .filter(b -> b.getReceivedAt() != null && b.getReceivedAt().isBefore(java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS)))
-                .count();
-
-        long pendingDisposalApprovals = documentRepository.findAll().stream()
-                .filter(d -> !d.getIsDeleted())
-                .filter(d -> d.getDocumentType() == org.hvtra.iventoryservice.domain.enums.InventoryDocumentType.WRITE_OFF
-                        && d.getStatus() == InventoryDocumentStatus.PENDING_APPROVAL)
-                .count();
+        DashboardExpiryQualityRow row = dashboardRepository.getExpiryQualitySummary(branchId);
+        long exp7 = row != null && row.getExpiry7Days() != null ? row.getExpiry7Days() : 0L;
+        long exp30 = row != null && row.getExpiry30Days() != null ? row.getExpiry30Days() : 0L;
+        long expiredUnhandled = row != null && row.getExpiredUnhandled() != null ? row.getExpiredUnhandled() : 0L;
+        long quarantineOverSla = row != null && row.getQuarantineOverSla() != null ? row.getQuarantineOverSla() : 0L;
+        long pendingDisposal = row != null && row.getPendingDisposalApprovals() != null ? row.getPendingDisposalApprovals() : 0L;
 
         return new InventoryExpiryQualitySummaryResponse(
                 exp7,
@@ -230,8 +150,71 @@ public class InventoryDashboardServiceImpl implements InventoryDashboardService 
                 expiredUnhandled,
                 quarantineOverSla,
                 BigDecimal.ZERO,
-                pendingDisposalApprovals
+                pendingDisposal
         );
     }
-}
 
+    @Override
+    public List<InventoryExpiringBatchResponse> getExpiringBatches(UUID branchId, UUID locationId, int daysThreshold, int limit) {
+        int effectiveLimit = limit > 0 ? limit : 5;
+        int effectiveDays = daysThreshold > 0 ? daysThreshold : 30;
+        List<DashboardExpiringBatchRow> rows = dashboardRepository.getExpiringBatches(branchId, locationId, effectiveDays, effectiveLimit);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return rows.stream()
+                .map(r -> {
+                    UUID id = null;
+                    try {
+                        if (r.getId() != null) id = UUID.fromString(r.getId());
+                    } catch (Exception ignored) {}
+
+                    UUID itemId = null;
+                    try {
+                        if (r.getInventoryItemId() != null) itemId = UUID.fromString(r.getInventoryItemId());
+                    } catch (Exception ignored) {}
+
+                    UUID locId = null;
+                    try {
+                        if (r.getLocationId() != null) locId = UUID.fromString(r.getLocationId());
+                    } catch (Exception ignored) {}
+
+                    long days = r.getDaysRemaining() != null ? r.getDaysRemaining() : 0L;
+                    String urgency;
+                    String urgencyLabel;
+                    if (days < 0) {
+                        urgency = "CRITICAL";
+                        urgencyLabel = "Đã hết hạn";
+                    } else if (days <= 7) {
+                        urgency = "CRITICAL";
+                        urgencyLabel = "Rất gấp";
+                    } else if (days <= 15) {
+                        urgency = "HIGH";
+                        urgencyLabel = "Gấp";
+                    } else {
+                        urgency = "MEDIUM";
+                        urgencyLabel = "Lưu ý";
+                    }
+
+                    return new InventoryExpiringBatchResponse(
+                            id,
+                            r.getBatchCode(),
+                            itemId,
+                            r.getSkuCode(),
+                            r.getProductName(),
+                            locId,
+                            r.getLocationName(),
+                            r.getOnHandQuantity() != null ? r.getOnHandQuantity() : BigDecimal.ZERO,
+                            r.getAvailableQuantity() != null ? r.getAvailableQuantity() : BigDecimal.ZERO,
+                            r.getUnit() != null ? r.getUnit() : "đơn vị",
+                            r.getExpiryDate(),
+                            days,
+                            urgency,
+                            urgencyLabel,
+                            r.getStatus() != null ? r.getStatus() : "ACTIVE"
+                    );
+                })
+                .toList();
+    }
+}

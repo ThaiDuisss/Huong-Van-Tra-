@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.batch.repository;
 
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,11 @@ import java.util.UUID;
 @Repository
 public interface InventoryBatchRepository
         extends JpaRepository<InventoryBatch, UUID>, JpaSpecificationExecutor<InventoryBatch> {
+
+    @Override
+    @EntityGraph(attributePaths = {"inventoryItem"})
+    List<InventoryBatch> findAll();
+
     Optional<InventoryBatch> findByInventoryItemIdAndBatchCode(UUID inventoryItemId, String batchCode);
     List<InventoryBatch> findByInventoryItemId(UUID inventoryItemId);
     Optional<InventoryBatch> findFirstByInventoryItemIdAndStatus(UUID inventoryItemId, InventoryBatchStatus status);
