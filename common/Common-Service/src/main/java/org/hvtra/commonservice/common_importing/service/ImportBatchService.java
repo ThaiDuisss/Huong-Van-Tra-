@@ -2,7 +2,9 @@ package org.hvtra.commonservice.importing.service;
 
 import org.hvtra.commonservice.importing.domain.enums.ImportBatchStatus;
 import org.hvtra.commonservice.importing.domain.enums.ImportType;
+import org.hvtra.commonservice.importing.dto.request.SaveImportDraftRequest;
 import org.hvtra.commonservice.importing.dto.response.ImportBatchResponse;
+import org.hvtra.commonservice.importing.dto.response.ImportPreviewResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
@@ -11,6 +13,12 @@ import java.util.Map;
 import java.util.UUID;
 
 public interface ImportBatchService {
+    /** Phân tích file Excel và validate với Database, KHÔNG lưu vào DB, KHÔNG sinh batchCode. */
+    ImportPreviewResponse preview(ImportType type, MultipartFile file);
+
+    /** Lưu bản nháp (DRAFT) vào DB từ danh sách dòng do người dùng xác nhận trên UI. */
+    ImportBatchResponse saveDraft(SaveImportDraftRequest request);
+
     ImportBatchResponse createFromExcel(ImportType type, MultipartFile file);
 
     ImportBatchResponse findById(UUID id);

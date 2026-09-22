@@ -8,8 +8,11 @@ import org.hvtra.commonservice.exception.BusinessException;
 import org.hvtra.commonservice.exception.ResourceNotFoundException;
 import org.hvtra.commonservice.importing.domain.enums.ImportBatchStatus;
 import org.hvtra.commonservice.importing.domain.enums.ImportType;
+import org.hvtra.commonservice.importing.dto.request.SaveImportDraftRequest;
 import org.hvtra.commonservice.importing.dto.response.ImportBatchItemResponse;
 import org.hvtra.commonservice.importing.dto.response.ImportBatchResponse;
+import org.hvtra.commonservice.importing.dto.response.ImportPreviewItemResponse;
+import org.hvtra.commonservice.importing.dto.response.ImportPreviewResponse;
 import org.hvtra.commonservice.importing.dto.response.ValidationErrorResponse;
 import org.hvtra.commonservice.importing.entity.ImportBatch;
 import org.hvtra.commonservice.importing.entity.ImportBatchItem;
@@ -63,6 +66,78 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         this.sequenceRepository = sequenceRepository;
         this.objectMapper = objectMapper;
         this.handlers = handlerList.stream().collect(Collectors.toMap(ImportTypeHandler::type, Function.identity()));
+    }
+
+    @Override
+    public ImportPreviewResponse preview(ImportType type, MultipartFile file) {
+        ImportTypeHandler handler = handlerFor(type);
+        List<ParsedImportRow> rows = handler.parseExcel(file);
+        if (rows.isEmpty()) {
+            throw new BusinessException("EMPTY_IMPORT_FILE", "File Excel không có dòng dữ liệu hợp lệ nào để import.");
+        }
+
+        List<List<ValidationErrorResponse>> allErrors =
+                handler.validateAll(rows.stream().map(ParsedImportRow::payload).toList());
+
+        List<ImportPreviewItemResponse> items = new ArrayList<>(rows.size());
+        int validCount = 0;
+        int errorCount = 0;
+
+        for (int i = 0; i < rows.size(); i++) {
+            ParsedImportRow row = rows.get(i);
+            List<ValidationErrorResponse> errors = allErrors.get(i);
+            if (errors == null || errors.isEmpty()) {
+                validCount++;
+            } else {
+                errorCount++;
+            }
+            items.add(new ImportPreviewItemResponse(
+                    UUID.randomUUID().toString(),
+                    row.rowIndex(),
+                    row.payload(),
+                    errors != null ? errors : Collections.emptyList(),
+                    row.occurrenceCount()
+            ));
+        }
+
+        return new ImportPreviewResponse(
+                type,
+                file.getOriginalFilename(),
+                rows.size(),
+                validCount,
+                errorCount,
+                items
+        );
+    }
+
+    @Override
+    @Transactional
+    public ImportBatchResponse saveDraft(SaveImportDraftRequest request) {
+        ImportTypeHandler handler = handlerFor(request.type());
+        if (request.items() == null || request.items().isEmpty()) {
+            throw new BusinessException("EMPTY_BATCH", "Phiếu import chưa có dòng dữ liệu nào.");
+        }
+
+        ImportBatch batch = new ImportBatch();
+        batch.setImportType(request.type());
+        batch.setBatchCode(generateBatchCode());
+        batch.setStatus(ImportBatchStatus.DRAFT);
+        batch.setSourceFileName(request.sourceFileName());
+
+        List<List<ValidationErrorResponse>> allErrors =
+                handler.validateAll(request.items().stream().map(SaveImportDraftRequest.DraftItem::payload).toList());
+
+        for (int i = 0; i < request.items().size(); i++) {
+            SaveImportDraftRequest.DraftItem draftItem = request.items().get(i);
+            ImportBatchItem item = new ImportBatchItem();
+            item.setRowIndex(draftItem.rowIndex() != null ? draftItem.rowIndex() : (i + 1));
+            item.setPayload(writeJson(draftItem.payload()));
+            item.setValidationErrors(writeJson(allErrors.get(i)));
+            item.setOccurrenceCount(draftItem.occurrenceCount() != null ? draftItem.occurrenceCount() : 1);
+            batch.addItem(item);
+        }
+
+        return toResponse(repository.save(batch));
     }
 
     @Override

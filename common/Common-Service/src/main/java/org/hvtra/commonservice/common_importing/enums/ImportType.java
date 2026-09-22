@@ -1,4 +1,5 @@
-package org.hvtra.commonservice.importing.domain.enums;
+package org.hvtra.commonservice.common_importing.domain.enums;
+package org.hvtra.commonservice.common_importing.enums;
 
 /**
  * Loại import dùng chung cho mọi service (Catalog, Inventory, ...). Thêm 1 loại mới ở đây

@@ -1,7 +1,6 @@
 package org.hvtra.commonservice.domain.constants;
 
 import lombok.*;
-import lombok.experimental.FieldDefaults;
 
 @Getter
 @AllArgsConstructor

@@ -1,11 +1,11 @@
-package org.hvtra.commonservice.kafka.consumer.config;
+package org.hvtra.commonservice.common_core.kafka.consumer.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.common.TopicPartition;
-import org.hvtra.commonservice.kafka.config.KafkaConfigData;
-import org.hvtra.commonservice.kafka.config.KafkaConsumerConfigData;
+import org.hvtra.commonservice.common_core.kafka.config.KafkaConfigData;
+import org.hvtra.commonservice.common_core.kafka.config.KafkaConsumerConfigData;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -100,6 +100,7 @@ public class KafkaConsumerConfig <K , V> implements KafkaListenerConfigurer {
         return new LocalValidatorFactoryBean();
     }
 
+    @Slf4j
     public static class CustomerRebalanceListener implements ConsumerRebalanceListener {
 
         @Override

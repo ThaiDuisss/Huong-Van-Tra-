@@ -1,12 +1,10 @@
 package org.hvtra.commonservice.logging.action;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.hvtra.commonservice.kafka.config.KafkaConfigData;
-import org.hvtra.commonservice.kafka.event.EventMetadataResolver;
 import org.hvtra.commonservice.logging.LogMaskUtils;
 import org.hvtra.commonservice.logging.LoggingProperties;
 import org.hvtra.commonservice.logging.MdcKeys;
