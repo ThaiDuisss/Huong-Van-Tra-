@@ -82,8 +82,8 @@ spring:
                 args:
                   rate-limiter: "#{@customerRateLimiter}"
                   key-resolver: "#{@keycloakUserOrGuestKeyResolver}"
-          - id: pos-bff
-            uri: lb://pos-bff
+          - id: order-service-pos
+            uri: lb://order-service
             predicates:
               - Path=/api/pos/**
           globalcors:
@@ -155,8 +155,6 @@ springdoc:
         url: /api/inventory/v3/api-docs
       - name: employee-service
         url: /api/employee/v3/api-docs
-      - name: pos-bff
-        url: /api/pos/v3/api-docs
     enabled: true
     path: /swagger-ui.html
 

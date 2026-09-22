@@ -1,15 +1,15 @@
-package org.hvtra.pos.service.impl;
+package org.hvtra.orderservice.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.pos.client.CatalogClient;
-import org.hvtra.pos.client.InventoryClient;
-import org.hvtra.pos.client.InventoryClient.StockVariantBatchRequest;
-import org.hvtra.pos.client.InventoryClient.StockVariantBatchResponse;
-import org.hvtra.pos.dto.request.PosProductSearchRequest;
-import org.hvtra.pos.dto.response.CatalogVariantResponse;
-import org.hvtra.pos.dto.response.PageResponse;
-import org.hvtra.pos.dto.response.PosProductVariantResponse;
-import org.hvtra.pos.service.PosProductService;
+import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.client.InventoryClient;
+import org.hvtra.orderservice.client.InventoryClient.StockVariantBatchRequest;
+import org.hvtra.orderservice.client.InventoryClient.StockVariantBatchResponse;
+import org.hvtra.orderservice.dto.request.PosProductSearchRequest;
+import org.hvtra.orderservice.dto.response.CatalogVariantResponse;
+import org.hvtra.orderservice.dto.response.PageResponse;
+import org.hvtra.orderservice.dto.response.PosProductVariantResponse;
+import org.hvtra.orderservice.service.PosProductService;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -149,3 +149,4 @@ public class PosProductServiceImpl implements PosProductService {
                 .build();
     }
 }
+

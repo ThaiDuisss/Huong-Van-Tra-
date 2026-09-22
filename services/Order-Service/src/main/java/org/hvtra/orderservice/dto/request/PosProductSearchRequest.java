@@ -1,4 +1,4 @@
-package org.hvtra.pos.dto.request;
+package org.hvtra.orderservice.dto.request;
 
 public record PosProductSearchRequest(
         String keyword,
@@ -11,3 +11,4 @@ public record PosProductSearchRequest(
         this(keyword, sku, productName, 0, 20);
     }
 }
+

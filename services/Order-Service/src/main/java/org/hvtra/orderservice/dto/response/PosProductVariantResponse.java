@@ -1,4 +1,4 @@
-package org.hvtra.pos.dto.response;
+package org.hvtra.orderservice.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
@@ -22,3 +22,4 @@ public record PosProductVariantResponse(
         String stockStatus
 ) {
 }
+

@@ -1,12 +1,12 @@
-package org.hvtra.pos.controller;
+package org.hvtra.orderservice.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.pos.dto.request.PosProductSearchRequest;
-import org.hvtra.pos.dto.response.PageResponse;
-import org.hvtra.pos.dto.response.PosProductVariantResponse;
-import org.hvtra.pos.service.PosProductService;
+import org.hvtra.orderservice.dto.request.PosProductSearchRequest;
+import org.hvtra.orderservice.dto.response.PageResponse;
+import org.hvtra.orderservice.dto.response.PosProductVariantResponse;
+import org.hvtra.orderservice.service.PosProductService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,8 +17,8 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/pos/products")
-@Tag(name = "POS Product BFF", description = "API cung cấp dữ liệu sản phẩm tối ưu cho giao diện POS")
+@RequestMapping({"/api/pos/products", "/api/orders/pos/products"})
+@Tag(name = "POS Product", description = "API cung cấp dữ liệu sản phẩm tối ưu cho giao diện POS")
 public class PosProductController {
 
     private final PosProductService posProductService;
@@ -45,3 +45,4 @@ public class PosProductController {
         return posProductService.getPosView(variantId);
     }
 }
+

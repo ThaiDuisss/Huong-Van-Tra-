@@ -14,7 +14,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         "org.hvtra.commonservice.common_core",
         "org.hvtra.commonservice.common_importing"
 })
-@SpringBootApplication(scanBasePackages = "org.hvtra")
 @EnableJpaRepositories(basePackages = "org.hvtra")
 @EntityScan(basePackages = "org.hvtra")
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)

@@ -12,7 +12,6 @@ import org.springframework.context.annotation.Import;
                 "org.hvtra.commonservice.common_core"
         }
 )
-@SpringBootApplication(scanBasePackages = "org.hvtra")
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
 public class FileServiceApplication {

@@ -1,4 +1,3 @@
-package org.hvtra.commonservice.common_importing.domain.enums;
 package org.hvtra.commonservice.common_importing.enums;
 
 public enum ImportBatchStatus {

@@ -1,4 +1,4 @@
-package org.hvtra.pos.dto.response;
+package org.hvtra.orderservice.dto.response;
 
 import java.util.List;
 
@@ -12,3 +12,4 @@ public record PageResponse<T>(
         boolean last
 ) {
 }
+
