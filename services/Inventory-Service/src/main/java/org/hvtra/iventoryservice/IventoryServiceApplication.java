@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice;
 
-import org.hvtra.commonservice.config.FeignConfig;
-import org.hvtra.commonservice.config.SwaggerConfig;
+import org.hvtra.commonservice.common_core.config.FeignConfig;
+import org.hvtra.commonservice.common_core.config.SwaggerConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -10,10 +10,14 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(scanBasePackages = "org.hvtra")
+@SpringBootApplication(scanBasePackages = {
+        "org.hvtra.iventoryservice",
+        "org.hvtra.commonservice.common_core",
+        "org.hvtra.commonservice.common_importing"
+})
 @EnableJpaRepositories(basePackages = "org.hvtra")
 @EntityScan(basePackages = "org.hvtra")
-@EnableFeignClients(defaultConfiguration = FeignConfig.class)
+@EnableFeignClients(basePackages = "org.hvtra", defaultConfiguration = FeignConfig.class)
 @EnableScheduling
 @Import(SwaggerConfig.class)
 public class IventoryServiceApplication {

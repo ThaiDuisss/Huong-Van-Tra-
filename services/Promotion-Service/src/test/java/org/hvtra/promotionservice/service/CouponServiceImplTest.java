@@ -1,7 +1,7 @@
 //package org.hvtra.promotionservice.service;
 //
-//import org.hvtra.commonservice.exception.ResourceAlreadyExistsException;
-//import org.hvtra.commonservice.exception.ResourceNotFoundException;
+//import org.hvtra.commonservice.common_core.exception.ResourceAlreadyExistsException;
+//import org.hvtra.commonservice.common_core.exception.ResourceNotFoundException;
 //import org.hvtra.promotionservice.dto.request.coupon.CouponCreateRequest;
 //import org.hvtra.promotionservice.dto.request.coupon.CouponStatusUpdateRequest;
 //import org.hvtra.promotionservice.dto.request.coupon.CouponUpdateRequest;

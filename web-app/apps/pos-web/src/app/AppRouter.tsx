@@ -221,9 +221,11 @@ export function AppRouter() {
           <Route path="categories" element={<CategoryListPage />} />
           <Route path="units" element={<UnitListPage />} />
           <Route path="products" element={<ProductListPage />} />
+          <Route path="products/import" element={<ProductImportPage />} />
 
           <Route path="products/:productId/variants" element={<ProductVariantListPage />} />
           <Route path="product-variants" element={<ProductVariantListPage />} />
+          <Route path="product-variants/import" element={<ProductVariantImportPage />} />
           <Route path="product-variants/:id" element={<ProductVariantDetailPage />} />
 
           <Route path="price-lists" element={<PriceListPage />} />
@@ -301,6 +303,7 @@ export function AppRouter() {
           <Route path="manufacturing/production-orders/new" element={<ManufacturingProductionOrderCreatePage />} />
           <Route path="manufacturing/production-orders/:id" element={<ManufacturingProductionOrderDetailPage />} />
           <Route path="manufacturing/ingredients" element={<RawMaterialListPage />} />
+          <Route path="manufacturing/ingredients/import" element={<IngredientImportPage />} />
           <Route path="manufacturing/suppliers" element={<SupplierListPage />} />
         </Route>
       </Route>
@@ -321,6 +324,8 @@ export function AppRouter() {
         <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
           <Route path="inventory/receipts" element={<GoodsReceiptListPage />} />
           <Route path="inventory/receipts/new" element={<GoodsReceiptCreatePage />} />
+          <Route path="inventory/receipts/import" element={<GoodsReceiptImportPage />} />
+          <Route path="inventory/receipts/import/:batchId" element={<GoodsReceiptImportReviewPage />} />
           <Route path="inventory/receipts/:receiptId" element={<GoodsReceiptDetailPage />} />
           <Route path="inventory/import-excel/new" element={<GoodsReceiptImportPage />} />
           <Route path="inventory/import-excel/:batchId" element={<GoodsReceiptImportReviewPage />} />

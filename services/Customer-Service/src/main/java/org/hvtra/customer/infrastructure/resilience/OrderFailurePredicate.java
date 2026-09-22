@@ -4,7 +4,7 @@ import feign.FeignException;
 import feign.RetryableException;
 import io.github.resilience4j.bulkhead.BulkheadFullException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
-import org.hvtra.commonservice.exception.FeignClientException;
+import org.hvtra.commonservice.common_core.exception.FeignClientException;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;

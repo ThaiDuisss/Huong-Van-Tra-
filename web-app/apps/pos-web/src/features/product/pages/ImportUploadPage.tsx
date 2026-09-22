@@ -7,7 +7,7 @@ import { routePaths } from "../../../routes/path";
 import { ImportBatchPanel, type ImportItemsListProps } from "../components/ImportBatchPanel";
 import { IMPORT_ITEMS_LIST_REGISTRY } from "../import-batch-registry";
 import { importBatchApi as defaultImportBatchApi, type ImportBatchApi } from "../services/importBatch.api";
-import type { ImportType } from "../types/import-batch.types";
+import type { ImportPreviewResponse, ImportType } from "../types/import-batch.types";
 
 interface ImportUploadPageProps {
     importType: ImportType;
@@ -21,6 +21,8 @@ interface ImportUploadPageProps {
     itemsListRegistry?: Partial<Record<ImportType, ComponentType<ImportItemsListProps>>>;
     /** Route "Quay lại danh sách yêu cầu nhập" — mặc định là trang danh sách của Catalog. */
     backTo?: string;
+    /** Nhãn nút quay lại — mặc định là "← Quay lại danh sách yêu cầu nhập" */
+    backLabel?: string;
 }
 
 export function ImportUploadPage({
@@ -31,27 +33,28 @@ export function ImportUploadPage({
     downloadTemplate,
     api = defaultImportBatchApi,
     itemsListRegistry = IMPORT_ITEMS_LIST_REGISTRY,
-    backTo = routePaths.importExcelRequests
+    backTo = routePaths.importExcelRequests,
+    backLabel = "← Quay lại danh sách yêu cầu nhập"
 }: ImportUploadPageProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState("");
-    const [createdBatchId, setCreatedBatchId] = useState<string | null>(null);
+    const [previewData, setPreviewData] = useState<ImportPreviewResponse | null>(null);
 
     async function handleDownloadTemplate() {
         try {
             const blob = await downloadTemplate();
             const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", templateFileName);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (err) {
-            console.error("Lỗi tải file mẫu:", err);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = templateFileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch {
             setError("Không thể tải file mẫu.");
         }
     }
@@ -64,8 +67,8 @@ export function ImportUploadPage({
         setError("");
         setUploading(true);
         try {
-            const batch = await api.create(importType, selectedFile);
-            setCreatedBatchId(batch.id);
+            const preview = await api.preview(importType, selectedFile);
+            setPreviewData(preview);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Tải file lên thất bại.");
         } finally {
@@ -74,7 +77,7 @@ export function ImportUploadPage({
     }
 
     function handleImportAnother() {
-        setCreatedBatchId(null);
+        setPreviewData(null);
         setSelectedFile(null);
         setError("");
         if (fileInputRef.current) {
@@ -86,7 +89,7 @@ export function ImportUploadPage({
         <section className="grid gap-4">
             <div className="flex items-center justify-between">
                 <Link className="text-sm font-black text-[#159734] hover:underline" to={backTo}>
-                    ← Quay lại danh sách yêu cầu nhập
+                    {backLabel}
                 </Link>
             </div>
 
@@ -101,19 +104,24 @@ export function ImportUploadPage({
                 </div>
             ) : null}
 
-            {createdBatchId ? (
+            {previewData ? (
                 <>
-                    <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-                        <span>Đã phân tích xong file Excel — kiểm tra/sửa danh sách bên dưới trước khi gửi duyệt.</span>
+                    <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+                        <span>Đã phân tích xong file Excel ({previewData.totalRows} dòng, {previewData.validRows} hợp lệ, {previewData.errorRows} lỗi) — kiểm tra/sửa danh sách bên dưới trước khi lưu nháp hoặc gửi duyệt.</span>
                         <button
-                            className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-100"
+                            className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-black text-amber-800 hover:bg-amber-100"
                             onClick={handleImportAnother}
                             type="button"
                         >
                             Nhập file khác
                         </button>
                     </div>
-                    <ImportBatchPanel api={api} batchId={createdBatchId} itemsListRegistry={itemsListRegistry} />
+                    <ImportBatchPanel
+                        api={api}
+                        itemsListRegistry={itemsListRegistry}
+                        previewData={previewData}
+                        sourceFile={selectedFile}
+                    />
                 </>
             ) : (
                 <div className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">

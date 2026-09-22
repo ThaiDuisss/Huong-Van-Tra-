@@ -13,14 +13,38 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 /**
- * Feign client gọi đến Inventory-Service để thực hiện trừ kho và đồng bộ trạng thái.
+ * Feign client gọi đến Inventory-Service để thực hiện trừ kho.
+ *
+ * TODO: Cần wire vào OrderServiceImpl khi đã xác nhận phương thức giao tiếp
+ *       (REST synchronous hoặc event-driven Kafka).
  */
-@FeignClient(name = "inventory-service", url = "${clients.inventory-service.url:http://localhost:8084}")
+@FeignClient(name = "inventory-service", url = "${clients.inventory.url:${clients.inventory-service.url:}}")
 public interface InventoryClient {
+
+    @PostMapping("/internal/inventory/stocks/variants/batch")
+    List<StockVariantBatchResponse> getStocksByVariantIds(@RequestBody StockVariantBatchRequest request);
+
+    @Builder
+    record StockVariantBatchRequest(
+            List<UUID> variantIds,
+            UUID warehouseId
+    ) {
+        public StockVariantBatchRequest(List<UUID> variantIds) {
+            this(variantIds, null);
+        }
+    }
+
+    record StockVariantBatchResponse(
+            UUID variantId,
+            UUID inventoryLocationId,
+            BigDecimal availableQuantity,
+            BigDecimal reservedQuantity,
+            String stockStatus
+    ) {
+    }
 
     @PostMapping("/api/inventory/reservations/apply")
     void applyReservation(@RequestBody ApplyInventoryReservationRequest request);

@@ -1,12 +1,11 @@
 package org.hvtra.fileservice.controller;
 
-import com.google.protobuf.Api;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.domain.entity.UserHeaderInformation;
-import org.hvtra.commonservice.domain.response.ApiResponse;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.domain.entity.UserHeaderInformation;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.fileservice.model.request.FileAttach;
 import org.hvtra.fileservice.model.request.InitUploadRequest;
 import org.hvtra.fileservice.model.response.DownloadUrlResponse;

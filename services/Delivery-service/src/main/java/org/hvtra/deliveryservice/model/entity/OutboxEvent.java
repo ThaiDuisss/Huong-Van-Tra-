@@ -7,7 +7,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.common_core.kafka.outbox.entity.BaseOutboxEvent;
 
 @Getter
 @Entity

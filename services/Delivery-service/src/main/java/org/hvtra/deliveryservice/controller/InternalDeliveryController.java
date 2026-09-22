@@ -2,7 +2,7 @@ package org.hvtra.deliveryservice.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.deliveryservice.model.enums.DeliveryRouteStatus;
 import org.hvtra.deliveryservice.model.request.internal.*;
 import org.hvtra.deliveryservice.model.response.internal.InternalEligibilityResponse;

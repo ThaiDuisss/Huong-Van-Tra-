@@ -108,7 +108,7 @@ resilience4j:
           - java.net.SocketTimeoutException
           - feign.RetryableException
           - java.util.concurrent.TimeoutException
-          - org.hvtra.commonservice.exception.FeignClientException
+          - org.hvtra.commonservice.common_core.exception.FeignClientException
         ignore-exceptions:
           - feign.FeignException$Unauthorized
 

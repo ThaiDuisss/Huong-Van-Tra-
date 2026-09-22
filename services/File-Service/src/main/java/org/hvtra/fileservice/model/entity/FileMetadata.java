@@ -2,7 +2,7 @@ package org.hvtra.fileservice.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hvtra.commonservice.domain.entity.BaseEntityNoId;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntityNoId;
 import org.hvtra.fileservice.model.enums.FilePurpose;
 import org.hvtra.fileservice.model.enums.FileStatus;
 import org.hvtra.fileservice.model.enums.FileVisibility;

@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import org.hvtra.commonservice.common_core.util.CodeUtils;
 import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.springframework.data.domain.Page;
 
@@ -92,7 +94,7 @@ public class StoreShelfServiceImpl implements StoreShelfService {
 
         InventoryLocation shelf = new InventoryLocation();
         shelf.setBranchId(warehouse.getBranchId());          // kế thừa branchId từ kho
-        shelf.setCode(generateShelfCode());
+        shelf.setCode(generateShelfCode(request.name()));
         shelf.setName(request.name().trim());
         shelf.setType(InventoryLocationType.SHELF);
         shelf.setStatus(request.status());
@@ -146,14 +148,17 @@ public class StoreShelfServiceImpl implements StoreShelfService {
     }
 
     /**
-     * Sinh mã kệ tự động: KE-{8 ký tự hex ngẫu nhiên viết hoa}.
+     * Sinh mã kệ tự động: {Viết tắt tên kệ}-{4 số ngẫu nhiên duy nhất}.
+     * Ví dụ: KE-1024, KT1-8192
      */
-    private String generateShelfCode() {
-        String suffix = UUID.randomUUID().toString()
-                .replace("-", "")
-                .substring(0, 8)
-                .toUpperCase();
-        return "KE-" + suffix;
+    private String generateShelfCode(String shelfName) {
+        String prefix = CodeUtils.getInitials(shelfName, "KE");
+        String code;
+        do {
+            int randomNum = ThreadLocalRandom.current().nextInt(1000, 10000);
+            code = String.format("%s-%04d", prefix, randomNum);
+        } while (repository.existsByCode(code));
+        return code;
     }
 
     @Override

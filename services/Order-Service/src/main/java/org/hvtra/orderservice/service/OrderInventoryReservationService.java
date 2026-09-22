@@ -2,7 +2,7 @@ package org.hvtra.orderservice.service;
 
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.exception.FeignClientException;
+import org.hvtra.commonservice.common_core.exception.FeignClientException;
 import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.exception.InventoryReservationFailedException;

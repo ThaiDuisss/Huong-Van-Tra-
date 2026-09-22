@@ -12,17 +12,19 @@ import {
     DialogTitle
 } from "../../../components/ui/dialog";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
+import { fileApi } from "../../../api/file.api";
 import { importBatchApi as defaultImportBatchApi, type ImportBatchApi } from "../services/importBatch.api";
-import type { ImportBatch, ImportBatchItem, ImportBatchStatus, ImportType } from "../types/import-batch.types";
+import type { ImportBatch, ImportBatchItem, ImportBatchStatus, ImportPreviewResponse, ImportType } from "../types/import-batch.types";
 
-const STATUS_LABEL: Record<ImportBatchStatus, { label: string; className: string }> = {
+const STATUS_LABEL: Record<ImportBatchStatus | "PREVIEW", { label: string; className: string }> = {
+    PREVIEW: { label: "Bản xem trước (chưa lưu)", className: "bg-amber-50 text-amber-700 border border-amber-200" },
     DRAFT: { label: "Bản nháp", className: "bg-neutral-100 text-neutral-700" },
     PENDING_APPROVAL: { label: "Chờ duyệt", className: "bg-blue-50 text-blue-700" },
     APPROVED: { label: "Đã duyệt", className: "bg-emerald-50 text-emerald-700" },
     REJECTED: { label: "Bị từ chối", className: "bg-red-50 text-red-700" }
 };
 
-export function StatusPill({ status }: { status: ImportBatchStatus }) {
+export function StatusPill({ status }: { status: ImportBatchStatus | "PREVIEW" }) {
     const info = STATUS_LABEL[status];
     return (
         <span className={`inline-flex h-7 items-center rounded-full px-2.5 text-xs font-bold ${info.className}`}>
@@ -33,7 +35,7 @@ export function StatusPill({ status }: { status: ImportBatchStatus }) {
 
 /** Mỗi loại import (PRODUCT, PRODUCT_VARIANT, ...) tự cung cấp 1 component render toàn bộ danh sách dòng
  * của TRANG hiện tại — để được tự quản lý state/lookup dùng chung giữa các dòng (vd danh sách danh mục,
- * nguyên liệu) chỉ tải 1 lần cho cả trang thay vì tải lại theo từng dòng. */
+ * nguyên liệu) chỉ tải 1 lần cho cả trang thay vị tải lại theo từng dòng. */
 export interface ImportItemsListProps {
     items: ImportBatchItem[];
     editable: boolean;
@@ -44,7 +46,14 @@ export interface ImportItemsListProps {
 }
 
 interface ImportBatchPanelProps {
-    batchId: string;
+    /** Mã batchId nếu đã lưu trong DB (khi xem lại phiếu import cũ hoặc vừa lưu xong). */
+    batchId?: string;
+    /** Dữ liệu phân tích xem trước (chưa lưu DB). */
+    previewData?: ImportPreviewResponse;
+    /** File nguồn được chọn từ máy người dùng */
+    sourceFile?: File | null;
+    /** Callback thông báo khi preview được lưu thành công vào DB thành batch chính thức. */
+    onBatchSaved?: (savedBatch: ImportBatch) => void;
     /** Called whenever the batch is (re)loaded or changes status/version, for parents that need to react (e.g. refresh a list). */
     onBatchChange?: (batch: ImportBatch) => void;
     /** Component hiển thị danh sách dòng theo từng loại import — bắt buộc, thêm loại mới chỉ cần thêm 1 entry ở đây. */
@@ -53,12 +62,35 @@ interface ImportBatchPanelProps {
     api?: ImportBatchApi;
 }
 
-export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, api = defaultImportBatchApi }: ImportBatchPanelProps) {
+export function ImportBatchPanel({
+    batchId,
+    previewData,
+    sourceFile,
+    onBatchSaved,
+    onBatchChange,
+    itemsListRegistry,
+    api = defaultImportBatchApi
+}: ImportBatchPanelProps) {
     const { hasAnyRole } = useAuthorization();
     const canApprove = hasAnyRole(["ADMIN", "BRANCH_MANAGER"]);
 
+    // State khi đã lưu hoặc đang xem theo batchId
     const [batch, setBatch] = useState<ImportBatch | null>(null);
-    const [loading, setLoading] = useState(true);
+
+    // State khi đang ở chế độ preview (chưa lưu DB)
+    const [previewItems, setPreviewItems] = useState<ImportBatchItem[]>(() => {
+        if (!previewData) return [];
+        return previewData.items.map((item) => ({
+            id: item.id,
+            rowIndex: item.rowIndex,
+            payload: item.payload,
+            validationErrors: item.validationErrors ?? [],
+            occurrenceCount: item.occurrenceCount,
+            createdEntityId: null
+        }));
+    });
+
+    const [loading, setLoading] = useState(Boolean(batchId));
     const [error, setError] = useState("");
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [itemsPage, setItemsPage] = useState(1);
@@ -69,6 +101,32 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
 
+    const isPreview = !batch && Boolean(previewData);
+
+    // Helper upload file lên FileService khi người dùng bấm Lưu nháp hoặc Gửi duyệt
+    async function uploadSourceFile(): Promise<{ fileId: string; fileUrl: string | null } | null> {
+        if (!sourceFile) return null;
+        try {
+            const uploadRes = await fileApi.uploadFile(sourceFile, { purpose: "USER_DOCUMENT" });
+            let fileUrl = uploadRes.publicUrl;
+            if (!fileUrl) {
+                try {
+                    const downloadRes = await fileApi.downloadUrl(uploadRes.fileId);
+                    fileUrl = downloadRes.url;
+                } catch {
+                    fileUrl = uploadRes.uploadUrl?.split("?")[0] || null;
+                }
+            }
+            return {
+                fileId: uploadRes.fileId,
+                fileUrl: fileUrl || uploadRes.publicUrl || null
+            };
+        } catch (uploadErr) {
+            console.error("Failed to upload file to FileService:", uploadErr);
+            return null;
+        }
+    }
+
     const applyBatch = useCallback(
         (updated: ImportBatch) => {
             setBatch(updated);
@@ -78,6 +136,10 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
     );
 
     const loadBatch = useCallback(() => {
+        if (!batchId) {
+            setLoading(false);
+            return () => { };
+        }
         let active = true;
         setLoading(true);
         setError("");
@@ -95,38 +157,73 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
         return () => {
             active = false;
         };
-    }, [batchId, applyBatch, api]);
+    }, [api, applyBatch, batchId]);
 
-    useEffect(() => loadBatch(), [loadBatch]);
+    useEffect(() => {
+        const cleanup = loadBatch();
+        return () => cleanup?.();
+    }, [loadBatch]);
+
+    useEffect(() => {
+        if (previewData) {
+            setPreviewItems(
+                previewData.items.map((item) => ({
+                    id: item.id,
+                    rowIndex: item.rowIndex,
+                    payload: item.payload,
+                    validationErrors: item.validationErrors ?? [],
+                    occurrenceCount: item.occurrenceCount,
+                    createdEntityId: null
+                }))
+            );
+        }
+    }, [previewData]);
 
     useEffect(() => {
         setItemsPage(1);
     }, [batchId]);
 
-    function showToast(message: string, success: boolean) {
+    function showToast(message: string, success: boolean = true) {
         setToast({ message, success });
         window.setTimeout(() => setToast(null), 3500);
     }
 
     async function handleUpdateItem(itemId: string, payload: Record<string, unknown>) {
+        if (isPreview) {
+            setPreviewItems((prev) =>
+                prev.map((it) => (it.id === itemId ? { ...it, payload } : it))
+            );
+            return;
+        }
         if (!batch) return;
+        setActionLoading(true);
         try {
             const updated = await api.updateItem(batch.id, itemId, payload);
             applyBatch(updated);
-            showToast("Đã lưu dòng.", true);
+            showToast("Đã cập nhật dòng.");
         } catch (err) {
-            showToast(err instanceof Error ? err.message : "Lưu dòng thất bại.", false);
+            showToast(err instanceof Error ? err.message : "Cập nhật thất bại.", false);
+            throw err;
+        } finally {
+            setActionLoading(false);
         }
     }
 
     async function handleDeleteItem(itemId: string) {
+        if (isPreview) {
+            setPreviewItems((prev) => prev.filter((it) => it.id !== itemId));
+            return;
+        }
         if (!batch) return;
+        setActionLoading(true);
         try {
             const updated = await api.deleteItem(batch.id, itemId);
             applyBatch(updated);
-            showToast("Đã xóa dòng.", true);
+            showToast("Đã xoá dòng.");
         } catch (err) {
-            showToast(err instanceof Error ? err.message : "Xóa dòng thất bại.", false);
+            showToast(err instanceof Error ? err.message : "Xoá thất bại.", false);
+        } finally {
+            setActionLoading(false);
         }
     }
 
@@ -149,11 +246,79 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
     }
 
     async function handleSaveDraft() {
+        if (isPreview) {
+            if (!previewData || previewItems.length === 0) {
+                showToast("Không có dòng dữ liệu nào để lưu nháp.", false);
+                return;
+            }
+            setActionLoading(true);
+            try {
+                // Upload file lên FileService khi người dùng bấm Lưu nháp
+                const uploadResult = await uploadSourceFile();
+                const fileId = uploadResult?.fileId ?? null;
+                const sourceFileName = uploadResult?.fileUrl || previewData.sourceFileName;
+
+                const createdBatch = await api.saveDraft({
+                    type: previewData.importType,
+                    sourceFileName,
+                    fileId,
+                    items: previewItems.map((it) => ({
+                        rowIndex: it.rowIndex,
+                        payload: it.payload,
+                        occurrenceCount: it.occurrenceCount
+                    }))
+                });
+                applyBatch(createdBatch);
+                onBatchSaved?.(createdBatch);
+                showToast("Đã lưu bản nháp vào hệ thống thành công.", true);
+            } catch (err) {
+                showToast(err instanceof Error ? err.message : "Lưu nháp thất bại.", false);
+            } finally {
+                setActionLoading(false);
+            }
+            return;
+        }
         loadBatch();
         showToast("Đã lưu nháp.", true);
     }
 
     async function handleSubmit() {
+        if (isPreview) {
+            if (!previewData || previewItems.length === 0) {
+                showToast("Không có dòng dữ liệu nào để gửi duyệt.", false);
+                return;
+            }
+            setActionLoading(true);
+            try {
+                // Upload file lên FileService khi người dùng bấm Gửi duyệt
+                const uploadResult = await uploadSourceFile();
+                const fileId = uploadResult?.fileId ?? null;
+                const sourceFileName = uploadResult?.fileUrl || previewData.sourceFileName;
+
+                // Lưu nháp vào DB trước (backend sẽ tự động attach fileId qua Feign), sau đó submit
+                const createdBatch = await api.saveDraft({
+                    type: previewData.importType,
+                    sourceFileName,
+                    fileId,
+                    items: previewItems.map((it) => ({
+                        rowIndex: it.rowIndex,
+                        payload: it.payload,
+                        occurrenceCount: it.occurrenceCount
+                    }))
+                });
+                applyBatch(createdBatch);
+                onBatchSaved?.(createdBatch);
+                // Submit batch vừa tạo
+                const submitted = await api.submit(createdBatch.id, createdBatch.version);
+                applyBatch(submitted);
+                showToast("Đã lưu và gửi quản lý duyệt thành công.", true);
+            } catch (err) {
+                showToast(err instanceof Error ? err.message : "Gửi duyệt thất bại.", false);
+            } finally {
+                setActionLoading(false);
+            }
+            return;
+        }
         if (!batch) return;
         await runVersionedAction(() => api.submit(batch.id, batch.version), "Đã gửi quản lý duyệt.");
     }
@@ -184,7 +349,7 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
         return <div className="p-6 text-sm font-bold text-[#536078]">Đang tải phiếu import...</div>;
     }
 
-    if (error || !batch) {
+    if (error || (!batch && !isPreview)) {
         return (
             <section className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">
                 <div>{error || "Không tìm thấy phiếu import."}</div>
@@ -197,24 +362,29 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
         );
     }
 
-    const isEditable = batch.status === "DRAFT" || batch.status === "REJECTED";
-    const hasInvalidItems = batch.items.some((i) => i.validationErrors.length > 0);
-    const canSubmit = isEditable && batch.items.length > 0 && !hasInvalidItems && !actionLoading;
-    const showApprovalActions = batch.status === "PENDING_APPROVAL" && canApprove;
+    const currentItems = isPreview ? previewItems : (batch?.items ?? []);
+    const currentStatus: ImportBatchStatus | "PREVIEW" = isPreview ? "PREVIEW" : (batch?.status ?? "DRAFT");
+    const currentImportType: ImportType = isPreview ? previewData!.importType : batch!.importType;
+    const currentFileName = isPreview ? previewData?.sourceFileName : batch?.sourceFileName;
+    const currentBatchCode = isPreview ? "Bản xem trước (Chưa lưu)" : batch?.batchCode;
 
-    const itemsPageCount = Math.max(1, Math.ceil(batch.items.length / itemsPageSize));
+    const isEditable = isPreview || batch?.status === "DRAFT" || batch?.status === "REJECTED";
+    const hasInvalidItems = currentItems.some((i) => i.validationErrors.length > 0);
+    const canSubmit = isEditable && currentItems.length > 0 && !hasInvalidItems && !actionLoading;
+    const showApprovalActions = !isPreview && batch?.status === "PENDING_APPROVAL" && canApprove;
+
+    const itemsPageCount = Math.max(1, Math.ceil(currentItems.length / itemsPageSize));
     const safeItemsPage = Math.min(itemsPage, itemsPageCount);
-    const pagedItems = batch.items.slice((safeItemsPage - 1) * itemsPageSize, safeItemsPage * itemsPageSize);
+    const pagedItems = currentItems.slice((safeItemsPage - 1) * itemsPageSize, safeItemsPage * itemsPageSize);
 
-    const ItemsList = itemsListRegistry[batch.importType];
+    const ItemsList = itemsListRegistry[currentImportType];
 
     return (
         <section className="grid gap-4">
             {toast ? (
                 <div
-                    className={`fixed right-6 top-6 z-50 rounded-xl px-5 py-3 text-sm font-black text-white shadow-2xl transition-all ${
-                        toast.success ? "bg-[#159734]" : "bg-red-600"
-                    }`}
+                    className={`fixed right-6 top-6 z-50 rounded-xl px-5 py-3 text-sm font-black text-white shadow-2xl transition-all ${toast.success ? "bg-[#159734]" : "bg-red-600"
+                        }`}
                 >
                     {toast.message}
                 </div>
@@ -222,23 +392,45 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
 
             <header className="grid gap-2 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card">
                 <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-2xl font-black text-[#172317] font-mono">{batch.batchCode}</h1>
-                    <StatusPill status={batch.status} />
+                    <h1 className="text-2xl font-black text-[#172317] font-mono">{currentBatchCode}</h1>
+                    <StatusPill status={currentStatus} />
                 </div>
                 <p className="text-sm font-semibold text-[#536078]">
-                    File: {batch.sourceFileName ?? "—"} · {batch.items.length} dòng
+                    File:{" "}
+                    {currentFileName ? (
+                        currentFileName.startsWith("http") ? (
+                            <a
+                                className="font-bold text-[#159734] underline hover:text-[#12802c]"
+                                href={currentFileName}
+                                rel="noopener noreferrer"
+                                target="_blank"
+                            >
+                                Tải file nguồn
+                            </a>
+                        ) : (
+                            currentFileName
+                        )
+                    ) : (
+                        "—"
+                    )}{" "}
+                    · {currentItems.length} dòng
                 </p>
-                {batch.status === "REJECTED" && batch.rejectionReason ? (
+                {/* {isPreview ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">
+                        Dữ liệu đang ở chế độ xem trước, chưa được lưu vào cơ sở dữ liệu. Bạn có thể kiểm tra, sửa các ô bên dưới rồi nhấn <strong>Lưu nháp</strong> hoặc <strong>Gửi quản lý duyệt</strong> để lưu vào hệ thống.
+                    </div>
+                ) : null} */}
+                {!isPreview && batch?.status === "REJECTED" && batch.rejectionReason ? (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
                         Lý do từ chối: {batch.rejectionReason}
                     </div>
                 ) : null}
-                {batch.status === "PENDING_APPROVAL" ? (
+                {!isPreview && batch?.status === "PENDING_APPROVAL" ? (
                     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-bold text-blue-700">
                         Đang chờ quản lý duyệt — không thể chỉnh sửa.
                     </div>
                 ) : null}
-                {batch.status === "APPROVED" ? (
+                {!isPreview && batch?.status === "APPROVED" ? (
                     <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
                         Đã duyệt — dữ liệu đã được ghi chính thức vào hệ thống.
                     </div>
@@ -258,7 +450,7 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
                         />
                     ) : (
                         <div className="p-4 text-sm font-bold text-red-600">
-                            Loại import "{batch.importType}" chưa được hỗ trợ hiển thị trên giao diện.
+                            Loại import "{currentImportType}" chưa được hỗ trợ hiển thị trên giao diện.
                         </div>
                     )}
                 </div>
@@ -271,7 +463,7 @@ export function ImportBatchPanel({ batchId, onBatchChange, itemsListRegistry, ap
                     page={safeItemsPage}
                     pageCount={itemsPageCount}
                     pageSize={itemsPageSize}
-                    totalItems={batch.items.length}
+                    totalItems={currentItems.length}
                     totalItemsLabel="Tổng số dòng"
                 />
             </div>

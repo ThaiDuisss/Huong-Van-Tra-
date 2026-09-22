@@ -1,6 +1,6 @@
 package org.hvtra.identityservice;
 
-import org.hvtra.commonservice.config.SwaggerConfig;
+import org.hvtra.commonservice.common_core.config.SwaggerConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;

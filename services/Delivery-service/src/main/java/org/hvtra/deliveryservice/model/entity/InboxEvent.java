@@ -6,7 +6,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hvtra.commonservice.kafka.inbox.BaseInbox;
+import org.hvtra.commonservice.common_core.kafka.inbox.BaseInbox;
 
 @Getter
 @Entity

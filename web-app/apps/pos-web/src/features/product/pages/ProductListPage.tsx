@@ -170,7 +170,7 @@ export function ProductListPage() {
                 totalItemsLabel="Tổng số sản phẩm"
                 extraHeaderActions={
                     <>
-                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.importExcelCreate)}>
+                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.productImport)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>

@@ -3,7 +3,7 @@ package org.hvtra.iventoryservice.integration.order.consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.hvtra.commonservice.kafka.inbox.InboxStatus;
+import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.iventoryservice.integration.order.dto.OrderInventoryEventPayload;
 import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.domain.entity.InventoryInbox;

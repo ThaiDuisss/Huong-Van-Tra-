@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.entity.BusinessSequence;
+import org.hvtra.commonservice.common_core.util.CodeUtils;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.LookupResponse;
@@ -13,6 +14,7 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.Category;
+import org.hvtra.catalog.entity.Ingredient;
 import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.InventoryItemType;
@@ -28,7 +30,6 @@ import org.hvtra.catalog.service.ProductVariantService;
 import org.hvtra.catalog.util.ExcelExportHelper;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
@@ -52,8 +53,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.Arrays;
 import java.util.Objects;
 import org.hvtra.catalog.enums.InventoryPolicy;
 
@@ -147,28 +146,30 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     }
 
     @Transactional
-    public String generateSku(Product product) {
-        String name = product.getName();
-        String normalized = java.text.Normalizer.normalize(name != null ? name : "", java.text.Normalizer.Form.NFD);
-        normalized = normalized.replaceAll("\\p{M}", "");
-        String clean = normalized.replaceAll("[^a-zA-Z0-9\\s]", "").toUpperCase().trim();
-        String[] words = clean.split("\\s+");
-        String prefix = Arrays.stream(words)
-                .filter(w -> !w.isEmpty())
-                .map(w -> w.substring(0, 1))
-                .collect(Collectors.joining());
-
-        if (prefix.isEmpty()) {
-            prefix = "PR";
-        }
-
+    public String generateSku(Product product, Integer quantity, String symbolUnit) {
+        String prefix = CodeUtils.getInitials(product != null ? product.getName() : null, "PR", quantity, symbolUnit);
         BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("SKU")
-                .orElseThrow(() -> new RuntimeException("SKU sequence not initialized"));
-        long nextVal = seq.getCurrentValue() + 1;
-        seq.setCurrentValue(nextVal);
-        businessSequenceRepository.saveAndFlush(seq);
+                .orElseGet(() -> {
+                    BusinessSequence newSeq = new BusinessSequence();
+                    newSeq.setSequenceKey("SKU");
+                    newSeq.setCurrentValue(0L);
+                    return businessSequenceRepository.saveAndFlush(newSeq);
+                });
 
-        return String.format("%s-%05d", prefix, nextVal);
+        String sku;
+        do {
+            long nextVal = seq.getCurrentValue() + 1;
+            seq.setCurrentValue(nextVal);
+            sku = String.format("%s-%05d", prefix, nextVal);
+        } while (repository.existsBySku(sku));
+
+        businessSequenceRepository.saveAndFlush(seq);
+        return sku;
+    }
+
+    @Transactional
+    public String generateSku(Product product) {
+        return generateSku(product, null, null);
     }
 
     @Override
@@ -180,7 +181,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setProduct(product);
         apply(variant, request);
 
-        String generatedSku = generateSku(product);
+        Integer quantity = variant.getQuantity() != null ? variant.getQuantity().intValue() : null;
+        String symbol = variant.getUnit() != null ? variant.getUnit().getSymbol() : null;
+        String generatedSku = generateSku(product, quantity, symbol);
         variant.setSku(generatedSku);
 
         ProductVariant savedVariant = repository.saveAndFlush(variant);
@@ -561,46 +564,60 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     private void buildImportReferenceSheet(Workbook workbook) {
         Sheet sheet = workbook.createSheet("Tham chiếu");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        Font headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        CellStyle headerStyle = workbook.createCellStyle();
-        headerStyle.setFont(headerFont);
-
-        // Mỗi thực thể tham chiếu chiếm 1 cột — thêm thực thể mới thì thêm 1 cột kế tiếp tại đây.
-        String[] headers = {"Mã sản phẩm", "Mã nguyên liệu", "Đơn vị"};
+        // Mỗi thực thể tham chiếu gồm 2 cột: Mã và Tên
+        String[] headers = {
+                "Mã sản phẩm", "Tên sản phẩm",
+                "Mã nguyên liệu", "Tên nguyên liệu",
+                "Ký hiệu đơn vị", "Tên đơn vị"
+        };
         Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        List<String> productCodes = productRepository.findAll().stream()
+        record CodeName(String code, String name) {}
+
+        List<CodeName> products = productRepository.findAll().stream()
                 .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
-                .map(Product::getProductCode)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
-                .toList();
-        List<String> ingredientCodes = ingredientRepository.findAll().stream()
-                .filter(i -> !Boolean.TRUE.equals(i.getIsDeleted()))
-                .map(org.hvtra.catalog.entity.Ingredient::getIngredientCode)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
-                .toList();
-        List<String> unitSymbols = unitRepository.findAll().stream()
-                .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
-                .map(Unit::getSymbol)
-                .filter(symbol -> symbol != null && !symbol.isBlank())
-                .sorted()
+                .filter(p -> p.getProductCode() != null && !p.getProductCode().isBlank())
+                .sorted((a, b) -> a.getProductCode().compareToIgnoreCase(b.getProductCode()))
+                .map(p -> new CodeName(p.getProductCode(), p.getName() != null ? p.getName() : ""))
                 .toList();
 
-        int maxRows = Math.max(productCodes.size(), Math.max(ingredientCodes.size(), unitSymbols.size()));
+        List<CodeName> ingredients = ingredientRepository.findAll().stream()
+                .filter(i -> !Boolean.TRUE.equals(i.getIsDeleted()))
+                .filter(i -> i.getIngredientCode() != null && !i.getIngredientCode().isBlank())
+                .sorted((a, b) -> a.getIngredientCode().compareToIgnoreCase(b.getIngredientCode()))
+                .map(i -> new CodeName(i.getIngredientCode(), i.getName() != null ? i.getName() : ""))
+                .toList();
+
+        List<CodeName> units = unitRepository.findAll().stream()
+                .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
+                .filter(u -> u.getSymbol() != null && !u.getSymbol().isBlank())
+                .sorted((a, b) -> a.getSymbol().compareToIgnoreCase(b.getSymbol()))
+                .map(u -> new CodeName(u.getSymbol(), u.getName() != null ? u.getName() : ""))
+                .toList();
+
+        int maxRows = Math.max(products.size(), Math.max(ingredients.size(), units.size()));
         for (int i = 0; i < maxRows; i++) {
             Row row = sheet.createRow(i + 1);
-            if (i < productCodes.size()) row.createCell(0).setCellValue(productCodes.get(i));
-            if (i < ingredientCodes.size()) row.createCell(1).setCellValue(ingredientCodes.get(i));
-            if (i < unitSymbols.size()) row.createCell(2).setCellValue(unitSymbols.get(i));
+            if (i < products.size()) {
+                row.createCell(0).setCellValue(products.get(i).code());
+                row.createCell(1).setCellValue(products.get(i).name());
+            }
+            if (i < ingredients.size()) {
+                row.createCell(2).setCellValue(ingredients.get(i).code());
+                row.createCell(3).setCellValue(ingredients.get(i).name());
+            }
+            if (i < units.size()) {
+                row.createCell(4).setCellValue(units.get(i).code());
+                row.createCell(5).setCellValue(units.get(i).name());
+            }
         }
 
         sheet.createFreezePane(0, 1);

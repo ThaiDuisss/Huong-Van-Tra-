@@ -18,8 +18,8 @@ export function GoodsReceiptImportReviewPage() {
 
     return (
         <section className="grid gap-4">
-            <Link className="text-sm font-black text-[#159734] hover:underline" to={routePaths.importExcelRequests}>
-                ← Quay lại danh sách yêu cầu nhập
+            <Link className="text-sm font-black text-[#159734] hover:underline" to={routePaths.goodsReceipts}>
+                ← Quay lại danh sách phiếu nhập kho
             </Link>
             <ImportBatchPanel api={importBatchApi} batchId={batchId} itemsListRegistry={ITEMS_LIST_REGISTRY} />
         </section>

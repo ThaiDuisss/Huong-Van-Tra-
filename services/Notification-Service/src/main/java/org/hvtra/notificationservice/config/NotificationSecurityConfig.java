@@ -1,10 +1,9 @@
 package org.hvtra.notificationservice.config;
 
-import org.hvtra.commonservice.config.BaseSecurityConfig;
+import org.hvtra.commonservice.common_core.config.BaseSecurityConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration

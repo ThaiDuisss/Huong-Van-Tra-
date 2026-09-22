@@ -33,7 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
-import java.text.Normalizer;
+import org.hvtra.commonservice.common_core.util.CodeUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -61,7 +61,8 @@ public class IngredientServiceImpl implements IngredientService {
     }
 
     @Transactional
-    public String generateIngredientCode(String ingredientName) {
+    public String generateIngredientCode(String ingredientName, Integer quantity, String symbolUnit) {
+        String prefix = CodeUtils.getInitials(ingredientName, "NL", quantity, symbolUnit);
         BusinessSequence seq = businessSequenceRepository
                 .findBySequenceKeyWithLock("INGREDIENT")
                 .orElseGet(() -> {
@@ -71,32 +72,20 @@ public class IngredientServiceImpl implements IngredientService {
                     return businessSequenceRepository.saveAndFlush(newSeq);
                 });
 
-        long nextVal = seq.getCurrentValue() + 1;
-        seq.setCurrentValue(nextVal);
-        businessSequenceRepository.saveAndFlush(seq);
+        String code;
+        do {
+            long nextVal = seq.getCurrentValue() + 1;
+            seq.setCurrentValue(nextVal);
+            code = String.format("%s-%02d", prefix, nextVal);
+        } while (repository.existsByIngredientCode(code));
 
-        String prefix = getInitials(ingredientName);
-        return String.format("%s-%02d", prefix, nextVal);
+        businessSequenceRepository.saveAndFlush(seq);
+        return code;
     }
 
-    private String getInitials(String name) {
-        if (name == null || name.trim().isEmpty()) {
-            return "NL";
-        }
-
-        String normalized = Normalizer.normalize(name, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .replace("Đ", "D")
-                .replace("đ", "d");
-
-        StringBuilder initials = new StringBuilder();
-        for (String word : normalized.split("\\s+")) {
-            if (!word.isEmpty()) {
-                initials.append(Character.toUpperCase(word.charAt(0)));
-            }
-        }
-
-        return initials.toString();
+    @Transactional
+    public String generateIngredientCode(String ingredientName) {
+        return generateIngredientCode(ingredientName, null, null);
     }
 
     @Override
@@ -143,19 +132,27 @@ public class IngredientServiceImpl implements IngredientService {
     @Override
     @Transactional
     public IngredientResponse create(IngredientRequest request) {
-        String code = generateIngredientCode(request.name());
+        return createWithCode(request, null);
+    }
+
+    @Override
+    @Transactional
+    public IngredientResponse createWithCode(IngredientRequest request, String explicitCode) {
+        Unit unit = request.unitId() != null
+                ? unitRepository.findById(request.unitId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Unit", request.unitId()))
+                : null;
+        String symbol = unit != null ? unit.getSymbol() : null;
+
+        String code = explicitCode != null && !explicitCode.isBlank()
+                ? explicitCode.trim()
+                : generateIngredientCode(request.name(), null, symbol);
         validateCode(code, null);
-        
+
         Ingredient ingredient = new Ingredient();
         mapper.update(ingredient, request);
         ingredient.setIngredientCode(code);
-        if (request.unitId() != null) {
-            Unit unit = unitRepository.findById(request.unitId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Unit", request.unitId()));
-            ingredient.setUnit(unit);
-        } else {
-            ingredient.setUnit(null);
-        }
+        ingredient.setUnit(unit);
         Ingredient savedIngredient = repository.saveAndFlush(ingredient);
 
         inventoryClient.createProductVariantItem(
@@ -475,30 +472,30 @@ public class IngredientServiceImpl implements IngredientService {
 
     private void buildImportReferenceSheet(Workbook workbook) {
         Sheet sheet = workbook.createSheet("Tham chiếu");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        Font headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        CellStyle headerStyle = workbook.createCellStyle();
-        headerStyle.setFont(headerFont);
-
-        String[] headers = {"Đơn vị"};
+        String[] headers = {"Ký hiệu đơn vị", "Tên đơn vị"};
         Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        List<String> unitSymbols = unitRepository.findAll().stream()
+        record CodeName(String code, String name) {}
+
+        List<CodeName> units = unitRepository.findAll().stream()
                 .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
-                .map(Unit::getSymbol)
-                .filter(symbol -> symbol != null && !symbol.isBlank())
-                .sorted()
+                .filter(u -> u.getSymbol() != null && !u.getSymbol().isBlank())
+                .sorted((a, b) -> a.getSymbol().compareToIgnoreCase(b.getSymbol()))
+                .map(u -> new CodeName(u.getSymbol(), u.getName() != null ? u.getName() : ""))
                 .toList();
 
-        for (int i = 0; i < unitSymbols.size(); i++) {
+        for (int i = 0; i < units.size(); i++) {
             Row row = sheet.createRow(i + 1);
-            row.createCell(0).setCellValue(unitSymbols.get(i));
+            row.createCell(0).setCellValue(units.get(i).code());
+            row.createCell(1).setCellValue(units.get(i).name());
         }
 
         sheet.createFreezePane(0, 1);

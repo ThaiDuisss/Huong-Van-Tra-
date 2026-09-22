@@ -122,7 +122,7 @@ export function RawMaterialListPage() {
                 totalItemsLabel="Tổng số nguyên liệu"
                 extraHeaderActions={
                     <>
-                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.importExcelIngredientCreate)}>
+                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.ingredientImport)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>

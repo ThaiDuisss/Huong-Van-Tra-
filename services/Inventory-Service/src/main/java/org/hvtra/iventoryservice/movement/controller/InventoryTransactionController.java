@@ -2,7 +2,7 @@ package org.hvtra.iventoryservice.movement.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.movement.dto.request.StockAdjustmentRequest;
 import org.hvtra.iventoryservice.movement.dto.request.StockInRequest;
 import org.hvtra.iventoryservice.movement.dto.request.StoreStockAdjustmentRequest;

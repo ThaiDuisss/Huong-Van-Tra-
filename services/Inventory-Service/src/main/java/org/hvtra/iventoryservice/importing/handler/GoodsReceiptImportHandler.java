@@ -26,14 +26,16 @@ import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse
 import org.hvtra.iventoryservice.document.service.InventoryDocumentService;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
+import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
-import org.hvtra.commonservice.importing.domain.enums.ImportType;
-import org.hvtra.commonservice.importing.dto.response.ValidationErrorResponse;
-import org.hvtra.commonservice.importing.handler.ImportTypeHandler;
-import org.hvtra.commonservice.importing.handler.ParsedImportRow;
+import org.hvtra.commonservice.common_importing.enums.ImportType;
+import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
+import org.hvtra.commonservice.common_importing.handler.ImportTypeHandler;
+import org.hvtra.commonservice.common_importing.handler.ParsedImportRow;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -55,11 +57,13 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Import Phiếu nhập kho (GoodsReceipt): file gồm 4 sheet — "Hướng dẫn", "Phiếu nhập" (1 dòng = 1 phiếu,
- * có cột Ref tự đặt để liên kết), "Nguyên liệu" (nhiều dòng, mỗi dòng có cột "Ref Phiếu nhập" trỏ về Ref
- * ở sheet "Phiếu nhập") và "Tham chiếu" (tra cứu mã kho/nguyên liệu/nhà cung cấp) — giống hệt cấu trúc
- * sheet "Mặt hàng" + "BOM" của {@code ProductVariantImportHandler}. Payload khớp 1:1 field của
- * {@link CreatePurchaseReceiptRequest} để commit() có thể convertValue thẳng, không cần lớp remap trung gian.
+ * Import Phiếu nhập kho (GoodsReceipt): file gồm 5 sheet — "Hướng dẫn", "Phiếu nhập" (1 dòng = 1 phiếu,
+ * có cột Ref tự đặt để liên kết), "Nguyên liệu" (nhiều dòng, có cột "Ref Phiếu nhập" trỏ về Ref ở
+ * sheet "Phiếu nhập"), "Nguyên liệu mới" (khai báo nguyên liệu chưa có trong hệ thống) và "Tham chiếu"
+ * (tra cứu mã kho/nguyên liệu/nhà cung cấp/đơn vị).
+ * Payload khớp 1:1 field của {@link CreatePurchaseReceiptRequest} để commit() có thể convertValue thẳng,
+ * không cần lớp remap trung gian — trừ các field tạm {@code newIngredient*} được resolve/xoá đi ngay
+ * trong commit() trước khi convertValue.
  */
 @Component
 public class GoodsReceiptImportHandler implements ImportTypeHandler {
@@ -93,6 +97,11 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         return ImportType.GOODS_RECEIPT;
     }
 
+    // ---------------------------------------------------------------------
+    // Nhỏ gọn để mang theo thông tin 1 nguyên liệu MỚI (khai báo ở sheet riêng) theo mã nguyên liệu.
+    // ---------------------------------------------------------------------
+    private record NewIngredientInfo(String code, String name, UUID unitId) {}
+
     @Override
     public List<ParsedImportRow> parseExcel(MultipartFile file) {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
@@ -100,7 +109,10 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             if (receiptSheet == null) {
                 receiptSheet = workbook.getNumberOfSheets() > 0 ? workbook.getSheetAt(0) : null;
             }
-            Sheet lineSheet = findSheetByName(workbook, "nguyen lieu");
+            // "Nguyên liệu" phải khớp CHÍNH XÁC — nếu dùng "contains" sẽ vô tình khớp luôn sheet
+            // "Nguyên liệu mới" (tên cũng chứa "nguyen lieu"), tuỳ thứ tự sheet trong file.
+            Sheet lineSheet = findSheetByExactName(workbook, "nguyen lieu");
+            Sheet newIngredientSheet = findSheetByName(workbook, "nguyen lieu moi");
 
             Map<String, CatalogClient.SupplierLookupResponse> suppliersByCode = catalogClient.getAllSuppliers().stream()
                     .filter(s -> s.code() != null)
@@ -109,8 +121,14 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                     .filter(l -> l.getCode() != null && !Boolean.TRUE.equals(l.getIsDeleted()))
                     .collect(Collectors.toMap(l -> l.getCode().toUpperCase().trim(), l -> l, (a, b) -> a));
             Map<String, InventoryItem> itemsByCode = inventoryItemRepository.findAll().stream()
-                    .filter(i -> i.getReferenceCode() != null && !Boolean.TRUE.equals(i.getIsDeleted()))
+                    .filter(i -> i.getItemType() == InventoryItemType.INGREDIENT
+                            && i.getReferenceCode() != null
+                            && !Boolean.TRUE.equals(i.getIsDeleted()))
                     .collect(Collectors.toMap(i -> i.getReferenceCode().toUpperCase().trim(), i -> i, (a, b) -> a));
+            List<CatalogClient.UnitResponse> units = catalogClient.getAllUnits();
+
+            Map<String, NewIngredientInfo> newIngredientsByCode = newIngredientSheet != null
+                    ? parseNewIngredientSheet(newIngredientSheet, units) : Map.of();
 
             LinkedHashMap<String, Map<String, Object>> payloadsByRef = new LinkedHashMap<>();
             LinkedHashMap<String, Integer> rowIndexByRef = new LinkedHashMap<>();
@@ -119,7 +137,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                 parseReceiptSheet(receiptSheet, suppliersByCode, locationsByCode, payloadsByRef, rowIndexByRef);
             }
             if (lineSheet != null) {
-                parseLineSheet(lineSheet, itemsByCode, payloadsByRef);
+                parseLineSheet(lineSheet, itemsByCode, newIngredientsByCode, payloadsByRef);
             }
 
             List<ParsedImportRow> rows = new ArrayList<>();
@@ -130,6 +148,54 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         } catch (Exception e) {
             throw new BadRequestException("Lỗi đọc file Excel phiếu nhập kho: " + e.getMessage());
         }
+    }
+
+    private Map<String, NewIngredientInfo> parseNewIngredientSheet(Sheet sheet, List<CatalogClient.UnitResponse> units) {
+        int rowCount = sheet.getPhysicalNumberOfRows();
+        if (rowCount <= 1) return Map.of();
+
+        int headerRowIndex = findHeaderRowIndex(sheet, "ten nguyen lieu", "ma nguyen lieu");
+        Row headerRow = sheet.getRow(headerRowIndex);
+        int colCode = -1, colName = -1, colUnit = -1;
+
+        if (headerRow != null) {
+            for (int c = 0; c < headerRow.getLastCellNum(); c++) {
+                String normalized = normalize(getCellValueAsString(headerRow.getCell(c)));
+                if (normalized.contains("ma nguyen lieu")) {
+                    colCode = c;
+                } else if (normalized.contains("ten nguyen lieu")) {
+                    colName = c;
+                } else if (normalized.contains("don vi")) {
+                    colUnit = c;
+                }
+            }
+        }
+        if (colCode == -1) colCode = 0;
+        if (colName == -1) colName = 1;
+        if (colUnit == -1) colUnit = 2;
+
+        Map<String, NewIngredientInfo> result = new HashMap<>();
+        for (int r = headerRowIndex + 1; r < rowCount; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+
+            String code = colCode != -1 ? getCellValueAsString(row.getCell(colCode)).trim() : "";
+            String name = colName != -1 ? getCellValueAsString(row.getCell(colName)).trim() : "";
+            if (code.isBlank() && name.isBlank()) continue;
+
+            String unitName = colUnit != -1 ? getCellValueAsString(row.getCell(colUnit)).trim() : "";
+            CatalogClient.UnitResponse unit = resolveUnit(units, unitName);
+
+            NewIngredientInfo info = new NewIngredientInfo(
+                    code.isBlank() ? null : code,
+                    name,
+                    unit != null ? unit.id() : null);
+
+            if (!code.isBlank()) {
+                result.put(code.toUpperCase(), info);
+            }
+        }
+        return result;
     }
 
     private void parseReceiptSheet(
@@ -148,13 +214,13 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         if (headerRow != null) {
             for (int c = 0; c < headerRow.getLastCellNum(); c++) {
                 String normalized = normalize(getCellValueAsString(headerRow.getCell(c)));
-                if (normalized.equals("ref") || normalized.contains("ref")) {
+                if (normalized.equals("ref") || (normalized.contains("ref") && !normalized.contains("ma") && !normalized.contains("nha cung cap"))) {
                     colRef = c;
-                } else if (normalized.contains("ma nha cung cap")) {
+                } else if (normalized.contains("ma nha cung cap") || normalized.contains("nha cung cap")) {
                     colSupplier = c;
-                } else if (normalized.contains("ma kho")) {
+                } else if (normalized.contains("ma kho") || normalized.contains("kho")) {
                     colLocation = c;
-                } else if (normalized.contains("ngay du kien")) {
+                } else if (normalized.contains("ngay du kien") || normalized.contains("ngay")) {
                     colExpectedDate = c;
                 } else if (normalized.contains("ghi chu")) {
                     colNote = c;
@@ -172,10 +238,10 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             if (row == null) continue;
 
             String ref = getCellValueAsString(row.getCell(colRef)).trim();
-            String supplierCode = getCellValueAsString(row.getCell(colSupplier)).trim();
-            String locationCode = getCellValueAsString(row.getCell(colLocation)).trim();
+            String supplierCode = colSupplier != -1 ? getCellValueAsString(row.getCell(colSupplier)).trim() : "";
+            String locationCode = colLocation != -1 ? getCellValueAsString(row.getCell(colLocation)).trim() : "";
             Instant expectedDate = parseExpectedDate(row.getCell(colExpectedDate));
-            String note = getCellValueAsString(row.getCell(colNote)).trim();
+            String note = colNote != -1 ? getCellValueAsString(row.getCell(colNote)).trim() : "";
 
             if (ref.isBlank() && supplierCode.isBlank() && locationCode.isBlank()) {
                 continue;
@@ -209,19 +275,23 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
     private void parseLineSheet(
             Sheet sheet,
             Map<String, InventoryItem> itemsByCode,
+            Map<String, NewIngredientInfo> newIngredientsByCode,
             Map<String, Map<String, Object>> payloadsByRef) {
         int rowCount = sheet.getPhysicalNumberOfRows();
         if (rowCount <= 1) return;
 
         int headerRowIndex = findHeaderRowIndex(sheet, "ma nguyen lieu", "ref");
         Row headerRow = sheet.getRow(headerRowIndex);
-        int colReceiptRef = -1, colItemCode = -1, colQuantity = -1, colNote = -1;
+        int colReceiptRef = -1, colItemCode = -1, colIsNewIngredient = -1,
+                colQuantity = -1, colNote = -1;
 
         if (headerRow != null) {
             for (int c = 0; c < headerRow.getLastCellNum(); c++) {
                 String normalized = normalize(getCellValueAsString(headerRow.getCell(c)));
-                if (normalized.contains("ref")) {
+                if (normalized.equals("ref") || (normalized.contains("ref") && !normalized.contains("nguyen lieu"))) {
                     colReceiptRef = c;
+                } else if (normalized.contains("nguyen lieu moi")) {
+                    colIsNewIngredient = c;
                 } else if (normalized.contains("ma nguyen lieu")) {
                     colItemCode = c;
                 } else if (normalized.contains("so luong")) {
@@ -233,8 +303,9 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         }
         if (colReceiptRef == -1) colReceiptRef = 0;
         if (colItemCode == -1) colItemCode = 1;
-        if (colQuantity == -1) colQuantity = 2;
-        if (colNote == -1) colNote = 3;
+        if (colIsNewIngredient == -1) colIsNewIngredient = 2;
+        if (colQuantity == -1) colQuantity = 3;
+        if (colNote == -1) colNote = 4;
 
         for (int r = headerRowIndex + 1; r < rowCount; r++) {
             Row row = sheet.getRow(r);
@@ -242,6 +313,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
 
             String receiptRef = getCellValueAsString(row.getCell(colReceiptRef)).trim();
             String itemCode = getCellValueAsString(row.getCell(colItemCode)).trim();
+            boolean isNewIngredient = isTicked(row.getCell(colIsNewIngredient));
             String quantityStr = getCellValueAsString(row.getCell(colQuantity)).trim();
             String note = getCellValueAsString(row.getCell(colNote)).trim();
 
@@ -253,17 +325,51 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                 continue; // Ref Phiếu nhập không khớp dòng nào ở sheet "Phiếu nhập" — bỏ qua dòng này.
             }
 
-            InventoryItem item = itemCode.isBlank() ? null : itemsByCode.get(itemCode.toUpperCase());
             BigDecimal quantity = parseDecimal(quantityStr);
-
             Map<String, Object> line = new HashMap<>();
-            line.put("inventoryItemId", item != null ? item.getId().toString() : null);
-            line.put("unitId", item != null && item.getUnitId() != null ? item.getUnitId().toString() : null);
+
+            NewIngredientInfo newIngredientInfo = null;
+            if (isNewIngredient) {
+                if (!itemCode.isBlank()) {
+                    newIngredientInfo = newIngredientsByCode.get(itemCode.toUpperCase());
+                }
+            } else if (!itemCode.isBlank() && newIngredientsByCode.containsKey(itemCode.toUpperCase())) {
+                newIngredientInfo = newIngredientsByCode.get(itemCode.toUpperCase());
+            }
+
+            if (newIngredientInfo != null) {
+                line.put("inventoryItemId", null);
+                line.put("unitId", null);
+                line.put("newIngredientCode", newIngredientInfo.code() != null ? newIngredientInfo.code() : (itemCode.isBlank() ? null : itemCode));
+                line.put("newIngredientName", newIngredientInfo.name());
+                line.put("newIngredientUnitId", newIngredientInfo.unitId() != null ? newIngredientInfo.unitId().toString() : null);
+            } else {
+                InventoryItem item = itemCode.isBlank() ? null : itemsByCode.get(itemCode.toUpperCase());
+                line.put("inventoryItemId", item != null ? item.getId().toString() : null);
+                line.put("unitId", item != null && item.getUnitId() != null ? item.getUnitId().toString() : null);
+            }
             line.put("orderedQuantity", quantity);
             line.put("note", note.isBlank() ? null : note);
 
             ((List<Map<String, Object>>) receiptPayload.get("items")).add(line);
         }
+    }
+
+    private boolean isTicked(Cell cell) {
+        String v = getCellValueAsString(cell).trim().toLowerCase();
+        if (v.isBlank()) return false;
+        return !(v.equals("0") || v.equals("false") || v.equals("no") || v.equals("khong")
+                || v.equals("không") || v.equals("k"));
+    }
+
+    private CatalogClient.UnitResponse resolveUnit(List<CatalogClient.UnitResponse> units, String unitName) {
+        if (unitName == null || unitName.isBlank()) return null;
+        String clean = unitName.trim();
+        return units.stream()
+                .filter(u -> (u.name() != null && u.name().equalsIgnoreCase(clean))
+                        || (u.symbol() != null && u.symbol().equalsIgnoreCase(clean)))
+                .findFirst()
+                .orElse(null);
     }
 
     private Instant parseExpectedDate(Cell cell) {
@@ -287,7 +393,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
 
     @Override
     public List<ValidationErrorResponse> validate(Map<String, Object> payload) {
-        return validate(payload, null, null, null);
+        return validate(payload, null, null, null, null);
     }
 
     @Override
@@ -295,11 +401,13 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Set<UUID> supplierIds = new HashSet<>();
         Set<UUID> locationIds = new HashSet<>();
         Set<UUID> inventoryItemIds = new HashSet<>();
+        Set<UUID> newIngredientUnitIds = new HashSet<>();
         for (Map<String, Object> payload : payloads) {
             addIfPresent(supplierIds, readUuid(payload.get("supplierId")));
             addIfPresent(locationIds, readUuid(payload.get("locationId")));
             for (Map<String, Object> line : readItems(payload)) {
                 addIfPresent(inventoryItemIds, readUuid(line.get("inventoryItemId")));
+                addIfPresent(newIngredientUnitIds, readUuid(line.get("newIngredientUnitId")));
             }
         }
 
@@ -308,10 +416,14 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Set<UUID> existingLocationIds = locationIds.isEmpty() ? Set.of() : locationRepository.findAllById(locationIds)
                 .stream().map(InventoryLocation::getId).collect(Collectors.toSet());
         Set<UUID> existingInventoryItemIds = inventoryItemIds.isEmpty() ? Set.of() : inventoryItemRepository.findAllById(inventoryItemIds)
-                .stream().map(InventoryItem::getId).collect(Collectors.toSet());
+                .stream()
+                .filter(i -> i.getItemType() == InventoryItemType.INGREDIENT && !Boolean.TRUE.equals(i.getIsDeleted()))
+                .map(InventoryItem::getId).collect(Collectors.toSet());
+        Set<UUID> existingUnitIds = newIngredientUnitIds.isEmpty() ? Set.of() : catalogClient.getUnitsBatch(List.copyOf(newIngredientUnitIds))
+                .stream().map(CatalogClient.UnitResponse::id).collect(Collectors.toSet());
 
         return payloads.stream()
-                .map(payload -> validate(payload, existingSupplierIds, existingLocationIds, existingInventoryItemIds))
+                .map(payload -> validate(payload, existingSupplierIds, existingLocationIds, existingInventoryItemIds, existingUnitIds))
                 .toList();
     }
 
@@ -319,7 +431,8 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             Map<String, Object> payload,
             Set<UUID> existingSupplierIds,
             Set<UUID> existingLocationIds,
-            Set<UUID> existingInventoryItemIds) {
+            Set<UUID> existingInventoryItemIds,
+            Set<UUID> existingUnitIds) {
         List<ValidationErrorResponse> errors = new ArrayList<>();
 
         UUID supplierId = readUuid(payload.get("supplierId"));
@@ -344,10 +457,23 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             String prefix = "items[" + i + "].";
             Map<String, Object> line = lines.get(i);
             UUID inventoryItemId = readUuid(line.get("inventoryItemId"));
-            if (inventoryItemId == null) {
-                errors.add(new ValidationErrorResponse(prefix + "inventoryItemId", "Nguyên liệu không được để trống hoặc không tồn tại"));
-            } else if (!existsInventoryItem(existingInventoryItemIds, inventoryItemId)) {
-                errors.add(new ValidationErrorResponse(prefix + "inventoryItemId", "Nguyên liệu không tồn tại"));
+            String newIngredientName = readString(line.get("newIngredientName"));
+
+            if (inventoryItemId != null) {
+                if (!existsInventoryItem(existingInventoryItemIds, inventoryItemId)) {
+                    errors.add(new ValidationErrorResponse(prefix + "inventoryItemId", "Nguyên liệu không tồn tại"));
+                }
+            } else if (!newIngredientName.isBlank()) {
+                // Nguyên liệu mới — sẽ được tự tạo lúc duyệt, chỉ cần đơn vị hợp lệ.
+                UUID newIngredientUnitId = readUuid(line.get("newIngredientUnitId"));
+                if (newIngredientUnitId == null) {
+                    errors.add(new ValidationErrorResponse(prefix + "newIngredientUnitId", "Đơn vị của nguyên liệu mới không được để trống hoặc không tồn tại"));
+                } else if (!existsUnit(existingUnitIds, newIngredientUnitId)) {
+                    errors.add(new ValidationErrorResponse(prefix + "newIngredientUnitId", "Đơn vị không tồn tại"));
+                }
+            } else {
+                errors.add(new ValidationErrorResponse(prefix + "inventoryItemId",
+                        "Nguyên liệu không được để trống hoặc không tồn tại (dùng sheet \"Nguyên liệu mới\" nếu muốn tạo mới)"));
             }
 
             BigDecimal quantity = readDecimal(line.get("orderedQuantity"));
@@ -373,17 +499,78 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
     }
 
     private boolean existsInventoryItem(Set<UUID> preloadedExistingIds, UUID id) {
-        return preloadedExistingIds != null ? preloadedExistingIds.contains(id) : inventoryItemRepository.existsById(id);
+        if (preloadedExistingIds != null) return preloadedExistingIds.contains(id);
+        return inventoryItemRepository.findById(id)
+                .filter(i -> i.getItemType() == InventoryItemType.INGREDIENT && !Boolean.TRUE.equals(i.getIsDeleted()))
+                .isPresent();
+    }
+
+    private boolean existsUnit(Set<UUID> preloadedExistingIds, UUID id) {
+        if (preloadedExistingIds != null) return preloadedExistingIds.contains(id);
+        return !catalogClient.getUnitsBatch(List.of(id)).isEmpty();
     }
 
     @Override
     public UUID commit(Map<String, Object> payload) {
+        resolveNewIngredients(payload);
         CreatePurchaseReceiptRequest request = toRequest(payload);
         for (ConstraintViolation<CreatePurchaseReceiptRequest> violation : validator.validate(request)) {
             throw new BadRequestException(violation.getPropertyPath() + ": " + violation.getMessage());
         }
         InventoryDocumentResponse response = inventoryDocumentService.createPurchaseReceipt(request);
         return response.id();
+    }
+
+    /**
+     * Với dòng chưa có {@code inventoryItemId} nhưng có {@code newIngredientName} (khai báo ở sheet
+     * "Nguyên liệu mới"): tạo nguyên liệu mới bên Catalog-Service — dùng đúng {@code newIngredientCode}
+     * nếu người dùng tự nhập, để trống thì tự sinh mã. Catalog-Service tự đồng bộ InventoryItem tương
+     * ứng ngay trong lúc tạo (xem {@code IngredientServiceImpl.createWithCode()}), sau đó tra lại
+     * InventoryItem vừa được tạo để lấy id gán vào dòng.
+     * Đồng thời thêm các nguyên liệu mới này vào danh sách nguyên liệu mà nhà cung cấp của phiếu được phép cấp.
+     * Chỉ chạy lúc duyệt (commit).
+     */
+    private void resolveNewIngredients(Map<String, Object> payload) {
+        UUID supplierId = readUuid(payload.get("supplierId"));
+        List<UUID> createdIngredientIds = new ArrayList<>();
+
+        for (Map<String, Object> line : readItems(payload)) {
+            if (line.get("inventoryItemId") != null) continue;
+            String name = readString(line.get("newIngredientName"));
+            if (name.isBlank()) continue;
+
+            String code = readString(line.get("newIngredientCode"));
+            UUID unitId = readUuid(line.get("newIngredientUnitId"));
+            CatalogClient.IngredientResponse created = catalogClient.createIngredient(
+                    code.isBlank() ? null : code,
+                    new CatalogClient.CreateIngredientRequest(name, unitId, null, "ACTIVE"));
+
+            InventoryItem createdItem = inventoryItemRepository
+                    .findByReferenceIdAndItemTypeLocked(created.id(), InventoryItemType.INGREDIENT)
+                    .orElseGet(() -> {
+                        InventoryItem newItem = new InventoryItem();
+                        newItem.setReferenceId(created.id());
+                        newItem.setReferenceCode(created.ingredientCode());
+                        newItem.setName(created.name());
+                        newItem.setItemType(InventoryItemType.INGREDIENT);
+                        newItem.setUnitId(created.unitId());
+                        newItem.setStatus(InventoryStatus.ACTIVE);
+                        newItem.setReorderPoint(created.reorderPoint() != null ? created.reorderPoint() : 0);
+                        return inventoryItemRepository.save(newItem);
+                    });
+
+            createdIngredientIds.add(created.id());
+
+            line.put("inventoryItemId", createdItem.getId().toString());
+            line.put("unitId", createdItem.getUnitId() != null ? createdItem.getUnitId().toString() : null);
+            line.remove("newIngredientCode");
+            line.remove("newIngredientName");
+            line.remove("newIngredientUnitId");
+        }
+
+        if (supplierId != null && !createdIngredientIds.isEmpty()) {
+            catalogClient.addIngredientsToSupplier(supplierId, createdIngredientIds);
+        }
     }
 
     private CreatePurchaseReceiptRequest toRequest(Map<String, Object> payload) {
@@ -414,6 +601,10 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         }
     }
 
+    private String readString(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
     private BigDecimal readDecimal(Object value) {
         if (value == null) return null;
         if (value instanceof BigDecimal bd) return bd;
@@ -436,6 +627,17 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
     private Sheet findSheetByName(Workbook workbook, String normalizedNameContains) {
         for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
             if (normalize(workbook.getSheetName(i)).contains(normalizedNameContains)) {
+                return workbook.getSheetAt(i);
+            }
+        }
+        return null;
+    }
+
+    /** Khớp CHÍNH XÁC tên sheet đã chuẩn hoá — dùng khi tên có thể là substring của 1 sheet khác (vd
+     * "Nguyên liệu" là substring của "Nguyên liệu mới"). */
+    private Sheet findSheetByExactName(Workbook workbook, String normalizedName) {
+        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+            if (normalize(workbook.getSheetName(i)).equals(normalizedName)) {
                 return workbook.getSheetAt(i);
             }
         }
@@ -493,7 +695,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
     }
 
     // ---------------------------------------------------------------------
-    // File mẫu Excel (4 sheet: Hướng dẫn, Phiếu nhập, Nguyên liệu, Tham chiếu)
+    // File mẫu Excel (5 sheet: Hướng dẫn, Phiếu nhập, Nguyên liệu, Nguyên liệu mới, Tham chiếu)
     // ---------------------------------------------------------------------
 
     public byte[] buildImportTemplate() {
@@ -503,6 +705,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             buildInstructionSheet(workbook);
             buildReceiptSheet(workbook);
             buildLineSheet(workbook);
+            buildNewIngredientSheet(workbook);
             buildReferenceSheet(workbook);
 
             workbook.write(out);
@@ -532,39 +735,50 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         String[][] sections = {
                 {
                         "1. Cấu trúc file",
-                        "File gồm 4 sheet:",
+                        "File gồm 5 sheet:",
                         "- \"Hướng dẫn\": sheet này.",
                         "- \"Phiếu nhập\": nhập thông tin từng phiếu nhập kho, mỗi dòng là 1 phiếu.",
                         "- \"Nguyên liệu\": nhập danh sách nguyên liệu cho từng phiếu ở sheet \"Phiếu nhập\".",
-                        "- \"Tham chiếu\": tra cứu mã kho/nguyên liệu/nhà cung cấp để điền vào 2 sheet trên."
+                        "- \"Nguyên liệu mới\": khai báo nguyên liệu CHƯA có trong hệ thống (nếu cần).",
+                        "- \"Tham chiếu\": tra cứu mã kho/nguyên liệu/nhà cung cấp/đơn vị đã có sẵn."
                 },
                 {
                         "2. Cách liên kết sheet \"Phiếu nhập\" và sheet \"Nguyên liệu\"",
                         "- Ở sheet \"Phiếu nhập\", cột \"Ref\" là mã tự đặt riêng cho từng dòng trong file này (ví dụ PN1, PN2...), dùng để liên kết — không phải mã hệ thống.",
-                        "- Ở sheet \"Nguyên liệu\", cột \"Ref Phiếu nhập\" phải điền đúng giá trị \"Ref\" tương ứng ở sheet \"Phiếu nhập\" để hệ thống biết dòng nguyên liệu đó thuộc phiếu nào.",
+                        "- Ở sheet \"Nguyên liệu\", cột \"Ref Phiếu nhập\" phải điền đúng giá trị \"Ref\" tương ứng ở sheet \"Phiếu nhập\".",
                         "- 1 phiếu nhập có nhiều dòng nguyên liệu; mỗi phiếu phải có ít nhất 1 dòng nguyên liệu."
                 },
                 {
                         "3. Cách điền sheet \"Phiếu nhập\"",
-                        "- Mã nhà cung cấp (*), Mã kho nhận hàng (*): bắt buộc, lấy từ sheet \"Tham chiếu\".",
+                        "- Mã nhà cung cấp (*): bắt buộc, lấy từ sheet \"Tham chiếu\".",
+                        "- Mã kho nhận hàng (*): bắt buộc, lấy từ sheet \"Tham chiếu\".",
                         "- Ngày dự kiến giao: định dạng yyyy-MM-dd hoặc dd/MM/yyyy, để trống nếu chưa xác định.",
                         "- Ghi chú: không bắt buộc."
                 },
                 {
                         "4. Cách điền sheet \"Nguyên liệu\"",
                         "- Ref Phiếu nhập (*): phải khớp với 1 giá trị \"Ref\" ở sheet \"Phiếu nhập\".",
-                        "- Mã nguyên liệu (*): lấy từ cột \"Mã nguyên liệu\" ở sheet \"Tham chiếu\".",
-                        "- Số lượng (*): bắt buộc, phải lớn hơn 0. Đơn vị tính sẽ tự lấy theo đơn vị của nguyên liệu, không cần nhập.",
+                        "- Mã nguyên liệu (*):",
+                        "  + Nếu là nguyên liệu đã có sẵn: điền mã từ sheet \"Tham chiếu\".",
+                        "  + Nếu là nguyên liệu mới: điền mã tương ứng ở sheet \"Nguyên liệu mới\" và đánh dấu \"x\" ở cột \"Nguyên liệu mới\".",
+                        "- Nguyên liệu mới: đánh dấu \"x\" NẾU nguyên liệu CHƯA có trong hệ thống.",
+                        "- Số lượng (*): bắt buộc, phải lớn hơn 0.",
                         "- Ghi chú: không bắt buộc."
                 },
                 {
-                        "5. Sau khi tải file lên hệ thống",
-                        "- Dữ liệu được phân tích thành bản nháp để bạn kiểm tra/sửa trực tiếp trên hệ thống trước khi gửi duyệt.",
-                        "- Dữ liệu (phiếu nhập + nguyên liệu) chỉ được ghi chính thức vào hệ thống sau khi quản lý duyệt."
+                        "5. Cách điền sheet \"Nguyên liệu mới\"",
+                        "- Mã nguyên liệu (*): mã nguyên liệu dùng để đối chiếu với sheet \"Nguyên liệu\". Mã này cũng sẽ là mã chính thức của nguyên liệu trong hệ thống.",
+                        "- Tên nguyên liệu (*): bắt buộc.",
+                        "- Đơn vị (*): bắt buộc, lấy từ sheet \"Tham chiếu\"."
                 },
                 {
-                        "6. Lưu ý",
-                        "- Không đổi tên các sheet, không đổi tên cột header ở dòng đầu tiên của sheet \"Phiếu nhập\" và \"Nguyên liệu\".",
+                        "6. Sau khi tải file lên hệ thống",
+                        "- Dữ liệu được phân tích thành bản nháp để bạn kiểm tra/sửa trực tiếp trên hệ thống trước khi gửi duyệt.",
+                        "- Dữ liệu (phiếu nhập + nguyên liệu + nguyên liệu mới) chỉ được ghi chính thức vào hệ thống sau khi quản lý duyệt."
+                },
+                {
+                        "7. Lưu ý",
+                        "- Không đổi tên các sheet, không đổi tên cột header ở dòng đầu tiên của mỗi sheet.",
                         "- Không xoá dòng header."
                 }
         };
@@ -633,10 +847,10 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
 
         Row row2 = sheet.createRow(2);
         row2.createCell(0).setCellValue("PN2");
-        row2.createCell(1).setCellValue("NCC00002");
+        row2.createCell(1).setCellValue("NCC00001");
         row2.createCell(2).setCellValue("KHO-TONG");
         row2.createCell(3).setCellValue("2026-01-20");
-        row2.createCell(4).setCellValue("");
+        row2.createCell(4).setCellValue("Phiếu nhập bổ sung");
 
         sheet.createFreezePane(0, 1);
         sheet.setAutoFilter(new CellRangeAddress(0, 2, 0, headers.length - 1));
@@ -647,7 +861,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Sheet sheet = workbook.createSheet("Nguyên liệu");
         CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        String[] headers = {"Ref Phiếu nhập", "Mã nguyên liệu", "Số lượng", "Ghi chú"};
+        String[] headers = {"Ref Phiếu nhập", "Mã nguyên liệu", "Nguyên liệu mới", "Số lượng", "Ghi chú"};
         Row headerRow = sheet.createRow(0);
         headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
@@ -659,61 +873,111 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Row row1 = sheet.createRow(1);
         row1.createCell(0).setCellValue("PN1");
         row1.createCell(1).setCellValue("NL00001");
-        row1.createCell(2).setCellValue(100.0);
-        row1.createCell(3).setCellValue("");
+        row1.createCell(2).setCellValue("");
+        row1.createCell(3).setCellValue(100.0);
+        row1.createCell(4).setCellValue("");
 
         Row row2 = sheet.createRow(2);
         row2.createCell(0).setCellValue("PN2");
-        row2.createCell(1).setCellValue("NL00002");
-        row2.createCell(2).setCellValue(25.0);
-        row2.createCell(3).setCellValue("");
+        row2.createCell(1).setCellValue("NLM00001");
+        row2.createCell(2).setCellValue("x");
+        row2.createCell(3).setCellValue(25.0);
+        row2.createCell(4).setCellValue("Nguyên liệu mới, xem sheet \"Nguyên liệu mới\"");
 
         sheet.createFreezePane(0, 1);
         sheet.setAutoFilter(new CellRangeAddress(0, 2, 0, headers.length - 1));
         widenColumns(sheet, headers.length);
     }
 
-    private void buildReferenceSheet(Workbook workbook) {
-        Sheet sheet = workbook.createSheet("Tham chiếu");
+    private void buildNewIngredientSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Nguyên liệu mới");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
 
-        Font headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        CellStyle headerStyle = workbook.createCellStyle();
-        headerStyle.setFont(headerFont);
-
-        // Mỗi thực thể tham chiếu chiếm 1 cột — thêm thực thể mới thì thêm 1 cột kế tiếp tại đây.
-        String[] headers = {"Mã kho", "Mã nguyên liệu", "Mã nhà cung cấp"};
+        String[] headers = {"Mã nguyên liệu", "Tên nguyên liệu", "Đơn vị"};
         Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        List<String> locationCodes = locationRepository.findAll().stream()
+        Row row1 = sheet.createRow(1);
+        row1.createCell(0).setCellValue("NLM00001");
+        row1.createCell(1).setCellValue("Hoa nhài tươi");
+        row1.createCell(2).setCellValue("Kg");
+
+        sheet.createFreezePane(0, 1);
+        sheet.setAutoFilter(new CellRangeAddress(0, 1, 0, headers.length - 1));
+        widenColumns(sheet, headers.length);
+    }
+
+    private void buildReferenceSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("Tham chiếu");
+        CellStyle headerStyle = createGreenHeaderStyle(workbook);
+
+        // Mỗi thực thể tham chiếu gồm 2 cột: Mã và Tên
+        String[] headers = {
+                "Mã kho", "Tên kho",
+                "Mã nguyên liệu", "Tên nguyên liệu",
+                "Mã nhà cung cấp", "Tên nhà cung cấp",
+                "Ký hiệu đơn vị", "Tên đơn vị"
+        };
+        Row headerRow = sheet.createRow(0);
+        headerRow.setHeightInPoints(22);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        record CodeName(String code, String name) {}
+
+        List<CodeName> locations = locationRepository.findAll().stream()
                 .filter(l -> !Boolean.TRUE.equals(l.getIsDeleted()))
-                .map(InventoryLocation::getCode)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
-                .toList();
-        List<String> itemCodes = inventoryItemRepository.findAll().stream()
-                .filter(i -> !Boolean.TRUE.equals(i.getIsDeleted()))
-                .map(InventoryItem::getReferenceCode)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
-                .toList();
-        List<String> supplierCodes = catalogClient.getAllSuppliers().stream()
-                .map(CatalogClient.SupplierLookupResponse::code)
-                .filter(code -> code != null && !code.isBlank())
-                .sorted()
+                .filter(l -> l.getCode() != null && !l.getCode().isBlank())
+                .sorted((a, b) -> a.getCode().compareToIgnoreCase(b.getCode()))
+                .map(l -> new CodeName(l.getCode(), l.getName() != null ? l.getName() : ""))
                 .toList();
 
-        int maxRows = Math.max(locationCodes.size(), Math.max(itemCodes.size(), supplierCodes.size()));
+        List<CodeName> items = inventoryItemRepository.findAll().stream()
+                .filter(i -> i.getItemType() == InventoryItemType.INGREDIENT && !Boolean.TRUE.equals(i.getIsDeleted()))
+                .filter(i -> i.getReferenceCode() != null && !i.getReferenceCode().isBlank())
+                .sorted((a, b) -> a.getReferenceCode().compareToIgnoreCase(b.getReferenceCode()))
+                .map(i -> new CodeName(i.getReferenceCode(), i.getName() != null ? i.getName() : ""))
+                .toList();
+
+        List<CodeName> suppliers = catalogClient.getAllSuppliers().stream()
+                .filter(s -> s.code() != null && !s.code().isBlank())
+                .sorted((a, b) -> a.code().compareToIgnoreCase(b.code()))
+                .map(s -> new CodeName(s.code(), s.name() != null ? s.name() : ""))
+                .toList();
+
+        List<CodeName> units = catalogClient.getAllUnits().stream()
+                .filter(u -> u.symbol() != null && !u.symbol().isBlank())
+                .sorted((a, b) -> a.symbol().compareToIgnoreCase(b.symbol()))
+                .map(u -> new CodeName(u.symbol(), u.name() != null ? u.name() : ""))
+                .toList();
+
+        int maxRows = Math.max(Math.max(locations.size(), items.size()), Math.max(suppliers.size(), units.size()));
         for (int i = 0; i < maxRows; i++) {
             Row row = sheet.createRow(i + 1);
-            if (i < locationCodes.size()) row.createCell(0).setCellValue(locationCodes.get(i));
-            if (i < itemCodes.size()) row.createCell(1).setCellValue(itemCodes.get(i));
-            if (i < supplierCodes.size()) row.createCell(2).setCellValue(supplierCodes.get(i));
+            if (i < locations.size()) {
+                row.createCell(0).setCellValue(locations.get(i).code());
+                row.createCell(1).setCellValue(locations.get(i).name());
+            }
+            if (i < items.size()) {
+                row.createCell(2).setCellValue(items.get(i).code());
+                row.createCell(3).setCellValue(items.get(i).name());
+            }
+            if (i < suppliers.size()) {
+                row.createCell(4).setCellValue(suppliers.get(i).code());
+                row.createCell(5).setCellValue(suppliers.get(i).name());
+            }
+            if (i < units.size()) {
+                row.createCell(6).setCellValue(units.get(i).code());
+                row.createCell(7).setCellValue(units.get(i).name());
+            }
         }
 
         sheet.createFreezePane(0, 1);

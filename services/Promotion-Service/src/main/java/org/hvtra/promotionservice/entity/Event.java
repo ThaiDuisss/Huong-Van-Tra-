@@ -14,7 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.promotionservice.enums.event.EventAudience;
 import org.hvtra.promotionservice.enums.event.EventStatus;
 import org.hvtra.promotionservice.enums.event.EventType;
