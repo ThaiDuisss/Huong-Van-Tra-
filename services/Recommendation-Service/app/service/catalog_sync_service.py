@@ -13,7 +13,6 @@ from app.repositories.ingredient_repository import IngredientRepository
 from app.repositories.product_ingredient_repository import ProductIngredientRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.product_variant_repository import ProductVariantRepository
-from app.service.product_resolver import ProductResolver
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,6 @@ class CatalogSyncService:
         variant_repository: ProductVariantRepository,
         ingredient_repository: IngredientRepository,
         product_ingredient_repository: ProductIngredientRepository,
-        product_resolver: ProductResolver,
     ) -> None:
         self.catalog_client = catalog_client
         self.category_repository = category_repository
@@ -44,7 +42,6 @@ class CatalogSyncService:
         self.variant_repository = variant_repository
         self.ingredient_repository = ingredient_repository
         self.product_ingredient_repository = product_ingredient_repository
-        self.product_resolver = product_resolver
 
     def sync_categories(
         self,
@@ -122,48 +119,37 @@ class CatalogSyncService:
         db.commit()
         return len(ingredients)
 
-    def sync_active_boms(
+    def sync_variant_bom_items(
         self,
         db: Session,
-    ) -> tuple[int, int]:
-        boms = self.catalog_client.get_active_boms()
-        active_bom_count = 0
+    ) -> int:
+        variants = self.catalog_client.get_product_variants()
+
+        # Fetch BOM items for each variant outside of DB transaction to avoid open locks during HTTP calls
+        variant_bom_map = []
+        for variant in variants:
+            items = self.catalog_client.get_variant_bom_items(variant.id)
+            variant_bom_map.append((variant, items))
+
         product_ingredient_count = 0
-
-        for bom in boms:
-            product_id = self.product_resolver.resolve_product_id(
+        for variant, items in variant_bom_map:
+            # Step 1: Deactivate existing active BOM items for this variant
+            self.product_ingredient_repository.deactivate_all_for_variant(
                 db,
-                bom.productVariantId,
+                variant.id,
             )
 
-            if product_id is None:
-                logger.warning(
-                    "Skipping BOM %s: Variant %s not found in local product_variants",
-                    bom.id,
-                    bom.productVariantId,
-                )
-                continue
-
-            active_bom_count += 1
-
-            # Deactivate older versions of the same variant before inserting current active version
-            self.product_ingredient_repository.deactivate_old_versions(
-                db,
-                bom.productVariantId,
-                bom.version,
-            )
-
-            for item in bom.items:
+            # Step 2: Upsert current BOM items returned from Catalog
+            for item in items:
                 product_ingredient = ProductIngredient(
                     id=str(uuid.uuid4()),
-                    product_id=product_id,
+                    product_id=variant.productId,
                     ingredient_id=item.ingredient.id,
                     ingredient_code=item.ingredient.ingredientCode,
-                    source_variant_id=bom.productVariantId,
-                    bom_version=bom.version,
-                    is_active_bom=(bom.status == "ACTIVE"),
+                    source_variant_id=variant.id,
+                    bom_version=0,  # 0 = current Catalog model has no BOM version
+                    is_active_bom=True,
                 )
-
                 self.product_ingredient_repository.upsert(
                     db,
                     product_ingredient,
@@ -171,7 +157,7 @@ class CatalogSyncService:
                 product_ingredient_count += 1
 
         db.commit()
-        return active_bom_count, product_ingredient_count
+        return product_ingredient_count
 
     def sync_all(
         self,
@@ -202,7 +188,7 @@ class CatalogSyncService:
             raise
 
         try:
-            active_bom_count, product_ingredient_count = self.sync_active_boms(db)
+            product_ingredient_count = self.sync_variant_bom_items(db)
         except Exception:
             db.rollback()
             raise
@@ -212,6 +198,5 @@ class CatalogSyncService:
             "products": product_count,
             "variants": variant_count,
             "ingredients": ingredient_count,
-            "activeBoms": active_bom_count,
             "productIngredients": product_ingredient_count,
         }

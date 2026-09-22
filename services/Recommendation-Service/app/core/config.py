@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     internal_header_secret: str = "dev-internal-header-secret"
     internal_service_name: str = "recommendation-service"
 
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_group_id: str = "recommendation-service-order-completed"
+    kafka_order_completed_topic: str = "order.completed"
+    kafka_return_completed_topic: str = "notification.return.completed"
+    kafka_auto_offset_reset: str = "earliest"
+    kafka_enable_auto_commit: bool = False
+
     @property
     def sqlalchemy_database_url(self) -> str:
         return URL.create(
