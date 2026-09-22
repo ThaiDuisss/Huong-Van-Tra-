@@ -9,7 +9,7 @@ import {
     customerReturnRefundStatusLabels,
     customerReturnResolutionLabels
 } from "../constants/customer-return.constants";
-import { customerReturnApi } from "../services/customerReturn.api";
+import { posCustomerReturnApi as customerReturnApi } from "../services/posCustomerReturn.mock-api";
 import type { CustomerReturnDetail } from "../types/customer-return.types";
 import { formatVietnamDateTime, formatVietnamNumber, formatVnd } from "../utils/inventory-format";
 

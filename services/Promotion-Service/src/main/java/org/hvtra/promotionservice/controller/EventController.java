@@ -12,7 +12,8 @@ import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.event.EventSuccessMessage;
 import org.hvtra.promotionservice.dto.request.event.EventCreateRequest;
@@ -46,6 +47,7 @@ public class EventController {
             summary = "Tạo sự kiện",
             description = "Tạo một sự kiện khuyến mãi mới. Sự kiện là ngữ cảnh nghiệp vụ dùng để nhóm nhiều chương trình khuyến mãi."
     )
+    @UserAction(value = "EVENT_CREATE", entityType = "Event", entityId = "#result.data.id")
     @PostMapping
     public ApiResponse<EventResponse> createEvent(
             @Valid @RequestBody EventCreateRequest request
@@ -78,6 +80,7 @@ public class EventController {
             summary = "Cập nhật sự kiện",
             description = "Cập nhật thông tin cơ bản của sự kiện như tên, mô tả, loại sự kiện, đối tượng áp dụng, thời gian bắt đầu và thời gian kết thúc."
     )
+    @UserAction(value = "EVENT_UPDATE", entityType = "Event", entityId = "#eventId")
     @PutMapping("/{eventId}")
     public ApiResponse<EventResponse> updateEvent(
             @Parameter(
@@ -100,6 +103,7 @@ public class EventController {
             summary = "Xóa sự kiện",
             description = "Xóa mềm một sự kiện/chương trình khuyến mãi. Dữ liệu vẫn được lưu trong cơ sở dữ liệu và không bị xóa vật lý."
     )
+    @UserAction(value = "EVENT_DELETE", entityType = "Event", entityId = "#eventId")
     @DeleteMapping("/{eventId}")
     public ApiResponse<Void> deleteEvent(
             @Parameter(
@@ -120,6 +124,7 @@ public class EventController {
             summary = "Lên lịch sự kiện",
             description = "Chuyển sự kiện/chương trình khuyến mãi sang trạng thái SCHEDULED. Sự kiện đã lên lịch sẽ chờ tới thời gian bắt đầu để được kích hoạt."
     )
+    @UserAction(value = "EVENT_SCHEDULE", entityType = "Event", entityId = "#eventId")
     @PostMapping("/{eventId}/schedule")
     public ApiResponse<EventResponse> scheduleEvent(
             @Parameter(
@@ -140,6 +145,7 @@ public class EventController {
             summary = "Kích hoạt sự kiện",
             description = "Kích hoạt một sự kiện/chương trình khuyến mãi để các chương trình khuyến mãi thuộc sự kiện có thể được áp dụng."
     )
+    @UserAction(value = "EVENT_ACTIVATE", entityType = "Event", entityId = "#eventId")
     @PostMapping("/{eventId}/activate")
     public ApiResponse<EventResponse> activateEvent(
             @Parameter(
@@ -160,6 +166,7 @@ public class EventController {
             summary = "Tạm dừng sự kiện",
             description = "Tạm dừng một sự kiện/chương trình khuyến mãi đang hoạt động. Chỉ sự kiện ACTIVE mới có thể chuyển sang PAUSED."
     )
+    @UserAction(value = "EVENT_PAUSE", entityType = "Event", entityId = "#eventId")
     @PostMapping("/{eventId}/pause")
     public ApiResponse<EventResponse> pauseEvent(
             @Parameter(
@@ -180,6 +187,7 @@ public class EventController {
             summary = "Tiếp tục sự kiện",
             description = "Tiếp tục một sự kiện/chương trình khuyến mãi đang tạm dừng. Nếu đã tới thời gian chạy thì chuyển về ACTIVE, nếu thời gian bắt đầu ở tương lai thì chuyển về SCHEDULED."
     )
+    @UserAction(value = "EVENT_RESUME", entityType = "Event", entityId = "#eventId")
     @PostMapping("/{eventId}/resume")
     public ApiResponse<EventResponse> resumeEvent(
             @Parameter(
@@ -200,6 +208,7 @@ public class EventController {
             summary = "Hủy sự kiện",
             description = "Hủy một sự kiện/chương trình khuyến mãi. Sự kiện đã hủy sẽ không thể được kích hoạt lại."
     )
+    @UserAction(value = "EVENT_CANCEL", entityType = "Event", entityId = "#eventId")
     @PostMapping("/{eventId}/cancel")
     public ApiResponse<EventResponse> cancelEvent(
             @Parameter(
@@ -220,6 +229,7 @@ public class EventController {
             summary = "Kết thúc sự kiện",
             description = "Đánh dấu sự kiện/chương trình khuyến mãi là đã kết thúc. Sự kiện đã kết thúc sẽ không thể được kích hoạt lại."
     )
+    @UserAction(value = "EVENT_END", entityType = "Event", entityId = "#eventId")
     @PostMapping("/{eventId}/end")
     public ApiResponse<EventResponse> endEvent(
             @Parameter(
@@ -269,6 +279,7 @@ public class EventController {
             summary = "Gia hạn sự kiện",
             description = "Gia hạn thời gian kết thúc của sự kiện/chương trình khuyến mãi. Nếu sự kiện đã EXPIRED thì sau khi gia hạn thành công sẽ được kích hoạt lại."
     )
+    @UserAction(value = "EVENT_EXTEND", entityType = "Event", entityId = "#eventId")
     @PatchMapping("/{eventId}/extend")
     public ApiResponse<EventResponse> extendEvent(
             @Parameter(

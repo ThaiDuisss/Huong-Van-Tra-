@@ -1,9 +1,9 @@
 import { Download, Filter, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
-import { ExcelImportModal } from "../../product/components/ExcelImportModal";
+import { routePaths } from "../../../routes/path";
 import {
     GoodsReceiptFilterBar,
     GoodsReceiptStatusBadge,
@@ -28,12 +28,7 @@ import {
     formatVietnamDateTime,
     formatVietnamNumber
 } from "../utils/inventory-format";
-import {
-    exportGoodsReceiptsToExcel,
-    generateGoodsReceiptTemplate,
-    getExcelRowValue,
-    parseAndImportGoodsReceipts
-} from "../utils/goodsReceiptExcel";
+import { exportGoodsReceiptsToExcel } from "../utils/goodsReceiptExcel";
 
 const columns: Column[] = [
     // { key: "code", label: "Mã phiếu" },
@@ -50,8 +45,8 @@ const columns: Column[] = [
 
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
+    const navigate = useNavigate();
     const [showFilters, setShowFilters] = useState(false);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [result, setResult] = useState<GoodsReceiptListResult | null>(null);
     const [summaryCounts, setSummaryCounts] = useState<GoodsReceiptDashboardSummary>({
         awaitingCost: 0,
@@ -174,92 +169,6 @@ export function GoodsReceiptListPage() {
         }
     };
 
-    const handleDownloadTemplate = () => {
-        try {
-            const blob = generateGoodsReceiptTemplate(options);
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", "mau_nhap_phieu_nhap_kho.xlsx");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (err) {
-            console.error("Lỗi tải file mẫu:", err);
-            alert("Có lỗi xảy ra khi tạo file mẫu!");
-        }
-    };
-
-    const validateReceiptRow = (row: any) => {
-        const supplierCodeOrName = getExcelRowValue(row, "Mã nhà cung cấp", "Tên nhà cung cấp", "Nhà cung cấp", "Supplier", "Supplier Code");
-        const locationCodeOrName = getExcelRowValue(row, "Mã kho nhận", "Tên kho nhận", "Kho nhận", "Kho", "Location", "Location Code");
-        const materialCodeOrName = getExcelRowValue(row, "Mã nguyên liệu", "Tên nguyên liệu", "Nguyên liệu", "Mã SKU", "SKU", "Material");
-        const quantityStr = getExcelRowValue(row, "Số lượng đặt", "Số lượng", "SL đặt", "Quantity", "Ordered Quantity");
-
-        if (!supplierCodeOrName && !locationCodeOrName && !materialCodeOrName && !quantityStr) {
-            return { isValid: true };
-        }
-
-        if (options.suppliers.length > 0 && supplierCodeOrName) {
-            const cleanSupp = supplierCodeOrName.toLowerCase().trim();
-            const matched = options.suppliers.some(
-                (s) =>
-                    (s.code && s.code.toLowerCase().trim() === cleanSupp) ||
-                    (s.name && s.name.toLowerCase().trim() === cleanSupp) ||
-                    (s.id && String(s.id).toLowerCase().trim() === cleanSupp)
-            );
-            if (!matched) {
-                return { isValid: false, error: `Nhà cung cấp '${supplierCodeOrName}' không tồn tại` };
-            }
-        }
-
-        if (options.locations.length > 0 && locationCodeOrName) {
-            const cleanLoc = locationCodeOrName.toLowerCase().trim();
-            const matched = options.locations.some(
-                (l) =>
-                    (l.code && l.code.toLowerCase().trim() === cleanLoc) ||
-                    (l.name && l.name.toLowerCase().trim() === cleanLoc) ||
-                    (l.id && String(l.id).toLowerCase().trim() === cleanLoc)
-            );
-            if (!matched) {
-                return { isValid: false, error: `Kho nhận '${locationCodeOrName}' không tồn tại` };
-            }
-        }
-
-        if (!materialCodeOrName) {
-            return { isValid: false, error: "Mã nguyên liệu không được để trống" };
-        }
-
-        if (options.materials.length > 0) {
-            const cleanMat = materialCodeOrName.toLowerCase().trim();
-            const matched = options.materials.some(
-                (m) =>
-                    (m.skuCode && m.skuCode.toLowerCase().trim() === cleanMat) ||
-                    (m.name && m.name.toLowerCase().trim() === cleanMat) ||
-                    (m.id && String(m.id).toLowerCase().trim() === cleanMat)
-            );
-            if (!matched) {
-                return { isValid: false, error: `Nguyên liệu '${materialCodeOrName}' không tồn tại` };
-            }
-        }
-
-        if (!quantityStr) {
-            return { isValid: false, error: "Số lượng đặt không được để trống" };
-        }
-
-        const quantity = Number(String(quantityStr).replace(/,/g, ""));
-        if (isNaN(quantity) || quantity <= 0) {
-            return { isValid: false, error: "Số lượng đặt phải lớn hơn 0" };
-        }
-
-        return { isValid: true };
-    };
-
-    const handleImportExcel = async (file: File) => {
-        await parseAndImportGoodsReceipts(file, options);
-        retry();
-    };
-
     const filters: InventoryFilter[] | undefined = showFilters
         ? [
             {
@@ -290,8 +199,8 @@ export function GoodsReceiptListPage() {
                 detailPath={(item) => `/management/inventory/receipts/${item.id}`}
                 error={error}
                 extraHeaderActions={
-                    <div className="flex flex-wrap items-center gap-2">
-                        <ActionButton variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+                    <div className="flex flex-wrap items-center gap-2 w-full justify-start sm:w-auto sm:justify-end">
+                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.goodsReceiptImportCreate)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>
@@ -399,16 +308,6 @@ export function GoodsReceiptListPage() {
                 title="Phiếu nhập kho từ Nhà cung cấp"
                 totalItems={result?.totalElements ?? 0}
                 totalItemsLabel="Tổng số phiếu nhập"
-            />
-
-            <ExcelImportModal
-                description="Nhập danh sách phiếu nhập kho từ file Excel. Các dòng cùng Nhà cung cấp, Kho nhận và Mã PO sẽ được tự động gom thành 1 phiếu."
-                isOpen={isImportModalOpen}
-                onClose={() => setIsImportModalOpen(false)}
-                onDownloadTemplate={handleDownloadTemplate}
-                onImport={handleImportExcel}
-                title="Nhập danh sách phiếu nhập kho từ Excel"
-                validateRow={validateReceiptRow}
             />
         </>
     );

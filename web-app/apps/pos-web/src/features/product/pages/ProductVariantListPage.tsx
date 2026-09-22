@@ -3,6 +3,7 @@ import { useCallback, useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
+import { routePaths } from "../../../routes/path";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
@@ -10,7 +11,6 @@ import { bomApi } from "../../manufacturing/services/bom.api";
 import type { BomItemInput } from "../../manufacturing/types/bom.types";
 import { categoryApi } from "../services/category.api";
 
-import { ExcelImportModal } from "../components/ExcelImportModal";
 import {
     CatalogStatusBadge,
     DetailList,
@@ -63,7 +63,7 @@ function ProductVariantFormWrapper({
     const [formProductId, setFormProductId] = useState(
         editingItem?.productId ? String(editingItem.productId) : ""
     );
-    const [formVariantName, setFormVariantName] = useState(editingItem?.variantName || "");
+    const [formQuantity, setFormQuantity] = useState(editingItem?.quantity ?? 0);
     const [formSellingPrice, setFormSellingPrice] = useState(editingItem?.sellingPrice ?? 0);
     const [formCostPrice, setFormCostPrice] = useState(editingItem?.costPrice ?? 0);
     const [formUnitId, setFormUnitId] = useState(editingItem?.unitId ? String(editingItem.unitId) : "");
@@ -77,6 +77,16 @@ function ProductVariantFormWrapper({
 
     const [formError, setFormError] = useState("");
     const [formSubmitting, setFormSubmitting] = useState(false);
+
+    const selectedProductName = productOptions.find((p) => p.id === formProductId)?.name ?? "";
+    const selectedUnit = units.find((u) => String(u.id) === formUnitId);
+    const previewVariantName = [
+        selectedProductName,
+        formQuantity > 0 ? String(formQuantity) : "",
+        selectedUnit?.name ?? ""
+    ]
+        .filter(Boolean)
+        .join(" ");
 
     useEffect(() => {
         if (!editingItem?.id) return;
@@ -121,8 +131,8 @@ function ProductVariantFormWrapper({
             setFormError("Vui lòng chọn Sản phẩm.");
             return false;
         }
-        if (!formVariantName.trim()) {
-            setFormError("Vui lòng nhập Tên Mặt hàng.");
+        if (!formQuantity || formQuantity <= 0) {
+            setFormError("Vui lòng nhập Định lượng lớn hơn 0.");
             return false;
         }
         if (!formUnitId) {
@@ -172,7 +182,7 @@ function ProductVariantFormWrapper({
         try {
             const input: ProductVariantInput = {
                 productId: formProductId,
-                variantName: formVariantName.trim(),
+                quantity: Number(formQuantity),
                 sellingPrice: Number(formSellingPrice),
                 costPrice: Number(formCostPrice),
                 unitId: formUnitId,
@@ -237,13 +247,15 @@ function ProductVariantFormWrapper({
                         </div>
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                            Tên Mặt hàng *
+                            Định lượng *
                             <input
-                                type="text"
+                                type="number"
+                                min={0}
+                                step="any"
                                 className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
-                                placeholder="Ví dụ: Trà Ô Long Túi Lọc 100g"
-                                value={formVariantName}
-                                onChange={(e) => setFormVariantName(e.target.value)}
+                                placeholder="Ví dụ: 100, 250, 500"
+                                value={formQuantity}
+                                onChange={(e) => setFormQuantity(Number(e.target.value))}
                             />
                         </label>
 
@@ -308,6 +320,13 @@ function ProductVariantFormWrapper({
                                 <option value="INACTIVE">Ngừng hoạt động</option>
                             </select>
                         </label>
+                    </div>
+
+                    <div className="rounded-xl border border-pos-border bg-neutral-50 px-4 py-3 text-sm">
+                        <span className="font-bold text-gray-500">Tên Mặt hàng (tự sinh): </span>
+                        <span className="font-black text-gray-800">
+                            {previewVariantName || "Chọn sản phẩm, định lượng và đơn vị để xem tên hiển thị"}
+                        </span>
                     </div>
 
                     <div className="grid gap-3 border-t border-pos-border pt-4">
@@ -444,7 +463,6 @@ export function ProductVariantListPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const state = useCatalogPageState();
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const [filterProductId, setFilterProductId] = useState(productId && productId !== "ALL" ? productId : "");
@@ -581,16 +599,10 @@ export function ProductVariantListPage() {
             state.status
         ]
     );
-    const loadProducts = useCallback(
-        () => productApi.list({ page: 0, size: 500 }),
-        []
-    );
     const resource = usePagedApiResource(loadVariants);
-    const productResource = useApiResource(loadProducts);
     const loadUnits = useCallback(() => unitApi.list({ page: 0, size: 500 }), []);
     const unitResource = useApiResource(loadUnits);
     const variants = resource.data?.content ?? [];
-    const products = productResource.data?.content ?? [];
     const units = unitResource.data?.content ?? [];
 
     async function handleSave(input: ProductVariantInput, items: BomItemInput[]) {
@@ -627,126 +639,6 @@ export function ProductVariantListPage() {
         }
     };
 
-    const handleImportClick = () => {
-        setIsImportModalOpen(true);
-    };
-
-    const getRowValue = (row: any, ...keys: string[]): string => {
-        if (!row) return "";
-        for (const k of keys) {
-            if (row[k] !== undefined && row[k] !== null) {
-                return String(row[k]).trim();
-            }
-        }
-        const rowKeys = Object.keys(row);
-        for (const targetKey of keys) {
-            const normalizedTarget = targetKey.toLowerCase().replace(/[^a-z0-9]/g, "");
-            const foundKey = rowKeys.find((rk) => {
-                const normalizedRk = rk.toLowerCase().replace(/[^a-z0-9]/g, "");
-                return normalizedRk === normalizedTarget;
-            });
-            if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
-                return String(row[foundKey]).trim();
-            }
-        }
-        return "";
-    };
-
-    const validateVariantRow = (row: any) => {
-        const productCode = getRowValue(row, "Mã sản phẩm", "Mã SP", "Mã sp", "Product Code", "Mã hàng", "Mã SP/Product");
-        const sellingPriceStr = getRowValue(row, "Giá bán", "Selling Price");
-        const costPriceStr = getRowValue(row, "Giá vốn", "Cost Price");
-        const unitName = getRowValue(row, "Đơn vị", "Đơn vị bán", "Đơn vị tính", "Unit");
-        const policyStr = getRowValue(row, "Chính sách tồn kho", "Chính sách", "Inventory Policy");
-        const statusStr = getRowValue(row, "Trạng thái", "Status");
-
-        if (!productCode && !productId) {
-            return { isValid: false, error: "Mã sản phẩm trống" };
-        }
-
-        if (productCode && products.length > 0) {
-            const cleanCode = productCode.trim().toLowerCase();
-            const matchedProduct = products.some(
-                (p) => (p.productCode || "").trim().toLowerCase() === cleanCode
-            );
-            if (!matchedProduct) {
-                // If there are more than 500 products or products only partially loaded, avoid false negative if backend will verify
-                if (products.length < 500) {
-                    return { isValid: false, error: "Mã sản phẩm không tồn tại" };
-                }
-            }
-        }
-
-        const sellingPrice = Number(String(sellingPriceStr).replace(/,/g, ""));
-        if (isNaN(sellingPrice) || sellingPrice < 0) {
-            return { isValid: false, error: "Giá bán không hợp lệ" };
-        }
-
-        const costPrice = Number(String(costPriceStr).replace(/,/g, ""));
-        if (isNaN(costPrice) || costPrice < 0) {
-            return { isValid: false, error: "Giá vốn không hợp lệ" };
-        }
-
-        if (!unitName) {
-            return { isValid: false, error: "Đơn vị trống" };
-        }
-
-        if (units.length > 0) {
-            const cleanUnit = unitName.trim().toLowerCase();
-            const matchedUnit = units.some(
-                (u) =>
-                    (u.name || "").trim().toLowerCase() === cleanUnit ||
-                    (u.symbol || "").trim().toLowerCase() === cleanUnit
-            );
-            if (!matchedUnit) {
-                if (units.length < 500) {
-                    return { isValid: false, error: "Đơn vị không tồn tại" };
-                }
-            }
-        }
-
-        if (policyStr) {
-            const p = policyStr.toLowerCase();
-            if (p !== "theo dõi tồn kho" && p !== "không theo dõi" && p !== "track_stock" && p !== "do_not_track") {
-                return { isValid: false, error: "Chính sách tồn kho không hợp lệ" };
-            }
-        }
-
-        if (statusStr) {
-            const s = statusStr.toLowerCase();
-            if (s !== "đang hoạt động" && s !== "ngừng hoạt động" && s !== "active" && s !== "inactive") {
-                return { isValid: false, error: "Trạng thái không hợp lệ" };
-            }
-        }
-
-        return { isValid: true };
-    };
-
-    const handleImportExcel = async (file: File) => {
-        let currentProductId = productId;
-        if (!currentProductId || currentProductId === "ALL") {
-            currentProductId = products[0]?.id ? String(products[0].id) : undefined;
-        }
-        await productVariantApi.import(file, currentProductId || "");
-        resource.refresh();
-    };
-
-    const handleDownloadTemplate = async () => {
-        try {
-            const blob = await productVariantApi.downloadTemplate();
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", "mau_nhap_bien_the.xlsx");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            console.error("Lỗi tải file mẫu:", error);
-            alert("Có lỗi xảy ra khi tải file mẫu!");
-        }
-    };
-
     const handleDelete = async (item: ProductVariant) => {
         await productVariantApi.delete(String(item.id));
     };
@@ -755,13 +647,13 @@ export function ProductVariantListPage() {
         <>
             <CatalogResourceManagement
                 title="Mặt hàng"
-                description="Quản lý các mặt hàng bán được, SKU, chính sách tồn kho và định mức nguyên liệu (BOM)."
+                description="Quản lý các phiên bản sản phẩm bán được, SKU và định mức nguyên liệu."
                 createLabel="Tạo Mặt hàng"
                 searchPlaceholder="Tìm theo tên sản phẩm, tên mặt hàng, SKU..."
                 totalItemsLabel="Tổng số Mặt hàng"
                 extraHeaderActions={
                     <>
-                        <ActionButton variant="secondary" onClick={handleImportClick}>
+                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.productVariantImport)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>
@@ -844,12 +736,14 @@ export function ProductVariantListPage() {
                 secondaryFilter={undefined}
                 columns={[
                     { key: "variant", label: "Tên Mặt hàng" },
+                    { key: "quantity", label: "Định lượng" },
                     { key: "selling", label: "Giá bán" },
                     { key: "status", label: "Trạng thái" }
                 ]}
                 renderCells={(item) => (
                     <>
                         <TableCell>{item.variantName}</TableCell>
+                        <TableCell className="text-right pr-[18px]">{item.quantity}</TableCell>
                         <TableCell>{formatCurrency(item.sellingPrice)}</TableCell>
                         <TableCell>
                             <CatalogStatusBadge status={item.status} />
@@ -867,6 +761,7 @@ export function ProductVariantListPage() {
                                     { label: "Sản phẩm", value: item.productName },
                                     { label: "SKU", value: item.sku },
                                     { label: "Tên Mặt hàng", value: item.variantName },
+                                    { label: "Định lượng", value: String(item.quantity) },
                                     {
                                         label: "Giá bán",
                                         value: formatCurrency(item.sellingPrice)
@@ -919,15 +814,6 @@ export function ProductVariantListPage() {
                         onSave={handleSave}
                     />
                 )}
-            />
-            <ExcelImportModal
-                isOpen={isImportModalOpen}
-                onClose={() => setIsImportModalOpen(false)}
-                title="Nhập dữ liệu từ Excel"
-                description="Tải file mẫu hoặc chọn file Excel để nhập dữ liệu vào hệ thống."
-                onDownloadTemplate={handleDownloadTemplate}
-                onImport={handleImportExcel}
-                validateRow={validateVariantRow}
             />
         </>
     );

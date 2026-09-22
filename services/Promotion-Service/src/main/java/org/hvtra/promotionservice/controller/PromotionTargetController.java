@@ -7,7 +7,8 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.promotiontarget.PromotionTargetSuccessMessage;
 import org.hvtra.promotionservice.dto.request.promotiontarget.PromotionTargetCreateRequest;
@@ -35,6 +36,7 @@ public class PromotionTargetController {
             summary = "Tạo phạm vi áp dụng khuyến mãi",
             description = "Tạo mới target cho khuyến mãi, ví dụ áp dụng cho một sản phẩm, danh mục hoặc thương hiệu cụ thể."
     )
+    @UserAction(value = "PROMOTION_TARGET_CREATE", entityType = "PromotionTarget", entityId = "#result.data.id", detail = "#promotionId")
     @PostMapping
     public ApiResponse<PromotionTargetResponse> createTarget(
             @Parameter(description = "ID của khuyến mãi cần thêm target", required = true)
@@ -89,6 +91,7 @@ public class PromotionTargetController {
             summary = "Cập nhật phạm vi áp dụng",
             description = "Cập nhật target của khuyến mãi, bao gồm loại target, targetId, trạng thái loại trừ và thông tin override quyền lợi."
     )
+    @UserAction(value = "PROMOTION_TARGET_UPDATE", entityType = "PromotionTarget", entityId = "#targetId", detail = "#promotionId")
     @PutMapping("/{targetId}")
     public ApiResponse<PromotionTargetResponse> updateTarget(
             @Parameter(description = "ID của khuyến mãi chứa target", required = true)
@@ -109,6 +112,7 @@ public class PromotionTargetController {
             summary = "Xóa phạm vi áp dụng",
             description = "Xóa mềm một target của khuyến mãi. Dữ liệu không bị xóa vật lý khỏi database."
     )
+    @UserAction(value = "PROMOTION_TARGET_DELETE", entityType = "PromotionTarget", entityId = "#targetId", detail = "#promotionId")
     @DeleteMapping("/{targetId}")
     public ApiResponse<Void> deleteTarget(
             @Parameter(description = "ID của khuyến mãi chứa target", required = true)

@@ -1,6 +1,5 @@
 package org.hvtra.catalog.controller;
 
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
@@ -12,9 +11,11 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.hvtra.catalog.service.BarcodeService;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -28,7 +29,6 @@ import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @RestController
@@ -51,7 +51,7 @@ public class ProductVariantController {
             @RequestParam(name = "productId", required = false) UUID productId,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "status", required = false) Status status,
-            @PageableDefault(size = 20, sort = "sku") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(keyword, sku, variantName, barcode, productId, categoryId, status, pageable);
     }
 
@@ -60,18 +60,38 @@ public class ProductVariantController {
         return service.findById(id);
     }
 
+    @PostMapping("/batch")
+    public List<ProductResponse.VariantResponse> findByIds(@RequestBody List<UUID> ids) {
+        return service.findAllByIds(ids);
+    }
+
+    @GetMapping("/search-ids")
+    public List<UUID> searchIds(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "sku", required = false) String sku,
+            @RequestParam(name = "productCode", required = false) String productCode,
+            @RequestParam(name = "productName", required = false) String productName,
+            @RequestParam(name = "categoryCode", required = false) String categoryCode,
+            @RequestParam(name = "categoryId", required = false) UUID categoryId,
+            @RequestParam(name = "unitId", required = false) UUID unitId) {
+        return service.searchVariantIds(keyword, sku, productCode, productName, categoryCode, categoryId, unitId);
+    }
+
+    @UserAction(value = "PRODUCT_VARIANT_UPDATE", entityType = "ProductVariant", entityId = "#id")
     @PutMapping("/{id}")
     public ProductResponse.VariantResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody ProductVariantRequest request) {
         return service.update(id, request);
     }
 
+    @UserAction(value = "PRODUCT_VARIANT_STATUS_UPDATE", entityType = "ProductVariant", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public ProductResponse.VariantResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "BARCODE_CREATE", entityType = "Barcode", entityId = "#result.id", detail = "#variantId")
     @PostMapping("/{variantId}/barcodes")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse.BarcodeResponse createBarcode(
@@ -102,14 +122,6 @@ public class ProductVariantController {
                 .body(resource);
     }
 
-    @PostMapping("/import")
-    @ResponseStatus(HttpStatus.OK)
-    public void importVariants(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(name = "productId", required = false) UUID productId) {
-        service.importFromExcel(file, productId);
-    }
-
     @GetMapping("/import/template")
     public ResponseEntity<Resource> downloadTemplate() {
         byte[] excelBytes = service.getImportTemplate();
@@ -123,10 +135,11 @@ public class ProductVariantController {
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 20, sort = "sku") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, pageable);
     }
 
+    @UserAction(value = "PRODUCT_VARIANT_DELETE", entityType = "ProductVariant", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {

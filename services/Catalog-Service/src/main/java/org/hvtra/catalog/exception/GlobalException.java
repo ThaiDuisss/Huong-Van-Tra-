@@ -2,12 +2,11 @@ package org.hvtra.catalog.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.exception.BaseGlobalExceptionHandler;
-import org.hvtra.commonservice.exception.ErrorResponse;
+import org.hvtra.commonservice.common_core.exception.BaseGlobalExceptionHandler;
+import org.hvtra.commonservice.common_core.exception.ErrorResponse;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;

@@ -74,6 +74,14 @@ notification:
         cancelled: order.event.ORDER_CANCELLED
         status-changed: order.event.ORDER_STATUS_CHANGED
         completed: order.completed
+  return:
+    events:
+      topics:
+        created: notification.return.created
+        received: notification.return.received
+        cancelled: notification.return.cancelled
+        refund-completed: notification.return.refund-completed
+        completed: notification.return.completed
 
 security:
   internal:

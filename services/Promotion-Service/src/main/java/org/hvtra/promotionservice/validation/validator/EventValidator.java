@@ -1,6 +1,6 @@
 package org.hvtra.promotionservice.validation.validator;
 
-import org.hvtra.commonservice.exception.BusinessException;
+import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.hvtra.promotionservice.entity.Event;
 import org.hvtra.promotionservice.enums.event.EventStatus;
 import org.springframework.stereotype.Component;

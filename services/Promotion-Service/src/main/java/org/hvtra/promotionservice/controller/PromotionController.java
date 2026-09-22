@@ -10,7 +10,8 @@ import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.promotion.PromotionSuccessMessage;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionCreateRequest;
@@ -43,6 +44,7 @@ public class PromotionController {
             summary = "Tạo khuyến mãi",
             description = "Tạo mới một chương trình khuyến mãi. Request cần truyền eventId."
     )
+    @UserAction(value = "PROMOTION_CREATE", entityType = "Promotion", entityId = "#result.data.id")
     @PostMapping
     public ApiResponse<PromotionResponse> createPromotion(
             @Valid @RequestBody PromotionCreateRequest request
@@ -56,6 +58,7 @@ public class PromotionController {
             summary = "Tạo khuyến mãi theo event",
             description = "Tạo mới một chương trình khuyến mãi trực tiếp dưới một event/campaign cụ thể."
     )
+    @UserAction(value = "PROMOTION_CREATE", entityType = "Promotion", entityId = "#result.data.id", detail = "#eventId")
     @PostMapping("/events/{eventId}/promotions")
     public ApiResponse<PromotionResponse> createPromotionByEvent(
             @Parameter(
@@ -165,6 +168,7 @@ public class PromotionController {
             summary = "Cập nhật khuyến mãi",
             description = "Cập nhật thông tin cấu hình cơ bản của khuyến mãi."
     )
+    @UserAction(value = "PROMOTION_UPDATE", entityType = "Promotion", entityId = "#promotionId")
     @PutMapping("/{promotionId}")
     public ApiResponse<PromotionResponse> updatePromotion(
             @Parameter(
@@ -185,6 +189,7 @@ public class PromotionController {
             summary = "Xóa khuyến mãi",
             description = "Xóa mềm một chương trình khuyến mãi."
     )
+    @UserAction(value = "PROMOTION_DELETE", entityType = "Promotion", entityId = "#promotionId")
     @DeleteMapping("/{promotionId}")
     public ApiResponse<Void> deletePromotion(
             @Parameter(
@@ -203,6 +208,7 @@ public class PromotionController {
             summary = "Lên lịch khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái SCHEDULED."
     )
+    @UserAction(value = "PROMOTION_SCHEDULE", entityType = "Promotion", entityId = "#promotionId")
     @PostMapping("/{promotionId}/schedule")
     public ApiResponse<PromotionResponse> schedulePromotion(
             @Parameter(
@@ -221,6 +227,7 @@ public class PromotionController {
             summary = "Kích hoạt khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái ACTIVE."
     )
+    @UserAction(value = "PROMOTION_ACTIVATE", entityType = "Promotion", entityId = "#promotionId")
     @PostMapping("/{promotionId}/activate")
     public ApiResponse<PromotionResponse> activatePromotion(
             @Parameter(
@@ -239,6 +246,7 @@ public class PromotionController {
             summary = "Tạm dừng khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái PAUSED."
     )
+    @UserAction(value = "PROMOTION_PAUSE", entityType = "Promotion", entityId = "#promotionId")
     @PostMapping("/{promotionId}/pause")
     public ApiResponse<PromotionResponse> pausePromotion(
             @Parameter(
@@ -257,6 +265,7 @@ public class PromotionController {
             summary = "Tiếp tục khuyến mãi",
             description = "Resume khuyến mãi đang PAUSED. Nếu startAt ở tương lai thì về SCHEDULED, nếu đã tới thời gian chạy thì về ACTIVE."
     )
+    @UserAction(value = "PROMOTION_RESUME", entityType = "Promotion", entityId = "#promotionId")
     @PostMapping("/{promotionId}/resume")
     public ApiResponse<PromotionResponse> resumePromotion(
             @Parameter(
@@ -275,6 +284,7 @@ public class PromotionController {
             summary = "Hủy khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái CANCELLED."
     )
+    @UserAction(value = "PROMOTION_CANCEL", entityType = "Promotion", entityId = "#promotionId")
     @PostMapping("/{promotionId}/cancel")
     public ApiResponse<PromotionResponse> cancelPromotion(
             @Parameter(
@@ -293,6 +303,7 @@ public class PromotionController {
             summary = "Đánh dấu khuyến mãi hết hạn",
             description = "Chuyển khuyến mãi sang trạng thái EXPIRED. Thường dùng cho scheduler/system."
     )
+    @UserAction(value = "PROMOTION_EXPIRE", entityType = "Promotion", entityId = "#promotionId")
     @PostMapping("/{promotionId}/expire")
     public ApiResponse<PromotionResponse> expirePromotion(
             @Parameter(
@@ -311,6 +322,7 @@ public class PromotionController {
             summary = "Kết thúc khuyến mãi",
             description = "Chuyển khuyến mãi sang trạng thái ENDED. Dùng khi admin chủ động đóng/kết thúc promotion."
     )
+    @UserAction(value = "PROMOTION_END", entityType = "Promotion", entityId = "#promotionId")
     @PostMapping("/{promotionId}/end")
     public ApiResponse<PromotionResponse> endPromotion(
             @Parameter(
@@ -329,6 +341,7 @@ public class PromotionController {
             summary = "Sao chép khuyến mãi",
             description = "Tạo một bản sao mới từ khuyến mãi hiện tại. Bản sao mặc định ở trạng thái DRAFT."
     )
+    @UserAction(value = "PROMOTION_DUPLICATE", entityType = "Promotion", entityId = "#result.data.id", detail = "#promotionId")
     @PostMapping("/{promotionId}/duplicate")
     public ApiResponse<PromotionResponse> duplicatePromotion(
             @Parameter(

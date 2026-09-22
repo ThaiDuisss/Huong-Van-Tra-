@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.catalog.dto.request.SupplierRequest;
+import org.hvtra.catalog.dto.response.InternalSupplierLookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.SupplierResponse;
 import org.hvtra.catalog.entity.BusinessSequence;
@@ -23,7 +24,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.text.Normalizer;
+import org.hvtra.commonservice.common_core.util.CodeUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -39,6 +40,7 @@ public class SupplierServiceImpl implements SupplierService {
     private final BusinessSequenceRepository businessSequenceRepository;
 
     private String generateSupplierCode(String supplierName) {
+        String prefix = CodeUtils.getInitials(supplierName, "NCC");
         BusinessSequence seq = businessSequenceRepository.findBySequenceKeyWithLock("SUPPLIER")
                 .orElseGet(() -> {
                     BusinessSequence newSeq = new BusinessSequence();
@@ -47,32 +49,15 @@ public class SupplierServiceImpl implements SupplierService {
                     return businessSequenceRepository.saveAndFlush(newSeq);
                 });
 
-        long nextVal = seq.getCurrentValue() + 1;
-        seq.setCurrentValue(nextVal);
+        String code;
+        do {
+            long nextVal = seq.getCurrentValue() + 1;
+            seq.setCurrentValue(nextVal);
+            code = String.format("%s-%02d", prefix, nextVal);
+        } while (repository.existsBySupplierCode(code));
+
         businessSequenceRepository.saveAndFlush(seq);
-
-        String prefix = getInitials(supplierName);
-        return String.format("%s-%02d", prefix, nextVal);
-    }
-
-    private String getInitials(String name) {
-        if (name == null || name.trim().isEmpty()) {
-            return "NCC";
-        }
-
-        String normalized = Normalizer.normalize(name, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .replace("Đ", "D")
-                .replace("đ", "d");
-
-        StringBuilder initials = new StringBuilder();
-        for (String word : normalized.split("\\s+")) {
-            if (!word.isEmpty()) {
-                initials.append(Character.toUpperCase(word.charAt(0)));
-            }
-        }
-
-        return initials.length() > 0 ? initials.toString() : "NCC";
+        return code;
     }
 
     @Override
@@ -135,6 +120,15 @@ public class SupplierServiceImpl implements SupplierService {
         return suppliers.stream().map(mapper::toResponse).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<InternalSupplierLookupResponse> findAllForLookup() {
+        return repository.findAll().stream()
+                .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
+                .map(s -> new InternalSupplierLookupResponse(s.getId(), s.getSupplierCode(), s.getName()))
+                .toList();
+    }
+
     private void warmUpIngredients(List<Supplier> suppliers) {
         if (suppliers.isEmpty()) {
             return;
@@ -146,7 +140,15 @@ public class SupplierServiceImpl implements SupplierService {
     @Override
     @Transactional
     public SupplierResponse create(SupplierRequest request) {
-        String code = generateSupplierCode(request.name());
+        return createWithCode(request, null);
+    }
+
+    @Override
+    @Transactional
+    public SupplierResponse createWithCode(SupplierRequest request, String explicitCode) {
+        String code = explicitCode != null && !explicitCode.isBlank()
+                ? explicitCode.trim()
+                : generateSupplierCode(request.name());
         validateCode(code, null);
 
         Supplier supplier = new Supplier();
@@ -190,6 +192,19 @@ public class SupplierServiceImpl implements SupplierService {
         }
         supplier.setStatus(status);
         return mapper.toResponse(repository.save(supplier));
+    }
+
+    @Override
+    @Transactional
+    public void addIngredients(UUID supplierId, List<UUID> ingredientIds) {
+        if (ingredientIds == null || ingredientIds.isEmpty()) return;
+        Supplier supplier = get(supplierId);
+        if (Boolean.TRUE.equals(supplier.getIsDeleted())) {
+            throw new ResourceNotFoundException("Supplier", supplierId);
+        }
+        List<Ingredient> ingredientsToAdd = ingredientRepository.findAllById(ingredientIds);
+        supplier.getIngredients().addAll(ingredientsToAdd);
+        repository.save(supplier);
     }
 
     @Override

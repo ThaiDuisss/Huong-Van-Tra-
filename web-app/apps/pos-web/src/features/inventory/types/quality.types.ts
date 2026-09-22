@@ -38,6 +38,7 @@ export type QualityRecommendedAction =
     | "BLOCK";
 
 export type DisposalStatus =
+    | "PENDING_APPROVAL"
     | "DRAFT"
     | "SUBMITTED"
     | "APPROVED"
@@ -154,6 +155,9 @@ export interface DisposalLine {
 export interface DisposalRequest {
     id: string;
     code: string;
+    sourceInspectionId?: string;
+    inspectionCode?: string;
+    returnCode?: string;
     location: InventoryLocationSummary;
     reason: string;
     method: DisposalMethod;
@@ -183,6 +187,7 @@ export interface DisposalListQuery {
     code: string;
     locationId: "ALL" | string;
     reason: string;
+    returnCode?: string;
 }
 
 export interface DisposalListResult {

@@ -2,7 +2,7 @@ package org.hvtra.orderservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 
 import java.time.Instant;

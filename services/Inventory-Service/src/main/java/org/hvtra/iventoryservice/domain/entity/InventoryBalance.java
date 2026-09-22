@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 
 import java.math.BigDecimal;
@@ -54,8 +54,10 @@ public class InventoryBalance extends BaseEntity {
     private BigDecimal quantityBlocked = BigDecimal.ZERO;
 
     public BigDecimal getAvailableQuantity() {
-        return quantityOnHand
-                .subtract(quantityReserved)
-                .subtract(quantityBlocked);
+        BigDecimal onHand = quantityOnHand != null ? quantityOnHand : BigDecimal.ZERO;
+        BigDecimal reserved = quantityReserved != null ? quantityReserved : BigDecimal.ZERO;
+        BigDecimal blocked = quantityBlocked != null ? quantityBlocked : BigDecimal.ZERO;
+        BigDecimal available = onHand.subtract(reserved).subtract(blocked);
+        return available.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : available;
     }
 }

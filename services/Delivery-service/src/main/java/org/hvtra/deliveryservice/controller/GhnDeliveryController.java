@@ -3,6 +3,7 @@ package org.hvtra.deliveryservice.controller;
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.deliveryservice.model.request.ghn.GhnCancelShipmentCommand;
 import org.hvtra.deliveryservice.model.request.ghn.GhnCreateShipmentCommand;
 import org.hvtra.deliveryservice.model.request.ghn.GhnQuoteCommand;
@@ -35,6 +36,7 @@ public class GhnDeliveryController {
         return ghnIntegrationService.calculateFee(shipmentId, command);
     }
 
+    @UserAction(value = "GHN_SHIPMENT_CREATE", entityType = "Shipment", entityId = "#shipmentId")
     @PostMapping("/orders")
     public GhnShipmentResponse createOrder(
             @PathVariable UUID shipmentId,
@@ -48,6 +50,7 @@ public class GhnDeliveryController {
         return ghnIntegrationService.refreshShipment(shipmentId);
     }
 
+    @UserAction(value = "GHN_SHIPMENT_CANCEL", entityType = "Shipment", entityId = "#shipmentId")
     @PostMapping("/cancel")
     public GhnShipmentResponse cancel(
             @PathVariable UUID shipmentId,

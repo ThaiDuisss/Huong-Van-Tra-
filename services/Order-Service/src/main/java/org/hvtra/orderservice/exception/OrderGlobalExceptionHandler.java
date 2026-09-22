@@ -1,7 +1,7 @@
 package org.hvtra.orderservice.exception;
 
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.exception.BaseGlobalExceptionHandler;
+import org.hvtra.commonservice.common_core.exception.BaseGlobalExceptionHandler;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 
 

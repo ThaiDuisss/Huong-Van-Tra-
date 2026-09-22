@@ -145,6 +145,10 @@ export function ProductVariantDetailPage() {
                                 <span className="text-sm font-bold text-gray-800 text-right font-mono">{variant.sku}</span>
                             </div>
                             <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
+                                <span className="text-sm font-medium text-gray-500">Định lượng</span>
+                                <span className="text-sm font-bold text-gray-800 text-right">{variant.quantity}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
                                 <span className="text-sm font-medium text-gray-500">Đơn vị bán</span>
                                 <span className="text-sm font-semibold text-gray-800 text-right">
                                     {unit ? `${unit.name} (${unit.symbol})` : "N/A"}

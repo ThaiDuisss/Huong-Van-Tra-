@@ -1,7 +1,7 @@
 package org.hvtra.promotionservice.integration.consumer;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.kafka.event.DebeziumOutboxEventPayloadParser;
+import org.hvtra.commonservice.common_core.kafka.event.DebeziumOutboxEventPayloadParser;
 import org.hvtra.promotionservice.dto.event.OrderPromotionEventPayload;
 import org.springframework.stereotype.Component;
 

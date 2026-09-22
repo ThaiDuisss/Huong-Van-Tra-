@@ -15,6 +15,7 @@ export const POS_WORKSPACE_ROLES: AppRole[] = [
 ];
 
 export const BACKOFFICE_ROLES: AppRole[] = [
+    "SUPER_ADMIN",
     "ADMIN",
     "BRANCH_MANAGER",
     "INVENTORY_MANAGER",
@@ -74,9 +75,18 @@ export const REPORT_ROLES: AppRole[] = [
     "ACCOUNTANT"
 ];
 
-export const SETTINGS_ROLES: AppRole[] = [ROLES.ADMIN];
+export const SETTINGS_ROLES: AppRole[] = [ROLES.SUPER_ADMIN, ROLES.ADMIN];
+
+/** Nhật ký hoạt động người dùng: chỉ quản trị viên. */
+export const ACTION_LOG_ROLES: AppRole[] = [ROLES.SUPER_ADMIN, ROLES.ADMIN];
+
+export const IMPORT_MANAGEMENT_ROLES: AppRole[] = [
+    "ADMIN",
+    "BRANCH_MANAGER"
+];
 
 const DEFAULT_ROUTE_BY_ROLE: Record<string, string> = {
+    [ROLES.SUPER_ADMIN]: "/system/dashboard",
     [ROLES.ADMIN]: "/system/inventory/balances",
     [ROLES.BRANCH_MANAGER]: "/system/orders",
     [ROLES.INVENTORY_MANAGER]: "/system/inventory/balances",
@@ -90,6 +100,7 @@ const DEFAULT_ROUTE_BY_ROLE: Record<string, string> = {
 
 const ROLE_PRIORITY: Role[] = [
     ROLES.ADMIN,
+    ROLES.SUPER_ADMIN,
     ROLES.BRANCH_MANAGER,
     ROLES.INVENTORY_MANAGER,
     ROLES.QC,

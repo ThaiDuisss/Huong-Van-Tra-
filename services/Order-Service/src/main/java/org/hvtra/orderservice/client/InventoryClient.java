@@ -1,7 +1,13 @@
 package org.hvtra.orderservice.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
+import org.hvtra.orderservice.domain.enums.ReturnCondition;
+import org.hvtra.orderservice.domain.enums.ReturnStatus;
+import org.hvtra.orderservice.dto.response.ReturnDispositionStatusResponse;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -15,8 +21,30 @@ import java.util.UUID;
  * TODO: Cần wire vào OrderServiceImpl khi đã xác nhận phương thức giao tiếp
  *       (REST synchronous hoặc event-driven Kafka).
  */
-@FeignClient(name = "inventory-service", url = "${clients.inventory-service.url:http://localhost:8084}")
+@FeignClient(name = "inventory-service", url = "${clients.inventory.url:${clients.inventory-service.url:}}")
 public interface InventoryClient {
+
+    @PostMapping("/internal/inventory/stocks/variants/batch")
+    List<StockVariantBatchResponse> getStocksByVariantIds(@RequestBody StockVariantBatchRequest request);
+
+    @Builder
+    record StockVariantBatchRequest(
+            List<UUID> variantIds,
+            UUID warehouseId
+    ) {
+        public StockVariantBatchRequest(List<UUID> variantIds) {
+            this(variantIds, null);
+        }
+    }
+
+    record StockVariantBatchResponse(
+            UUID variantId,
+            UUID inventoryLocationId,
+            BigDecimal availableQuantity,
+            BigDecimal reservedQuantity,
+            String stockStatus
+    ) {
+    }
 
     @PostMapping("/api/inventory/reservations/apply")
     void applyReservation(@RequestBody ApplyInventoryReservationRequest request);
@@ -26,6 +54,22 @@ public interface InventoryClient {
 
     @PostMapping("/api/inventory/reservations/release-order")
     void releaseOrder(@RequestBody ReleaseInventoryReservationOrderRequest request);
+
+    @GetMapping("/api/inventory/customer-returns/{returnId}/qc-summary")
+    CustomerReturnQcSummaryResponse getCustomerReturnQcSummary(@PathVariable("returnId") UUID returnId);
+
+    @PostMapping("/api/inventory/customer-returns/qc-summaries")
+    List<CustomerReturnQcSummaryResponse> getCustomerReturnQcSummaries(
+            @RequestBody CustomerReturnQcSummaryBatchRequest request
+    );
+
+    @PostMapping("/api/inventory/customer-returns/qc-disposition-report")
+    List<CustomerReturnQcDispositionReportResponse> getCustomerReturnQcDispositionReport(
+            @RequestBody CustomerReturnQcDispositionReportRequest request
+    );
+
+    @GetMapping("/api/inventory/internal/return-dispositions/{commandId}/status")
+    ReturnDispositionStatusResponse getReturnDispositionStatus(@PathVariable("commandId") UUID commandId);
 
     @Builder
     record ApplyInventoryReservationRequest(
@@ -40,11 +84,111 @@ public interface InventoryClient {
     @Builder
     record ReleaseInventoryReservationItemRequest(
             UUID orderId,
+            UUID branchId,
             UUID productVariantId,
-            UUID locationId
+            UUID locationId,
+            BigDecimal quantity
     ) {}
 
     @Builder
     record ReleaseInventoryReservationOrderRequest(UUID orderId) {}
+
+    record CustomerReturnQcSummaryBatchRequest(
+            List<CustomerReturnSnapshot> returns
+    ) {}
+
+    record CustomerReturnSnapshot(
+            UUID returnId,
+            String returnCode,
+            ReturnStatus returnStatus,
+            UUID branchId,
+            UUID orderId,
+            String orderCode,
+            List<CustomerReturnLineSnapshot> lines
+    ) {}
+
+    record CustomerReturnLineSnapshot(
+            UUID returnItemId,
+            UUID orderItemId,
+            UUID productVariantId,
+            BigDecimal quantity,
+            ReturnCondition condition,
+            String reason
+    ) {}
+
+    record CustomerReturnQcDispositionReportRequest(
+            List<UUID> returnIds
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record CustomerReturnQcSummaryResponse(
+            UUID returnId,
+            String returnCode,
+            String returnStatus,
+            UUID branchId,
+            UUID orderId,
+            String orderCode,
+            UUID inspectionId,
+            String inspectionStatus,
+            String qcStatus,
+            List<CustomerReturnQcLineResponse> lines,
+            Instant inspectedAt
+    ) {
+        public CustomerReturnQcSummaryResponse(
+                UUID returnId,
+                String returnCode,
+                String returnStatus,
+                UUID branchId,
+                UUID orderId,
+                String orderCode,
+                UUID inspectionId,
+                String inspectionStatus,
+                String qcStatus,
+                List<CustomerReturnQcLineResponse> lines
+        ) {
+            this(returnId, returnCode, returnStatus, branchId, orderId, orderCode, inspectionId, inspectionStatus, qcStatus, lines, null);
+        }
+
+        public CustomerReturnQcSummaryResponse(
+                UUID returnId,
+                String returnCode,
+                String returnStatus,
+                UUID branchId,
+                UUID orderId,
+                String orderCode,
+                String qcStatus,
+                List<CustomerReturnQcLineResponse> lines
+        ) {
+            this(returnId, returnCode, returnStatus, branchId, orderId, orderCode, null, null, qcStatus, lines, null);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record CustomerReturnQcLineResponse(
+            UUID returnItemId,
+            UUID orderItemId,
+            UUID productVariantId,
+            BigDecimal returnedQuantity,
+            BigDecimal postedQcQuantity,
+            BigDecimal remainingQcQuantity,
+            String status
+    ) {
+        public CustomerReturnQcLineResponse(
+                UUID returnItemId,
+                UUID orderItemId,
+                BigDecimal returnedQuantity,
+                BigDecimal inspectedQuantity,
+                BigDecimal acceptedQuantity,
+                BigDecimal rejectedQuantity,
+                String qcStatus
+        ) {
+            this(returnItemId, orderItemId, (UUID) null, returnedQuantity, inspectedQuantity, BigDecimal.ZERO, qcStatus);
+        }
+    }
+
+    record CustomerReturnQcDispositionReportResponse(
+            String result,
+            BigDecimal quantity
+    ) {}
 
 }

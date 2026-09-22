@@ -2,7 +2,7 @@ package org.hvtra.iventoryservice.integration.order.consumer;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.hvtra.commonservice.kafka.event.EventMetadataResolver;
+import org.hvtra.commonservice.common_core.kafka.event.EventMetadataResolver;
 import org.hvtra.iventoryservice.integration.order.dto.OrderInventoryEventPayload;
 import org.springframework.stereotype.Component;
 

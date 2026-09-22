@@ -1,9 +1,9 @@
 import { Download, Package, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
-
-import { ExcelImportModal } from "../../product/components/ExcelImportModal";
+import { routePaths } from "../../../routes/path";
 import {
     CatalogStatusBadge,
     DetailList,
@@ -25,8 +25,8 @@ import {
 } from "../../product/utils/form-values";
 
 export function RawMaterialListPage() {
+    const navigate = useNavigate();
     const state = useCatalogPageState();
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [units, setUnits] = useState<Unit[]>([]);
 
     useEffect(() => {
@@ -108,40 +108,6 @@ export function RawMaterialListPage() {
         }
     };
 
-    const validateIngredientRow = (row: any) => {
-        const code = String(row["Mã nguyên liệu"] || row["ingredientCode"] || row["code"] || "").trim();
-        const name = String(row["Tên nguyên liệu"] || row["name"] || "").trim();
-        
-        if (!code) {
-            return { isValid: false, error: "Mã nguyên liệu trống" };
-        }
-        if (!name) {
-            return { isValid: false, error: "Tên nguyên liệu trống" };
-        }
-        return { isValid: true };
-    };
-
-    const handleImportExcel = async (file: File) => {
-        await ingredientApi.import(file);
-        resource.refresh();
-    };
-
-    const handleDownloadTemplate = async () => {
-        try {
-            const blob = await ingredientApi.downloadTemplate();
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", "mau_nhap_nguyen_lieu.xlsx");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            console.error("Lỗi tải file mẫu:", error);
-            alert("Có lỗi xảy ra khi tải file mẫu!");
-        }
-    };
-
     const handleDelete = async (item: Ingredient) => {
         await ingredientApi.delete(String(item.id));
     };
@@ -156,7 +122,7 @@ export function RawMaterialListPage() {
                 totalItemsLabel="Tổng số nguyên liệu"
                 extraHeaderActions={
                     <>
-                        <ActionButton variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.ingredientImport)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>
@@ -315,15 +281,6 @@ export function RawMaterialListPage() {
                         ]
                     }
                 ]}
-            />
-            <ExcelImportModal
-                isOpen={isImportModalOpen}
-                onClose={() => setIsImportModalOpen(false)}
-                title="Nhập nguyên liệu từ Excel"
-                description="Tải file mẫu hoặc chọn file Excel để nhập nguyên liệu vào hệ thống."
-                onDownloadTemplate={handleDownloadTemplate}
-                onImport={handleImportExcel}
-                validateRow={validateIngredientRow}
             />
         </>
     );

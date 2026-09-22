@@ -1,8 +1,8 @@
 package org.hvtra.paymentservice.outbox.service;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
-import org.hvtra.commonservice.kafka.outbox.service.OutboxEventService;
+import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
+import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.hvtra.paymentservice.domain.entity.Payment;
 import org.hvtra.paymentservice.domain.entity.PaymentAttempt;
 import org.hvtra.paymentservice.domain.entity.PaymentTransaction;

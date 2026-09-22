@@ -2,8 +2,9 @@ package org.hvtra.orderservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.orderservice.domain.enums.DiscountScope;
+import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 
@@ -86,6 +87,11 @@ public class Order extends BaseEntity {
     @Column(name = "payment_status", nullable = false, length = 50)
     @Enumerated(EnumType.STRING)
     private PaymentStatus paymentStatus;
+
+    @Builder.Default
+    @Column(name = "return_status", nullable = false, length = 50)
+    @Enumerated(EnumType.STRING)
+    private OrderReturnStatus returnStatus = OrderReturnStatus.NONE;
 
     @Column(name = "payment_method", length = 50)
     private String paymentMethod;

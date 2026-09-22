@@ -22,6 +22,8 @@ public class CreateOrderItemRequest {
 
     private UUID bomVersionId;
 
+    private String note;
+
     @Valid
     private List<CreateDiscountRequest> itemDiscounts =
             new ArrayList<>();

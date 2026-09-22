@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.location.controller;
 
 import jakarta.validation.Valid;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
 import org.hvtra.iventoryservice.location.dto.request.StoreShelfRequest;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
@@ -8,6 +9,7 @@ import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.location.service.StoreShelfService;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -28,7 +30,7 @@ public class StoreShelfController {
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, pageable);
     }
 
@@ -36,7 +38,7 @@ public class StoreShelfController {
     public PageResponse<InventoryLocationResponse> findAll(
             @RequestParam(name = "query", required = false) String query,
             @RequestParam(name = "status", required = false) InventoryStatus status,
-            @PageableDefault(size = 20, sort = "code") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(query, status, pageable);
     }
 
@@ -45,6 +47,7 @@ public class StoreShelfController {
         return service.findById(id);
     }
 
+    @UserAction(value = "STORE_SHELF_CREATE", entityType = "StoreShelf", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public InventoryLocationResponse create(
@@ -52,6 +55,7 @@ public class StoreShelfController {
         return service.create(request);
     }
 
+    @UserAction(value = "STORE_SHELF_UPDATE", entityType = "StoreShelf", entityId = "#id")
     @PutMapping("/{id}")
     public InventoryLocationResponse update(
             @PathVariable("id") UUID id,
@@ -59,6 +63,7 @@ public class StoreShelfController {
         return service.update(id, request);
     }
 
+    @UserAction(value = "STORE_SHELF_STATUS_UPDATE", entityType = "StoreShelf", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public InventoryLocationResponse updateStatus(
             @PathVariable("id") UUID id,
@@ -66,6 +71,7 @@ public class StoreShelfController {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "STORE_SHELF_DELETE", entityType = "StoreShelf", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {

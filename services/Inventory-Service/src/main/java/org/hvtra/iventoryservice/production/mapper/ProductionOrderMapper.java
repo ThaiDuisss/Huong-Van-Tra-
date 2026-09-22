@@ -13,7 +13,7 @@ import java.util.List;
 public class ProductionOrderMapper {
 
     /**
-     * Dùng cho chi tiết 1 đơn: order phải được load kèm lines (vd. findByIdWithDetails)
+     * Dùng cho chi tiết 1 đơn: order phải được load kèm lines (vd. findByIdWithLines)
      * để tránh N+1 khi đọc order.getLines().
      */
     public ProductionOrderResponse toResponse(ProductionOrder order) {

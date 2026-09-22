@@ -9,9 +9,11 @@ import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.enums.UnitType;
 import org.hvtra.catalog.service.UnitService;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -41,7 +43,7 @@ public class UnitController {
             @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "status", required = false) Status status,
             @RequestParam(name = "type", required = false) UnitType type,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(name, status, type, pageable);
     }
 
@@ -53,28 +55,37 @@ public class UnitController {
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, pageable);
     }
 
+    @PostMapping("/batch")
+    public List<UnitResponse> findByIds(@RequestBody List<UUID> ids) {
+        return service.findAllByIds(ids);
+    }
+
+    @UserAction(value = "UNIT_CREATE", entityType = "Unit", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public UnitResponse create(@Valid @RequestBody UnitRequest request) {
         return service.create(request);
     }
 
+    @UserAction(value = "UNIT_UPDATE", entityType = "Unit", entityId = "#id")
     @PutMapping("/{id}")
     public UnitResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody UnitRequest request) {
         return service.update(id, request);
     }
 
+    @UserAction(value = "UNIT_STATUS_UPDATE", entityType = "Unit", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public UnitResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "UNIT_DELETE", entityType = "Unit", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {
@@ -103,6 +114,7 @@ public class UnitController {
                 .body(resource);
     }
 
+    @UserAction(value = "UNIT_IMPORT", entityType = "Unit", detail = "#file.originalFilename")
     @PostMapping("/import")
     @ResponseStatus(HttpStatus.OK)
     public void importUnits(@RequestParam("file") MultipartFile file) {

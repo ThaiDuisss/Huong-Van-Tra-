@@ -16,6 +16,10 @@ public class OrderCodeGenerator {
         return "ORD" + LocalDateTime.now().format(ORDER_CODE_FORMAT);
     }
 
+    public String generateReturnCode() {
+        return "RET" + LocalDateTime.now().format(ORDER_CODE_FORMAT);
+    }
+
     public String generatePosPaymentCode(Order order, String paymentMethod) {
         return "POS-%s-%s".formatted(
                 paymentMethod,

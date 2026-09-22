@@ -3,7 +3,7 @@ package org.hvtra.iventoryservice.domain.entity.movement;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 
@@ -25,8 +25,8 @@ public class InventoryTransactionLine extends BaseEntity {
     @JoinColumn(name = "inventory_item_id", nullable = false)
     private InventoryItem inventoryItem;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "location_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
     private InventoryLocation location;
 
     @Column(nullable = false, precision = 18, scale = 2)

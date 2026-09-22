@@ -2,11 +2,13 @@ package org.hvtra.orderservice.repository;
 
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +16,16 @@ import java.util.UUID;
 
 public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecificationExecutor<Order> {
     Optional<Order> findByIdAndIsDeletedFalse(UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select distinct orders
+            from Order orders
+            left join fetch orders.items
+            where orders.id = :orderId
+              and orders.isDeleted = false
+            """)
+    Optional<Order> findByIdAndIsDeletedFalseWithItemsForUpdate(@Param("orderId") UUID orderId);
 
     @Query("""
             select distinct orders

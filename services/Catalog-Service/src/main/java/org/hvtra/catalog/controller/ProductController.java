@@ -6,14 +6,15 @@ import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
-import org.hvtra.catalog.dto.response.ProductSummaryResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductService;
 import org.hvtra.catalog.service.ProductVariantService;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +27,6 @@ import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/catalog/products")
@@ -44,14 +44,14 @@ public class ProductController {
             @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "status", required = false) Status status,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(name, categoryId, status, pageable);
     }
 
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, pageable);
     }
 
@@ -60,24 +60,33 @@ public class ProductController {
         return service.findById(id);
     }
 
+    @PostMapping("/batch")
+    public List<ProductResponse> findByIds(@RequestBody List<UUID> ids) {
+        return service.findAllByIds(ids);
+    }
+
+    @UserAction(value = "PRODUCT_CREATE", entityType = "Product", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse create(@Valid @RequestBody ProductRequest request) {
         return service.create(request);
     }
 
+    @UserAction(value = "PRODUCT_UPDATE", entityType = "Product", entityId = "#id")
     @PutMapping("/{id}")
     public ProductResponse update(
             @PathVariable("id") UUID id, @Valid @RequestBody ProductRequest request) {
         return service.update(id, request);
     }
 
+    @UserAction(value = "PRODUCT_STATUS_UPDATE", entityType = "Product", entityId = "#id", detail = "#request.status")
     @PatchMapping("/{id}/status")
     public ProductResponse updateStatus(
             @PathVariable("id") UUID id, @Valid @RequestBody StatusRequest request) {
         return service.updateStatus(id, request.status());
     }
 
+    @UserAction(value = "PRODUCT_VARIANT_CREATE", entityType = "ProductVariant", entityId = "#result.id", detail = "#productId")
     @PostMapping("/{productId}/variants")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse.VariantResponse createVariant(
@@ -105,12 +114,6 @@ public class ProductController {
                 .body(resource);
     }
 
-    @PostMapping("/import")
-    @ResponseStatus(HttpStatus.OK)
-    public void importProducts(@RequestParam("file") MultipartFile file) {
-        service.importFromExcel(file);
-    }
-
     @GetMapping("/import/template")
     public ResponseEntity<Resource> downloadTemplate() {
         byte[] excelBytes = service.getImportTemplate();
@@ -121,6 +124,7 @@ public class ProductController {
                 .body(resource);
     }
 
+    @UserAction(value = "PRODUCT_DELETE", entityType = "Product", entityId = "#id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {

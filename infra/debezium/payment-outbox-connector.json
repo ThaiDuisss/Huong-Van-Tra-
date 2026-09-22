@@ -11,7 +11,7 @@
     "topic.prefix": "payment-cdc",
     "database.include.list": "payment_db",
     "table.include.list": "payment_db.outbox_events",
-    "schema.history.internal.kafka.bootstrap.servers": "100.93.252.63:19092",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
     "schema.history.internal.kafka.topic": "schema-changes.payment-db",
     "include.schema.changes": "false",
     "tombstones.on.delete": "false",

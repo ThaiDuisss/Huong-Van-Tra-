@@ -1,7 +1,7 @@
 package org.hvtra.orderservice.repository;
 
 import jakarta.persistence.LockModeType;
-import org.hvtra.commonservice.kafka.saga.enums.SagaStatus;
+import org.hvtra.commonservice.common_core.kafka.saga.enums.SagaStatus;
 import org.hvtra.orderservice.domain.entity.OrderSaga;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;

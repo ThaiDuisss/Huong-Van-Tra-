@@ -1,6 +1,6 @@
 package org.hvtra.paymentservice.outbox.resolver;
 
-import org.hvtra.commonservice.kafka.outbox.resolver.OutboxTopicResolver;
+import org.hvtra.commonservice.common_core.kafka.outbox.resolver.OutboxTopicResolver;
 import org.hvtra.paymentservice.outbox.event.PaymentEventType;
 import org.springframework.stereotype.Component;
 

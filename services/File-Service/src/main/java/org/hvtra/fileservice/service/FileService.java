@@ -7,7 +7,7 @@ import io.minio.StatObjectArgs;
 import io.minio.StatObjectResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.exception.AppException;
+import org.hvtra.commonservice.common_core.exception.AppException;
 import org.hvtra.fileservice.config.FileBucketResolver;
 import org.hvtra.fileservice.config.MinioProperties;
 import org.hvtra.fileservice.model.entity.FileMetadata;
@@ -241,7 +241,8 @@ public class FileService {
         Set<String> allowed = Set.of(
                 "image/png",
                 "image/jpeg",
-                "application/pdf"
+                "application/pdf",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
 
         if (!allowed.contains(request.contentType())) {

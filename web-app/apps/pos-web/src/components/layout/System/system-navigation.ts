@@ -16,10 +16,12 @@ import {
   Plane,
   RefreshCw,
   Ruler,
+  ScrollText,
   Settings,
   ShoppingCart,
   Trash2,
   Truck,
+  Upload,
   User,
   WalletCards,
   Warehouse,
@@ -27,6 +29,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import {
+  ACTION_LOG_ROLES,
   BACKOFFICE_ROLES,
   INVENTORY_OPERATION_ROLES,
   INVENTORY_ROLES,
@@ -107,17 +110,17 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     roles: PRODUCT_ROLES,
     children: [
       {
-        key: "catalog-variants",
-        label: "Mặt hàng",
-        to: routePaths.productVariants,
-        icon: Layers3,
-        roles: PRODUCT_ROLES,
-      },
-      {
         key: "catalog-products",
         label: "Sản phẩm",
         to: routePaths.products,
         icon: Package,
+        roles: PRODUCT_ROLES,
+      },
+      {
+        key: "catalog-variants",
+        label: "Mặt hàng",
+        to: routePaths.productVariants,
+        icon: Layers3,
         roles: PRODUCT_ROLES,
       },
       {
@@ -133,6 +136,21 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         to: routePaths.units,
         icon: Ruler,
         roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"],
+      },
+    ],
+  },
+  {
+    key: "import-excel",
+    label: "Nhập Excel",
+    icon: Upload,
+    roles: PRODUCT_ROLES,
+    children: [
+      {
+        key: "import-excel-requests",
+        label: "Yêu cầu nhập",
+        to: routePaths.importExcelRequests,
+        icon: Upload,
+        roles: PRODUCT_ROLES,
       },
     ],
   },
@@ -403,6 +421,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         roles: REPORT_ROLES,
       },
     ],
+  },
+  {
+    key: "action-logs",
+    label: "Nhật ký hoạt động",
+    icon: ScrollText,
+    to: routePaths.systemActionLogs,
+    roles: ACTION_LOG_ROLES,
   },
   {
     key: "settings",

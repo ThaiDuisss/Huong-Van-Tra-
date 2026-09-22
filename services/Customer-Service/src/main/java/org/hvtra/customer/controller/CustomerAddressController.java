@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.request.CustomerAddressRequest;
@@ -48,6 +49,7 @@ public class CustomerAddressController {
         return customerAddressService.getById(id);
     }
 
+    @UserAction(value = "CUSTOMER_ADDRESS_CREATE", entityType = "CustomerAddress", entityId = "#result.id")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Tạo địa chỉ khách hàng")
@@ -55,6 +57,7 @@ public class CustomerAddressController {
         return customerAddressService.create(request);
     }
 
+    @UserAction(value = "CUSTOMER_ADDRESS_UPDATE", entityType = "CustomerAddress", entityId = "#id")
     @PutMapping(ApiPath.ID)
     @Operation(summary = "Cập nhật địa chỉ khách hàng")
     public CustomerAddressResponse update(
@@ -63,6 +66,7 @@ public class CustomerAddressController {
         return customerAddressService.update(id, request);
     }
 
+    @UserAction(value = "CUSTOMER_ADDRESS_DELETE", entityType = "CustomerAddress", entityId = "#id")
     @DeleteMapping(ApiPath.ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Xóa mềm địa chỉ khách hàng")

@@ -13,9 +13,10 @@ export const unitApi = {
             }
         });
     },
-    /** Fetch all units as a flat array (used by dropdowns / inventory filters) */
-    listAll() {
-        return apiClient.get<Unit[]>("/catalog/units");
+    /** Fetch all units as a flat array (used by dropdowns / inventory filters). Backend luôn trả về dạng phân trang. */
+    async listAll(): Promise<Unit[]> {
+        const res = await apiClient.get<PageResult<Unit>>("/catalog/units", { query: { size: 500 } });
+        return res.content ?? [];
     },
     listBases() {
         return apiClient.get<Unit[]>("/catalog/units/bases");

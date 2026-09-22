@@ -10,7 +10,8 @@ export const locationTypeLabels: Record<InventoryLocationType, string> = {
     WAREHOUSE: "Cửa hàng",
     STORAGE: "Kho chứa",
     DAMAGED: "Khu hàng lỗi",
-    SHELF: "Kệ hàng"
+    SHELF: "Kệ hàng",
+    QUARANTINE: "Khu cách ly"
 };
 
 export const inventoryStatusLabels: Record<InventoryStatus, string> = {

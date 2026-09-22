@@ -4,11 +4,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
 import org.hvtra.customer.dto.response.LoyaltyAccountResponse;
 import org.hvtra.customer.dto.response.LoyaltyTransactionResponse;
-import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
 import org.hvtra.customer.model.entity.LoyaltyPointRule;
 import org.hvtra.customer.service.LoyaltyAccountService;
 import org.hvtra.customer.service.LoyaltyPointRuleService;
@@ -84,6 +84,7 @@ public class LoyaltyController {
         return loyaltyPointRuleService.getById(id);
     }
 
+    @UserAction(value = "LOYALTY_POINT_RULE_CREATE", entityType = "LoyaltyPointRule", entityId = "#result.id")
     @PostMapping(ApiPath.LOYALTY_POINT_RULES)
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Tạo quy tắc tích điểm")
@@ -91,6 +92,7 @@ public class LoyaltyController {
         return loyaltyPointRuleService.create(rule);
     }
 
+    @UserAction(value = "LOYALTY_POINT_RULE_UPDATE", entityType = "LoyaltyPointRule", entityId = "#id")
     @PutMapping(ApiPath.LOYALTY_POINT_RULES + "/{ruleId}")
     @Operation(summary = "Cập nhật quy tắc tích điểm")
     public LoyaltyPointRule updatePointRule(
@@ -99,6 +101,7 @@ public class LoyaltyController {
         return loyaltyPointRuleService.update(id, rule);
     }
 
+    @UserAction(value = "LOYALTY_POINT_RULE_DELETE", entityType = "LoyaltyPointRule", entityId = "#id")
     @DeleteMapping(ApiPath.LOYALTY_POINT_RULES + "/{ruleId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Xóa mềm quy tắc tích điểm")

@@ -1,11 +1,12 @@
 import { Download, Package, Upload } from "lucide-react";
 import { useCallback, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
+import { routePaths } from "../../../routes/path";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 
-import { ExcelImportModal } from "../components/ExcelImportModal";
 import {
     CatalogStatusBadge,
     DetailList,
@@ -27,6 +28,7 @@ import {
 import { formatCurrency } from "../utils/product-formatters";
 
 export function ProductListPage() {
+    const navigate = useNavigate();
 
     // Searchable dropdown states for Category
     const [categoryOptions, setCategoryOptions] = useState<LookupItem[]>([]);
@@ -36,7 +38,6 @@ export function ProductListPage() {
     const [categorySearchTerm, setCategorySearchTerm] = useState("");
     const [filterCategoryId, setFilterCategoryId] = useState("");
     const state = useCatalogPageState();
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const loadProducts = useCallback(
         () =>
             productApi.list({
@@ -155,48 +156,6 @@ export function ProductListPage() {
         }
     };
 
-    const validateProductRow = (row: any) => {
-        const name = String(row["Tên sản phẩm"] || "").trim();
-        const categoryCode = String(row["Mã danh mục"] || "").trim();
-
-        if (!name) {
-            return { isValid: false, error: "Tên sản phẩm trống" };
-        }
-        if (!categoryCode) {
-            return { isValid: false, error: "Mã danh mục trống" };
-        }
-
-        const matched = categories.some(
-            (cat) => cat.categoryCode.toLowerCase() === categoryCode.toLowerCase()
-        );
-        if (!matched) {
-            return { isValid: false, error: "Mã danh mục không tồn tại" };
-        }
-
-        return { isValid: true };
-    };
-
-    const handleImportExcel = async (file: File) => {
-        await productApi.import(file);
-        resource.refresh();
-    };
-
-    const handleDownloadTemplate = async () => {
-        try {
-            const blob = await productApi.downloadTemplate();
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", "mau_nhap_san_pham.xlsx");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            console.error("Lỗi tải file mẫu:", error);
-            alert("Có lỗi xảy ra khi tải file mẫu!");
-        }
-    };
-
     const handleDelete = async (item: ProductSummary) => {
         await productApi.delete(String(item.id));
     };
@@ -211,7 +170,7 @@ export function ProductListPage() {
                 totalItemsLabel="Tổng số sản phẩm"
                 extraHeaderActions={
                     <>
-                        <ActionButton variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.productImport)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>
@@ -353,15 +312,6 @@ export function ProductListPage() {
                         ]
                     }
                 ]}
-            />
-            <ExcelImportModal
-                isOpen={isImportModalOpen}
-                onClose={() => setIsImportModalOpen(false)}
-                title="Nhập dữ liệu từ Excel"
-                description="Tải file mẫu hoặc chọn file Excel để nhập dữ liệu vào hệ thống."
-                onDownloadTemplate={handleDownloadTemplate}
-                onImport={handleImportExcel}
-                validateRow={validateProductRow}
             />
         </>
     );

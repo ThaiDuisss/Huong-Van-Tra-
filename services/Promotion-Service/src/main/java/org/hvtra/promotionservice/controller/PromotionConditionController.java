@@ -7,7 +7,8 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.promotionservice.constant.ApiPath;
 import org.hvtra.promotionservice.constant.promotioncondition.PromotionConditionSuccessMessage;
 import org.hvtra.promotionservice.dto.request.promotioncondition.PromotionConditionCreateRequest;
@@ -35,6 +36,7 @@ public class PromotionConditionController {
             summary = "Tạo điều kiện khuyến mãi",
             description = "Tạo mới một điều kiện áp dụng cho khuyến mãi. Ví dụ: đơn hàng tối thiểu 500.000đ, khách VIP, kênh POS hoặc phương thức thanh toán BANK_TRANSFER."
     )
+    @UserAction(value = "PROMOTION_CONDITION_CREATE", entityType = "PromotionCondition", entityId = "#result.data.id", detail = "#promotionId")
     @PostMapping
     public ApiResponse<PromotionConditionResponse> createCondition(
             @Parameter(
@@ -107,6 +109,7 @@ public class PromotionConditionController {
             summary = "Cập nhật điều kiện khuyến mãi",
             description = "Cập nhật loại điều kiện, toán tử so sánh và giá trị JSON của một điều kiện áp dụng khuyến mãi."
     )
+    @UserAction(value = "PROMOTION_CONDITION_UPDATE", entityType = "PromotionCondition", entityId = "#conditionId", detail = "#promotionId")
     @PutMapping("/{conditionId}")
     public ApiResponse<PromotionConditionResponse> updateCondition(
             @Parameter(
@@ -135,6 +138,7 @@ public class PromotionConditionController {
             summary = "Xóa điều kiện khuyến mãi",
             description = "Xóa mềm một điều kiện áp dụng của khuyến mãi. Dữ liệu không bị xóa vật lý khỏi database."
     )
+    @UserAction(value = "PROMOTION_CONDITION_DELETE", entityType = "PromotionCondition", entityId = "#conditionId", detail = "#promotionId")
     @DeleteMapping("/{conditionId}")
     public ApiResponse<Void> deleteCondition(
             @Parameter(

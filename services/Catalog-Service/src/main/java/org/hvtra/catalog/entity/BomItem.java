@@ -3,9 +3,7 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.NotFound;
-import org.hibernate.annotations.NotFoundAction;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -31,7 +29,6 @@ public class BomItem extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ingredient_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     private Ingredient ingredient;
 
     @Column(nullable = false, precision = 18, scale = 2)
@@ -39,7 +36,6 @@ public class BomItem extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "unit_id", nullable = false)
-    @NotFound(action = NotFoundAction.IGNORE)
     private Unit unit;
 
     @Column(name = "waste_rate", nullable = false, precision = 5, scale = 2)

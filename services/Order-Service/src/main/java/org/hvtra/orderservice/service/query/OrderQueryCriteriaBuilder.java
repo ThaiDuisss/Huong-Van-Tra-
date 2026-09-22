@@ -24,6 +24,7 @@ public class OrderQueryCriteriaBuilder {
 
     private static final String SORT_BUSINESS_STATUS = "businessStatus";
     private static final String SORT_INVOICE_PAYMENT = "invoicePayment";
+    private static final String SORT_CREATED_AT_DESC = "createdAt,desc";
 
     private final OrderDateTimeHelper orderDateTimeHelper;
 
@@ -99,6 +100,10 @@ public class OrderQueryCriteriaBuilder {
             return SORT_INVOICE_PAYMENT;
         }
 
+        if (SORT_CREATED_AT_DESC.equalsIgnoreCase(sort)) {
+            return SORT_CREATED_AT_DESC;
+        }
+
         return SORT_BUSINESS_STATUS;
     }
 
@@ -137,6 +142,14 @@ public class OrderQueryCriteriaBuilder {
             String sort
     ) {
         if (sort == null || sort.isBlank() || isCountQuery(query)) {
+            return;
+        }
+
+        if (SORT_CREATED_AT_DESC.equalsIgnoreCase(sort)) {
+            query.orderBy(
+                    criteriaBuilder.desc(root.get("createdAt")),
+                    criteriaBuilder.desc(root.get("id"))
+            );
             return;
         }
 

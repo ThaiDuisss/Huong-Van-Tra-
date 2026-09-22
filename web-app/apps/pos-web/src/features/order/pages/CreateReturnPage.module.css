@@ -1,0 +1,645 @@
+.page {
+  display: grid;
+  gap: 14px;
+  color: #172317;
+  font-family: var(--font-sans);
+}
+
+.page button,
+.page input,
+.page select,
+.page textarea {
+  font-family: inherit;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.title h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.title p {
+  margin: 4px 0 0;
+  color: #536078;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.backButton,
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  height: 42px;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.backButton,
+.secondaryButton {
+  border: 1px solid #dfe6ee;
+  background: #ffffff;
+  color: #172317;
+}
+
+.primaryButton {
+  border: 0;
+  background: #07883a;
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgb(7 136 58 / 0.22);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.backButton:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.step span {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef3f1;
+  color: #536078;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.step strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.active {
+  border-color: #07883a;
+  background: #f4faf5;
+}
+
+.active span,
+.completed span {
+  background: #07883a;
+  color: #ffffff;
+}
+
+.completed {
+  border-color: #cfe8d7;
+}
+
+.upcoming strong {
+  color: #536078;
+}
+
+.card {
+  display: grid;
+  gap: 16px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 16px 38px rgb(31 53 43 / 0.05);
+}
+
+.footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #edf0f4;
+  background: #ffffff;
+  padding: 12px 0 0;
+}
+
+.orderPicker,
+.reasonForm,
+.confirmation {
+  display: grid;
+  gap: 14px;
+}
+
+.orderPickerHeader {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(210px, 260px);
+  gap: 10px;
+}
+
+.searchBox,
+.timeSelect {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0 14px;
+}
+
+.searchBox input,
+.timeSelect select {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: 0;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.timeSelect select {
+  height: 100%;
+}
+
+.customDateRange {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 220px));
+  gap: 10px;
+}
+
+.customDateRange label {
+  display: grid;
+  gap: 6px;
+}
+
+.customDateRange span {
+  color: #536078;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.dateInput {
+  height: 40px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0 12px;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.orderResults,
+.summaryPanel {
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.orderResults {
+  overflow: hidden;
+}
+
+.orderTableWrap {
+  overflow: auto;
+}
+
+.orderTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  color: #334155;
+  font-family: inherit;
+  font-size: 14px;
+  table-layout: fixed;
+}
+
+.orderTable th,
+.orderTable td {
+  height: 52px;
+  border-bottom: 1px solid #edf0f4;
+  padding: 0 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.orderTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom-color: #d7f0df;
+  background: #f3f7f4;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.orderTable th:first-child,
+.orderTable td:first-child {
+  padding-left: 18px;
+}
+
+.orderTable th:nth-child(4),
+.orderTable td:nth-child(4) {
+  text-align: right;
+}
+
+.orderTable th:nth-child(5),
+.orderTable td:nth-child(5) {
+  text-align: center;
+}
+
+.orderTable td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.orderTableRow {
+  cursor: pointer;
+  outline: 0;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.orderTableRow:focus-visible {
+  box-shadow:
+    inset 4px 0 0 #07883a,
+    inset 0 0 0 2px #8dd7a3;
+}
+
+.zebraFirstRow {
+  background: #ffffff;
+}
+
+.zebraSecondRow {
+  background: #f3f7f4;
+}
+
+.zebraFirstRow:hover,
+.zebraSecondRow:hover {
+  background: #ecfdf3;
+}
+
+.orderCodeCell {
+  color: #0f172a;
+  font-weight: 800 !important;
+}
+
+.orderDateCell {
+  color: #475569;
+  font-weight: 600 !important;
+}
+
+.orderAmountCell {
+  color: #334155;
+  font-weight: 800 !important;
+}
+
+.selectedOrderOption {
+  background: #f4faf5;
+  box-shadow: inset 4px 0 0 #07883a;
+}
+
+.emptyCell {
+  height: 76px;
+  color: #536078;
+  text-align: center !important;
+  font-weight: 800;
+}
+
+.emptyCell strong,
+.emptyCell span {
+  display: block;
+}
+
+.emptyCell strong {
+  color: #172317;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.emptyCell span {
+  margin-top: 6px;
+  color: #536078;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.orderSearchPagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid #edf0f4;
+  padding: 12px 18px;
+}
+
+.orderSearchPagination .secondaryButton {
+  height: 36px;
+}
+
+.orderSearchPagination span {
+  color: #536078;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.summaryPanel h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.itemTableWrap {
+  overflow: auto;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+}
+
+.itemTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.itemTable th,
+.itemTable td {
+  border-bottom: 1px solid #edf0f4;
+  padding: 12px;
+  color: #334155;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.itemTable th {
+  background: #f3f7f4;
+  color: #172317;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.itemSelector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.itemSelector input {
+  width: 18px;
+  height: 18px;
+  accent-color: #07883a;
+}
+
+.itemSelector span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.itemSelector strong {
+  color: #172317;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.itemSelector small {
+  color: #536078;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quantityInput {
+  width: 112px;
+  height: 38px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.reasonRow {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.reasonTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reasonTitle strong {
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.reasonTitle span {
+  color: #07883a;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.reasonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.reasonGrid label,
+.fullField {
+  display: grid;
+  gap: 7px;
+}
+
+.reasonGrid label span,
+.fullField span {
+  color: #536078;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.reasonGrid select,
+.reasonGrid textarea,
+.fullField textarea {
+  width: 100%;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172317;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.reasonGrid select {
+  height: 40px;
+  padding: 0 10px;
+}
+
+.reasonGrid textarea,
+.fullField textarea {
+  min-height: 74px;
+  resize: vertical;
+  padding: 10px;
+}
+
+.fullField {
+  grid-column: 1 / -1;
+}
+
+.summaryPanel {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.summaryPanel p,
+.summaryPanel span,
+.panelMessage span {
+  margin: 0;
+  color: #536078;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.confirmItems {
+  display: grid;
+  gap: 10px;
+}
+
+.confirmItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 16px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #f8faf9;
+  padding: 12px;
+}
+
+.confirmItem strong {
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.confirmItem span,
+.confirmItem small {
+  color: #536078;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.confirmItem p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.panelMessage {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.panelMessage strong {
+  color: #172317;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 80;
+  max-width: min(420px, calc(100vw - 48px));
+  border-radius: 8px;
+  background: #172317;
+  color: #ffffff;
+  padding: 13px 16px;
+  box-shadow: 0 16px 34px rgb(31 53 43 / 0.22);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+@media (max-width: 920px) {
+  .header,
+  .footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .stepper,
+  .reasonGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orderPickerHeader {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .backButton,
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+
+  .footer {
+    flex-direction: column-reverse;
+  }
+
+  .customDateRange {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orderSearchPagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .orderSearchPagination .secondaryButton {
+    width: auto;
+  }
+}

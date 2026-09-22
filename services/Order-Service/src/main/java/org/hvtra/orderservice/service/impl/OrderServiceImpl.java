@@ -3,16 +3,20 @@ package org.hvtra.orderservice.service.impl;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderDiscount;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
 import org.hvtra.orderservice.domain.enums.*;
 import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
@@ -21,6 +25,7 @@ import org.hvtra.orderservice.dto.response.CustomerResponse;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityStatsResponse;
 import org.hvtra.orderservice.dto.response.PaymentResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
 import org.hvtra.orderservice.dto.response.OrderStatusHistoryResponse;
@@ -39,7 +44,6 @@ import org.hvtra.orderservice.service.OrderInventoryReservationService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -61,8 +65,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-import static org.hvtra.orderservice.domain.enums.DiscountType.*;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -71,7 +73,10 @@ public class OrderServiceImpl implements OrderService {
     private static final String DEFAULT_ORDER_TYPE = "POS";
     private static final String SORT_BUSINESS_STATUS = "businessStatus";
     private static final String SORT_INVOICE_PAYMENT = "invoicePayment";
+    private static final String SORT_CREATED_AT_DESC = "createdAt,desc";
     private static final long DRAFT_TTL_MINUTES = 15;
+    private static final List<ReturnStatus> ACTIVE_RETURN_STATUSES =
+            List.of(ReturnStatus.CREATED, ReturnStatus.RECEIVED, ReturnStatus.COMPLETED);
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
@@ -205,6 +210,7 @@ public class OrderServiceImpl implements OrderService {
                     .discountAmount(itemDiscount)
                     .lineTotal(lineTotal)
                     .bomVersionId(itemRequest.getBomVersionId())
+                    .note(normalizeNote(itemRequest.getNote()))
                     .build();
 
             order.addItem(item);
@@ -373,7 +379,8 @@ public class OrderServiceImpl implements OrderService {
             OrderItem item = findDraftItem(
                     order,
                     itemRequest.getProductVariantId(),
-                    itemRequest.getBomVersionId()
+                    itemRequest.getBomVersionId(),
+                    itemRequest.getNote()
             );
 
             if (item == null) {
@@ -828,7 +835,12 @@ public class OrderServiceImpl implements OrderService {
         var variant = catalogClient.getProductVariantPosView(request.getProductVariantId());
         log.info("variant: {}", variant);
         BigDecimal addQuantity = defaultPositive(request.getQuantity());
-        OrderItem item = findDraftItem(order, variant.variantId(), request.getBomVersionId());
+        OrderItem item = findDraftItem(
+                order,
+                variant.variantId(),
+                request.getBomVersionId(),
+                request.getNote()
+        );
         BigDecimal oldQuantity = item == null ? BigDecimal.ZERO : defaultZero(item.getQuantity());
         BigDecimal targetQuantity = oldQuantity.add(addQuantity);
         log.info("varient{} {}", variant.variantId(), request.getProductVariantId());
@@ -845,6 +857,7 @@ public class OrderServiceImpl implements OrderService {
                     .actualUnitPrice(defaultZero(variant.sellingPrice()))
                     .discountAmount(defaultZero(request.getDiscountAmount()))
                     .bomVersionId(request.getBomVersionId())
+                    .note(normalizeNote(request.getNote()))
                     .build();
             recalculateLine(item);
             order.addItem(item);
@@ -950,6 +963,7 @@ public class OrderServiceImpl implements OrderService {
             String orderType,
             LocalDate fromDate,
             LocalDate toDate,
+            OrderReturnEligibility returnEligibility,
             String sort,
             int page,
             int size
@@ -967,10 +981,21 @@ public class OrderServiceImpl implements OrderService {
                         orderType,
                         fromDate,
                         toDate,
+                        returnEligibility,
                         sort == null || sort.isBlank() ? SORT_BUSINESS_STATUS : sort
                 ),
                 pageRequest
         ).map(this::toSummaryResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderReturnEligibilityStatsResponse getOrderReturnEligibilityStats(String keyword) {
+        return OrderReturnEligibilityStatsResponse.builder()
+                .total(countOrdersByReturnEligibility(keyword, OrderReturnEligibility.ALL))
+                .eligible(countOrdersByReturnEligibility(keyword, OrderReturnEligibility.ELIGIBLE))
+                .ineligible(countOrdersByReturnEligibility(keyword, OrderReturnEligibility.INELIGIBLE))
+                .build();
     }
 
     @Override
@@ -1164,13 +1189,19 @@ public class OrderServiceImpl implements OrderService {
         return order;
     }
 
-    private OrderItem findDraftItem(Order order, UUID productVariantId, UUID bomVersionId) {
+    private OrderItem findDraftItem(
+            Order order,
+            UUID productVariantId,
+            UUID bomVersionId,
+            String note
+    ) {
         if (order.getItems() == null) {
             return null;
         }
         return order.getItems().stream()
                 .filter(item -> item.getProductVariantId().equals(productVariantId))
                 .filter(item -> bomVersionMatches(item.getBomVersionId(), bomVersionId))
+                .filter(item -> notesMatch(item.getNote(), note))
                 .findFirst()
                 .orElse(null);
     }
@@ -1184,6 +1215,16 @@ public class OrderServiceImpl implements OrderService {
 
     private boolean bomVersionMatches(UUID current, UUID requested) {
         return current == null ? requested == null : current.equals(requested);
+    }
+
+    private boolean notesMatch(String current, String requested) {
+        String currentNote = normalizeNote(current);
+        String requestedNote = normalizeNote(requested);
+        return currentNote == null ? requestedNote == null : currentNote.equals(requestedNote);
+    }
+
+    private String normalizeNote(String note) {
+        return note == null || note.isBlank() ? null : note.trim();
     }
 
     private Instant nextDraftExpiresAt() {
@@ -1255,10 +1296,32 @@ public class OrderServiceImpl implements OrderService {
             LocalDate toDate,
             String sort
     ) {
+        return orderSpecification(
+                keyword,
+                status,
+                paymentStatus,
+                orderType,
+                fromDate,
+                toDate,
+                null,
+                sort
+        );
+    }
+
+    private Specification<Order> orderSpecification(
+            String keyword,
+            OrderStatus status,
+            PaymentStatus paymentStatus,
+            String orderType,
+            LocalDate fromDate,
+            LocalDate toDate,
+            OrderReturnEligibility returnEligibility,
+            String sort
+    ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.isFalse(root.get("isDeleted")));
-            applyDefaultOrder(root, query, criteriaBuilder, sort);
+            applyDefaultOrder(root, query, criteriaBuilder, sort, returnEligibility);
 
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
@@ -1278,6 +1341,7 @@ public class OrderServiceImpl implements OrderService {
                     predicates.add(criteriaBuilder.equal(root.get("paymentStatus"), paymentStatus));
                 }
             }
+            applyReturnEligibilityFilter(predicates, root, query, criteriaBuilder, returnEligibility);
             if (orderType != null && !orderType.isBlank()) {
                 predicates.add(criteriaBuilder.equal(root.get("orderType"), normalizeOrderType(orderType)));
             }
@@ -1290,6 +1354,19 @@ public class OrderServiceImpl implements OrderService {
 
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    private long countOrdersByReturnEligibility(String keyword, OrderReturnEligibility returnEligibility) {
+        return orderRepository.count(orderSpecification(
+                keyword,
+                null,
+                null,
+                null,
+                null,
+                null,
+                returnEligibility,
+                null
+        ));
     }
 
     private Specification<Order> orderSpecification(
@@ -1388,7 +1465,25 @@ public class OrderServiceImpl implements OrderService {
             CriteriaBuilder criteriaBuilder,
             String sort
     ) {
+        applyDefaultOrder(root, query, criteriaBuilder, sort, null);
+    }
+
+    private void applyDefaultOrder(
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder,
+            String sort,
+            OrderReturnEligibility returnEligibility
+    ) {
         if (sort == null || sort.isBlank() || isCountQuery(query)) {
+            return;
+        }
+
+        if (SORT_CREATED_AT_DESC.equalsIgnoreCase(sort)) {
+            query.orderBy(
+                    criteriaBuilder.desc(root.get("createdAt")),
+                    criteriaBuilder.desc(root.get("id"))
+            );
             return;
         }
 
@@ -1396,10 +1491,103 @@ public class OrderServiceImpl implements OrderService {
                 ? invoicePaymentPriority(root, criteriaBuilder)
                 : orderStatusPriority(root, criteriaBuilder);
 
+        if (OrderReturnEligibility.ALL == returnEligibility) {
+            query.orderBy(
+                    criteriaBuilder.asc(returnEligibilityPriority(root, query, criteriaBuilder)),
+                    criteriaBuilder.asc(priority),
+                    criteriaBuilder.desc(root.get("createdAt"))
+            );
+            return;
+        }
+
         query.orderBy(
                 criteriaBuilder.asc(priority),
                 criteriaBuilder.desc(root.get("createdAt"))
         );
+    }
+
+    private void applyReturnEligibilityFilter(
+            List<Predicate> predicates,
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder,
+            OrderReturnEligibility returnEligibility
+    ) {
+        if (returnEligibility == null || OrderReturnEligibility.ALL == returnEligibility) {
+            return;
+        }
+
+        Predicate eligible = returnEligiblePredicate(root, query, criteriaBuilder);
+        if (OrderReturnEligibility.ELIGIBLE == returnEligibility) {
+            predicates.add(eligible);
+            return;
+        }
+
+        predicates.add(criteriaBuilder.not(eligible));
+    }
+
+    private Predicate returnEligiblePredicate(
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder
+    ) {
+        return criteriaBuilder.and(
+                criteriaBuilder.equal(root.get("status"), OrderStatus.COMPLETED),
+                root.get("paymentStatus").in(PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED),
+                hasReturnableItemPredicate(root, query, criteriaBuilder)
+        );
+    }
+
+    private Predicate hasReturnableItemPredicate(
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder
+    ) {
+        Subquery<UUID> itemSubquery = query.subquery(UUID.class);
+        Root<OrderItem> itemRoot = itemSubquery.from(OrderItem.class);
+
+        Subquery<BigDecimal> returnedQuantitySubquery =
+                itemSubquery.subquery(BigDecimal.class);
+        Root<OrderReturnItem> returnItemRoot =
+                returnedQuantitySubquery.from(OrderReturnItem.class);
+        Join<OrderReturnItem, OrderReturn> returnRoot =
+                returnItemRoot.join("orderReturn");
+
+        returnedQuantitySubquery.select(criteriaBuilder.coalesce(
+                criteriaBuilder.sum(returnItemRoot.<BigDecimal>get("quantity")),
+                BigDecimal.ZERO
+        ));
+        returnedQuantitySubquery.where(
+                criteriaBuilder.equal(
+                        returnItemRoot.get("orderItem").get("id"),
+                        itemRoot.get("id")
+                ),
+                criteriaBuilder.isFalse(returnItemRoot.get("isDeleted")),
+                criteriaBuilder.isFalse(returnRoot.get("isDeleted")),
+                returnRoot.get("status").in(ACTIVE_RETURN_STATUSES)
+        );
+
+        itemSubquery.select(itemRoot.get("id"));
+        itemSubquery.where(
+                criteriaBuilder.equal(itemRoot.get("order").get("id"), root.get("id")),
+                criteriaBuilder.isFalse(itemRoot.get("isDeleted")),
+                criteriaBuilder.greaterThan(
+                        itemRoot.<BigDecimal>get("quantity"),
+                        returnedQuantitySubquery
+                )
+        );
+
+        return criteriaBuilder.exists(itemSubquery);
+    }
+
+    private Expression<Integer> returnEligibilityPriority(
+            Root<Order> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder
+    ) {
+        return criteriaBuilder.<Integer>selectCase()
+                .when(returnEligiblePredicate(root, query, criteriaBuilder), 0)
+                .otherwise(1);
     }
 
     private boolean isCountQuery(CriteriaQuery<?> query) {
@@ -1478,6 +1666,7 @@ public class OrderServiceImpl implements OrderService {
                 .orderType(order.getOrderType())
                 .status(order.getStatus())
                 .paymentStatus(order.getPaymentStatus())
+                .returnStatus(order.getReturnStatus())
                 .paymentMethod(paymentMethod)
                 .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))
                 .payment(payment)
@@ -1506,6 +1695,7 @@ public class OrderServiceImpl implements OrderService {
                 .orderTypeLabel(toOrderTypeLabel(order.getOrderType()))
                 .statusLabel(toOrderStatusLabel(order.getStatus()))
                 .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
+                .returnStatusLabel(toReturnStatusLabel(order.getReturnStatus()))
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
                 .createdByName(order.getCashierNameSnapshot())
                 .createdAt(createdAt)
@@ -1528,6 +1718,8 @@ public class OrderServiceImpl implements OrderService {
                 .statusLabel(toOrderStatusLabel(order.getStatus()))
                 .paymentStatus(order.getPaymentStatus())
                 .paymentStatusLabel(toPaymentStatusLabel(order.getPaymentStatus()))
+                .returnStatus(order.getReturnStatus())
+                .returnStatusLabel(toReturnStatusLabel(order.getReturnStatus()))
                 .finalAmount(order.getFinalAmount())
                 .createdAt(toLocalDateTime(auditValue(order, "getCreatedAt")))
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
@@ -1677,6 +1869,7 @@ public class OrderServiceImpl implements OrderService {
                 .discountAmount(item.getDiscountAmount())
                 .lineTotal(item.getLineTotal())
                 .bomVersionId(item.getBomVersionId())
+                .note(item.getNote())
                 .build();
     }
 
@@ -1767,6 +1960,17 @@ public class OrderServiceImpl implements OrderService {
             case "E_WALLET" -> "Ví điện tử";
             case "COMBINED" -> "Kết hợp";
             default -> paymentMethod;
+        };
+    }
+
+    private String toReturnStatusLabel(OrderReturnStatus status) {
+        if (status == null) {
+            return null;
+        }
+        return switch (status) {
+            case NONE -> "Ch\u01b0a ho\u00e0n h\u00e0ng";
+            case PARTIALLY_RETURNED -> "Ho\u00e0n m\u1ed9t ph\u1ea7n";
+            case FULLY_RETURNED -> "Ho\u00e0n to\u00e0n b\u1ed9";
         };
     }
 

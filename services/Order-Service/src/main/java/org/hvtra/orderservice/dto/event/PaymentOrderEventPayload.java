@@ -3,7 +3,7 @@ package org.hvtra.orderservice.dto.event;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.kafka.event.CommonEventPayload;
+import org.hvtra.commonservice.common_core.kafka.event.CommonEventPayload;
 
 import java.math.BigDecimal;
 

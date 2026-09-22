@@ -1,11 +1,11 @@
 package org.hvtra.fileservice.controller;
 
-import com.google.protobuf.Api;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.domain.entity.UserHeaderInformation;
-import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.domain.entity.UserHeaderInformation;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.fileservice.model.request.FileAttach;
 import org.hvtra.fileservice.model.request.InitUploadRequest;
 import org.hvtra.fileservice.model.response.DownloadUrlResponse;
@@ -70,6 +70,7 @@ public class FileController {
      *
      * API này không upload file, chỉ xác nhận file đã upload thành công.
      */
+    @UserAction(value = "FILE_UPLOAD_COMPLETE", entityType = "File", entityId = "#fileId")
     @PostMapping("/{fileId}/complete")
     public ApiResponse<String> completeUpload(
             @PathVariable("fileId") UUID fileId,
@@ -117,6 +118,7 @@ public class FileController {
         return ApiResponse.<DownloadUrlResponse>builder().data(response).status("success").code(200).build();
     }
 
+    @UserAction(value = "FILE_ATTACH", entityType = "File")
     @PutMapping("/attach")
     public ApiResponse<Integer> attachFile(
             @RequestBody FileAttach fileAttach,

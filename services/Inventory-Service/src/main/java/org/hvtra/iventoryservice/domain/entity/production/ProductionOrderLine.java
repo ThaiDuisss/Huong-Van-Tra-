@@ -3,7 +3,8 @@ package org.hvtra.iventoryservice.domain.entity.production;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hibernate.annotations.BatchSize;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 
 import java.math.BigDecimal;
@@ -46,6 +47,13 @@ public class ProductionOrderLine extends BaseEntity {
     @Column(name = "consumed_quantity", nullable = false, precision = 18, scale = 4)
     private BigDecimal consumedQuantity = BigDecimal.ZERO;
 
+    // @BatchSize: khi nhiều dòng của 1 order cần lazy-load allocations, Hibernate gộp thành 1 câu
+    // "WHERE production_order_line_id IN (...)" thay vì 1 query riêng cho mỗi dòng (N+1) — tránh được
+    // N+1 mà KHÔNG cần JOIN FETCH chung với "lines" (join 2 collection List cùng lúc bị Hibernate cấm,
+    // ném MultipleBagFetchException) và không cần thay thế collection này bằng tay (collection có
+    // orphanRemoval=true không được phép gán đè bằng 1 List mới — Hibernate ném "A collection with
+    // orphan deletion was no longer referenced by the owning entity instance" khi flush).
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "productionOrderLine", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionOrderMaterialAllocation> allocations = new ArrayList<>();
 

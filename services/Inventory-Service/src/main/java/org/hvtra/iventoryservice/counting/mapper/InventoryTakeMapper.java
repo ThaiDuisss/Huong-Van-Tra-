@@ -6,7 +6,7 @@ import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCount;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountLine;
 import org.springframework.stereotype.Component;
-import org.hvtra.commonservice.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountStatus;
 
 import java.util.List;
