@@ -3,7 +3,7 @@ package org.hvtra.iventoryservice.integration.order.dto;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.kafka.event.CommonEventPayload;
+import org.hvtra.commonservice.common_core.kafka.event.CommonEventPayload;
 
 import java.util.ArrayList;
 import java.util.List;
