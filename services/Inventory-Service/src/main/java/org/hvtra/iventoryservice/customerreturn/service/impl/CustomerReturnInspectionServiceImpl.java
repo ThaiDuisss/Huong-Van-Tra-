@@ -4,7 +4,7 @@ import feign.FeignException;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.kafka.inbox.InboxStatus;
+import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;

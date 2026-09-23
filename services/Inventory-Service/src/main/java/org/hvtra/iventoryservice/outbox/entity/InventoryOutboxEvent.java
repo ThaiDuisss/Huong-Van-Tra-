@@ -7,7 +7,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hvtra.commonservice.kafka.outbox.entity.BaseOutboxEvent;
+import org.hvtra.commonservice.common_core.kafka.outbox.entity.BaseOutboxEvent;
 
 @Entity
 @Table(
