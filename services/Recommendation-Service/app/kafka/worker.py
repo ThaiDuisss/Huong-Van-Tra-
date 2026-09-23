@@ -4,7 +4,7 @@ import sys
 import time
 from typing import Any
 
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer, KafkaError, TopicPartition
 
 from app.core.config import Settings, get_settings
 from app.kafka.purchase_consumer import (
@@ -67,6 +67,43 @@ class KafkaWorker:
                 "Could not register signal handlers (likely running outside main thread): %s",
                 exc,
             )
+
+    def _pause_failed_partition(self, msg: Any) -> bool:
+        topic = msg.topic() if callable(getattr(msg, "topic", None)) else None
+        partition = (
+            msg.partition() if callable(getattr(msg, "partition", None)) else None
+        )
+        offset = msg.offset() if callable(getattr(msg, "offset", None)) else None
+
+        if topic is None or partition is None:
+            logger.critical(
+                "Cannot pause failed Kafka message because topic/partition metadata is missing. "
+                "Stopping worker to protect offsets."
+            )
+            return False
+
+        try:
+            self.consumer.pause([TopicPartition(topic, partition)])
+        except Exception as pause_exc:
+            logger.critical(
+                "Failed to pause poisoned Kafka partition topic=%s, partition=%s, offset=%s: %s. "
+                "Stopping worker to prevent committing past the failed message.",
+                topic,
+                partition,
+                offset,
+                pause_exc,
+                exc_info=True,
+            )
+            return False
+
+        logger.error(
+            "Paused poisoned Kafka partition topic=%s, partition=%s at failed offset=%s. "
+            "No later offset from this partition will be processed or committed in this worker session.",
+            topic,
+            partition,
+            offset,
+        )
+        return True
 
     def run(self) -> None:
         topics = [
@@ -150,7 +187,9 @@ class KafkaWorker:
                         getattr(msg, "offset", lambda: "unknown")(),
                         proc_exc,
                     )
-                    # Bounded backoff to prevent tight CPU spin on uncommitted poison messages
+                    if not self._pause_failed_partition(msg):
+                        self.running = False
+                    # Keep polling other assigned partitions after a bounded backoff.
                     time.sleep(self.error_backoff)
 
         finally:

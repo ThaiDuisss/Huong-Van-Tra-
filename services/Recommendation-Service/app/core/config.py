@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,7 +18,7 @@ class Settings(BaseSettings):
 
     mysql_host: str = "localhost"
     mysql_port: int = 3306
-    mysql_database: Literal["recommendation_db"] = "recommendation_db"
+    mysql_database: str = "recommendation_db"
     mysql_user: str
     mysql_password: SecretStr
     mysql_echo_sql: bool = False
@@ -27,6 +26,10 @@ class Settings(BaseSettings):
     catalog_service_url: str = "http://localhost:8081"
     internal_header_secret: str = "dev-internal-header-secret"
     internal_service_name: str = "recommendation-service"
+
+    model_artifact_path: str = "artifacts/lightfm_model.pkl"
+    recommendation_default_limit: int = 10
+    recommendation_max_limit: int = 50
 
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_group_id: str = "recommendation-service-order-completed"

@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any
 
@@ -7,10 +6,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings, get_settings
 from app.database.session import SessionLocal
-from app.kafka.purchase_event_adapter import (
-    PurchaseEventAdapter,
-    PurchaseEventValidationError,
-)
+from app.kafka.offset_commit import commit_message_offset
+from app.kafka.payload_decoder import decode_kafka_payload
+from app.kafka.purchase_event_adapter import PurchaseEventAdapter
 from app.models.interaction_event import InteractionEvent
 from app.repositories.customer_interaction_repository import (
     CustomerInteractionRepository,
@@ -37,6 +35,7 @@ def create_kafka_consumer(settings: Settings | None = None) -> Consumer:
         "group.id": cfg.kafka_group_id,
         "auto.offset.reset": cfg.kafka_auto_offset_reset,
         "enable.auto.commit": cfg.kafka_enable_auto_commit,  # False
+        "enable.auto.offset.store": False,
     }
     return Consumer(conf)
 
@@ -97,18 +96,7 @@ class PurchaseKafkaConsumer:
         else:
             raw_value = msg
 
-        if raw_value is None:
-            raise PurchaseEventValidationError("Kafka message value is None")
-
-        if isinstance(raw_value, (bytes, bytearray)):
-            payload_str = raw_value.decode("utf-8")
-            payload = json.loads(payload_str)
-        elif isinstance(raw_value, str):
-            payload = json.loads(raw_value)
-        elif isinstance(raw_value, dict):
-            payload = raw_value
-        else:
-            raise PurchaseEventValidationError(f"Unsupported message value type: {type(raw_value)}")
+        payload = decode_kafka_payload(raw_value)
 
         # 3. Normalize into CanonicalInteractions
         interactions = self.adapter.to_canonical_interactions(payload)
@@ -132,7 +120,7 @@ class PurchaseKafkaConsumer:
         # 5. Commit Kafka offset ONLY after DB transaction commit succeeds
         if self.consumer is not None:
             try:
-                self.consumer.commit(message=msg, asynchronous=False)
+                commit_message_offset(self.consumer, msg)
                 logger.info(
                     "Committed Kafka offset for eventId=%s, orderId=%s",
                     payload.get("eventId"),

@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any
 
@@ -7,10 +6,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings, get_settings
 from app.database.session import SessionLocal
-from app.kafka.return_event_adapter import (
-    ReturnEventAdapter,
-    ReturnEventValidationError,
-)
+from app.kafka.offset_commit import commit_message_offset
+from app.kafka.payload_decoder import decode_kafka_payload
+from app.kafka.return_event_adapter import ReturnEventAdapter
 from app.models.interaction_event import InteractionEvent
 from app.repositories.customer_interaction_repository import (
     CustomerInteractionRepository,
@@ -85,18 +83,7 @@ class ReturnKafkaConsumer:
         else:
             raw_value = msg
 
-        if raw_value is None:
-            raise ReturnEventValidationError("Kafka message value is None")
-
-        if isinstance(raw_value, (bytes, bytearray)):
-            payload_str = raw_value.decode("utf-8")
-            payload = json.loads(payload_str)
-        elif isinstance(raw_value, str):
-            payload = json.loads(raw_value)
-        elif isinstance(raw_value, dict):
-            payload = raw_value
-        else:
-            raise ReturnEventValidationError(f"Unsupported message value type: {type(raw_value)}")
+        payload = decode_kafka_payload(raw_value)
 
         # 3. Normalize into CanonicalInteractions (filters out operational returns)
         interactions = self.adapter.to_canonical_interactions(payload)
@@ -110,7 +97,7 @@ class ReturnKafkaConsumer:
                 payload.get("returnId"),
             )
             if self.consumer is not None:
-                self.consumer.commit(message=msg, asynchronous=False)
+                commit_message_offset(self.consumer, msg)
             return []
 
         # 5. Process preference-negative interactions in a single scoped DB transaction
@@ -132,7 +119,7 @@ class ReturnKafkaConsumer:
         # 6. Commit Kafka offset ONLY after DB transaction commit succeeds
         if self.consumer is not None:
             try:
-                self.consumer.commit(message=msg, asynchronous=False)
+                commit_message_offset(self.consumer, msg)
                 logger.info(
                     "Committed Kafka offset for return eventId=%s, returnId=%s",
                     payload.get("eventId"),

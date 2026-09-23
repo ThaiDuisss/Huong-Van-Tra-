@@ -153,12 +153,16 @@ class ReturnEventAdapter:
                     },
                 )
                 canonical_interactions.append(interaction)
-            else:
+            elif return_reason in OPERATIONAL_RETURN_REASONS:
                 logger.info(
                     "Skipping operational/non-preference return item: returnItemId=%s, orderItemId=%s, reason=%s",
                     return_item_id,
                     order_item_id,
                     return_reason,
+                )
+            else:
+                raise ReturnEventValidationError(
+                    f"Item at index {idx} has unsupported returnReason '{return_reason}'"
                 )
 
         return canonical_interactions
