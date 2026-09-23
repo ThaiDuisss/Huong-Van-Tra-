@@ -14,7 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 		"org.hvtra.commonservice.config",
 		"org.hvtra.commonservice.common_core.kafka",
 		"org.hvtra.commonservice.common_core.utils",
-		"org.hvtra.commonservice.exception"
+		"org.hvtra.commonservice.common_core.exception"
 })
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @EnableScheduling
