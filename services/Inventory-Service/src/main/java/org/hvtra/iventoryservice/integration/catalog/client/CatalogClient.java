@@ -147,7 +147,11 @@ public interface CatalogClient {
             String variantName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
+            String imageUrl,
+            String categoryName,
             UUID unitId,
+            String unitName,
+            String unitSymbol,
             String status,
             String productStatus,
             boolean sellable

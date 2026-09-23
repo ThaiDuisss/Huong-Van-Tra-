@@ -15,6 +15,7 @@ import type {
 import {
     formatInventoryDate,
     formatQuantity,
+    formatReferenceType,
     referenceTypeLabels,
     transactionTypeLabels
 } from "../utils/inventory-labels";
@@ -230,7 +231,7 @@ export function InventoryTransactionPage() {
                     <TableCell>
                         <TransactionTypeBadge type={item.type} />
                     </TableCell>
-                    <TableCell>{referenceTypeLabels[item.referenceType as keyof typeof referenceTypeLabels]}</TableCell>
+                    <TableCell>{formatReferenceType(item.referenceType)}</TableCell>
                     <TableCell>{formatInventoryDate(item.createdAt)}</TableCell>
                 </>
             )}
@@ -239,7 +240,7 @@ export function InventoryTransactionPage() {
                     <dl className="grid gap-3">
                         <DetailItem label="Mã giao dịch" value={item.transactionCode} />
                         <DetailItem label="Loại giao dịch" value={transactionTypeLabels[item.type as keyof typeof transactionTypeLabels]} />
-                        <DetailItem label="Loại tham chiếu" value={referenceTypeLabels[item.referenceType as keyof typeof referenceTypeLabels]} />
+                        <DetailItem label="Loại tham chiếu" value={formatReferenceType(item.referenceType)} />
                         <DetailItem label="Mã tham chiếu" value={item.referenceId ? `#${item.referenceId}` : "-"} />
                         <DetailItem label="Chi nhánh" value={`#${item.branchId}`} />
                         <DetailItem label="Người tạo" value={`#${item.createdBy}`} />

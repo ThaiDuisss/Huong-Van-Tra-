@@ -24,6 +24,10 @@ public interface InventoryLocationRepository
             InventoryLocationType type,
             InventoryStatus status
     );
+    Optional<InventoryLocation> findFirstByTypeAndStatusOrderByCreatedAtAsc(
+            InventoryLocationType type,
+            InventoryStatus status
+    );
     Optional<InventoryLocation> findFirstByBranchIdAndTypeAndStatus(
             UUID branchId,
             InventoryLocationType type,

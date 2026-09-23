@@ -4,7 +4,9 @@ import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,24 +15,12 @@ public interface InventoryTransactionRepository extends
         JpaSpecificationExecutor<InventoryTransaction> {
 
     /**
-     * Trả về danh sách ID của các transaction có ít nhất 1 line
-     * tại SHELF mà parent location là WAREHOUSE đầu tiên (ACTIVE).
+     * Nạp transaction kèm lines cho 1 trang đã phân trang — tránh N+1 khi map lines từng transaction.
      */
     @Query("""
-            SELECT DISTINCT t.id FROM InventoryTransaction t
-            JOIN t.lines l
-            JOIN l.location loc
-            JOIN loc.parentLocation parent
-            WHERE loc.type = InventoryLocationType.SHELF
-              AND parent.type = InventoryLocationType.WAREHOUSE
-              AND parent.status = InventoryStatus.ACTIVE
-              AND parent.id = (
-                  SELECT pl.id FROM InventoryLocation pl
-                  WHERE pl.type = InventoryLocationType.WAREHOUSE
-                    AND pl.status = InventoryStatus.ACTIVE
-                  ORDER BY pl.createdAt ASC
-                  LIMIT 1
-              )
+            select distinct t from InventoryTransaction t
+            left join fetch t.lines
+            where t.id in :ids
             """)
-    List<UUID> findStoreTransactionIds();
+    List<InventoryTransaction> findAllWithLinesByIdIn(@Param("ids") Collection<UUID> ids);
 }

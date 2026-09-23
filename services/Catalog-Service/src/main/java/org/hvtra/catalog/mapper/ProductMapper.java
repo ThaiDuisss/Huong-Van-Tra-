@@ -94,6 +94,8 @@ public class ProductMapper {
                 variant.getCostPrice(),
                 imageUrl,
                 variant.getUnit() != null ? variant.getUnit().getId() : null,
+                variant.getUnit() != null ? variant.getUnit().getName() : null,
+                variant.getUnit() != null ? variant.getUnit().getSymbol() : null,
                 variant.getInventoryPolicy(),
                 variant.getStatus(),
                 product != null ? product.getStatus() : null,

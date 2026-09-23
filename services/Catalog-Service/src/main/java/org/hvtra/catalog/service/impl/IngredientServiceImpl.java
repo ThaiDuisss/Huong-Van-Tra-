@@ -234,7 +234,7 @@ public class IngredientServiceImpl implements IngredientService {
         if (ids == null || ids.isEmpty()) {
             return java.util.Collections.emptyList();
         }
-        return repository.findAllById(ids).stream()
+        return repository.findAllByIdWithUnit(ids).stream()
                 .filter(i -> !Boolean.TRUE.equals(i.getIsDeleted()))
                 .map(mapper::toResponse)
                 .filter(java.util.Objects::nonNull)

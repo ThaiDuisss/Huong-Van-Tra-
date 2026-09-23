@@ -7,6 +7,7 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.service.BarcodeService;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
@@ -25,7 +26,7 @@ public class BarcodeController {
     @GetMapping
     public PageResponse<ProductResponse.BarcodeResponse> findAll(
             @RequestParam(name = "value", required = false) String value,
-            @PageableDefault(size = 20, sort = "barcodeValue") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(value, pageable);
     }
 

@@ -51,6 +51,8 @@ public record ProductResponse(
             BigDecimal costPrice,
             String imageUrl,
             UUID unitId,
+            String unitName,
+            String unitSymbol,
             InventoryPolicy inventoryPolicy,
             Status status,
             Status productStatus,
