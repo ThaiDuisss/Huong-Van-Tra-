@@ -51,6 +51,11 @@ import { StocktakeDetailPage } from "../features/inventory/pages/StocktakeDetail
 import { StocktakeListPage } from "../features/inventory/pages/StocktakeListPage";
 import { StocktakeReconciliationPage } from "../features/inventory/pages/StocktakeReconciliationPage";
 import { StockAlertDetailPage } from "../features/inventory/pages/StockAlertDetailPage";
+import { InventoryValueReportPage } from "../features/inventory/pages/InventoryValueReportPage";
+import { StockCategoryAnalysisPage } from "../features/inventory/pages/StockCategoryAnalysisPage";
+import { InventoryTurnoverReportPage } from "../features/inventory/pages/InventoryTurnoverReportPage";
+import { ProductionWastageReportPage } from "../features/inventory/pages/ProductionWastageReportPage";
+import { DisposalSummaryReportPage } from "../features/inventory/pages/DisposalSummaryReportPage";
 import { StockAlertListPage } from "../features/inventory/pages/StockAlertListPage";
 import { SupplierReturnCreatePage } from "../features/inventory/pages/SupplierReturnCreatePage";
 import { SupplierReturnDetailPage } from "../features/inventory/pages/SupplierReturnDetailPage";
@@ -199,8 +204,8 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to={routePaths.systemDashboard} replace />} />
-        <Route path="dashboard" element={<DashboardOverviewPage />} />
+        <Route index element={<Navigate to={routePaths.systemDashboardOverview} replace />} />
+        <Route path="dashboard/*" element={<DashboardOverviewPage />} />
         <Route element={<RoleGate roles={ACTION_LOG_ROLES} />}>
           <Route path="action-logs" element={<ActionLogPage />} />
         </Route>
@@ -221,9 +226,11 @@ export function AppRouter() {
           <Route path="categories" element={<CategoryListPage />} />
           <Route path="units" element={<UnitListPage />} />
           <Route path="products" element={<ProductListPage />} />
+          <Route path="products/import" element={<ProductImportPage />} />
 
           <Route path="products/:productId/variants" element={<ProductVariantListPage />} />
           <Route path="product-variants" element={<ProductVariantListPage />} />
+          <Route path="product-variants/import" element={<ProductVariantImportPage />} />
           <Route path="product-variants/:id" element={<ProductVariantDetailPage />} />
 
           <Route path="price-lists" element={<PriceListPage />} />
@@ -282,6 +289,10 @@ export function AppRouter() {
             path="inventory/replenishment-alerts"
             element={<Navigate to={routePaths.inventoryAlerts} replace />}
           />
+          <Route
+            path="inventory/reports/stock-category-analysis"
+            element={<Navigate to={routePaths.stockCategoryAnalysis} replace />}
+          />
           <Route path="inventory/:workspaceId" element={<InventoryManagementPage />} />
         </Route>
         <Route element={<RoleGate roles={["ADMIN", "BRANCH_MANAGER"]} />}>
@@ -301,6 +312,7 @@ export function AppRouter() {
           <Route path="manufacturing/production-orders/new" element={<ManufacturingProductionOrderCreatePage />} />
           <Route path="manufacturing/production-orders/:id" element={<ManufacturingProductionOrderDetailPage />} />
           <Route path="manufacturing/ingredients" element={<RawMaterialListPage />} />
+          <Route path="manufacturing/ingredients/import" element={<IngredientImportPage />} />
           <Route path="manufacturing/suppliers" element={<SupplierListPage />} />
         </Route>
       </Route>
@@ -321,6 +333,8 @@ export function AppRouter() {
         <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
           <Route path="inventory/receipts" element={<GoodsReceiptListPage />} />
           <Route path="inventory/receipts/new" element={<GoodsReceiptCreatePage />} />
+          <Route path="inventory/receipts/import" element={<GoodsReceiptImportPage />} />
+          <Route path="inventory/receipts/import/:batchId" element={<GoodsReceiptImportReviewPage />} />
           <Route path="inventory/receipts/:receiptId" element={<GoodsReceiptDetailPage />} />
           <Route path="inventory/import-excel/new" element={<GoodsReceiptImportPage />} />
           <Route path="inventory/import-excel/:batchId" element={<GoodsReceiptImportReviewPage />} />
@@ -378,6 +392,11 @@ export function AppRouter() {
           <Route path="inventory/alerts" element={<StockAlertListPage />} />
           <Route path="inventory/alerts/:alertId" element={<StockAlertDetailPage />} />
           <Route path="inventory/reorder-policies" element={<ReorderPolicyPage />} />
+          <Route path="inventory/reports/stock-category-analysis" element={<StockCategoryAnalysisPage />} />
+          <Route path="inventory/reports/inventory-value" element={<InventoryValueReportPage />} />
+          <Route path="inventory/reports/turnover" element={<InventoryTurnoverReportPage />} />
+          <Route path="inventory/reports/wastage" element={<ProductionWastageReportPage />} />
+          <Route path="inventory/reports/disposal-summary" element={<DisposalSummaryReportPage />} />
         </Route>
       </Route>
 

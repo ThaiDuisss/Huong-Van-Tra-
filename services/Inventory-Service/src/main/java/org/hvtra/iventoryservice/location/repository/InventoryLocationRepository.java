@@ -16,6 +16,7 @@ import java.util.UUID;
 
 public interface InventoryLocationRepository
         extends JpaRepository<InventoryLocation, UUID>, JpaSpecificationExecutor<InventoryLocation> {
+    boolean existsByCode(String code);
     boolean existsByBranchIdAndCode(UUID branchId, String code);
     boolean existsByBranchIdAndCodeAndIdNot(UUID branchId, String code, UUID id);
     Optional<InventoryLocation> findFirstByType(InventoryLocationType type);

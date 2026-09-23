@@ -11,6 +11,7 @@ export function DashboardSection({
   className = "",
   description,
   flush = false,
+  icon,
   title,
 }: {
   action?: ReactNode;
@@ -19,7 +20,8 @@ export function DashboardSection({
   className?: string;
   description?: string;
   flush?: boolean;
-  title: string;
+  icon?: ReactNode;
+  title: ReactNode;
 }) {
   return (
     <section
@@ -28,7 +30,12 @@ export function DashboardSection({
       <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <div className="grid min-w-0 gap-0.5">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-black text-[#172317]">{title}</h2>
+            {icon ? (
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[#edf8ef] text-[#159734]">
+                {icon}
+              </span>
+            ) : null}
+            <h2 className="flex items-center gap-1.5 text-base font-black text-[#172317]">{title}</h2>
             {badge}
           </div>
           {description ? (

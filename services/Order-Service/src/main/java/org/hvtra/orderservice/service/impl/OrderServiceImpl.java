@@ -9,7 +9,7 @@ import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
@@ -44,7 +44,6 @@ import org.hvtra.orderservice.service.OrderInventoryReservationService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -65,8 +64,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-
-import static org.hvtra.orderservice.domain.enums.DiscountType.*;
 
 @Service
 @RequiredArgsConstructor

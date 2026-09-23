@@ -1,6 +1,5 @@
 package org.hvtra.catalog.controller;
 
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
@@ -12,10 +11,11 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.hvtra.catalog.service.BarcodeService;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -51,7 +51,7 @@ public class ProductVariantController {
             @RequestParam(name = "productId", required = false) UUID productId,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @RequestParam(name = "status", required = false) Status status,
-            @PageableDefault(size = 20, sort = "sku") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(keyword, sku, variantName, barcode, productId, categoryId, status, pageable);
     }
 
@@ -135,7 +135,7 @@ public class ProductVariantController {
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 20, sort = "sku") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, pageable);
     }
 

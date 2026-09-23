@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.integration.order.repository;
 
 import jakarta.persistence.LockModeType;
-import org.hvtra.commonservice.kafka.inbox.repository.BaseInboxRepository;
+import org.hvtra.commonservice.common_core.kafka.inbox.repository.BaseInboxRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;

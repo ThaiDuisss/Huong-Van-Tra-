@@ -1,7 +1,7 @@
 package org.hvtra.orderservice.outbox.service;
 
-import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
-import org.hvtra.commonservice.kafka.outbox.service.OutboxEventService;
+import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
+import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderOutboxEvent;

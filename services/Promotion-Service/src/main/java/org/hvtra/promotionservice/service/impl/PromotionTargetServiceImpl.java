@@ -3,7 +3,7 @@ package org.hvtra.promotionservice.service.impl;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.exception.ResourceNotFoundException;
+import org.hvtra.commonservice.common_core.exception.ResourceNotFoundException;
 import org.hvtra.promotionservice.dto.request.promotiontarget.PromotionTargetCreateRequest;
 import org.hvtra.promotionservice.dto.request.promotiontarget.PromotionTargetUpdateRequest;
 import org.hvtra.promotionservice.dto.response.PageResponse;

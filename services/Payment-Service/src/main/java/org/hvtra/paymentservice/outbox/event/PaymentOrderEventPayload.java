@@ -2,7 +2,7 @@ package org.hvtra.paymentservice.outbox.event;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import org.hvtra.commonservice.kafka.event.CommonEventPayload;
+import org.hvtra.commonservice.common_core.kafka.event.CommonEventPayload;
 
 import java.math.BigDecimal;
 import java.time.Instant;

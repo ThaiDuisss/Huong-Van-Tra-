@@ -10,7 +10,8 @@ export function GoodsReceiptImportPage() {
     return (
         <ImportUploadPage
             api={importBatchApi}
-            backTo={routePaths.importExcelRequests}
+            backLabel="← Quay lại danh sách phiếu nhập kho"
+            backTo={routePaths.goodsReceipts}
             description="Tải file Excel lên (sheet Phiếu nhập liên kết với sheet Nguyên liệu qua cột Ref), hệ thống sẽ phân tích thành danh sách để bạn kiểm tra/sửa trước khi gửi quản lý duyệt. Dữ liệu chỉ được ghi chính thức vào hệ thống sau khi được duyệt."
             downloadTemplate={() => goodsReceiptImportTemplateApi.downloadTemplate()}
             importType="GOODS_RECEIPT"

@@ -1,6 +1,6 @@
 package org.hvtra.orderservice.exception;
 
-import org.hvtra.commonservice.exception.BaseException;
+import org.hvtra.commonservice.common_core.exception.BaseException;
 import org.springframework.http.HttpStatus;
 
 public class InventoryReservationFailedException extends BaseException {

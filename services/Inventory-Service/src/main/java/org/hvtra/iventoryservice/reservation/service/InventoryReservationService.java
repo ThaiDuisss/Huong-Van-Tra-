@@ -14,4 +14,5 @@ public interface InventoryReservationService {
     List<InventoryReservationResponse> releaseOrder(ReleaseInventoryReservationOrderRequest request);
     List<InventoryReservationResponse> confirmOrder(ConfirmInventoryReservationOrderRequest request);
     int expireReservations();
+    List<InventoryReservationResponse> getExpiringReservations(int withinMinutes);
 }

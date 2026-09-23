@@ -3,9 +3,7 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.NotFound;
-import org.hibernate.annotations.NotFoundAction;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 
 import java.math.BigDecimal;
 import java.util.UUID;

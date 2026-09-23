@@ -29,6 +29,12 @@ public interface CatalogClient {
     @PostMapping("/internal/catalog/product-variants/batch")
     List<VariantResponse> getVariantsBatch(@RequestBody List<UUID> ids);
 
+    @PostMapping("/internal/catalog/product-variants/costs-batch")
+    List<VariantCostResponse> getVariantCostsBatch(@RequestBody List<UUID> ids);
+
+    @PostMapping("/internal/catalog/product-variants/inventory-summary-batch")
+    List<VariantInventorySummaryResponse> getVariantInventorySummariesBatch(@RequestBody List<UUID> ids);
+
     @PostMapping("/internal/catalog/product-variants/by-products")
     List<ProductVariantProductRefResponse> getVariantRefsByProductIds(@RequestBody List<UUID> productIds);
 
@@ -52,6 +58,17 @@ public interface CatalogClient {
     @PostMapping("/internal/catalog/ingredients/batch")
     List<IngredientResponse> getIngredientsBatch(@RequestBody List<UUID> ids);
 
+    /** Tạo nguyên liệu mới bên Catalog-Service — dùng lúc import Excel phiếu nhập kho gặp mã nguyên
+     * liệu chưa tồn tại. Catalog-Service tự đồng bộ InventoryItem tương ứng ngay trong lúc tạo.
+     * {@code code} null/rỗng thì Catalog-Service tự sinh mã, không thì dùng đúng mã truyền vào. */
+    @PostMapping("/internal/catalog/ingredients")
+    IngredientResponse createIngredient(
+            @RequestParam(name = "code", required = false) String code,
+            @RequestBody CreateIngredientRequest request);
+
+    record CreateIngredientRequest(String name, UUID unitId, Integer reorderPoint, String status) {}
+
+
     @GetMapping("/internal/catalog/ingredients/search-ids")
     List<UUID> searchIngredientIds(
             @RequestParam(name = "keyword", required = false) String keyword,
@@ -69,6 +86,14 @@ public interface CatalogClient {
     /** Toàn bộ nhà cung cấp (id/code/name) — dùng để resolve theo mã lúc parse Excel phiếu nhập kho. */
     @GetMapping("/internal/catalog/suppliers")
     List<SupplierLookupResponse> getAllSuppliers();
+
+    /** Bổ sung danh sách nguyên liệu được phép cung cấp cho nhà cung cấp. */
+    @PostMapping("/internal/catalog/suppliers/{supplierId}/ingredients")
+    void addIngredientsToSupplier(@PathVariable("supplierId") UUID supplierId, @RequestBody List<UUID> ingredientIds);
+
+    /** Toàn bộ đơn vị — dùng để resolve theo tên/ký hiệu lúc tạo nguyên liệu mới từ Excel phiếu nhập kho. */
+    @GetMapping("/internal/catalog/units")
+    List<UnitResponse> getAllUnits();
 
     @GetMapping("/internal/catalog/product-variants/{variantId}/bom-items")
     List<BomItemResponse> getBomItems(@PathVariable("variantId") UUID variantId);
@@ -169,5 +194,30 @@ public interface CatalogClient {
             String symbol,
             Integer precisionScale,
             String status
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record VariantCostResponse(
+            UUID id,
+            BigDecimal costPrice
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record VariantInventorySummaryResponse(
+            UUID id,
+            String sku,
+            String variantName,
+            UUID productId,
+            String productCode,
+            String productName,
+            UUID categoryId,
+            String categoryCode,
+            String categoryName,
+            UUID unitId,
+            String unitName,
+            String unitSymbol,
+            BigDecimal costPrice,
+            BigDecimal sellingPrice,
+            String imageUrl
     ) {}
 }

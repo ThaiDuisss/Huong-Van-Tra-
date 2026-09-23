@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.hvtra.commonservice.logging.action.ActionLogEvent;
+import org.hvtra.commonservice.common_core.logging.action.ActionLogEvent;
 import org.hvtra.identityservice.actionlog.entity.ActionLog;
 import org.hvtra.identityservice.actionlog.service.ActionLogService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

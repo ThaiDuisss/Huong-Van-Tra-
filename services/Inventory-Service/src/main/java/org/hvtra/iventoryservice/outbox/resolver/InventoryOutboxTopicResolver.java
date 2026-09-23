@@ -1,6 +1,6 @@
 package org.hvtra.iventoryservice.outbox.resolver;
 
-import org.hvtra.commonservice.kafka.outbox.resolver.OutboxTopicResolver;
+import org.hvtra.commonservice.common_core.kafka.outbox.resolver.OutboxTopicResolver;
 import org.hvtra.iventoryservice.outbox.event.InventoryEventType;
 import org.springframework.stereotype.Component;
 

@@ -45,3 +45,34 @@ export interface ImportBatchQuery {
     size?: number;
     [key: string]: string | number | undefined;
 }
+
+export interface ImportPreviewItem {
+    id: string;
+    rowIndex: number;
+    payload: Record<string, unknown>;
+    validationErrors: ValidationError[];
+    occurrenceCount: number;
+}
+
+export interface ImportPreviewResponse {
+    importType: ImportType;
+    sourceFileName: string | null;
+    totalRows: number;
+    validRows: number;
+    errorRows: number;
+    items: ImportPreviewItem[];
+}
+
+export interface SaveImportDraftItemRequest {
+    rowIndex?: number;
+    payload: Record<string, unknown>;
+    occurrenceCount?: number;
+}
+
+export interface SaveImportDraftRequest {
+    type: ImportType;
+    sourceFileName?: string | null;
+    fileId?: string | null;
+    items: SaveImportDraftItemRequest[];
+}
+

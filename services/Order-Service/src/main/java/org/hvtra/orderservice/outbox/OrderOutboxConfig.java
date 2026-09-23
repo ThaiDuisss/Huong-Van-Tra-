@@ -1,6 +1,6 @@
 package org.hvtra.orderservice.outbox;
 
-import org.hvtra.commonservice.kafka.outbox.service.OutboxEventService;
+import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.hvtra.orderservice.domain.entity.OrderOutboxEvent;
 import org.hvtra.orderservice.outbox.factory.OrderOutboxEventFactory;
 import org.hvtra.orderservice.repository.OrderOutboxEventRepository;

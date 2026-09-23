@@ -653,7 +653,7 @@ export function ProductVariantListPage() {
                 totalItemsLabel="Tổng số Mặt hàng"
                 extraHeaderActions={
                     <>
-                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.importExcelVariantCreate)}>
+                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.productVariantImport)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>

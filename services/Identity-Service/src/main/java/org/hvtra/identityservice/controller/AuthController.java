@@ -1,8 +1,8 @@
 package org.hvtra.identityservice.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.domain.entity.InternalUserPrincipal;
-import org.hvtra.commonservice.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
 import org.hvtra.identityservice.model.response.IdentityMeResponse;
 import org.hvtra.identityservice.service.IdentityMeService;
 import org.springframework.http.HttpHeaders;

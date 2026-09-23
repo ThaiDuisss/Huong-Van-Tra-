@@ -1,7 +1,7 @@
 package org.hvtra.deliveryservice.controller;
 
 import jakarta.validation.Valid;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.deliveryservice.carrier.CarrierDeliveryFacade;
 import org.hvtra.deliveryservice.carrier.model.*;
 import org.hvtra.deliveryservice.carrier.support.CarrierProviderUtils;

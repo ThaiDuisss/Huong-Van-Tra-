@@ -6,7 +6,7 @@ import jakarta.persistence.Table;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
-import org.hvtra.commonservice.kafka.saga.domain.BaseSagaStep;
+import org.hvtra.commonservice.common_core.kafka.saga.domain.BaseSagaStep;
 
 @Entity
 @Table(

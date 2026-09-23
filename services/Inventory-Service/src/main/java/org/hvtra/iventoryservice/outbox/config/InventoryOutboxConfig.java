@@ -1,6 +1,6 @@
 package org.hvtra.iventoryservice.outbox.config;
 
-import org.hvtra.commonservice.kafka.outbox.service.OutboxEventService;
+import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.hvtra.iventoryservice.outbox.entity.InventoryOutboxEvent;
 import org.hvtra.iventoryservice.outbox.factory.InventoryOutboxEventFactory;
 import org.hvtra.iventoryservice.outbox.repository.InventoryOutboxEventRepository;

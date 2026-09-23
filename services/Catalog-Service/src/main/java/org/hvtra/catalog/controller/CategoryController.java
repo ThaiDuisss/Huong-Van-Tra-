@@ -8,8 +8,9 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.CategoryService;
-import org.hvtra.commonservice.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -30,14 +31,14 @@ public class CategoryController {
     public PageResponse<CategoryResponse> findAll(
             @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "status", required = false) Status status,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(name, status, pageable);
     }
 
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, pageable);
     }
 

@@ -1,7 +1,7 @@
 package org.hvtra.promotionservice.service;
 
-import org.hvtra.commonservice.exception.BusinessException;
-import org.hvtra.commonservice.exception.ResourceNotFoundException;
+import org.hvtra.commonservice.common_core.exception.BusinessException;
+import org.hvtra.commonservice.common_core.exception.ResourceNotFoundException;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionCreateRequest;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionFilterRequest;
 import org.hvtra.promotionservice.dto.request.promotion.PromotionUpdateRequest;

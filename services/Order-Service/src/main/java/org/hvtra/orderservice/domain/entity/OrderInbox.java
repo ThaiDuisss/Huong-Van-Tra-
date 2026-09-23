@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hvtra.commonservice.kafka.inbox.BaseInbox;
+import org.hvtra.commonservice.common_core.kafka.inbox.BaseInbox;
 
 @Entity
 @Table(

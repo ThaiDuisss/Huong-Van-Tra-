@@ -179,7 +179,24 @@ export function ImportBatchListPage({
                 <>
                     {/* <TableCell strong>{item.batchCode}</TableCell> */}
                     <TableCell>{typeLabels[item.importType] ?? item.importType}</TableCell>
-                    <TableCell>{item.sourceFileName ?? "—"}</TableCell>
+                    <TableCell>
+                        {item.sourceFileName ? (
+                            item.sourceFileName.startsWith("http") ? (
+                                <a
+                                    className="font-bold text-[#159734] underline hover:text-[#12802c]"
+                                    href={item.sourceFileName}
+                                    rel="noopener noreferrer"
+                                    target="_blank"
+                                >
+                                    Tải file nguồn
+                                </a>
+                            ) : (
+                                item.sourceFileName
+                            )
+                        ) : (
+                            "—"
+                        )}
+                    </TableCell>
                     <TableCell>
                         <StatusPill status={item.status} />
                     </TableCell>
@@ -198,7 +215,24 @@ export function ImportBatchListPage({
                     </div>
                     <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
                         <dt className="text-gray-500 font-bold uppercase text-xs">File nguồn</dt>
-                        <dd className="text-gray-900 font-semibold">{item.sourceFileName ?? "—"}</dd>
+                        <dd className="text-gray-900 font-semibold">
+                            {item.sourceFileName ? (
+                                item.sourceFileName.startsWith("http") ? (
+                                    <a
+                                        className="font-bold text-[#159734] underline hover:text-[#12802c]"
+                                        href={item.sourceFileName}
+                                        rel="noopener noreferrer"
+                                        target="_blank"
+                                    >
+                                        Tải file nguồn
+                                    </a>
+                                ) : (
+                                    item.sourceFileName
+                                )
+                            ) : (
+                                "—"
+                            )}
+                        </dd>
                     </div>
                     <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
                         <dt className="text-gray-500 font-bold uppercase text-xs">Trạng thái</dt>

@@ -3,7 +3,7 @@ package org.hvtra.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.catalog.enums.InventoryPolicy;
 import org.hvtra.catalog.enums.Status;
 

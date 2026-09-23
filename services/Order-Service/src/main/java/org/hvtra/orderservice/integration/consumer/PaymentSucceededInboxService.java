@@ -3,7 +3,7 @@ package org.hvtra.orderservice.integration.consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.hvtra.commonservice.kafka.inbox.InboxStatus;
+import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.orderservice.domain.entity.OrderInbox;
 import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
 import org.hvtra.orderservice.repository.OrderInboxRepository;

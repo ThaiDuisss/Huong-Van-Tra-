@@ -26,7 +26,7 @@ interface UseDashboardDataInput {
 }
 
 const domainTabs: Record<DashboardDomain, DashboardTab[]> = {
-  alerts: ["OVERVIEW", "ALERTS"],
+  alerts: ["OVERVIEW", "INVENTORY", "ALERTS"],
   inventory: ["OVERVIEW", "INVENTORY", "ALERTS"],
   production: ["PRODUCTION"],
   sales: ["OVERVIEW", "POS"],

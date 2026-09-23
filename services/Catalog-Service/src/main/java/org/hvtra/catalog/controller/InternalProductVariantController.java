@@ -2,6 +2,8 @@ package org.hvtra.catalog.controller;
 
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
+import org.hvtra.catalog.dto.response.VariantCostResponse;
+import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,6 +32,16 @@ public class InternalProductVariantController {
     @PostMapping("/batch")
     public List<ProductResponse.VariantResponse> findByIds(@RequestBody List<UUID> ids) {
         return service.findAllByIds(ids);
+    }
+
+    @PostMapping("/costs-batch")
+    public List<VariantCostResponse> findCostPricesByIds(@RequestBody List<UUID> ids) {
+        return service.findCostPricesByIds(ids);
+    }
+
+    @PostMapping("/inventory-summary-batch")
+    public List<VariantInventorySummaryResponse> findInventorySummariesByIds(@RequestBody List<UUID> ids) {
+        return service.findInventorySummariesByIds(ids);
     }
 
     @GetMapping("/search-ids")

@@ -3,7 +3,7 @@ package org.hvtra.orderservice.service.impl;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
-import org.hvtra.commonservice.exception.BusinessException;
+import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.hvtra.orderservice.dto.response.OrderPaymentInfoResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.OrderStatsResponse;
