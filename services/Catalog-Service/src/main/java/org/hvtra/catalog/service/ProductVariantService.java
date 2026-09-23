@@ -10,6 +10,8 @@ import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 import java.util.List;
 import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
+import org.hvtra.catalog.dto.response.VariantCostResponse;
+import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 
 public interface ProductVariantService {
     PageResponse<ProductResponse.VariantSummaryResponse> findAll(
@@ -24,5 +26,7 @@ public interface ProductVariantService {
     List<ProductResponse.VariantResponse> findAllByIds(List<UUID> ids);
     List<UUID> searchVariantIds(String keyword, String sku, String productCode, String productName, String categoryCode, UUID categoryId, UUID unitId);
     List<ProductVariantProductRefResponse> findRefsByProductIds(List<UUID> productIds);
+    List<VariantCostResponse> findCostPricesByIds(List<UUID> ids);
+    List<VariantInventorySummaryResponse> findInventorySummariesByIds(List<UUID> ids);
     void delete(UUID id);
 }

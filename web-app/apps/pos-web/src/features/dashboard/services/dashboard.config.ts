@@ -5,8 +5,7 @@
  */
 const explicitFlag = import.meta.env.VITE_DASHBOARD_MOCK as string | undefined;
 
-export const isDashboardMockEnabled =
-  explicitFlag === "true" || (import.meta.env.DEV && explicitFlag !== "false");
+export const isDashboardMockEnabled = explicitFlag === "true";
 
 /** Số dòng balance tối đa tải để tính KPI tồn kho. */
 export const DASHBOARD_BALANCE_PAGE_SIZE = 500;

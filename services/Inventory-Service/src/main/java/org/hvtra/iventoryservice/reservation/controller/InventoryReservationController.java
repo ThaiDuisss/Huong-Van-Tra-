@@ -48,4 +48,10 @@ public class InventoryReservationController {
     public int expire() {
         return service.expireReservations();
     }
+
+    @org.springframework.web.bind.annotation.GetMapping("/expiring-soon")
+    public List<InventoryReservationResponse> getExpiringSoon(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "60") int withinMinutes) {
+        return service.getExpiringReservations(withinMinutes);
+    }
 }

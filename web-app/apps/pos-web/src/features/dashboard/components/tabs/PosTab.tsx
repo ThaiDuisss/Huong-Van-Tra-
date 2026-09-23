@@ -1,4 +1,4 @@
-import { CircleCheck, Clock3, RotateCcw, Wallet } from "lucide-react";
+import { CircleCheck, Clock3, RotateCcw, ShoppingCart, Users, Wallet } from "lucide-react";
 
 import { routePaths } from "../../../../routes/path";
 import { formatVietnamDateTime, formatVietnamNumber, formatVnd } from "../../../inventory/utils/inventory-format";
@@ -14,7 +14,7 @@ import { formatPercent, numeric } from "../../utils/dashboard-mappers";
 import type { DashboardCapabilities } from "../../utils/dashboard-permissions";
 import { DashboardKpiCard, DashboardKpiGrid, type DashboardKpiCardProps } from "../DashboardKpiCard";
 import { DashboardSection, DashboardSectionLink } from "../DashboardSection";
-import { DashboardGapState, DashboardListSkeleton, DashboardPartView, SourceBadge } from "../DashboardStates";
+import { DashboardGapState, DashboardListSkeleton, DashboardPartView } from "../DashboardStates";
 import { DashboardTable } from "../DashboardTable";
 import { RankList } from "../RankList";
 import { isResourceLoading, resourceData, timeRangeLabels } from "./dashboard-tab-shared";
@@ -74,12 +74,12 @@ export function PosTab({
     {
       error: stats?.error,
       icon: <RotateCcw size={18} />,
-      label: "Đơn hoàn / refund",
+      label: "Đơn trả / Hoàn tiền",
       loading,
       note: stats?.data
         ? returned > 0
           ? `${formatPercent(total > 0 ? (returned / total) * 100 : 0)} số đơn · ${rangeLabel}`
-          : `Không có · ${rangeLabel}`
+          : `Không có đơn trả · ${rangeLabel}`
         : rangeLabel,
       noteTone: returned > 0 ? "bad" : "good",
       source: "ADAPTED",
@@ -97,8 +97,8 @@ export function PosTab({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <DashboardSection
-          badge={data ? <SourceBadge source={demo ? "DEMO" : "GAP"} /> : undefined}
           description="Doanh thu theo phương thức thanh toán"
+          icon={<Wallet size={15} />}
           title="Cơ cấu thanh toán"
         >
           {loading && !data ? (
@@ -114,14 +114,14 @@ export function PosTab({
               }))}
             />
           ) : (
-            <DashboardGapState message="Payment-Service chưa có API tổng hợp theo phương thức (DASH-GAP-004)." />
+            <DashboardGapState message="Chưa có dữ liệu thống kê phương thức thanh toán." />
           )}
         </DashboardSection>
 
         <DashboardSection
-          badge={data ? <SourceBadge source={demo ? "DEMO" : "GAP"} /> : undefined}
-          description="Doanh thu, số đơn và tỷ lệ hủy/refund theo thu ngân"
-          title="Hiệu suất nhân viên"
+          description="Doanh thu, số đơn và tỷ lệ trả/hoàn hàng theo nhân viên"
+          icon={<Users size={15} />}
+          title="Hiệu suất nhân viên bán hàng"
         >
           {loading && !data ? (
             <DashboardListSkeleton rows={3} />
@@ -130,7 +130,7 @@ export function PosTab({
               items={demo.staffPerformance.map((staff) => ({
                 id: staff.id,
                 label: staff.staffName,
-                sub: `${formatVietnamNumber(staff.orderCount)} đơn · hủy/refund ${formatPercent(staff.cancelRefundRate)}`,
+                sub: `${formatVietnamNumber(staff.orderCount)} đơn · trả/hoàn ${formatPercent(staff.cancelRefundRate)}`,
                 value: capabilities.finance ? staff.revenue : staff.orderCount,
                 valueText: capabilities.finance
                   ? formatVnd(staff.revenue)
@@ -138,20 +138,21 @@ export function PosTab({
               }))}
             />
           ) : (
-            <DashboardGapState message="Cần API tổng hợp theo thu ngân (DASH-GAP-005)." />
+            <DashboardGapState message="Chưa có dữ liệu thống kê theo nhân viên bán hàng." />
           )}
         </DashboardSection>
       </div>
 
       <DashboardSection
         action={<DashboardSectionLink to={routePaths.orders}>Tất cả đơn</DashboardSectionLink>}
-        description="Đơn POS mới nhất hôm nay"
+        description="Đơn bán hàng mới nhất tại cửa hàng hôm nay"
         flush
-        title="Đơn POS hôm nay"
+        icon={<ShoppingCart size={15} />}
+        title="Đơn bán tại cửa hàng hôm nay"
       >
         <div className="px-4 pb-4">
           <DashboardPartView
-            empty="Chưa có đơn POS nào hôm nay."
+            empty="Chưa có đơn bán hàng nào trong ngày hôm nay."
             isEmpty={(part) => part.items.length === 0}
             loading={loading}
             onRetry={() => retry("sales")}

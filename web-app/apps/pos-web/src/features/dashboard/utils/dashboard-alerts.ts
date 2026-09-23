@@ -13,10 +13,10 @@ import { numeric } from "./dashboard-mappers";
 
 export const dashboardAlertKindLabels: Record<DashboardAlertKind, string> = {
   EXPIRY: "Hạn dùng",
-  PENDING_APPROVAL: "Chờ duyệt",
-  PENDING_DEDUCTION: "Pending deduction",
+  PENDING_APPROVAL: "Chờ phê duyệt",
+  PENDING_DEDUCTION: "Đơn chờ trừ kho",
   REORDER: "Sắp hết hàng",
-  RESERVATION: "Reservation",
+  RESERVATION: "Giữ chỗ tồn kho",
   STOCK_ALERT: "Tồn kho",
 };
 
