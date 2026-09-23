@@ -37,3 +37,14 @@ class ProductVariantRepository:
         variant_id: str,
     ) -> ProductVariant | None:
         return db.get(ProductVariant, variant_id)
+
+    def find_by_sku(
+        self,
+        db: Session,
+        sku: str,
+    ) -> ProductVariant | None:
+        return (
+            db.query(ProductVariant)
+            .filter(ProductVariant.sku == sku)
+            .first()
+        )

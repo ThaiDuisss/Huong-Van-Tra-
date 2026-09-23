@@ -6,7 +6,7 @@ import {
     WalletCards,
     X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
@@ -284,6 +284,7 @@ export function OrderRefundPage() {
     const [previewError, setPreviewError] = useState<string | null>(null);
     const [isRefunding, setIsRefunding] = useState(false);
     const [toast, setToast] = useState<ToastState | null>(null);
+    const refundInFlightRef = useRef(false);
 
     const timeRange = getDateRangeFromTimeNode(selectedTimeNode);
     const activeStatus = activeFilter === "ALL" ? undefined : activeFilter;
@@ -470,10 +471,11 @@ export function OrderRefundPage() {
     };
 
     const submitRefund = () => {
-        if (!confirmRow || !preview?.eligible) {
+        if (refundInFlightRef.current || !confirmRow || !preview?.eligible) {
             return;
         }
 
+        refundInFlightRef.current = true;
         setIsRefunding(true);
         refundOrderReturn(confirmRow.returnId)
             .then((response: OrderReturnRefundResponse) => {
@@ -489,6 +491,8 @@ export function OrderRefundPage() {
                                 method: response.method,
                                 paymentStatus: response.paymentStatus,
                                 refundAmount: response.refundAmount,
+                                refundBlockReason: "ALREADY_REFUNDED",
+                                refundEligible: false,
                                 refundedAt: response.refundedAt,
                                 refundStatus: "REFUNDED",
                                 returnStatus: response.returnStatus ?? "COMPLETED",
@@ -496,12 +500,22 @@ export function OrderRefundPage() {
                             }
                             : current
                     );
+                    getOrderRefundDetail(confirmRow.returnId)
+                        .then((detail) => {
+                            setSelectedDetail((current) =>
+                                current?.returnId === detail.returnId ? detail : current
+                            );
+                        })
+                        .catch(() => undefined);
                 }
             })
             .catch((error: unknown) => {
                 setToast({ message: getErrorMessage(error), type: "error" });
             })
-            .finally(() => setIsRefunding(false));
+            .finally(() => {
+                refundInFlightRef.current = false;
+                setIsRefunding(false);
+            });
     };
 
     const selectTimeNode = (node: TimeNode) => {
