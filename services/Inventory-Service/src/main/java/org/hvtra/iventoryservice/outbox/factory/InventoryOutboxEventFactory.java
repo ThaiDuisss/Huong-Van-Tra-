@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.outbox.factory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.hvtra.commonservice.kafka.outbox.factory.OutboxEventFactory;
+import org.hvtra.commonservice.common_core.kafka.outbox.factory.OutboxEventFactory;
 import org.hvtra.iventoryservice.outbox.entity.InventoryOutboxEvent;
 import org.springframework.stereotype.Component;
 

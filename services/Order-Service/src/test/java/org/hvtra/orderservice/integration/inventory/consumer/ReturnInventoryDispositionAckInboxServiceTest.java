@@ -1,8 +1,8 @@
 package org.hvtra.orderservice.integration.inventory.consumer;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.hvtra.commonservice.kafka.event.EventMetadataResolver;
-import org.hvtra.commonservice.kafka.inbox.InboxStatus;
+import org.hvtra.commonservice.common_core.kafka.event.EventMetadataResolver;
+import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.orderservice.domain.entity.OrderInbox;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
