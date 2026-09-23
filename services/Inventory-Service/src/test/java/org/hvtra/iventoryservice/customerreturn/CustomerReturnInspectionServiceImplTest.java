@@ -1,6 +1,6 @@
 package org.hvtra.iventoryservice.customerreturn;
 
-import org.hvtra.commonservice.kafka.inbox.InboxStatus;
+import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;

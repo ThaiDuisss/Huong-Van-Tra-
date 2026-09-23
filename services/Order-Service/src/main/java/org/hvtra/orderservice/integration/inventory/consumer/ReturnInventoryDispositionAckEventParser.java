@@ -1,7 +1,7 @@
 package org.hvtra.orderservice.integration.inventory.consumer;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.kafka.event.DebeziumOutboxEventPayloadParser;
+import org.hvtra.commonservice.common_core.kafka.event.DebeziumOutboxEventPayloadParser;
 import org.hvtra.orderservice.integration.inventory.dto.ReturnInventoryDispositionFailedEvent;
 import org.hvtra.orderservice.integration.inventory.dto.ReturnInventoryDispositionProcessedEvent;
 import org.springframework.stereotype.Component;
