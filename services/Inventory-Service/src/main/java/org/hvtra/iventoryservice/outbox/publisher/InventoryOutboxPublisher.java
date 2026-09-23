@@ -2,8 +2,8 @@ package org.hvtra.iventoryservice.outbox.publisher;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.kafka.outbox.dto.OutboxSaveCommand;
-import org.hvtra.commonservice.kafka.outbox.service.OutboxEventService;
+import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
+import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.hvtra.iventoryservice.outbox.entity.InventoryOutboxEvent;
 import org.hvtra.iventoryservice.outbox.event.InventoryEventType;
 import org.hvtra.iventoryservice.outbox.resolver.InventoryOutboxTopicResolver;

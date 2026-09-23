@@ -14,7 +14,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
-import org.hvtra.commonservice.domain.entity.BaseEntity;
+import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspection;
 import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInspectionLine;
 import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;

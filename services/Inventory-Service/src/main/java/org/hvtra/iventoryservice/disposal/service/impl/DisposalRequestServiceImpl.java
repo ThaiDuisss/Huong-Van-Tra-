@@ -2,7 +2,7 @@ package org.hvtra.iventoryservice.disposal.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.utils.SecurityUtils;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.iventoryservice.customerreturn.repository.CustomerReturnInspectionRepository;
 import org.hvtra.iventoryservice.customerreturn.service.CustomerReturnInspectionService;
 import org.hvtra.iventoryservice.disposal.dto.response.DisposalRequestLineResponse;
