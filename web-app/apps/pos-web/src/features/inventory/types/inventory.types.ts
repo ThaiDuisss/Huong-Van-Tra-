@@ -200,6 +200,7 @@ export interface InventoryBalanceViewResponse {
     imageUrl: string | null;
     quantityOnHand: number;
     quantityReserved: number;
+    quantityBlocked?: number;
     availableQuantity: number;
     cost_price?: number;
     selling_price?: number;

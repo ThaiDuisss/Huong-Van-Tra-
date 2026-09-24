@@ -250,13 +250,13 @@ export function InventoryTab({
     return batches.slice(0, 5).map((b: QualityBatchSummary) => {
       const days = getBatchDaysRemaining(b.expiryDate);
       const urgency = days <= 7 ? "CRITICAL" : days <= 15 ? "HIGH" : "MEDIUM";
-      const urgencyLabel = urgency === "CRITICAL" ? "Rất gấp" : urgency === "HIGH" ? "Gấp" : "Lưu ý";
+      const urgencyLabel = days < 0 ? "Đã hết hạn" : days === 0 ? "Hết hạn hôm nay" : `Còn ${days} ngày`;
       return {
         id: b.id,
-        productName: b.skuName || "N/A",
-        batchCode: b.batchCode || "N/A",
-        quantity: `${(b.availableQuantity ?? b.onHandQuantity ?? 0).toLocaleString("vi-VN")} ${b.unit || "đơn vị"}`,
-        expiryDate: b.expiryDate ? new Date(b.expiryDate).toLocaleDateString("vi-VN") : "N/A",
+        productName: b.skuName || "—",
+        batchCode: b.batchCode || "—",
+        quantity: `${(b.availableQuantity ?? b.onHandQuantity ?? 0).toLocaleString("vi-VN")} ${b.unit ?? ""}`.trim(),
+        expiryDate: b.expiryDate ? new Date(b.expiryDate).toLocaleDateString("vi-VN") : "—",
         urgency,
         urgencyLabel,
       };
@@ -269,23 +269,23 @@ export function InventoryTab({
     return balances
       .filter((b: InventoryBalanceViewResponse) => Number(b.quantityOnHand) > 0)
       .sort((a: InventoryBalanceViewResponse, b: InventoryBalanceViewResponse) => {
-        const costA = Number(a.cost_price ?? (a as any).costPrice ?? 0);
-        const costB = Number(b.cost_price ?? (b as any).costPrice ?? 0);
+        const costA = Number(a.cost_price ?? (a as { costPrice?: number }).costPrice ?? 0);
+        const costB = Number(b.cost_price ?? (b as { costPrice?: number }).costPrice ?? 0);
         const valA = Number(a.quantityOnHand) * costA;
         const valB = Number(b.quantityOnHand) * costB;
         return valB - valA;
       })
       .slice(0, 5)
       .map((b: InventoryBalanceViewResponse, idx: number) => {
-        const unitCost = Number(b.cost_price ?? (b as any).costPrice ?? 0);
+        const unitCost = Number(b.cost_price ?? (b as { costPrice?: number }).costPrice ?? 0);
         return {
           id: String(b.id || idx),
-          code: b.productCode || b.code || "SKU",
-          name: b.productName || b.name || "Sản phẩm",
+          code: b.productCode || b.code || "—",
+          name: b.productName || b.name || "—",
           category: b.categoryName || "Khác",
           daysUnmoved: 45 + idx * 6,
           quantity: Number(b.quantityOnHand),
-          unit: b.unitSymbol || "Đơn vị",
+          unit: b.unitSymbol || b.unitName || "",
           value: Number(b.quantityOnHand) * unitCost,
         };
       });
@@ -315,7 +315,7 @@ export function InventoryTab({
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
         <AlertTriangle className="mx-auto size-8 text-red-500 mb-2" />
-        <h3 className="text-base font-bold text-red-800">Không thể tải dữ liệu phân tích kho</h3>
+        <h3 className="text-base font-bold text-red-800">Không tải được dữ liệu kho</h3>
         <p className="text-xs text-red-600 mt-1">{inventory.message || "Vui lòng kiểm tra kết nối và thử lại."}</p>
         <button
           type="button"
@@ -352,11 +352,11 @@ export function InventoryTab({
             }`}
           >
             <span className="font-semibold">
-              {belowReorderCount > 0 ? "Cần chú ý:" : "Trạng thái kho:"}
+              {belowReorderCount > 0 ? "Cần nhập thêm hàng:" : "Tồn kho ổn định:"}
             </span>{" "}
             {belowReorderCount > 0
-              ? `${belowReorderCount} mặt hàng cần xử lý khẩn cấp (dưới định mức tồn tối thiểu hoặc sắp hết)`
-              : "Tất cả các mặt hàng hiện đều đạt ngưỡng tồn an toàn."}
+              ? `${belowReorderCount} mặt hàng đã xuống dưới mức tồn tối thiểu.`
+              : "Chưa có mặt hàng nào xuống dưới mức tồn tối thiểu."}
           </span>
         </div>
         <button
@@ -366,7 +366,7 @@ export function InventoryTab({
             belowReorderCount > 0 ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"
           }`}
         >
-          Xem chi tiết
+          Xem cảnh báo
           <ArrowRight size={12} />
         </button>
       </div>
@@ -389,7 +389,7 @@ export function InventoryTab({
             {fmtVnd(totalInventoryValue)}
           </strong>
           <p className="text-xs text-slate-400 line-clamp-1">
-            Tính theo giá vốn toàn bộ tồn kho thực tế
+            Tính theo giá vốn của hàng đang tồn
           </p>
         </Card>
 
@@ -400,14 +400,14 @@ export function InventoryTab({
               <PackageCheck size={18} />
             </span>
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              MẶT HÀNG &amp; TỒN KHO
+              SỐ MẶT HÀNG
             </span>
           </div>
           <strong className="text-2xl font-bold tracking-tight text-slate-900">
-            {skuCount} SKU
+            {skuCount.toLocaleString("vi-VN")} mặt hàng
           </strong>
           <p className="text-xs text-slate-400 line-clamp-1">
-            Tổng tồn: {totalOnHand.toLocaleString("vi-VN")} · Khả dụng: {availableCount.toLocaleString("vi-VN")}
+            Tồn thực tế: {totalOnHand.toLocaleString("vi-VN")} · Có thể dùng: {availableCount.toLocaleString("vi-VN")}
           </p>
         </Card>
 
@@ -418,14 +418,14 @@ export function InventoryTab({
               <AlertTriangle size={18} />
             </span>
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              DƯỚI ĐỊNH MỨC
+              SẮP HẾT HÀNG
             </span>
           </div>
           <strong className="text-2xl font-bold tracking-tight text-slate-900">
             {belowReorderCount} mặt hàng
           </strong>
           <p className="text-xs text-slate-400 line-clamp-1">
-            {belowReorderCount > 0 ? `${belowReorderCount} mặt hàng dưới mức tồn tối thiểu` : "Tồn kho đạt mức tối ưu"}
+            {belowReorderCount > 0 ? "Dưới mức tồn tối thiểu đã cài đặt" : "Không có mặt hàng nào sắp hết"}
           </p>
         </Card>
 
@@ -436,14 +436,14 @@ export function InventoryTab({
               <Hourglass size={18} />
             </span>
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              CHỨNG TỪ CHỜ DUYỆT
+              PHIẾU CHỜ DUYỆT
             </span>
           </div>
           <strong className="text-2xl font-bold tracking-tight text-slate-900">
             {pendingDocsCount} phiếu
           </strong>
           <p className="text-xs text-slate-400 line-clamp-1">
-            Chứng từ nhập/xuất đang gửi duyệt
+            Phiếu nhập/xuất kho đang chờ duyệt
           </p>
         </Card>
       </div>
@@ -456,8 +456,8 @@ export function InventoryTab({
         <Card className="grid gap-4 content-start">
           <CardHeader
             icon={<Store size={15} />}
-            title="Phân bổ trạng thái tồn kho"
-            subtitle="Phân loại khả dụng, giữ chỗ và lỗi/hỏng theo khu vực"
+            title="Tình trạng hàng trong kho"
+            subtitle="Lượng hàng có thể dùng, đang giữ cho đơn và hàng hỏng/cách ly"
             action={
               <CardAction
                 label="Xem bảng tồn kho"
@@ -471,7 +471,7 @@ export function InventoryTab({
             {/* Khả dụng */}
             <div className="flex flex-col items-center rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-center">
               <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800">
-                <span className="size-2 rounded-full bg-emerald-500" /> Khả dụng
+                <span className="size-2 rounded-full bg-emerald-500" /> Có thể dùng
               </span>
               <span className="mt-1 text-xl font-bold text-emerald-600">
                 {availableCount.toLocaleString("vi-VN")}
@@ -480,7 +480,7 @@ export function InventoryTab({
             {/* Giữ chỗ */}
             <div className="flex flex-col items-center rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-center">
               <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
-                <span className="size-2 rounded-full bg-amber-500" /> Giữ chỗ
+                <span className="size-2 rounded-full bg-amber-500" /> Đang giữ cho đơn
               </span>
               <span className="mt-1 text-xl font-bold text-amber-600">
                 {reservedCount.toLocaleString("vi-VN")}
@@ -489,7 +489,7 @@ export function InventoryTab({
             {/* Lỗi / Hỏng */}
             <div className="flex flex-col items-center rounded-lg border border-red-200 bg-red-50/70 p-3 text-center">
               <span className="flex items-center gap-1.5 text-[11px] font-semibold text-red-800">
-                <span className="size-2 rounded-full bg-red-500" /> Lỗi / Hỏng
+                <span className="size-2 rounded-full bg-red-500" /> Hỏng / cách ly
               </span>
               <span className="mt-1 text-xl font-bold text-red-600">
                 {blockedCount.toLocaleString("vi-VN")}
@@ -501,35 +501,35 @@ export function InventoryTab({
           <div className="grid gap-2">
             <div className="flex items-center justify-between text-xs text-slate-500">
               <span className="font-medium">
-                Tổng: <span className="font-semibold text-slate-700">{totalOnHand.toLocaleString("vi-VN")} đơn vị</span>
+                Tổng tồn thực tế: <span className="font-semibold text-slate-700">{totalOnHand.toLocaleString("vi-VN")}</span>
               </span>
             </div>
             <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
               <div
                 className="h-full bg-emerald-500 transition-all"
                 style={{ width: `${availPct}%` }}
-                title={`Khả dụng: ${availableCount}`}
+                title={`Có thể dùng: ${availableCount.toLocaleString("vi-VN")}`}
               />
               <div
                 className="h-full bg-amber-400 transition-all"
                 style={{ width: `${reservPct}%` }}
-                title={`Giữ chỗ: ${reservedCount}`}
+                title={`Đang giữ cho đơn: ${reservedCount.toLocaleString("vi-VN")}`}
               />
               <div
                 className="h-full bg-red-500 transition-all"
                 style={{ width: `${blockPct}%` }}
-                title={`Lỗi: ${blockedCount}`}
+                title={`Hỏng / cách ly: ${blockedCount.toLocaleString("vi-VN")}`}
               />
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
               <span className="flex items-center gap-1">
-                <span className="size-2 rounded-full bg-emerald-500" /> {availableCount.toLocaleString("vi-VN")} khả dụng ({formatPercent(availPct)})
+                <span className="size-2 rounded-full bg-emerald-500" /> {availableCount.toLocaleString("vi-VN")} có thể dùng ({formatPercent(availPct)})
               </span>
               <span className="flex items-center gap-1">
-                <span className="size-2 rounded-full bg-amber-400" /> {reservedCount.toLocaleString("vi-VN")} giữ chỗ ({formatPercent(reservPct)})
+                <span className="size-2 rounded-full bg-amber-400" /> {reservedCount.toLocaleString("vi-VN")} đang giữ ({formatPercent(reservPct)})
               </span>
               <span className="flex items-center gap-1">
-                <span className="size-2 rounded-full bg-red-500" /> {blockedCount.toLocaleString("vi-VN")} lỗi ({formatPercent(blockPct)})
+                <span className="size-2 rounded-full bg-red-500" /> {blockedCount.toLocaleString("vi-VN")} hỏng / cách ly ({formatPercent(blockPct)})
               </span>
             </div>
           </div>
@@ -545,12 +545,12 @@ export function InventoryTab({
                     className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${colorClass}`}
                   >
                     <MapPin size={11} />
-                    {loc.locationName}: {loc.onHand.toLocaleString("vi-VN")} SP
+                    {loc.locationName}: {loc.onHand.toLocaleString("vi-VN")}
                   </span>
                 );
               })
             ) : (
-              <span className="text-xs text-slate-400 italic">Chưa có vị trí kho cụ thể</span>
+              <span className="text-xs text-slate-400 italic">Chưa có dữ liệu theo vị trí kho</span>
             )}
           </div>
         </Card>
@@ -559,11 +559,11 @@ export function InventoryTab({
         <Card className="grid gap-4 content-start">
           <CardHeader
             icon={<PieChart size={15} />}
-            title="Cơ cấu giá trị theo danh mục"
-            subtitle="Tỷ lệ vốn tồn đọng và cơ cấu chi tiết theo nhóm hàng"
+            title="Giá trị tồn theo nhóm hàng"
+            subtitle="Tiền hàng đang nằm trong kho, chia theo từng nhóm hàng"
             action={
               <CardAction
-                label="Chi tiết danh mục"
+                label="Xem theo nhóm hàng"
                 onClick={() => navigate(routePaths.stockCategoryAnalysis)}
               />
             }
@@ -571,7 +571,7 @@ export function InventoryTab({
 
           {categoryBreakdown.length === 0 ? (
             <div className="py-12 text-center text-xs text-slate-400 font-medium">
-              Chưa có dữ liệu tồn kho phân bổ theo nhóm hàng.
+              Chưa có dữ liệu tồn kho theo nhóm hàng.
             </div>
           ) : (
             <div className="grid gap-5 xl:grid-cols-[200px_minmax(0,1fr)] items-start">
@@ -626,7 +626,7 @@ export function InventoryTab({
                     ) : (
                       <>
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                          Tổng vốn
+                          Tổng giá trị
                         </span>
                         <span className="mt-0.5 text-sm font-bold text-slate-800">
                           {fmtVnd(totalCatValue)}
@@ -718,7 +718,7 @@ export function InventoryTab({
           <CardHeader
             icon={<Clock size={15} />}
             title="Lô hàng sắp hết hạn"
-            subtitle="Ưu tiên xuất theo nguyên tắc FEFO — hàng gần hết hạn xuất trước"
+            subtitle="Nên dùng hoặc xuất trước các lô gần hết hạn"
             action={
               <CardAction
                 label="Xem tất cả lô"
@@ -752,7 +752,7 @@ export function InventoryTab({
                         {item.productName}
                       </span>
                       <span className="text-xs text-slate-400">
-                        Mã lô: {item.batchCode} · {item.quantity} · HSD: {item.expiryDate}
+                        Lô {item.batchCode} · {item.quantity} · HSD: {item.expiryDate}
                       </span>
                     </div>
                   </div>
@@ -761,7 +761,7 @@ export function InventoryTab({
             ) : (
               <div className="py-8 text-center text-xs text-slate-400">
                 <CheckCircle2 className="mx-auto size-6 text-emerald-500 mb-1" />
-                Không có lô hàng cận hạn nào trong 30 ngày tới.
+                Không có lô nào hết hạn trong 30 ngày tới.
               </div>
             )}
           </div>
@@ -773,7 +773,7 @@ export function InventoryTab({
                 onClick={() => navigate(routePaths.inventoryQuality)}
                 className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-700 hover:underline cursor-pointer"
               >
-                Xem thêm các lô hàng khác
+                Xem tất cả lô sắp hết hạn
                 <ArrowRight size={12} />
               </button>
             </div>
@@ -784,40 +784,29 @@ export function InventoryTab({
         <Card className="grid gap-4 content-start">
           <CardHeader
             icon={<FileCheck2 size={15} />}
-            title="Tiến độ kiểm kê định kỳ"
-            subtitle="Theo dõi kế hoạch kiểm kê và đối soát chênh lệch tồn"
+            title="Kiểm kê kho"
+            subtitle="Đếm lại hàng thực tế và đối chiếu với số trên hệ thống"
             action={
               <CardAction
-                label="Xem lịch sử"
+                label="Lịch sử kiểm kê"
                 onClick={() => navigate(routePaths.inventoryStockCounts)}
               />
             }
           />
 
           <div className="flex flex-col items-center p-4 text-center">
-            <div className="mb-3 grid size-14 place-items-center rounded-full bg-emerald-100 text-emerald-500">
-              <CheckCircle2 size={32} />
+            <div className="mb-3 grid size-14 place-items-center rounded-full bg-slate-100 text-slate-500">
+              <FileCheck2 size={28} />
             </div>
 
             <h4 className="text-base font-semibold text-slate-800">
-              {skuCount > 0 ? "Hệ thống kiểm đếm sẵn sàng" : "Chưa có dữ liệu kiểm kê"}
+              Chưa có số liệu tiến độ kiểm kê
             </h4>
-            <p className="mt-1 text-xs text-slate-400">
-              Tổng số mặt hàng cần quản lý: {skuCount} SKU
+            <p className="mt-1 max-w-xs text-xs text-slate-400">
+              {skuCount > 0
+                ? `Kho đang có ${skuCount.toLocaleString("vi-VN")} mặt hàng. Tạo đợt kiểm kê để đối chiếu số lượng thực tế.`
+                : "Tạo đợt kiểm kê để đối chiếu số lượng thực tế với hệ thống."}
             </p>
-
-            {/* Progress bar */}
-            <div className="mt-4 w-full max-w-xs">
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-emerald-500 transition-all"
-                  style={{ width: "100%" }}
-                />
-              </div>
-              <p className="mt-2 text-xs font-medium text-slate-500">
-                {skuCount}/{skuCount} SKU đã được đồng bộ · 100%
-              </p>
-            </div>
 
             {/* Nút CTA */}
             <button
@@ -838,11 +827,11 @@ export function InventoryTab({
       <Card className="grid gap-4 content-start">
         <CardHeader
           icon={<Boxes size={15} />}
-          title="Hàng tồn kho có giá trị đọng cao"
-          subtitle="Top mặt hàng có giá trị tồn lớn nhất cần theo dõi xuất kho"
+          title="Mặt hàng tồn nhiều tiền nhất"
+          subtitle="5 mặt hàng đang chiếm nhiều giá trị tồn kho nhất"
           action={
             <CardAction
-              label="Báo cáo giá trị tồn"
+              label="Báo cáo giá trị tồn kho"
               onClick={() => navigate(routePaths.reportInventoryValue)}
             />
           }
@@ -852,9 +841,9 @@ export function InventoryTab({
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-slate-50 text-xs font-semibold text-slate-500">
-                <th className="whitespace-nowrap px-4 py-3">Mã / Tên sản phẩm</th>
-                <th className="whitespace-nowrap px-4 py-3 text-center">Nhóm danh mục</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right">Tồn kho / Giá trị đọng</th>
+                <th className="whitespace-nowrap px-4 py-3">Mặt hàng</th>
+                <th className="whitespace-nowrap px-4 py-3 text-center">Nhóm hàng</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right">Tồn kho / Giá trị</th>
                 <th className="whitespace-nowrap px-4 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
@@ -892,11 +881,17 @@ export function InventoryTab({
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => navigate(routePaths.stockCategoryAnalysis)}
+                        onClick={() =>
+                          navigate(
+                            item.code === "—"
+                              ? routePaths.stockCategoryAnalysis
+                              : `${routePaths.stockCategoryAnalysis}?q=${encodeURIComponent(item.code)}`
+                          )
+                        }
                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-600 hover:text-white hover:border-emerald-600 cursor-pointer"
                       >
                         <TrendingDown size={12} />
-                        Chi tiết
+                        Xem tồn kho
                       </button>
                     </td>
                   </tr>
@@ -904,7 +899,7 @@ export function InventoryTab({
               ) : (
                 <tr>
                   <td colSpan={4} className="py-8 text-center text-xs text-slate-400">
-                    Chưa có mặt hàng nào trong kho.
+                    Chưa có mặt hàng nào còn tồn kho.
                   </td>
                 </tr>
               )}

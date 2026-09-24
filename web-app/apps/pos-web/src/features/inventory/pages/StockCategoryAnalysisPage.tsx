@@ -1,15 +1,30 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Search, Layers, AlertCircle, Clock, PackageCheck, RefreshCw } from "lucide-react";
 import { inventoryBalanceApi } from "../services/inventoryBalance.api";
 import { isDashboardMockEnabled } from "../../dashboard/services/dashboard.config";
 import { mockInventoryData } from "../mocks/stock-analysis.mock";
+import type { InventoryBalanceViewResponse } from "../types/inventory.types";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    1. TYPES & COLOR SYSTEM
    ═══════════════════════════════════════════════════════════════════════════ */
 
+type StockItemType = NonNullable<InventoryBalanceViewResponse["itemType"]>;
+
+const ITEM_TYPE_LABELS: Record<StockItemType, string> = {
+  INGREDIENT: "Nguyên liệu",
+  PRODUCT_VARIANT: "Sản phẩm",
+  COMBO: "Combo",
+};
+
+/** Kích thước trang khi tải balance; tải tuần tự tới trang cuối, tối đa MAX_BALANCE_PAGES trang. */
+const BALANCE_PAGE_SIZE = 500;
+const MAX_BALANCE_PAGES = 20;
+
 export interface RawInventoryRecord {
+  id: string;
+  itemType?: StockItemType;
   sku: string;
   name: string;
   category: string;
@@ -132,6 +147,48 @@ function getCategoryStyle(category: string): CategoryColorConfig {
    2. HELPER FUNCTIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
+function toStockRecord(b: InventoryBalanceViewResponse): InventoryItemWithAvailable {
+  const onHand = Number(b.quantityOnHand ?? 0);
+  const reserved = Number(b.quantityReserved ?? 0);
+  const available = Number(b.availableQuantity ?? Math.max(0, onHand - reserved));
+  // Backend cũ chưa trả quantityBlocked → suy ngược (có thể lệch khi available bị kẹp về 0)
+  const blocked =
+    b.quantityBlocked != null ? Number(b.quantityBlocked) : Math.max(0, onHand - reserved - available);
+
+  return {
+    id: b.inventoryBalanceId ?? b.id ?? `${b.inventoryItemId}-${b.locationId}`,
+    itemType: b.itemType,
+    sku: b.productCode || b.code || "—",
+    name: b.productName || b.name || "—",
+    category: b.categoryName || "Khác",
+    onHand,
+    reserved,
+    blocked,
+    available,
+    warehouse: b.locationName || "—",
+    unit: b.unitSymbol || b.unitName || "—",
+  };
+}
+
+async function fetchAllBalances(): Promise<{ rows: InventoryBalanceViewResponse[]; total: number }> {
+  const rows: InventoryBalanceViewResponse[] = [];
+  let total = 0;
+  for (let page = 0; page < MAX_BALANCE_PAGES; page++) {
+    const res = await inventoryBalanceApi.view({ page, size: BALANCE_PAGE_SIZE });
+    const content = res?.content ?? [];
+    rows.push(...content);
+    total = res?.totalElements ?? rows.length;
+    if (content.length === 0 || res?.last || page + 1 >= (res?.totalPages ?? 0)) break;
+  }
+  return { rows, total: Math.max(total, rows.length) };
+}
+
+const MOCK_RECORDS: InventoryItemWithAvailable[] = mockInventoryData.map((m, i) => ({
+  ...m,
+  id: `mock-${i}`,
+  available: Math.max(0, m.onHand - m.reserved - m.blocked),
+}));
+
 function fmtNum(n: number): string {
   return n.toLocaleString("vi-VN");
 }
@@ -189,15 +246,18 @@ function getRoundedRightBarPath(x: number, y: number, w: number, h: number, r: n
 
 export function StockCategoryAnalysisPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Data fetching states
-  const [items, setItems] = useState<RawInventoryRecord[]>([]);
+  const [items, setItems] = useState<InventoryItemWithAvailable[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // State lọc & tương tác
+  const [selectedItemType, setSelectedItemType] = useState<StockItemType | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -207,44 +267,30 @@ export function StockCategoryAnalysisPage() {
 
     async function fetchBalances() {
       try {
-        const res = await inventoryBalanceApi.view({ page: 0, size: 250 });
+        const { rows, total } = await fetchAllBalances();
         if (ignore) return;
 
-        const content = res?.content ?? [];
-        if (content.length > 0) {
-          const mapped: RawInventoryRecord[] = content.map((b) => {
-            const onHand = Number(b.quantityOnHand ?? 0);
-            const reserved = Number(b.quantityReserved ?? 0);
-            const available = Number(b.availableQuantity ?? Math.max(0, onHand - reserved));
-            const blocked = Math.max(0, onHand - reserved - available);
-
-            return {
-              sku: b.productCode || b.code || "SKU-N/A",
-              name: b.productName || b.name || "Chưa có tên",
-              category: b.categoryName || "Khác",
-              onHand,
-              reserved,
-              blocked,
-              warehouse: b.locationName || "Kho trung tâm",
-              unit: b.unitSymbol || b.unitName || "đơn vị",
-            };
-          });
-          setItems(mapped);
+        if (rows.length > 0) {
+          setItems(rows.map(toStockRecord));
+          setTotalRecords(total);
           setError(null);
         } else if (isDashboardMockEnabled) {
-          setItems(mockInventoryData);
+          setItems(MOCK_RECORDS);
+          setTotalRecords(MOCK_RECORDS.length);
           setError(null);
         } else {
           setItems([]);
+          setTotalRecords(0);
           setError(null);
         }
       } catch {
         if (ignore) return;
         if (isDashboardMockEnabled) {
-          setItems(mockInventoryData);
+          setItems(MOCK_RECORDS);
+          setTotalRecords(MOCK_RECORDS.length);
           setError(null);
         } else {
-          setError("Không thể nạp dữ liệu tồn kho từ máy chủ. Vui lòng kiểm tra lại kết nối.");
+          setError("Không tải được dữ liệu tồn kho. Vui lòng kiểm tra kết nối rồi thử lại.");
         }
       } finally {
         if (!ignore) {
@@ -265,13 +311,28 @@ export function StockCategoryAnalysisPage() {
     setRefreshKey((k) => k + 1);
   }, []);
 
-  // 1. Tự động tính toán available = onHand - reserved - blocked cho toàn bộ dữ liệu
-  const computedAllData = useMemo<InventoryItemWithAvailable[]>(() => {
-    return items.map((item) => ({
-      ...item,
-      available: Math.max(0, item.onHand - item.reserved - item.blocked),
-    }));
+  // Loại mặt hàng có trong dữ liệu (nguyên liệu / sản phẩm / combo)
+  const availableItemTypes = useMemo(() => {
+    const map = new Map<StockItemType, number>();
+    items.forEach((i) => {
+      if (i.itemType) map.set(i.itemType, (map.get(i.itemType) ?? 0) + 1);
+    });
+    return Array.from(map.entries()).map(([type, count]) => ({ type, count }));
   }, [items]);
+
+  // 1. Dữ liệu theo loại mặt hàng đang chọn (available lấy từ backend)
+  const computedAllData = useMemo<InventoryItemWithAvailable[]>(() => {
+    if (!selectedItemType) return items;
+    return items.filter((item) => item.itemType === selectedItemType);
+  }, [items, selectedItemType]);
+
+  const itemTypeLabel = selectedItemType ? ITEM_TYPE_LABELS[selectedItemType].toLowerCase() : "mặt hàng";
+  const isTruncated = totalRecords > items.length;
+
+  const handleSelectItemType = useCallback((type: StockItemType | null) => {
+    setSelectedItemType(type);
+    setSelectedCategory(null);
+  }, []);
 
   // Danh mục duy nhất có trong dữ liệu
   const availableCategories = useMemo(() => {
@@ -340,24 +401,21 @@ export function StockCategoryAnalysisPage() {
             onClick={() => navigate(-1)}
             type="button"
             className="p-2 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg border border-slate-200 shadow-xs transition-colors cursor-pointer"
-            title="Quay lại Dashboard"
+            title="Quay lại"
           >
             <ArrowLeft size={16} />
           </button>
           <div>
             <div className="flex items-center gap-2 text-xs font-medium text-slate-400 mb-0.5">
-              <span>Dashboard</span>
+              <span>Tổng quan</span>
               <span>/</span>
               <span>Báo cáo kho</span>
               <span>/</span>
-              <span className="text-slate-700 font-semibold">Cơ cấu danh mục</span>
+              <span className="text-slate-700 font-semibold">Tồn kho theo nhóm hàng</span>
             </div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
               <Layers className="size-5 text-emerald-600" />
-              Quản lý chi tiết tồn kho
-              <span className="text-sm font-normal text-slate-500">
-                (Inventory Stock &amp; Category Analysis View)
-              </span>
+              Tồn kho theo nhóm hàng
             </h1>
           </div>
         </div>
@@ -376,17 +434,17 @@ export function StockCategoryAnalysisPage() {
 
           <div className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-xs flex items-center gap-2">
             <PackageCheck className="size-3.5 text-emerald-600" />
-            <span className="text-slate-500">Khả dụng:</span>
+            <span className="text-slate-500">Có thể dùng:</span>
             <span className="font-bold text-emerald-600">{fmtNum(stats.totalAvailable)}</span>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-xs flex items-center gap-2">
             <Clock className="size-3.5 text-amber-500" />
-            <span className="text-slate-500">Giữ chỗ:</span>
+            <span className="text-slate-500">Đang giữ cho đơn:</span>
             <span className="font-bold text-amber-600">{fmtNum(stats.totalReserved)}</span>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-xs flex items-center gap-2">
             <AlertCircle className="size-3.5 text-rose-500" />
-            <span className="text-slate-500">Lỗi/Chặn:</span>
+            <span className="text-slate-500">Hỏng / cách ly:</span>
             <span className="font-bold text-rose-600">{fmtNum(stats.totalBlocked)}</span>
           </div>
         </div>
@@ -409,6 +467,39 @@ export function StockCategoryAnalysisPage() {
         </div>
       )}
 
+      {isTruncated && !loading && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-center gap-2">
+          <AlertCircle className="size-4 shrink-0 text-amber-500" />
+          <span>
+            Chỉ đang hiển thị {fmtNum(items.length)}/{fmtNum(totalRecords)} dòng tồn kho, nên các con số tổng có
+            thể thấp hơn thực tế.
+          </span>
+        </div>
+      )}
+
+      {/* Bộ lọc loại mặt hàng */}
+      {availableItemTypes.length > 1 && (
+        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs shadow-xs">
+          {[{ type: null, count: items.length }, ...availableItemTypes].map(({ type, count }) => {
+            const isActive = selectedItemType === type;
+            return (
+              <button
+                key={type ?? "ALL"}
+                type="button"
+                onClick={() => handleSelectItemType(type)}
+                aria-pressed={isActive}
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors cursor-pointer ${
+                  isActive ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {type ? ITEM_TYPE_LABELS[type] : "Tất cả"}
+                <span className={`ml-1.5 ${isActive ? "text-slate-300" : "text-slate-400"}`}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ────────────────────────────────────────────────────────────────────────
           [PHẦN 1] THANH LỌC DANH MỤC TRÊN CÙNG (Category Filter Pills Bar)
           ──────────────────────────────────────────────────────────────────────── */}
@@ -423,7 +514,7 @@ export function StockCategoryAnalysisPage() {
               : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
           }`}
         >
-          <span>Tất cả</span>
+          <span>Tất cả nhóm</span>
           <span
             className={`text-[10px] px-1.5 py-0.2 rounded-full ${
               selectedCategory === null ? "bg-slate-700 text-slate-200" : "bg-slate-100 text-slate-500"
@@ -469,9 +560,9 @@ export function StockCategoryAnalysisPage() {
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-5 shadow-xs">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h2 className="font-semibold text-slate-800 text-base">
-            Top 10 Nguyên liệu — Tồn khả dụng{" "}
+            10 {itemTypeLabel} còn nhiều hàng có thể dùng nhất{" "}
             <span className="text-slate-400 font-normal text-sm">
-              (phân màu theo category)
+              (màu theo nhóm hàng)
             </span>
           </h2>
 
@@ -496,7 +587,7 @@ export function StockCategoryAnalysisPage() {
           </div>
         ) : top10Data.length === 0 ? (
           <div className="py-12 text-center text-sm text-slate-400 font-medium">
-            Không tìm thấy dữ liệu mặt hàng phù hợp với bộ lọc hiện tại.
+            Không có mặt hàng nào khớp với bộ lọc.
           </div>
         ) : (
           <div className="w-full overflow-x-auto">
@@ -504,7 +595,7 @@ export function StockCategoryAnalysisPage() {
               viewBox={`0 0 ${SVG_W} ${SVG_H}`}
               className="w-full min-w-[700px] h-auto select-none"
               role="img"
-              aria-label="Biểu đồ Top 10 nguyên liệu có tồn khả dụng cao nhất"
+              aria-label={`Biểu đồ 10 ${itemTypeLabel} còn nhiều hàng có thể dùng nhất`}
             >
               {/* Vạch lưới gióng mờ & X-axis tick labels */}
               {TICKS.map((tick) => {
@@ -557,7 +648,7 @@ export function StockCategoryAnalysisPage() {
 
                 return (
                   <g
-                    key={`${item.sku}-${item.warehouse}`}
+                    key={item.id}
                     onMouseEnter={() => setHoveredBarIndex(index)}
                     onMouseLeave={() => setHoveredBarIndex(null)}
                     className="cursor-pointer"
@@ -602,11 +693,11 @@ export function StockCategoryAnalysisPage() {
 
                     {/* Tooltip gốc SVG title fallback */}
                     <title>
-                      {`${item.sku} — ${item.name} (${item.category})\nTồn khả dụng: ${fmtNum(
+                      {`${item.sku} — ${item.name} (${item.category})\nCó thể dùng: ${fmtNum(
                         item.available
-                      )} ${item.unit}\n(On Hand: ${fmtNum(item.onHand)} - Reserved: ${fmtNum(
+                      )} ${item.unit}\nTồn thực tế ${fmtNum(item.onHand)} − đang giữ ${fmtNum(
                         item.reserved
-                      )} - Blocked: ${fmtNum(item.blocked)})`}
+                      )} − hỏng/cách ly ${fmtNum(item.blocked)}`}
                     </title>
                   </g>
                 );
@@ -627,7 +718,7 @@ export function StockCategoryAnalysisPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Tìm kiếm theo SKU hoặc tên..."
+              placeholder="Tìm theo mã hoặc tên mặt hàng..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition placeholder-slate-400"
@@ -652,7 +743,7 @@ export function StockCategoryAnalysisPage() {
                 onClick={() => setSelectedCategory(null)}
                 className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer mr-2"
               >
-                Bỏ lọc danh mục
+                Bỏ lọc nhóm hàng
               </button>
             )}
             <span className="text-xs text-slate-400 font-medium shrink-0">
@@ -671,22 +762,22 @@ export function StockCategoryAnalysisPage() {
                   #
                 </th>
                 <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 min-w-[200px]">
-                  SKU / TÊN
+                  MÃ / TÊN
                 </th>
                 <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 min-w-[150px]">
-                  CATEGORY
+                  NHÓM HÀNG
                 </th>
                 <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-right min-w-[110px]">
-                  ON HAND
+                  TỒN THỰC TẾ
                 </th>
                 <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-right min-w-[100px]">
-                  RESERVED
+                  ĐANG GIỮ
                 </th>
                 <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-right min-w-[100px]">
-                  BLOCKED
+                  HỎNG / CÁCH LY
                 </th>
                 <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-right min-w-[190px]">
-                  AVAILABLE
+                  CÓ THỂ DÙNG
                 </th>
                 <th className="text-[11px] uppercase text-slate-400 font-semibold tracking-wider py-3 px-4 text-center min-w-[90px]">
                   KHO
@@ -703,14 +794,14 @@ export function StockCategoryAnalysisPage() {
                   <td colSpan={9} className="py-12 text-center text-slate-400 text-xs font-medium">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw className="size-4 animate-spin text-emerald-600" />
-                      <span>Đang nạp dữ liệu chi tiết...</span>
+                      <span>Đang tải dữ liệu tồn kho...</span>
                     </div>
                   </td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400 text-sm font-medium">
-                    Không tìm thấy nguyên liệu phù hợp với tìm kiếm
+                    Không có {itemTypeLabel} nào khớp với tìm kiếm
                   </td>
                 </tr>
               ) : (
@@ -720,7 +811,7 @@ export function StockCategoryAnalysisPage() {
 
                   return (
                     <tr
-                      key={`${item.sku}-${item.warehouse}-${index}`}
+                      key={item.id}
                       className="hover:bg-slate-50/80 transition-colors"
                     >
                       {/* Cột #: Thứ tự (badge số tròn cho Top 1, 2, 3) */}
@@ -728,7 +819,7 @@ export function StockCategoryAnalysisPage() {
                         {rank === 1 && (
                           <span
                             className="inline-flex items-center justify-center size-5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300 text-[11px] shadow-xs mx-auto"
-                            title="Top 1 Tồn khả dụng"
+                            title="Nhiều hàng có thể dùng nhất"
                           >
                             1
                           </span>
@@ -736,7 +827,7 @@ export function StockCategoryAnalysisPage() {
                         {rank === 2 && (
                           <span
                             className="inline-flex items-center justify-center size-5 rounded-full bg-slate-200 text-slate-700 font-bold border border-slate-300 text-[11px] shadow-xs mx-auto"
-                            title="Top 2 Tồn khả dụng"
+                            title="Hạng 2 về số lượng có thể dùng"
                           >
                             2
                           </span>
@@ -744,7 +835,7 @@ export function StockCategoryAnalysisPage() {
                         {rank === 3 && (
                           <span
                             className="inline-flex items-center justify-center size-5 rounded-full bg-orange-100 text-orange-800 font-bold border border-orange-300 text-[11px] shadow-xs mx-auto"
-                            title="Top 3 Tồn khả dụng"
+                            title="Hạng 3 về số lượng có thể dùng"
                           >
                             3
                           </span>
@@ -809,7 +900,10 @@ export function StockCategoryAnalysisPage() {
                         <div className="text-emerald-600 font-bold text-sm tabular-nums">
                           {fmtNum(item.available)}
                         </div>
-                        <div className="text-slate-400 text-[10px] font-mono mt-0.5">
+                        <div
+                          className="text-slate-400 text-[10px] font-mono mt-0.5"
+                          title="Tồn thực tế − đang giữ − hỏng/cách ly"
+                        >
                           = {fmtNum(item.onHand)} - {fmtNum(item.reserved)} - {fmtNum(item.blocked)}
                         </div>
                       </td>

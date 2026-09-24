@@ -34,6 +34,7 @@ public record InventoryBalanceViewResponse(
         @JsonProperty("selling_price") BigDecimal sellingPrice,
         BigDecimal quantityOnHand,
         BigDecimal quantityReserved,
+        BigDecimal quantityBlocked,
         BigDecimal availableQuantity,
         Integer reorderPoint,
         Instant updatedAt
