@@ -29,3 +29,10 @@ class CategoryRepository:
         )
 
         db.execute(stmt)
+
+    def find_by_id(
+        self,
+        db: Session,
+        category_id: str,
+    ) -> Category | None:
+        return db.get(Category, category_id)

@@ -7,7 +7,7 @@ export const apiClient = createApiClient({
         import.meta.env.VITE_API_BASE_URL ??
         "http://localhost:8080/api",
 
-    timeoutMs: 15_000,
+    timeoutMs: 300_000,
 
     tokenProvider,
 

@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Award,
   BadgeDollarSign,
   Bell,
   Boxes,
@@ -7,6 +8,8 @@ import {
   ReceiptText,
   RotateCcw,
   ShoppingCart,
+  Store,
+  TrendingUp,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -82,7 +85,7 @@ export function OverviewTab({
       icon: <BadgeDollarSign size={18} />,
       label: "Doanh thu",
       loading: salesLoading,
-      note: isToday ? "Đơn POS hôm nay" : `API chỉ hỗ trợ hôm nay, chưa có ${rangeLabel}`,
+      note: isToday ? "Đơn bán tại cửa hàng hôm nay" : `Dữ liệu hiện khả dụng cho hôm nay`,
       noteTone: isToday ? "neutral" : "warn",
       source: isToday ? "REAL" : "GAP",
       value: isToday && summary?.data ? formatVnd(numeric(summary.data.todayRevenue)) : undefined,
@@ -96,9 +99,9 @@ export function OverviewTab({
     kpis.push({
       error: stats?.error,
       icon: <ShoppingCart size={18} />,
-      label: "Số đơn",
+      label: "Số đơn bán hàng",
       loading: salesLoading,
-      note: stats?.data ? `${formatVietnamNumber(completed)} hoàn tất · ${rangeLabel}` : rangeLabel,
+      note: stats?.data ? `${formatVietnamNumber(completed)} đơn hoàn tất · ${rangeLabel}` : rangeLabel,
       value: stats?.data ? formatVietnamNumber(total) : undefined,
     });
   }
@@ -109,7 +112,7 @@ export function OverviewTab({
       icon: <ReceiptText size={18} />,
       label: "Giá trị đơn trung bình",
       loading: salesLoading,
-      note: isToday ? "Đơn POS hôm nay" : `API chỉ hỗ trợ hôm nay`,
+      note: isToday ? "Đơn bán tại cửa hàng hôm nay" : `Dữ liệu hiện khả dụng cho hôm nay`,
       noteTone: isToday ? "neutral" : "warn",
       source: isToday ? "REAL" : "GAP",
       value:
@@ -124,12 +127,12 @@ export function OverviewTab({
     kpis.push({
       error: stats?.error,
       icon: <RotateCcw size={18} />,
-      label: "Đơn hoàn / refund",
+      label: "Đơn trả / Hoàn tiền",
       loading: salesLoading,
       note: stats?.data
         ? returned > 0
           ? `${formatPercent(total > 0 ? (returned / total) * 100 : 0)} số đơn · ${rangeLabel}`
-          : `Không có · ${rangeLabel}`
+          : `Không có đơn trả · ${rangeLabel}`
         : rangeLabel,
       noteTone: returned > 0 ? "bad" : "good",
       source: "ADAPTED",
@@ -144,7 +147,7 @@ export function OverviewTab({
       {
         error: balances?.error,
         icon: <Boxes size={18} />,
-        label: "SKU có tồn",
+        label: "Sản phẩm còn tồn",
         loading: inventoryLoading,
         note: "Trong phạm vi kho đã chọn",
         value: inventoryKpis ? formatVietnamNumber(inventoryKpis.skuCount) : undefined,
@@ -152,19 +155,19 @@ export function OverviewTab({
       {
         error: balances?.error,
         icon: <PackageCheck size={18} />,
-        label: "Tồn khả dụng",
+        label: "Tồn khả dụng bán",
         loading: inventoryLoading,
         note: inventoryKpis
-          ? `Giữ chỗ ${formatVietnamNumber(inventoryKpis.totalReserved)} · bị chặn ${formatVietnamNumber(inventoryKpis.totalBlocked)}`
+          ? `Giữ chỗ: ${formatVietnamNumber(inventoryKpis.totalReserved)} · Bị chặn: ${formatVietnamNumber(inventoryKpis.totalBlocked)}`
           : undefined,
         value: inventoryKpis ? formatVietnamNumber(inventoryKpis.totalAvailable) : undefined,
       },
       {
         error: balances?.error,
         icon: <AlertTriangle size={18} />,
-        label: "SKU dưới điểm đặt lại",
+        label: "Sản phẩm cần nhập thêm",
         loading: inventoryLoading,
-        note: inventoryKpis && inventoryKpis.belowReorder.length > 0 ? "Cần bổ sung hàng" : "Không có SKU nào",
+        note: inventoryKpis && inventoryKpis.belowReorder.length > 0 ? "Dưới định mức tối thiểu" : "Tồn kho đủ định mức",
         noteTone: inventoryKpis && inventoryKpis.belowReorder.length > 0 ? "bad" : "good",
         onClick: onShowAlerts,
         source: "ADAPTED",
@@ -176,19 +179,23 @@ export function OverviewTab({
   if (capabilities.inventoryValue) {
     const balances = inventoryData?.balances;
     const balancePage = balances?.data ?? null;
-    const partial = balancePage !== null && balancePage.loaded < balancePage.total;
+    const overviewSummary = inventoryData?.overviewSummary?.data;
+    const partial = !overviewSummary && balancePage !== null && balancePage.loaded < balancePage.total;
+    const totalInventoryValue = overviewSummary?.totalInventoryValue ?? inventoryKpis?.inventoryValue;
 
     kpis.push({
-      error: balances?.error,
+      error: inventoryData?.overviewSummary?.error || balances?.error,
       icon: <Boxes size={18} />,
-      label: "Giá trị tồn kho",
+      label: "Tổng giá trị kho",
       loading: inventoryLoading,
-      note: partial
-        ? `Ước tính trên ${formatVietnamNumber(balancePage.loaded)}/${formatVietnamNumber(balancePage.total)} dòng tồn`
-        : "Theo giá vốn × tồn vật lý",
+      note: overviewSummary
+        ? "Tính theo giá vốn toàn bộ tồn kho"
+        : partial
+          ? `Ước tính trên ${formatVietnamNumber(balancePage.loaded)}/${formatVietnamNumber(balancePage.total)} mặt hàng`
+          : "Tính theo giá vốn hàng tồn kho",
       noteTone: partial ? "warn" : "neutral",
-      source: "ADAPTED",
-      value: inventoryKpis ? formatVnd(inventoryKpis.inventoryValue) : undefined,
+      source: overviewSummary ? "REAL" : "ADAPTED",
+      value: totalInventoryValue !== undefined ? formatVnd(totalInventoryValue) : undefined,
     });
   }
 
@@ -199,10 +206,10 @@ export function OverviewTab({
       loading: alertsLoading && alertItems.length === 0,
       note:
         severityCounts.CRITICAL > 0
-          ? `${severityCounts.CRITICAL} nghiêm trọng · ${severityCounts.HIGH} cao`
+          ? `${severityCounts.CRITICAL} khẩn cấp · ${severityCounts.HIGH} cao`
           : alertItems.length > 0
             ? `${severityCounts.HIGH} cao · ${severityCounts.MEDIUM} trung bình`
-            : "Không có cảnh báo mở",
+            : "Không có cảnh báo mới",
       noteTone: severityCounts.CRITICAL > 0 ? "bad" : alertItems.length > 0 ? "warn" : "good",
       onClick: onShowAlerts,
       value: formatVietnamNumber(alertItems.length),
@@ -219,7 +226,7 @@ export function OverviewTab({
         action={
           demo ? (
             <SegmentedControl
-              onChange={setSkuMode}
+              onChange={(v) => setSkuMode(v)}
               options={[
                 { key: "revenue", label: "Doanh thu" },
                 { key: "quantity", label: "Số lượng" },
@@ -228,9 +235,9 @@ export function OverviewTab({
             />
           ) : undefined
         }
-        badge={salesData ? <SourceBadge source={demo ? "DEMO" : "GAP"} /> : undefined}
+        icon={<Award size={15} />}
         key="top-sku"
-        title="Top SKU"
+        title="Sản phẩm bán chạy nhất"
       >
         {salesLoading && !salesData ? (
           <DashboardListSkeleton rows={4} />
@@ -250,13 +257,13 @@ export function OverviewTab({
               }))}
           />
         ) : (
-          <DashboardGapState message="Cần API tổng hợp SKU bán chạy (DASH-GAP-003)." />
+          <DashboardGapState message="Chưa có dữ liệu thống kê sản phẩm bán chạy." />
         )}
       </DashboardSection>,
     );
     quickWidgets.push(
       <DashboardSection
-        badge={salesData ? <SourceBadge source={demo ? "DEMO" : "GAP"} /> : undefined}
+        icon={<Store size={15} />}
         key="store"
         title="Hiệu suất điểm bán"
       >
@@ -273,7 +280,7 @@ export function OverviewTab({
             }))}
           />
         ) : (
-          <DashboardGapState message="Cần API doanh thu theo chi nhánh (DASH-GAP-005)." />
+          <DashboardGapState message="Chưa có dữ liệu thống kê theo điểm bán." />
         )}
       </DashboardSection>,
     );
@@ -283,12 +290,13 @@ export function OverviewTab({
     quickWidgets.push(
       <DashboardSection
         action={<DashboardSectionLink to={routePaths.inventoryBalances}>Xem tồn kho</DashboardSectionLink>}
-        description="Khả dụng, giữ chỗ và bị chặn trên tồn vật lý"
+        description="Tồn thực tế, số lượng đang giữ chỗ và khả dụng bán"
+        icon={<Boxes size={15} />}
         key="locations"
-        title="Tồn theo địa điểm"
+        title="Tồn theo vị trí"
       >
         <DashboardPartView
-          empty="Chưa có dữ liệu tồn trong phạm vi đã chọn."
+          empty="Chưa có dữ liệu tồn kho."
           isEmpty={(data) => data.items.length === 0}
           loading={inventoryLoading}
           onRetry={() => retry("inventory")}
@@ -317,7 +325,7 @@ export function OverviewTab({
             action={
               demo ? (
                 <SegmentedControl
-                  onChange={setMetric}
+                  onChange={(v) => setMetric(v)}
                   options={[
                     { key: "revenue", label: "Doanh thu" },
                     { key: "orders", label: "Số đơn" },
@@ -328,6 +336,7 @@ export function OverviewTab({
             }
             badge={salesData ? <SourceBadge source={demo ? "DEMO" : "GAP"} /> : undefined}
             description="Theo giờ trong ngày"
+            icon={<TrendingUp size={15} />}
             title="Xu hướng bán hàng"
           >
             {salesLoading && !salesData ? (
@@ -339,19 +348,20 @@ export function OverviewTab({
                 title={metric === "revenue" ? "Doanh thu theo giờ" : "Số đơn theo giờ"}
               />
             ) : (
-              <DashboardGapState message="Cần API doanh thu/số đơn theo thời gian (DASH-GAP-002)." />
+              <DashboardGapState message="Đang cập nhật biểu đồ phân tích doanh thu." />
             )}
           </DashboardSection>
 
           <DashboardSection
             action={<DashboardSectionLink to={routePaths.orders}>Tất cả đơn</DashboardSectionLink>}
-            description="Đơn POS mới nhất hôm nay"
+            description="Đơn bán hàng mới nhất tại cửa hàng hôm nay"
             flush
-            title="Đơn gần đây"
+            icon={<ShoppingCart size={15} />}
+            title="Đơn bán gần đây"
           >
             <div className="px-4 pb-4">
               <DashboardPartView
-                empty="Chưa có đơn POS nào hôm nay."
+                empty="Chưa có đơn bán hàng nào trong ngày hôm nay."
                 isEmpty={(data) => data.items.length === 0}
                 loading={salesLoading}
                 onRetry={() => retry("sales")}
@@ -410,7 +420,8 @@ export function OverviewTab({
           }
           description="Ưu tiên theo mức độ: sắp hết hàng, hạn dùng, chứng từ chờ duyệt, giữ chỗ"
           flush
-          title="Cần xử lý"
+          icon={<Bell size={15} />}
+          title="Cảnh báo cần xử lý"
         >
           <div className="px-4 pb-4">
             {alertsLoading && alertItems.length === 0 ? (

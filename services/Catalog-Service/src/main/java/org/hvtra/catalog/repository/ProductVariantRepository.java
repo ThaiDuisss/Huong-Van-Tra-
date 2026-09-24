@@ -1,5 +1,7 @@
 package org.hvtra.catalog.repository;
 
+import org.hvtra.catalog.dto.response.VariantCostResponse;
+import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.entity.ProductVariant;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -54,4 +56,37 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             where v.id in :ids
             """)
     List<ProductVariant> findAllByIdWithDetails(@Param("ids") Collection<UUID> ids);
+
+    @Query("""
+            SELECT new org.hvtra.catalog.dto.response.VariantCostResponse(v.id, v.costPrice)
+            FROM ProductVariant v
+            WHERE v.id IN :ids
+            """)
+    List<VariantCostResponse> findCostPricesByIds(@Param("ids") Collection<UUID> ids);
+
+    @Query("""
+            SELECT new org.hvtra.catalog.dto.response.VariantInventorySummaryResponse(
+                v.id,
+                v.sku,
+                v.variantName,
+                p.id,
+                p.productCode,
+                p.name,
+                c.id,
+                c.categoryCode,
+                c.name,
+                u.id,
+                u.name,
+                u.symbol,
+                v.costPrice,
+                v.sellingPrice,
+                p.imageUrl
+            )
+            FROM ProductVariant v
+            JOIN v.product p
+            LEFT JOIN p.category c
+            LEFT JOIN v.unit u
+            WHERE v.id IN :ids
+            """)
+    List<VariantInventorySummaryResponse> findInventorySummariesByIds(@Param("ids") Collection<UUID> ids);
 }

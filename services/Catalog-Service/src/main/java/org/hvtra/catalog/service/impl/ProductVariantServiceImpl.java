@@ -12,6 +12,8 @@ import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
+import org.hvtra.catalog.dto.response.VariantCostResponse;
+import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Ingredient;
@@ -638,6 +640,22 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         return repository.findAllByIdWithDetails(ids).stream()
                 .map(mapper::toVariantResponse)
                 .toList();
+    }
+
+    @Override
+    public List<VariantCostResponse> findCostPricesByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return repository.findCostPricesByIds(ids);
+    }
+
+    @Override
+    public List<VariantInventorySummaryResponse> findInventorySummariesByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return repository.findInventorySummariesByIds(ids);
     }
 
     @Override

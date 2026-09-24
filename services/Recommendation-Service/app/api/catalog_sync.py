@@ -8,8 +8,8 @@ from app.repositories.ingredient_repository import IngredientRepository
 from app.repositories.product_ingredient_repository import ProductIngredientRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.product_variant_repository import ProductVariantRepository
+from app.schemas.catalog import CatalogSyncResponse
 from app.service.catalog_sync_service import CatalogSyncService
-from app.service.product_resolver import ProductResolver
 
 router = APIRouter(
     prefix="/internal/catalog",
@@ -17,7 +17,7 @@ router = APIRouter(
 )
 
 
-@router.post("/sync")
+@router.post("/sync", response_model=CatalogSyncResponse)
 def sync_catalog(
     db: Session = Depends(get_db),
 ) -> dict:
@@ -27,7 +27,6 @@ def sync_catalog(
         variant_repo = ProductVariantRepository()
         ingredient_repo = IngredientRepository()
         product_ingredient_repo = ProductIngredientRepository()
-        resolver = ProductResolver(variant_repository=variant_repo)
 
         service = CatalogSyncService(
             catalog_client=catalog_client,
@@ -36,7 +35,6 @@ def sync_catalog(
             variant_repository=variant_repo,
             ingredient_repository=ingredient_repo,
             product_ingredient_repository=product_ingredient_repo,
-            product_resolver=resolver,
         )
 
         return service.sync_all(db)

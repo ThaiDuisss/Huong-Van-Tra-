@@ -7,36 +7,12 @@ import {
 } from "../../inventory/components/InventoryManagementComponents";
 import type { DashboardPart, DashboardSourceStatus } from "../types/dashboard.types";
 
-/** Nhãn nguồn dữ liệu chỉ hiện khi không phải dữ liệu thật. */
-export function SourceBadge({ source }: { source: DashboardSourceStatus }) {
-  if (source === "REAL") return null;
-
-  const label =
-    source === "DEMO" ? "Dữ liệu demo" : source === "GAP" ? "Chưa có API" : "Ước tính";
-  const tone =
-    source === "DEMO"
-      ? "border-amber-200 bg-amber-50 text-amber-700"
-      : source === "GAP"
-        ? "border-slate-200 bg-slate-50 text-slate-600"
-        : "border-blue-200 bg-blue-50 text-blue-700";
-
-  return (
-    <span
-      className={`inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-full border px-2 text-[11px] font-black ${tone}`}
-      title={
-        source === "DEMO"
-          ? "Số liệu minh họa từ mock Front-end, chỉ bật ở môi trường phát triển."
-          : source === "GAP"
-            ? "Back-end chưa có API tổng hợp cho widget này."
-            : "Tính tạm ở Front-end từ dữ liệu đã tải."
-      }
-    >
-      {label}
-    </span>
-  );
+/** Nhãn nguồn dữ liệu - ẩn toàn bộ tag demo/gap trên giao diện người dùng. */
+export function SourceBadge(_props?: { source?: DashboardSourceStatus }) {
+  return null;
 }
 
-/** Trạng thái thiếu API: không hiển thị số giả. */
+/** Trạng thái thiếu API: hiển thị thông báo thân thiện. */
 export function DashboardGapState({
   action,
   message,
@@ -48,7 +24,7 @@ export function DashboardGapState({
     <div className="grid place-items-center rounded-xl border border-dashed border-[#cfdad2] bg-[#f8fbf8] px-6 py-10 text-center">
       <div className="grid max-w-sm gap-2 justify-items-center">
         <Info className="text-[#697684]" size={28} aria-hidden="true" />
-        <strong className="text-sm font-black text-[#172317]">Chưa có API tổng hợp</strong>
+        <strong className="text-sm font-black text-[#172317]">Đang cập nhật dữ liệu</strong>
         <p className="text-xs font-semibold leading-5 text-[#697684]">{message}</p>
         {action}
       </div>

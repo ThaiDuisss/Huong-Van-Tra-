@@ -57,3 +57,6 @@ build/
 .agents/
 docs/
 thai_agents/
+CLAUDE.md
+
+/graphify-out

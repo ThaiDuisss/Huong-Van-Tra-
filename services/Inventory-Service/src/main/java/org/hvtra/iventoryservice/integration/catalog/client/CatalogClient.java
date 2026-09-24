@@ -29,6 +29,12 @@ public interface CatalogClient {
     @PostMapping("/internal/catalog/product-variants/batch")
     List<VariantResponse> getVariantsBatch(@RequestBody List<UUID> ids);
 
+    @PostMapping("/internal/catalog/product-variants/costs-batch")
+    List<VariantCostResponse> getVariantCostsBatch(@RequestBody List<UUID> ids);
+
+    @PostMapping("/internal/catalog/product-variants/inventory-summary-batch")
+    List<VariantInventorySummaryResponse> getVariantInventorySummariesBatch(@RequestBody List<UUID> ids);
+
     @PostMapping("/internal/catalog/product-variants/by-products")
     List<ProductVariantProductRefResponse> getVariantRefsByProductIds(@RequestBody List<UUID> productIds);
 
@@ -192,5 +198,30 @@ public interface CatalogClient {
             String symbol,
             Integer precisionScale,
             String status
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record VariantCostResponse(
+            UUID id,
+            BigDecimal costPrice
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record VariantInventorySummaryResponse(
+            UUID id,
+            String sku,
+            String variantName,
+            UUID productId,
+            String productCode,
+            String productName,
+            UUID categoryId,
+            String categoryCode,
+            String categoryName,
+            UUID unitId,
+            String unitName,
+            String unitSymbol,
+            BigDecimal costPrice,
+            BigDecimal sellingPrice,
+            String imageUrl
     ) {}
 }

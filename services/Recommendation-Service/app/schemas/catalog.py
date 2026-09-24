@@ -83,3 +83,11 @@ class BomItemResponse(BaseModel):
     quantity: Decimal
     unit: UnitResponse | None = None
     wasteRate: Decimal | None = None
+
+
+class CatalogSyncResponse(BaseModel):
+    categories: int
+    products: int
+    variants: int
+    ingredients: int
+    productIngredients: int

@@ -56,6 +56,7 @@ export interface InventoryKpiSummary {
   totalReserved: number;
   totalBlocked: number;
   belowReorder: InventoryBalanceViewResponse[];
+  outOfStock: InventoryBalanceViewResponse[];
   /** ADAPTED: sum(quantityOnHand × cost_price) trên các dòng đã tải. */
   inventoryValue: number;
 }
@@ -64,6 +65,7 @@ export function buildInventoryKpis(balances: InventoryBalanceViewResponse[]): In
   const summary: InventoryKpiSummary = {
     belowReorder: [],
     inventoryValue: 0,
+    outOfStock: [],
     skuCount: new Set(balances.map((balance) => balance.inventoryItemId)).size,
     totalAvailable: 0,
     totalBlocked: 0,
@@ -72,17 +74,26 @@ export function buildInventoryKpis(balances: InventoryBalanceViewResponse[]): In
   };
 
   balances.forEach((balance) => {
-    summary.totalOnHand += numeric(balance.quantityOnHand);
-    summary.totalAvailable += numeric(balance.availableQuantity);
+    const available = numeric(balance.availableQuantity);
+    const onHand = numeric(balance.quantityOnHand);
+    const unitCost = numeric(balance.cost_price) || numeric((balance as any).costPrice) || 0;
+    summary.totalOnHand += onHand;
+    summary.totalAvailable += available;
     summary.totalReserved += numeric(balance.quantityReserved);
     summary.totalBlocked += getBlockedQuantity(balance);
-    summary.inventoryValue += numeric(balance.quantityOnHand) * numeric(balance.cost_price);
+    summary.inventoryValue += onHand * unitCost;
 
-    if (isBelowReorderPoint(balance)) {
+    if (available <= 0) {
+      summary.outOfStock.push(balance);
+    } else if (available <= Math.max(1, numeric(balance.reorderPoint))) {
       summary.belowReorder.push(balance);
     }
   });
 
+  summary.outOfStock.sort(
+    (first, second) =>
+      numeric(first.availableQuantity) - numeric(second.availableQuantity),
+  );
   summary.belowReorder.sort(
     (first, second) =>
       numeric(first.availableQuantity) / Math.max(1, numeric(first.reorderPoint)) -
@@ -92,8 +103,117 @@ export function buildInventoryKpis(balances: InventoryBalanceViewResponse[]): In
   return summary;
 }
 
+/**
+ * Phân bổ phần trăm theo phương pháp Số dư Lớn nhất (Largest Remainder Method / Hare-Niemeyer).
+ * Đảm bảo tổng các phần trăm sau khi làm tròn đến `precision` chữ số thập phân LUÔN CHÍNH XÁC bằng 100.0%.
+ * Giải quyết triệt để lỗi làm tròn độc lập từng dòng dẫn tới tổng = 99.9% hoặc 100.1%.
+ */
+export function distributePercentages<T>(
+  items: T[],
+  getValue: (item: T) => number,
+  precision = 1,
+): Array<T & { percentage: number }> {
+  if (items.length === 0) return [];
+
+  const multiplier = Math.pow(10, precision);
+  const targetSum = 100 * multiplier; // Ví dụ 1000 với precision = 1 (tương đương 100.0%)
+
+  const totalValue = items.reduce((sum, item) => sum + Math.max(0, getValue(item)), 0);
+  if (totalValue <= 0) {
+    return items.map((item) => ({ ...item, percentage: 0 }));
+  }
+
+  // 1. Tính tỷ lệ % thô, lấy phần nguyên (floor) và phần dư (remainder)
+  const calculated = items.map((item, index) => {
+    const val = Math.max(0, getValue(item));
+    const rawPct = (val / totalValue) * 100;
+    const scaled = rawPct * multiplier;
+    const floor = Math.floor(scaled);
+    const remainder = scaled - floor;
+    return {
+      floor,
+      index,
+      item,
+      remainder,
+      scaled,
+    };
+  });
+
+  // 2. Tính phần đơn vị nhỏ nhất còn thiếu do làm tròn xuống
+  const currentSum = calculated.reduce((sum, c) => sum + c.floor, 0);
+  const diff = Math.round(targetSum - currentSum);
+
+  if (diff > 0) {
+    // Phân bổ phần còn thiếu cho các dòng có phần dư lớn nhất (gần chạm ngưỡng làm tròn lên nhất)
+    const candidates = calculated
+      .filter((c) => c.scaled > 0)
+      .sort((a, b) => b.remainder - a.remainder);
+
+    for (let i = 0; i < diff && i < candidates.length; i++) {
+      candidates[i].floor += 1;
+    }
+  } else if (diff < 0) {
+    // Trường hợp hiếm khi diff < 0, trừ bớt ở các dòng có phần dư nhỏ nhất
+    const candidates = calculated
+      .filter((c) => c.floor > 0)
+      .sort((a, b) => a.remainder - b.remainder);
+
+    for (let i = 0; i < Math.abs(diff) && i < candidates.length; i++) {
+      candidates[i].floor -= 1;
+    }
+  }
+
+  // 3. Trả về mảng với tỷ trọng phần trăm chính xác (theo thứ tự ban đầu)
+  return calculated.map((c) => ({
+    ...c.item,
+    percentage: c.floor / multiplier,
+  }));
+}
+
+export function buildCategoryBreakdown(balances: InventoryBalanceViewResponse[]) {
+  const map = new Map<string, { qty: number; skuSet: Set<string>; value: number }>();
+
+  balances.forEach((balance) => {
+    const category = balance.categoryName || "Khác";
+    const current = map.get(category) ?? { qty: 0, skuSet: new Set<string>(), value: 0 };
+    const unitCost = numeric(balance.cost_price) || numeric((balance as any).costPrice) || 0;
+    const val = numeric(balance.quantityOnHand) * unitCost;
+    current.skuSet.add(String(balance.inventoryItemId));
+    current.value += val;
+    current.qty += numeric(balance.quantityOnHand);
+    map.set(category, current);
+  });
+
+  const rawList: Array<{
+    category: string;
+    inventoryValue: number;
+    skuCount: number;
+    source: "ADAPTED";
+    totalQuantity: number;
+  }> = [];
+
+  map.forEach((item, category) => {
+    rawList.push({
+      category,
+      inventoryValue: item.value,
+      skuCount: item.skuSet.size,
+      source: "ADAPTED",
+      totalQuantity: item.qty,
+    });
+  });
+
+  // Sắp xếp giảm dần theo giá trị tồn
+  rawList.sort((first, second) => second.inventoryValue - first.inventoryValue);
+
+  // Phân bổ phần trăm chuẩn xác bằng Largest Remainder Method (tổng luôn = 100.0%)
+  return distributePercentages(rawList, (item) => item.inventoryValue, 1);
+}
+
 export function formatPercent(value: number, fractionDigits = 1) {
-  return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: fractionDigits }).format(value)}%`;
+  return `${new Intl.NumberFormat("vi-VN", {
+    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: fractionDigits,
+  }).format(value)}%`;
 }
 
 /** Rút gọn VND cho trục chart: 13.700.000 → "13,7 tr". */

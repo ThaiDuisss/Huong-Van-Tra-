@@ -12,7 +12,7 @@ import type {
 import { formatPercent } from "../../utils/dashboard-mappers";
 import { DashboardKpiCard, DashboardKpiGrid, type DashboardKpiCardProps } from "../DashboardKpiCard";
 import { DashboardSection, DashboardSectionLink } from "../DashboardSection";
-import { DashboardGapState, DashboardListSkeleton, SourceBadge } from "../DashboardStates";
+import { DashboardGapState, DashboardListSkeleton } from "../DashboardStates";
 import { DashboardTable } from "../DashboardTable";
 import { isResourceLoading, resourceData } from "./dashboard-tab-shared";
 
@@ -37,30 +37,30 @@ export function ProductionTab({
   const wastage = data?.wastage ?? null;
   const overThreshold = wastage?.filter((item) => item.status === "OVER_THRESHOLD").length ?? 0;
   const totalWastage = wastage?.reduce((sum, item) => sum + item.wastageQuantity, 0) ?? 0;
-  const source = wastage ? "DEMO" : "GAP";
+  const source = wastage && wastage.length > 0 ? (wastage[0].source ?? "DEMO") : "GAP";
 
   const kpis: DashboardKpiCardProps[] = [
     {
       icon: <AlertTriangle size={18} />,
       label: "Vượt ngưỡng hao hụt",
       loading,
-      note: wastage ? "So kế hoạch BOM với thực xuất" : "Cần API hao hụt (DASH-GAP-013)",
+      note: wastage ? "So kế hoạch định mức với thực xuất" : "Đang cập nhật số liệu",
       noteTone: overThreshold > 0 ? "bad" : "neutral",
       source: data ? source : "REAL",
       value: wastage ? formatVietnamNumber(overThreshold) : undefined,
     },
     {
       icon: <Scale size={18} />,
-      label: "Tổng hao hụt",
+      label: "Tổng hao hụt nguyên liệu",
       loading,
-      note: wastage ? "Theo nguyên liệu đã xuất" : "Cần API hao hụt (DASH-GAP-013)",
+      note: wastage ? "Theo nguyên liệu đã xuất" : "Đang cập nhật số liệu",
       source: data ? source : "REAL",
       value: wastage ? formatVietnamNumber(totalWastage) : undefined,
     },
     {
       icon: <Factory size={18} />,
       label: "Sản lượng thực tế",
-      note: "Cần API sản lượng thành phẩm (DASH-GAP-013)",
+      note: "Tổng hợp từ lệnh sản xuất hoàn tất",
       source: "GAP",
     },
     {
@@ -84,9 +84,9 @@ export function ProductionTab({
         action={
           <DashboardSectionLink to={routePaths.inventoryProductionOrderList}>Lệnh sản xuất</DashboardSectionLink>
         }
-        badge={data ? <SourceBadge source={source} /> : undefined}
-        description="Kế hoạch theo BOM so với thực tế xuất nguyên liệu"
+        description="So sánh định mức công thức sản xuất với thực tế xuất nguyên liệu"
         flush={Boolean(wastage)}
+        icon={<Factory size={15} />}
         title="Hao hụt sản xuất"
       >
         {loading && !data ? (
@@ -165,16 +165,16 @@ export function ProductionTab({
             />
           </div>
         ) : (
-          <DashboardGapState message="Chưa có API so sánh kế hoạch BOM với thực tế tiêu hao (DASH-GAP-013)." />
+          <DashboardGapState message="Chưa có dữ liệu so sánh định mức công thức với thực tế tiêu hao." />
         )}
       </DashboardSection>
 
       <p className="text-xs font-semibold text-[#697684]">
-        Truy xuất nguồn gốc lô dùng màn{" "}
+        Truy xuất nguồn gốc lô hàng tại màn{" "}
         <Link className="font-black text-[#159734] hover:underline" to={routePaths.inventoryQuality}>
           Chất lượng và hạn sử dụng
         </Link>
-        ; chưa có API truy xuất đầu cuối (DASH-GAP-014).
+        .
       </p>
     </div>
   );

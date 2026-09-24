@@ -11,7 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.hvtra.commonservice.common_core.domain.constants.HeaderConstants;
 import org.hvtra.commonservice.common_core.logging.MdcKeys;
 import org.slf4j.MDC;
-import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.hvtra. commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
