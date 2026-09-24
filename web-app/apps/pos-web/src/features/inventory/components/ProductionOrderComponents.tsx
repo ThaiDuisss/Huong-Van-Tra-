@@ -28,14 +28,14 @@ import {
 } from "../utils/inventory-format";
 
 const tone: Record<ProductionOrderStatus, string> = {
-    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600",
-    COMPLETED: "border-green-200 bg-green-50 text-green-700",
-    DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
+    CANCELLED: "border-red-200 bg-red-50 text-red-700",
+    COMPLETED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    DRAFT: "border-neutral-200 bg-neutral-100 text-neutral-700",
     FAILED: "border-red-200 bg-red-50 text-red-700",
-    IN_PROGRESS: "border-blue-200 bg-blue-50 text-blue-700",
-    PARTIALLY_COMPLETED: "border-orange-200 bg-orange-50 text-orange-700",
-    PENDING_APPROVAL: "border-amber-200 bg-amber-50 text-amber-700",
-    RELEASED: "border-emerald-200 bg-emerald-50 text-emerald-700"
+    IN_PROGRESS: "border-amber-200 bg-amber-50 text-amber-700",
+    PARTIALLY_COMPLETED: "border-amber-200 bg-amber-50 text-amber-700",
+    PENDING_APPROVAL: "border-purple-200 bg-purple-50 text-purple-700",
+    RELEASED: "border-blue-200 bg-blue-50 text-blue-700"
 };
 
 export function ProductionStatusBadge({ status }: { status: ProductionOrderStatus }) {

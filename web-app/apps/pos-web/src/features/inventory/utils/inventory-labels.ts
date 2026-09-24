@@ -45,8 +45,28 @@ export const referenceTypeLabels: Record<
     ORDER: "Đơn hàng",
     RETURN_ORDER: "Đơn hoàn trả",
     STOCK_TRANSFER: "Chuyển tồn kho",
-    STOCK_COUNT: "Kiểm kê tồn kho"
+    STOCK_COUNT: "Kiểm kê tồn kho",
+    PURCHASE_ORDER: "Đơn mua hàng",
+    PURCHASE_RECEIPT: "Phiếu nhập mua",
+    PRODUCTION_ORDER: "Lệnh sản xuất",
+    CUSTOMER_RETURN: "Khách trả hàng",
+    SUPPLIER_RETURN: "Trả nhà cung cấp",
+    INVENTORY_DOCUMENT: "Chứng từ kho"
 };
+
+/** Loại tham chiếu được chọn khi tạo giao dịch thủ công — các loại còn lại do hệ thống sinh. */
+export const manualReferenceTypes: InventoryReferenceType[] = [
+    "MANUAL",
+    "ORDER",
+    "RETURN_ORDER",
+    "STOCK_TRANSFER",
+    "STOCK_COUNT"
+];
+
+export function formatReferenceType(value?: string | null) {
+    if (!value) return "-";
+    return referenceTypeLabels[value as InventoryReferenceType] ?? value;
+}
 
 export function formatInventoryDate(value: string) {
     return new Intl.DateTimeFormat("vi-VN", {

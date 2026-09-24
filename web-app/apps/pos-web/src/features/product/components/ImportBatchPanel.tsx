@@ -135,8 +135,9 @@ export function ImportBatchPanel({
         [onBatchChange]
     );
 
-    const loadBatch = useCallback(() => {
-        if (!batchId) {
+    const loadBatch = useCallback((targetId?: string) => {
+        const idToLoad = targetId || batchId || batch?.id;
+        if (!idToLoad) {
             setLoading(false);
             return () => { };
         }
@@ -144,7 +145,7 @@ export function ImportBatchPanel({
         setLoading(true);
         setError("");
         api
-            .detail(batchId)
+            .detail(idToLoad)
             .then((res) => {
                 if (active) applyBatch(res);
             })
@@ -157,7 +158,7 @@ export function ImportBatchPanel({
         return () => {
             active = false;
         };
-    }, [api, applyBatch, batchId]);
+    }, [api, applyBatch, batchId, batch?.id]);
 
     useEffect(() => {
         const cleanup = loadBatch();
@@ -354,7 +355,7 @@ export function ImportBatchPanel({
             <section className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">
                 <div>{error || "Không tìm thấy phiếu import."}</div>
                 <div>
-                    <button className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700" onClick={loadBatch} type="button">
+                    <button className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700" onClick={() => loadBatch()} type="button">
                         Tải lại
                     </button>
                 </div>

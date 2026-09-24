@@ -1,5 +1,5 @@
 import { ArrowLeftRight, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { InventoryResourceManagement, TableCell } from "../components/InventoryResourceManagement";
@@ -18,6 +18,20 @@ import { SearchableDropdown } from "../../manufacturing/components/shared/Search
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 
 const FALLBACK_STORE_ID = "11111111-1111-1111-1111-111111111111";
+
+/**
+ * Chạy loader sau microtask: StrictMode (dev) mount → cleanup → mount lại ngay, lần chạy bị hủy
+ * sẽ không gửi request thừa. Trả về cleanup cho useEffect.
+ */
+function runOnceAfterMount(loader: () => void): () => void {
+    let active = true;
+    queueMicrotask(() => {
+        if (active) loader();
+    });
+    return () => {
+        active = false;
+    };
+}
 
 interface JoinedRow {
     id: string;
@@ -104,19 +118,14 @@ export function InventoryBalancePage() {
         async function initCatalogAndStore() {
             try {
                 // Fetch locations list
-                const locRes = await inventoryLocationApi.list({ page: 0, size: 500 });
+                const locRes = await inventoryLocationApi.list({ page: 0, size: 50 });
                 const locs = locRes.content ?? [];
                 setLocations(locs);
 
                 // Determine branchId
                 let resolvedBranchId = FALLBACK_STORE_ID;
-                if (locs.length > 0) {
+                if (locs.length > 0 && locs[0].branchId) {
                     resolvedBranchId = String(locs[0].branchId);
-                } else {
-                    const balCheck = await inventoryBalanceApi.view({ page: 0, size: 10 });
-                    if (balCheck.content && balCheck.content.length > 0) {
-                        resolvedBranchId = String(balCheck.content[0].branchId);
-                    }
                 }
                 setActiveStoreId(resolvedBranchId);
             } catch (err) {
@@ -126,7 +135,7 @@ export function InventoryBalancePage() {
                 setLoadingStore(false);
             }
         }
-        initCatalogAndStore();
+        return runOnceAfterMount(() => void initCatalogAndStore());
     }, []);
 
     // Fetch shelf options with infinite scroll
@@ -144,8 +153,10 @@ export function InventoryBalancePage() {
     }, []);
 
     useEffect(() => {
-        setShelfPage(0);
-        loadShelfOptions(shelfSearchTerm, 0);
+        return runOnceAfterMount(() => {
+            setShelfPage(0);
+            void loadShelfOptions(shelfSearchTerm, 0);
+        });
     }, [shelfSearchTerm, loadShelfOptions]);
 
     const handleLoadMoreShelves = useCallback(() => {
@@ -171,8 +182,10 @@ export function InventoryBalancePage() {
     }, []);
 
     useEffect(() => {
-        setCategoryPage(0);
-        loadCategoryOptions(categorySearchTerm, 0);
+        return runOnceAfterMount(() => {
+            setCategoryPage(0);
+            void loadCategoryOptions(categorySearchTerm, 0);
+        });
     }, [categorySearchTerm, loadCategoryOptions]);
 
     const handleLoadMoreCategories = useCallback(() => {
@@ -198,8 +211,10 @@ export function InventoryBalancePage() {
     }, []);
 
     useEffect(() => {
-        setUnitPage(0);
-        loadUnitOptions(unitSearchTerm, 0);
+        return runOnceAfterMount(() => {
+            setUnitPage(0);
+            void loadUnitOptions(unitSearchTerm, 0);
+        });
     }, [unitSearchTerm, loadUnitOptions]);
 
     const handleLoadMoreUnits = useCallback(() => {
@@ -225,8 +240,10 @@ export function InventoryBalancePage() {
     }, []);
 
     useEffect(() => {
-        setProductPage(0);
-        loadProductOptions(productSearchTerm, 0);
+        return runOnceAfterMount(() => {
+            setProductPage(0);
+            void loadProductOptions(productSearchTerm, 0);
+        });
     }, [productSearchTerm, loadProductOptions]);
 
     const handleLoadMoreProducts = useCallback(() => {
@@ -278,14 +295,21 @@ export function InventoryBalancePage() {
         }
     }, [activeStoreId, activeLocationId, page, pageSize, searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus, filterItemType]);
 
-    useEffect(() => {
-        loadBalances();
-    }, [loadBalances]);
+    // Đổi bộ lọc khi đang ở trang > 1: chỉ về trang 1 rồi để lần render sau tải,
+    // tránh gọi API 2 lần (1 lần với trang cũ, 1 lần sau khi reset trang).
+    const filterKey = JSON.stringify([searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus, filterItemType]);
+    const lastFilterKeyRef = useRef(filterKey);
 
-    // Reset page to 1 when filters change
     useEffect(() => {
-        setPage(1);
-    }, [searchQuery, filterProductName, filterCategoryId, filterUnitId, filterStatus, filterItemType]);
+        if (lastFilterKeyRef.current !== filterKey) {
+            lastFilterKeyRef.current = filterKey;
+            if (page !== 1) {
+                setPage(1);
+                return;
+            }
+        }
+        return runOnceAfterMount(() => void loadBalances());
+    }, [loadBalances, filterKey, page]);
 
     // 3. Map balances to dynamic row schemas (already aggregated by the backend)
     const joinedRows = useMemo<JoinedRow[]>(() => {
@@ -394,10 +418,10 @@ export function InventoryBalancePage() {
                                         {key === "Ngày cập nhật"
                                             ? formatInventoryDate(val)
                                             : (key === "Giá nhập" || key === "Giá bán")
-                                            ? (typeof val === "number" ? `${formatQuantity(val)} đ` : String(val ?? "-"))
-                                            : typeof val === "number"
-                                            ? formatQuantity(val)
-                                            : String(val ?? "-")}
+                                                ? (typeof val === "number" ? `${formatQuantity(val)} đ` : String(val ?? "-"))
+                                                : typeof val === "number"
+                                                    ? formatQuantity(val)
+                                                    : String(val ?? "-")}
                                     </dd>
                                 </div>
                             ))}
@@ -405,12 +429,12 @@ export function InventoryBalancePage() {
                 )}
                 extraHeaderActions={
                     <div className="flex items-center gap-3">
-                        <ActionButton
+                        {/* <ActionButton
                             variant="primary"
                             onClick={() => setActiveModal("stock-in")}
                         >
                             Nhập hàng
-                        </ActionButton>
+                        </ActionButton> */}
                         <ActionButton
                             variant="secondary"
                             onClick={() => setActiveModal("adjustment")}
@@ -444,7 +468,7 @@ export function InventoryBalancePage() {
                         label: "Kệ hàng",
                         value: activeLocationId ?? "",
                         options: [],
-                        onChange: () => {},
+                        onChange: () => { },
                         render: (
                             <SearchableDropdown
                                 value={activeLocationId ?? ""}
@@ -465,7 +489,7 @@ export function InventoryBalancePage() {
                         label: "Đơn vị tính",
                         value: filterUnitId,
                         options: [],
-                        onChange: () => {},
+                        onChange: () => { },
                         render: (
                             <SearchableDropdown
                                 value={filterUnitId}
@@ -486,7 +510,7 @@ export function InventoryBalancePage() {
                         label: "Sản phẩm",
                         value: filterProductId,
                         options: [],
-                        onChange: () => {},
+                        onChange: () => { },
                         render: (
                             <SearchableDropdown
                                 value={filterProductId}
@@ -509,7 +533,7 @@ export function InventoryBalancePage() {
                         label: "Danh mục",
                         value: filterCategoryId,
                         options: [],
-                        onChange: () => {},
+                        onChange: () => { },
                         render: (
                             <SearchableDropdown
                                 value={filterCategoryId}
@@ -544,7 +568,7 @@ export function InventoryBalancePage() {
                                 <X size={20} />
                             </button>
                         </header>
-                        
+
                         {/* Content Body */}
                         <div className="flex-1 overflow-y-auto p-6">
                             {activeModal === "transfer" ? (

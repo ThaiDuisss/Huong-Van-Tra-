@@ -20,6 +20,8 @@ interface SearchableDropdownProps {
     emptyText?: string;
     allOptionText?: string;
     disabled?: boolean;
+    /** Gọi khi mở menu — dùng để tải dữ liệu lười (chỉ gọi API khi người dùng thực sự mở dropdown). */
+    onOpen?: () => void;
 }
 
 export function SearchableDropdown({
@@ -33,7 +35,8 @@ export function SearchableDropdown({
     placeholder = "Tìm kiếm...",
     emptyText = "Không có dữ liệu",
     allOptionText,
-    disabled = false
+    disabled = false,
+    onOpen
 }: SearchableDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -43,19 +46,33 @@ export function SearchableDropdown({
     const observerTarget = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
 
-    // Luôn định vị dropdown menu nằm ngay bên dưới thanh input (và nổi qua portal ra ngoài card/table)
+    // Định vị menu ngay dưới ô chọn (nổi qua portal ra ngoài card/table). Nếu bên dưới không đủ chỗ
+    // mà bên trên rộng hơn thì lật menu lên trên; chiều cao co theo khoảng trống thực tế.
     const updatePosition = useCallback(() => {
         if (!triggerRef.current) return;
         const rect = triggerRef.current.getBoundingClientRect();
+        const gap = 4;
+        const viewportMargin = 8;
+        const preferredHeight = 300;
+        const minHeight = 120;
+
+        const spaceBelow = window.innerHeight - rect.bottom - gap - viewportMargin;
+        const spaceAbove = rect.top - gap - viewportMargin;
+        const openUpward = spaceBelow < preferredHeight && spaceAbove > spaceBelow;
+        const maxHeight = Math.max(minHeight, Math.min(preferredHeight, openUpward ? spaceAbove : spaceBelow));
+
+        const width = Math.min(Math.max(rect.width, 240), window.innerWidth - viewportMargin * 2);
+        const left = Math.max(viewportMargin, Math.min(rect.left, window.innerWidth - width - viewportMargin));
 
         setMenuStyle({
             position: "fixed",
-            left: rect.left,
-            width: Math.max(rect.width, 240),
-            maxWidth: "calc(100vw - 16px)",
-            top: rect.bottom + 4,
-            maxHeight: 300,
-            zIndex: 9999
+            left,
+            width,
+            maxHeight,
+            zIndex: 9999,
+            ...(openUpward
+                ? { bottom: window.innerHeight - rect.top + gap }
+                : { top: rect.bottom + gap })
         });
     }, []);
 
@@ -157,7 +174,7 @@ export function SearchableDropdown({
             </div>
 
             {/* Danh sách Options */}
-            <div className="flex-1 overflow-y-auto p-1 py-1.5 max-h-[200px]">
+            <div className="flex-1 min-h-0 overflow-y-auto p-1 py-1.5 max-h-[200px]">
                 {/* Tùy chọn Tất cả */}
                 {allOptionText && (
                     <button
@@ -221,7 +238,10 @@ export function SearchableDropdown({
                 ref={triggerRef}
                 type="button"
                 disabled={disabled}
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={() => {
+                    if (!isOpen) onOpen?.();
+                    setIsOpen(!isOpen);
+                }}
                 className="flex h-10 w-full items-center justify-between rounded-xl border border-pos-border bg-white px-3 text-sm text-gray-700 outline-none hover:bg-neutral-50 focus:border-hvt-green-700 focus:ring-1 focus:ring-hvt-green-700 transition-all cursor-pointer disabled:bg-neutral-100 disabled:text-gray-400 disabled:cursor-not-allowed"
             >
                 <span className="truncate pr-2 font-medium text-left">

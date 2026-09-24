@@ -4,7 +4,7 @@ import feign.FeignException;
 import feign.RetryableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.exception.FeignClientException;
+import org.hvtra.commonservice.common_core.exception.FeignClientException;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.client.PaymentClient;
@@ -409,17 +409,17 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         OrderReturnPhysicalProgress physicalProgress = physicalProgressResolver.resolve(orderReturn);
         PaymentClient.PaymentRefundSummaryResponse paymentSummary = lookupPaymentRefundSummary(orderReturn);
 
-        Order lockedOrder = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(
-                        orderReturn.getOrder().getId()
-                )
+        Order order = orderRepository.findAllWithItemsByIdIn(List.of(orderReturn.getOrder().getId()))
+                .stream()
+                .findFirst()
                 .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderReturn.getOrder().getId()));
         List<OrderReturn> orderReturns = orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(
-                lockedOrder.getId()
+                order.getId()
         );
         BigDecimal refundAmount = null;
         try {
             refundAmount = returnRefundCalculator
-                    .calculate(lockedOrder, orderReturn, orderReturns)
+                    .calculate(order, orderReturn, orderReturns)
                     .refundAmount();
         } catch (Exception ex) {
             log.warn("Could not calculate refund amount for returnId={}: {}", returnId, ex.getMessage());
@@ -431,12 +431,12 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 paymentSummary,
                 true,
                 refundAmount,
-                lockedOrder.getPaidAmount()
+                order.getPaidAmount()
         );
 
         return OrderReturnRefundPreviewResponse.builder()
                 .returnId(returnId)
-                .orderId(lockedOrder.getId())
+                .orderId(order.getId())
                 .refundAmount(refundAmount)
                 .paymentMethod(paymentSummary == null ? null : paymentSummary.method())
                 .eligible(eligibility.refundEligible())

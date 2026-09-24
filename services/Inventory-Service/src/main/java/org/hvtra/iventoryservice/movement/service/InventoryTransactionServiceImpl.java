@@ -1,6 +1,9 @@
 package org.hvtra.iventoryservice.movement.service;
 
+import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.hvtra.iventoryservice.domain.entity.*;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
@@ -27,6 +30,7 @@ import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
 import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -41,6 +45,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -174,8 +181,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             if (referenceId != null) predicates.add(cb.equal(root.get("referenceId"), referenceId));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(
-                transactionRepository.findAll(specification, pageable).map(mapper::toResponse));
+        return toPageResponse(transactionRepository.findAll(specification, pageable));
     }
 
     @Override
@@ -199,19 +205,27 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             throw new BadRequestException("toDate must be greater than or equal to fromDate");
         }
 
-        // Lấy danh sách ID transaction thuộc kệ SHELF của WAREHOUSE đầu tiên
-        List<UUID> storeTransactionIds = transactionRepository.findStoreTransactionIds();
+        // Store = các kệ SHELF thuộc WAREHOUSE ACTIVE đầu tiên
+        UUID storeWarehouseId = locationRepository
+                .findFirstByTypeAndStatusOrderByCreatedAtAsc(InventoryLocationType.WAREHOUSE, InventoryStatus.ACTIVE)
+                .map(InventoryLocation::getId)
+                .orElse(null);
+        if (storeWarehouseId == null) {
+            return new PageResponse<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0, true, true);
+        }
 
         Specification<InventoryTransaction> specification = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
 
-            // Chỉ lấy các transaction thuộc store (SHELF → parent WAREHOUSE đầu tiên)
-            if (!storeTransactionIds.isEmpty()) {
-                predicates.add(root.get("id").in(storeTransactionIds));
-            } else {
-                // Không có transaction nào thỏa điều kiện → trả về rỗng
-                predicates.add(cb.disjunction());
-            }
+            // EXISTS thay cho IN (toàn bộ id) — DB tự lọc, không phải kéo hết id về app
+            Subquery<Integer> storeLine = query.subquery(Integer.class);
+            Root<InventoryTransactionLine> line = storeLine.from(InventoryTransactionLine.class);
+            Join<InventoryTransactionLine, InventoryLocation> lineLocation = line.join("location");
+            storeLine.select(cb.literal(1)).where(
+                    cb.equal(line.get("transaction"), root),
+                    cb.equal(lineLocation.get("type"), InventoryLocationType.SHELF),
+                    cb.equal(lineLocation.get("parentLocation").get("id"), storeWarehouseId));
+            predicates.add(cb.exists(storeLine));
 
             if (transactionCode != null && !transactionCode.isBlank()) {
                 String searchTrim = transactionCode.trim().toLowerCase();
@@ -233,8 +247,19 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             if (referenceId != null) predicates.add(cb.equal(root.get("referenceId"), referenceId));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(
-                transactionRepository.findAll(specification, pageable).map(mapper::toResponse));
+        return toPageResponse(transactionRepository.findAll(specification, pageable));
+    }
+
+    /**
+     * Map 1 trang transaction: nạp lines của cả trang bằng 1 query rồi giữ nguyên thứ tự đã phân trang.
+     */
+    private PageResponse<InventoryTransactionResponse> toPageResponse(Page<InventoryTransaction> page) {
+        List<UUID> ids = page.getContent().stream().map(InventoryTransaction::getId).toList();
+        Map<UUID, InventoryTransaction> withLines = ids.isEmpty()
+                ? Map.of()
+                : transactionRepository.findAllWithLinesByIdIn(ids).stream()
+                        .collect(Collectors.toMap(InventoryTransaction::getId, Function.identity()));
+        return PageResponse.from(page.map(t -> mapper.toResponse(withLines.getOrDefault(t.getId(), t))));
     }
 
     private InventoryTransaction createTransaction(

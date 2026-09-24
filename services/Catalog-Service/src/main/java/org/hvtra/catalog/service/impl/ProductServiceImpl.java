@@ -135,7 +135,8 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductResponse findById(UUID id) {
-        return mapper.toResponse(getProduct(id));
+        Product product = getProduct(id);
+        return mapper.toResponse(product, productVariantRepository.findByProductIdsWithDetails(List.of(id)));
     }
 
     @Transactional
@@ -241,7 +242,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public byte[] exportToExcel() {
-        var products = productRepository.findAll();
+        var products = productRepository.findAllWithCategory();
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
               
@@ -471,8 +472,14 @@ public class ProductServiceImpl implements ProductService {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return productRepository.findAllById(ids).stream()
-                .map(mapper::toResponse)
+        List<Product> products = productRepository.findAllByIdWithCategory(ids);
+        Map<UUID, List<ProductVariant>> variantsByProduct = products.isEmpty()
+                ? Map.of()
+                : productVariantRepository.findByProductIdsWithDetails(
+                                products.stream().map(Product::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(v -> v.getProduct().getId()));
+        return products.stream()
+                .map(p -> mapper.toResponse(p, variantsByProduct.getOrDefault(p.getId(), List.of())))
                 .toList();
     }
 

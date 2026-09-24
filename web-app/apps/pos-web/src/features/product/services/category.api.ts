@@ -17,6 +17,12 @@ export const categoryApi = {
             }
         });
     },
+    /** Lấy tên danh mục theo id (cho giá trị đã chọn sẵn trong dropdown). */
+    lookupByIds(ids: string[]) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/categories/lookup", {
+            query: { ids }
+        });
+    },
     lookup(search: string = "", page: number = 0, size: number = 20) {
         return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/categories/lookup", {
             query: { search, page, size }

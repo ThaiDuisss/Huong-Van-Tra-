@@ -1,5 +1,6 @@
 package org.hvtra.catalog.service.impl;
 
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.catalog.dto.request.UnitRequest;
 import org.hvtra.catalog.dto.response.PageResponse;
@@ -50,6 +51,10 @@ public class UnitServiceImpl implements UnitService {
     @Override
     public PageResponse<UnitResponse> findAll(String name, Status status, UnitType type, Pageable pageable) {
         Specification<Unit> spec = (root, query, cb) -> {
+            Class<?> resultType = query.getResultType();
+            if (!Long.class.equals(resultType) && !long.class.equals(resultType)) {
+                root.fetch("baseUnit", JoinType.LEFT); // tên đơn vị gốc, không lazy-load từng dòng
+            }
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
             if (name != null && !name.isBlank()) {
@@ -63,15 +68,25 @@ public class UnitServiceImpl implements UnitService {
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
+        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponseWithBaseUnitName));
     }
 
     @Override
-    public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
+    public PageResponse<LookupResponse> lookup(String search, boolean baseOnly, List<UUID> ids, Pageable pageable) {
+        if (ids != null && !ids.isEmpty()) {
+            // Lấy tên theo id cho giá trị đã chọn sẵn trong dropdown
+            List<LookupResponse> content = repository.findAllById(ids).stream()
+                    .map(u -> new LookupResponse(u.getId().toString(), u.getName()))
+                    .toList();
+            return new PageResponse<>(content, 0, content.size(), content.size(), 1, true, true);
+        }
         Specification<Unit> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
             predicates.add(cb.equal(root.get("status"), Status.ACTIVE));
+            if (baseOnly) {
+                predicates.add(cb.isNull(root.get("baseUnit"))); // chỉ đơn vị gốc
+            }
 
             if (search != null && !search.trim().isEmpty()) {
                 String searchPattern = "%" + search.trim().toLowerCase() + "%";

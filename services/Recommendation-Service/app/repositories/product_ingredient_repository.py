@@ -28,20 +28,25 @@ class ProductIngredientRepository:
 
         db.execute(stmt)
 
-    def deactivate_old_versions(
+    def deactivate_all_for_variant(
         self,
         db: Session,
         source_variant_id: str,
-        active_bom_version: int,
     ) -> int:
         stmt = (
             update(ProductIngredient)
             .where(
                 ProductIngredient.source_variant_id == source_variant_id,
-                ProductIngredient.bom_version != active_bom_version,
                 ProductIngredient.is_active_bom.is_(True),
             )
             .values(is_active_bom=False)
         )
         result = db.execute(stmt)
         return result.rowcount
+
+    def find_by_id(
+        self,
+        db: Session,
+        id: str,
+    ) -> ProductIngredient | None:
+        return db.get(ProductIngredient, id)

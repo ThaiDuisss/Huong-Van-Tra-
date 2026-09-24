@@ -14,7 +14,9 @@ public record UnitResponse(
         UnitType type,
         UUID baseUnitId,
         BigDecimal conversionRate,
-        Status status
+        Status status,
+        /** Chỉ có ở API danh sách/chi tiết đơn vị (đã fetch sẵn đơn vị gốc), nơi khác là null. */
+        String baseUnitName
 ) {
 }
 

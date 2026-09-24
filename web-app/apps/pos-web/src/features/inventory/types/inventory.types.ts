@@ -29,7 +29,13 @@ export type InventoryReferenceType =
     | "ORDER"
     | "RETURN_ORDER"
     | "STOCK_TRANSFER"
-    | "STOCK_COUNT";
+    | "STOCK_COUNT"
+    | "PURCHASE_ORDER"
+    | "PURCHASE_RECEIPT"
+    | "PRODUCTION_ORDER"
+    | "CUSTOMER_RETURN"
+    | "SUPPLIER_RETURN"
+    | "INVENTORY_DOCUMENT";
 
 export interface PageResponse<T> {
     content: T[];

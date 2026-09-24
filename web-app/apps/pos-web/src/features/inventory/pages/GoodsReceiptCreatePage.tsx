@@ -1,8 +1,11 @@
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
+import { supplierApi } from "../../manufacturing/services/supplier.api";
+import { inventoryLocationApi } from "../services/inventoryLocation.api";
+import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
 import type {
     GoodsReceiptCreateInput,
     GoodsReceiptMaterialOption,
@@ -35,13 +38,10 @@ export function GoodsReceiptCreatePage() {
         materials: [],
         suppliers: []
     });
-    const [loadingOptions, setLoadingOptions] = useState(true);
     const [loadingMaterials, setLoadingMaterials] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
 
-    const [supplierSearch, setSupplierSearch] = useState("");
-    const [locationSearch, setLocationSearch] = useState("");
     const [materialSearch, setMaterialSearch] = useState("");
 
     // Phân trang danh sách dòng nguyên liệu
@@ -58,27 +58,11 @@ export function GoodsReceiptCreatePage() {
 
     const [lines, setLines] = useState<CreateLine[]>([emptyLine()]);
 
-    const supplierLookupOptions = useMemo<LookupItem[]>(() => {
-        const q = supplierSearch.toLowerCase().trim();
-        return (options.suppliers || [])
-            .filter((s) => Boolean(s && s.id))
-            .filter((s) => !q || (s.name || "").toLowerCase().includes(q) || ((s.code || "").toLowerCase().includes(q)))
-            .map((s) => ({
-                id: String(s.id),
-                name: s.code ? `${s.name} (${s.code})` : s.name
-            }));
-    }, [options.suppliers, supplierSearch]);
-
-    const locationLookupOptions = useMemo<LookupItem[]>(() => {
-        const q = locationSearch.toLowerCase().trim();
-        return (options.locations || [])
-            .filter((l) => Boolean(l && l.id))
-            .filter((l) => !q || (l.name || "").toLowerCase().includes(q) || ((l.code || "").toLowerCase().includes(q)))
-            .map((l) => ({
-                id: String(l.id),
-                name: l.code ? `${l.name} (${l.code})` : l.name
-            }));
-    }, [options.locations, locationSearch]);
+    // Dropdown NCC & kho: lookup phân trang (chỉ id + name), tải thêm khi cuộn
+    const [selectedSupplier, setSelectedSupplier] = useState<LookupItem | null>(null);
+    const supplierDropdown = useLookupDropdown(supplierApi.lookup, { pinned: [selectedSupplier] });
+    const locationDropdown = useLookupDropdown(inventoryLocationApi.lookupLocations);
+    const { findOption: findSupplierOption } = supplierDropdown;
 
     // Trả về danh sách nguyên liệu khả dụng cho 1 dòng cụ thể (loại bỏ các nguyên liệu đã được chọn ở các dòng khác)
     const getAvailableMaterialOptions = useCallback(
@@ -114,51 +98,12 @@ export function GoodsReceiptCreatePage() {
         return options.materials.every((m) => selectedIds.has(m.id));
     }, [options.materials, lines]);
 
-    useEffect(() => {
-        let active = true;
-        queueMicrotask(() => {
-            if (active) {
-                setLoadingOptions(true);
-            }
-        });
-
-        void goodsReceiptApi
-            .getGoodsReceiptOptions()
-            .then((response) => {
-                if (!active) return;
-                setOptions(response);
-                setForm((cur) => ({
-                    ...cur,
-                    receivingLocationId:
-                        cur.receivingLocationId ||
-                        response.locations[0]?.id ||
-                        "",
-                    supplierId: ""
-                }));
-                setLines([emptyLine("")]);
-                setPage(1);
-            })
-            .catch((err: unknown) => {
-                console.error("[GoodsReceiptCreatePage] Lỗi tải danh mục:", err);
-                if (active) {
-                    setError(
-                        err instanceof Error
-                            ? err.message
-                            : "Không thể tải danh sách nhà cung cấp/kho."
-                    );
-                }
-            })
-            .finally(() => {
-                if (active) setLoadingOptions(false);
-            });
-
-        return () => {
-            active = false;
-        };
-    }, []);
+    // Chưa chọn kho thì mặc định kho đầu tiên của danh sách
+    const receivingLocationId = form.receivingLocationId || locationDropdown.options[0]?.id || "";
 
     const handleSupplierChange = useCallback((supplierId: string) => {
         setForm((cur) => ({ ...cur, supplierId }));
+        setSelectedSupplier(findSupplierOption(supplierId));
         setError("");
 
         if (!supplierId) {
@@ -173,7 +118,7 @@ export function GoodsReceiptCreatePage() {
 
         setLoadingMaterials(true);
         void goodsReceiptApi
-            .getGoodsReceiptOptions(supplierId)
+            .getGoodsReceiptOptions(supplierId, { includeSuppliers: false, includeLocations: false })
             .then((response) => {
                 setOptions((cur) => ({
                     ...cur,
@@ -194,7 +139,7 @@ export function GoodsReceiptCreatePage() {
             .finally(() => {
                 setLoadingMaterials(false);
             });
-    }, []);
+    }, [findSupplierOption]);
 
     const totals = useMemo(() => {
         const totalOrderedQuantity = lines.reduce(
@@ -263,7 +208,7 @@ export function GoodsReceiptCreatePage() {
             return;
         }
 
-        if (!form.receivingLocationId) {
+        if (!receivingLocationId) {
             setError("Vui lòng chọn Kho nhận hàng.");
             return;
         }
@@ -311,7 +256,7 @@ export function GoodsReceiptCreatePage() {
             outsidePo: !form.purchaseOrderCode,
             purchaseOrderCode: form.purchaseOrderCode || undefined,
             receivedAt: form.expectedDate,
-            receivingLocationId: form.receivingLocationId,
+            receivingLocationId,
             submit,
             supplierId: form.supplierId
         };
@@ -377,35 +322,33 @@ export function GoodsReceiptCreatePage() {
                         <SearchableDropdown
                             value={form.supplierId}
                             onChange={handleSupplierChange}
-                            options={supplierLookupOptions}
-                            onSearch={setSupplierSearch}
-                            onLoadMore={() => { }}
-                            hasMore={false}
-                            loading={loadingOptions}
+                            options={supplierDropdown.options}
+                            onSearch={supplierDropdown.onSearch}
+                            onLoadMore={supplierDropdown.onLoadMore}
+                            hasMore={supplierDropdown.hasMore}
+                            loading={supplierDropdown.loading}
                             placeholder="Chọn nhà cung cấp..."
                             emptyText="Không tìm thấy nhà cung cấp"
-                            disabled={loadingOptions}
                         />
                     </div>
 
                     <div className="grid gap-1.5 text-xs font-black text-[#536078]">
                         <span>Kho nhận hàng <span className="text-red-500">*</span></span>
                         <SearchableDropdown
-                            value={form.receivingLocationId}
+                            value={receivingLocationId}
                             onChange={(val) =>
                                 setForm((cur) => ({
                                     ...cur,
                                     receivingLocationId: val
                                 }))
                             }
-                            options={locationLookupOptions}
-                            onSearch={setLocationSearch}
-                            onLoadMore={() => { }}
-                            hasMore={false}
-                            loading={loadingOptions}
+                            options={locationDropdown.options}
+                            onSearch={locationDropdown.onSearch}
+                            onLoadMore={locationDropdown.onLoadMore}
+                            hasMore={locationDropdown.hasMore}
+                            loading={locationDropdown.loading}
                             placeholder="Chọn kho nhận hàng..."
                             emptyText="Không tìm thấy kho hàng"
-                            disabled={loadingOptions}
                         />
                     </div>
 

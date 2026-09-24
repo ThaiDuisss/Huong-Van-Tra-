@@ -15,6 +15,7 @@ import type {
 } from "../types/inventory.types";
 import {
     inventoryItemTypeLabels,
+    manualReferenceTypes,
     referenceTypeLabels
 } from "../utils/inventory-labels";
 import { InventoryItemSelect } from "./InventoryItemSelect";
@@ -170,7 +171,7 @@ export function InventoryTransactionForm({
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {/* <Field label="Mã chi nhánh" value={branchId} type="text" onChange={setBranchId} /> */}
                     <label className="grid gap-2 text-sm font-bold">Chọn vị trí<select value={locationId} onChange={(event) => setLocationId(event.currentTarget.value)} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal"><option value="">Chọn vị trí</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.name}</option>)}</select></label>
-                    <label className="grid gap-2 text-sm font-bold">Loại tham chiếu<select value={referenceType} onChange={(event) => setReferenceType(event.currentTarget.value as InventoryReferenceType)} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal">{Object.entries(referenceTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                    <label className="grid gap-2 text-sm font-bold">Loại tham chiếu<select value={referenceType} onChange={(event) => setReferenceType(event.currentTarget.value as InventoryReferenceType)} className="h-11 rounded-xl border border-pos-border bg-white px-3 font-normal">{manualReferenceTypes.map((value) => <option key={value} value={value}>{referenceTypeLabels[value]}</option>)}</select></label>
                 </div>
                 <div className="grid gap-3 rounded-2xl border border-pos-border p-4">
                     <h2 className="font-bold">Chọn hàng hóa</h2>

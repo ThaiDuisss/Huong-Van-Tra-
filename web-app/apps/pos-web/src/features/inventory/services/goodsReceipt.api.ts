@@ -14,6 +14,7 @@ import type {
     GoodsReceiptListQuery,
     GoodsReceiptListResult,
     GoodsReceiptOptions,
+    GoodsReceiptOptionsRequest,
     GoodsReceiptQcInput,
     GoodsReceiptStatus,
     GoodsReceiptSummary,
@@ -580,35 +581,42 @@ export const goodsReceiptApi: GoodsReceiptApi = {
         return this.getGoodsReceipt(input.receiptId);
     },
 
-    async getGoodsReceiptOptions(supplierId?: string): Promise<GoodsReceiptOptions> {
+    async getGoodsReceiptOptions(
+        supplierId?: string,
+        opts?: GoodsReceiptOptionsRequest
+    ): Promise<GoodsReceiptOptions> {
         let suppRes: unknown = null;
         let locRes: unknown = null;
         let itemRes: unknown = null;
         let ingRes: unknown = null;
 
-        try {
-            suppRes = await supplierApi.list({ page: 0, size: 100 });
-        } catch (e) {
-            console.warn("[GoodsReceipt] Lỗi supplierApi.list, thử fallback trực tiếp:", e);
+        if (opts?.includeSuppliers !== false) {
             try {
-                suppRes = await apiClient.get<PageResult<SupplierResponse>>("/catalog/suppliers", {
-                    query: { page: 0, size: 100 }
-                });
-            } catch (e2) {
-                console.error("[GoodsReceipt] Lỗi gọi trực tiếp /catalog/suppliers:", e2);
+                suppRes = await supplierApi.list({ page: 0, size: 100 });
+            } catch (e) {
+                console.warn("[GoodsReceipt] Lỗi supplierApi.list, thử fallback trực tiếp:", e);
+                try {
+                    suppRes = await apiClient.get<PageResult<SupplierResponse>>("/catalog/suppliers", {
+                        query: { page: 0, size: 100 }
+                    });
+                } catch (e2) {
+                    console.error("[GoodsReceipt] Lỗi gọi trực tiếp /catalog/suppliers:", e2);
+                }
             }
         }
 
-        try {
-            locRes = await inventoryLocationApi.list({ page: 0, size: 100 });
-        } catch (e) {
-            console.warn("[GoodsReceipt] Lỗi inventoryLocationApi.list, thử fallback trực tiếp:", e);
+        if (opts?.includeLocations !== false) {
             try {
-                locRes = await apiClient.get<PageResponse<InventoryLocationResponse>>("/inventory/inventory-locations", {
-                    query: { page: 0, size: 100 }
-                });
-            } catch (e2) {
-                console.error("[GoodsReceipt] Lỗi gọi trực tiếp /inventory/inventory-locations:", e2);
+                locRes = await inventoryLocationApi.list({ page: 0, size: 100 });
+            } catch (e) {
+                console.warn("[GoodsReceipt] Lỗi inventoryLocationApi.list, thử fallback trực tiếp:", e);
+                try {
+                    locRes = await apiClient.get<PageResponse<InventoryLocationResponse>>("/inventory/inventory-locations", {
+                        query: { page: 0, size: 100 }
+                    });
+                } catch (e2) {
+                    console.error("[GoodsReceipt] Lỗi gọi trực tiếp /inventory/inventory-locations:", e2);
+                }
             }
         }
 
@@ -769,7 +777,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
                 }));
 
         const finalResult: GoodsReceiptOptions = {
-            locations: locations.length > 0 ? locations : [
+            locations: locations.length > 0 || opts?.includeLocations === false ? locations : [
                 { code: "KHO-TONG", id: "1", isCentral: true, name: "Kho Tổng Hương Vân Trà" }
             ],
             materials,

@@ -195,6 +195,13 @@ export interface GoodsReceiptListResult {
     summary: GoodsReceiptDashboardSummary;
 }
 
+export interface GoodsReceiptOptionsRequest {
+    /** false: bỏ qua tải danh sách NCC (màn hình đã dùng dropdown lookup phân trang riêng). Mặc định true. */
+    includeSuppliers?: boolean;
+    /** false: bỏ qua tải danh sách kho. Mặc định true. */
+    includeLocations?: boolean;
+}
+
 export interface GoodsReceiptOptions {
     suppliers: SupplierSummary[];
     locations: InventoryLocationSummary[];
@@ -315,5 +322,8 @@ export interface GoodsReceiptApi {
     cancelGoodsReceipt(
         input: GoodsReceiptActionInput
     ): Promise<GoodsReceiptDetail>;
-    getGoodsReceiptOptions(supplierId?: string): Promise<GoodsReceiptOptions>;
+    getGoodsReceiptOptions(
+        supplierId?: string,
+        opts?: GoodsReceiptOptionsRequest
+    ): Promise<GoodsReceiptOptions>;
 }
