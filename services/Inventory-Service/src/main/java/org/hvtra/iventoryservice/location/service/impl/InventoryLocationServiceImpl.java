@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.location.service.impl;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
+import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.hvtra.commonservice.common_core.util.CodeUtils;
@@ -56,6 +58,20 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         return PageResponse.from(repository.findAll(specification, pageable).map(mapper::toResponse));
+    }
+
+    @Override
+    public PageResponse<LookupResponse> lookup(
+            String search, InventoryLocationType type, InventoryStatus status, List<UUID> ids, Pageable pageable) {
+        if (ids != null && !ids.isEmpty()) {
+            List<LookupResponse> content = repository.findLookupByIds(ids).stream()
+                    .map(v -> new LookupResponse(v.getId().toString(), v.getName()))
+                    .toList();
+            return new PageResponse<>(content, 0, content.size(), content.size(), 1, true, true);
+        }
+        String keyword = search == null || search.isBlank() ? null : search.trim();
+        return PageResponse.from(repository.findLookup(keyword, type, status, pageable)
+                .map(v -> new LookupResponse(v.getId().toString(), v.getName())));
     }
 
     @Override

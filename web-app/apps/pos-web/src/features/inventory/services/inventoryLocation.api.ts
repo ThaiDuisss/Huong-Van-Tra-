@@ -22,6 +22,25 @@ export const inventoryLocationApi = {
             { query: { search, page, size } }
         );
     },
+    /** Dropdown vị trí/kho — chỉ id + name, phân trang. */
+    lookupLocations(
+        search: string = "",
+        page: number = 0,
+        size: number = 20,
+        filter: { type?: InventoryLocationType; status?: InventoryStatus } = {}
+    ) {
+        return apiClient.get<PageResponse<{ id: string; name: string }>>(
+            "/inventory/inventory-locations/lookup",
+            { query: { search: search || undefined, page, size, type: filter.type, status: filter.status } }
+        );
+    },
+    /** Lấy tên vị trí theo id (cho giá trị đã chọn sẵn trong dropdown). */
+    lookupLocationsByIds(ids: string[]) {
+        return apiClient.get<PageResponse<{ id: string; name: string }>>(
+            "/inventory/inventory-locations/lookup",
+            { query: { ids } }
+        );
+    },
     lookupByType(
         type: InventoryLocationType,
         search: string = "",

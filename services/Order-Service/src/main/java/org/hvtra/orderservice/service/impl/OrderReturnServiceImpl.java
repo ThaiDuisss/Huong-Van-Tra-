@@ -4,7 +4,7 @@ import feign.FeignException;
 import feign.RetryableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.commonservice.exception.FeignClientException;
+import org.hvtra.commonservice.common_core.exception.FeignClientException;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.client.PaymentClient;

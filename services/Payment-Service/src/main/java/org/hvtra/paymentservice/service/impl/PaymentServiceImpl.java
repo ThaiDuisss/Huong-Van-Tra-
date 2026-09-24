@@ -1,7 +1,7 @@
 package org.hvtra.paymentservice.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.commonservice.exception.BusinessException;
+import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.hvtra.paymentservice.config.SepayProperties;
 import org.hvtra.paymentservice.domain.entity.Payment;
 import org.hvtra.paymentservice.domain.entity.PaymentAttempt;

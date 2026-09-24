@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { routePaths } from "../../../routes/path";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
 import { bomApi } from "../../manufacturing/services/bom.api";
 import type { BomItemInput } from "../../manufacturing/types/bom.types";
@@ -17,7 +18,7 @@ import {
     CatalogResourceManagement,
     TableCell
 } from "../components/CatalogResourceManagement";
-import { useApiResource, usePagedApiResource } from "../hooks/useApiResource";
+import { usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { ingredientApi } from "../services/ingredient.api";
 import { productApi } from "../services/product.api";
@@ -25,11 +26,9 @@ import { productVariantApi } from "../services/productVariant.api";
 import { unitApi } from "../services/unit.api";
 import type {
     CatalogStatus,
-    Ingredient,
     InventoryPolicy,
     ProductVariant,
-    ProductVariantInput,
-    Unit
+    ProductVariantInput
 } from "../types/product.types";
 import { formatCurrency } from "../utils/product-formatters";
 
@@ -41,8 +40,6 @@ interface ProductVariantFormWrapperProps {
     onLoadMoreProducts(): void;
     productHasMore: boolean;
     productLoading: boolean;
-    units: Unit[];
-    ingredients: Ingredient[];
     onSave(input: ProductVariantInput, items: BomItemInput[]): Promise<void>;
 }
 
@@ -54,8 +51,6 @@ function ProductVariantFormWrapper({
     onLoadMoreProducts,
     productHasMore,
     productLoading,
-    units,
-    ingredients,
     onSave
 }: ProductVariantFormWrapperProps) {
     const isEditMode = Boolean(editingItem?.id);
@@ -79,7 +74,12 @@ function ProductVariantFormWrapper({
     const [formSubmitting, setFormSubmitting] = useState(false);
 
     const selectedProductName = productOptions.find((p) => p.id === formProductId)?.name ?? "";
-    const selectedUnit = units.find((u) => String(u.id) === formUnitId);
+    // Dropdown đơn vị: lookup phân trang dùng chung cho đơn vị bán và các dòng định mức
+    const unitDropdown = useLookupDropdown(unitApi.lookup, {
+        selectedIds: [formUnitId, ...formItems.map((item) => item.unitId)],
+        fetchByIds: unitApi.lookupByIds
+    });
+    const selectedUnit = unitDropdown.findOption(formUnitId);
     const previewVariantName = [
         selectedProductName,
         formQuantity > 0 ? String(formQuantity) : "",
@@ -113,6 +113,12 @@ function ProductVariantFormWrapper({
             active = false;
         };
     }, [editingItem?.id]);
+
+    // Dropdown nguyên liệu: lookup phân trang dùng chung cho các dòng định mức
+    const ingredientDropdown = useLookupDropdown(ingredientApi.lookup, {
+        selectedIds: formItems.map((item) => item.ingredientId),
+        fetchByIds: ingredientApi.lookupByIds
+    });
 
     function addIngredientRow() {
         setFormItems((prev) => [...prev, { ingredientId: "", quantity: 1, unitId: "", wasteRate: 0 }]);
@@ -279,23 +285,20 @@ function ProductVariantFormWrapper({
                             />
                         </label>
 
-                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                            Đơn vị bán thương mại *
-                            <select
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700 focus:outline-none"
+                        <div className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            <span>Đơn vị bán thương mại *</span>
+                            <SearchableDropdown
+                                emptyText="Không tìm thấy đơn vị"
+                                hasMore={unitDropdown.hasMore}
+                                loading={unitDropdown.loading}
+                                onChange={setFormUnitId}
+                                onLoadMore={unitDropdown.onLoadMore}
+                                onSearch={unitDropdown.onSearch}
+                                options={unitDropdown.options}
+                                placeholder="-- Chọn đơn vị --"
                                 value={formUnitId}
-                                onChange={(e) => setFormUnitId(e.target.value)}
-                            >
-                                <option value="">-- Chọn đơn vị --</option>
-                                {units
-                                    .filter((unit) => unit.status === "ACTIVE")
-                                    .map((unit) => (
-                                        <option key={unit.id} value={unit.id}>
-                                            {unit.name} ({unit.symbol})
-                                        </option>
-                                    ))}
-                            </select>
-                        </label>
+                            />
+                        </div>
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Chính sách tồn kho *
@@ -369,18 +372,17 @@ function ProductVariantFormWrapper({
                                         {formItems.map((row, index) => (
                                             <tr key={index} className="hover:bg-neutral-50/50">
                                                 <td className="p-2">
-                                                    <select
-                                                        className="h-9 w-full rounded-lg border border-pos-border bg-white px-2 focus:outline-none"
+                                                    <SearchableDropdown
+                                                        emptyText="Không tìm thấy nguyên liệu"
+                                                        hasMore={ingredientDropdown.hasMore}
+                                                        loading={ingredientDropdown.loading}
+                                                        onChange={(value) => updateRowItem(index, "ingredientId", value)}
+                                                        onLoadMore={ingredientDropdown.onLoadMore}
+                                                        onSearch={ingredientDropdown.onSearch}
+                                                        options={ingredientDropdown.options}
+                                                        placeholder="-- Chọn nguyên liệu --"
                                                         value={row.ingredientId}
-                                                        onChange={(e) => updateRowItem(index, "ingredientId", e.target.value)}
-                                                    >
-                                                        <option value="">-- Chọn nguyên liệu --</option>
-                                                        {ingredients.map((ing) => (
-                                                            <option key={ing.id} value={ing.id}>
-                                                                {ing.name} ({ing.ingredientCode})
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                    />
                                                 </td>
                                                 <td className="p-2">
                                                     <input
@@ -393,18 +395,17 @@ function ProductVariantFormWrapper({
                                                     />
                                                 </td>
                                                 <td className="p-2">
-                                                    <select
-                                                        className="h-9 w-full rounded-lg border border-pos-border bg-white px-2 focus:outline-none"
+                                                    <SearchableDropdown
+                                                        emptyText="Không tìm thấy đơn vị"
+                                                        hasMore={unitDropdown.hasMore}
+                                                        loading={unitDropdown.loading}
+                                                        onChange={(value) => updateRowItem(index, "unitId", value)}
+                                                        onLoadMore={unitDropdown.onLoadMore}
+                                                        onSearch={unitDropdown.onSearch}
+                                                        options={unitDropdown.options}
+                                                        placeholder="-- Đơn vị --"
                                                         value={row.unitId}
-                                                        onChange={(e) => updateRowItem(index, "unitId", e.target.value)}
-                                                    >
-                                                        <option value="">-- Đơn vị --</option>
-                                                        {units.map((u) => (
-                                                            <option key={u.id} value={u.id}>
-                                                                {u.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                    />
                                                 </td>
                                                 <td className="p-2">
                                                     <input
@@ -484,7 +485,6 @@ export function ProductVariantListPage() {
     const [productLoading, setProductLoading] = useState(false);
     const [productSearchTerm, setProductSearchTerm] = useState("");
 
-    const [ingredients, setIngredients] = useState<Ingredient[]>([]);
 
     const loadCategoryOptions = useCallback(async (search: string, page: number) => {
         try {
@@ -556,12 +556,6 @@ export function ProductVariantListPage() {
         }
     }, [productLoading, productHasMore, productPage, productSearchTerm, loadProductOptions]);
 
-    useEffect(() => {
-        ingredientApi.list({ page: 0, size: 1000, status: "ACTIVE" }).then((res) => {
-            setIngredients(res.content ?? []);
-        }).catch((err) => console.error("Error loading ingredients", err));
-    }, []);
-
     // Mở sẵn biểu mẫu chỉnh sửa khi được điều hướng từ trang chi tiết mặt hàng
     useEffect(() => {
         const targetId = (location.state as { editVariantId?: string } | null)?.editVariantId;
@@ -600,10 +594,7 @@ export function ProductVariantListPage() {
         ]
     );
     const resource = usePagedApiResource(loadVariants);
-    const loadUnits = useCallback(() => unitApi.list({ page: 0, size: 500 }), []);
-    const unitResource = useApiResource(loadUnits);
     const variants = resource.data?.content ?? [];
-    const units = unitResource.data?.content ?? [];
 
     async function handleSave(input: ProductVariantInput, items: BomItemInput[]) {
         const variant = editingVariant
@@ -743,7 +734,7 @@ export function ProductVariantListPage() {
                 renderCells={(item) => (
                     <>
                         <TableCell>{item.variantName}</TableCell>
-                        <TableCell className="text-right pr-[18px]">{item.quantity}</TableCell>
+                        <TableCell>{item.quantity}</TableCell>
                         <TableCell>{formatCurrency(item.sellingPrice)}</TableCell>
                         <TableCell>
                             <CatalogStatusBadge status={item.status} />
@@ -752,8 +743,9 @@ export function ProductVariantListPage() {
                 )}
                 detailPath={(item) => `/system/product-variants/${item.id}`}
                 renderDetail={(item) => {
-                    const matchedUnit = units.find((u) => u.id === item.unitId);
-                    const unitText = matchedUnit ? `${matchedUnit.name} (${matchedUnit.symbol})` : `Mã đơn vị: ${item.unitId}`;
+                    const unitText = item.unitName
+                        ? `${item.unitName}${item.unitSymbol ? ` (${item.unitSymbol})` : ""}`
+                        : `Mã đơn vị: ${item.unitId}`;
                     return (
                         <div className="grid gap-4">
                             <DetailList
@@ -809,8 +801,6 @@ export function ProductVariantListPage() {
                         onLoadMoreProducts={handleLoadMoreProducts}
                         productHasMore={productHasMore}
                         productLoading={productLoading}
-                        units={units}
-                        ingredients={ingredients}
                         onSave={handleSave}
                     />
                 )}

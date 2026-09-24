@@ -12,7 +12,8 @@ import java.util.UUID;
 public interface BomItemRepository extends JpaRepository<BomItem, UUID> {
 
     @Query("SELECT bi FROM BomItem bi "
-            + "LEFT JOIN FETCH bi.ingredient "
+            + "LEFT JOIN FETCH bi.ingredient i "
+            + "LEFT JOIN FETCH i.unit "
             + "LEFT JOIN FETCH bi.unit "
             + "WHERE bi.productVariantId = :variantId AND bi.isDeleted = false")
     List<BomItem> findByProductVariantId(@Param("variantId") UUID variantId);

@@ -14,6 +14,7 @@ import org.hvtra.catalog.mapper.PriceListMapper;
 import org.hvtra.catalog.repository.PriceListRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.hvtra.catalog.service.PriceListService;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -57,12 +62,21 @@ public class PriceListServiceImpl implements PriceListService {
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
+        Page<PriceList> page = repository.findAll(spec, pageable);
+        List<UUID> ids = page.getContent().stream().map(PriceList::getId).toList();
+        Map<UUID, PriceList> withItems = ids.isEmpty()
+                ? Map.of()
+                : repository.findAllWithItemsByIdIn(ids).stream()
+                        .collect(Collectors.toMap(PriceList::getId, Function.identity()));
+        return PageResponse.from(page.map(pl -> mapper.toResponse(withItems.getOrDefault(pl.getId(), pl))));
     }
 
     @Override
     public PriceListResponse findById(UUID id) {
-        return mapper.toResponse(get(id));
+        return repository.findAllWithItemsByIdIn(List.of(id)).stream()
+                .findFirst()
+                .map(mapper::toResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Price list", id));
     }
 
     @Override

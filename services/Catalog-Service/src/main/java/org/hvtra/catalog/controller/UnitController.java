@@ -55,8 +55,10 @@ public class UnitController {
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "baseOnly", defaultValue = "false") boolean baseOnly,
+            @RequestParam(name = "ids", required = false) List<UUID> ids,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return service.lookup(search, pageable);
+        return service.lookup(search, baseOnly, ids, pageable);
     }
 
     @PostMapping("/batch")

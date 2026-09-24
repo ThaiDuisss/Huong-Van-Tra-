@@ -3,6 +3,7 @@ package org.hvtra.catalog.controller;
 import jakarta.validation.Valid;
 import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.request.SupplierRequest;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.SupplierResponse;
 import org.hvtra.catalog.enums.Status;
@@ -34,6 +35,14 @@ public class SupplierController {
             @RequestParam(name = "ingredientId", required = false) UUID ingredientId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(search, status, ingredientId, pageable);
+    }
+
+    @GetMapping("/lookup")
+    public PageResponse<LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "ids", required = false) List<UUID> ids,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return service.lookup(search, ids, pageable);
     }
 
     @GetMapping("/{id}")

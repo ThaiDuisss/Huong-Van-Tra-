@@ -1,13 +1,13 @@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
+import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
 import type { ImportItemsListProps } from "./ImportBatchPanel";
 import { ingredientApi } from "../services/ingredient.api";
 import { productApi } from "../services/product.api";
 import { unitApi } from "../services/unit.api";
-import type { Ingredient, Unit } from "../types/product.types";
 import type { ImportBatchItem } from "../types/import-batch.types";
 
 interface BomLineInput {
@@ -43,8 +43,8 @@ interface ItemRowProps {
     productHasMore: boolean;
     productLoading: boolean;
     productNameById: Record<string, string>;
-    units: Unit[];
-    ingredients: Ingredient[];
+    /** Tên đơn vị theo id của các dòng trong batch (lấy 1 lần ở component cha). */
+    unitNames: Record<string, string>;
 }
 
 function ItemRow({
@@ -60,8 +60,7 @@ function ItemRow({
     productHasMore,
     productLoading,
     productNameById,
-    units,
-    ingredients
+    unitNames
 }: ItemRowProps) {
     const [productId, setProductId] = useState(item.payload.productId ? String(item.payload.productId) : "");
     const [quantity, setQuantity] = useState(Number(item.payload.quantity ?? 0));
@@ -87,7 +86,21 @@ function ItemRow({
     const errorByField = new Map(item.validationErrors.map((e) => [e.field, e.message]));
     const isValid = item.validationErrors.length === 0;
     const productName = productId ? productNameById[productId] : undefined;
-    const unitSymbol = units.find((u) => u.id === unitId)?.symbol;
+    // Dropdown đơn vị: lookup phân trang dùng chung cho đơn vị bán và các dòng định mức, chỉ tải khi dòng đang mở để sửa
+    const unitDropdown = useLookupDropdown(unitApi.lookup, {
+        enabled: expanded && editable,
+        pinned: [unitId && unitNames[unitId] ? { id: unitId, name: unitNames[unitId] } : null],
+        selectedIds: bomItems.map((line) => line.unitId),
+        fetchByIds: unitApi.lookupByIds
+    });
+    const unitLabel = unitDropdown.findOption(unitId)?.name;
+
+    // Dropdown nguyên liệu: lookup phân trang dùng chung cho các dòng định mức, chỉ tải khi dòng đang mở để sửa
+    const ingredientDropdown = useLookupDropdown(ingredientApi.lookup, {
+        enabled: expanded && editable,
+        selectedIds: bomItems.map((line) => line.ingredientId),
+        fetchByIds: ingredientApi.lookupByIds
+    });
 
     function updateBomLine(index: number, field: keyof BomLineInput, value: string | number) {
         setBomItems((prev) => prev.map((line, i) => (i === index ? { ...line, [field]: value } : line)));
@@ -136,7 +149,7 @@ function ItemRow({
                     {expanded ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
                     <div className="min-w-0">
                         <div className="truncate font-bold text-[#172317]">
-                            {productName ? `${productName} — ${quantity || 0} ${unitSymbol ?? ""}`.trim() : `Dòng ${item.rowIndex}`}
+                            {productName ? `${productName} — ${quantity || 0} ${unitLabel ?? ""}`.trim() : `Dòng ${item.rowIndex}`}
                         </div>
                         <div className="truncate text-xs text-[#697684]">
                             {bomItems.length > 0 ? `${bomItems.length} dòng BOM` : "Không có BOM"}
@@ -204,19 +217,18 @@ function ItemRow({
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Đơn vị *</label>
-                            <select
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <SearchableDropdown
                                 disabled={!editable}
-                                onChange={(e) => setUnitId(e.target.value)}
+                                emptyText="Không tìm thấy đơn vị"
+                                hasMore={unitDropdown.hasMore}
+                                loading={unitDropdown.loading}
+                                onChange={setUnitId}
+                                onLoadMore={unitDropdown.onLoadMore}
+                                onSearch={unitDropdown.onSearch}
+                                options={unitDropdown.options}
+                                placeholder="-- Chọn đơn vị --"
                                 value={unitId}
-                            >
-                                <option value="">-- Chọn đơn vị --</option>
-                                {units.map((u) => (
-                                    <option key={u.id} value={u.id}>
-                                        {u.symbol}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                             {errorByField.get("unitId") ? (
                                 <p className="text-xs font-bold text-red-600">{errorByField.get("unitId")}</p>
                             ) : null}
@@ -312,19 +324,18 @@ function ItemRow({
                                         {bomItems.map((line, index) => (
                                             <tr key={index}>
                                                 <td className="p-2 align-top">
-                                                    <select
-                                                        className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                    <SearchableDropdown
                                                         disabled={!editable}
-                                                        onChange={(e) => updateBomLine(index, "ingredientId", e.target.value)}
+                                                        emptyText="Không tìm thấy nguyên liệu"
+                                                        hasMore={ingredientDropdown.hasMore}
+                                                        loading={ingredientDropdown.loading}
+                                                        onChange={(value) => updateBomLine(index, "ingredientId", value)}
+                                                        onLoadMore={ingredientDropdown.onLoadMore}
+                                                        onSearch={ingredientDropdown.onSearch}
+                                                        options={ingredientDropdown.options}
+                                                        placeholder="-- Chọn nguyên liệu --"
                                                         value={line.ingredientId}
-                                                    >
-                                                        <option value="">-- Chọn nguyên liệu --</option>
-                                                        {ingredients.map((ing) => (
-                                                            <option key={ing.id} value={ing.id}>
-                                                                {ing.name} ({ing.ingredientCode})
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                    />
                                                     {errorByField.get(`bomItems[${index}].ingredientId`) ? (
                                                         <p className="mt-1 text-[11px] font-bold text-red-600">
                                                             {errorByField.get(`bomItems[${index}].ingredientId`)}
@@ -347,19 +358,18 @@ function ItemRow({
                                                     ) : null}
                                                 </td>
                                                 <td className="p-2 align-top">
-                                                    <select
-                                                        className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                    <SearchableDropdown
                                                         disabled={!editable}
-                                                        onChange={(e) => updateBomLine(index, "unitId", e.target.value)}
+                                                        emptyText="Không tìm thấy đơn vị"
+                                                        hasMore={unitDropdown.hasMore}
+                                                        loading={unitDropdown.loading}
+                                                        onChange={(value) => updateBomLine(index, "unitId", value)}
+                                                        onLoadMore={unitDropdown.onLoadMore}
+                                                        onSearch={unitDropdown.onSearch}
+                                                        options={unitDropdown.options}
+                                                        placeholder="-- Đơn vị --"
                                                         value={line.unitId}
-                                                    >
-                                                        <option value="">-- Đơn vị --</option>
-                                                        {units.map((u) => (
-                                                            <option key={u.id} value={u.id}>
-                                                                {u.symbol}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                    />
                                                     {errorByField.get(`bomItems[${index}].unitId`) ? (
                                                         <p className="mt-1 text-[11px] font-bold text-red-600">
                                                             {errorByField.get(`bomItems[${index}].unitId`)}
@@ -430,8 +440,7 @@ export function ProductVariantImportItemsList({ items, editable, expandedId, onT
     const [productHasMore, setProductHasMore] = useState(true);
     const [productLoading, setProductLoading] = useState(false);
     const [productNameById, setProductNameById] = useState<Record<string, string>>({});
-    const [units, setUnits] = useState<Unit[]>([]);
-    const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+    const [unitNames, setUnitNames] = useState<Record<string, string>>({});
 
     const loadProductOptions = useCallback(async (search: string, page: number) => {
         try {
@@ -459,16 +468,24 @@ export function ProductVariantImportItemsList({ items, editable, expandedId, onT
         void loadProductOptions("", 0);
     }, [loadProductOptions]);
 
+    // Tên đơn vị bán của các dòng — chỉ lấy theo đúng các id có trong batch (1 request)
+    const unitIdsKey = useMemo(
+        () => [...new Set(items.map((i) => String(i.payload.unitId ?? "")).filter(Boolean))].sort().join(","),
+        [items]
+    );
+
     useEffect(() => {
+        const ids = unitIdsKey ? unitIdsKey.split(",").filter((id) => !(id in unitNames)) : [];
+        if (ids.length === 0) return;
         unitApi
-            .listAll()
-            .then((res) => setUnits(res ?? []))
-            .catch((err: unknown) => console.error("Lỗi tải đơn vị", err));
-        ingredientApi
-            .list({ page: 0, size: 1000, status: "ACTIVE" })
-            .then((res) => setIngredients(res.content ?? []))
-            .catch((err: unknown) => console.error("Lỗi tải nguyên liệu", err));
-    }, []);
+            .lookupByIds(ids)
+            .then((res) => setUnitNames((prev) => ({
+                ...prev,
+                ...Object.fromEntries((res.content ?? []).map((u) => [u.id, u.name]))
+            })))
+            .catch((err: unknown) => console.error("Lỗi tải tên đơn vị", err));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [unitIdsKey]);
 
     const handleProductSearch = useCallback(
         (term: string) => {
@@ -541,7 +558,6 @@ export function ProductVariantImportItemsList({ items, editable, expandedId, onT
                     <ItemRow
                         editable={editable}
                         expanded={expandedId === item.id}
-                        ingredients={ingredients}
                         item={item}
                         key={item.id}
                         onDelete={() => onDelete(item.id)}
@@ -553,7 +569,7 @@ export function ProductVariantImportItemsList({ items, editable, expandedId, onT
                         productLoading={productLoading}
                         productNameById={productNameById}
                         productOptions={itemProductOptions}
-                        units={units}
+                        unitNames={unitNames}
                     />
                 );
             })}

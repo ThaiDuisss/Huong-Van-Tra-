@@ -15,7 +15,7 @@ import org.hvtra.catalog.enums.UnitType;
 
 public interface UnitService {
     PageResponse<UnitResponse> findAll(String name, Status status, UnitType type, Pageable pageable);
-    PageResponse<LookupResponse> lookup(String search, Pageable pageable);
+    PageResponse<LookupResponse> lookup(String search, boolean baseOnly, List<UUID> ids, Pageable pageable);
     List<UnitResponse> findAll();
     List<UnitResponse> findBases();
     UnitResponse create(UnitRequest request);

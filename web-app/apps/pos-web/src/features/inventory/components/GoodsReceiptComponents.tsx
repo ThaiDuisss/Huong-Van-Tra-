@@ -11,6 +11,10 @@ import {
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Pagination } from "../../manufacturing/components/shared/Pagination";
+import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
+import { supplierApi } from "../../manufacturing/services/supplier.api";
+import { inventoryLocationApi } from "../services/inventoryLocation.api";
 
 import {
     costStatusLabels,
@@ -28,10 +32,8 @@ import type {
     GoodsReceiptRole,
     GoodsReceiptStatus,
     GoodsReceiptSummary,
-    QcResult,
-    SupplierSummary
+    QcResult
 } from "../types/goods-receipt.types";
-import type { InventoryLocationSummary } from "../types/stock-document.types";
 import {
     formatVietnamDateTime,
     formatVietnamNumber,
@@ -229,18 +231,24 @@ export function GoodsReceiptLifecycleStepper({
 }
 
 export function GoodsReceiptFilterBar({
-    locations,
     onChange,
     onReset,
-    query,
-    suppliers
+    query
 }: {
-    locations: InventoryLocationSummary[];
     onChange: (patch: Partial<GoodsReceiptListQuery>) => void;
     onReset: () => void;
     query: GoodsReceiptListQuery;
-    suppliers: SupplierSummary[];
 }) {
+    // Dropdown NCC & kho dùng lookup phân trang (chỉ id + name)
+    const supplierDropdown = useLookupDropdown(supplierApi.lookup, {
+        selectedIds: [query.supplierId],
+        fetchByIds: supplierApi.lookupByIds
+    });
+    const locationDropdown = useLookupDropdown(inventoryLocationApi.lookupLocations, {
+        selectedIds: [query.receivingLocationId],
+        fetchByIds: inventoryLocationApi.lookupLocationsByIds
+    });
+
     return (
         <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -251,18 +259,13 @@ export function GoodsReceiptFilterBar({
                     }
                     value={query.receiptCode}
                 />
-                <SelectFilter
+                <LookupFilter
                     label="Nhà cung cấp"
+                    dropdown={supplierDropdown}
                     onChange={(supplierId) =>
                         onChange({ page: 0, supplierId })
                     }
-                    options={[
-                        { label: "Tất cả", value: "ALL" },
-                        ...suppliers.map((supplier) => ({
-                            label: supplier.name,
-                            value: supplier.id
-                        }))
-                    ]}
+                    placeholder="Tìm nhà cung cấp..."
                     value={query.supplierId}
                 />
                 <TextFilter
@@ -325,18 +328,13 @@ export function GoodsReceiptFilterBar({
                     ]}
                     value={query.costStatus}
                 />
-                <SelectFilter
+                <LookupFilter
                     label="Kho nhận"
+                    dropdown={locationDropdown}
                     onChange={(receivingLocationId) =>
                         onChange({ page: 0, receivingLocationId })
                     }
-                    options={[
-                        { label: "Tất cả", value: "ALL" },
-                        ...locations.map((location) => ({
-                            label: location.name,
-                            value: location.id
-                        }))
-                    ]}
+                    placeholder="Tìm kho nhận..."
                     value={query.receivingLocationId}
                 />
                 <SelectFilter
@@ -775,6 +773,38 @@ function TextFilter({
                 value={value}
             />
         </label>
+    );
+}
+
+function LookupFilter({
+    dropdown,
+    label,
+    onChange,
+    placeholder,
+    value
+}: {
+    dropdown: ReturnType<typeof useLookupDropdown>;
+    label: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    value: string;
+}) {
+    return (
+        <div className="grid gap-1.5 text-xs font-black text-[#536078]">
+            {label}
+            <SearchableDropdown
+                allOptionText="Tất cả"
+                emptyText="Không có dữ liệu"
+                hasMore={dropdown.hasMore}
+                loading={dropdown.loading}
+                onChange={onChange}
+                onLoadMore={dropdown.onLoadMore}
+                onSearch={dropdown.onSearch}
+                options={dropdown.options}
+                placeholder={placeholder}
+                value={value}
+            />
+        </div>
     );
 }
 

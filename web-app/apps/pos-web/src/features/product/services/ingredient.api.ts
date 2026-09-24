@@ -7,6 +7,18 @@ export interface IngredientQuery extends CatalogQuery {
 }
 
 export const ingredientApi = {
+    /** Dropdown chọn nguyên liệu — chỉ id + name, phân trang, chỉ nguyên liệu đang hoạt động. */
+    lookup(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/ingredients/lookup", {
+            query: { search: search || undefined, status: "ACTIVE", page, size }
+        });
+    },
+    /** Lấy tên nguyên liệu theo id (cho giá trị đã chọn sẵn trong dropdown). */
+    lookupByIds(ids: string[]) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/ingredients/lookup", {
+            query: { ids }
+        });
+    },
     list(query: IngredientQuery = {}) {
         return apiClient.get<PageResult<Ingredient>>("/catalog/ingredients", {
             query: {

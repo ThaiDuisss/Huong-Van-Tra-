@@ -31,6 +31,7 @@ import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
+import org.hvtra.iventoryservice.shared.async.RequestContextAsync;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.commonservice.common_importing.enums.ImportType;
 import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
@@ -47,6 +48,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -54,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -102,6 +105,11 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
     // ---------------------------------------------------------------------
     private record NewIngredientInfo(String code, String name, UUID unitId) {}
 
+    // Key tạm trong payload lúc parse, bị xoá trong resolveCodes()
+    private static final String SUPPLIER_CODE_KEY = "__supplierCode";
+    private static final String LOCATION_CODE_KEY = "__locationCode";
+    private static final String ITEM_CODE_KEY = "__itemCode";
+
     @Override
     public List<ParsedImportRow> parseExcel(MultipartFile file) {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
@@ -114,31 +122,23 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             Sheet lineSheet = findSheetByExactName(workbook, "nguyen lieu");
             Sheet newIngredientSheet = findSheetByName(workbook, "nguyen lieu moi");
 
-            Map<String, CatalogClient.SupplierLookupResponse> suppliersByCode = catalogClient.getAllSuppliers().stream()
-                    .filter(s -> s.code() != null)
-                    .collect(Collectors.toMap(s -> s.code().toUpperCase().trim(), s -> s, (a, b) -> a));
-            Map<String, InventoryLocation> locationsByCode = locationRepository.findAll().stream()
-                    .filter(l -> l.getCode() != null && !Boolean.TRUE.equals(l.getIsDeleted()))
-                    .collect(Collectors.toMap(l -> l.getCode().toUpperCase().trim(), l -> l, (a, b) -> a));
-            Map<String, InventoryItem> itemsByCode = inventoryItemRepository.findAll().stream()
-                    .filter(i -> i.getItemType() == InventoryItemType.INGREDIENT
-                            && i.getReferenceCode() != null
-                            && !Boolean.TRUE.equals(i.getIsDeleted()))
-                    .collect(Collectors.toMap(i -> i.getReferenceCode().toUpperCase().trim(), i -> i, (a, b) -> a));
-            List<CatalogClient.UnitResponse> units = catalogClient.getAllUnits();
-
-            Map<String, NewIngredientInfo> newIngredientsByCode = newIngredientSheet != null
-                    ? parseNewIngredientSheet(newIngredientSheet, units) : Map.of();
+            // Nhà cung cấp lấy song song trong lúc đọc file; đơn vị chỉ cần khi có sheet "Nguyên liệu mới"
+            CompletableFuture<List<CatalogClient.SupplierLookupResponse>> suppliersFuture =
+                    RequestContextAsync.supply(catalogClient::getAllSuppliers);
+            boolean hasNewIngredientRows = newIngredientSheet != null && newIngredientSheet.getPhysicalNumberOfRows() > 1;
+            Map<String, NewIngredientInfo> newIngredientsByCode = hasNewIngredientRows
+                    ? parseNewIngredientSheet(newIngredientSheet, catalogClient.getAllUnits()) : Map.of();
 
             LinkedHashMap<String, Map<String, Object>> payloadsByRef = new LinkedHashMap<>();
             LinkedHashMap<String, Integer> rowIndexByRef = new LinkedHashMap<>();
 
             if (receiptSheet != null) {
-                parseReceiptSheet(receiptSheet, suppliersByCode, locationsByCode, payloadsByRef, rowIndexByRef);
+                parseReceiptSheet(receiptSheet, payloadsByRef, rowIndexByRef);
             }
             if (lineSheet != null) {
-                parseLineSheet(lineSheet, itemsByCode, newIngredientsByCode, payloadsByRef);
+                parseLineSheet(lineSheet, newIngredientsByCode, payloadsByRef);
             }
+            resolveCodes(payloadsByRef.values(), suppliersFuture.join());
 
             List<ParsedImportRow> rows = new ArrayList<>();
             for (Map.Entry<String, Map<String, Object>> entry : payloadsByRef.entrySet()) {
@@ -200,8 +200,6 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
 
     private void parseReceiptSheet(
             Sheet sheet,
-            Map<String, CatalogClient.SupplierLookupResponse> suppliersByCode,
-            Map<String, InventoryLocation> locationsByCode,
             Map<String, Map<String, Object>> payloadsByRef,
             Map<String, Integer> rowIndexByRef) {
         int rowCount = sheet.getPhysicalNumberOfRows();
@@ -253,12 +251,10 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                 continue;
             }
 
-            CatalogClient.SupplierLookupResponse supplier = supplierCode.isBlank() ? null : suppliersByCode.get(supplierCode.toUpperCase());
-            InventoryLocation location = locationCode.isBlank() ? null : locationsByCode.get(locationCode.toUpperCase());
-
             Map<String, Object> payload = new HashMap<>();
-            payload.put("supplierId", supplier != null ? supplier.id().toString() : null);
-            payload.put("locationId", location != null ? location.getId().toString() : null);
+            // Mã thô — resolveCodes() đổi sang id sau khi đã gom đủ mã của cả file
+            payload.put(SUPPLIER_CODE_KEY, supplierCode);
+            payload.put(LOCATION_CODE_KEY, locationCode);
             payload.put("branchId", null);
             payload.put("expectedDate", expectedDate != null ? expectedDate.toString() : null);
             payload.put("referenceType", null);
@@ -274,7 +270,6 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
     @SuppressWarnings("unchecked")
     private void parseLineSheet(
             Sheet sheet,
-            Map<String, InventoryItem> itemsByCode,
             Map<String, NewIngredientInfo> newIngredientsByCode,
             Map<String, Map<String, Object>> payloadsByRef) {
         int rowCount = sheet.getPhysicalNumberOfRows();
@@ -344,15 +339,68 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                 line.put("newIngredientName", newIngredientInfo.name());
                 line.put("newIngredientUnitId", newIngredientInfo.unitId() != null ? newIngredientInfo.unitId().toString() : null);
             } else {
-                InventoryItem item = itemCode.isBlank() ? null : itemsByCode.get(itemCode.toUpperCase());
-                line.put("inventoryItemId", item != null ? item.getId().toString() : null);
-                line.put("unitId", item != null && item.getUnitId() != null ? item.getUnitId().toString() : null);
+                line.put(ITEM_CODE_KEY, itemCode);
             }
             line.put("orderedQuantity", quantity);
             line.put("note", note.isBlank() ? null : note);
 
             ((List<Map<String, Object>>) receiptPayload.get("items")).add(line);
         }
+    }
+
+    /**
+     * Đổi mã nhà cung cấp / kho / nguyên liệu trong payload sang id. Location và item chỉ query theo
+     * đúng các mã xuất hiện trong file (không load cả bảng); so khớp mã không phân biệt hoa thường.
+     */
+    @SuppressWarnings("unchecked")
+    private void resolveCodes(
+            Collection<Map<String, Object>> payloads,
+            List<CatalogClient.SupplierLookupResponse> suppliers) {
+        Set<String> locationCodes = new HashSet<>();
+        Set<String> itemCodes = new HashSet<>();
+        for (Map<String, Object> payload : payloads) {
+            addIfNotBlank(locationCodes, (String) payload.get(LOCATION_CODE_KEY));
+            for (Map<String, Object> line : (List<Map<String, Object>>) payload.get("items")) {
+                addIfNotBlank(itemCodes, (String) line.get(ITEM_CODE_KEY));
+            }
+        }
+
+        Map<String, CatalogClient.SupplierLookupResponse> suppliersByCode = suppliers.stream()
+                .filter(s -> s.code() != null)
+                .collect(Collectors.toMap(s -> s.code().toUpperCase().trim(), s -> s, (a, b) -> a));
+        Map<String, InventoryLocation> locationsByCode = locationCodes.isEmpty() ? Map.of()
+                : locationRepository.findByCodeIn(locationCodes).stream()
+                        .filter(l -> l.getCode() != null && !Boolean.TRUE.equals(l.getIsDeleted()))
+                        .collect(Collectors.toMap(l -> l.getCode().toUpperCase().trim(), l -> l, (a, b) -> a));
+        Map<String, InventoryItem> itemsByCode = itemCodes.isEmpty() ? Map.of()
+                : inventoryItemRepository.findByItemTypeAndReferenceCodeIn(InventoryItemType.INGREDIENT, itemCodes).stream()
+                        .filter(i -> i.getReferenceCode() != null && !Boolean.TRUE.equals(i.getIsDeleted()))
+                        .collect(Collectors.toMap(i -> i.getReferenceCode().toUpperCase().trim(), i -> i, (a, b) -> a));
+
+        for (Map<String, Object> payload : payloads) {
+            String supplierCode = (String) payload.remove(SUPPLIER_CODE_KEY);
+            String locationCode = (String) payload.remove(LOCATION_CODE_KEY);
+            CatalogClient.SupplierLookupResponse supplier = isBlank(supplierCode) ? null : suppliersByCode.get(supplierCode.toUpperCase());
+            InventoryLocation location = isBlank(locationCode) ? null : locationsByCode.get(locationCode.toUpperCase());
+            payload.put("supplierId", supplier != null ? supplier.id().toString() : null);
+            payload.put("locationId", location != null ? location.getId().toString() : null);
+
+            for (Map<String, Object> line : (List<Map<String, Object>>) payload.get("items")) {
+                if (!line.containsKey(ITEM_CODE_KEY)) continue; // dòng nguyên liệu mới
+                String itemCode = (String) line.remove(ITEM_CODE_KEY);
+                InventoryItem item = isBlank(itemCode) ? null : itemsByCode.get(itemCode.toUpperCase());
+                line.put("inventoryItemId", item != null ? item.getId().toString() : null);
+                line.put("unitId", item != null && item.getUnitId() != null ? item.getUnitId().toString() : null);
+            }
+        }
+    }
+
+    private static void addIfNotBlank(Set<String> values, String value) {
+        if (!isBlank(value)) values.add(value.trim());
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private boolean isTicked(Cell cell) {
@@ -411,8 +459,11 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             }
         }
 
-        Set<UUID> existingSupplierIds = supplierIds.isEmpty() ? Set.of() : catalogClient.getSuppliersBatch(List.copyOf(supplierIds))
-                .stream().map(CatalogClient.SupplierResponse::id).collect(Collectors.toSet());
+        // 2 lời gọi Catalog chạy song song
+        CompletableFuture<Set<UUID>> existingSupplierIdsFuture = supplierIds.isEmpty()
+                ? CompletableFuture.completedFuture(Set.of())
+                : RequestContextAsync.supply(() -> catalogClient.getSuppliersBatch(List.copyOf(supplierIds))
+                        .stream().map(CatalogClient.SupplierResponse::id).collect(Collectors.toSet()));
         Set<UUID> existingLocationIds = locationIds.isEmpty() ? Set.of() : locationRepository.findAllById(locationIds)
                 .stream().map(InventoryLocation::getId).collect(Collectors.toSet());
         Set<UUID> existingInventoryItemIds = inventoryItemIds.isEmpty() ? Set.of() : inventoryItemRepository.findAllById(inventoryItemIds)
@@ -421,6 +472,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                 .map(InventoryItem::getId).collect(Collectors.toSet());
         Set<UUID> existingUnitIds = newIngredientUnitIds.isEmpty() ? Set.of() : catalogClient.getUnitsBatch(List.copyOf(newIngredientUnitIds))
                 .stream().map(CatalogClient.UnitResponse::id).collect(Collectors.toSet());
+        Set<UUID> existingSupplierIds = existingSupplierIdsFuture.join();
 
         return payloads.stream()
                 .map(payload -> validate(payload, existingSupplierIds, existingLocationIds, existingInventoryItemIds, existingUnitIds))
