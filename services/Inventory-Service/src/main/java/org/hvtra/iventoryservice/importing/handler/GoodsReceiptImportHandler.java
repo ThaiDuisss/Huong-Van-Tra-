@@ -441,7 +441,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
 
     @Override
     public List<ValidationErrorResponse> validate(Map<String, Object> payload) {
-        return validate(payload, null, null, null, null);
+        return validate(payload, null, null, null, null, null, Set.of());
     }
 
     @Override
@@ -450,14 +450,23 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Set<UUID> locationIds = new HashSet<>();
         Set<UUID> inventoryItemIds = new HashSet<>();
         Set<UUID> newIngredientUnitIds = new HashSet<>();
+        Map<String, Integer> newIngredientCodeCounts = new HashMap<>();
         for (Map<String, Object> payload : payloads) {
             addIfPresent(supplierIds, readUuid(payload.get("supplierId")));
             addIfPresent(locationIds, readUuid(payload.get("locationId")));
             for (Map<String, Object> line : readItems(payload)) {
                 addIfPresent(inventoryItemIds, readUuid(line.get("inventoryItemId")));
                 addIfPresent(newIngredientUnitIds, readUuid(line.get("newIngredientUnitId")));
+                String newCode = newIngredientCodeOf(line);
+                if (newCode != null) newIngredientCodeCounts.merge(newCode.toUpperCase(), 1, Integer::sum);
             }
         }
+        // Mã nguyên liệu mới: đã có trong hệ thống (tra hàng tồn kho INGREDIENT — mỗi nguyên liệu Catalog có 1
+        // inventory item với referenceCode = mã nguyên liệu) hoặc bị trùng giữa các dòng trong file.
+        Set<String> duplicatedNewCodes = newIngredientCodeCounts.entrySet().stream()
+                .filter(e -> e.getValue() > 1).map(Map.Entry::getKey).collect(Collectors.toSet());
+        Set<String> existingNewCodes = newIngredientCodeCounts.isEmpty() ? Set.of()
+                : findExistingIngredientCodes(newIngredientCodeCounts.keySet());
 
         // 2 lời gọi Catalog chạy song song
         CompletableFuture<Set<UUID>> existingSupplierIdsFuture = supplierIds.isEmpty()
@@ -475,8 +484,24 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         Set<UUID> existingSupplierIds = existingSupplierIdsFuture.join();
 
         return payloads.stream()
-                .map(payload -> validate(payload, existingSupplierIds, existingLocationIds, existingInventoryItemIds, existingUnitIds))
+                .map(payload -> validate(payload, existingSupplierIds, existingLocationIds, existingInventoryItemIds,
+                        existingUnitIds, existingNewCodes, duplicatedNewCodes))
                 .toList();
+    }
+
+    /** Mã nguyên liệu mới của 1 dòng (chỉ dòng tạo nguyên liệu mới và có nhập mã), null nếu không có. */
+    private String newIngredientCodeOf(Map<String, Object> line) {
+        if (line.get("inventoryItemId") != null || readString(line.get("newIngredientName")).isBlank()) return null;
+        String code = readString(line.get("newIngredientCode")).trim();
+        return code.isEmpty() ? null : code;
+    }
+
+    private Set<String> findExistingIngredientCodes(Collection<String> codes) {
+        return inventoryItemRepository.findByItemTypeAndReferenceCodeIn(InventoryItemType.INGREDIENT, codes).stream()
+                .map(InventoryItem::getReferenceCode)
+                .filter(code -> code != null)
+                .map(code -> code.trim().toUpperCase())
+                .collect(Collectors.toSet());
     }
 
     private List<ValidationErrorResponse> validate(
@@ -484,7 +509,9 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             Set<UUID> existingSupplierIds,
             Set<UUID> existingLocationIds,
             Set<UUID> existingInventoryItemIds,
-            Set<UUID> existingUnitIds) {
+            Set<UUID> existingUnitIds,
+            Set<String> existingNewIngredientCodes,
+            Set<String> duplicatedNewIngredientCodes) {
         List<ValidationErrorResponse> errors = new ArrayList<>();
 
         UUID supplierId = readUuid(payload.get("supplierId"));
@@ -522,6 +549,18 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
                     errors.add(new ValidationErrorResponse(prefix + "newIngredientUnitId", "Đơn vị của nguyên liệu mới không được để trống hoặc không tồn tại"));
                 } else if (!existsUnit(existingUnitIds, newIngredientUnitId)) {
                     errors.add(new ValidationErrorResponse(prefix + "newIngredientUnitId", "Đơn vị không tồn tại"));
+                }
+                // Catalog từ chối mã trùng lúc duyệt (tạo nguyên liệu) — báo sớm ở đây
+                String newCode = newIngredientCodeOf(line);
+                if (newCode != null) {
+                    Set<String> existingCodes = existingNewIngredientCodes != null
+                            ? existingNewIngredientCodes
+                            : findExistingIngredientCodes(List.of(newCode));
+                    if (existingCodes.contains(newCode.toUpperCase())) {
+                        errors.add(new ValidationErrorResponse(prefix + "newIngredientCode", "Mã nguyên liệu đã tồn tại: " + newCode));
+                    } else if (duplicatedNewIngredientCodes.contains(newCode.toUpperCase())) {
+                        errors.add(new ValidationErrorResponse(prefix + "newIngredientCode", "Mã nguyên liệu mới bị trùng với dòng khác trong file: " + newCode));
+                    }
                 }
             } else {
                 errors.add(new ValidationErrorResponse(prefix + "inventoryItemId",
