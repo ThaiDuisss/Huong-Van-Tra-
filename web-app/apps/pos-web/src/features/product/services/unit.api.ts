@@ -26,6 +26,18 @@ export const unitApi = {
             query: { search, page, size }
         });
     },
+    /** Dropdown chọn đơn vị gốc — chỉ đơn vị không có đơn vị gốc, id + name, phân trang. */
+    lookupBases(search: string = "", page: number = 0, size: number = 20) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/units/lookup", {
+            query: { search: search || undefined, baseOnly: true, page, size }
+        });
+    },
+    /** Lấy tên đơn vị theo id (cho giá trị đã chọn sẵn trong dropdown). */
+    lookupByIds(ids: string[]) {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/units/lookup", {
+            query: { ids }
+        });
+    },
     detail(id: string) {
         return apiClient.get<Unit>(`/catalog/units/${encodeURIComponent(id)}`);
     },

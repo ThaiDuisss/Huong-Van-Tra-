@@ -32,10 +32,10 @@ public class ImportBatch extends BaseEntity {
     @Column(nullable = false, length = 50)
     private ImportBatchStatus status = ImportBatchStatus.DRAFT;
 
-    @Column(name = "source_file_name", length = 255)
+    @Column(name = "source_file_name", length = 255, columnDefinition = "TEXT")
     private String sourceFileName;
 
-    @Column(name = "note", length = 1000)
+    @Column(name = "note", length = 1000, columnDefinition = "TEXT")
     private String note;
 
     @Column(name = "submitted_by", columnDefinition = "BINARY(16)")

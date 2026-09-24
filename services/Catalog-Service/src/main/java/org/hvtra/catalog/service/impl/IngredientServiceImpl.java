@@ -14,6 +14,7 @@ import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.client.InventoryClient.CreateInventoryItemRequest;
 import org.hvtra.catalog.dto.request.IngredientRequest;
 import org.hvtra.catalog.dto.response.IngredientResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.catalog.entity.Ingredient;
@@ -227,6 +228,19 @@ public class IngredientServiceImpl implements IngredientService {
         } catch (Exception e) {
             // Log/gracefully continue
         }
+    }
+
+    @Override
+    public PageResponse<LookupResponse> lookup(String search, Status status, List<UUID> ids, Pageable pageable) {
+        if (ids != null && !ids.isEmpty()) {
+            List<LookupResponse> content = repository.findLookupByIds(ids).stream()
+                    .map(v -> new LookupResponse(v.getId().toString(), v.getName()))
+                    .toList();
+            return new PageResponse<>(content, 0, content.size(), content.size(), 1, true, true);
+        }
+        String keyword = search == null || search.isBlank() ? null : search.trim();
+        return PageResponse.from(repository.findLookup(keyword, status, pageable)
+                .map(v -> new LookupResponse(v.getId().toString(), v.getName())));
     }
 
     @Override

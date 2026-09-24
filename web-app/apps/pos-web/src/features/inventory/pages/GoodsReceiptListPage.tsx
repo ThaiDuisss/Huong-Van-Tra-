@@ -20,7 +20,6 @@ import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptDashboardSummary,
     GoodsReceiptListResult,
-    GoodsReceiptOptions,
     GoodsReceiptStatus,
     GoodsReceiptSummary
 } from "../types/goods-receipt.types";
@@ -58,25 +57,9 @@ export function GoodsReceiptListPage() {
         receiving: 0,
         total: 0
     });
-    const [options, setOptions] = useState<GoodsReceiptOptions>({
-        locations: [],
-        materials: [],
-        suppliers: []
-    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
-
-    useEffect(() => {
-        void goodsReceiptApi
-            .getGoodsReceiptOptions()
-            .then((res) => {
-                setOptions(res);
-            })
-            .catch((err: unknown) => {
-                console.error("[GoodsReceiptListPage] Lỗi tải danh mục (nhà cung cấp/kho):", err);
-            });
-    }, []);
 
     useEffect(() => {
         void goodsReceiptApi
@@ -178,11 +161,9 @@ export function GoodsReceiptListPage() {
                 render: (
                     <div className="w-full pt-1">
                         <GoodsReceiptFilterBar
-                            locations={options.locations}
                             onChange={setQuery}
                             onReset={resetQuery}
                             query={query}
-                            suppliers={options.suppliers}
                         />
                     </div>
                 ),

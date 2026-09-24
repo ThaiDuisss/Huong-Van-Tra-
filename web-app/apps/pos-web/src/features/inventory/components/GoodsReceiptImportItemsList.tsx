@@ -1,12 +1,15 @@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ImportItemsListProps } from "../../product/components/ImportBatchPanel";
 import type { ImportBatchItem } from "../../product/types/import-batch.types";
 import { unitApi } from "../../product/services/unit.api";
-import type { Unit } from "../../product/types/product.types";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
-import type { GoodsReceiptMaterialOption, GoodsReceiptOptions } from "../types/goods-receipt.types";
+import { inventoryLocationApi } from "../services/inventoryLocation.api";
+import { supplierApi } from "../../manufacturing/services/supplier.api";
+import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
+import type { GoodsReceiptMaterialOption } from "../types/goods-receipt.types";
 
 interface ReceiptLineInput {
     inventoryItemId: string;
@@ -47,11 +50,12 @@ interface ItemRowProps {
     onToggle(): void;
     onSave(payload: Record<string, unknown>): Promise<void>;
     onDelete(): Promise<void>;
-    options: GoodsReceiptOptions;
+    /** Tên NCC / kho theo id của các dòng trong batch (lấy 1 lần ở component cha). */
+    supplierNames: Record<string, string>;
+    locationNames: Record<string, string>;
     materialsBySupplierId: Record<string, GoodsReceiptMaterialOption[]>;
     materialsLoadingSupplierId: string | null;
     onEnsureMaterials(supplierId: string): void;
-    units: Unit[];
 }
 
 function toDateInputValue(value: unknown): string {
@@ -67,11 +71,11 @@ function ItemRow({
     onToggle,
     onSave,
     onDelete,
-    options,
+    supplierNames,
+    locationNames,
     materialsBySupplierId,
     materialsLoadingSupplierId,
-    onEnsureMaterials,
-    units
+    onEnsureMaterials
 }: ItemRowProps) {
     const [supplierId, setSupplierId] = useState(item.payload.supplierId ? String(item.payload.supplierId) : "");
     const [locationId, setLocationId] = useState(item.payload.locationId ? String(item.payload.locationId) : "");
@@ -99,10 +103,29 @@ function ItemRow({
     const errorByField = new Map(item.validationErrors.map((e) => [e.field, e.message]));
     const isValid = item.validationErrors.length === 0;
 
-    const supplierDisplayName =
-        options.suppliers.find((s) => String(s.id) === supplierId)?.name ?? (supplierId ? "Nhà cung cấp đã chọn" : null);
+    // Dropdown NCC & kho: lookup phân trang, chỉ tải khi dòng đang mở để sửa
+    const lookupEnabled = expanded && editable;
+    const supplierDropdown = useLookupDropdown(supplierApi.lookup, {
+        enabled: lookupEnabled,
+        pinned: [supplierId && supplierNames[supplierId] ? { id: supplierId, name: supplierNames[supplierId] } : null]
+    });
+    const locationDropdown = useLookupDropdown(inventoryLocationApi.lookupLocations, {
+        enabled: lookupEnabled,
+        pinned: [locationId && locationNames[locationId] ? { id: locationId, name: locationNames[locationId] } : null]
+    });
 
-    const locationName = options.locations.find((l) => String(l.id) === locationId)?.name;
+    // Đơn vị cho nguyên liệu mới: 1 lookup dùng chung cho các dòng của phiếu này
+    const hasNewIngredientLine = lines.some((l) => l.isNewIngredient);
+    const unitDropdown = useLookupDropdown(unitApi.lookup, {
+        enabled: lookupEnabled && hasNewIngredientLine,
+        selectedIds: lines.filter((l) => l.isNewIngredient).map((l) => l.newIngredientUnitId),
+        fetchByIds: unitApi.lookupByIds
+    });
+
+    const supplierDisplayName =
+        supplierDropdown.findOption(supplierId)?.name ?? (supplierId ? "Nhà cung cấp đã chọn" : null);
+
+    const locationName = locationDropdown.findOption(locationId)?.name;
 
     const materials = supplierId ? materialsBySupplierId[supplierId] ?? [] : [];
 
@@ -218,19 +241,18 @@ function ItemRow({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Nhà cung cấp *</label>
-                            <select
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <SearchableDropdown
                                 disabled={!editable}
-                                onChange={(e) => setSupplierId(e.target.value)}
+                                emptyText="Không tìm thấy nhà cung cấp"
+                                hasMore={supplierDropdown.hasMore}
+                                loading={supplierDropdown.loading}
+                                onChange={setSupplierId}
+                                onLoadMore={supplierDropdown.onLoadMore}
+                                onSearch={supplierDropdown.onSearch}
+                                options={supplierDropdown.options}
+                                placeholder="-- Chọn nhà cung cấp --"
                                 value={supplierId}
-                            >
-                                <option value="">-- Chọn nhà cung cấp --</option>
-                                {options.suppliers.map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name} ({s.code})
-                                    </option>
-                                ))}
-                            </select>
+                            />
                             {errorByField.get("supplierId") ? (
                                 <p className="text-xs font-bold text-red-600">{errorByField.get("supplierId")}</p>
                             ) : null}
@@ -238,19 +260,18 @@ function ItemRow({
 
                         <div className="grid gap-1.5">
                             <label className="text-xs font-bold text-[#536078]">Kho nhận *</label>
-                            <select
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            <SearchableDropdown
                                 disabled={!editable}
-                                onChange={(e) => setLocationId(e.target.value)}
+                                emptyText="Không tìm thấy kho"
+                                hasMore={locationDropdown.hasMore}
+                                loading={locationDropdown.loading}
+                                onChange={setLocationId}
+                                onLoadMore={locationDropdown.onLoadMore}
+                                onSearch={locationDropdown.onSearch}
+                                options={locationDropdown.options}
+                                placeholder="-- Chọn kho nhận --"
                                 value={locationId}
-                            >
-                                <option value="">-- Chọn kho nhận --</option>
-                                {options.locations.map((l) => (
-                                    <option key={l.id} value={l.id}>
-                                        {l.name} ({l.code})
-                                    </option>
-                                ))}
-                            </select>
+                            />
                             {errorByField.get("locationId") ? (
                                 <p className="text-xs font-bold text-red-600">{errorByField.get("locationId")}</p>
                             ) : null}
@@ -340,19 +361,18 @@ function ItemRow({
                                                                     type="text"
                                                                     value={line.newIngredientCode}
                                                                 />
-                                                                <select
-                                                                    className="h-9 w-full rounded-lg border border-pos-border px-2 text-xs outline-none"
+                                                                <SearchableDropdown
                                                                     disabled={!editable}
-                                                                    onChange={(e) => updateLine(index, "newIngredientUnitId", e.target.value)}
+                                                                    emptyText="Không tìm thấy đơn vị"
+                                                                    hasMore={unitDropdown.hasMore}
+                                                                    loading={unitDropdown.loading}
+                                                                    onChange={(value) => updateLine(index, "newIngredientUnitId", value)}
+                                                                    onLoadMore={unitDropdown.onLoadMore}
+                                                                    onSearch={unitDropdown.onSearch}
+                                                                    options={unitDropdown.options}
+                                                                    placeholder="-- Chọn đơn vị * --"
                                                                     value={line.newIngredientUnitId}
-                                                                >
-                                                                    <option value="">-- Chọn đơn vị * --</option>
-                                                                    {units.map((u) => (
-                                                                        <option key={u.id} value={u.id}>
-                                                                            {u.symbol} ({u.name})
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
+                                                                />
                                                             </div>
                                                             {errorByField.get(`items[${index}].newIngredientUnitId`) ? (
                                                                 <p className="text-[11px] font-bold text-red-600">
@@ -474,34 +494,55 @@ function ItemRow({
 }
 
 export function GoodsReceiptImportItemsList({ items, editable, expandedId, onToggle, onSave, onDelete }: ImportItemsListProps) {
-    const [options, setOptions] = useState<GoodsReceiptOptions>({ locations: [], materials: [], suppliers: [] });
+    const [supplierNames, setSupplierNames] = useState<Record<string, string>>({});
+    const [locationNames, setLocationNames] = useState<Record<string, string>>({});
     // Nguyên liệu phụ thuộc nhà cung cấp — cache theo supplierId để nhiều dòng cùng NCC không tải lại nhiều lần.
     const [materialsBySupplierId, setMaterialsBySupplierId] = useState<Record<string, GoodsReceiptMaterialOption[]>>({});
     const [materialsLoadingSupplierId, setMaterialsLoadingSupplierId] = useState<string | null>(null);
     const requestedSupplierIds = useRef(new Set<string>());
-    const [units, setUnits] = useState<Unit[]>([]);
+
+    // Tên NCC / kho cho các dòng — chỉ lấy theo đúng các id có trong batch (1 request mỗi loại)
+    const supplierIdsKey = useMemo(
+        () => [...new Set(items.map((i) => String(i.payload.supplierId ?? "")).filter(Boolean))].sort().join(","),
+        [items]
+    );
+    const locationIdsKey = useMemo(
+        () => [...new Set(items.map((i) => String(i.payload.locationId ?? "")).filter(Boolean))].sort().join(","),
+        [items]
+    );
 
     useEffect(() => {
-        goodsReceiptApi
-            .getGoodsReceiptOptions()
-            .then(setOptions)
-            .catch((err: unknown) => console.error("Lỗi tải danh mục nhà cung cấp/kho/nguyên liệu", err));
-    }, []);
+        const ids = supplierIdsKey ? supplierIdsKey.split(",").filter((id) => !(id in supplierNames)) : [];
+        if (ids.length === 0) return;
+        supplierApi
+            .lookupByIds(ids)
+            .then((res) => setSupplierNames((prev) => ({
+                ...prev,
+                ...Object.fromEntries((res.content ?? []).map((s) => [s.id, s.name]))
+            })))
+            .catch((err: unknown) => console.error("Lỗi tải tên nhà cung cấp", err));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [supplierIdsKey]);
 
-    // Dùng khi tạo nguyên liệu mới ngay trong lúc import (chưa có trong hệ thống) — cần chọn đơn vị.
     useEffect(() => {
-        unitApi
-            .listAll()
-            .then((res) => setUnits(res ?? []))
-            .catch((err: unknown) => console.error("Lỗi tải đơn vị", err));
-    }, []);
+        const ids = locationIdsKey ? locationIdsKey.split(",").filter((id) => !(id in locationNames)) : [];
+        if (ids.length === 0) return;
+        inventoryLocationApi
+            .lookupLocationsByIds(ids)
+            .then((res) => setLocationNames((prev) => ({
+                ...prev,
+                ...Object.fromEntries((res.content ?? []).map((l) => [l.id, l.name]))
+            })))
+            .catch((err: unknown) => console.error("Lỗi tải tên kho", err));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locationIdsKey]);
 
     const ensureMaterials = useCallback((supplierId: string) => {
         if (requestedSupplierIds.current.has(supplierId)) return;
         requestedSupplierIds.current.add(supplierId);
         setMaterialsLoadingSupplierId(supplierId);
         goodsReceiptApi
-            .getGoodsReceiptOptions(supplierId)
+            .getGoodsReceiptOptions(supplierId, { includeSuppliers: false, includeLocations: false })
             .then((res) => {
                 setMaterialsBySupplierId((prev) => ({ ...prev, [supplierId]: res.materials }));
             })
@@ -528,8 +569,8 @@ export function GoodsReceiptImportItemsList({ items, editable, expandedId, onTog
                     onEnsureMaterials={ensureMaterials}
                     onSave={(payload) => onSave(item.id, payload)}
                     onToggle={() => onToggle(item.id)}
-                    options={options}
-                    units={units}
+                    supplierNames={supplierNames}
+                    locationNames={locationNames}
                 />
             ))}
         </>

@@ -16,6 +16,8 @@ import java.util.UUID;
 
 public interface InventoryItemRepository
         extends JpaRepository<InventoryItem, UUID>, JpaSpecificationExecutor<InventoryItem> {
+    List<InventoryItem> findByItemTypeAndReferenceCodeIn(InventoryItemType itemType, Collection<String> referenceCodes);
+
     boolean existsByReferenceIdAndItemType(UUID referenceId, InventoryItemType itemType);
     boolean existsByReferenceIdAndItemTypeAndIdNot(
             UUID referenceId, InventoryItemType itemType, UUID id);

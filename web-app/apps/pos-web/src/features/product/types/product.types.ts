@@ -25,6 +25,8 @@ export interface CatalogQuery extends QueryParams {
 export interface Category {
     id: EntityId;
     parentId: EntityId | null;
+    /** Tên danh mục cha — có ở API danh sách/chi tiết */
+    parentName?: string | null;
     name: string;
     status: CatalogStatus;
     categoryCode: string;
@@ -81,6 +83,8 @@ export interface Unit {
     type: UnitType;
     // ID đơn vị gốc. 
     baseUnitId: EntityId | null;
+    /** Tên đơn vị gốc — có ở API danh sách/chi tiết */
+    baseUnitName?: string | null;
     /** Tỷ lệ quy đổi so với đơn vị gốc. Ví dụ: 1 Hộp = 100g -> conversionRate = 100 */
     conversionRate: number;
     status: CatalogStatus;
@@ -109,6 +113,8 @@ export interface ProductVariant {
     costPrice: number;
     /** ID đơn vị bán thương mại (thay thế baseUnitId + packQuantity cũ) */
     unitId: EntityId;
+    unitName?: string | null;
+    unitSymbol?: string | null;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
     productStatus: CatalogStatus;

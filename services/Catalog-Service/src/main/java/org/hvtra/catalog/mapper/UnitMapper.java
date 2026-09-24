@@ -23,11 +23,21 @@ public class UnitMapper {
                     unit.getType(),
                     unit.getBaseUnit() != null ? unit.getBaseUnit().getId() : null,
                     unit.getConversionRate(),
-                    unit.getStatus()
+                    unit.getStatus(),
+                    null
             );
         } catch (EntityNotFoundException e) {
             return null;
         }
+    }
+
+    /** Kèm tên đơn vị gốc — chỉ gọi khi baseUnit đã được fetch sẵn (tránh lazy-load từng dòng). */
+    public UnitResponse toResponseWithBaseUnitName(Unit unit) {
+        UnitResponse response = toResponse(unit);
+        if (response == null || unit.getBaseUnit() == null) return response;
+        return new UnitResponse(response.id(), response.name(), response.symbol(), response.precisionScale(),
+                response.type(), response.baseUnitId(), response.conversionRate(), response.status(),
+                unit.getBaseUnit().getName());
     }
 
     /**

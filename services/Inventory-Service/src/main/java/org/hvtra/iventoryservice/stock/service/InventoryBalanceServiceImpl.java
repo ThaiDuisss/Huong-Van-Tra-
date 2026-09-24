@@ -15,6 +15,7 @@ import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
+import org.hvtra.iventoryservice.shared.async.RequestContextAsync;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
@@ -23,20 +24,16 @@ import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseRes
 import org.hvtra.iventoryservice.stock.mapper.InventoryBalanceMapper;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.hvtra.iventoryservice.stock.repository.projection.AggregatedBalanceRow;
-import org.slf4j.MDC;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestAttributes;
-import org.springframework.web.context.request.RequestContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -260,7 +257,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         // Variant và ingredient gọi Catalog song song; unit đã có sẵn trong VariantResponse
         CompletableFuture<List<CatalogClient.VariantResponse>> variantsFuture = variantIds.isEmpty()
                 ? CompletableFuture.completedFuture(Collections.emptyList())
-                : supplyWithRequestContext(() -> catalogClient.getVariantsBatch(variantIds));
+                : RequestContextAsync.supply(() -> catalogClient.getVariantsBatch(variantIds));
         List<CatalogClient.IngredientResponse> ingredients = !ingredientIds.isEmpty() ? catalogClient.getIngredientsBatch(ingredientIds) : Collections.emptyList();
         List<CatalogClient.VariantResponse> variants = variantsFuture.join();
 
@@ -511,24 +508,5 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 .subtract(quantityReserved != null ? quantityReserved : ZERO)
                 .subtract(quantityBlocked != null ? quantityBlocked : ZERO);
         return available.compareTo(ZERO) < 0 ? ZERO : available;
-    }
-
-    /**
-     * Chạy Feign call trên thread khác nhưng vẫn giữ request context (header auth được FeignConfig forward)
-     * và MDC (request id cho log). Thread gọi phải join() trước khi request kết thúc.
-     */
-    private static <T> CompletableFuture<T> supplyWithRequestContext(Supplier<T> supplier) {
-        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
-        Map<String, String> mdc = MDC.getCopyOfContextMap();
-        return CompletableFuture.supplyAsync(() -> {
-            RequestContextHolder.setRequestAttributes(attributes);
-            if (mdc != null) MDC.setContextMap(mdc);
-            try {
-                return supplier.get();
-            } finally {
-                RequestContextHolder.resetRequestAttributes();
-                MDC.clear();
-            }
-        });
     }
 }
