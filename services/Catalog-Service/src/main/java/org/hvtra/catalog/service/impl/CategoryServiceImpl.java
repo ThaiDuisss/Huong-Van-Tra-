@@ -1,5 +1,6 @@
 package org.hvtra.catalog.service.impl;
 
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.catalog.dto.request.CategoryRequest;
 import org.hvtra.catalog.dto.response.CategoryResponse;
@@ -41,6 +42,10 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public PageResponse<CategoryResponse> findAll(String name, Status status, Pageable pageable) {
         Specification<Category> spec = (root, query, cb) -> {
+            Class<?> resultType = query.getResultType();
+            if (!Long.class.equals(resultType) && !long.class.equals(resultType)) {
+                root.fetch("parentCategory", JoinType.LEFT); // tên danh mục cha, không lazy-load từng dòng
+            }
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
             if (name != null && !name.isBlank()) {
@@ -49,12 +54,12 @@ public class CategoryServiceImpl implements CategoryService {
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponse));
+        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toResponseWithParentName));
     }
 
     @Override
     public CategoryResponse findById(UUID id) {
-        return mapper.toResponse(get(id));
+        return mapper.toResponseWithParentName(get(id));
     }
 
     @Transactional
@@ -166,8 +171,16 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public PageResponse<LookupResponse> lookup(String search, Pageable pageable) {
-        return PageResponse.from(repository.findLookup(search, pageable));
+    public PageResponse<LookupResponse> lookup(String search, List<UUID> ids, Pageable pageable) {
+        if (ids != null && !ids.isEmpty()) {
+            List<LookupResponse> content = repository.findLookupByIds(ids).stream()
+                    .map(v -> new LookupResponse(v.getId().toString(), v.getName()))
+                    .toList();
+            return new PageResponse<>(content, 0, content.size(), content.size(), 1, true, true);
+        }
+        String keyword = search == null || search.isBlank() ? null : search.trim();
+        return PageResponse.from(repository.findLookup(keyword, pageable)
+                .map(v -> new LookupResponse(v.getId().toString(), v.getName())));
     }
 
     @Override

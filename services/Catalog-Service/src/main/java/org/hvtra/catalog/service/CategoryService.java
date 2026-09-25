@@ -17,7 +17,7 @@ public interface CategoryService {
     CategoryResponse update(UUID id, CategoryRequest request);
     CategoryResponse updateStatus(UUID id, Status status);
     List<CategoryResponse> findAllByIds(List<UUID> ids);
-    PageResponse<LookupResponse> lookup(String search, Pageable pageable);
+    PageResponse<LookupResponse> lookup(String search, List<UUID> ids, Pageable pageable);
     void delete(UUID id);
 }
 

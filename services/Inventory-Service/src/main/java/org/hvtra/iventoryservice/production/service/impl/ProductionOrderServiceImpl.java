@@ -44,6 +44,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -160,9 +161,11 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             }
 
             BigDecimal wasteRate = bomItem.wasteRate() != null ? bomItem.wasteRate() : BigDecimal.ZERO;
+            BigDecimal wasteMultiplier = BigDecimal.ONE.add(
+                    wasteRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
             BigDecimal requiredQuantity = bomItem.quantity()
                     .multiply(request.plannedQuantity())
-                    .multiply(BigDecimal.ONE.add(wasteRate));
+                    .multiply(wasteMultiplier);
 
             ProductionOrderLine line = new ProductionOrderLine();
             line.setInventoryItem(inventoryItem);

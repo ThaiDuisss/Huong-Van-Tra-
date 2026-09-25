@@ -13,19 +13,19 @@ const statusCopy: Record<
     },
     IN_PROGRESS: {
         label: "Đang sản xuất",
-        className: "bg-emerald-50 text-emerald-700"
+        className: "bg-amber-50 text-amber-700"
     },
     WAITING_MATERIAL: {
         label: "Chờ nguyên liệu",
-        className: "bg-orange-50 text-orange-700"
+        className: "bg-purple-50 text-purple-700"
     },
     NEAR_COMPLETION: {
         label: "Sắp hoàn thành",
-        className: "bg-emerald-50 text-emerald-700"
+        className: "bg-amber-50 text-amber-700"
     },
     COMPLETED: {
         label: "Hoàn thành",
-        className: "bg-neutral-100 text-neutral-700"
+        className: "bg-emerald-50 text-emerald-700"
     },
     OVERDUE: {
         label: "Quá hạn 1 ngày",

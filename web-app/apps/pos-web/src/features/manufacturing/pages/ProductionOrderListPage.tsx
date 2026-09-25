@@ -30,11 +30,11 @@ const STATUS_LABEL: Record<ProductionOrderApiStatus, string> = {
 
 const STATUS_BADGE_CLASS: Record<ProductionOrderApiStatus, string> = {
     DRAFT: "bg-neutral-100 text-neutral-700",
-    PENDING_APPROVAL: "bg-blue-50 text-blue-700",
-    APPROVED: "bg-indigo-50 text-indigo-700",
-    RELEASED: "bg-amber-50 text-amber-700",
-    IN_PROGRESS: "bg-emerald-50 text-emerald-700",
-    COMPLETED: "bg-neutral-100 text-neutral-700",
+    PENDING_APPROVAL: "bg-purple-50 text-purple-700",
+    APPROVED: "bg-blue-50 text-blue-700",
+    RELEASED: "bg-sky-50 text-sky-700",
+    IN_PROGRESS: "bg-amber-50 text-amber-700",
+    COMPLETED: "bg-emerald-50 text-emerald-700",
     CANCELLED: "bg-red-50 text-red-700"
 };
 

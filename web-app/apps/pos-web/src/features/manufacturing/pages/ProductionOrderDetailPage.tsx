@@ -16,11 +16,11 @@ import type { ProductionOrder, ProductionOrderApiStatus } from "../types/product
 
 const STATUS_LABEL: Record<ProductionOrderApiStatus, { label: string; className: string }> = {
     DRAFT: { label: "Mới tạo", className: "bg-neutral-100 text-neutral-700" },
-    PENDING_APPROVAL: { label: "Chờ duyệt", className: "bg-blue-50 text-blue-700" },
-    APPROVED: { label: "Đã duyệt — đã giữ nguyên liệu", className: "bg-indigo-50 text-indigo-700" },
-    RELEASED: { label: "Đã xuất kho nguyên liệu", className: "bg-amber-50 text-amber-700" },
-    IN_PROGRESS: { label: "Đang sản xuất", className: "bg-emerald-50 text-emerald-700" },
-    COMPLETED: { label: "Hoàn thành", className: "bg-neutral-100 text-neutral-700" },
+    PENDING_APPROVAL: { label: "Chờ duyệt", className: "bg-purple-50 text-purple-700" },
+    APPROVED: { label: "Đã duyệt — đã giữ nguyên liệu", className: "bg-blue-50 text-blue-700" },
+    RELEASED: { label: "Đã xuất kho nguyên liệu", className: "bg-sky-50 text-sky-700" },
+    IN_PROGRESS: { label: "Đang sản xuất", className: "bg-amber-50 text-amber-700" },
+    COMPLETED: { label: "Hoàn thành", className: "bg-emerald-50 text-emerald-700" },
     CANCELLED: { label: "Đã hủy", className: "bg-red-50 text-red-700" }
 };
 

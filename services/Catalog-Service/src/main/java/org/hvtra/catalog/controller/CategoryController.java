@@ -38,8 +38,9 @@ public class CategoryController {
     @GetMapping("/lookup")
     public PageResponse<LookupResponse> lookup(
             @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "ids", required = false) List<UUID> ids,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return service.lookup(search, pageable);
+        return service.lookup(search, ids, pageable);
     }
 
     @GetMapping("/{id}")

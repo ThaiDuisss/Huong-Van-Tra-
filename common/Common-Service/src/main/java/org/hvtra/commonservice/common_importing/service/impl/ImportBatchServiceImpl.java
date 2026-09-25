@@ -143,7 +143,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
             batch.addItem(item);
         }
 
-        ImportBatch savedBatch = repository.save(batch);
+        ImportBatch savedBatch = repository.saveAndFlush(batch);
 
         if (request.fileId() != null && fileClient != null) {
             try {
@@ -187,7 +187,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
             batch.addItem(item);
         }
 
-        return toResponse(repository.save(batch));
+        return toResponse(repository.saveAndFlush(batch));
     }
 
     @Override
@@ -224,7 +224,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         item.setPayload(writeJson(payload));
         item.setValidationErrors(writeJson(handler.validate(payload)));
 
-        return toResponse(repository.save(batch));
+        return toResponse(repository.saveAndFlush(batch));
     }
 
     @Override
@@ -234,7 +234,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         requireEditableOrReopen(batch);
         ImportBatchItem item = findItem(batch, itemId);
         batch.getItems().remove(item);
-        return toResponse(repository.save(batch));
+        return toResponse(repository.saveAndFlush(batch));
     }
 
     @Override
@@ -250,7 +250,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
             throw new BusinessException("FORBIDDEN", "Bạn chỉ có thể xóa phiếu import do chính mình tạo.", HttpStatus.FORBIDDEN);
         }
         batch.setIsDeleted(true);
-        repository.save(batch);
+        repository.saveAndFlush(batch);
     }
 
     @Override
@@ -273,7 +273,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         batch.setStatus(ImportBatchStatus.PENDING_APPROVAL);
         batch.setSubmittedBy(getCurrentUserId());
         batch.setSubmittedAt(Instant.now());
-        return toResponse(repository.save(batch));
+        return toResponse(repository.saveAndFlush(batch));
     }
 
     @Override
@@ -317,7 +317,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         batch.setApprovedBy(getCurrentUserId());
         batch.setApprovedAt(Instant.now());
         batch.setNote(note);
-        return toResponse(repository.save(batch));
+        return toResponse(repository.saveAndFlush(batch));
     }
 
     @Override
@@ -334,7 +334,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         batch.setRejectedBy(getCurrentUserId());
         batch.setRejectedAt(Instant.now());
         batch.setRejectionReason(reason);
-        return toResponse(repository.save(batch));
+        return toResponse(repository.saveAndFlush(batch));
     }
 
     // ---------------------------------------------------------------------
@@ -376,6 +376,8 @@ public class ImportBatchServiceImpl implements ImportBatchService {
 
     private void checkVersion(ImportBatch batch, Long expectedVersion) {
         if (expectedVersion != null && !expectedVersion.equals(batch.getVersion())) {
+            log.warn("ImportBatch version mismatch for id {}: expectedVersion={}, entityVersion={}",
+                    batch.getId(), expectedVersion, batch.getVersion());
             throw new BusinessException("CONFLICT",
                     "Phiếu import đã bị thay đổi bởi người khác, vui lòng tải lại trang trước khi thao tác.",
                     HttpStatus.CONFLICT);

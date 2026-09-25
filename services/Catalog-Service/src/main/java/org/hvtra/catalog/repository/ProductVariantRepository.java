@@ -37,6 +37,26 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             """)
     List<ProductVariant> findByProductIdsWithDetails(@Param("productIds") Collection<UUID> productIds);
 
+    /** Export Excel — fetch sẵn product/unit; productId null = tất cả. */
+    @Query("""
+            select v from ProductVariant v
+            join fetch v.product p
+            left join fetch v.unit
+            where (:productId is null or p.id = :productId)
+            """)
+    List<ProductVariant> findAllForExport(@Param("productId") UUID productId);
+
+    /** Batch theo id cho service khác (Feign) — fetch sẵn product/category/unit/barcodes để tránh N+1 khi map. */
+    @Query("""
+            select distinct v from ProductVariant v
+            join fetch v.product p
+            left join fetch p.category
+            left join fetch v.unit
+            left join fetch v.barcodes
+            where v.id in :ids
+            """)
+    List<ProductVariant> findAllByIdWithDetails(@Param("ids") Collection<UUID> ids);
+
     @Query("""
             SELECT new org.hvtra.catalog.dto.response.VariantCostResponse(v.id, v.costPrice)
             FROM ProductVariant v
