@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.document.dto.request.*;
 import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
+import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentExportResponse;
+import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentListItemResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
 import org.hvtra.iventoryservice.document.service.InventoryDocumentService;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
@@ -18,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -31,7 +34,7 @@ public class InventoryDocumentController {
     }
 
     @GetMapping
-    public ResponseEntity<PageResponse<InventoryDocumentResponse>> findAll(
+    public ResponseEntity<PageResponse<InventoryDocumentListItemResponse>> findAll(
             @RequestParam(required = false) InventoryDocumentType documentType,
             @RequestParam(required = false) InventoryDocumentStatus status,
             @RequestParam(required = false) UUID locationId,
@@ -42,6 +45,20 @@ public class InventoryDocumentController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return ResponseEntity.ok(service.findAll(documentType, status, locationId, supplierId, query, fromDate, toDate, pageable));
+    }
+
+    /** Dữ liệu xuất Excel: toàn bộ phiếu khớp bộ lọc (không phân trang, tối đa 10.000 dòng). */
+    @GetMapping("/export")
+    public ResponseEntity<List<InventoryDocumentExportResponse>> export(
+            @RequestParam(required = false) InventoryDocumentType documentType,
+            @RequestParam(required = false) InventoryDocumentStatus status,
+            @RequestParam(required = false) UUID locationId,
+            @RequestParam(required = false) UUID supplierId,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant toDate
+    ) {
+        return ResponseEntity.ok(service.export(documentType, status, locationId, supplierId, query, fromDate, toDate));
     }
 
     @GetMapping("/summary-counts")
@@ -134,5 +151,12 @@ public class InventoryDocumentController {
             @RequestParam(required = false) String note
     ) {
         return ResponseEntity.ok(service.cancel(id, note));
+    }
+
+    @UserAction(value = "PURCHASE_RECEIPT_DELETE", entityType = "InventoryDocument", entityId = "#id")
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id) {
+        service.delete(id);
     }
 }

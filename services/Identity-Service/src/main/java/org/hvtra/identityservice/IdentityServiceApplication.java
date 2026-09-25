@@ -7,7 +7,10 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(scanBasePackages = "org.hvtra")
+@SpringBootApplication(scanBasePackages = {
+        "org.hvtra.identityservice",
+        "org.hvtra.commonservice.common_core",
+})
 @EnableDiscoveryClient
 @Import(SwaggerConfig.class)
 @EnableScheduling

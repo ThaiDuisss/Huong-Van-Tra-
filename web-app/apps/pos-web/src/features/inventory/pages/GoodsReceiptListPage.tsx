@@ -1,13 +1,15 @@
-import { Download, Filter, Plus, Upload } from "lucide-react";
+import { ApiError } from "@hvt/api-client";
+import { Download, Eye, Filter, Plus, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { useAuthorization } from "../../../auth/useAuthorization";
+import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import { routePaths } from "../../../routes/path";
 import {
     GoodsReceiptFilterBar,
-    GoodsReceiptStatusBadge,
-    QcBadge
+    GoodsReceiptStatusBadge
 } from "../components/GoodsReceiptComponents";
 import {
     InventoryResourceManagement,
@@ -19,9 +21,9 @@ import { useGoodsReceiptQueryState } from "../hooks/useGoodsReceiptQueryState";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptDashboardSummary,
+    GoodsReceiptListItem,
     GoodsReceiptListResult,
-    GoodsReceiptStatus,
-    GoodsReceiptSummary
+    GoodsReceiptStatus
 } from "../types/goods-receipt.types";
 import {
     formatVietnamDateTime,
@@ -42,9 +44,32 @@ const columns: Column[] = [
     // { key: "createdBy", label: "Người tạo" }
 ];
 
+const receiptDetailPath = (item: GoodsReceiptListItem) => `/management/inventory/receipts/${item.id}`;
+
+function getDeleteErrorMessage(error: unknown): string {
+    if (error instanceof ApiError) {
+        if (error.status === 403) {
+            return "Bạn không có quyền xóa phiếu nhập kho này. Chỉ ADMIN hoặc người tạo phiếu mới được xóa.";
+        }
+        if (error.status === 404) {
+            return "Phiếu nhập kho không tồn tại hoặc đã bị xóa.";
+        }
+        if (error.status === 400) {
+            return error.message || "Chỉ có thể xóa phiếu nhập kho ở trạng thái Bản nháp.";
+        }
+    }
+    return "Không thể xóa phiếu nhập kho. Vui lòng thử lại sau.";
+}
+
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
     const navigate = useNavigate();
+    const { isAdmin, user } = useAuthorization();
+    const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptListItem | null>(null);
+    const [deleting, setDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState("");
+    const [toast, setToast] = useState("");
+    const [exporting, setExporting] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [result, setResult] = useState<GoodsReceiptListResult | null>(null);
     const [summaryCounts, setSummaryCounts] = useState<GoodsReceiptDashboardSummary>({
@@ -113,6 +138,29 @@ export function GoodsReceiptListPage() {
         setRefreshKey((value) => value + 1);
     }, []);
 
+    // createdBy lưu Keycloak subject (JWT sub) nên so sánh với keycloakSubject, không phải user.id
+    const currentUserSubject = user?.keycloakSubject;
+    const canDeleteReceipt = (item: GoodsReceiptListItem) =>
+        item.status === "DRAFT"
+        && (isAdmin() || (Boolean(currentUserSubject) && item.createdById === currentUserSubject));
+
+    const confirmDelete = async () => {
+        if (!deleteTarget || deleting) return;
+        setDeleting(true);
+        setDeleteError("");
+        try {
+            await goodsReceiptApi.deleteGoodsReceipt(deleteTarget.id);
+            setDeleteTarget(null);
+            setToast(`Đã xóa phiếu nhập kho ${deleteTarget.code}.`);
+            window.setTimeout(() => setToast(""), 2500);
+            retry();
+        } catch (err: unknown) {
+            setDeleteError(getDeleteErrorMessage(err));
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     const receipts = result?.content ?? [];
     const activeFilterCount = [
         Boolean(query.receiptCode),
@@ -139,16 +187,22 @@ export function GoodsReceiptListPage() {
         { label: "Đã hủy (0)", value: "CANCELLED" }
     ];
 
-    const handleExportExcel = () => {
+    // Xuất toàn bộ phiếu khớp bộ lọc hiện tại qua API riêng, không chỉ trang đang xem
+    const handleExportExcel = async () => {
+        if (exporting) return;
+        setExporting(true);
         try {
-            if (receipts.length === 0) {
+            const rows = await goodsReceiptApi.exportGoodsReceipts(query);
+            if (rows.length === 0) {
                 alert("Không có dữ liệu phiếu nhập để xuất Excel!");
                 return;
             }
-            exportGoodsReceiptsToExcel(receipts);
+            exportGoodsReceiptsToExcel(rows);
         } catch (err) {
             console.error("Lỗi xuất Excel phiếu nhập kho:", err);
             alert("Có lỗi xảy ra khi xuất file Excel!");
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -174,10 +228,10 @@ export function GoodsReceiptListPage() {
 
     return (
         <>
-            <InventoryResourceManagement<GoodsReceiptSummary, GoodsReceiptStatus>
+            <InventoryResourceManagement<GoodsReceiptListItem, GoodsReceiptStatus>
                 columns={columns}
                 description="Quản lý vòng đời phiếu nhập kho từ nhà cung cấp, kiểm định QC và theo dõi nguyên vật liệu."
-                detailPath={(item) => `/management/inventory/receipts/${item.id}`}
+                detailPath={receiptDetailPath}
                 error={error}
                 extraHeaderActions={
                     <div className="flex flex-wrap items-center gap-2 w-full justify-start sm:w-auto sm:justify-end">
@@ -185,9 +239,9 @@ export function GoodsReceiptListPage() {
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>
-                        <ActionButton variant="secondary" onClick={handleExportExcel}>
+                        <ActionButton disabled={exporting} variant="secondary" onClick={() => void handleExportExcel()}>
                             <Download size={17} aria-hidden="true" />
-                            Xuất Excel
+                            {exporting ? "Đang xuất..." : "Xuất Excel"}
                         </ActionButton>
                         <button
                             className={`inline-flex h-12 items-center justify-center gap-[9px] rounded-lg px-[18px] text-sm font-black transition-all cursor-pointer ${showFilters
@@ -228,15 +282,15 @@ export function GoodsReceiptListPage() {
                 query={query.receiptCode}
                 renderCells={(item) => (
                     <>
-                        <TableCell>{item.supplier.name}</TableCell>
-                        <TableCell>{item.receivingLocation.name}</TableCell>
+                        <TableCell>{item.supplierName}</TableCell>
+                        <TableCell>{item.receivingLocationName}</TableCell>
                         <TableCell className="text-right pr-[18px]">
                             {formatVietnamNumber(item.totalReceivedQuantity)}
                         </TableCell>
                         <TableCell>
                             <GoodsReceiptStatusBadge status={item.status} />
                         </TableCell>
-                        <TableCell>{formatVietnamDateTime(item.receivedAt)}</TableCell>
+                        <TableCell>{item.receivedAt ? formatVietnamDateTime(item.receivedAt) : "—"}</TableCell>
                     </>
                 )}
                 renderDetail={(item) => (
@@ -247,19 +301,11 @@ export function GoodsReceiptListPage() {
                         </div>
                         <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
                             <dt className="text-gray-500 font-bold uppercase text-xs">Nhà cung cấp</dt>
-                            <dd className="text-gray-900 font-semibold">{item.supplier.name}</dd>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                            <dt className="text-gray-500 font-bold uppercase text-xs">Đơn đặt hàng (PO)</dt>
-                            <dd className="text-gray-900 font-semibold">{item.purchaseOrderCode || "Ngoài PO"}</dd>
+                            <dd className="text-gray-900 font-semibold">{item.supplierName}</dd>
                         </div>
                         <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
                             <dt className="text-gray-500 font-bold uppercase text-xs">Kho nhận</dt>
-                            <dd className="text-gray-900 font-semibold">{item.receivingLocation.name}</dd>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                            <dt className="text-gray-500 font-bold uppercase text-xs">Số dòng nguyên liệu</dt>
-                            <dd className="text-gray-900 font-semibold">{formatVietnamNumber(item.totalLines)} dòng</dd>
+                            <dd className="text-gray-900 font-semibold">{item.receivingLocationName}</dd>
                         </div>
                         <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
                             <dt className="text-gray-500 font-bold uppercase text-xs">Tổng lượng nhận</dt>
@@ -270,18 +316,39 @@ export function GoodsReceiptListPage() {
                             <dd><GoodsReceiptStatusBadge status={item.status} /></dd>
                         </div>
                         <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                            <dt className="text-gray-500 font-bold uppercase text-xs">Kết quả QC</dt>
-                            <dd><QcBadge result={item.qcResult} /></dd>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
                             <dt className="text-gray-500 font-bold uppercase text-xs">Ngày nhận</dt>
-                            <dd className="text-gray-900 font-semibold">{formatVietnamDateTime(item.receivedAt)}</dd>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-dashed border-neutral-200">
-                            <dt className="text-gray-500 font-bold uppercase text-xs">Người tạo</dt>
-                            <dd className="text-gray-900 font-semibold">{item.createdBy.name}</dd>
+                            <dd className="text-gray-900 font-semibold">{item.receivedAt ? formatVietnamDateTime(item.receivedAt) : "—"}</dd>
                         </div>
                     </dl>
+                )}
+                renderExtraRowActions={(item, closeMenu) => (
+                    <>
+                        <button
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
+                            onClick={() => {
+                                closeMenu();
+                                navigate(receiptDetailPath(item));
+                            }}
+                            type="button"
+                        >
+                            <Eye size={14} />
+                            Xem chi tiết
+                        </button>
+                        {canDeleteReceipt(item) ? (
+                            <button
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors cursor-pointer"
+                                onClick={() => {
+                                    closeMenu();
+                                    setDeleteError("");
+                                    setDeleteTarget(item);
+                                }}
+                                type="button"
+                            >
+                                <Trash2 size={14} />
+                                Xóa
+                            </button>
+                        ) : null}
+                    </>
                 )}
                 searchPlaceholder="Tìm kiếm theo mã phiếu nhập..."
                 status={query.status}
@@ -290,6 +357,25 @@ export function GoodsReceiptListPage() {
                 totalItems={result?.totalElements ?? 0}
                 totalItemsLabel="Tổng số phiếu nhập"
             />
+
+            {deleteTarget ? (
+                <ConfirmDialog
+                    confirmLabel="Xóa phiếu"
+                    confirmVariant="danger"
+                    description={`Bạn có chắc chắn muốn xóa phiếu nhập kho ${deleteTarget.code} không?`}
+                    error={deleteError}
+                    onCancel={() => setDeleteTarget(null)}
+                    onConfirm={() => void confirmDelete()}
+                    submitting={deleting}
+                    title="Xóa phiếu nhập kho"
+                />
+            ) : null}
+
+            {toast ? (
+                <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-xl">
+                    <span>{toast}</span>
+                </div>
+            ) : null}
         </>
     );
 }
