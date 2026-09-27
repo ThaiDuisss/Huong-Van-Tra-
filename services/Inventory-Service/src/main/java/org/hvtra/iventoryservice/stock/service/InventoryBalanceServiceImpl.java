@@ -1,5 +1,8 @@
 package org.hvtra.iventoryservice.stock.service;
 
+import jakarta.persistence.criteria.Fetch;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -12,6 +15,7 @@ import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
+import org.hvtra.iventoryservice.shared.async.RequestContextAsync;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceResponse;
@@ -19,6 +23,7 @@ import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceViewResponse
 import org.hvtra.iventoryservice.stock.dto.response.InventoryBalanceWarehouseResponse;
 import org.hvtra.iventoryservice.stock.mapper.InventoryBalanceMapper;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
+import org.hvtra.iventoryservice.stock.repository.projection.AggregatedBalanceRow;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -28,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -72,7 +78,7 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
 
     @Override
     public InventoryBalanceResponse findById(UUID id) {
-        InventoryBalance balance = repository.findById(id)
+        InventoryBalance balance = repository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory balance", id));
         return mapper.toResponse(balance);
     }
@@ -89,13 +95,29 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
     private PageResponse<InventoryBalanceResponse> find(
             UUID inventoryItemId, UUID locationId, UUID branchId, Pageable pageable) {
         Specification<InventoryBalance> specification = (root, query, cb) -> {
+            Join<InventoryBalance, InventoryItem> itemJoin;
+            Join<InventoryBalance, InventoryLocation> locJoin;
+            if (query != null && Long.class != query.getResultType() && long.class != query.getResultType()) {
+                @SuppressWarnings("unchecked")
+                Fetch<InventoryBalance, InventoryItem> itemFetch = root.fetch("inventoryItem", JoinType.LEFT);
+                itemJoin = (Join<InventoryBalance, InventoryItem>) (Fetch<?, ?>) itemFetch;
+
+                @SuppressWarnings("unchecked")
+                Fetch<InventoryBalance, InventoryLocation> locFetch = root.fetch("location", JoinType.LEFT);
+                locJoin = (Join<InventoryBalance, InventoryLocation>) (Fetch<?, ?>) locFetch;
+
+                root.fetch("inventoryBatch", JoinType.LEFT);
+            } else {
+                itemJoin = root.join("inventoryItem", JoinType.LEFT);
+                locJoin = root.join("location", JoinType.LEFT);
+            }
             var predicates = new ArrayList<Predicate>();
             if (inventoryItemId != null) {
-                predicates.add(cb.equal(root.get("inventoryItem").get("id"), inventoryItemId));
+                predicates.add(cb.equal(itemJoin.get("id"), inventoryItemId));
             }
-            if (locationId != null) predicates.add(cb.equal(root.get("location").get("id"), locationId));
+            if (locationId != null) predicates.add(cb.equal(locJoin.get("id"), locationId));
             if (branchId != null) {
-                predicates.add(cb.equal(root.get("location").get("branchId"), branchId));
+                predicates.add(cb.equal(locJoin.get("branchId"), branchId));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
@@ -159,111 +181,30 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             }
         }
 
-        // 2. Query local InventoryBalances with filters
-        final List<UUID> finalMatchingVariantIds = matchingVariantIds;
-        final List<UUID> finalMatchingIngredientIds = matchingIngredientIds;
-        Specification<InventoryBalance> specification = (root, query, cb) -> {
-            var predicates = new ArrayList<Predicate>();
-            if (itemType != null) {
-                predicates.add(cb.equal(root.get("inventoryItem").get("itemType"), itemType));
-            }
+        // 2. Gộp theo (item + location), lọc trạng thái tồn và phân trang ngay ở DB
+        List<UUID> refIds = new ArrayList<>();
+        if (matchingVariantIds != null) refIds.addAll(matchingVariantIds);
+        if (matchingIngredientIds != null) refIds.addAll(matchingIngredientIds);
+        boolean filterRefs = hasCatalogFilters;
+        // IN () rỗng không hợp lệ trong SQL — truyền giá trị giả khi không lọc theo ref
+        Collection<UUID> refParam = refIds.isEmpty() ? List.of(new UUID(0L, 0L)) : refIds;
+        String itemTypeParam = itemType != null ? itemType.name() : null;
+        String stockStatusParam = (status == null || status == StockType.ALL) ? null : status.name();
 
-            if (hasCatalogFilters) {
-                List<UUID> allRefs = new ArrayList<>();
-                if (finalMatchingVariantIds != null) allRefs.addAll(finalMatchingVariantIds);
-                if (finalMatchingIngredientIds != null) allRefs.addAll(finalMatchingIngredientIds);
-                if (allRefs.isEmpty()) {
-                    return cb.disjunction();
-                }
-                predicates.add(root.get("inventoryItem").get("referenceId").in(allRefs));
-            }
-
-            if (locationId != null) {
-                predicates.add(cb.or(
-                        cb.equal(root.get("location").get("id"), locationId),
-                        cb.equal(root.get("location").get("parentLocation").get("id"), locationId)
-                ));
-            } else if (branchId != null) {
-                predicates.add(cb.equal(root.get("location").get("branchId"), branchId));
-            }
-
-            return cb.and(predicates.toArray(Predicate[]::new));
-        };
-
-        List<InventoryBalance> allBalances = repository.findAll(specification);
-        if (allBalances.isEmpty()) {
-            return new PageResponse<>(
-                    Collections.emptyList(),
-                    pageable.getPageNumber(),
-                    pageable.getPageSize(),
-                    0,
-                    0,
-                    true,
-                    true
-            );
-        }
-
-        // 3. Aggregate balances across batches by (inventoryItemId + locationId)
-        Map<String, AggregatedBalance> aggregatedMap = new LinkedHashMap<>();
-        for (InventoryBalance b : allBalances) {
-            if (b.getInventoryItem() == null) continue;
-            UUID itemId = b.getInventoryItem().getId();
-            UUID locId = b.getLocation() != null ? b.getLocation().getId() : null;
-            String key = itemId + "_" + locId;
-
-            AggregatedBalance agg = aggregatedMap.computeIfAbsent(key, k -> {
-                AggregatedBalance a = new AggregatedBalance();
-                a.representativeBalanceId = b.getId();
-                a.inventoryItem = b.getInventoryItem();
-                a.location = b.getLocation();
-                a.updatedAt = b.getUpdatedAt();
-                return a;
-            });
-
-            if (b.getQuantityOnHand() != null) {
-                agg.quantityOnHand = agg.quantityOnHand.add(b.getQuantityOnHand());
-            }
-            if (b.getQuantityReserved() != null) {
-                agg.quantityReserved = agg.quantityReserved.add(b.getQuantityReserved());
-            }
-            if (b.getQuantityBlocked() != null) {
-                agg.quantityBlocked = agg.quantityBlocked.add(b.getQuantityBlocked());
-            }
-            if (b.getUpdatedAt() != null && (agg.updatedAt == null || b.getUpdatedAt().isAfter(agg.updatedAt))) {
-                agg.updatedAt = b.getUpdatedAt();
-            }
-        }
-
-        // 4. Apply status filter (LOW_STOCK, OUT_OF_STOCK, ALL)
-        List<AggregatedBalance> filteredList = aggregatedMap.values().stream()
-                .filter(agg -> {
-                    if (status == null || status == StockType.ALL) {
-                        return true;
-                    }
-                    Integer reorderPoint = agg.inventoryItem.getReorderPoint() != null ? agg.inventoryItem.getReorderPoint() : 5;
-                    BigDecimal reorderBd = BigDecimal.valueOf(reorderPoint);
-
-                    if (status == StockType.LOW_STOCK) {
-                        return agg.quantityOnHand.compareTo(BigDecimal.ZERO) > 0
-                                && agg.quantityOnHand.compareTo(reorderBd) <= 0;
-                    } else if (status == StockType.OUT_OF_STOCK) {
-                        return agg.quantityOnHand.compareTo(BigDecimal.ZERO) <= 0;
-                    }
-                    return true;
-                })
-                .toList();
-
-        // 5. In-memory pagination
-        int totalElements = filteredList.size();
         int pageSize = pageable.getPageSize() > 0 ? pageable.getPageSize() : 20;
         int pageNumber = pageable.getPageNumber();
+
+        long totalElements = repository.countAggregatedStoreBalances(
+                itemTypeParam, filterRefs, refParam, locationId, stockStatusParam);
         int totalPages = totalElements == 0 ? 1 : (int) Math.ceil((double) totalElements / pageSize);
 
-        int fromIndex = Math.min(pageNumber * pageSize, totalElements);
-        int toIndex = Math.min(fromIndex + pageSize, totalElements);
-        List<AggregatedBalance> pagedAggregated = filteredList.subList(fromIndex, toIndex);
+        List<AggregatedBalanceRow> rows = totalElements == 0
+                ? Collections.emptyList()
+                : repository.findAggregatedStoreBalances(
+                        itemTypeParam, filterRefs, refParam, locationId, stockStatusParam,
+                        pageSize, (long) pageNumber * pageSize);
 
-        if (pagedAggregated.isEmpty()) {
+        if (rows.isEmpty()) {
             return new PageResponse<>(
                     Collections.emptyList(),
                     pageNumber,
@@ -275,7 +216,30 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
             );
         }
 
-        // 6. Batch resolve catalog entities for mapped records in memory
+        // Chỉ nạp item/location của trang hiện tại (2 query batch)
+        Map<UUID, InventoryItem> itemMap = itemRepository.findAllById(
+                        rows.stream().map(r -> UUID.fromString(r.getInventoryItemId())).distinct().toList())
+                .stream().collect(Collectors.toMap(InventoryItem::getId, i -> i));
+        Map<UUID, InventoryLocation> locationMap = locationRepository.findAllById(
+                        rows.stream().map(r -> UUID.fromString(r.getLocationId())).distinct().toList())
+                .stream().collect(Collectors.toMap(InventoryLocation::getId, l -> l));
+
+        List<AggregatedBalance> pagedAggregated = rows.stream()
+                .map(r -> {
+                    AggregatedBalance a = new AggregatedBalance();
+                    a.representativeBalanceId = UUID.fromString(r.getRepresentativeBalanceId());
+                    a.inventoryItem = itemMap.get(UUID.fromString(r.getInventoryItemId()));
+                    a.location = locationMap.get(UUID.fromString(r.getLocationId()));
+                    a.quantityOnHand = r.getQuantityOnHand();
+                    a.quantityReserved = r.getQuantityReserved();
+                    a.quantityBlocked = r.getQuantityBlocked();
+                    a.updatedAt = r.getUpdatedAt();
+                    return a;
+                })
+                .filter(a -> a.inventoryItem != null)
+                .toList();
+
+        // 6. Batch resolve catalog entities concurrently
         List<UUID> variantIds = pagedAggregated.stream()
                 .filter(agg -> agg.inventoryItem.getItemType() == InventoryItemType.PRODUCT_VARIANT)
                 .map(agg -> agg.inventoryItem.getReferenceId())
@@ -290,26 +254,17 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                 .distinct()
                 .toList();
 
-        List<CatalogClient.VariantInventorySummaryResponse> summaries = Collections.emptyList();
-        if (!variantIds.isEmpty()) {
-            try {
-                summaries = catalogClient.getVariantInventorySummariesBatch(variantIds);
-            } catch (Exception ignored) {
-                // Fallback to basic inventoryItem info if catalog call fails
-            }
-        }
-        Map<UUID, CatalogClient.VariantInventorySummaryResponse> variantSummaryMap = summaries != null
-                ? summaries.stream().collect(Collectors.toMap(CatalogClient.VariantInventorySummaryResponse::id, s -> s, (s1, s2) -> s1))
+        // Variant và ingredient gọi Catalog song song; unit đã có sẵn trong VariantResponse
+        CompletableFuture<List<CatalogClient.VariantResponse>> variantsFuture = variantIds.isEmpty()
+                ? CompletableFuture.completedFuture(Collections.emptyList())
+                : RequestContextAsync.supply(() -> catalogClient.getVariantsBatch(variantIds));
+        List<CatalogClient.IngredientResponse> ingredients = !ingredientIds.isEmpty() ? catalogClient.getIngredientsBatch(ingredientIds) : Collections.emptyList();
+        List<CatalogClient.VariantResponse> variants = variantsFuture.join();
+
+        Map<UUID, CatalogClient.VariantResponse> variantMap = variants != null
+                ? variants.stream().collect(Collectors.toMap(CatalogClient.VariantResponse::id, v -> v, (v1, v2) -> v1))
                 : Collections.emptyMap();
 
-        List<CatalogClient.IngredientResponse> ingredients = Collections.emptyList();
-        if (!ingredientIds.isEmpty()) {
-            try {
-                ingredients = catalogClient.getIngredientsBatch(ingredientIds);
-            } catch (Exception ignored) {
-                // Fallback to basic inventoryItem info if catalog call fails
-            }
-        }
         Map<UUID, CatalogClient.IngredientResponse> ingredientMap = ingredients != null
                 ? ingredients.stream().collect(Collectors.toMap(CatalogClient.IngredientResponse::id, i -> i, (i1, i2) -> i1))
                 : Collections.emptyMap();
@@ -362,12 +317,12 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                                 .updatedAt(agg.updatedAt)
                                 .build();
                     } else {
-                        CatalogClient.VariantInventorySummaryResponse v = variantSummaryMap.get(agg.inventoryItem.getReferenceId());
+                        CatalogClient.VariantResponse v = variantMap.get(agg.inventoryItem.getReferenceId());
 
-                        String codeVal = v != null && v.sku() != null ? v.sku() : (v != null && v.productCode() != null ? v.productCode() : agg.inventoryItem.getReferenceCode());
+                        String codeVal = v != null ? (v.sku() != null ? v.sku() : v.productCode()) : agg.inventoryItem.getReferenceCode();
                         String nameVal = agg.inventoryItem.getName() != null && !agg.inventoryItem.getName().isBlank()
                                 ? agg.inventoryItem.getName()
-                                : (v != null && v.variantName() != null && !v.variantName().isBlank() ? v.variantName() : (v != null && v.productName() != null ? v.productName() : "N/A"));
+                                : (v != null && v.variantName() != null ? v.variantName() : (v != null ? v.productName() : "N/A"));
 
                         return InventoryBalanceViewResponse.builder()
                                 .id(agg.representativeBalanceId)
@@ -380,9 +335,9 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                                 .productId(v != null ? v.productId() : null)
                                 .productCode(v != null ? v.productCode() : null)
                                 .productName(v != null ? v.productName() : null)
-                                .categoryId(v != null ? v.categoryId() : null)
-                                .categoryCode(v != null ? v.categoryCode() : null)
-                                .categoryName(v != null && v.categoryName() != null ? v.categoryName() : "Thành phẩm/HH")
+                                .categoryId(null)
+                                .categoryCode(null)
+                                .categoryName(v != null ? v.categoryName() : null)
                                 .unitId(v != null ? v.unitId() : null)
                                 .unitName(v != null ? v.unitName() : null)
                                 .unitSymbol(v != null ? v.unitSymbol() : null)
@@ -390,8 +345,8 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
                                 .locationName(loc != null ? loc.getName() : null)
                                 .branchId(loc != null ? loc.getBranchId() : null)
                                 .imageUrl(v != null ? v.imageUrl() : null)
-                                .costPrice(v != null && v.costPrice() != null ? v.costPrice() : BigDecimal.ZERO)
-                                .sellingPrice(v != null && v.sellingPrice() != null ? v.sellingPrice() : BigDecimal.ZERO)
+                                .costPrice(v != null ? v.costPrice() : null)
+                                .sellingPrice(v != null ? v.sellingPrice() : null)
                                 .quantityOnHand(agg.quantityOnHand)
                                 .quantityReserved(agg.quantityReserved)
                                 .availableQuantity(available)
@@ -446,15 +401,29 @@ public class InventoryBalanceServiceImpl implements InventoryBalanceService {
         // 3. Find balances for that location or its children
         final List<UUID> finalMatchingVariantIds = matchingVariantIds;
         Specification<InventoryBalance> spec = (root, query, cb) -> {
+            Join<InventoryBalance, InventoryItem> itemJoin;
+            Join<InventoryBalance, InventoryLocation> locJoin;
+            if (query != null && Long.class != query.getResultType() && long.class != query.getResultType()) {
+                @SuppressWarnings("unchecked")
+                Fetch<InventoryBalance, InventoryItem> itemFetch = root.fetch("inventoryItem", JoinType.LEFT);
+                itemJoin = (Join<InventoryBalance, InventoryItem>) (Fetch<?, ?>) itemFetch;
+
+                @SuppressWarnings("unchecked")
+                Fetch<InventoryBalance, InventoryLocation> locFetch = root.fetch("location", JoinType.LEFT);
+                locJoin = (Join<InventoryBalance, InventoryLocation>) (Fetch<?, ?>) locFetch;
+            } else {
+                itemJoin = root.join("inventoryItem", JoinType.LEFT);
+                locJoin = root.join("location", JoinType.LEFT);
+            }
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.or(
-                    cb.equal(root.get("location").get("id"), warehouseLoc.getId()),
-                    cb.equal(root.get("location").get("parentLocation").get("id"), warehouseLoc.getId())
+                    cb.equal(locJoin.get("id"), warehouseLoc.getId()),
+                    cb.equal(locJoin.get("parentLocation").get("id"), warehouseLoc.getId())
             ));
-            predicates.add(cb.equal(root.get("location").get("status"), InventoryStatus.ACTIVE));
-            predicates.add(cb.not(root.get("location").get("type").in(InventoryLocationSaleability.nonSaleableTypes())));
+            predicates.add(cb.equal(locJoin.get("status"), InventoryStatus.ACTIVE));
+            predicates.add(cb.not(locJoin.get("type").in(InventoryLocationSaleability.nonSaleableTypes())));
             if (finalMatchingVariantIds != null) {
-                predicates.add(root.get("inventoryItem").get("referenceId").in(finalMatchingVariantIds));
+                predicates.add(itemJoin.get("referenceId").in(finalMatchingVariantIds));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };

@@ -5,6 +5,7 @@ import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.location.dto.request.InventoryLocationRequest;
 import org.hvtra.iventoryservice.shared.web.InventoryStatusRequest;
 import org.hvtra.iventoryservice.location.dto.response.InventoryLocationResponse;
+import org.hvtra.iventoryservice.location.dto.response.LookupResponse;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
@@ -15,6 +16,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,6 +36,17 @@ public class InventoryLocationController {
             @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(branchId, query, type, status, pageable);
+    }
+
+    /** Chỉ dùng cho dropdown: id + name, phân trang. */
+    @GetMapping("/lookup")
+    public PageResponse<LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "type", required = false) InventoryLocationType type,
+            @RequestParam(name = "status", required = false) InventoryStatus status,
+            @RequestParam(name = "ids", required = false) List<UUID> ids,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return service.lookup(search, type, status, ids, pageable);
     }
 
     @GetMapping("/{id}")

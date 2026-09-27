@@ -20,6 +20,20 @@ export const supplierApi = {
         });
     },
 
+    /** Dropdown chọn NCC — chỉ id + name, phân trang, tìm theo tên hoặc mã. */
+    lookup: (search: string = "", page: number = 0, size: number = 20) => {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/suppliers/lookup", {
+            query: { search: search || undefined, page, size }
+        });
+    },
+
+    /** Lấy tên NCC theo id (cho giá trị đã chọn sẵn trong dropdown). */
+    lookupByIds: (ids: string[]) => {
+        return apiClient.get<PageResult<{ id: string; name: string }>>("/catalog/suppliers/lookup", {
+            query: { ids }
+        });
+    },
+
     getById: (id: string) => {
         return apiClient.get<SupplierResponse>(`/catalog/suppliers/${encodeURIComponent(id)}`);
     },

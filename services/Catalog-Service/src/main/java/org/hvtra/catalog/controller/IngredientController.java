@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import org.hvtra.catalog.dto.request.IngredientRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.response.IngredientResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.IngredientService;
@@ -42,6 +43,16 @@ public class IngredientController {
             @RequestParam(name = "supplierId", required = false) UUID supplierId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(search, status, pageable, supplierId);
+    }
+
+    /** Chỉ dùng cho dropdown: id + name, phân trang. */
+    @GetMapping("/lookup")
+    public PageResponse<LookupResponse> lookup(
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "status", required = false) Status status,
+            @RequestParam(name = "ids", required = false) java.util.List<UUID> ids,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return service.lookup(search, status, ids, pageable);
     }
 
     @GetMapping("/{id}")

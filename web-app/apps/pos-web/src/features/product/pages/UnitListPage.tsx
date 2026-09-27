@@ -1,6 +1,10 @@
 import { Download, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 
+import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
+import { useLookupDropdown, withPinned } from "../../manufacturing/components/shared/useLookupDropdown";
+
 import { ActionButton } from "../../manufacturing/components/shared/ActionButton";
 import {
     CatalogStatusBadge,
@@ -10,7 +14,7 @@ import {
     TableCell
 } from "../components/CatalogResourceManagement";
 import { ExcelImportModal } from "../components/ExcelImportModal";
-import { useApiResource, usePagedApiResource } from "../hooks/useApiResource";
+import { usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { unitApi } from "../services/unit.api";
 import type { CatalogStatus, Unit, UnitType } from "../types/product.types";
@@ -31,21 +35,16 @@ export function UnitListPage() {
             }),
         [state.page, state.pageSize, state.query, state.status, state.secondaryValue]
     );
-    const loadAllUnits = useCallback(() => unitApi.list({ page: 0, size: 500 }), []);
-    const loadBaseUnits = useCallback(() => unitApi.listBases(), []);
     const resource = usePagedApiResource(loadUnits);
-    const allUnitsResource = useApiResource(loadAllUnits);
-    const baseUnitsResource = useApiResource(loadBaseUnits);
 
     const units = resource.data?.content ?? [];
-    const allUnits = allUnitsResource.data?.content ?? [];
-    const baseUnitOptions = baseUnitsResource.data ?? [];
+    // Dropdown "Đơn vị gốc": lookup phân trang (chỉ đơn vị gốc), chỉ gọi API khi mở dropdown
+    const [pickedBaseUnit, setPickedBaseUnit] = useState<LookupItem | null>(null);
+    const baseUnitDropdown = useLookupDropdown(unitApi.lookupBases, { lazy: true, pinned: [pickedBaseUnit] });
 
     const handleRefresh = useCallback(() => {
         resource.refresh();
-        allUnitsResource.refresh();
-        baseUnitsResource.refresh();
-    }, [resource, allUnitsResource, baseUnitsResource]);
+    }, [resource]);
 
     async function submit(values: FormValues, editingItem: Unit | null) {
         const isBase = getString(values, "isBaseUnit") === "true";
@@ -242,7 +241,6 @@ export function UnitListPage() {
                     );
                 }}
                 renderDetail={(item) => {
-                    const baseUnit = allUnits.find((u) => u.id === item.baseUnitId);
                     return (
                         <DetailList
                             items={[
@@ -256,7 +254,7 @@ export function UnitListPage() {
                                     label: "Đơn vị gốc",
                                     value: item.baseUnitId ? (
                                         <span className="font-mono text-xs">
-                                            {baseUnit ? `${baseUnit.name} (${item.baseUnitId})` : String(item.baseUnitId)}
+                                            {item.baseUnitName ? `${item.baseUnitName} (${item.baseUnitId})` : String(item.baseUnitId)}
                                         </span>
                                     ) : (
                                         "Là đơn vị gốc"
@@ -276,7 +274,7 @@ export function UnitListPage() {
                         />
                     );
                 }}
-                formFields={[
+                formFields={(editingItem) => [
                     {
                         name: "name",
                         label: "Tên đơn vị",
@@ -316,16 +314,32 @@ export function UnitListPage() {
                     {
                         name: "baseUnitId",
                         label: "Đơn vị gốc",
-                        type: "select",
                         required: (values) => values.isBaseUnit !== "true",
                         hidden: (values) => values.isBaseUnit === "true",
-                        options: [
-                            { label: "-- Chọn đơn vị gốc --", value: "" },
-                            ...baseUnitOptions.map((u) => ({
-                                label: `${u.name} (${u.symbol})`,
-                                value: String(u.id)
-                            }))
-                        ]
+                        render: (value, onChange) => (
+                            <SearchableDropdown
+                                allOptionText="-- Chọn đơn vị gốc --"
+                                emptyText="Không tìm thấy đơn vị gốc"
+                                hasMore={baseUnitDropdown.hasMore}
+                                loading={baseUnitDropdown.loading}
+                                onChange={(val) => {
+                                    const next = val === "ALL" ? "" : val;
+                                    setPickedBaseUnit(baseUnitDropdown.findOption(next));
+                                    onChange(next);
+                                }}
+                                onLoadMore={baseUnitDropdown.onLoadMore}
+                                onOpen={baseUnitDropdown.onOpen}
+                                onSearch={baseUnitDropdown.onSearch}
+                                options={withPinned(
+                                    baseUnitDropdown.options,
+                                    editingItem?.baseUnitId
+                                        ? { id: String(editingItem.baseUnitId), name: editingItem.baseUnitName ?? "Đơn vị gốc" }
+                                        : null
+                                )}
+                                placeholder="Tìm đơn vị gốc..."
+                                value={value}
+                            />
+                        )
                     },
                     {
                         name: "conversionRate",

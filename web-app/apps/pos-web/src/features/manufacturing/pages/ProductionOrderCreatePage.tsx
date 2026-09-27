@@ -158,7 +158,7 @@ export function ProductionOrderCreatePage() {
         if (!bomItems) return [];
         return bomItems.map((item) => {
             const wasteRate = item.wasteRate ?? 0;
-            const requiredQuantity = item.quantity * plannedQuantity * (1 + wasteRate);
+            const requiredQuantity = item.quantity * plannedQuantity * (1 + wasteRate / 100);
             return {
                 id: item.id,
                 name: item.ingredient.name,

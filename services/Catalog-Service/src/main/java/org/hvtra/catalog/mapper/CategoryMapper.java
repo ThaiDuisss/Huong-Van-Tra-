@@ -12,7 +12,16 @@ public class CategoryMapper {
     public CategoryResponse toResponse(Category category) {
         if (category == null) return null;
         UUID parentId = category.getParentCategory() == null ? null : category.getParentCategory().getId();
-        return new CategoryResponse(category.getId(), parentId, category.getName(), category.getStatus(), category.getCategoryCode(), category.getDefaultReorderPoint());
+        return new CategoryResponse(category.getId(), parentId, category.getName(), category.getStatus(), category.getCategoryCode(), category.getDefaultReorderPoint(), null);
+    }
+
+    /** Kèm tên danh mục cha — chỉ gọi khi parentCategory đã được fetch sẵn (tránh lazy-load từng dòng). */
+    public CategoryResponse toResponseWithParentName(Category category) {
+        if (category == null) return null;
+        Category parent = category.getParentCategory();
+        return new CategoryResponse(category.getId(), parent == null ? null : parent.getId(), category.getName(),
+                category.getStatus(), category.getCategoryCode(), category.getDefaultReorderPoint(),
+                parent == null ? null : parent.getName());
     }
 
 

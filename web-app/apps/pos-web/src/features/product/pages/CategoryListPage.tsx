@@ -1,4 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
+
+import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
+import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
+import { useLookupDropdown, withPinned } from "../../manufacturing/components/shared/useLookupDropdown";
 
 import {
     CatalogStatusBadge,
@@ -7,7 +11,7 @@ import {
     CatalogResourceManagement,
     TableCell
 } from "../components/CatalogResourceManagement";
-import { useApiResource, usePagedApiResource } from "../hooks/useApiResource";
+import { usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { categoryApi } from "../services/category.api";
 import type {
@@ -34,25 +38,17 @@ export function CategoryListPage() {
             }),
         [state.page, state.pageSize, state.query, state.status]
     );
-    const loadCategoryOptions = useCallback(
-        () => categoryApi.list({ page: 0, size: 200 }),
-        []
-    );
     const resource = usePagedApiResource(loadCategories);
-    const optionResource = useApiResource(loadCategoryOptions);
     const categories = resource.data?.content ?? [];
-    const categoryOptions = optionResource.data?.content ?? [];
+    // Dropdown "Danh mục cha": lookup phân trang, chỉ gọi API khi mở dropdown
+    const [pickedParent, setPickedParent] = useState<LookupItem | null>(null);
+    const parentDropdown = useLookupDropdown(categoryApi.lookup, { lazy: true, pinned: [pickedParent] });
 
     function getParentName(item: Category) {
         if (item.parentId === null) {
             return "Danh mục gốc";
         }
-
-        return (
-            categoryOptions.find(
-                (category) => category.id === item.parentId
-            )?.name ?? `#${item.parentId}`
-        );
+        return item.parentName ?? `#${item.parentId}`;
     }
 
     async function submit(values: FormValues, editingItem: Category | null) {
@@ -149,7 +145,7 @@ export function CategoryListPage() {
                     ]}
                 />
             )}
-            formFields={[
+            formFields={(editingItem) => [
                 {
                     name: "name",
                     label: "Tên danh mục",
@@ -158,14 +154,25 @@ export function CategoryListPage() {
                 {
                     name: "parentId",
                     label: "Danh mục cha",
-                    type: "select",
-                    options: [
-                        { label: "Không có", value: "" },
-                        ...categoryOptions.map((category) => ({
-                            label: category.name,
-                            value: String(category.id)
-                        }))
-                    ]
+                    render: (value, onChange) => (
+                            <SearchableDropdown
+                                allOptionText="Không có"
+                                emptyText="Không tìm thấy danh mục"
+                                hasMore={parentDropdown.hasMore}
+                                loading={parentDropdown.loading}
+                                onChange={(val) => {
+                                    const next = val === "ALL" ? "" : val;
+                                    setPickedParent(parentDropdown.findOption(next));
+                                    onChange(next);
+                                }}
+                                onLoadMore={parentDropdown.onLoadMore}
+                                onOpen={parentDropdown.onOpen}
+                                onSearch={parentDropdown.onSearch}
+                                options={withPinned(parentDropdown.options, editingItem?.parentId ? { id: String(editingItem.parentId), name: editingItem.parentName ?? "Danh mục cha" } : null)}
+                                placeholder="Tìm danh mục cha..."
+                                value={value}
+                            />
+                        )
                 },
                 {
                     name: "defaultReorderPoint",

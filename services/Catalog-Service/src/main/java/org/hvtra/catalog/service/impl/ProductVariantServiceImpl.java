@@ -424,12 +424,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
     @Override
     public byte[] exportToExcel(UUID productId) {
-        List<ProductVariant> variants;
-        if (productId != null) {
-            variants = repository.findByProductId(productId);
-        } else {
-            variants = repository.findAll();
-        }
+        List<ProductVariant> variants = repository.findAllForExport(productId);
 
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -779,7 +774,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return repository.findAllById(ids).stream()
+        return repository.findAllByIdWithDetails(ids).stream()
                 .map(mapper::toVariantResponse)
                 .toList();
     }

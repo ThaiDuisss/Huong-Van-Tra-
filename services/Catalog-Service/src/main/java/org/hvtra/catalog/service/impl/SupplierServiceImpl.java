@@ -6,6 +6,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.catalog.dto.request.SupplierRequest;
 import org.hvtra.catalog.dto.response.InternalSupplierLookupResponse;
+import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.SupplierResponse;
 import org.hvtra.catalog.entity.BusinessSequence;
@@ -127,6 +128,19 @@ public class SupplierServiceImpl implements SupplierService {
                 .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
                 .map(s -> new InternalSupplierLookupResponse(s.getId(), s.getSupplierCode(), s.getName()))
                 .toList();
+    }
+
+    @Override
+    public PageResponse<LookupResponse> lookup(String search, List<UUID> ids, Pageable pageable) {
+        if (ids != null && !ids.isEmpty()) {
+            List<LookupResponse> content = repository.findLookupByIds(ids).stream()
+                    .map(v -> new LookupResponse(v.getId().toString(), v.getName()))
+                    .toList();
+            return new PageResponse<>(content, 0, content.size(), content.size(), 1, true, true);
+        }
+        String keyword = search == null || search.isBlank() ? null : search.trim();
+        return PageResponse.from(repository.findLookup(keyword, pageable)
+                .map(v -> new LookupResponse(v.getId().toString(), v.getName())));
     }
 
     private void warmUpIngredients(List<Supplier> suppliers) {

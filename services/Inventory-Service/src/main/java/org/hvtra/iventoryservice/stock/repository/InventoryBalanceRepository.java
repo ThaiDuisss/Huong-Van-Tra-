@@ -9,6 +9,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
+import org.hvtra.iventoryservice.stock.repository.projection.AggregatedBalanceRow;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -33,6 +34,75 @@ public interface InventoryBalanceRepository
     @Override
     @EntityGraph(attributePaths = {"inventoryItem", "location"})
     Page<InventoryBalance> findAll(Specification<InventoryBalance> spec, Pageable pageable);
+
+    @Query("""
+            select b from InventoryBalance b
+            left join fetch b.inventoryItem i
+            left join fetch b.inventoryBatch batch
+            left join fetch b.location l
+            where b.id = :id
+            """)
+    Optional<InventoryBalance> findByIdWithDetails(@Param("id") UUID id);
+
+    /**
+     * Tồn kho gộp theo (item + location) cho màn hình kho cửa hàng — gộp, lọc trạng thái tồn
+     * và phân trang đều thực hiện ở DB. {@code filterRefs = false} thì bỏ qua {@code refIds}.
+     */
+    @Query(value = """
+            SELECT BIN_TO_UUID(MIN(b.id)) AS representativeBalanceId,
+                   BIN_TO_UUID(b.inventory_item_id) AS inventoryItemId,
+                   BIN_TO_UUID(b.location_id) AS locationId,
+                   COALESCE(SUM(b.quantity_on_hand), 0) AS quantityOnHand,
+                   COALESCE(SUM(b.quantity_reserved), 0) AS quantityReserved,
+                   COALESCE(SUM(b.quantity_blocked), 0) AS quantityBlocked,
+                   MAX(b.updated_at) AS updatedAt
+            FROM inventory_balances b
+            JOIN inventory_items i ON i.id = b.inventory_item_id
+            JOIN inventory_locations l ON l.id = b.location_id
+            WHERE (:itemType IS NULL OR i.item_type = :itemType)
+              AND (:filterRefs = FALSE OR i.reference_id IN (:refIds))
+              AND (:locationId IS NULL OR l.id = :locationId OR l.parent_location_id = :locationId)
+            GROUP BY b.inventory_item_id, b.location_id, i.reorder_point
+            HAVING (:stockStatus IS NULL
+                 OR (:stockStatus = 'LOW_STOCK'
+                     AND COALESCE(SUM(b.quantity_on_hand), 0) > 0
+                     AND COALESCE(SUM(b.quantity_on_hand), 0) <= COALESCE(i.reorder_point, 5))
+                 OR (:stockStatus = 'OUT_OF_STOCK' AND COALESCE(SUM(b.quantity_on_hand), 0) <= 0))
+            ORDER BY MAX(b.created_at) DESC, b.inventory_item_id, b.location_id
+            LIMIT :limit OFFSET :offset
+            """, nativeQuery = true)
+    List<AggregatedBalanceRow> findAggregatedStoreBalances(
+            @Param("itemType") String itemType,
+            @Param("filterRefs") boolean filterRefs,
+            @Param("refIds") Collection<UUID> refIds,
+            @Param("locationId") UUID locationId,
+            @Param("stockStatus") String stockStatus,
+            @Param("limit") int limit,
+            @Param("offset") long offset);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM (
+                SELECT 1
+                FROM inventory_balances b
+                JOIN inventory_items i ON i.id = b.inventory_item_id
+                JOIN inventory_locations l ON l.id = b.location_id
+                WHERE (:itemType IS NULL OR i.item_type = :itemType)
+                  AND (:filterRefs = FALSE OR i.reference_id IN (:refIds))
+                  AND (:locationId IS NULL OR l.id = :locationId OR l.parent_location_id = :locationId)
+                GROUP BY b.inventory_item_id, b.location_id, i.reorder_point
+                HAVING (:stockStatus IS NULL
+                     OR (:stockStatus = 'LOW_STOCK'
+                         AND COALESCE(SUM(b.quantity_on_hand), 0) > 0
+                         AND COALESCE(SUM(b.quantity_on_hand), 0) <= COALESCE(i.reorder_point, 5))
+                     OR (:stockStatus = 'OUT_OF_STOCK' AND COALESCE(SUM(b.quantity_on_hand), 0) <= 0))
+            ) grouped
+            """, nativeQuery = true)
+    long countAggregatedStoreBalances(
+            @Param("itemType") String itemType,
+            @Param("filterRefs") boolean filterRefs,
+            @Param("refIds") Collection<UUID> refIds,
+            @Param("locationId") UUID locationId,
+            @Param("stockStatus") String stockStatus);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
