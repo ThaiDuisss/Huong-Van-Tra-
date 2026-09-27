@@ -43,6 +43,11 @@ import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.OrderInventoryReservationService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderService;
+import org.hvtra.orderservice.service.OrderDraftService;
+import org.hvtra.orderservice.service.OrderPaymentEventService;
+import org.hvtra.orderservice.service.OrderPaymentService;
+import org.hvtra.orderservice.service.OrderStatusManagementService;
+import org.hvtra.orderservice.service.support.OrderCheckoutPaymentProcessor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -87,6 +92,11 @@ public class OrderServiceImpl implements OrderService {
     private final OrderInventoryReservationService inventoryReservationService;
     private final OrderPaymentSagaService orderPaymentSagaService;
     private final OrderDiscountRepository orderDiscountRepository;
+    private final OrderDraftService orderDraftService;
+    private final OrderPaymentEventService orderPaymentEventService;
+    private final OrderStatusManagementService orderStatusManagementService;
+    private final OrderCheckoutPaymentProcessor orderCheckoutPaymentProcessor;
+    private final OrderPaymentService orderPaymentService;
 
     @Override
     @Transactional
@@ -613,45 +623,17 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional
     public OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
-        Order order = getExistingOrder(orderId);
-
-        if (PaymentStatus.PAID == order.getPaymentStatus()) {
-            throw new OrderAlreadyPaidException("Đơn hàng đã được thanh toán");
-        }
-
-        BigDecimal paidAmount = defaultZero(request.getPaidAmount());
-        if (paidAmount.compareTo(order.getFinalAmount()) < 0) {
-            throw new InvalidPaymentAmountException("Số tiền thanh toán nhỏ hơn thành tiền của đơn hàng");
-        }
-
-        OrderStatus oldStatus = order.getStatus();
-        order.setPaymentStatus(PaymentStatus.PAID);
-        order.setStatus(OrderStatus.COMPLETED);
-        order.setPaidAmount(order.getFinalAmount());
-        order.setDebtAmount(BigDecimal.ZERO);
-
-        Order savedOrder = orderRepository.save(order);
-        saveStatusHistory(
-                savedOrder,
-                oldStatus,
-                OrderStatus.COMPLETED,
-                "Thanh toán thành công, mã thanh toán: " + request.getPaymentCode(),
-                request.getChangedBy()
-        );
-
-        UUID sagaId = orderPaymentSagaService.completeManualPaymentSaga(savedOrder, request.getPaymentCode());
-        orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
-        orderCustomerServiceImpl.updateCustomerPurchase(savedOrder.getId());
-        orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, request.getPaymentCode(), sagaId.toString());
-
-        return toResponse(savedOrder);
+        return orderPaymentService.markOrderPaid(orderId, request);
     }
 
     @Override
     @Transactional
     public void handlePaymentEvent(PaymentOrderEventPayload event) {
+        if (orderPaymentEventService != null) {
+            orderPaymentEventService.handlePaymentEvent(event);
+            return;
+        }
         if (event == null || event.getOrderId() == null || event.getOrderId().isBlank()) {
             return;
         }
@@ -687,7 +669,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public void handlePaymentSucceeded(PaymentOrderEventPayload event) {
-        handlePaymentEvent(event);
+        orderPaymentEventService.handlePaymentSucceeded(event);
     }
 
     private void handlePaymentSucceededEvent(PaymentOrderEventPayload event) {
@@ -826,6 +808,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse addDraftItem(AddDraftOrderItemRequest request) {
+        if (orderDraftService != null) {
+            return orderDraftService.addDraftItem(request);
+        }
         Instant expiresAt = nextDraftExpiresAt();
         Order order = request.getOrderId() == null
                 ? createDraftOrder(request, expiresAt)
@@ -844,7 +829,9 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal oldQuantity = item == null ? BigDecimal.ZERO : defaultZero(item.getQuantity());
         BigDecimal targetQuantity = oldQuantity.add(addQuantity);
         log.info("varient{} {}", variant.variantId(), request.getProductVariantId());
-        inventoryReservationService.applyReservation(order, variant.variantId(), targetQuantity, request.getInventoryLocationId());
+        if (variant.sellableQuantity() == null || targetQuantity.compareTo(variant.sellableQuantity()) > 0) {
+            throw new IllegalArgumentException("Số lượng yêu cầu vượt số lượng có thể bán");
+        }
 
         if (item == null) {
             item = OrderItem.builder()
@@ -873,6 +860,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse updateDraftItemQuantity(UUID orderId, UUID itemId, UpdateDraftOrderItemQuantityRequest request) {
+        if (orderDraftService != null) {
+            return orderDraftService.updateDraftItemQuantity(orderId, itemId, request);
+        }
         Order order = getEditableDraftOrder(orderId);
         OrderItem item = getOrderItem(order, itemId);
         BigDecimal targetQuantity = defaultZero(request.getQuantity());
@@ -882,7 +872,10 @@ public class OrderServiceImpl implements OrderService {
             return removeDraftItem(orderId, itemId);
         }
 
-        inventoryReservationService.applyReservation(order, item.getProductVariantId(), targetQuantity, null);
+        var variant = catalogClient.getProductVariantPosView(item.getProductVariantId());
+        if (variant.sellableQuantity() == null || targetQuantity.compareTo(variant.sellableQuantity()) > 0) {
+            throw new IllegalArgumentException("Số lượng yêu cầu vượt số lượng có thể bán");
+        }
         item.setQuantity(targetQuantity);
         recalculateLine(item);
         recalculateOrderTotals(order);
@@ -892,10 +885,12 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse removeDraftItem(UUID orderId, UUID itemId) {
+        if (orderDraftService != null) {
+            return orderDraftService.removeDraftItem(orderId, itemId);
+        }
         Order order = getEditableDraftOrder(orderId);
         OrderItem item = getOrderItem(order, itemId);
 
-        inventoryReservationService.releaseItemReservation(order.getId(), item.getProductVariantId(), null);
         order.getItems().remove(item);
         order.setExpiresAt(nextDraftExpiresAt());
         recalculateOrderTotals(order);
@@ -905,6 +900,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse cancelDraftOrder(UUID orderId) {
+        if (orderDraftService != null) {
+            return orderDraftService.cancelDraftOrder(orderId);
+        }
         Order order = getExistingOrder(orderId);
         if (OrderStatus.CANCELLED == order.getStatus() || OrderStatus.EXPIRED == order.getStatus()) {
             return toResponse(order);
@@ -913,7 +911,6 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOrderStatusException("Chỉ hóa đơn nháp mới được hủy bằng API này");
         }
 
-        inventoryReservationService.releaseOrderReservation(order.getId());
         OrderStatus oldStatus = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
         Order savedOrder = orderRepository.save(order);
@@ -924,6 +921,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse checkoutDraftOrder(UUID orderId, CheckoutDraftOrderRequest request) {
+        if (orderDraftService != null) {
+            return orderDraftService.checkoutDraftOrder(orderId, request);
+        }
         Order order = getEditableDraftOrder(orderId);
         if (order.getItems() == null || order.getItems().isEmpty()) {
             throw new InvalidOrderStatusException("Chưa có sản phẩm trong đơn");
@@ -1100,6 +1100,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse updateOrderStatus(UUID orderId, UpdateOrderStatusRequest request) {
+        if (orderStatusManagementService != null) {
+            return orderStatusManagementService.updateOrderStatus(orderId, request);
+        }
         Order order = getExistingOrder(orderId);
         OrderStatus oldStatus = order.getStatus();
 
@@ -1118,6 +1121,15 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse cancelOrder(UUID orderId, CancelOrderRequest request) {
         Order order = getExistingOrder(orderId);
+
+        if (PaymentStatus.PAID == order.getPaymentStatus()
+                && order.isFulfillmentRequired()
+                && order.getInventoryProcessingStatus() != OrderInventoryProcessingStatus.CONSUMED) {
+            UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest();
+            statusRequest.setStatus(OrderStatus.CANCELLED);
+            statusRequest.setNote(request.getReason());
+            return orderStatusManagementService.updateOrderStatus(orderId, statusRequest);
+        }
 
         if (PaymentStatus.PAID == order.getPaymentStatus() || OrderStatus.COMPLETED == order.getStatus()) {
             throw new InvalidOrderStatusException(
@@ -2010,6 +2022,9 @@ public class OrderServiceImpl implements OrderService {
             String paymentMethod,
             BigDecimal receivedAmount
     ) {
+        if (orderCheckoutPaymentProcessor != null) {
+            return orderCheckoutPaymentProcessor.checkoutPayment(order, paymentMethod, receivedAmount, getUserId());
+        }
         PaymentMethod method = toSupportedPaymentMethod(paymentMethod);
         if (method == PaymentMethod.CASH
                 && defaultZero(receivedAmount).compareTo(order.getFinalAmount()) < 0) {

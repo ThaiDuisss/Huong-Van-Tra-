@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -54,6 +55,30 @@ public interface InventoryClient {
 
     @PostMapping("/api/inventory/reservations/release-order")
     void releaseOrder(@RequestBody ReleaseInventoryReservationOrderRequest request);
+
+    @PostMapping("/api/inventory/reservations/materials/reserve-order")
+    void reserveMaterials(@RequestBody ReserveMaterialOrderRequest request);
+
+    @PostMapping("/api/inventory/reservations/materials/consume-order")
+    void consumeMaterials(@RequestBody ReleaseInventoryReservationOrderRequest request);
+
+    @PostMapping("/api/inventory/reservations/materials/release-order")
+    List<MaterialReservationResponse> releaseMaterials(@RequestBody ReleaseInventoryReservationOrderRequest request);
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record MaterialReservationResponse(String status) {}
+
+    @PostMapping("/internal/inventory/production-alerts")
+    void createProductionRequiredAlert(@RequestBody ProductionRequiredAlertRequest request);
+
+    record ProductionRequiredAlertRequest(UUID variantId, UUID branchId, BigDecimal sellableQuantity,
+                                          BigDecimal productionThreshold, BigDecimal productionBatchQuantity) {}
+
+    record ReserveMaterialOrderRequest(UUID orderId, UUID branchId, int processingAttempt,
+                                       Instant expiresAt, List<ReserveMaterialLineRequest> lines) {}
+
+    record ReserveMaterialLineRequest(UUID orderItemId, UUID productVariantId, UUID ingredientId,
+                                      UUID inventoryItemId, UUID locationId, BigDecimal quantity) {}
 
     @GetMapping("/api/inventory/customer-returns/{returnId}/qc-summary")
     CustomerReturnQcSummaryResponse getCustomerReturnQcSummary(@PathVariable("returnId") UUID returnId);

@@ -17,9 +17,9 @@ public record PosProductVariantResponse(
         @JsonProperty("selling_price") BigDecimal sellingPrice,
         String imageUrl,
         UUID inventoryLocationId,
+        BigDecimal sellableQuantity,
         BigDecimal availableQuantity,
         BigDecimal reservedQuantity,
         String stockStatus
 ) {
 }
-

@@ -143,10 +143,10 @@ public class PosProductServiceImpl implements PosProductService {
                 .sellingPrice(variant.sellingPrice())
                 .imageUrl(variant.imageUrl())
                 .inventoryLocationId(stock != null ? stock.inventoryLocationId() : null)
+                .sellableQuantity(variant.sellableQuantity())
                 .availableQuantity(stock != null ? stock.availableQuantity() : BigDecimal.ZERO)
                 .reservedQuantity(stock != null ? stock.reservedQuantity() : BigDecimal.ZERO)
                 .stockStatus(stock != null ? stock.stockStatus() : "OUT_OF_STOCK")
                 .build();
     }
 }
-

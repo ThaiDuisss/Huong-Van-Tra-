@@ -7,17 +7,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.commonservice.common_core.util.CodeUtils;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
+import org.hvtra.catalog.dto.request.SellableQuantityAdjustmentRequest;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
+import org.hvtra.catalog.dto.response.SellableQuantityAdjustmentResponse;
 import org.hvtra.catalog.dto.response.VariantCostResponse;
 import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Ingredient;
 import org.hvtra.catalog.entity.ProductVariant;
+import org.hvtra.catalog.entity.SellableAdjustment;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.InventoryItemType;
 import org.hvtra.catalog.enums.Status;
@@ -26,6 +29,7 @@ import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.ProductRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
+import org.hvtra.catalog.repository.SellableAdjustmentRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.service.ProductVariantService;
@@ -70,6 +74,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     private final UnitRepository unitRepository;
     private final BusinessSequenceRepository businessSequenceRepository;
     private final IngredientRepository ingredientRepository;
+    private final SellableAdjustmentRepository adjustmentRepository;
 
     public ProductVariantServiceImpl(
             ProductVariantRepository repository,
@@ -78,7 +83,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             InventoryClient inventoryClient,
             UnitRepository unitRepository,
             BusinessSequenceRepository businessSequenceRepository,
-            IngredientRepository ingredientRepository) {
+            IngredientRepository ingredientRepository,
+            SellableAdjustmentRepository adjustmentRepository) {
         this.repository = repository;
         this.productRepository = productRepository;
         this.mapper = mapper;
@@ -86,6 +92,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         this.unitRepository = unitRepository;
         this.businessSequenceRepository = businessSequenceRepository;
         this.ingredientRepository = ingredientRepository;
+        this.adjustmentRepository = adjustmentRepository;
     }
 
     @Override
@@ -231,6 +238,94 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         return mapper.toVariantResponse(savedVariant);
     }
 
+    @Override
+    @Transactional
+    public SellableQuantityAdjustmentResponse decrementSellableQuantity(
+            UUID id,
+            SellableQuantityAdjustmentRequest request) {
+        BigDecimal quantity = requirePositiveQuantity(request.quantity());
+        ProductVariant before = request.operationKey() == null ? get(id) : repository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
+        SellableAdjustment prior = findAdjustment(id, request);
+        if (prior != null) {
+            return adjustmentResponse(before, request, prior);
+        }
+        BigDecimal oldSellableQuantity = safeQuantity(before.getSellableQuantity());
+        int updated = repository.decrementSellableIfEnough(id, quantity);
+        if (updated == 0) {
+            throw new IllegalArgumentException("Insufficient sellable quantity for product variant " + id);
+        }
+        ProductVariant after = get(id);
+        BigDecimal newSellableQuantity = safeQuantity(after.getSellableQuantity());
+        boolean crossed = thresholdCrossed(oldSellableQuantity, newSellableQuantity, after.getProductionThreshold());
+        recordAdjustment(id, request, quantity, oldSellableQuantity, newSellableQuantity, crossed);
+        return toSellableAdjustmentResponse(
+                after,
+                request,
+                quantity,
+                oldSellableQuantity,
+                newSellableQuantity,
+                crossed);
+    }
+
+    @Override
+    @Transactional
+    public SellableQuantityAdjustmentResponse restoreSellableQuantity(
+            UUID id,
+            SellableQuantityAdjustmentRequest request) {
+        BigDecimal quantity = requirePositiveQuantity(request.quantity());
+        ProductVariant before = request.operationKey() == null ? get(id) : repository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
+        SellableAdjustment prior = findAdjustment(id, request);
+        if (prior != null) {
+            return adjustmentResponse(before, request, prior);
+        }
+        BigDecimal oldSellableQuantity = safeQuantity(before.getSellableQuantity());
+        int updated = repository.restoreSellable(id, quantity);
+        if (updated == 0) {
+            throw new ResourceNotFoundException("ProductVariant", id);
+        }
+        ProductVariant after = get(id);
+        BigDecimal newSellableQuantity = safeQuantity(after.getSellableQuantity());
+        recordAdjustment(id, request, quantity, oldSellableQuantity, newSellableQuantity, false);
+        return toSellableAdjustmentResponse(
+                after,
+                request,
+                quantity,
+                oldSellableQuantity,
+                newSellableQuantity,
+                false);
+    }
+
+    private SellableAdjustment findAdjustment(UUID variantId, SellableQuantityAdjustmentRequest request) {
+        return request.operationKey() == null ? null : adjustmentRepository
+                .findByVariantIdAndOperationKey(variantId, request.operationKey()).orElse(null);
+    }
+
+    private SellableQuantityAdjustmentResponse adjustmentResponse(ProductVariant variant,
+            SellableQuantityAdjustmentRequest request, SellableAdjustment prior) {
+        if (prior.getQuantity().compareTo(request.quantity()) != 0) {
+            throw new IllegalArgumentException("Operation key reused with different quantity");
+        }
+        return toSellableAdjustmentResponse(variant, request, prior.getQuantity(), prior.getOldQuantity(),
+                prior.getNewQuantity(), prior.isThresholdCrossed());
+    }
+
+    private void recordAdjustment(UUID variantId, SellableQuantityAdjustmentRequest request, BigDecimal quantity,
+            BigDecimal oldQuantity, BigDecimal newQuantity, boolean crossed) {
+        if (request.operationKey() == null) {
+            return;
+        }
+        SellableAdjustment adjustment = new SellableAdjustment();
+        adjustment.setVariantId(variantId);
+        adjustment.setOperationKey(request.operationKey());
+        adjustment.setQuantity(quantity);
+        adjustment.setOldQuantity(oldQuantity);
+        adjustment.setNewQuantity(newQuantity);
+        adjustment.setThresholdCrossed(crossed);
+        adjustmentRepository.save(adjustment);
+    }
+
     private void syncInventoryItem(ProductVariant variant) {
         if (variant == null || variant.getId() == null) {
             return;
@@ -263,6 +358,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setQuantity(request.quantity());
         variant.setSellingPrice(request.sellingPrice());
         variant.setCostPrice(request.costPrice());
+        variant.setSellableQuantity(defaultQuantity(request.sellableQuantity(), BigDecimal.ZERO));
+        variant.setProductionThreshold(defaultQuantity(request.productionThreshold(), BigDecimal.ZERO));
+        variant.setProductionBatchQuantity(defaultQuantity(request.productionBatchQuantity(), BigDecimal.ONE));
 
         Unit unit = unitRepository.findById(request.unitId())
                 .orElseThrow(() -> new ResourceNotFoundException("Unit", request.unitId()));
@@ -272,6 +370,45 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setStatus(request.status());
 
         variant.setVariantName(composeVariantName(variant.getProduct(), request.quantity(), unit));
+    }
+
+    private BigDecimal requirePositiveQuantity(BigDecimal quantity) {
+        if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("quantity must be greater than 0");
+        }
+        return quantity;
+    }
+
+    private BigDecimal defaultQuantity(BigDecimal value, BigDecimal fallback) {
+        return value != null ? value : fallback;
+    }
+
+    private BigDecimal safeQuantity(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private boolean thresholdCrossed(BigDecimal oldQuantity, BigDecimal newQuantity, BigDecimal threshold) {
+        BigDecimal safeThreshold = safeQuantity(threshold);
+        return oldQuantity.compareTo(safeThreshold) > 0 && newQuantity.compareTo(safeThreshold) <= 0;
+    }
+
+    private SellableQuantityAdjustmentResponse toSellableAdjustmentResponse(
+            ProductVariant variant,
+            SellableQuantityAdjustmentRequest request,
+            BigDecimal requestedQuantity,
+            BigDecimal oldSellableQuantity,
+            BigDecimal newSellableQuantity,
+            boolean thresholdCrossed) {
+        return new SellableQuantityAdjustmentResponse(
+                variant.getId(),
+                requestedQuantity,
+                oldSellableQuantity,
+                newSellableQuantity,
+                thresholdCrossed,
+                safeQuantity(variant.getProductionThreshold()),
+                safeQuantity(variant.getProductionBatchQuantity()),
+                request.locationId(),
+                request.reason());
     }
 
     /**

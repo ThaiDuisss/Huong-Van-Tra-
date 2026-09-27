@@ -994,8 +994,7 @@ export function PosSalePage() {
         }
 
         if (
-            product.availableQuantity !== null &&
-            product.availableQuantity <= 0
+            product.sellableQuantity <= 0
         ) {
             setCheckoutError("Sản phẩm đã hết hàng");
             return false;
@@ -1204,10 +1203,9 @@ export function PosSalePage() {
         }
 
         if (
-            input.product.availableQuantity !== null &&
-            input.product.availableQuantity < input.quantity
+            input.product.sellableQuantity < input.quantity
         ) {
-            setCheckoutError("Số lượng yêu cầu vượt tồn khả dụng.");
+            setCheckoutError("Số lượng yêu cầu vượt số lượng có thể bán.");
             return;
         }
 

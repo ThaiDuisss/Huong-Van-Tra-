@@ -4,14 +4,25 @@ import org.hvtra.iventoryservice.reservation.dto.request.ApplyInventoryReservati
 import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationItemRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationOrderRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ReserveMaterialLineRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ReserveMaterialOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.response.InventoryReservationResponse;
+import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.InventoryReservation;
+import org.hvtra.iventoryservice.domain.entity.InventoryReservationBatchAllocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.ReservationStatus;
+import org.hvtra.iventoryservice.domain.enums.ReservationType;
+import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
+import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
+import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
+import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
+import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
+import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
 import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.OutOfStockException;
@@ -25,7 +36,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -36,16 +51,19 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryBalanceRepository balanceRepository;
+    private final InventoryTransactionRepository transactionRepository;
 
     public InventoryReservationServiceImpl(
             InventoryReservationRepository reservationRepository,
             InventoryItemRepository itemRepository,
             InventoryLocationRepository locationRepository,
-            InventoryBalanceRepository balanceRepository) {
+            InventoryBalanceRepository balanceRepository,
+            InventoryTransactionRepository transactionRepository) {
         this.reservationRepository = reservationRepository;
         this.itemRepository = itemRepository;
         this.locationRepository = locationRepository;
         this.balanceRepository = balanceRepository;
+        this.transactionRepository = transactionRepository;
     }
 
     @Override
@@ -169,10 +187,161 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     @Override
     @Transactional
+    public List<InventoryReservationResponse> reserveMaterials(ReserveMaterialOrderRequest request) {
+        if (request.lines() == null || request.lines().isEmpty()) {
+            throw new BadRequestException("Material reservation lines are required");
+        }
+        List<InventoryReservation> alreadyReserved = reservationRepository
+                .findByOrderIdAndReservationTypeAndStatus(
+                        request.orderId(),
+                        ReservationType.MATERIAL,
+                        ReservationStatus.RESERVED);
+        if (!alreadyReserved.isEmpty()) {
+            if (alreadyReserved.stream().anyMatch(reservation -> reservation.getProcessingAttempt() != request.processingAttempt())) {
+                throw new BadRequestException("Another material reservation attempt is still active");
+            }
+            return alreadyReserved.stream().map(this::toResponse).toList();
+        }
+        List<InventoryReservation> alreadyConsumed = reservationRepository
+                .findByOrderIdAndReservationTypeAndStatus(request.orderId(), ReservationType.MATERIAL, ReservationStatus.CONFIRMED);
+        if (!alreadyConsumed.isEmpty()) {
+            return alreadyConsumed.stream().map(this::toResponse).toList();
+        }
+
+        Map<MaterialKey, MaterialRequirement> requirements = new LinkedHashMap<>();
+        for (ReserveMaterialLineRequest line : request.lines()) {
+            BigDecimal requiredQuantity = normalizeQuantity(line.quantity());
+            if (requiredQuantity.compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
+            InventoryItem item = line.inventoryItemId() == null
+                    ? activeMaterialItemByIngredient(line.ingredientId())
+                    : activeMaterialItem(line.inventoryItemId());
+            InventoryLocation location = line.locationId() == null
+                    ? resolveLocation(null, request.branchId())
+                    : activeSaleableLocation(line.locationId(), request.branchId());
+            MaterialKey key = new MaterialKey(item.getId(), location.getId());
+            requirements.merge(key, new MaterialRequirement(line, item, location, requiredQuantity),
+                    (existing, next) -> new MaterialRequirement(existing.line(), item, location,
+                            existing.quantity().add(next.quantity())));
+        }
+
+        List<PendingMaterialReservation> pendingReservations = new ArrayList<>();
+        for (MaterialRequirement requirement : requirements.values()) {
+            List<InventoryBalance> candidates = balanceRepository.findFefoAvailableForUpdate(
+                    requirement.item().getId(),
+                    requirement.location().getId(),
+                    InventoryStatus.ACTIVE,
+                    LocalDate.now());
+            pendingReservations.add(allocateMaterialReservation(
+                    request.orderId(),
+                    request.processingAttempt(),
+                    request.expiresAt(),
+                    requirement.line(),
+                    requirement.item(),
+                    requirement.location(),
+                    candidates,
+                    requirement.quantity()));
+        }
+
+        pendingReservations.forEach(PendingMaterialReservation::applyToBalances);
+        return reservationRepository.saveAll(
+                        pendingReservations.stream()
+                                .map(PendingMaterialReservation::reservation)
+                                .toList())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<InventoryReservationResponse> consumeMaterials(ReleaseInventoryReservationOrderRequest request) {
+        List<InventoryReservation> reservations = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
+                request.orderId(),
+                ReservationType.MATERIAL,
+                ReservationStatus.RESERVED);
+        if (reservations.isEmpty()) {
+            return reservationRepository.findByOrderIdAndReservationTypeAndStatus(
+                            request.orderId(),
+                            ReservationType.MATERIAL,
+                            ReservationStatus.CONFIRMED)
+                    .stream()
+                    .map(this::toResponse)
+                    .toList();
+        }
+        InventoryTransaction transaction = new InventoryTransaction();
+        transaction.setTransactionCode("SALE-" + request.orderId());
+        transaction.setType(InventoryTransactionType.SALE_OUT);
+        transaction.setReferenceType(InventoryReferenceType.ORDER);
+        transaction.setReferenceId(request.orderId().toString());
+        InventoryLocation firstLocation = reservations.getFirst().getLocation();
+        transaction.setBranchId(firstLocation.getBranchId() == null ? firstLocation.getId() : firstLocation.getBranchId());
+        reservations.forEach(reservation -> {
+            reservation.getBatchAllocations().forEach(allocation -> {
+                InventoryBalance balance = balanceRepository.findForUpdateByBatchId(
+                                allocation.getInventoryBatch().getId(),
+                                reservation.getLocation().getId())
+                        .orElseThrow(() -> new BadRequestException("Reserved batch balance not found"));
+                BigDecimal quantity = normalizeQuantity(allocation.getQuantity());
+                if (balance.getQuantityReserved().compareTo(quantity) < 0
+                        || balance.getQuantityOnHand().subtract(balance.getQuantityBlocked()).compareTo(quantity) < 0) {
+                    throw new BadRequestException("Reserved material cannot be consumed");
+                }
+                balance.setQuantityReserved(balance.getQuantityReserved().subtract(quantity));
+                balance.setQuantityOnHand(balance.getQuantityOnHand().subtract(quantity));
+                InventoryTransactionLine movementLine = new InventoryTransactionLine();
+                movementLine.setInventoryItem(reservation.getInventoryItem());
+                movementLine.setLocation(reservation.getLocation());
+                movementLine.setQuantity(quantity);
+                movementLine.setBeforeQuantity(balance.getQuantityOnHand().add(quantity));
+                movementLine.setAfterQuantity(balance.getQuantityOnHand());
+                InventoryTransactionBatchAllocation movementAllocation = new InventoryTransactionBatchAllocation();
+                movementAllocation.setInventoryBatch(allocation.getInventoryBatch());
+                movementAllocation.setQuantity(quantity);
+                movementAllocation.setBeforeBatchQuantity(movementLine.getBeforeQuantity());
+                movementAllocation.setAfterBatchQuantity(movementLine.getAfterQuantity());
+                movementLine.addBatchAllocation(movementAllocation);
+                transaction.addLine(movementLine);
+                allocation.setStatus(ReservationStatus.CONFIRMED);
+            });
+            reservation.setStatus(ReservationStatus.CONFIRMED);
+        });
+        transactionRepository.save(transaction);
+        return reservationRepository.saveAll(reservations).stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @Transactional
+    public List<InventoryReservationResponse> releaseMaterials(ReleaseInventoryReservationOrderRequest request) {
+        List<InventoryReservation> reservations = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
+                request.orderId(),
+                ReservationType.MATERIAL,
+                ReservationStatus.RESERVED);
+        if (reservations.isEmpty()) {
+            List<InventoryReservation> consumed = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
+                    request.orderId(), ReservationType.MATERIAL, ReservationStatus.CONFIRMED);
+            if (!consumed.isEmpty()) {
+                return consumed.stream().map(this::toResponse).toList();
+            }
+            return reservationRepository.findByOrderIdAndReservationTypeAndStatus(
+                            request.orderId(), ReservationType.MATERIAL, ReservationStatus.RELEASED)
+                    .stream()
+                    .map(this::toResponse)
+                    .toList();
+        }
+        reservations.forEach(this::releaseMaterialReservation);
+        return reservationRepository.saveAll(reservations).stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @Transactional
     public int expireReservations() {
         List<InventoryReservation> reservations = reservationRepository.findByStatusAndExpiresAtBefore(
                 ReservationStatus.RESERVED,
-                Instant.now());
+                Instant.now()).stream()
+                .filter(reservation -> reservation.getReservationType() != ReservationType.MATERIAL)
+                .toList();
         reservations.forEach(reservation -> {
             releaseReservation(reservation);
             reservation.setStatus(ReservationStatus.EXPIRED);
@@ -191,6 +360,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         reservation.setProductVariantId(productVariantId);
         reservation.setInventoryItem(item);
         reservation.setLocation(location);
+        reservation.setReservationType(ReservationType.PRODUCT_VARIANT);
         reservation.setQuantity(BigDecimal.ZERO);
         reservation.setStatus(ReservationStatus.RESERVED);
         return reservation;
@@ -232,6 +402,24 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             throw new BadRequestException("Inventory item is inactive: " + item.getId());
         }
         return item;
+    }
+
+    private InventoryItem activeMaterialItem(UUID inventoryItemId) {
+        InventoryItem item = itemRepository.findById(inventoryItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item", inventoryItemId));
+        if (item.getStatus() != InventoryStatus.ACTIVE) {
+            throw new BadRequestException("Inventory item is inactive: " + inventoryItemId);
+        }
+        if (item.getItemType() != InventoryItemType.INGREDIENT) {
+            throw new BadRequestException("Inventory item is not an ingredient: " + inventoryItemId);
+        }
+        return item;
+    }
+
+    private InventoryItem activeMaterialItemByIngredient(UUID ingredientId) {
+        InventoryItem item = itemRepository.findByReferenceIdAndItemType(ingredientId, InventoryItemType.INGREDIENT)
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item for ingredient", ingredientId));
+        return activeMaterialItem(item.getId());
     }
 
     private InventoryLocation resolveApplyLocation(ApplyInventoryReservationRequest request) {
@@ -278,7 +466,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         if (location.getStatus() != InventoryStatus.ACTIVE) {
             throw new BadRequestException("Inventory location is inactive: " + locationId);
         }
-        if (branchId != null && !location.getBranchId().equals(branchId)) {
+        if (branchId != null && !branchId.equals(location.getBranchId())) {
             throw new BadRequestException("Inventory location " + locationId + " does not belong to branch " + branchId);
         }
         return location;
@@ -316,6 +504,90 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 reservation.getQuantity(),
                 reservation.getStatus(),
                 reservation.getExpiresAt());
+    }
+
+    private PendingMaterialReservation allocateMaterialReservation(
+            UUID orderId,
+            int processingAttempt,
+            Instant expiresAt,
+            ReserveMaterialLineRequest line,
+            InventoryItem item,
+            InventoryLocation location,
+            List<InventoryBalance> candidates,
+            BigDecimal requiredQuantity) {
+        InventoryReservation reservation = new InventoryReservation();
+        reservation.setOrderId(orderId);
+        reservation.setOrderItemId(line.orderItemId());
+        reservation.setProductVariantId(line.productVariantId());
+        reservation.setIngredientId(line.ingredientId());
+        reservation.setInventoryItem(item);
+        reservation.setLocation(location);
+        reservation.setQuantity(requiredQuantity);
+        reservation.setStatus(ReservationStatus.RESERVED);
+        reservation.setReservationType(ReservationType.MATERIAL);
+        reservation.setProcessingAttempt(processingAttempt);
+        reservation.setExpiresAt(expiresAt == null ? Instant.parse("9999-12-31T00:00:00Z") : expiresAt);
+
+        BigDecimal remaining = requiredQuantity;
+        List<PendingMaterialAllocation> allocations = new ArrayList<>();
+        for (InventoryBalance balance : candidates) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal available = balance.getAvailableQuantity();
+            if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal allocatedQuantity = available.min(remaining);
+            InventoryReservationBatchAllocation allocation = new InventoryReservationBatchAllocation();
+            allocation.setInventoryBatch(balance.getInventoryBatch());
+            allocation.setQuantity(allocatedQuantity);
+            allocation.setStatus(ReservationStatus.RESERVED);
+            reservation.addBatchAllocation(allocation);
+            allocations.add(new PendingMaterialAllocation(balance, allocatedQuantity));
+            remaining = remaining.subtract(allocatedQuantity);
+        }
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new OutOfStockException("OUT_OF_STOCK materialInventoryItemId=" + item.getId());
+        }
+        return new PendingMaterialReservation(reservation, allocations);
+    }
+
+    private void releaseMaterialReservation(InventoryReservation reservation) {
+        reservation.getBatchAllocations().forEach(allocation -> {
+            InventoryBalance balance = balanceRepository.findForUpdateByBatchId(
+                            allocation.getInventoryBatch().getId(),
+                            reservation.getLocation().getId())
+                    .orElseThrow(() -> new BadRequestException("Reserved batch balance not found"));
+            BigDecimal quantity = normalizeQuantity(allocation.getQuantity());
+            if (balance.getQuantityReserved().compareTo(quantity) < 0) {
+                throw new BadRequestException("Reserved material cannot be released");
+            }
+            balance.setQuantityReserved(balance.getQuantityReserved().subtract(quantity));
+            allocation.setStatus(ReservationStatus.RELEASED);
+        });
+        reservation.setStatus(ReservationStatus.RELEASED);
+        reservation.setQuantity(BigDecimal.ZERO);
+    }
+
+    private record PendingMaterialReservation(
+            InventoryReservation reservation,
+            List<PendingMaterialAllocation> allocations
+    ) {
+        private void applyToBalances() {
+            allocations.forEach(allocation -> allocation.balance().setQuantityReserved(
+                    allocation.balance().getQuantityReserved().add(allocation.quantity())));
+        }
+    }
+
+    private record PendingMaterialAllocation(InventoryBalance balance, BigDecimal quantity) {
+    }
+
+    private record MaterialKey(UUID inventoryItemId, UUID locationId) {
+    }
+
+    private record MaterialRequirement(ReserveMaterialLineRequest line, InventoryItem item,
+                                       InventoryLocation location, BigDecimal quantity) {
     }
 
     @Override

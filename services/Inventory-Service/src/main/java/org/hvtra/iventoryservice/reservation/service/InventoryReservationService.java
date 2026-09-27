@@ -4,6 +4,7 @@ import org.hvtra.iventoryservice.reservation.dto.request.ApplyInventoryReservati
 import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationItemRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationOrderRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ReserveMaterialOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.response.InventoryReservationResponse;
 
 import java.util.List;
@@ -13,6 +14,9 @@ public interface InventoryReservationService {
     InventoryReservationResponse releaseItem(ReleaseInventoryReservationItemRequest request);
     List<InventoryReservationResponse> releaseOrder(ReleaseInventoryReservationOrderRequest request);
     List<InventoryReservationResponse> confirmOrder(ConfirmInventoryReservationOrderRequest request);
+    List<InventoryReservationResponse> reserveMaterials(ReserveMaterialOrderRequest request);
+    List<InventoryReservationResponse> consumeMaterials(ReleaseInventoryReservationOrderRequest request);
+    List<InventoryReservationResponse> releaseMaterials(ReleaseInventoryReservationOrderRequest request);
     int expireReservations();
     List<InventoryReservationResponse> getExpiringReservations(int withinMinutes);
 }

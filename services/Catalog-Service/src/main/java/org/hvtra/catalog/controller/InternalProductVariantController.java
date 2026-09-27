@@ -1,11 +1,16 @@
 package org.hvtra.catalog.controller;
 
+import jakarta.validation.Valid;
+import org.hvtra.catalog.dto.request.SellableQuantityAdjustmentRequest;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
+import org.hvtra.catalog.dto.response.SellableQuantityAdjustmentResponse;
 import org.hvtra.catalog.dto.response.VariantCostResponse;
 import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,6 +47,20 @@ public class InternalProductVariantController {
     @PostMapping("/inventory-summary-batch")
     public List<VariantInventorySummaryResponse> findInventorySummariesByIds(@RequestBody List<UUID> ids) {
         return service.findInventorySummariesByIds(ids);
+    }
+
+    @PatchMapping("/{id}/sellable/decrement")
+    public SellableQuantityAdjustmentResponse decrementSellableQuantity(
+            @PathVariable UUID id,
+            @Valid @RequestBody SellableQuantityAdjustmentRequest request) {
+        return service.decrementSellableQuantity(id, request);
+    }
+
+    @PatchMapping("/{id}/sellable/restore")
+    public SellableQuantityAdjustmentResponse restoreSellableQuantity(
+            @PathVariable UUID id,
+            @Valid @RequestBody SellableQuantityAdjustmentRequest request) {
+        return service.restoreSellableQuantity(id, request);
     }
 
     @GetMapping("/search-ids")

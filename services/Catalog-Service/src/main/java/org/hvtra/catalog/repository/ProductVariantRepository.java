@@ -5,9 +5,13 @@ import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 import org.hvtra.catalog.entity.ProductVariant;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,6 +22,31 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     boolean existsBySku(String sku);
     boolean existsBySkuAndIdNot(String sku, UUID id);
     List<ProductVariant> findByProductId(UUID productId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from ProductVariant v where v.id = :id and v.isDeleted = false")
+    Optional<ProductVariant> findByIdForUpdate(@Param("id") UUID id);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ProductVariant v
+            set v.sellableQuantity = v.sellableQuantity - :quantity,
+                v.version = v.version + 1
+            where v.id = :id
+              and v.isDeleted = false
+              and v.sellableQuantity >= :quantity
+            """)
+    int decrementSellableIfEnough(@Param("id") UUID id, @Param("quantity") BigDecimal quantity);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ProductVariant v
+            set v.sellableQuantity = v.sellableQuantity + :quantity,
+                v.version = v.version + 1
+            where v.id = :id
+              and v.isDeleted = false
+            """)
+    int restoreSellable(@Param("id") UUID id, @Param("quantity") BigDecimal quantity);
 
     @Query("""
             select v from ProductVariant v
