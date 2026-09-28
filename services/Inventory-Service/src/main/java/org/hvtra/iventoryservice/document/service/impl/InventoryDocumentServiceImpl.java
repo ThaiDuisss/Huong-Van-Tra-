@@ -36,12 +36,6 @@ import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
-import org.hvtra.iventoryservice.domain.entity.supplement.InventorySupplementRequest;
-import org.hvtra.iventoryservice.domain.entity.supplement.InventorySupplementRequestLine;
-import org.hvtra.iventoryservice.domain.entity.supplement.repository.InventorySupplementRequestRepository;
-import org.hvtra.iventoryservice.domain.entity.supplierreturn.InventorySupplierReturnRequest;
-import org.hvtra.iventoryservice.domain.entity.supplierreturn.InventorySupplierReturnRequestLine;
-import org.hvtra.iventoryservice.domain.entity.supplierreturn.repository.InventorySupplierReturnRequestRepository;
 import org.hvtra.iventoryservice.domain.enums.*;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
@@ -74,8 +68,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     private final InventoryBatchRepository batchRepository;
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryTransactionRepository transactionRepository;
-    private final InventorySupplementRequestRepository supplementRequestRepository;
-    private final InventorySupplierReturnRequestRepository supplierReturnRequestRepository;
     private final InventoryDocumentLineRepository lineRepository;
     private final InventoryDocumentBatchAllocationRepository allocationRepository;
 
@@ -92,8 +84,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             InventoryBatchRepository batchRepository,
             InventoryBalanceRepository balanceRepository,
             InventoryTransactionRepository transactionRepository,
-            InventorySupplementRequestRepository supplementRequestRepository,
-            InventorySupplierReturnRequestRepository supplierReturnRequestRepository, InventoryDocumentLineRepository lineRepository1, InventoryDocumentBatchAllocationRepository allocationRepository1,
+            InventoryDocumentLineRepository lineRepository1, InventoryDocumentBatchAllocationRepository allocationRepository1,
             CatalogClient catalogClient,
             IdentityClient identityClient,
             InventoryDocumentMapper mapper
@@ -104,8 +95,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         this.batchRepository = batchRepository;
         this.balanceRepository = balanceRepository;
         this.transactionRepository = transactionRepository;
-        this.supplementRequestRepository = supplementRequestRepository;
-        this.supplierReturnRequestRepository = supplierReturnRequestRepository;
         this.lineRepository = lineRepository1;
         this.allocationRepository = allocationRepository1;
         this.catalogClient = catalogClient;
@@ -662,9 +651,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             document.setReceivedAt(Instant.now());
         }
 
-        boolean hasShortage = false;
-        List<InventorySupplementRequestLine> supplementLines = new ArrayList<>();
-
         for (var reqItem : request.items()) {
             InventoryDocumentLine line = document.getLines().stream()
                     .filter(l -> l.getId().equals(reqItem.lineId()))
@@ -683,30 +669,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                 BigDecimal excess = received.subtract(ordered).max(BigDecimal.ZERO);
                 line.setShortageQuantity(shortage);
                 line.setExcessQuantity(excess);
-
-                if (shortage.compareTo(BigDecimal.ZERO) > 0) {
-                    hasShortage = true;
-                    InventorySupplementRequestLine suppLine = new InventorySupplementRequestLine();
-                    suppLine.setReceiptLineId(line.getId());
-                    suppLine.setInventoryItem(line.getInventoryItem());
-                    suppLine.setQuantity(shortage);
-                    suppLine.setReason("SHORTAGE");
-                    supplementLines.add(suppLine);
-                }
             }
-        }
-
-        if (hasShortage && !supplementLines.isEmpty()) {
-            InventorySupplementRequest suppRequest = new InventorySupplementRequest();
-            suppRequest.setRequestCode("SR-" + document.getDocumentCode());
-            suppRequest.setReferenceType("PURCHASE_RECEIPT");
-            suppRequest.setReferenceId(document.getDocumentCode());
-            suppRequest.setStatus("PENDING_APPROVAL");
-            suppRequest.setNote("Yêu cầu giao bù hàng thiếu từ phiếu nhập " + document.getDocumentCode());
-            for (var sl : supplementLines) {
-                suppRequest.addLine(sl);
-            }
-            supplementRequestRepository.save(suppRequest);
         }
 
         document.setStatus(InventoryDocumentStatus.QC_PENDING);
@@ -721,9 +684,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         if (document.getStatus() != InventoryDocumentStatus.QC_PENDING) {
             throw new BadRequestException("Only QC_PENDING documents can complete QC");
         }
-
-        boolean hasRejection = false;
-        List<InventorySupplierReturnRequestLine> returnLines = new ArrayList<>();
 
         for (var qcItem : request.items()) {
             InventoryDocumentLine line = document.getLines().stream()
@@ -779,30 +739,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                             ") must equal accepted quantity (" + accepted + ") for line: " + line.getLineNo());
                 }
             }
-
-            if (rejected.compareTo(BigDecimal.ZERO) > 0) {
-                hasRejection = true;
-                InventorySupplierReturnRequestLine returnLine = new InventorySupplierReturnRequestLine();
-                returnLine.setReceiptLineId(line.getId());
-                returnLine.setInventoryItem(line.getInventoryItem());
-                returnLine.setQuantity(rejected);
-                returnLine.setReason("QC_FAILED");
-                returnLines.add(returnLine);
-            }
-        }
-
-        if (hasRejection && !returnLines.isEmpty()) {
-            InventorySupplierReturnRequest returnRequest = new InventorySupplierReturnRequest();
-            returnRequest.setRequestCode("RR-" + document.getDocumentCode());
-            returnRequest.setReferenceType("PURCHASE_RECEIPT");
-            returnRequest.setReferenceId(document.getDocumentCode());
-            returnRequest.setSupplierId(document.getSupplierId());
-            returnRequest.setStatus("PENDING_APPROVAL");
-            returnRequest.setNote("Yêu cầu trả hàng lỗi QC từ phiếu nhập " + document.getDocumentCode());
-            for (var rl : returnLines) {
-                returnRequest.addLine(rl);
-            }
-            supplierReturnRequestRepository.save(returnRequest);
         }
 
         document.setStatus(InventoryDocumentStatus.QC_COMPLETED);
