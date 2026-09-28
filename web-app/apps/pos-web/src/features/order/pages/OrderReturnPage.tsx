@@ -80,14 +80,14 @@ const RETURN_STATUS_FILTERS: {
     { key: "PROCESSING_FAILED", label: "Có lỗi", isError: true }
 ];
 
-const RETURN_LIST_PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const emptyReturnPage: OrderPageResponse<OrderReturnListRow> = {
     content: [],
     totalElements: 0,
     totalPages: 0,
     number: 0,
-    size: RETURN_LIST_PAGE_SIZE
+    size: PAGE_SIZE
 };
 
 const initialStatusCounts: Record<ReturnStatusFilter, number> = {
@@ -288,7 +288,7 @@ export function OrderReturnPage() {
                     statusFilter === "ALL" ? undefined : statusFilter,
                 toDate: timeRange?.toDate,
                 page: currentPage,
-                size: RETURN_LIST_PAGE_SIZE,
+                size: PAGE_SIZE,
                 sort: "createdAt,desc"
             })
                 .then((page) => {
@@ -363,11 +363,12 @@ export function OrderReturnPage() {
     const totalPages = Math.max(returnPage.totalPages ?? 0, 1);
     const totalElements = returnPage.totalElements ?? 0;
     const fromRecord =
-        totalElements > 0 ? returnPage.number * returnPage.size + 1 : 0;
+        totalElements > 0 ? returnPage.number * (returnPage.size || PAGE_SIZE) + 1 : 0;
     const toRecord = Math.min(
-        (returnPage.number + 1) * returnPage.size,
+        (returnPage.number + 1) * (returnPage.size || PAGE_SIZE),
         totalElements
     );
+
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
         setCurrentPage(0);
@@ -500,7 +501,7 @@ export function OrderReturnPage() {
                 <div className={styles.header}>
                     <div className={styles.title}>
                         <h1>Hoàn hàng</h1>
-                        <p>Quản lý và theo dõi các phiếu hoàn hàng</p>
+                        <p>Quản lý toàn bộ quy trình hoàn hàng từ tiếp nhận, kiểm hàng đến hoàn tiền</p>
                     </div>
 
                     <div className={styles.headerActions}>
@@ -671,7 +672,7 @@ export function OrderReturnPage() {
                         <div className={styles.pages}>
                             <button
                                 className={styles.pageButton}
-                                disabled={currentPage === 0}
+                                disabled={currentPage === 0 || isRowsLoading}
                                 onClick={() =>
                                     setCurrentPage((page) =>
                                         Math.max(0, page - 1)
@@ -689,6 +690,7 @@ export function OrderReturnPage() {
                                                 ? styles.activePage
                                                 : ""
                                         }`}
+                                        disabled={isRowsLoading}
                                         key={page}
                                         onClick={() => setCurrentPage(page)}
                                         type="button"
@@ -700,7 +702,7 @@ export function OrderReturnPage() {
                             {totalPages > 5 ? <span>...</span> : null}
                             <button
                                 className={styles.pageButton}
-                                disabled={currentPage >= totalPages - 1}
+                                disabled={currentPage >= totalPages - 1 || isRowsLoading}
                                 onClick={() =>
                                     setCurrentPage((page) =>
                                         Math.min(totalPages - 1, page + 1)
@@ -833,6 +835,8 @@ function ReturnDetailModal({
     const [qcSummaryError, setQcSummaryError] = useState<string | null>(null);
     const [qcReloadKey, setQcReloadKey] = useState(0);
     const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+    const [submittedReturnId, setSubmittedReturnId] = useState<string | null>(null);
+    const isDispositionPending = returnItem.isPendingDisposition || submittedReturnId === returnItem.id;
 
     const summaryLines = useMemo(
         () => qcSummary?.lines ?? [],
@@ -999,6 +1003,11 @@ function ReturnDetailModal({
 
         if (isQcCompleted) {
             onToast("Tất cả sản phẩm đã được kiểm tra xong.");
+            return;
+        }
+
+        if (isDispositionPending) {
+            onToast("Lệnh xử lý kho trước đó đang chờ tạo hoặc duyệt phiếu kiểm định.");
             return;
         }
 
@@ -1169,6 +1178,7 @@ function ReturnDetailModal({
                                 {returnItem.status === "RECEIVED" &&
                                 qcSummary &&
                                 !isQcCompleted &&
+                                !isDispositionPending &&
                                 remainingLines.length > 0 ? (
                                     <button
                                         className={styles.primaryButton}
@@ -1466,6 +1476,7 @@ function ReturnDetailModal({
                     isOpen={isInspectionModalOpen}
                     onClose={() => setIsInspectionModalOpen(false)}
                     onSuccess={() => {
+                        setSubmittedReturnId(returnItem.id);
                         setQcReloadKey((k) => k + 1);
                         onRefreshDetail?.();
                     }}

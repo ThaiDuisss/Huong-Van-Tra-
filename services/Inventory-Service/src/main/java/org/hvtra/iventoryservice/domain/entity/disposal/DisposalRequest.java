@@ -57,7 +57,7 @@ public class DisposalRequest extends BaseEntity {
     @Column(name = "return_code", nullable = false, length = 50)
     private String returnCode;
 
-    @Column(name = "branch_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "branch_id", columnDefinition = "BINARY(16)")
     private UUID branchId;
 
     @Enumerated(EnumType.STRING)

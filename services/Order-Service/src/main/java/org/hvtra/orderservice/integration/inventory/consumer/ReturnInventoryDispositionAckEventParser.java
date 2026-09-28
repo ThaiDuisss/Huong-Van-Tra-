@@ -12,6 +12,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ReturnInventoryDispositionAckEventParser {
 
+    private static final String PROCESSED_EVENT_TYPE = "RETURN_INVENTORY_DISPOSITION_PROCESSED";
+    private static final String FAILED_EVENT_TYPE = "RETURN_INVENTORY_DISPOSITION_FAILED";
+
     private final DebeziumOutboxEventPayloadParser parser;
 
     public Optional<ReturnInventoryDispositionProcessedEvent> parseProcessedCreateEvent(String rawPayload) {
@@ -27,7 +30,7 @@ public class ReturnInventoryDispositionAckEventParser {
                         event.setEventId(metadata.eventId());
                     }
                 }
-        );
+        ).filter(event -> PROCESSED_EVENT_TYPE.equals(event.getEventType()));
     }
 
     public Optional<ReturnInventoryDispositionFailedEvent> parseFailedCreateEvent(String rawPayload) {
@@ -43,7 +46,7 @@ public class ReturnInventoryDispositionAckEventParser {
                         event.setEventId(metadata.eventId());
                     }
                 }
-        );
+        ).filter(event -> FAILED_EVENT_TYPE.equals(event.getEventType()));
     }
 
     private boolean isBlank(String value) {

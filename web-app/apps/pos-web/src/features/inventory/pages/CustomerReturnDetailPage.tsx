@@ -46,10 +46,11 @@ export function CustomerReturnDetailPage() {
                     if (!active) return;
                     setDetail(response);
 
-                    // Fetch active locations for the branch
+                    // A return can be branchless; location eligibility is based on status and type.
                     try {
                         const locRes = await inventoryLocationApi.list({
-                            branchId: response.branchId,
+                            page: 0,
+                            size: 100,
                             status: "ACTIVE"
                         });
                         if (active && locRes?.content) {
@@ -173,7 +174,7 @@ export function CustomerReturnDetailPage() {
 
             {detail ? (
                 <>
-                    <section className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card md:grid-cols-3 lg:grid-cols-5">
+                    <section className="grid gap-4 rounded-xl border border-[#e8eef0] bg-white p-5 shadow-pos-card md:grid-cols-2 lg:grid-cols-4">
                         <div>
                             <span className="text-xs font-black uppercase text-[#697684]">Trạng thái phiếu</span>
                             <div className="mt-1">
@@ -181,7 +182,6 @@ export function CustomerReturnDetailPage() {
                             </div>
                         </div>
                         <Info label="Khách hàng" value={detail.customerName || "Khách lẻ"} />
-                        <Info label="Chi nhánh tiếp nhận" value="Kho Chi nhánh chính" />
                         <Info label="Thời gian tạo phiếu" value={formatVietnamDateTime(detail.createdAt)} />
                         <Info
                             label="Thời gian xử lý kho"

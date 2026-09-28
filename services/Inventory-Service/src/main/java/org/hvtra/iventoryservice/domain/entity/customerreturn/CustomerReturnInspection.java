@@ -48,7 +48,7 @@ public class CustomerReturnInspection extends BaseEntity {
     @Column(name = "command_id", unique = true, columnDefinition = "BINARY(16)")
     private UUID commandId;
 
-    @Column(name = "branch_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "branch_id", columnDefinition = "BINARY(16)")
     private UUID branchId;
 
     @Column(name = "order_id", columnDefinition = "BINARY(16)")

@@ -126,14 +126,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         Map<UUID, OrderReturnItemResponse> returnItems = returnItemsById(orderReturn);
         Map<UUID, BigDecimal> allocatedQuantities = allocatedQuantities(returnId);
         Set<UUID> requestedReturnItems = new HashSet<>();
-        UUID inspectionBranchId = resolveInspectionBranch(orderReturn, request.lines());
 
         CustomerReturnInspection inspection = new CustomerReturnInspection();
         inspection.setInspectionCode(generateInspectionCode());
         inspection.setReturnId(orderReturn.id());
         inspection.setReturnCode(orderReturn.returnCode());
         inspection.setCommandId(commandId);
-        inspection.setBranchId(inspectionBranchId);
+        inspection.setBranchId(orderReturn.branchId());
         inspection.setOrderId(orderReturn.orderId());
         inspection.setOrderCode(orderReturn.orderCode());
         inspection.setStatus(CustomerReturnInspectionStatus.CREATED);
@@ -154,7 +153,6 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
 
             InventoryItem item = activeProductVariantItem(returnItem.productVariantId());
             InventoryLocation destination = resolveDestination(
-                    inspectionBranchId,
                     lineRequest.result(),
                     lineRequest.destinationLocationId());
 
@@ -231,7 +229,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                     override = overridesByLineId.get(line.getId());
                 }
                 if (override != null && override.destinationLocationId() != null && line.getResult() != CustomerReturnQcResult.WRITE_OFF) {
-                    InventoryLocation newDest = resolveDestination(inspection.getBranchId(), line.getResult(), override.destinationLocationId());
+                    InventoryLocation newDest = resolveDestination(line.getResult(), override.destinationLocationId());
                     line.setDestinationLocation(newDest);
                 }
             }
@@ -510,7 +508,6 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
 
     private void postLine(CustomerReturnInspection inspection, CustomerReturnInspectionLine line) {
         InventoryLocation location = validateDestinationForPosting(
-                inspection.getBranchId(),
                 line.getResult(),
                 line.getDestinationLocation());
         InventoryBatch batch = defaultBatch(line.getInventoryItem());
@@ -677,7 +674,6 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     }
 
     private InventoryLocation resolveDestination(
-            UUID branchId,
             CustomerReturnQcResult result,
             UUID destinationLocationId) {
         if (result == CustomerReturnQcResult.WRITE_OFF) {
@@ -688,40 +684,10 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         }
         InventoryLocation location = locationRepository.findById(destinationLocationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory location", destinationLocationId));
-        return validateDestinationForPosting(branchId, result, location);
-    }
-
-    private UUID resolveInspectionBranch(
-            OrderReturnResponse orderReturn,
-            List<CreateCustomerReturnInspectionLineRequest> lines) {
-        Optional<UUID> destinationBranchId = lines.stream()
-                .map(CreateCustomerReturnInspectionLineRequest::destinationLocationId)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .map(destinationLocationId -> locationRepository.findById(destinationLocationId)
-                        .orElseThrow(() -> new ResourceNotFoundException(
-                                "Inventory location",
-                                destinationLocationId))
-                        .getBranchId());
-        if (destinationBranchId.isPresent()) {
-            return destinationBranchId.get();
-        }
-        if (orderReturn.branchId() != null) {
-            return orderReturn.branchId();
-        }
-
-        List<UUID> activeBranchIds = locationRepository.findDistinctBranchIdsByStatus(InventoryStatus.ACTIVE);
-        if (activeBranchIds.size() == 1) {
-            return activeBranchIds.getFirst();
-        }
-        if (activeBranchIds.isEmpty()) {
-            throw new BadRequestException("No active inventory location is configured");
-        }
-        throw new BadRequestException("Cannot resolve the single inventory branch from active locations");
+        return validateDestinationForPosting(result, location);
     }
 
     private InventoryLocation validateDestinationForPosting(
-            UUID branchId,
             CustomerReturnQcResult result,
             InventoryLocation location) {
         if (location == null) {
@@ -729,9 +695,6 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         }
         if (location.getStatus() != InventoryStatus.ACTIVE) {
             throw new BadRequestException("Inventory location is inactive: " + location.getId());
-        }
-        if (!location.getBranchId().equals(branchId)) {
-            throw new BadRequestException("Inventory location does not belong to return branch: " + location.getId());
         }
         if (result == CustomerReturnQcResult.RESTOCK && !InventoryLocationSaleability.isSaleable(location)) {
             throw new BadRequestException("RESTOCK destination must be an active saleable location");
