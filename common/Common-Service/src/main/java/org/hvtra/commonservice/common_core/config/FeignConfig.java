@@ -52,12 +52,7 @@ public class FeignConfig {
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
             if (attributes == null) {
-                // Gọi Feign ngoài luồng HTTP (consumer Kafka, @Async, scheduler):
-                // vẫn truyền X-Request-ID lấy từ MDC để nối log giữa các service
-                String requestId = MDC.get(MdcKeys.REQUEST_ID);
-                if (StringUtils.hasText(requestId)) {
-                    requestTemplate.header(HeaderConstants.HEADER_CORRELATION_ID, requestId);
-                }
+                attachInternalServiceAuthentication(requestTemplate);
                 return;
             }
 
@@ -75,7 +70,8 @@ public class FeignConfig {
     private void attachInternalServiceAuthentication(RequestTemplate requestTemplate) {
         String userId = "service:" + applicationName;
         String roles = "SYSTEM";
-        String correlationId = UUID.randomUUID().toString();
+        String requestId = MDC.get(MdcKeys.REQUEST_ID);
+        String correlationId = StringUtils.hasText(requestId) ? requestId : UUID.randomUUID().toString();
         String authorization = "Bearer service:" + applicationName;
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

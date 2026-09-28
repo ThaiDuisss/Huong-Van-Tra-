@@ -232,7 +232,6 @@ class CustomerReturnInspectionServiceImplTest {
     @Test
     void createInspectionRejectsOpenedRestock() {
         stubReceivedReturn(OrderReturnCondition.OPENED, "3.00");
-        when(locationRepository.findById(shelf.getId())).thenReturn(Optional.of(shelf));
 
         assertThatThrownBy(() -> service.createInspection(returnId, request(
                 returnItemId,
