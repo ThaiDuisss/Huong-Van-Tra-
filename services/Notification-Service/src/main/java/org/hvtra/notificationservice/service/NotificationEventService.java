@@ -182,7 +182,7 @@ public class NotificationEventService {
         Notification notification = new Notification();
         notification.setUserId(recipientUserId);
         notification.setCustomerId(event.getCustomerId());
-        notification.setBranchId(event.getBranchId());
+//        notification.setBranchId(event.getBranchId());
         notification.setType(event.getEventType());
         notification.setTitle(firstNonBlank(event.getTitle(), defaultTitle(event)));
         notification.setMessage(firstNonBlank(event.getMessage(), defaultMessage(event)));
@@ -192,11 +192,11 @@ public class NotificationEventService {
         notification.setAggregateId(metadataResolver.aggregateId(record, event));
         notification.setOrderId(event.getOrderId());
         notification.setOrderCode(event.getOrderCode());
-        notification.setReturnId(event.getReturnId());
-        notification.setReturnCode(event.getReturnCode());
+//        notification.setReturnId(event.getReturnId());
+//        notification.setReturnCode(event.getReturnCode());
         notification.setPaymentId(event.getPaymentId());
-        notification.setRefundTransactionId(event.getRefundTransactionId());
-        notification.setActorUserId(event.getActorUserId());
+//        notification.setRefundTransactionId(event.getRefundTransactionId());
+//        notification.setActorUserId(event.getActorUserId());
         notification.setSagaId(event.getSagaId());
         notification.setStatus("UNREAD");
 
