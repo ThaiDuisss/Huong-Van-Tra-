@@ -349,16 +349,15 @@ export function TimeHierarchyFilter({
 
     const handleClear = () => {
         if (activeOpenPath) {
-            if (activeOpenPath.year) {
-                setOpenYears((current) => new Set(current).add(activeOpenPath.year));
+            const { year, quarterId, monthId } = activeOpenPath;
+            if (year) {
+                setOpenYears((current) => new Set(current).add(year));
             }
-            if (activeOpenPath.quarterId) {
-                const qId = activeOpenPath.quarterId;
-                setOpenQuarters((current) => new Set(current).add(qId));
+            if (quarterId) {
+                setOpenQuarters((current) => new Set(current).add(quarterId));
             }
-            if (activeOpenPath.monthId) {
-                const mId = activeOpenPath.monthId;
-                setOpenMonths((current) => new Set(current).add(mId));
+            if (monthId) {
+                setOpenMonths((current) => new Set(current).add(monthId));
             }
         }
         onClear?.();

@@ -28,6 +28,7 @@ export interface PosVariantResponse {
     inventoryLocationId?: string | null;
     locationId?: string | null;
     availableQuantity?: number | string | null;
+    sellableQuantity?: number | string | null;
     quantityOnHand?: number | string | null;
     quantityReserved?: number | string | null;
     stockStatus?: string | null;
@@ -55,6 +56,7 @@ function mapPosVariantToSaleProduct(
         inventoryLocationId:
             variant.inventoryLocationId ?? variant.locationId ?? null,
         availableQuantity: toNumber(variant.availableQuantity),
+        sellableQuantity: toNumber(variant.sellableQuantity),
         quantityOnHand: toNumber(variant.quantityOnHand),
         quantityReserved: toNumber(variant.quantityReserved)
     };

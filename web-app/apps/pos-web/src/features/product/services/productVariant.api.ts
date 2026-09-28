@@ -63,6 +63,9 @@ export const productVariantApi = {
             quantity: input.quantity,
             sellingPrice: input.sellingPrice,
             costPrice: input.costPrice,
+            sellableQuantity: input.sellableQuantity,
+            productionThreshold: input.productionThreshold,
+            productionBatchQuantity: input.productionBatchQuantity,
             unitId: input.unitId,
             inventoryPolicy: input.inventoryPolicy,
             status: input.status

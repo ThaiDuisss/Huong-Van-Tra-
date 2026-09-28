@@ -1,9 +1,11 @@
 package org.hvtra.catalog.service;
 
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
+import org.hvtra.catalog.dto.request.SellableQuantityAdjustmentRequest;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
+import org.hvtra.catalog.dto.response.SellableQuantityAdjustmentResponse;
 import org.hvtra.catalog.enums.Status;
 import org.springframework.data.domain.Pageable;
 
@@ -21,6 +23,8 @@ public interface ProductVariantService {
     ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request);
     ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request);
     ProductResponse.VariantResponse updateStatus(UUID id, Status status);
+    SellableQuantityAdjustmentResponse decrementSellableQuantity(UUID id, SellableQuantityAdjustmentRequest request);
+    SellableQuantityAdjustmentResponse restoreSellableQuantity(UUID id, SellableQuantityAdjustmentRequest request);
     byte[] exportToExcel(UUID productId);
     byte[] getImportTemplate();
     List<ProductResponse.VariantResponse> findAllByIds(List<UUID> ids);

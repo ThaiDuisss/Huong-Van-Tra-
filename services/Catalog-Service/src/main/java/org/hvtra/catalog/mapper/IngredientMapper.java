@@ -39,6 +39,7 @@ public class IngredientMapper {
                 unitName,
                 unitSymbol,
                 ingredient.getReorderPoint(),
+                ingredient.getType(),
                 ingredient.getStatus()
         );
     }
@@ -48,6 +49,9 @@ public class IngredientMapper {
         ingredient.setImageUrl(request.imageUrl());
         if (request.reorderPoint() != null) {
             ingredient.setReorderPoint(request.reorderPoint());
+        }
+        if (request.type() != null) {
+            ingredient.setType(request.type());
         }
         ingredient.setStatus(request.status());
     }

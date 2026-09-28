@@ -190,6 +190,7 @@ def _ensure_ingredient(db: Session, seed: IngredientSeed) -> bool:
             ingredient_code=seed.code,
             name=seed.name,
             status=ACTIVE,
+            type=1,
             is_deleted=False,
         )
     )

@@ -112,6 +112,7 @@ class CatalogSyncService:
                 ingredient_code=item.ingredientCode,
                 name=item.name,
                 status=item.status,
+                type=item.type,
                 is_deleted=False,
             )
             self.ingredient_repository.upsert(db, ingredient)

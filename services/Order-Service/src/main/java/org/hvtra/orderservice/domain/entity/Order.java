@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.orderservice.domain.enums.DiscountScope;
+import org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus;
 import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -43,6 +44,10 @@ public class Order extends BaseEntity {
 
     @Column(name = "order_type", nullable = false, length = 50)
     private String orderType;
+
+    public boolean isFulfillmentRequired() {
+        return orderType != null && !"POS".equalsIgnoreCase(orderType);
+    }
 
     @Column(name = "customer_name_snapshot")
     private String customerNameSnapshot;
@@ -87,6 +92,28 @@ public class Order extends BaseEntity {
     @Column(name = "payment_status", nullable = false, length = 50)
     @Enumerated(EnumType.STRING)
     private PaymentStatus paymentStatus;
+
+    @Builder.Default
+    @Column(name = "inventory_processing_status", nullable = false, length = 50)
+    @Enumerated(EnumType.STRING)
+    private OrderInventoryProcessingStatus inventoryProcessingStatus = OrderInventoryProcessingStatus.NOT_STARTED;
+
+    @Column(name = "inventory_processed_at")
+    private Instant inventoryProcessedAt;
+
+    @Column(name = "inventory_failure_reason", length = 1000)
+    private String inventoryFailureReason;
+
+    @Column(name = "sellable_compensated_at")
+    private Instant sellableCompensatedAt;
+
+    @Builder.Default
+    @Column(name = "inventory_processing_attempt", nullable = false)
+    private int inventoryProcessingAttempt = 0;
+
+    @Builder.Default
+    @Column(name = "inventory_compensation_pending", nullable = false)
+    private boolean inventoryCompensationPending = false;
 
     @Builder.Default
     @Column(name = "return_status", nullable = false, length = 50)

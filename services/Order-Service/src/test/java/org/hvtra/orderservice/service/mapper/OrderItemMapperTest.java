@@ -25,6 +25,7 @@ class OrderItemMapperTest {
                         "Size M",
                         "Danh mục",
                         null,
+                        new BigDecimal("999"),
                         null
                 );
 

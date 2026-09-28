@@ -12,8 +12,8 @@ public record NotificationResponse(
         String message,
         String orderId,
         String orderCode,
-        String returnId,
-        String returnCode,
+//        String returnId,
+//        String returnCode,
         Instant createdAt,
         Instant readAt,
         String status
@@ -26,8 +26,8 @@ public record NotificationResponse(
                 notification.getMessage(),
                 notification.getOrderId(),
                 notification.getOrderCode(),
-                notification.getReturnId(),
-                notification.getReturnCode(),
+//                notification.getReturnId(),
+//                notification.getReturnCode(),
                 notification.getCreatedAt(),
                 notification.getReadAt(),
                 notification.getStatus()

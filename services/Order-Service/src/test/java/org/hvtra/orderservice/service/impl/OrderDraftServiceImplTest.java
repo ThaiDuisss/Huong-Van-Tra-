@@ -152,7 +152,7 @@ class OrderDraftServiceImplTest {
         when(orderValidator.requirePositiveQuantity(quantity)).thenReturn(quantity);
         when(orderAmountCalculator.defaultZero(variant.sellingPrice())).thenReturn(unitPrice);
         when(orderAmountCalculator.defaultZero(discount)).thenReturn(discount);
-        when(orderItemMapper.toDraftOrderItem(variant, quantity, unitPrice, discount, bomVersionId))
+        when(orderItemMapper.toDraftOrderItem(variant, quantity, unitPrice, discount, bomVersionId, null))
                 .thenReturn(item);
         when(orderRepository.save(draft)).thenReturn(draft);
         when(orderResponseAssembler.toResponse(draft)).thenReturn(expected);
@@ -172,7 +172,6 @@ class OrderDraftServiceImplTest {
                 orderStatusHistoryWriter,
                 productSnapshotResolver,
                 orderValidator,
-                inventoryReservationService,
                 orderAmountCalculator,
                 orderItemMapper,
                 orderResponseAssembler
@@ -185,14 +184,14 @@ class OrderDraftServiceImplTest {
         inOrder.verify(orderStatusHistoryWriter).write(draft, null, OrderStatus.DRAFT, "Tạo hóa đơn nháp POS", cashierId);
         inOrder.verify(productSnapshotResolver).resolvePosView(variantId);
         inOrder.verify(orderValidator).requirePositiveQuantity(quantity);
-        inOrder.verify(inventoryReservationService).applyReservation(draft, variantId, quantity, inventoryLocationId);
         inOrder.verify(orderAmountCalculator).defaultZero(variant.sellingPrice());
         inOrder.verify(orderAmountCalculator).defaultZero(discount);
-        inOrder.verify(orderItemMapper).toDraftOrderItem(variant, quantity, unitPrice, discount, bomVersionId);
+        inOrder.verify(orderItemMapper).toDraftOrderItem(variant, quantity, unitPrice, discount, bomVersionId, null);
         inOrder.verify(orderAmountCalculator).recalculateLine(item);
         inOrder.verify(orderAmountCalculator).recalculateOrderTotals(draft);
         inOrder.verify(orderRepository).save(draft);
         inOrder.verify(orderResponseAssembler).toResponse(draft);
+        verifyNoInteractions(inventoryReservationService);
     }
 
     @Test
@@ -208,9 +207,11 @@ class OrderDraftServiceImplTest {
         OrderItem item = draftItem(itemId, variantId);
         order.addItem(item);
         OrderResponse expected = OrderResponse.builder().id(orderId).build();
+        CatalogClient.ProductVariantPosViewResponse variant = variant(variantId, BigDecimal.TEN);
         when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
         when(orderAmountCalculator.defaultZero(targetQuantity)).thenReturn(targetQuantity);
         when(orderDateTimeHelper.nextDraftExpiresAt()).thenReturn(expiresAt);
+        when(productSnapshotResolver.resolvePosView(variantId)).thenReturn(variant);
         when(orderRepository.save(order)).thenReturn(order);
         when(orderResponseAssembler.toResponse(order)).thenReturn(expected);
 
@@ -224,18 +225,19 @@ class OrderDraftServiceImplTest {
                 orderValidator,
                 orderAmountCalculator,
                 orderDateTimeHelper,
-                inventoryReservationService,
+                productSnapshotResolver,
                 orderResponseAssembler
         );
         inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
         inOrder.verify(orderValidator).validateEditableDraft(any(Order.class), any(Instant.class));
         inOrder.verify(orderAmountCalculator).defaultZero(targetQuantity);
         inOrder.verify(orderDateTimeHelper).nextDraftExpiresAt();
-        inOrder.verify(inventoryReservationService).applyReservation(order, variantId, targetQuantity, null);
+        inOrder.verify(productSnapshotResolver).resolvePosView(variantId);
         inOrder.verify(orderAmountCalculator).recalculateLine(item);
         inOrder.verify(orderAmountCalculator).recalculateOrderTotals(order);
         inOrder.verify(orderRepository).save(order);
         inOrder.verify(orderResponseAssembler).toResponse(order);
+        verifyNoInteractions(inventoryReservationService);
     }
 
     @Test
@@ -265,15 +267,15 @@ class OrderDraftServiceImplTest {
         assertEquals(secondExpiresAt, order.getExpiresAt());
         verify(orderRepository, times(2)).findByIdAndIsDeletedFalse(orderId);
         verify(orderValidator, times(2)).validateEditableDraft(any(Order.class), any(Instant.class));
-        InOrder inOrder = inOrder(orderRepository, orderValidator, orderAmountCalculator, orderDateTimeHelper, inventoryReservationService);
+        InOrder inOrder = inOrder(orderRepository, orderValidator, orderAmountCalculator, orderDateTimeHelper);
         inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
         inOrder.verify(orderValidator).validateEditableDraft(any(Order.class), any(Instant.class));
         inOrder.verify(orderAmountCalculator).defaultZero(BigDecimal.ZERO);
         inOrder.verify(orderDateTimeHelper).nextDraftExpiresAt();
         inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
         inOrder.verify(orderValidator).validateEditableDraft(any(Order.class), any(Instant.class));
-        inOrder.verify(inventoryReservationService).releaseItemReservation(orderId, variantId, null);
         inOrder.verify(orderDateTimeHelper).nextDraftExpiresAt();
+        verifyNoInteractions(inventoryReservationService);
     }
 
     @Test
@@ -289,13 +291,42 @@ class OrderDraftServiceImplTest {
 
         assertSame(expected, actual);
         assertEquals(OrderStatus.CANCELLED, order.getStatus());
-        InOrder inOrder = inOrder(orderRepository, orderValidator, inventoryReservationService, orderStatusHistoryWriter, orderResponseAssembler);
+        InOrder inOrder = inOrder(orderRepository, orderValidator, orderStatusHistoryWriter, orderResponseAssembler);
         inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
         inOrder.verify(orderValidator).validateDraftCancellation(order);
-        inOrder.verify(inventoryReservationService).releaseOrderReservation(orderId);
         inOrder.verify(orderRepository).save(order);
         inOrder.verify(orderStatusHistoryWriter).write(order, OrderStatus.DRAFT, OrderStatus.CANCELLED, "Hủy hóa đơn nháp POS", null);
         inOrder.verify(orderResponseAssembler).toResponse(order);
+        verifyNoInteractions(inventoryReservationService);
+    }
+
+    @Test
+    void addDraftItemRejectsQuantityAboveSellable() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Instant expiresAt = Instant.parse("2026-07-25T01:25:00Z");
+        AddDraftOrderItemRequest request = new AddDraftOrderItemRequest();
+        request.setOrderId(orderId);
+        request.setProductVariantId(variantId);
+        request.setQuantity(new BigDecimal("3"));
+        Order order = draftOrder(orderId);
+        CatalogClient.ProductVariantPosViewResponse variant = variant(
+                variantId,
+                BigDecimal.TEN,
+                new BigDecimal("2")
+        );
+        when(orderDateTimeHelper.nextDraftExpiresAt()).thenReturn(expiresAt);
+        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(productSnapshotResolver.resolvePosView(variantId)).thenReturn(variant);
+        when(orderValidator.requirePositiveQuantity(new BigDecimal("3"))).thenReturn(new BigDecimal("3"));
+
+        InvalidOrderStatusException exception = assertThrows(
+                InvalidOrderStatusException.class,
+                () -> service.addDraftItem(request)
+        );
+
+        assertEquals("Số lượng bán vượt quá số lượng có thể bán", exception.getMessage());
+        verifyNoInteractions(inventoryReservationService, orderItemMapper, orderResponseAssembler);
     }
 
     @Test
@@ -507,6 +538,14 @@ class OrderDraftServiceImplTest {
     }
 
     private CatalogClient.ProductVariantPosViewResponse variant(UUID variantId, BigDecimal sellingPrice) {
+        return variant(variantId, sellingPrice, new BigDecimal("999"));
+    }
+
+    private CatalogClient.ProductVariantPosViewResponse variant(
+            UUID variantId,
+            BigDecimal sellingPrice,
+            BigDecimal sellableQuantity
+    ) {
         return new CatalogClient.ProductVariantPosViewResponse(
                 UUID.randomUUID(),
                 variantId,
@@ -515,6 +554,7 @@ class OrderDraftServiceImplTest {
                 "Size M",
                 "Trà",
                 sellingPrice,
+                sellableQuantity,
                 null
         );
     }

@@ -18,7 +18,7 @@ public record CatalogVariantResponse(
         String inventoryPolicy,
         String status,
         String productStatus,
-        boolean sellable
+        boolean sellable,
+        BigDecimal sellableQuantity
 ) {
 }
-

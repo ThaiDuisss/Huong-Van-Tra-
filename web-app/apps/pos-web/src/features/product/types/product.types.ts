@@ -111,6 +111,9 @@ export interface ProductVariant {
     quantity: number;
     sellingPrice: number;
     costPrice: number;
+    sellableQuantity: number;
+    productionThreshold: number;
+    productionBatchQuantity: number;
     /** ID đơn vị bán thương mại (thay thế baseUnitId + packQuantity cũ) */
     unitId: EntityId;
     unitName?: string | null;
@@ -127,6 +130,9 @@ export interface ProductVariantInput {
     quantity: number;
     sellingPrice: number;
     costPrice: number;
+    sellableQuantity: number;
+    productionThreshold: number;
+    productionBatchQuantity: number;
     /** ID đơn vị bán thương mại */
     unitId: EntityId;
     inventoryPolicy: InventoryPolicy;

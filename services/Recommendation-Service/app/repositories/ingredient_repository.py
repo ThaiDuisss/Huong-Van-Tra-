@@ -15,6 +15,7 @@ class IngredientRepository:
             ingredient_code=ingredient.ingredient_code,
             name=ingredient.name,
             status=ingredient.status,
+            type=ingredient.type,
             is_deleted=ingredient.is_deleted,
         )
 
@@ -22,6 +23,7 @@ class IngredientRepository:
             ingredient_code=stmt.inserted.ingredient_code,
             name=stmt.inserted.name,
             status=stmt.inserted.status,
+            type=stmt.inserted.type,
             is_deleted=stmt.inserted.is_deleted,
         )
 
