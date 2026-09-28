@@ -35,7 +35,7 @@ public class InventoryTransaction extends BaseEntity {
     @Column(name = "reference_id", length = 50)
     private String referenceId;
 
-    @Column(name = "branch_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "branch_id", columnDefinition = "BINARY(16)")
     private UUID branchId;
 
     @ManyToOne(fetch = FetchType.LAZY)

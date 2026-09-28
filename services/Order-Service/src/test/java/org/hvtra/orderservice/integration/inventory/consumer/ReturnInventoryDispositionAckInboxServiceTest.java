@@ -1,6 +1,9 @@
 package org.hvtra.orderservice.integration.inventory.consumer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.hvtra.commonservice.common_core.kafka.event.DebeziumOutboxEventPayloadParser;
 import org.hvtra.commonservice.common_core.kafka.event.EventMetadataResolver;
 import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.orderservice.domain.entity.OrderInbox;
@@ -27,6 +30,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -66,6 +70,8 @@ class ReturnInventoryDispositionAckInboxServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(ackInboxService, "consumerGroup", "test-consumer-group");
+        ReflectionTestUtils.setField(ackInboxService, "processedTopic", "inventory.event.RETURN_INVENTORY_DISPOSITION_PROCESSED");
+        ReflectionTestUtils.setField(ackInboxService, "failedTopic", "inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED");
 
         commandId = UUID.randomUUID();
         returnId = UUID.randomUUID();
@@ -86,7 +92,7 @@ class ReturnInventoryDispositionAckInboxServiceTest {
                 .requestedBy(actorUserId)
                 .build();
 
-        record = new ConsumerRecord<>("test-topic", 0, 0L, commandId.toString(), "{}");
+        record = new ConsumerRecord<>("inventory.event.RETURN_INVENTORY_DISPOSITION_PROCESSED", 0, 0L, commandId.toString(), "{}");
 
         processedEvent = new ReturnInventoryDispositionProcessedEvent();
         processedEvent.setEventId("evt-1");
@@ -223,7 +229,78 @@ class ReturnInventoryDispositionAckInboxServiceTest {
     }
 
     @Test
+    void handle_processedAck_withoutReturnId_doesNotProcessCommand() {
+        processedEvent.setReturnId(null);
+        when(eventParser.parseProcessedCreateEvent(record.value())).thenReturn(Optional.of(processedEvent));
+        when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-missing-return");
+        when(orderInboxRepository.findByEventIdAndConsumerGroup(eq("evt-missing-return"), any()))
+                .thenReturn(Optional.empty());
+        when(orderInboxRepository.saveAndFlush(any(OrderInbox.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderReturnInventoryCommandRepository.findByCommandIdForUpdate(commandId))
+                .thenReturn(Optional.of(command));
+
+        ackInboxService.handle(record);
+
+        assertEquals(OrderReturnInventoryCommandStatus.PENDING, command.getStatus());
+        verify(orderReturnInventoryCommandRepository, never()).saveAndFlush(command);
+        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+    }
+
+    @Test
+    void parser_doesNotTreatFailedEventAsProcessed() {
+        ReturnInventoryDispositionAckEventParser realParser = new ReturnInventoryDispositionAckEventParser(
+                new DebeziumOutboxEventPayloadParser(new ObjectMapper()
+                        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false))
+        );
+        String payload = """
+                {"eventType":"RETURN_INVENTORY_DISPOSITION_FAILED","commandId":"%s",
+                 "returnId":"%s","failureCode":"BAD_REQUEST"}
+                """.formatted(commandId, returnId);
+
+        assertTrue(realParser.parseProcessedCreateEvent(payload).isEmpty());
+        assertTrue(realParser.parseFailedCreateEvent(payload).isPresent());
+    }
+
+    @Test
+    void parser_rejectsUnknownAndMissingEventType() {
+        ReturnInventoryDispositionAckEventParser realParser = new ReturnInventoryDispositionAckEventParser(
+                new DebeziumOutboxEventPayloadParser(new ObjectMapper()
+                        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false))
+        );
+        String unknownType = """
+                {"eventType":"RETURN_INVENTORY_DISPOSITION_UNKNOWN","commandId":"%s",
+                 "returnId":"%s","inspectionId":"%s"}
+                """.formatted(commandId, returnId, inspectionId);
+        String missingType = """
+                {"commandId":"%s","returnId":"%s","inspectionId":"%s"}
+                """.formatted(commandId, returnId, inspectionId);
+        for (String payload : new String[]{unknownType, missingType}) {
+            assertTrue(realParser.parseProcessedCreateEvent(payload).isEmpty());
+            assertTrue(realParser.parseFailedCreateEvent(payload).isEmpty());
+        }
+    }
+
+    @Test
+    void handle_processedAck_withoutInspectionId_doesNotCompletePhysicalReturn() {
+        processedEvent.setInspectionId(null);
+        when(eventParser.parseProcessedCreateEvent(record.value())).thenReturn(Optional.of(processedEvent));
+        when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-1");
+        when(orderInboxRepository.findByEventIdAndConsumerGroup(eq("evt-1"), any())).thenReturn(Optional.empty());
+        when(orderInboxRepository.saveAndFlush(any(OrderInbox.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderReturnInventoryCommandRepository.findByCommandIdForUpdate(commandId))
+                .thenReturn(Optional.of(command));
+
+        ackInboxService.handle(record);
+
+        assertEquals(OrderReturnInventoryCommandStatus.PENDING, command.getStatus());
+        verify(orderReturnInventoryCommandRepository, never()).saveAndFlush(command);
+        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+    }
+
+    @Test
     void handle_failedAck_transitionsPendingCommandToFailed() {
+        record = new ConsumerRecord<>("inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED", 0, 0L,
+                commandId.toString(), "{}");
         ReturnInventoryDispositionFailedEvent failedEvent = new ReturnInventoryDispositionFailedEvent();
         failedEvent.setEventId("evt-failed-1");
         failedEvent.setEventType("RETURN_INVENTORY_DISPOSITION_FAILED");
@@ -233,7 +310,6 @@ class ReturnInventoryDispositionAckInboxServiceTest {
         failedEvent.setFailureReason("Damage too severe");
         failedEvent.setFailedAt(Instant.now().toString());
 
-        when(eventParser.parseProcessedCreateEvent(record.value())).thenReturn(Optional.empty());
         when(eventParser.parseFailedCreateEvent(record.value())).thenReturn(Optional.of(failedEvent));
         when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-failed-1");
         when(orderInboxRepository.findByEventIdAndConsumerGroup(eq("evt-failed-1"), any())).thenReturn(Optional.empty());
@@ -248,6 +324,54 @@ class ReturnInventoryDispositionAckInboxServiceTest {
         assertEquals("STOCK_REJECTED", command.getFailureCode());
         assertEquals("Damage too severe", command.getFailureReason());
         verify(orderReturnInventoryCommandRepository).saveAndFlush(command);
+        verify(eventParser, never()).parseProcessedCreateEvent(record.value());
+        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+    }
+
+    @Test
+    void handle_lateProcessedAck_afterFailure_doesNotOverwriteCommand() {
+        command.setStatus(OrderReturnInventoryCommandStatus.FAILED);
+        when(eventParser.parseProcessedCreateEvent(record.value())).thenReturn(Optional.of(processedEvent));
+        when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-late-success");
+        when(orderInboxRepository.findByEventIdAndConsumerGroup(eq("evt-late-success"), any()))
+                .thenReturn(Optional.empty());
+        when(orderInboxRepository.saveAndFlush(any(OrderInbox.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderReturnInventoryCommandRepository.findByCommandIdForUpdate(commandId))
+                .thenReturn(Optional.of(command));
+
+        ackInboxService.handle(record);
+
+        assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
+        assertNull(command.getInspectionId());
+        verify(orderReturnInventoryCommandRepository, never()).saveAndFlush(command);
+        verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
+    }
+
+    @Test
+    void handle_duplicateFailedAck_doesNotRewriteTerminalCommand() {
+        command.setStatus(OrderReturnInventoryCommandStatus.FAILED);
+        command.setFailureCode("BAD_REQUEST");
+        record = new ConsumerRecord<>("inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED", 0, 1L,
+                commandId.toString(), "{}");
+        ReturnInventoryDispositionFailedEvent failedEvent = new ReturnInventoryDispositionFailedEvent();
+        failedEvent.setEventType("RETURN_INVENTORY_DISPOSITION_FAILED");
+        failedEvent.setCommandId(commandId.toString());
+        failedEvent.setReturnId(returnId.toString());
+        failedEvent.setFailureCode("STALE_FAILURE");
+
+        when(eventParser.parseFailedCreateEvent(record.value())).thenReturn(Optional.of(failedEvent));
+        when(metadataResolver.resolveEventId(any(), any(), any())).thenReturn("evt-duplicate-failure");
+        when(orderInboxRepository.findByEventIdAndConsumerGroup(eq("evt-duplicate-failure"), any()))
+                .thenReturn(Optional.empty());
+        when(orderInboxRepository.saveAndFlush(any(OrderInbox.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderReturnInventoryCommandRepository.findByCommandIdForUpdate(commandId))
+                .thenReturn(Optional.of(command));
+
+        ackInboxService.handle(record);
+
+        assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
+        assertEquals("BAD_REQUEST", command.getFailureCode());
+        verify(orderReturnInventoryCommandRepository, never()).saveAndFlush(command);
         verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());
     }
 }
