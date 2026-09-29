@@ -71,7 +71,7 @@ const RETURN_STATUS_FILTERS: {
     isError?: boolean;
 }[] = [
     { key: "ALL", label: "Tất cả" },
-    { key: "CREATED", label: "Đã tạo" },
+    { key: "CREATED", label: "Chờ nhận hàng" },
     { key: "RECEIVED", label: "Chờ kiểm hàng" },
     { key: "PROCESSING", label: "Đang xử lý" },
     { key: "PENDING_REFUND", label: "Chờ hoàn tiền" },

@@ -28,6 +28,13 @@ export type CustomerReturnQcStatus =
 export type CustomerReturnInspectionStatus = "CREATED" | "PROCESSING" | "POSTED" | "CANCELLED";
 
 export type OrderRefundStatus = "PENDING" | "REFUNDED" | "NOT_READY" | "FAILED" | "NOT_REQUIRED";
+export type RefundProgressStatus =
+    | "WAITING_RECEIPT"
+    | "WAITING_INSPECTION"
+    | "WAITING_REFUND"
+    | "REFUNDED"
+    | "FAILED"
+    | "OTHER";
 
 export type OrderRefundBlockReason =
     | "NONE"
@@ -152,16 +159,19 @@ export interface OrderReturnQueryParams {
     page?: number;
     size?: number;
     sort?: string;
+    warehouseActiveOnly?: boolean;
 }
 
 export interface OrderRefundQueryParams {
     fromDate?: string;
     keyword?: string;
     status?: OrderRefundStatus;
+    progressStatus?: RefundProgressStatus;
     toDate?: string;
     page?: number;
     size?: number;
     sort?: string;
+    warehouseActiveOnly?: boolean;
 }
 
 export interface OrderRefundSummaryResponse {
@@ -181,6 +191,7 @@ export interface OrderRefundSummaryResponse {
     inspectionId?: string | null;
     inventoryProcessedAt?: string | null;
     refundStatus?: OrderRefundStatus | null;
+    progressStatus?: RefundProgressStatus | null;
     refundEligible?: boolean | null;
     refundBlockReason?: OrderRefundBlockReason | string | null;
     refundAmount?: number | string | null;
@@ -225,6 +236,9 @@ export interface OrderRefundStatsResponse {
     refunded?: number;
     notReady?: number;
     failed?: number;
+    waitingReceipt?: number;
+    waitingInspection?: number;
+    other?: number;
 }
 
 export interface CustomerReturnQcSummaryLine {

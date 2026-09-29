@@ -18,12 +18,12 @@ const inspectionStatusLabels: Record<CustomerReturnInspectionStatus, string> = {
     POSTED: "Đã xử lý"
 };
 
-const statusOptions = [
-    { label: "Tất cả", value: "ALL" },
-    { label: "Chờ xử lý", value: "CREATED" },
-    { label: "Chờ duyệt tiêu hủy", value: "PROCESSING" },
-    { label: "Đã xử lý", value: "POSTED" },
-    { label: "Đã hủy", value: "CANCELLED" }
+const inspectionStatusTabs = [
+    { key: "ALL", label: "Tất cả" },
+    { key: "CREATED", label: "Chờ xử lý" },
+    { key: "PROCESSING", label: "Chờ duyệt tiêu hủy" },
+    { key: "POSTED", label: "Đã xử lý" },
+    { key: "CANCELLED", label: "Đã hủy" }
 ];
 
 export function InspectionStatusBadge({ status }: { status: CustomerReturnInspectionStatus }) {
@@ -35,14 +35,12 @@ export function InspectionStatusBadge({ status }: { status: CustomerReturnInspec
 
 export function InspectionFilterBar({ onChange, onReset, query }: { onChange: (patch: Partial<CustomerReturnInspectionListQuery>) => void; onReset: () => void; query: CustomerReturnInspectionListQuery }) {
     return <ListFilterBar
-        onOrderCodeChange={(orderCode) => onChange({ orderCode, page: 0 })}
+        activeStatus={query.status ?? "ALL"}
         onReset={onReset}
-        onReturnCodeChange={(returnCode) => onChange({ returnCode, page: 0 })}
-        onStatusChange={(status) => onChange({ page: 0, status: status as CustomerReturnInspectionListQuery["status"] })}
-        orderCode={query.orderCode}
-        returnCode={query.returnCode}
-        status={query.status}
-        statusOptions={statusOptions}
+        onSearchChange={(keyword) => onChange({ returnCode: keyword, page: 0 })}
+        onStatusChange={(status) => onChange({ page: 0, status: status === "ALL" ? undefined : (status as CustomerReturnInspectionListQuery["status"]) })}
+        searchTerm={query.returnCode ?? ""}
+        statusTabs={inspectionStatusTabs}
     />;
 }
 

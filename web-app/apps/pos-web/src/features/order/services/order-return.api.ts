@@ -77,7 +77,7 @@ export function getOrderReturnList(params: OrderReturnQueryParams = {}) {
 }
 
 export function getOrderReturnStatusCounts(
-    params: Pick<OrderReturnQueryParams, "fromDate" | "keyword" | "toDate"> = {}
+    params: Pick<OrderReturnQueryParams, "fromDate" | "keyword" | "toDate" | "warehouseActiveOnly"> = {}
 ) {
     return apiClient.get<Record<string, number>>(
         "/orders/returns/status-counts",

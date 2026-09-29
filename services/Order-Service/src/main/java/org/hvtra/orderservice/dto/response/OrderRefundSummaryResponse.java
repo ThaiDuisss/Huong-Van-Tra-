@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 import org.hvtra.orderservice.domain.enums.OrderRefundBlockReason;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
+import org.hvtra.orderservice.domain.enums.RefundProgressStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 
 import java.math.BigDecimal;
@@ -31,6 +32,7 @@ public class OrderRefundSummaryResponse {
     private UUID inspectionId;
     private Instant inventoryProcessedAt;
     private OrderRefundStatus refundStatus;
+    private RefundProgressStatus progressStatus;
     private Boolean refundEligible;
     private OrderRefundBlockReason refundBlockReason;
     private BigDecimal refundAmount;

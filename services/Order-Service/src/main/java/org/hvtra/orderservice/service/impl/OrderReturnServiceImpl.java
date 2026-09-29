@@ -17,6 +17,7 @@ import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommandLine;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.enums.OrderRefundBlockReason;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
+import org.hvtra.orderservice.domain.enums.RefundProgressStatus;
 import org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus;
 import org.hvtra.orderservice.domain.enums.OrderReturnHistoryAction;
 import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
@@ -63,6 +64,7 @@ import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgress;
 import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgressResolver;
 import org.hvtra.orderservice.service.support.OrderReturnRefundEligibilityResolver;
 import org.hvtra.orderservice.service.support.OrderReturnRefundEligibilityResolver.RefundEligibilityResult;
+import org.hvtra.orderservice.service.support.RefundProgressStatusResolver;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -284,15 +286,15 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     public Page<OrderRefundSummaryResponse> getRefunds(
             String keyword,
             OrderRefundStatus status,
+            RefundProgressStatus progressStatus,
             LocalDate fromDate,
             LocalDate toDate,
             String sort,
             int page,
             int size
     ) {
-        // TODO: Global in-memory priority sorting for current scale.
-        // When the dataset grows significantly, transition to a dedicated read-model
-        // or persisted refundStatus with database indexing.
+        // Refund progress includes Inventory and Payment data. Enrich all candidates
+        // before filtering and slicing so page totals reflect the complete result set.
         List<OrderReturnSummaryResponse> summaries = orderReturnRepository.findRefundReturnSummaries(
                 keywordPattern(keyword),
                 startOfDay(fromDate),
@@ -301,6 +303,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         List<OrderRefundSummaryResponse> refundRows = buildRefundSummaries(summaries);
         List<OrderRefundSummaryResponse> filteredRows = refundRows.stream()
                 .filter(row -> status == null || row.getRefundStatus() == status)
+                .filter(row -> progressStatus == null || row.getProgressStatus() == progressStatus)
                 .sorted(refundSort(sort))
                 .toList();
 
@@ -456,10 +459,13 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
         return OrderRefundStatsResponse.builder()
                 .total(rows.size())
-                .pendingRefund(rows.stream().filter(row -> row.getRefundStatus() == OrderRefundStatus.PENDING).count())
-                .refunded(rows.stream().filter(row -> row.getRefundStatus() == OrderRefundStatus.REFUNDED).count())
+                .pendingRefund(rows.stream().filter(row -> row.getProgressStatus() == RefundProgressStatus.WAITING_REFUND).count())
+                .refunded(rows.stream().filter(row -> row.getProgressStatus() == RefundProgressStatus.REFUNDED).count())
                 .notReady(rows.stream().filter(row -> row.getRefundStatus() == OrderRefundStatus.NOT_READY).count())
-                .failed(rows.stream().filter(row -> row.getRefundStatus() == OrderRefundStatus.FAILED).count())
+                .failed(rows.stream().filter(row -> row.getProgressStatus() == RefundProgressStatus.FAILED).count())
+                .waitingReceipt(rows.stream().filter(row -> row.getProgressStatus() == RefundProgressStatus.WAITING_RECEIPT).count())
+                .waitingInspection(rows.stream().filter(row -> row.getProgressStatus() == RefundProgressStatus.WAITING_INSPECTION).count())
+                .other(rows.stream().filter(row -> row.getProgressStatus() == RefundProgressStatus.OTHER).count())
                 .build();
     }
 
@@ -868,9 +874,37 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             LocalDate toDate,
             String sort,
             int page,
-            int size
+            int size,
+            boolean warehouseActiveOnly
     ) {
         String effectiveDisplayStatus = normalizeDisplayStatus(status, displayStatus);
+
+        if (warehouseActiveOnly) {
+            List<OrderReturnSummaryResponse> candidates = new ArrayList<>(orderReturnRepository.findReturnSummariesList(
+                    keywordPattern(keyword),
+                    null,
+                    startOfDay(fromDate),
+                    startOfDay(nextDay(toDate))
+            ));
+            enrichReturnSummaries(candidates);
+
+            List<OrderReturnSummaryResponse> matched = candidates.stream()
+                    .filter(row -> !"PENDING_REFUND".equalsIgnoreCase(row.getDisplayStatus()))
+                    .filter(row -> effectiveDisplayStatus == null || "ALL".equalsIgnoreCase(effectiveDisplayStatus)
+                            || effectiveDisplayStatus.equalsIgnoreCase(row.getDisplayStatus()))
+                    .sorted(RETURN_PRIORITY_COMPARATOR)
+                    .toList();
+
+            int pageIndex = Math.max(page, 0);
+            int pageSize = Math.min(Math.max(size, 1), 200);
+            int fromIndex = Math.min(pageIndex * pageSize, matched.size());
+            int toIndex = Math.min(fromIndex + pageSize, matched.size());
+            return new PageImpl<>(
+                    matched.subList(fromIndex, toIndex),
+                    PageRequest.of(pageIndex, pageSize),
+                    matched.size()
+            );
+        }
 
         if (effectiveDisplayStatus == null || "ALL".equalsIgnoreCase(effectiveDisplayStatus)) {
             // TODO: Global in-memory priority sorting for current scale.
@@ -956,8 +990,36 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             LocalDate toDate,
             String sort,
             int page,
-            int size
+            int size,
+            boolean warehouseActiveOnly
     ) {
+        String effectiveDisplayStatus = normalizeDisplayStatus(status, displayStatus);
+
+        if (warehouseActiveOnly) {
+            List<OrderReturnSummaryResponse> candidates = orderReturnRepository.findFilteredReturnSummariesList(
+                    keywordPattern(keyword), keywordPattern(returnCode), keywordPattern(orderCode),
+                    startOfDay(fromDate), startOfDay(nextDay(toDate))
+            );
+            enrichReturnSummaries(candidates);
+
+            List<OrderReturnSummaryResponse> matched = candidates.stream()
+                    .filter(row -> !"PENDING_REFUND".equalsIgnoreCase(row.getDisplayStatus()))
+                    .filter(row -> effectiveDisplayStatus == null || "ALL".equalsIgnoreCase(effectiveDisplayStatus)
+                            || effectiveDisplayStatus.equalsIgnoreCase(row.getDisplayStatus()))
+                    .sorted(RETURN_PRIORITY_COMPARATOR)
+                    .toList();
+
+            int pageIndex = Math.max(page, 0);
+            int pageSize = Math.min(Math.max(size, 1), 200);
+            int fromIndex = Math.min(pageIndex * pageSize, matched.size());
+            int toIndex = Math.min(fromIndex + pageSize, matched.size());
+            return new PageImpl<>(
+                    matched.subList(fromIndex, toIndex),
+                    PageRequest.of(pageIndex, pageSize),
+                    matched.size()
+            );
+        }
+
         if (displayStatus != null && !"ALL".equalsIgnoreCase(displayStatus)
                 && status == null) {
             List<OrderReturnSummaryResponse> candidates = orderReturnRepository.findFilteredReturnSummariesList(
@@ -992,7 +1054,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
     @Override
     @Transactional(readOnly = true)
-    public Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate) {
+    public Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate, boolean warehouseActiveOnly) {
         List<OrderReturnSummaryResponse> summaries = orderReturnRepository.findReturnSummariesList(
                 keywordPattern(keyword),
                 null,
@@ -1029,14 +1091,25 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         }
 
         Map<String, Long> counts = new LinkedHashMap<>();
-        counts.put("ALL", (long) summaries.size());
-        counts.put("CREATED", createdCount);
-        counts.put("RECEIVED", receivedCount);
-        counts.put("PROCESSING", processingCount);
-        counts.put("PENDING_REFUND", pendingRefundCount);
-        counts.put("COMPLETED", completedCount);
-        counts.put("CANCELLED", cancelledCount);
-        counts.put("PROCESSING_FAILED", processingFailedCount);
+        if (warehouseActiveOnly) {
+            long warehouseTotal = createdCount + receivedCount + processingCount + processingFailedCount + completedCount + cancelledCount;
+            counts.put("ALL", warehouseTotal);
+            counts.put("CREATED", createdCount);
+            counts.put("RECEIVED", receivedCount);
+            counts.put("PROCESSING", processingCount);
+            counts.put("COMPLETED", completedCount);
+            counts.put("CANCELLED", cancelledCount);
+            counts.put("PROCESSING_FAILED", processingFailedCount);
+        } else {
+            counts.put("ALL", (long) summaries.size());
+            counts.put("CREATED", createdCount);
+            counts.put("RECEIVED", receivedCount);
+            counts.put("PROCESSING", processingCount);
+            counts.put("PENDING_REFUND", pendingRefundCount);
+            counts.put("COMPLETED", completedCount);
+            counts.put("CANCELLED", cancelledCount);
+            counts.put("PROCESSING_FAILED", processingFailedCount);
+        }
 
         return counts;
     }
@@ -1402,7 +1475,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                             ? (paymentSummary == null ? null : paymentSummary.method())
                             : DOWNSTREAM_METHOD_UNKNOWN;
 
-                    return OrderRefundSummaryResponse.builder()
+                    OrderRefundSummaryResponse row = OrderRefundSummaryResponse.builder()
                             .returnId(summary.getId())
                             .returnCode(summary.getReturnCode())
                             .orderId(summary.getOrderId())
@@ -1428,6 +1501,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                                     ? paymentSummary.refundedAt()
                                     : null)
                             .build();
+                    row.setProgressStatus(RefundProgressStatusResolver.resolve(row));
+                    return row;
                 })
                 .toList();
     }

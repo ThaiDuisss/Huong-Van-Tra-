@@ -3,71 +3,74 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import orderStyles from "../../order/pages/OrderListPage.module.css";
 import styles from "../pages/CustomerReturnListPage.module.css";
 
-interface StatusOption {
+export interface CustomerReturnStatusTab {
+    key: string;
     label: string;
-    value: string;
+    isError?: boolean;
 }
 
-interface ListFilterBarProps {
-    returnCode: string;
-    orderCode: string;
-    status: string;
-    statusOptions: StatusOption[];
-    onReturnCodeChange(value: string): void;
-    onOrderCodeChange(value: string): void;
+export interface ListFilterBarProps {
+    searchTerm: string;
+    onSearchChange(value: string): void;
+    activeStatus: string;
+    statusTabs: CustomerReturnStatusTab[];
+    statusCounts?: Record<string, number>;
     onStatusChange(value: string): void;
-    onReset(): void;
+    onReset?(): void;
+    onReload?(): void;
+    isReloading?: boolean;
 }
 
 export function ListFilterBar({
-    returnCode,
-    orderCode,
-    status,
-    statusOptions,
-    onReturnCodeChange,
-    onOrderCodeChange,
-    onStatusChange,
-    onReset
+    searchTerm,
+    onSearchChange,
+    activeStatus,
+    statusTabs,
+    statusCounts,
+    onStatusChange
 }: ListFilterBarProps) {
     return (
-        <div className={`${orderStyles.filterRows} ${styles.filterBar}`}>
-            <label className={styles.searchField}>
-                <span>Mã phiếu hoàn</span>
-                <span className={orderStyles.searchBox}>
-                    <Search aria-hidden="true" size={18} />
-                    <input
-                        onChange={(event) => onReturnCodeChange(event.currentTarget.value)}
-                        placeholder="Tìm mã phiếu hoàn"
-                        value={returnCode}
-                    />
-                </span>
-            </label>
-            <label className={styles.searchField}>
-                <span>Mã đơn hàng</span>
-                <span className={orderStyles.searchBox}>
-                    <Search aria-hidden="true" size={18} />
-                    <input
-                        onChange={(event) => onOrderCodeChange(event.currentTarget.value)}
-                        placeholder="Tìm mã đơn hàng"
-                        value={orderCode}
-                    />
-                </span>
-            </label>
-            <label className={styles.searchField}>
-                <span>Trạng thái</span>
-                <select
-                    className={styles.statusSelect}
-                    onChange={(event) => onStatusChange(event.currentTarget.value)}
-                    value={status}
-                >
-                    {statusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                </select>
-            </label>
-            <button className={`${orderStyles.secondaryButton} ${styles.resetButton}`} onClick={onReset} type="button">
-                Xóa bộ lọc
-            </button>
+        <div className={styles.filterToolbar}>
+            <div className={styles.searchBox}>
+                <Search aria-hidden="true" size={18} />
+                <input
+                    onChange={(event) => onSearchChange(event.currentTarget.value)}
+                    placeholder="Tìm mã phiếu hoàn hoặc mã đơn hàng"
+                    value={searchTerm}
+                />
+            </div>
+
+            <div className={styles.statusFilterGroup}>
+                <span className={styles.statusLabel}>Trạng thái:</span>
+                <div className={styles.statusChipsWrap}>
+                    {statusTabs.map((tab) => {
+                        const isActive = activeStatus === tab.key;
+                        const count = statusCounts ? (statusCounts[tab.key] ?? 0) : undefined;
+                        let chipClass = styles.statusChip;
+                        if (tab.isError) {
+                            chipClass += isActive
+                                ? ` ${styles.statusChipErrorActive}`
+                                : ` ${styles.statusChipError}`;
+                        } else if (isActive) {
+                            chipClass += ` ${styles.statusChipActive}`;
+                        }
+
+                        return (
+                            <button
+                                className={chipClass}
+                                key={tab.key}
+                                onClick={() => onStatusChange(tab.key)}
+                                type="button"
+                            >
+                                <span>{tab.label}</span>
+                                {count !== undefined && (
+                                    <span className={styles.statusChipCount}>{count}</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
         </div>
     );
 }
