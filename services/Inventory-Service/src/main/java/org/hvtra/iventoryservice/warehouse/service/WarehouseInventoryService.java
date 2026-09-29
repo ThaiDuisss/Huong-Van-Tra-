@@ -10,11 +10,12 @@ import java.util.UUID;
 
 public interface WarehouseInventoryService {
     /**
-     * Lấy danh sách sản phẩm với tồn kho (tách SHELF vs WAREHOUSE)
+     * Lấy danh sách sản phẩm/nguyên liệu với tồn kho (tách SHELF vs WAREHOUSE)
      */
     Page<WarehouseInventorySummaryResponse> getProductInventorySummary(
         UUID branchId,
         String keyword,
+        String itemType,
         Pageable pageable
     );
 

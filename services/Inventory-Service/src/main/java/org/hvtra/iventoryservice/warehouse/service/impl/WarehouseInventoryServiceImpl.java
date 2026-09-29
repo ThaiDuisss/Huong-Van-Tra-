@@ -31,6 +31,7 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
     public Page<WarehouseInventorySummaryResponse> getProductInventorySummary(
         UUID branchId,
         String keyword,
+        String itemType,
         Pageable pageable
     ) {
         Specification<InventoryBalance> spec = (root, query, cb) -> {
@@ -43,6 +44,10 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
                     cb.like(cb.lower(root.get("inventoryItem").get("referenceCode")), pattern),
                     cb.like(cb.lower(root.get("inventoryItem").get("name")), pattern)
                 ));
+            }
+
+            if (itemType != null && !itemType.isBlank() && !"ALL".equalsIgnoreCase(itemType)) {
+                predicates.add(cb.equal(root.get("inventoryItem").get("itemType"), itemType));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -110,8 +115,10 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
             item.getId().toString(),
             item.getReferenceCode(),
             item.getName(),
-            "-", // No category in InventoryItem
-            "-", // No unit name (only unitId)
+            "-",
+            "-",
+            "-",
+            BigDecimal.ZERO,
             totalOnHand,
             shelfQuantity,
             warehouseQuantity,

@@ -210,6 +210,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             roles: INVENTORY_ROLES,
           },
           {
+            key: "warehouse-inventory",
+            label: "Tồn kho kho tổng",
+            icon: Package,
+            to: routePaths.warehouseInventory,
+            roles: ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"],
+          },
+          {
             key: "inventory-reorder-policies",
             label: "Chính sách bổ sung",
             icon: Boxes,

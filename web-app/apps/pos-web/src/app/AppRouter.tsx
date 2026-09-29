@@ -84,6 +84,7 @@ import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
 import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagementPage";
+import { WarehouseInventoryPage } from "../features/inventory/pages/WarehouseInventoryPage";
 import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
 import {
@@ -251,6 +252,7 @@ export function AppRouter() {
           <Route path="inventory/transactions" element={<InventoryTransactionPage />} />
           <Route path="inventory/shelves" element={<ShelfManagementPage />} />
           <Route path="inventory/balances" element={<InventoryBalancePage />} />
+          <Route path="inventory/warehouse" element={<WarehouseInventoryPage />} />
           <Route
             path="inventory/documents"
             element={<Navigate to={routePaths.inventoryDocuments} replace />}

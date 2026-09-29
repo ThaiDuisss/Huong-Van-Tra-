@@ -46,6 +46,7 @@ export const routePaths = {
   inventoryTransactions: "/system/inventory/transactions",
   inventoryShelves: "/system/inventory/shelves",
   inventoryRoles: "/system/inventory/roles",
+  warehouseInventory: "/system/inventory/warehouse",
   inventoryDocuments: "/management/inventory/documents",
   inventoryDocumentDetail: "/management/inventory/documents/:documentId",
   goodsReceipts: "/management/inventory/receipts",

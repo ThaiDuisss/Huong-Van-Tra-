@@ -2,13 +2,15 @@ import { apiClient } from "../../../api/api-client";
 
 export interface WarehouseInventorySummary {
     inventoryItemId: string;
-    productCode: string;
+    sku: string;
+    itemName: string;
     productName: string;
     categoryName: string;
     unitName: string;
+    sellingPrice: number;
     totalQuantity: number;
-    shelfQuantity: number; // POS SHELF
-    warehouseQuantity: number; // WAREHOUSE
+    shelfQuantity: number;
+    warehouseQuantity: number;
     reorderPoint: number;
     stockStatus: "OUT_OF_STOCK" | "LOW_STOCK" | "SUFFICIENT";
 }
@@ -26,9 +28,9 @@ export interface LocationInventoryDetail {
 
 export const warehouseInventoryApi = {
     /**
-     * Lấy danh sách sản phẩm với tồn kho (tách SHELF vs WAREHOUSE)
+     * Lấy danh sách sản phẩm/nguyên liệu với tồn kho (tách SHELF vs WAREHOUSE)
      */
-    getProductInventorySummary(branchId: string, params?: { keyword?: string; page?: number; size?: number }) {
+    getProductInventorySummary(branchId: string, params?: { keyword?: string; itemType?: string; page?: number; size?: number }) {
         return apiClient.get<{
             content: WarehouseInventorySummary[];
             page: number;

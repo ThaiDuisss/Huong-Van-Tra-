@@ -9,7 +9,7 @@ interface BatchDetailDrawerProps {
     itemId: string;
     locationId: string;
     locationName: string;
-    productName?: string;
+    itemName?: string;
 }
 
 export function BatchDetailDrawer({
@@ -18,7 +18,7 @@ export function BatchDetailDrawer({
     itemId,
     locationId,
     locationName,
-    productName
+    itemName
 }: BatchDetailDrawerProps) {
     const [batches, setBatches] = useState<WarehouseBatchResponse[]>([]);
     const [loading, setLoading] = useState(false);
@@ -44,21 +44,20 @@ export function BatchDetailDrawer({
         loadBatches();
     }, [open, itemId, locationId]);
 
-    if (!open) return null;
-
     return (
         <>
-            {/* Overlay */}
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose} />
-
-            {/* Drawer */}
-            <div className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-white shadow-lg z-50 flex flex-col">
+            {/* Drawer - Slide in từ phải */}
+            <div
+                className={`fixed right-0 top-0 bottom-0 w-[50vw] max-w-[50%] bg-white border-l border-gray-200 shadow-lg flex flex-col transition-all duration-300 transform z-50 overflow-y-auto ${
+                    open ? "translate-x-0" : "translate-x-full"
+                }`}
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <div>
                         <h2 className="text-lg font-bold text-gray-900">Chi tiết lô hàng</h2>
                         <p className="text-sm text-gray-600">
-                            {productName} • {locationName}
+                            {itemName} • {locationName}
                         </p>
                     </div>
                     <button

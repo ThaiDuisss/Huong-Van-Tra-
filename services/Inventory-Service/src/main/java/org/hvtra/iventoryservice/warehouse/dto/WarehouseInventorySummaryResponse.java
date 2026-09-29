@@ -4,13 +4,15 @@ import java.math.BigDecimal;
 
 public record WarehouseInventorySummaryResponse(
     String inventoryItemId,
-    String productCode,
+    String sku,
+    String itemName,
     String productName,
     String categoryName,
     String unitName,
+    BigDecimal sellingPrice,
     BigDecimal totalQuantity,
-    BigDecimal shelfQuantity, // POS SHELF
-    BigDecimal warehouseQuantity, // WAREHOUSE
+    BigDecimal shelfQuantity,
+    BigDecimal warehouseQuantity,
     BigDecimal reorderPoint,
-    String stockStatus // OUT_OF_STOCK, LOW_STOCK, SUFFICIENT
+    String stockStatus
 ) {}

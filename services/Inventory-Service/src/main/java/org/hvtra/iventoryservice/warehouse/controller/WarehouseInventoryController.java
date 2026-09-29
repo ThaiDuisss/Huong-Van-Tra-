@@ -21,18 +21,19 @@ public class WarehouseInventoryController {
     private final WarehouseInventoryService warehouseInventoryService;
 
     /**
-     * Lấy danh sách sản phẩm với tồn kho (tách SHELF vs WAREHOUSE)
-     * GET /api/inventory/warehouse/products?branchId=...&keyword=...&page=0&size=20
+     * Lấy danh sách sản phẩm/nguyên liệu với tồn kho (tách SHELF vs WAREHOUSE)
+     * GET /api/inventory/warehouse/products?branchId=...&keyword=...&itemType=...&page=0&size=20
      */
     @GetMapping("/products")
     public ResponseEntity<Page<WarehouseInventorySummaryResponse>> getProductInventorySummary(
         @RequestParam UUID branchId,
         @RequestParam(required = false) String keyword,
+        @RequestParam(required = false) String itemType,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size
     ) {
         Pageable pageable = PageRequest.of(page, size);
-        var result = warehouseInventoryService.getProductInventorySummary(branchId, keyword, pageable);
+        var result = warehouseInventoryService.getProductInventorySummary(branchId, keyword, itemType, pageable);
         return ResponseEntity.ok(result);
     }
 
