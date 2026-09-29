@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class InventoryDocumentMapper {
@@ -20,6 +22,11 @@ public class InventoryDocumentMapper {
     }
 
     public InventoryDocumentResponse toResponse(InventoryDocument document, String supplierName) {
+        return toResponse(document, supplierName, Map.of());
+    }
+
+    /** @param userNames tên người dùng theo Keycloak subject (createdBy, approvedBy...), thiếu thì để null */
+    public InventoryDocumentResponse toResponse(InventoryDocument document, String supplierName, Map<UUID, String> userNames) {
         if (document == null) {
             return null;
         }
@@ -65,17 +72,23 @@ public class InventoryDocumentMapper {
                 document.getCreatedAt(),
                 document.getUpdatedAt(),
                 document.getCreatedBy(),
+                nameOf(userNames, document.getCreatedBy()),
                 document.getApprovedBy(),
+                nameOf(userNames, document.getApprovedBy()),
                 document.getApprovedAt(),
                 document.getApprovalNote(),
                 document.getRejectedBy(),
+                nameOf(userNames, document.getRejectedBy()),
                 document.getRejectedAt(),
                 document.getRejectionReason(),
                 document.getReceivedBy(),
+                nameOf(userNames, document.getReceivedBy()),
                 document.getReceivedAt(),
                 document.getQcBy(),
+                nameOf(userNames, document.getQcBy()),
                 document.getQcAt(),
                 document.getPostedBy(),
+                nameOf(userNames, document.getPostedBy()),
                 document.getPostedAt(),
                 lines,
                 lines.size(),
@@ -84,6 +97,10 @@ public class InventoryDocumentMapper {
                 totalAccepted,
                 totalRejected
         );
+    }
+
+    private static String nameOf(Map<UUID, String> userNames, UUID userId) {
+        return userId != null ? userNames.get(userId) : null;
     }
 
     public InventoryDocumentLineResponse toLineResponse(InventoryDocumentLine line) {

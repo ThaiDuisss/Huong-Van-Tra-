@@ -25,7 +25,7 @@ export type CustomerReturnQcStatus =
     | "UNAVAILABLE"
     | "UNKNOWN";
 
-export type CustomerReturnInspectionStatus = "CREATED" | "POSTED" | "CANCELLED";
+export type CustomerReturnInspectionStatus = "CREATED" | "PROCESSING" | "POSTED" | "CANCELLED";
 
 export type OrderRefundStatus = "PENDING" | "REFUNDED" | "NOT_READY" | "FAILED" | "NOT_REQUIRED";
 

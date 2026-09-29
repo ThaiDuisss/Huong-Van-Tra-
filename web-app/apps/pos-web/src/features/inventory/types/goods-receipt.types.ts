@@ -184,8 +184,35 @@ export interface GoodsReceiptDashboardSummary {
     total: number;
 }
 
+/** Một dòng trong danh sách phiếu nhập (phân trang) — chỉ các trường hiển thị trên bảng. */
+export interface GoodsReceiptListItem {
+    id: string;
+    code: string;
+    status: GoodsReceiptStatus;
+    supplierName: string;
+    receivingLocationName: string;
+    totalReceivedQuantity: number;
+    receivedAt?: string;
+    /** Keycloak subject của người tạo — dùng để xét quyền xóa. */
+    createdById?: string;
+}
+
+/** Một dòng dữ liệu xuất Excel danh sách phiếu nhập (toàn bộ phiếu khớp bộ lọc). */
+export interface GoodsReceiptExportRow {
+    code: string;
+    purchaseOrderCode?: string;
+    supplierName: string;
+    receivingLocationName: string;
+    status: GoodsReceiptStatus;
+    qcResult: QcResult;
+    totalLines: number;
+    totalReceivedQuantity: number;
+    receivedAt?: string;
+    createdByName: string;
+}
+
 export interface GoodsReceiptListResult {
-    content: GoodsReceiptSummary[];
+    content: GoodsReceiptListItem[];
     page: number;
     size: number;
     totalElements: number;
@@ -283,7 +310,9 @@ export interface GoodsReceiptApi {
     listGoodsReceipts(
         query: GoodsReceiptListQuery
     ): Promise<GoodsReceiptListResult>;
+    exportGoodsReceipts(query: GoodsReceiptListQuery): Promise<GoodsReceiptExportRow[]>;
     getGoodsReceipt(receiptId: string): Promise<GoodsReceiptDetail>;
+    deleteGoodsReceipt(receiptId: string): Promise<void>;
     createGoodsReceipt(
         input: GoodsReceiptCreateInput
     ): Promise<GoodsReceiptDetail>;

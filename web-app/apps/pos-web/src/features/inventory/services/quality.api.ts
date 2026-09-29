@@ -37,7 +37,7 @@ interface BackendDisposalRequest {
     inspectionCode: string;
     returnId: string;
     returnCode: string;
-    branchId: string;
+    branchId?: string | null;
     status: "PENDING_APPROVAL" | "APPROVED";
     requestedAt: string;
     approvedBy?: string;
@@ -82,7 +82,7 @@ function mapBackendDisposal(request: BackendDisposalRequest): DisposalRequest {
             unit: "",
             unitCost: 0
         })),
-        location: { code: "", id: request.branchId, isCentral: false, name: "Chi nhánh tiếp nhận" },
+        location: { code: "", id: "", isCentral: false, name: "Không nhập kho" },
         method: "DESTROY",
         note: request.note,
         reason: `Tiêu hủy từ phiếu trả ${request.returnCode}`,

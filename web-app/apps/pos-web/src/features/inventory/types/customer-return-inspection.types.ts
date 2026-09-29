@@ -30,7 +30,7 @@ export interface CustomerReturnInspection {
     inspectionCode: string;
     returnId: string;
     returnCode: string;
-    branchId: string;
+    branchId?: string | null;
     orderId?: string;
     orderCode?: string;
     customerName?: string;

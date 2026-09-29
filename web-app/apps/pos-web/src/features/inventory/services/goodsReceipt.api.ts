@@ -10,7 +10,9 @@ import type {
     GoodsReceiptCreateInput,
     GoodsReceiptDashboardSummary,
     GoodsReceiptDetail,
+    GoodsReceiptExportRow,
     GoodsReceiptLine,
+    GoodsReceiptListItem,
     GoodsReceiptListQuery,
     GoodsReceiptListResult,
     GoodsReceiptOptions,
@@ -69,17 +71,23 @@ interface InventoryDocumentBackendResponse {
     createdAt: string;
     updatedAt: string;
     createdBy?: string;
+    createdByName?: string;
     approvedBy?: string;
+    approvedByName?: string;
     approvedAt?: string;
     approvalNote?: string;
     rejectedBy?: string;
+    rejectedByName?: string;
     rejectedAt?: string;
     rejectionReason?: string;
     receivedBy?: string;
+    receivedByName?: string;
     receivedAt?: string;
     qcBy?: string;
+    qcByName?: string;
     qcAt?: string;
     postedBy?: string;
+    postedByName?: string;
     postedAt?: string;
     lines: InventoryDocumentLineBackendResponse[];
     totalLines: number;
@@ -89,27 +97,84 @@ interface InventoryDocumentBackendResponse {
     totalRejectedQuantity: number;
 }
 
+interface InventoryDocumentListItemBackendResponse {
+    id: string;
+    documentCode: string;
+    status: GoodsReceiptStatus;
+    supplierId?: string;
+    supplierName?: string;
+    locationId?: string;
+    locationName?: string;
+    totalReceivedQuantity: number;
+    receivedAt?: string;
+    createdBy?: string;
+}
+
+interface InventoryDocumentExportBackendResponse {
+    documentCode: string;
+    referenceId?: string;
+    supplierName?: string;
+    locationName?: string;
+    status: GoodsReceiptStatus;
+    totalLines: number;
+    totalReceivedQuantity: number;
+    totalAcceptedQuantity: number;
+    totalRejectedQuantity: number;
+    receivedAt?: string;
+    createdAt?: string;
+    createdByName?: string;
+}
+
+function resolveQcResult(status: GoodsReceiptStatus, totalAccepted: number, totalRejected: number): QcResult {
+    if (status !== "QC_COMPLETED" && status !== "POSTED") {
+        return "PENDING";
+    }
+    if (totalRejected > 0 && totalAccepted > 0) {
+        return "PARTIALLY_PASSED";
+    }
+    return totalRejected > 0 ? "FAILED" : "PASSED";
+}
+
+function buildDocumentQueryParams(query: GoodsReceiptListQuery): Record<string, string | number | boolean | undefined> {
+    const params: Record<string, string | number | boolean | undefined> = {
+        documentType: "PURCHASE_RECEIPT"
+    };
+
+    if (query.status && query.status !== "ALL") {
+        params.status = query.status;
+    }
+    if (query.receivingLocationId && query.receivingLocationId !== "ALL") {
+        params.locationId = query.receivingLocationId;
+    }
+    if (query.supplierId && query.supplierId !== "ALL") {
+        params.supplierId = query.supplierId;
+    }
+    if (query.receiptCode?.trim()) {
+        params.query = query.receiptCode.trim();
+    } else if (query.purchaseOrderCode?.trim()) {
+        params.query = query.purchaseOrderCode.trim();
+    }
+    if (query.receivedFrom) {
+        params.fromDate = `${query.receivedFrom}T00:00:00Z`;
+    }
+    if (query.receivedTo) {
+        params.toDate = `${query.receivedTo}T23:59:59Z`;
+    }
+    return params;
+}
+
 function mapDocToSummary(doc: InventoryDocumentBackendResponse): GoodsReceiptSummary {
     const totalLines = doc.lines?.length || doc.totalLines || 0;
     const totalReceived = doc.totalReceivedQuantity || 0;
 
-    let qcResult: QcResult = "PENDING";
-    if (doc.status === "QC_COMPLETED" || doc.status === "POSTED") {
-        if (doc.totalRejectedQuantity > 0 && doc.totalAcceptedQuantity > 0) {
-            qcResult = "PARTIALLY_PASSED";
-        } else if (doc.totalRejectedQuantity > 0) {
-            qcResult = "FAILED";
-        } else {
-            qcResult = "PASSED";
-        }
-    }
+    const qcResult = resolveQcResult(doc.status, doc.totalAcceptedQuantity, doc.totalRejectedQuantity);
 
     return {
         code: doc.documentCode,
         costStatus: "FINAL",
         createdBy: {
             id: doc.createdBy || "staff",
-            name: doc.createdBy || "Nhân viên kho",
+            name: doc.createdByName || "Không rõ",
             role: "INVENTORY_STAFF"
         },
         hasVariance: (doc.lines || []).some(
@@ -225,7 +290,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
         auditEvents.push({
             actor: {
                 id: doc.approvedBy || "manager",
-                name: "Quản lý kho",
+                name: doc.approvedByName || "Quản lý kho",
                 role: "BRANCH_MANAGER"
             },
             happenedAt: doc.approvedAt,
@@ -239,7 +304,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
         auditEvents.push({
             actor: {
                 id: doc.rejectedBy || "manager",
-                name: "Quản lý kho",
+                name: doc.rejectedByName || "Quản lý kho",
                 role: "BRANCH_MANAGER"
             },
             happenedAt: doc.rejectedAt,
@@ -254,7 +319,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
         auditEvents.push({
             actor: {
                 id: doc.receivedBy || "staff",
-                name: "Nhân viên kho",
+                name: doc.receivedByName || "Nhân viên kho",
                 role: "INVENTORY_STAFF"
             },
             happenedAt: doc.receivedAt,
@@ -268,7 +333,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
         auditEvents.push({
             actor: {
                 id: doc.qcBy || "qc",
-                name: "Nhân viên QC",
+                name: doc.qcByName || "Nhân viên QC",
                 role: "QC_STAFF"
             },
             happenedAt: doc.qcAt,
@@ -280,7 +345,9 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
     }
     if (doc.postedAt) {
         auditEvents.push({
-            actor: summary.createdBy,
+            actor: doc.postedBy
+                ? { id: doc.postedBy, name: doc.postedByName || "Nhân viên kho", role: "INVENTORY_STAFF" }
+                : summary.createdBy,
             happenedAt: doc.postedAt,
             id: `post-${doc.id}`,
             note: "Ghi sổ nhập kho thành công - Cập nhật tồn khả dụng",
@@ -342,40 +409,28 @@ export const goodsReceiptApi: GoodsReceiptApi = {
     },
 
     async listGoodsReceipts(query: GoodsReceiptListQuery): Promise<GoodsReceiptListResult> {
-        const params: Record<string, string | number | boolean | undefined> = {
-            documentType: "PURCHASE_RECEIPT",
+        const params = {
+            ...buildDocumentQueryParams(query),
             page: query.page,
             size: query.size
         };
 
-        if (query.status && query.status !== "ALL") {
-            params.status = query.status;
-        }
-        if (query.receivingLocationId && query.receivingLocationId !== "ALL") {
-            params.locationId = query.receivingLocationId;
-        }
-        if (query.supplierId && query.supplierId !== "ALL") {
-            params.supplierId = query.supplierId;
-        }
-        if (query.receiptCode?.trim()) {
-            params.query = query.receiptCode.trim();
-        } else if (query.purchaseOrderCode?.trim()) {
-            params.query = query.purchaseOrderCode.trim();
-        }
-        if (query.receivedFrom) {
-            params.fromDate = `${query.receivedFrom}T00:00:00Z`;
-        }
-        if (query.receivedTo) {
-            params.toDate = `${query.receivedTo}T23:59:59Z`;
-        }
-
         try {
-            const res = await apiClient.get<PageResponse<InventoryDocumentBackendResponse>>(
+            const res = await apiClient.get<PageResponse<InventoryDocumentListItemBackendResponse>>(
                 "/inventory/documents",
                 { query: params }
             );
 
-            const content = (res.content || []).map(mapDocToSummary);
+            const content: GoodsReceiptListItem[] = (res.content || []).map((item) => ({
+                code: item.documentCode,
+                createdById: item.createdBy,
+                id: item.id,
+                receivedAt: item.receivedAt,
+                receivingLocationName: item.locationName || "Kho nhận",
+                status: item.status,
+                supplierName: item.supplierName || "Nhà cung cấp",
+                totalReceivedQuantity: item.totalReceivedQuantity || 0
+            }));
             return {
                 content,
                 first: res.first,
@@ -422,6 +477,29 @@ export const goodsReceiptApi: GoodsReceiptApi = {
             `/inventory/documents/${encodeURIComponent(receiptId)}`
         );
         return mapDocToDetail(res);
+    },
+
+    async exportGoodsReceipts(query: GoodsReceiptListQuery): Promise<GoodsReceiptExportRow[]> {
+        const rows = await apiClient.get<InventoryDocumentExportBackendResponse[]>(
+            "/inventory/documents/export",
+            { query: buildDocumentQueryParams(query) }
+        );
+        return (rows || []).map((row) => ({
+            code: row.documentCode,
+            createdByName: row.createdByName || "Không rõ",
+            purchaseOrderCode: row.referenceId || "",
+            qcResult: resolveQcResult(row.status, row.totalAcceptedQuantity, row.totalRejectedQuantity),
+            receivedAt: row.receivedAt,
+            receivingLocationName: row.locationName || "",
+            status: row.status,
+            supplierName: row.supplierName || "",
+            totalLines: row.totalLines || 0,
+            totalReceivedQuantity: row.totalReceivedQuantity || 0
+        }));
+    },
+
+    async deleteGoodsReceipt(receiptId: string): Promise<void> {
+        await apiClient.delete<void>(`/inventory/documents/${encodeURIComponent(receiptId)}`);
     },
 
     async createGoodsReceipt(input: GoodsReceiptCreateInput): Promise<GoodsReceiptDetail> {

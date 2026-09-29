@@ -13,7 +13,6 @@ import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrder;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrderLine;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrderMaterialAllocation;
-import org.hvtra.iventoryservice.domain.entity.production.ProductionOrderSequence;
 import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
@@ -30,11 +29,11 @@ import org.hvtra.iventoryservice.production.dto.request.CreateProductionOrderReq
 import org.hvtra.iventoryservice.production.dto.response.ProductionOrderResponse;
 import org.hvtra.iventoryservice.production.mapper.ProductionOrderMapper;
 import org.hvtra.iventoryservice.production.repository.ProductionOrderRepository;
-import org.hvtra.iventoryservice.production.repository.ProductionOrderSequenceRepository;
 import org.hvtra.iventoryservice.production.service.ProductionOrderService;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.OutOfStockException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
+import org.hvtra.iventoryservice.shared.sequence.BusinessSequenceService;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.data.domain.Pageable;
@@ -60,7 +59,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     private static final String SEQUENCE_KEY = "LSX";
 
     private final ProductionOrderRepository productionOrderRepository;
-    private final ProductionOrderSequenceRepository sequenceRepository;
+    private final BusinessSequenceService sequenceService;
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryBatchRepository batchRepository;
@@ -71,7 +70,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
 
     public ProductionOrderServiceImpl(
             ProductionOrderRepository productionOrderRepository,
-            ProductionOrderSequenceRepository sequenceRepository,
+            BusinessSequenceService sequenceService,
             InventoryItemRepository itemRepository,
             InventoryLocationRepository locationRepository,
             InventoryBatchRepository batchRepository,
@@ -81,7 +80,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             ProductionOrderMapper mapper
     ) {
         this.productionOrderRepository = productionOrderRepository;
-        this.sequenceRepository = sequenceRepository;
+        this.sequenceService = sequenceService;
         this.itemRepository = itemRepository;
         this.locationRepository = locationRepository;
         this.batchRepository = batchRepository;
@@ -476,17 +475,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     }
 
     private String generateOrderCode() {
-        ProductionOrderSequence sequence = sequenceRepository.findBySequenceKeyWithLock(SEQUENCE_KEY)
-                .orElseGet(() -> {
-                    ProductionOrderSequence newSeq = new ProductionOrderSequence();
-                    newSeq.setSequenceKey(SEQUENCE_KEY);
-                    newSeq.setCurrentValue(0L);
-                    return sequenceRepository.saveAndFlush(newSeq);
-                });
-        long nextVal = sequence.getCurrentValue() + 1;
-        sequence.setCurrentValue(nextVal);
-        sequenceRepository.saveAndFlush(sequence);
-        return String.format("%s-%05d", SEQUENCE_KEY, nextVal);
+        return sequenceService.nextCode(SEQUENCE_KEY, 5);
     }
 
     private String generateTransactionCode() {

@@ -41,7 +41,7 @@ import styles from "./OrderRefundPage.module.css";
 type RefundFilterKey = "ALL" | OrderRefundStatus;
 type ToastState = { message: string; type: "success" | "error" };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const emptyPage: OrderPageResponse<OrderRefundSummaryResponse> = {
     content: [],
@@ -217,11 +217,17 @@ function getRefundProgress(row: OrderRefundSummaryResponse): { label: string; cl
     if (row.refundStatus === "NOT_REQUIRED" || row.refundRequired === false || row.refundBlockReason === "REFUND_NOT_REQUIRED") {
         return { label: "Không hoàn tiền", className: styles.notRequiredBadge };
     }
-    if (row.refundEligible === true || row.refundStatus === "PENDING") {
+    if (row.refundEligible === true) {
         return { label: "Chờ hoàn tiền", className: styles.pendingRefundBadge };
     }
     if (row.returnStatus === "CREATED" || row.refundBlockReason === "RETURN_NOT_RECEIVED") {
         return { label: "Chờ nhận hàng", className: styles.waitingReceiptBadge };
+    }
+    if (row.inventoryProcessingStatus === "FAILED") {
+        return { label: "Xử lý kho thất bại", className: styles.failedBadge };
+    }
+    if (row.inventoryProcessingStatus === "PROCESSING") {
+        return { label: "Đang xử lý kho", className: styles.waitingQcBadge };
     }
     if (row.physicalDone === false || row.refundBlockReason === "PHYSICAL_DISPOSITION_NOT_COMPLETED") {
         return { label: "Chờ kiểm hàng", className: styles.waitingQcBadge };
@@ -248,16 +254,7 @@ function getRefundProgress(row: OrderRefundSummaryResponse): { label: string; cl
 }
 
 function canRefund(row: OrderRefundSummaryResponse | OrderRefundDetailResponse) {
-    if (typeof row.refundEligible === "boolean") {
-        return row.refundEligible;
-    }
-    const refundAmount = Number(row.refundAmount);
-    return (
-        row.refundStatus === "PENDING" &&
-        Number.isFinite(refundAmount) &&
-        refundAmount > 0 &&
-        row.refundRequired !== false
-    );
+    return row.refundEligible === true;
 }
 
 export function OrderRefundPage() {
@@ -291,8 +288,8 @@ export function OrderRefundPage() {
     const visibleRefunds = refundPage.content ?? [];
     const totalElements = refundPage.totalElements ?? 0;
     const totalPages = Math.max(refundPage.totalPages ?? 0, 1);
-    const fromRecord = totalElements > 0 ? refundPage.number * refundPage.size + 1 : 0;
-    const toRecord = Math.min((refundPage.number + 1) * refundPage.size, totalElements);
+    const fromRecord = totalElements > 0 ? refundPage.number * (refundPage.size || PAGE_SIZE) + 1 : 0;
+    const toRecord = Math.min((refundPage.number + 1) * (refundPage.size || PAGE_SIZE), totalElements);
 
     const refreshKey = useMemo(
         () => `${timeRange?.fromDate ?? ""}:${timeRange?.toDate ?? ""}:${debouncedKeyword}:${activeStatus ?? ""}:${currentPage}`,
@@ -317,6 +314,9 @@ export function OrderRefundPage() {
                 .then((page) => {
                     if (!ignore) {
                         setRefundPage({ ...emptyPage, ...page, content: page.content ?? [] });
+                        if (page.totalPages > 0 && currentPage >= page.totalPages) {
+                            setCurrentPage(Math.max(0, page.totalPages - 1));
+                        }
                     }
                 })
                 .catch((error: unknown) => {
@@ -416,7 +416,12 @@ export function OrderRefundPage() {
             sort: "createdAt,desc",
             status: activeStatus,
             toDate: timeRange?.toDate
-        }).then((page) => setRefundPage({ ...emptyPage, ...page, content: page.content ?? [] }));
+        }).then((page) => {
+            setRefundPage({ ...emptyPage, ...page, content: page.content ?? [] });
+            if (page.totalPages > 0 && currentPage >= page.totalPages) {
+                setCurrentPage(Math.max(0, page.totalPages - 1));
+            }
+        });
         getOrderRefundStats({
             fromDate: timeRange?.fromDate,
             keyword: debouncedKeyword,
@@ -699,7 +704,7 @@ export function OrderRefundPage() {
                             <div className={styles.pages}>
                                 <button
                                     className={styles.pageButton}
-                                    disabled={currentPage === 0}
+                                    disabled={currentPage === 0 || isListLoading}
                                     onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
                                     type="button"
                                 >
@@ -708,6 +713,7 @@ export function OrderRefundPage() {
                                 {getPageNumbers(totalPages, currentPage).map((page) => (
                                     <button
                                         className={`${styles.pageButton} ${page === currentPage ? styles.activePage : ""}`}
+                                        disabled={isListLoading}
                                         key={page}
                                         onClick={() => setCurrentPage(page)}
                                         type="button"
@@ -718,7 +724,7 @@ export function OrderRefundPage() {
                                 {totalPages > 5 ? <span>...</span> : null}
                                 <button
                                     className={styles.pageButton}
-                                    disabled={currentPage >= totalPages - 1}
+                                    disabled={currentPage >= totalPages - 1 || isListLoading}
                                     onClick={() => setCurrentPage((page) => Math.min(totalPages - 1, page + 1))}
                                     type="button"
                                 >
@@ -833,7 +839,7 @@ function RefundDetailModal({
                                     ["Trạng thái Return", displayText(detail.returnStatus)],
                                     ["Chính sách hoàn tiền", detail.refundRequired === false ? "Không hoàn tiền" : "Có hoàn tiền"],
                                     ["QC", getQcStatusLabel(detail.qcStatus)],
-                                    ["Xử lý kho", detail.physicalDone ? "Đã xử lý" : "Chờ kiểm hàng"]
+                                    ["Xử lý kho", detail.physicalDone ? "Đã xử lý" : detail.inventoryProcessingStatus === "FAILED" ? "Xử lý thất bại" : detail.inventoryProcessingStatus === "PROCESSING" ? "Đang xử lý" : "Chờ kiểm hàng"]
                                 ]}
                             />
                         </section>

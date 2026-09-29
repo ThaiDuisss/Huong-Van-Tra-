@@ -2,6 +2,7 @@ import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
+import { useAuthorization } from "../../../auth/useAuthorization";
 import { DisposalStatusBadge } from "../components/QualityComponents";
 import { qualityApi } from "../services/quality.api";
 import type { DisposalRequest } from "../types/quality.types";
@@ -9,6 +10,8 @@ import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-f
 
 export function DisposalDetailPage() {
     const { disposalId } = useParams();
+    const { hasAnyRole } = useAuthorization();
+    const canApprove = hasAnyRole(["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
     const [disposal, setDisposal] = useState<DisposalRequest | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -80,7 +83,7 @@ export function DisposalDetailPage() {
                     <h1 className="text-2xl font-black text-[#172317]">{disposal?.code ?? "Chi tiết tiêu hủy"}</h1>
                     {disposal ? <p className="text-sm font-semibold text-[#697684]">Phiếu trả {disposal.returnCode} · Kiểm định {disposal.inspectionCode}</p> : null}
                 </div>
-                {disposal?.status === "PENDING_APPROVAL" ? (
+                {disposal?.status === "PENDING_APPROVAL" && canApprove ? (
                     <button className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60" disabled={submitting} onClick={() => void approve()} type="button">
                         {submitting ? "Đang duyệt..." : "Duyệt tiêu hủy"}
                     </button>
@@ -90,6 +93,11 @@ export function DisposalDetailPage() {
             {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}
             {error ? <div className="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700"><ShieldAlert size={16} />{error}</div> : null}
             {success ? <div className="flex items-center gap-2 rounded-xl bg-green-50 p-4 text-sm font-bold text-green-800"><CheckCircle2 size={16} />{success}</div> : null}
+            {disposal?.status === "PENDING_APPROVAL" && !canApprove ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                    Yêu cầu đang chờ quản lý chi nhánh hoặc quản lý kho phê duyệt tiêu hủy.
+                </div>
+            ) : null}
 
             {disposal ? (
                 <>
