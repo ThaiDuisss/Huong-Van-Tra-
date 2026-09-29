@@ -425,7 +425,7 @@ export function GoodsReceiptDetailPage() {
                         <p className="text-sm font-semibold text-[#536078]">
                             <span className="font-bold text-[#172317]">Nhà cung cấp:</span> {receipt.supplier.name} ·{" "}
                             <span className="font-bold text-[#172317]">Kho nhận:</span> {receipt.receivingLocation.name} ·{" "}
-                            <span className="font-bold text-[#172317]">Đơn đặt PO:</span> {receipt.purchaseOrderCode || "Ngoài PO"} ·{" "}
+                            {/* <span className="font-bold text-[#172317]">Đơn đặt PO:</span> {receipt.purchaseOrderCode || "Ngoài PO"} ·{" "} */}
                             <span className="font-bold text-[#172317]">Ngày dự kiến:</span> {formatVietnamDateTime(receipt.receivedAt)}
                         </p>
                         {receipt.note ? (

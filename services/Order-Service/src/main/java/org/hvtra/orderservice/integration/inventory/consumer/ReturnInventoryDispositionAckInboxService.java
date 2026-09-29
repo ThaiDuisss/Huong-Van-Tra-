@@ -43,19 +43,23 @@ public class ReturnInventoryDispositionAckInboxService {
     @Value("${order.inventory.events.return-disposition-ack.group-id:order-return-inventory-ack-events}")
     private String consumerGroup;
 
+    @Value("${order.inventory.events.topics.return-disposition-processed:inventory.event.RETURN_INVENTORY_DISPOSITION_PROCESSED}")
+    private String processedTopic;
+
+    @Value("${order.inventory.events.topics.return-disposition-failed:inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED}")
+    private String failedTopic;
+
     @Transactional
     public void handle(ConsumerRecord<String, String> record) {
-        Optional<ReturnInventoryDispositionProcessedEvent> processedOpt =
-                eventParser.parseProcessedCreateEvent(record.value());
-        if (processedOpt.isPresent()) {
-            handleProcessedRecord(record, processedOpt.get());
+        if (failedTopic.equals(record.topic())) {
+            eventParser.parseFailedCreateEvent(record.value())
+                    .ifPresent(event -> handleFailedRecord(record, event));
             return;
         }
 
-        Optional<ReturnInventoryDispositionFailedEvent> failedOpt =
-                eventParser.parseFailedCreateEvent(record.value());
-        if (failedOpt.isPresent()) {
-            handleFailedRecord(record, failedOpt.get());
+        if (processedTopic.equals(record.topic())) {
+            eventParser.parseProcessedCreateEvent(record.value())
+                    .ifPresent(event -> handleProcessedRecord(record, event));
             return;
         }
 
@@ -96,6 +100,11 @@ public class ReturnInventoryDispositionAckInboxService {
         OrderReturnInventoryCommand command = cmdOpt.get();
         if (!validateReturnId(command, event.getReturnId())) {
             markFailed(inbox, "ReturnId mismatch for commandId: " + commandUuid);
+            return;
+        }
+
+        if (parseUuid(event.getInspectionId()) == null) {
+            markFailed(inbox, "Processed acknowledgement is missing a valid inspectionId");
             return;
         }
 
@@ -213,14 +222,12 @@ public class ReturnInventoryDispositionAckInboxService {
     }
 
     private boolean validateReturnId(OrderReturnInventoryCommand command, String eventReturnId) {
-        if (eventReturnId != null && !eventReturnId.isBlank() && command.getOrderReturn() != null) {
-            UUID expectedReturnId = command.getOrderReturn().getId();
-            UUID actualReturnId = parseUuid(eventReturnId);
-            if (actualReturnId == null || !expectedReturnId.equals(actualReturnId)) {
-                log.error("ReturnId mismatch in ack event. expected={}, actual={}, commandId={}",
-                        expectedReturnId, eventReturnId, command.getCommandId());
-                return false;
-            }
+        UUID expectedReturnId = command.getOrderReturn() != null ? command.getOrderReturn().getId() : null;
+        UUID actualReturnId = parseUuid(eventReturnId);
+        if (expectedReturnId == null || !expectedReturnId.equals(actualReturnId)) {
+            log.error("ReturnId missing or mismatched in ack event. expected={}, actual={}, commandId={}",
+                    expectedReturnId, eventReturnId, command.getCommandId());
+            return false;
         }
         return true;
     }

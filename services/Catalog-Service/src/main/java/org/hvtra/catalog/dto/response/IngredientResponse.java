@@ -13,6 +13,7 @@ public record IngredientResponse(
         String unitName,
         String unitSymbol,
         Integer reorderPoint,
+        Integer type,
         Status status
 ) {
 }

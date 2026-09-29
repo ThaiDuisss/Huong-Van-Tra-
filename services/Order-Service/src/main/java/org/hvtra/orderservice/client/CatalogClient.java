@@ -5,7 +5,9 @@ import org.hvtra.orderservice.dto.response.CatalogVariantResponse;
 import org.hvtra.orderservice.dto.response.PageResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.math.BigDecimal;
@@ -34,14 +36,20 @@ public interface CatalogClient {
     @GetMapping("/api/catalog/product-variants/{variantId}")
     ProductVariantPosViewResponse getProductVariantPosView(@PathVariable("variantId") UUID variantId);
 
-    /**
-     * Lấy BOM (Bill of Materials) đang hoạt động của một Mặt hàng.
-     * Dùng để tính toán nguyên liệu cần trừ kho khi đơn hàng hoàn thành.
-     *
-     * TODO: Endpoint này cần được implement trong Catalog-Service (BomController).
-     */
-    @GetMapping("/api/catalog/product-variants/{variantId}/active-bom")
-    BomResponse getActiveBomByVariantId(@PathVariable("variantId") UUID variantId);
+    @GetMapping("/internal/catalog/product-variants/{variantId}/bom-items")
+    List<BomItemResponse> getBomItemsByVariantId(@PathVariable("variantId") UUID variantId);
+
+    @PatchMapping("/internal/catalog/product-variants/{variantId}/sellable/decrement")
+    SellableQuantityAdjustmentResponse decrementSellableQuantity(
+            @PathVariable("variantId") UUID variantId,
+            @RequestBody SellableQuantityAdjustmentRequest request
+    );
+
+    @PatchMapping("/internal/catalog/product-variants/{variantId}/sellable/restore")
+    SellableQuantityAdjustmentResponse restoreSellableQuantity(
+            @PathVariable("variantId") UUID variantId,
+            @RequestBody SellableQuantityAdjustmentRequest request
+    );
 
     record ProductVariantPosViewResponse(
             UUID productId,
@@ -51,29 +59,40 @@ public interface CatalogClient {
             String variantName,
             String categoryName,
             BigDecimal sellingPrice,
+            BigDecimal sellableQuantity,
             String imageUrl
     ){}
 
-    /**
-     * Cấu trúc BOM trả về từ Catalog-Service.
-     */
-    record BomResponse(
-            UUID id,
-            UUID productVariantId,
-            Integer bomVersion,
-            String status,
-            List<BomItemResponse> items
-    ) {}
-
     record BomItemResponse(
             UUID id,
-            UUID ingredientId,
-            String ingredientName,
-            /** Số lượng nguyên liệu cần dùng cho 1 đơn vị sản phẩm */
+            BomIngredientResponse ingredient,
             BigDecimal quantity,
-            UUID unitId,
-            String unitSymbol,
-            /** Tỷ lệ hao phí (ví dụ: 5% = 0.05) */
+            Object unit,
             BigDecimal wasteRate
+    ) {
+        public BomItemResponse(UUID ingredientId, BigDecimal quantity, BigDecimal wasteRate) {
+            this(null, new BomIngredientResponse(ingredientId), quantity, null, wasteRate);
+        }
+    }
+
+    record BomIngredientResponse(UUID id) {}
+
+    record SellableQuantityAdjustmentRequest(
+            BigDecimal quantity,
+            UUID locationId,
+            String reason,
+            String operationKey
+    ) {}
+
+    record SellableQuantityAdjustmentResponse(
+            UUID productVariantId,
+            BigDecimal requestedQuantity,
+            BigDecimal oldSellableQuantity,
+            BigDecimal newSellableQuantity,
+            boolean thresholdCrossed,
+            BigDecimal productionThreshold,
+            BigDecimal productionBatchQuantity,
+            UUID locationId,
+            String reason
     ) {}
 }

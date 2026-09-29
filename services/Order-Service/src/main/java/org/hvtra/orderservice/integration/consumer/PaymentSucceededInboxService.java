@@ -5,8 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.orderservice.domain.entity.OrderInbox;
+import org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus;
+import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
 import org.hvtra.orderservice.repository.OrderInboxRepository;
+import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -15,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Locale;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -23,6 +28,7 @@ public class PaymentSucceededInboxService {
 
     private final OrderService orderService;
     private final OrderInboxRepository orderInboxRepository;
+    private final OrderRepository orderRepository;
     private final PaymentEventPayloadParser paymentEventPayloadParser;
     private final PaymentEventMetadataResolver paymentEventMetadataResolver;
 
@@ -46,6 +52,9 @@ public class PaymentSucceededInboxService {
 
         OrderInbox inbox = insertInbox(record, event, eventId);
         if (isTerminal(inbox.getStatus())) {
+            if (inbox.getStatus() == InboxStatus.PROCESSED) {
+                retryPaidInventoryIfNeeded(event);
+            }
             return;
         }
 
@@ -111,6 +120,22 @@ public class PaymentSucceededInboxService {
         inbox.setStatus(InboxStatus.PROCESSED);
         inbox.setProcessedAt(Instant.now());
         inbox.setLastError(null);
+    }
+
+    private void retryPaidInventoryIfNeeded(PaymentOrderEventPayload event) {
+        if (event.getEventType() == null
+                || !event.getEventType().toUpperCase(Locale.ROOT).endsWith("SUCCEEDED")
+                || event.getOrderId() == null) {
+            return;
+        }
+        orderRepository.findByIdAndIsDeletedFalse(UUID.fromString(event.getOrderId())).ifPresent(order -> {
+            OrderInventoryProcessingStatus status = order.getInventoryProcessingStatus();
+            if (order.getPaymentStatus() == PaymentStatus.PAID
+                    && (status == null || status == OrderInventoryProcessingStatus.NOT_STARTED
+                    || status == OrderInventoryProcessingStatus.FAILED)) {
+                orderService.handlePaymentEvent(event);
+            }
+        });
     }
 
     private void markIgnored(OrderInbox inbox) {

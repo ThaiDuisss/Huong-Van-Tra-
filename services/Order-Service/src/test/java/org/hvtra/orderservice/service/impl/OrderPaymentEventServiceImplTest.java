@@ -1,8 +1,12 @@
 package org.hvtra.orderservice.service.impl;
 
 import org.hvtra.orderservice.domain.entity.Order;
+import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
 import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
@@ -29,6 +33,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -44,6 +50,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.argThat;
 
 @ExtendWith(MockitoExtension.class)
 class OrderPaymentEventServiceImplTest {
@@ -72,6 +80,12 @@ class OrderPaymentEventServiceImplTest {
     @Mock
     private OrderResponseAssembler orderResponseAssembler;
 
+    @Mock
+    private CatalogClient catalogClient;
+
+    @Mock
+    private InventoryClient inventoryClient;
+
     private OrderPaymentEventServiceImpl service;
 
     @BeforeEach
@@ -84,7 +98,9 @@ class OrderPaymentEventServiceImplTest {
                 orderValidator,
                 orderAmountCalculator,
                 orderStatusHistoryWriter,
-                orderResponseAssembler
+                orderResponseAssembler,
+                catalogClient,
+                inventoryClient
         );
     }
 
@@ -96,7 +112,7 @@ class OrderPaymentEventServiceImplTest {
         order.setPaymentMethod("CASH");
         order.setPaymentCode("OLD-CODE");
         PaymentOrderEventPayload event = event("payment.succeeded", orderId);
-        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
         when(orderResponseAssembler.normalizePaymentMethod("BANK")).thenReturn("BANK_TRANSFER");
         when(orderRepository.save(order)).thenReturn(order);
         when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(sagaId);
@@ -121,7 +137,7 @@ class OrderPaymentEventServiceImplTest {
                 orderCustomerService,
                 orderOutboxPublisher
         );
-        inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
+        inOrder.verify(orderRepository).findByIdAndIsDeletedFalseWithItemsForUpdate(orderId);
         inOrder.verify(orderAmountCalculator).defaultZero(event.getAmountPaid());
         inOrder.verify(orderValidator).validatePaymentAmount(order, event.getAmountPaid());
         inOrder.verify(orderResponseAssembler).normalizePaymentMethod("BANK");
@@ -199,7 +215,7 @@ class OrderPaymentEventServiceImplTest {
     void eventKeepsNotFoundExceptionMessageAndStopsSideEffects() {
         UUID orderId = UUID.randomUUID();
         PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
-        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.empty());
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.empty());
 
         OrderNotFoundException exception = assertThrows(
                 OrderNotFoundException.class,
@@ -207,7 +223,7 @@ class OrderPaymentEventServiceImplTest {
         );
 
         assertEquals("Không tìm thấy đơn hàng: " + orderId, exception.getMessage());
-        verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
+        verify(orderRepository).findByIdAndIsDeletedFalseWithItemsForUpdate(orderId);
         verifyNoMoreInteractions(orderRepository);
         verifyNoInteractions(
                 orderCustomerService,
@@ -224,8 +240,9 @@ class OrderPaymentEventServiceImplTest {
     void alreadyPaidSuccessEventOnlyCompletesSaga() {
         UUID orderId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.COMPLETED, PaymentStatus.PAID);
+        order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.CONSUMED);
         PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
-        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
 
         service.handlePaymentEvent(event);
 
@@ -237,8 +254,224 @@ class OrderPaymentEventServiceImplTest {
                 orderValidator,
                 orderAmountCalculator,
                 orderStatusHistoryWriter,
-                orderResponseAssembler
+                orderResponseAssembler,
+                catalogClient,
+                inventoryClient
         );
+    }
+
+    @Test
+    void paymentFailedDoesNotProcessInventory() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        PaymentOrderEventPayload event = event("PAYMENT_FAILED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+
+        service.handlePaymentEvent(event);
+
+        assertEquals(OrderInventoryProcessingStatus.NOT_STARTED, order.getInventoryProcessingStatus());
+        verifyNoInteractions(catalogClient, inventoryClient);
+    }
+
+    @Test
+    void paymentWaitingDoesNotProcessInventory() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        PaymentOrderEventPayload event = event("PAYMENT_WAITING", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+
+        service.handlePaymentEvent(event);
+
+        assertEquals(OrderInventoryProcessingStatus.NOT_STARTED, order.getInventoryProcessingStatus());
+        verifyNoInteractions(catalogClient, inventoryClient);
+    }
+
+    @Test
+    void paymentSucceededStartsInventoryProcessing() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderResponseAssembler.normalizePaymentMethod("BANK")).thenReturn("BANK_TRANSFER");
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+
+        service.handlePaymentEvent(event);
+
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
+        verify(catalogClient, never()).restoreSellableQuantity(any(), any());
+    }
+
+    @Test
+    void paymentSuccessAggregatesBomAndReservesMaterials() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        UUID ingredientId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("ONLINE");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(new BigDecimal("2"));
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+        when(catalogClient.getBomItemsByVariantId(variantId)).thenReturn(List.of(
+                new CatalogClient.BomItemResponse(ingredientId, new BigDecimal("100"), new BigDecimal("0.05")),
+                new CatalogClient.BomItemResponse(ingredientId, new BigDecimal("50"), BigDecimal.ZERO)
+        ));
+
+        service.handlePaymentEvent(event);
+
+        verify(catalogClient).decrementSellableQuantity(eq(variantId), argThat(r -> r.quantity().compareTo(new BigDecimal("2")) == 0));
+        verify(inventoryClient).reserveMaterials(argThat(r -> r.lines().size() == 1
+                && r.lines().get(0).quantity().compareTo(new BigDecimal("310")) == 0));
+        assertEquals(OrderInventoryProcessingStatus.RESERVED, order.getInventoryProcessingStatus());
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+    }
+
+    @Test
+    void thresholdCrossingRequestsOneProductionAlert() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(BigDecimal.ONE);
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+        when(catalogClient.getBomItemsByVariantId(variantId)).thenReturn(List.of(
+                new CatalogClient.BomItemResponse(UUID.randomUUID(), BigDecimal.ONE, BigDecimal.ZERO)));
+        when(catalogClient.decrementSellableQuantity(eq(variantId), any())).thenReturn(
+                new CatalogClient.SellableQuantityAdjustmentResponse(variantId, BigDecimal.ONE,
+                        new BigDecimal("31"), new BigDecimal("30"), true,
+                        new BigDecimal("30"), new BigDecimal("100"), null, "SALE"));
+
+        service.handlePaymentEvent(event);
+
+        verify(inventoryClient).createProductionRequiredAlert(argThat(r ->
+                r.variantId().equals(variantId) && r.sellableQuantity().compareTo(new BigDecimal("30")) == 0));
+    }
+
+    @Test
+    void inventoryFailureCompensatesSellableAndRemainsRetryable() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("ONLINE");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(BigDecimal.ONE);
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(catalogClient.getBomItemsByVariantId(variantId)).thenReturn(List.of(
+                new CatalogClient.BomItemResponse(UUID.randomUUID(), BigDecimal.ONE, BigDecimal.ZERO)));
+        doThrow(new IllegalStateException("material shortage")).when(inventoryClient).reserveMaterials(any());
+
+        service.handlePaymentEvent(event);
+
+        verify(catalogClient).restoreSellableQuantity(eq(variantId), any());
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        assertEquals(OrderInventoryProcessingStatus.FAILED, order.getInventoryProcessingStatus());
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+    }
+
+    @Test
+    void lostConsumeResponseDoesNotRestoreAlreadyConsumedSellable() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("POS");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(BigDecimal.ONE);
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+        when(catalogClient.getBomItemsByVariantId(variantId)).thenReturn(List.of(
+                new CatalogClient.BomItemResponse(UUID.randomUUID(), BigDecimal.ONE, BigDecimal.ZERO)));
+        doThrow(new IllegalStateException("timeout")).when(inventoryClient).consumeMaterials(any());
+        when(inventoryClient.releaseMaterials(any())).thenReturn(List.of(new InventoryClient.MaterialReservationResponse("CONFIRMED")));
+
+        service.handlePaymentEvent(event);
+
+        assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
+        verify(catalogClient, never()).restoreSellableQuantity(any(), any());
+    }
+
+    @Test
+    void duplicatePaidEventFinishesFailedCompensationBeforeRetry() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("ONLINE");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(BigDecimal.ONE);
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+        when(catalogClient.getBomItemsByVariantId(variantId)).thenReturn(List.of(
+                new CatalogClient.BomItemResponse(UUID.randomUUID(), BigDecimal.ONE, BigDecimal.ZERO)));
+        doThrow(new IllegalStateException("shortage")).doNothing().when(inventoryClient).reserveMaterials(any());
+        when(catalogClient.restoreSellableQuantity(eq(variantId), any()))
+                .thenThrow(new IllegalStateException("restore timeout")).thenReturn(null);
+
+        service.handlePaymentEvent(event);
+        assertEquals(true, order.isInventoryCompensationPending());
+        service.handlePaymentEvent(event);
+
+        assertEquals(OrderInventoryProcessingStatus.RESERVED, order.getInventoryProcessingStatus());
+        assertEquals(2, order.getInventoryProcessingAttempt());
+        assertEquals(false, order.isInventoryCompensationPending());
+        verify(catalogClient, org.mockito.Mockito.times(2)).restoreSellableQuantity(eq(variantId), any());
+    }
+
+    @Test
+    void duplicatePaidEventRetriesWhenInventoryStatusFailed() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.PAID);
+        order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.FAILED);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+
+        service.handlePaymentEvent(event);
+
+        assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        verify(orderPaymentSagaService).completePaymentSaga(order, event, event.getEventId());
+        verify(orderCustomerService).updateCustomerPurchase(orderId);
+        verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(any(), any(), any());
+    }
+
+    @Test
+    void duplicatePaidEventDoesNothingWhenInventoryStatusConsumed() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.COMPLETED, PaymentStatus.PAID);
+        order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.CONSUMED);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+
+        service.handlePaymentEvent(event);
+
+        verify(orderPaymentSagaService).completePaymentSaga(order, event, event.getEventId());
+        verify(orderRepository, never()).save(any(Order.class));
+        verifyNoInteractions(catalogClient, inventoryClient);
     }
 
     @Test
@@ -247,7 +480,7 @@ class OrderPaymentEventServiceImplTest {
         Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
         PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
         event.setAmountPaid(new BigDecimal("99.99"));
-        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
 
         InvalidPaymentAmountException exception = assertThrows(
                 InvalidPaymentAmountException.class,
@@ -474,12 +707,6 @@ class OrderPaymentEventServiceImplTest {
         assertEquals(Propagation.REQUIRED, succeededTransactional.propagation());
         assertEquals(0, succeededTransactional.rollbackFor().length);
         assertEquals(0, succeededTransactional.noRollbackFor().length);
-        assertNull(OrderServiceImpl.class
-                .getMethod("handlePaymentEvent", PaymentOrderEventPayload.class)
-                .getAnnotation(Transactional.class));
-        assertNull(OrderServiceImpl.class
-                .getMethod("handlePaymentSucceeded", PaymentOrderEventPayload.class)
-                .getAnnotation(Transactional.class));
     }
 
     @Test
@@ -494,6 +721,7 @@ class OrderPaymentEventServiceImplTest {
         Order order = Order.builder()
                 .status(status)
                 .paymentStatus(paymentStatus)
+                .inventoryProcessingStatus(OrderInventoryProcessingStatus.NOT_STARTED)
                 .finalAmount(new BigDecimal("100.00"))
                 .paidAmount(BigDecimal.ZERO)
                 .debtAmount(new BigDecimal("100.00"))

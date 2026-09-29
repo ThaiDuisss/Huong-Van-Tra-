@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
@@ -12,6 +13,7 @@ import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderCustomerService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderPaymentService;
+import org.hvtra.orderservice.service.OrderPaymentEventService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
 import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
@@ -34,6 +36,7 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
     private final OrderAmountCalculator orderAmountCalculator;
     private final OrderStatusHistoryWriter orderStatusHistoryWriter;
     private final OrderResponseAssembler orderResponseAssembler;
+    private final OrderPaymentEventService orderPaymentEventService;
 
     @Override
     @Transactional
@@ -44,15 +47,22 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
 
         OrderStatus oldStatus = order.getStatus();
         order.setPaymentStatus(PaymentStatus.PAID);
-        order.setStatus(OrderStatus.COMPLETED);
+        OrderStatus paidStatus = order.isFulfillmentRequired()
+                ? OrderStatus.PAYMENT_CONFIRMED : OrderStatus.COMPLETED;
+        order.setStatus(paidStatus);
         order.setPaidAmount(order.getFinalAmount());
         order.setDebtAmount(BigDecimal.ZERO);
+        orderPaymentEventService.processPaidOrderInventory(order, null, !order.isFulfillmentRequired());
+        if (order.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.FAILED) {
+            order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
+            return orderResponseAssembler.toResponse(orderRepository.save(order));
+        }
 
         Order savedOrder = orderRepository.save(order);
         orderStatusHistoryWriter.write(
                 savedOrder,
                 oldStatus,
-                OrderStatus.COMPLETED,
+                paidStatus,
                 "Thanh toán thành công, mã thanh toán: " + request.getPaymentCode(),
                 request.getChangedBy()
         );

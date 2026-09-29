@@ -35,6 +35,7 @@ class ProductSnapshotResolverTest {
                         "Size M",
                         "Danh mục",
                         new BigDecimal("25000"),
+                        new BigDecimal("999"),
                         "image.png"
                 );
         when(catalogClient.getProductVariantPosView(productVariantId)).thenReturn(expected);

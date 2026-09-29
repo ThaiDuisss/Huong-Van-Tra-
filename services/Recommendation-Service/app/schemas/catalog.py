@@ -63,6 +63,7 @@ class IngredientResponse(BaseModel):
     unitName: str | None = None
     unitSymbol: str | None = None
     reorderPoint: int | None = None
+    type: int | None = None
     status: str
 
 

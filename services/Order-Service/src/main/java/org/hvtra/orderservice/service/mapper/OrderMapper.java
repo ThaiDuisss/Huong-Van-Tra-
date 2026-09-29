@@ -153,6 +153,7 @@ public class OrderMapper {
                 .orderType(order.getOrderType())
                 .status(order.getStatus())
                 .paymentStatus(order.getPaymentStatus())
+                .inventoryProcessingStatus(order.getInventoryProcessingStatus())
                 .returnStatus(order.getReturnStatus())
                 .paymentMethod(paymentMethod)
                 .paymentMethodLabel(toPaymentMethodLabel(paymentMethod))

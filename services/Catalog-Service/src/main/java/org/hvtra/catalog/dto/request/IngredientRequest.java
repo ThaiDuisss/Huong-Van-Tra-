@@ -12,6 +12,7 @@ public record IngredientRequest(
         @Size(max = 500) String imageUrl,
         UUID unitId,
         Integer reorderPoint,
+        Integer type,
         @NotNull Status status
 ) {
 }

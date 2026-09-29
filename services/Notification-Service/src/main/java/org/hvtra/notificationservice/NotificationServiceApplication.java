@@ -7,7 +7,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Import;
 
-@SpringBootApplication(scanBasePackages = "org.hvtra")
+@SpringBootApplication(scanBasePackages = {
+		"org.hvtra.notificationservice",
+		"org.hvtra.commonservice.common_core"
+})
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
 public class NotificationServiceApplication {

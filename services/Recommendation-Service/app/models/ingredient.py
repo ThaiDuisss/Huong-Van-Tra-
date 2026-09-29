@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Index, String, UniqueConstraint, text
+from sqlalchemy import Boolean, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, TimestampMixin
@@ -15,6 +15,8 @@ class Ingredient(TimestampMixin, Base):
     ingredient_code: Mapped[str] = mapped_column(String(100), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
+    # 0 = packaging / non-recipe material (nylon bag, box, label...), 1 = recipe ingredient.
+    type: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_deleted: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

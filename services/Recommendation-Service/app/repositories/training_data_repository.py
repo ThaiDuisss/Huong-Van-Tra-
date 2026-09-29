@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
@@ -15,6 +15,9 @@ from app.training.schemas import (
 
 
 ACTIVE_PRODUCT_STATUS = "ACTIVE"
+# ingredients.type = 0 marks packaging / non-recipe material (nylon bag, box, label...).
+# Such rows are excluded from item features because they carry no taste signal.
+PACKAGING_INGREDIENT_TYPE = 0
 
 
 class TrainingDataRepository:
@@ -102,6 +105,10 @@ class TrainingDataRepository:
                 Product.status == ACTIVE_PRODUCT_STATUS,
                 Product.is_deleted.is_(False),
                 ProductIngredient.is_active_bom.is_(True),
+                or_(
+                    Ingredient.type.is_(None),
+                    Ingredient.type != PACKAGING_INGREDIENT_TYPE,
+                ),
             )
             .order_by(
                 ProductIngredient.product_id.asc(),

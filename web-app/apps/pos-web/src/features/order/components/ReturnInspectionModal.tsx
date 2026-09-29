@@ -463,15 +463,6 @@ export function ReturnInspectionModal({
                 }
             }
 
-            // Backend rule: SEALED item marked DAMAGED, QUARANTINE or WRITE_OFF requires reason note >= 5 chars
-            if (line.condition === "SEALED" && (draft.result === "DAMAGED" || draft.result === "QUARANTINE" || draft.result === "WRITE_OFF")) {
-                const hasLineNote = draft.note.trim().length >= 5;
-                const hasGenNote = generalNote.trim().length >= 5;
-                if (!hasLineNote && !hasGenNote) {
-                    setFormError(`Sản phẩm "${name}" còn nguyên seal nhưng chọn ${draft.result === "DAMAGED" ? "hàng hỏng" : draft.result === "QUARANTINE" ? "cách ly" : "tiêu hủy"} cần ghi chú lý do tối thiểu 5 ký tự.`);
-                    return false;
-                }
-            }
         }
 
         setFormError(null);
@@ -894,12 +885,6 @@ export function ReturnInspectionModal({
                                                         htmlFor={`note-${line.returnItemId}`}
                                                     >
                                                         <span>Ghi chú kiểm tra</span>
-                                                        {line.condition === "SEALED" &&
-                                                        draft.result !== "RESTOCK" ? (
-                                                            <span className={styles.fieldHelp} style={{ color: "#b45309" }}>
-                                                                * Bắt buộc tối thiểu 5 ký tự
-                                                            </span>
-                                                        ) : null}
                                                     </label>
                                                     <textarea
                                                         className={styles.lineNoteTextarea}

@@ -7,12 +7,19 @@ import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.dto.request.*;
 import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentBatchAllocationResponse;
+import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentExportResponse;
+import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentListItemResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentLineResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
 import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumentBatchAllocationRow;
+import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumentExportRow;
+import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumentListItemRow;
 import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumentRow;
 import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumentLineRow;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
+import org.hvtra.iventoryservice.integration.identity.client.IdentityClient;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.hvtra.iventoryservice.document.mapper.InventoryDocumentMapper;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentBatchAllocationRepository;
@@ -29,12 +36,6 @@ import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
-import org.hvtra.iventoryservice.domain.entity.supplement.InventorySupplementRequest;
-import org.hvtra.iventoryservice.domain.entity.supplement.InventorySupplementRequestLine;
-import org.hvtra.iventoryservice.domain.entity.supplement.repository.InventorySupplementRequestRepository;
-import org.hvtra.iventoryservice.domain.entity.supplierreturn.InventorySupplierReturnRequest;
-import org.hvtra.iventoryservice.domain.entity.supplierreturn.InventorySupplierReturnRequestLine;
-import org.hvtra.iventoryservice.domain.entity.supplierreturn.repository.InventorySupplierReturnRequestRepository;
 import org.hvtra.iventoryservice.domain.enums.*;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
@@ -67,12 +68,11 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     private final InventoryBatchRepository batchRepository;
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryTransactionRepository transactionRepository;
-    private final InventorySupplementRequestRepository supplementRequestRepository;
-    private final InventorySupplierReturnRequestRepository supplierReturnRequestRepository;
     private final InventoryDocumentLineRepository lineRepository;
     private final InventoryDocumentBatchAllocationRepository allocationRepository;
 
     private final CatalogClient catalogClient;
+    private final IdentityClient identityClient;
     private final InventoryDocumentMapper mapper;
 
     public InventoryDocumentServiceImpl(
@@ -84,9 +84,9 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             InventoryBatchRepository batchRepository,
             InventoryBalanceRepository balanceRepository,
             InventoryTransactionRepository transactionRepository,
-            InventorySupplementRequestRepository supplementRequestRepository,
-            InventorySupplierReturnRequestRepository supplierReturnRequestRepository, InventoryDocumentLineRepository lineRepository1, InventoryDocumentBatchAllocationRepository allocationRepository1,
+            InventoryDocumentLineRepository lineRepository1, InventoryDocumentBatchAllocationRepository allocationRepository1,
             CatalogClient catalogClient,
+            IdentityClient identityClient,
             InventoryDocumentMapper mapper
     ) {
         this.documentRepository = documentRepository;
@@ -95,16 +95,17 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         this.batchRepository = batchRepository;
         this.balanceRepository = balanceRepository;
         this.transactionRepository = transactionRepository;
-        this.supplementRequestRepository = supplementRequestRepository;
-        this.supplierReturnRequestRepository = supplierReturnRequestRepository;
         this.lineRepository = lineRepository1;
         this.allocationRepository = allocationRepository1;
         this.catalogClient = catalogClient;
+        this.identityClient = identityClient;
         this.mapper = mapper;
     }
 
+    private static final int MAX_EXPORT_ROWS = 10_000;
+
     @Override
-    public PageResponse<InventoryDocumentResponse> findAll(
+    public PageResponse<InventoryDocumentListItemResponse> findAll(
             InventoryDocumentType documentType,
             InventoryDocumentStatus status,
             UUID locationId,
@@ -116,32 +117,98 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     ) {
         String documentTypeParam = documentType != null ? documentType.name() : null;
         String statusParam = status != null ? status.name() : null;
-        String queryPattern = (query != null && !query.isBlank())
-                ? "%" + query.trim().toLowerCase() + "%"
-                : null;
+        String queryPattern = toQueryPattern(query);
 
         long totalElements = documentRepository.countDocument(
                 documentTypeParam, statusParam, locationId, supplierId, fromDate, toDate, queryPattern);
 
-        List<InventoryDocumentRow> headerRows = totalElements == 0
+        List<InventoryDocumentListItemRow> rows = totalElements == 0
                 ? List.of()
-                : documentRepository.searchDocument(
+                : documentRepository.searchDocumentListItems(
                         documentTypeParam, statusParam, locationId, supplierId, fromDate, toDate, queryPattern,
                         pageable.getPageSize(), pageable.getOffset());
 
-        List<InventoryDocumentResponse> content = buildListResponses(headerRows);
+        Map<UUID, String> supplierNameMap = fetchSupplierNames(distinctUuids(
+                rows.stream().map(InventoryDocumentListItemRow::getSupplierId)));
 
-        Page<InventoryDocumentResponse> page = new PageImpl<>(content, pageable, totalElements);
+        List<InventoryDocumentListItemResponse> content = rows.stream()
+                .map(row -> {
+                    UUID rowSupplierId = parseUuid(row.getSupplierId());
+                    return new InventoryDocumentListItemResponse(
+                            parseUuid(row.getId()),
+                            row.getDocumentCode(),
+                            InventoryDocumentStatus.valueOf(row.getStatus()),
+                            rowSupplierId,
+                            rowSupplierId != null ? supplierNameMap.get(rowSupplierId) : null,
+                            parseUuid(row.getLocationId()),
+                            row.getLocationName(),
+                            nvl(row.getTotalReceivedQuantity()),
+                            row.getReceivedAt(),
+                            parseUuid(row.getCreatedBy())
+                    );
+                })
+                .toList();
+
+        Page<InventoryDocumentListItemResponse> page = new PageImpl<>(content, pageable, totalElements);
         return PageResponse.from(page);
     }
 
-    private List<InventoryDocumentResponse> buildListResponses(List<InventoryDocumentRow> headerRows) {
-        if (headerRows.isEmpty()) {
-            return List.of();
-        }
+    @Override
+    public List<InventoryDocumentExportResponse> export(
+            InventoryDocumentType documentType,
+            InventoryDocumentStatus status,
+            UUID locationId,
+            UUID supplierId,
+            String query,
+            Instant fromDate,
+            Instant toDate
+    ) {
+        List<InventoryDocumentExportRow> rows = documentRepository.searchDocumentExportRows(
+                documentType != null ? documentType.name() : null,
+                status != null ? status.name() : null,
+                locationId, supplierId, fromDate, toDate, toQueryPattern(query),
+                MAX_EXPORT_ROWS);
 
-        List<UUID> documentIds = headerRows.stream().map(h -> parseUuid(h.getId())).toList();
-        List<InventoryDocumentLineRow> lineRows = lineRepository.findLineRowsByDocumentIds(documentIds);
+        Map<UUID, String> supplierNameMap = fetchSupplierNames(distinctUuids(
+                rows.stream().map(InventoryDocumentExportRow::getSupplierId)));
+        Map<UUID, String> userNameMap = fetchUserNames(distinctUuids(
+                rows.stream().map(InventoryDocumentExportRow::getCreatedBy)));
+
+        return rows.stream()
+                .map(row -> {
+                    UUID rowSupplierId = parseUuid(row.getSupplierId());
+                    UUID createdBy = parseUuid(row.getCreatedBy());
+                    return new InventoryDocumentExportResponse(
+                            row.getDocumentCode(),
+                            row.getReferenceId(),
+                            rowSupplierId != null ? supplierNameMap.get(rowSupplierId) : null,
+                            row.getLocationName(),
+                            InventoryDocumentStatus.valueOf(row.getStatus()),
+                            row.getTotalLines() != null ? row.getTotalLines() : 0L,
+                            nvl(row.getTotalReceivedQuantity()),
+                            nvl(row.getTotalAcceptedQuantity()),
+                            nvl(row.getTotalRejectedQuantity()),
+                            row.getReceivedAt(),
+                            row.getCreatedAt(),
+                            createdBy != null ? userNameMap.get(createdBy) : null
+                    );
+                })
+                .toList();
+    }
+
+    private String toQueryPattern(String query) {
+        return (query != null && !query.isBlank())
+                ? "%" + query.trim().toLowerCase() + "%"
+                : null;
+    }
+
+    private List<UUID> distinctUuids(java.util.stream.Stream<String> values) {
+        return values.filter(Objects::nonNull).map(this::parseUuid).distinct().toList();
+    }
+
+    private InventoryDocumentResponse buildDetailResponse(InventoryDocumentRow header) {
+        UUID documentId = parseUuid(header.getId());
+        List<InventoryDocumentLineRow> lineRows = lineRepository.findLineRowsByDocumentIds(List.of(documentId));
 
         List<UUID> lineIds = lineRows.stream().map(l -> parseUuid(l.getId())).toList();
         Map<String, List<InventoryDocumentBatchAllocationRow>> allocationsByLine = lineIds.isEmpty()
@@ -149,24 +216,16 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                 : allocationRepository.findBatchAllocationRowsByLineIds(lineIds).stream()
                         .collect(Collectors.groupingBy(InventoryDocumentBatchAllocationRow::getDocumentLineId));
 
-        Map<String, List<InventoryDocumentLineRow>> linesByDocument = lineRows.stream()
-                .collect(Collectors.groupingBy(InventoryDocumentLineRow::getDocumentId, LinkedHashMap::new, Collectors.toList()));
+        UUID headerSupplierId = parseUuid(header.getSupplierId());
+        String supplierName = headerSupplierId != null
+                ? fetchSupplierNames(List.of(headerSupplierId)).get(headerSupplierId)
+                : null;
 
-        List<UUID> supplierIds = headerRows.stream()
-                .map(InventoryDocumentRow::getSupplierId)
-                .filter(Objects::nonNull)
-                .map(this::parseUuid)
-                .distinct()
-                .toList();
-        Map<UUID, String> supplierNameMap = fetchSupplierNames(supplierIds);
+        Map<UUID, String> userNameMap = fetchUserNames(distinctUuids(java.util.stream.Stream.of(
+                header.getCreatedBy(), header.getApprovedBy(), header.getRejectedBy(),
+                header.getReceivedBy(), header.getQcBy(), header.getPostedBy())));
 
-        List<InventoryDocumentResponse> content = new ArrayList<>(headerRows.size());
-        for (InventoryDocumentRow header : headerRows) {
-            List<InventoryDocumentLineRow> lines = linesByDocument.getOrDefault(header.getId(), List.of());
-            String supplierName = header.getSupplierId() != null ? supplierNameMap.get(parseUuid(header.getSupplierId())) : null;
-            content.add(toDocumentResponse(header, lines, allocationsByLine, supplierName));
-        }
-        return content;
+        return toDocumentResponse(header, lineRows, allocationsByLine, supplierName, userNameMap);
     }
 
     private UUID parseUuid(String value) {
@@ -192,11 +251,49 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         return supplierNameMap;
     }
 
+    // createdBy/approvedBy... lưu Keycloak subject; tên lấy từ Identity-Service, lỗi thì bỏ qua (chỉ phục vụ hiển thị)
+    private Map<UUID, String> fetchUserNames(Collection<UUID> userIds) {
+        Map<UUID, String> userNameMap = new HashMap<>();
+        if (userIds.isEmpty()) {
+            return userNameMap;
+        }
+        try {
+            List<IdentityClient.UserBriefResponse> users = identityClient.getUsersBatch(
+                    userIds.stream().map(UUID::toString).toList());
+            if (users != null) {
+                for (IdentityClient.UserBriefResponse u : users) {
+                    UUID userId = u != null ? tryParseUuid(u.keycloakSubject()) : null;
+                    String name = u == null ? null
+                            : (u.fullName() != null && !u.fullName().isBlank()) ? u.fullName() : u.username();
+                    if (userId != null && name != null && !name.isBlank()) {
+                        userNameMap.put(userId, name);
+                    }
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Không lấy được tên người dùng từ Identity-Service: {}", exception.getMessage());
+        }
+        return userNameMap;
+    }
+
+    private String userNameOf(Map<UUID, String> userNameMap, String userId) {
+        return userId != null ? userNameMap.get(parseUuid(userId)) : null;
+    }
+
+    private UUID tryParseUuid(String value) {
+        try {
+            return value != null ? UUID.fromString(value) : null;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
     private InventoryDocumentResponse toDocumentResponse(
             InventoryDocumentRow header,
             List<InventoryDocumentLineRow> lineRows,
             Map<String, List<InventoryDocumentBatchAllocationRow>> allocationsByLine,
-            String supplierName
+            String supplierName,
+            Map<UUID, String> userNameMap
     ) {
         List<InventoryDocumentLineResponse> lines = new ArrayList<>(lineRows.size());
         BigDecimal totalOrdered = BigDecimal.ZERO;
@@ -259,17 +356,23 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                 header.getCreatedAt(),
                 header.getUpdatedAt(),
                 parseUuid(header.getCreatedBy()),
+                userNameOf(userNameMap, header.getCreatedBy()),
                 parseUuid(header.getApprovedBy()),
+                userNameOf(userNameMap, header.getApprovedBy()),
                 header.getApprovedAt(),
                 header.getApprovalNote(),
                 parseUuid(header.getRejectedBy()),
+                userNameOf(userNameMap, header.getRejectedBy()),
                 header.getRejectedAt(),
                 header.getRejectionReason(),
                 parseUuid(header.getReceivedBy()),
+                userNameOf(userNameMap, header.getReceivedBy()),
                 header.getReceivedAt(),
                 parseUuid(header.getQcBy()),
+                userNameOf(userNameMap, header.getQcBy()),
                 header.getQcAt(),
                 parseUuid(header.getPostedBy()),
+                userNameOf(userNameMap, header.getPostedBy()),
                 header.getPostedAt(),
                 lines,
                 lines.size(),
@@ -343,14 +446,20 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             } catch (Exception ignored) {
             }
         }
-        return mapper.toResponse(document, supplierName);
+        Map<UUID, String> userNameMap = fetchUserNames(java.util.stream.Stream.of(
+                        document.getCreatedBy(), document.getApprovedBy(), document.getRejectedBy(),
+                        document.getReceivedBy(), document.getQcBy(), document.getPostedBy())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList());
+        return mapper.toResponse(document, supplierName, userNameMap);
     }
 
     @Override
     public InventoryDocumentResponse findById(UUID id) {
-        InventoryDocument document = documentRepository.findByIdWithDetails(id)
+        InventoryDocumentRow header = documentRepository.findDocumentRowById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("InventoryDocument", id));
-        return toEnrichedResponse(document);
+        return buildDetailResponse(header);
     }
 
     private UUID getCurrentUserId() {
@@ -542,9 +651,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             document.setReceivedAt(Instant.now());
         }
 
-        boolean hasShortage = false;
-        List<InventorySupplementRequestLine> supplementLines = new ArrayList<>();
-
         for (var reqItem : request.items()) {
             InventoryDocumentLine line = document.getLines().stream()
                     .filter(l -> l.getId().equals(reqItem.lineId()))
@@ -563,30 +669,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                 BigDecimal excess = received.subtract(ordered).max(BigDecimal.ZERO);
                 line.setShortageQuantity(shortage);
                 line.setExcessQuantity(excess);
-
-                if (shortage.compareTo(BigDecimal.ZERO) > 0) {
-                    hasShortage = true;
-                    InventorySupplementRequestLine suppLine = new InventorySupplementRequestLine();
-                    suppLine.setReceiptLineId(line.getId());
-                    suppLine.setInventoryItem(line.getInventoryItem());
-                    suppLine.setQuantity(shortage);
-                    suppLine.setReason("SHORTAGE");
-                    supplementLines.add(suppLine);
-                }
             }
-        }
-
-        if (hasShortage && !supplementLines.isEmpty()) {
-            InventorySupplementRequest suppRequest = new InventorySupplementRequest();
-            suppRequest.setRequestCode("SR-" + document.getDocumentCode());
-            suppRequest.setReferenceType("PURCHASE_RECEIPT");
-            suppRequest.setReferenceId(document.getDocumentCode());
-            suppRequest.setStatus("PENDING_APPROVAL");
-            suppRequest.setNote("Yêu cầu giao bù hàng thiếu từ phiếu nhập " + document.getDocumentCode());
-            for (var sl : supplementLines) {
-                suppRequest.addLine(sl);
-            }
-            supplementRequestRepository.save(suppRequest);
         }
 
         document.setStatus(InventoryDocumentStatus.QC_PENDING);
@@ -601,9 +684,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         if (document.getStatus() != InventoryDocumentStatus.QC_PENDING) {
             throw new BadRequestException("Only QC_PENDING documents can complete QC");
         }
-
-        boolean hasRejection = false;
-        List<InventorySupplierReturnRequestLine> returnLines = new ArrayList<>();
 
         for (var qcItem : request.items()) {
             InventoryDocumentLine line = document.getLines().stream()
@@ -659,30 +739,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                             ") must equal accepted quantity (" + accepted + ") for line: " + line.getLineNo());
                 }
             }
-
-            if (rejected.compareTo(BigDecimal.ZERO) > 0) {
-                hasRejection = true;
-                InventorySupplierReturnRequestLine returnLine = new InventorySupplierReturnRequestLine();
-                returnLine.setReceiptLineId(line.getId());
-                returnLine.setInventoryItem(line.getInventoryItem());
-                returnLine.setQuantity(rejected);
-                returnLine.setReason("QC_FAILED");
-                returnLines.add(returnLine);
-            }
-        }
-
-        if (hasRejection && !returnLines.isEmpty()) {
-            InventorySupplierReturnRequest returnRequest = new InventorySupplierReturnRequest();
-            returnRequest.setRequestCode("RR-" + document.getDocumentCode());
-            returnRequest.setReferenceType("PURCHASE_RECEIPT");
-            returnRequest.setReferenceId(document.getDocumentCode());
-            returnRequest.setSupplierId(document.getSupplierId());
-            returnRequest.setStatus("PENDING_APPROVAL");
-            returnRequest.setNote("Yêu cầu trả hàng lỗi QC từ phiếu nhập " + document.getDocumentCode());
-            for (var rl : returnLines) {
-                returnRequest.addLine(rl);
-            }
-            supplierReturnRequestRepository.save(returnRequest);
         }
 
         document.setStatus(InventoryDocumentStatus.QC_COMPLETED);
@@ -809,6 +865,26 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         return toEnrichedResponse(documentRepository.save(document));
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        InventoryDocument document = documentRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new ResourceNotFoundException("InventoryDocument", id));
+
+        UUID currentUserId = getCurrentUserId();
+        boolean isCreator = currentUserId != null && currentUserId.equals(document.getCreatedBy());
+        if (!SecurityUtils.isAdmin() && !isCreator) {
+            throw new AccessDeniedException("Chỉ ADMIN hoặc người tạo phiếu mới được xóa phiếu nhập kho này");
+        }
+
+        if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
+            throw new BadRequestException("Chỉ có thể xóa phiếu nhập kho ở trạng thái DRAFT");
+        }
+
+        document.setIsDeleted(true);
+        documentRepository.save(document);
     }
 
     private InventoryDocument getDocument(UUID id) {

@@ -5,6 +5,7 @@ import org.hvtra.iventoryservice.reservation.dto.request.ApplyInventoryReservati
 import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationItemRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationOrderRequest;
+import org.hvtra.iventoryservice.reservation.dto.request.ReserveMaterialOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.response.InventoryReservationResponse;
 import org.hvtra.iventoryservice.reservation.service.InventoryReservationService;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,6 +43,23 @@ public class InventoryReservationController {
     @PostMapping("/confirm-order")
     public List<InventoryReservationResponse> confirmOrder(@Valid @RequestBody ConfirmInventoryReservationOrderRequest request) {
         return service.confirmOrder(request);
+    }
+
+    @PostMapping("/materials/reserve-order")
+    public List<InventoryReservationResponse> reserveMaterials(@Valid @RequestBody ReserveMaterialOrderRequest request) {
+        return service.reserveMaterials(request);
+    }
+
+    @PostMapping("/materials/consume-order")
+    public List<InventoryReservationResponse> consumeMaterials(
+            @Valid @RequestBody ReleaseInventoryReservationOrderRequest request) {
+        return service.consumeMaterials(request);
+    }
+
+    @PostMapping("/materials/release-order")
+    public List<InventoryReservationResponse> releaseMaterials(
+            @Valid @RequestBody ReleaseInventoryReservationOrderRequest request) {
+        return service.releaseMaterials(request);
     }
 
     @PostMapping("/expire")

@@ -374,6 +374,11 @@ function ItemRow({
                                                                     value={line.newIngredientUnitId}
                                                                 />
                                                             </div>
+                                                            {errorByField.get(`items[${index}].newIngredientCode`) ? (
+                                                                <p className="text-[11px] font-bold text-red-600">
+                                                                    {errorByField.get(`items[${index}].newIngredientCode`)}
+                                                                </p>
+                                                            ) : null}
                                                             {errorByField.get(`items[${index}].newIngredientUnitId`) ? (
                                                                 <p className="text-[11px] font-bold text-red-600">
                                                                     {errorByField.get(`items[${index}].newIngredientUnitId`)}

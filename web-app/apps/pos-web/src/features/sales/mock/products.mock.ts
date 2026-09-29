@@ -11,7 +11,8 @@ export const mockProducts: SaleProductPreview[] = [
         price: 160000,
         imageUrl:
             "https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?auto=format&fit=crop&w=360&q=80",
-        availableQuantity: 300
+        availableQuantity: 300,
+        sellableQuantity: 300
     },
     {
         id: "tea-olong-tu-quy",
@@ -23,7 +24,8 @@ export const mockProducts: SaleProductPreview[] = [
         price: 120000,
         imageUrl:
             "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=360&q=80",
-        availableQuantity: 250
+        availableQuantity: 250,
+        sellableQuantity: 250
     },
     {
         id: "tea-shan-tuyet",
@@ -35,7 +37,8 @@ export const mockProducts: SaleProductPreview[] = [
         price: 140000,
         imageUrl:
             "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=360&q=80",
-        availableQuantity: 120
+        availableQuantity: 120,
+        sellableQuantity: 120
     },
     {
         id: "tea-dinh-thai-nguyen",
@@ -47,7 +50,8 @@ export const mockProducts: SaleProductPreview[] = [
         price: 90000,
         imageUrl:
             "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=360&q=80",
-        availableQuantity: 180
+        availableQuantity: 180,
+        sellableQuantity: 180
     },
     {
         id: "tea-nhai",
@@ -59,7 +63,8 @@ export const mockProducts: SaleProductPreview[] = [
         price: 110000,
         imageUrl:
             "https://images.unsplash.com/photo-1597481499666-130f8eb01924?auto=format&fit=crop&w=360&q=80",
-        availableQuantity: 90
+        availableQuantity: 90,
+        sellableQuantity: 90
     },
     {
         id: "tea-pho-nhi",
@@ -71,7 +76,8 @@ export const mockProducts: SaleProductPreview[] = [
         price: 280000,
         imageUrl:
             "https://images.unsplash.com/photo-1582793988951-9aed5509eb97?auto=format&fit=crop&w=360&q=80",
-        availableQuantity: 64
+        availableQuantity: 64,
+        sellableQuantity: 64
     },
     {
         id: "tea-tu-quy-jasmine",
@@ -83,7 +89,8 @@ export const mockProducts: SaleProductPreview[] = [
         price: 150000,
         imageUrl:
             "https://images.unsplash.com/photo-1567922045116-2a00fae2ed03?auto=format&fit=crop&w=360&q=80",
-        availableQuantity: 180
+        availableQuantity: 180,
+        sellableQuantity: 180
     },
     {
         id: "tea-tu-quy-premium",
@@ -95,6 +102,7 @@ export const mockProducts: SaleProductPreview[] = [
         price: 180000,
         imageUrl:
             "https://images.unsplash.com/photo-1523906630133-f6934a1ab2b9?auto=format&fit=crop&w=360&q=80",
-        availableQuantity: 90
+        availableQuantity: 90,
+        sellableQuantity: 90
     }
 ];

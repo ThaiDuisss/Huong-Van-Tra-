@@ -159,9 +159,9 @@ export function CustomTeaRequestDialog({
                                     </span>
                                     <span className="text-xs font-black text-[#159734]">
                                         Tồn khả dụng:{" "}
-                                        {product.availableQuantity === null
+                                        {product.sellableQuantity === null
                                             ? "Chưa đồng bộ"
-                                            : product.availableQuantity}
+                                            : product.sellableQuantity}
                                     </span>
                                 </button>
                             );

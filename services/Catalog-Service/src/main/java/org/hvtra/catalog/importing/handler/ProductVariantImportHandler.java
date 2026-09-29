@@ -340,9 +340,13 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         }
 
         List<Map<String, Object>> bomItems = readBomItems(payload);
+        Set<UUID> seenIngredientIds = new HashSet<>();
         for (int i = 0; i < bomItems.size(); i++) {
             String prefix = "bomItems[" + i + "].";
             BomItemRequest bomRequest = objectMapper.convertValue(bomItems.get(i), BomItemRequest.class);
+            if (bomRequest.ingredientId() != null && !seenIngredientIds.add(bomRequest.ingredientId())) {
+                errors.add(new ValidationErrorResponse(prefix + "ingredientId", "Nguyên liệu bị trùng trong định mức"));
+            }
             for (ConstraintViolation<BomItemRequest> violation : validator.validate(bomRequest)) {
                 errors.add(new ValidationErrorResponse(prefix + violation.getPropertyPath(), violation.getMessage()));
             }
@@ -366,14 +370,19 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
         return repository.findAllById(ids).stream().map(Product::getId).collect(Collectors.toSet());
     }
 
+    // Đơn vị / nguyên liệu đã xoá coi như không tồn tại — BomItemService.replaceForVariant() từ chối chúng lúc duyệt
     private Set<UUID> findExistingIds(UnitRepository repository, Set<UUID> ids) {
         if (ids.isEmpty()) return Set.of();
-        return repository.findAllById(ids).stream().map(Unit::getId).collect(Collectors.toSet());
+        return repository.findAllById(ids).stream()
+                .filter(u -> !Boolean.TRUE.equals(u.getIsDeleted()))
+                .map(Unit::getId).collect(Collectors.toSet());
     }
 
     private Set<UUID> findExistingIds(IngredientRepository repository, Set<UUID> ids) {
         if (ids.isEmpty()) return Set.of();
-        return repository.findAllById(ids).stream().map(Ingredient::getId).collect(Collectors.toSet());
+        return repository.findAllById(ids).stream()
+                .filter(i -> !Boolean.TRUE.equals(i.getIsDeleted()))
+                .map(Ingredient::getId).collect(Collectors.toSet());
     }
 
     private boolean existsProduct(Set<UUID> preloadedExistingIds, UUID id) {
@@ -381,11 +390,15 @@ public class ProductVariantImportHandler implements ImportTypeHandler {
     }
 
     private boolean existsUnit(Set<UUID> preloadedExistingIds, UUID id) {
-        return preloadedExistingIds != null ? preloadedExistingIds.contains(id) : unitRepository.existsById(id);
+        return preloadedExistingIds != null
+                ? preloadedExistingIds.contains(id)
+                : unitRepository.findById(id).filter(u -> !Boolean.TRUE.equals(u.getIsDeleted())).isPresent();
     }
 
     private boolean existsIngredient(Set<UUID> preloadedExistingIds, UUID id) {
-        return preloadedExistingIds != null ? preloadedExistingIds.contains(id) : ingredientRepository.existsById(id);
+        return preloadedExistingIds != null
+                ? preloadedExistingIds.contains(id)
+                : ingredientRepository.findById(id).filter(i -> !Boolean.TRUE.equals(i.getIsDeleted())).isPresent();
     }
 
     @Override

@@ -27,13 +27,9 @@ export function ProductSearchBar({
 }: ProductSearchBarProps) {
   const visibleResults = results.slice(0, 5);
   const getStockLabel = (product: SaleProductPreview) => {
-    if (product.availableQuantity === null) {
-      return "Tồn: Không rõ";
-    }
-
-    return product.availableQuantity <= 0
+    return product.sellableQuantity <= 0
       ? "Hết hàng"
-      : `Tồn: ${product.availableQuantity}`;
+      : `Có thể bán: ${product.sellableQuantity}`;
   };
 
   return (
@@ -131,8 +127,7 @@ export function ProductSearchBar({
 
                   <span
                     className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                      product.availableQuantity !== null &&
-                      product.availableQuantity <= 0
+                      product.sellableQuantity <= 0
                         ? "bg-red-50 text-red-700"
                         : "bg-hvt-green-50 text-hvt-green-800"
                     }`}
@@ -148,8 +143,7 @@ export function ProductSearchBar({
                       type="button"
                       disabled={
                         addingProductId === product.id ||
-                        (product.availableQuantity !== null &&
-                          product.availableQuantity <= 0)
+                        product.sellableQuantity <= 0
                       }
                       onClick={(event) => {
                         event.stopPropagation();

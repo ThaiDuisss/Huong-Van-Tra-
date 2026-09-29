@@ -13,6 +13,8 @@ import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.service.OrderCustomerService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
+import org.hvtra.orderservice.service.OrderPaymentEventService;
+import org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus;
 import org.hvtra.orderservice.service.validator.OrderValidator;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +32,7 @@ public class OrderCheckoutPaymentProcessor {
     private final OrderOutboxPublisher orderOutboxPublisher;
     private final OrderStatusHistoryWriter orderStatusHistoryWriter;
     private final OrderResponseAssembler orderResponseAssembler;
+    private final OrderPaymentEventService orderPaymentEventService;
 
     public PaymentResponse checkoutPayment(
             Order order,
@@ -53,7 +56,7 @@ public class OrderCheckoutPaymentProcessor {
         paymentRequest.setDeliveryFee(order.getShippingFee());
         paymentRequest.setFinalAmount(order.getFinalAmount());
         paymentRequest.setReceivedAmount(method == PaymentMethod.CASH ? receivedAmount : null);
-        paymentRequest.setDeliveryRequired(false);
+        paymentRequest.setDeliveryRequired(order.isFulfillmentRequired());
 
         PaymentResponse payment = paymentClient.checkout(paymentRequest);
         applyPaymentCheckoutResult(order, payment, changedBy, sagaId);
@@ -72,14 +75,22 @@ public class OrderCheckoutPaymentProcessor {
 
         if ("PAID".equals(paymentStatus)) {
             order.setPaymentStatus(PaymentStatus.PAID);
-            order.setStatus(OrderStatus.COMPLETED);
+            OrderStatus paidOrderStatus = order.isFulfillmentRequired()
+                    ? OrderStatus.PAYMENT_CONFIRMED : OrderStatus.COMPLETED;
+            order.setStatus(paidOrderStatus);
             order.setPaidAmount(order.getFinalAmount());
             order.setDebtAmount(BigDecimal.ZERO);
+            orderPaymentEventService.processPaidOrderInventory(
+                    order, eventFromPaymentResponse(order, payment, sagaId), !order.isFulfillmentRequired());
+            if (order.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.FAILED) {
+                order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
+                return;
+            }
 
             orderStatusHistoryWriter.write(
                     order,
                     oldStatus,
-                    OrderStatus.COMPLETED,
+                    paidOrderStatus,
                     "Thanh toán POS trực tiếp bằng " + paymentMethod + ", mã thanh toán: " + order.getPaymentCode(),
                     changedBy
             );

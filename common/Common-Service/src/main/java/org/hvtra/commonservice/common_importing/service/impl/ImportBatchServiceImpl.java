@@ -254,7 +254,8 @@ public class ImportBatchServiceImpl implements ImportBatchService {
     }
 
     @Override
-    @Transactional
+    // Lỗi validate phải được lưu lại cho người dùng thấy dù submit bị chặn — không rollback khi BusinessException
+    @Transactional(noRollbackFor = BusinessException.class)
     public ImportBatchResponse submit(UUID batchId, Long expectedVersion) {
         ImportBatch batch = getBatchWithItems(batchId);
         checkVersion(batch, expectedVersion);
@@ -265,9 +266,22 @@ public class ImportBatchServiceImpl implements ImportBatchService {
         if (batch.getItems().isEmpty()) {
             throw new BusinessException("EMPTY_BATCH", "Phiếu import chưa có dòng dữ liệu nào");
         }
-        boolean hasErrors = batch.getItems().stream().anyMatch(this::hasErrors);
-        if (hasErrors) {
-            throw new BusinessException("HAS_INVALID_ITEMS", "Còn dòng dữ liệu chưa hợp lệ — vui lòng sửa hết lỗi trước khi gửi duyệt");
+        // Validate lại toàn bộ lúc gửi duyệt (dữ liệu hệ thống có thể đã đổi từ lúc lưu nháp, vd mã đã bị
+        // phiếu khác tạo trước) — lỗi được ghi vào từng dòng để người dùng sửa, thay vì chỉ lộ ra lúc admin duyệt.
+        ImportTypeHandler handler = handlerFor(batch.getImportType());
+        List<ImportBatchItem> items = batch.getItems();
+        List<List<ValidationErrorResponse>> allErrors =
+                handler.validateAll(items.stream().map(this::readPayload).toList());
+        long invalidCount = 0;
+        for (int i = 0; i < items.size(); i++) {
+            List<ValidationErrorResponse> errors = allErrors.get(i);
+            items.get(i).setValidationErrors(writeJson(errors));
+            if (!errors.isEmpty()) invalidCount++;
+        }
+        if (invalidCount > 0) {
+            repository.saveAndFlush(batch);
+            throw new BusinessException("HAS_INVALID_ITEMS",
+                    "Còn " + invalidCount + " dòng dữ liệu chưa hợp lệ — vui lòng sửa hết lỗi trước khi gửi duyệt");
         }
 
         batch.setStatus(ImportBatchStatus.PENDING_APPROVAL);
@@ -382,10 +396,6 @@ public class ImportBatchServiceImpl implements ImportBatchService {
                     "Phiếu import đã bị thay đổi bởi người khác, vui lòng tải lại trang trước khi thao tác.",
                     HttpStatus.CONFLICT);
         }
-    }
-
-    private boolean hasErrors(ImportBatchItem item) {
-        return !readErrors(item).isEmpty();
     }
 
     private String generateBatchCode() {
