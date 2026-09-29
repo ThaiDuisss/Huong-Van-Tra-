@@ -40,6 +40,15 @@ public class ProductVariant extends BaseEntity {
     @Column(name = "cost_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal costPrice;
 
+    @Column(name = "sellable_quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal sellableQuantity = BigDecimal.ZERO;
+
+    @Column(name = "production_threshold", nullable = false, precision = 18, scale = 2)
+    private BigDecimal productionThreshold = BigDecimal.ZERO;
+
+    @Column(name = "production_batch_quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal productionBatchQuantity = BigDecimal.ONE;
+
     /**
      * Đơn vị bán thương mại của Mặt hàng này.
      * Ví dụ: "Hộp 100g", "Gói 250g", "Cốc".
@@ -64,4 +73,3 @@ public class ProductVariant extends BaseEntity {
         barcode.setProductVariant(this);
     }
 }
-

@@ -3,7 +3,7 @@ import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptOptions,
     GoodsReceiptStatus,
-    GoodsReceiptSummary,
+    GoodsReceiptExportRow,
     QcResult
 } from "../types/goods-receipt.types";
 
@@ -53,7 +53,7 @@ export function formatQcResult(qcResult?: QcResult): string {
     }
 }
 
-export function exportGoodsReceiptsToExcel(receipts: GoodsReceiptSummary[]) {
+export function exportGoodsReceiptsToExcel(receipts: GoodsReceiptExportRow[]) {
     const now = new Date();
     const dateFormatted = now.toLocaleString("vi-VN");
 
@@ -83,16 +83,16 @@ export function exportGoodsReceiptsToExcel(receipts: GoodsReceiptSummary[]) {
         return [
             "",
             index + 1,
-            r.code || r.stockDocumentCode || "",
+            r.code || "",
             r.purchaseOrderCode || "",
-            r.supplier?.name || "",
-            r.receivingLocation?.name || "",
+            r.supplierName || "",
+            r.receivingLocationName || "",
             formatGoodsReceiptStatus(r.status),
             formatQcResult(r.qcResult),
             r.totalLines || 0,
             r.totalReceivedQuantity || 0,
             dateStr,
-            r.createdBy?.name || ""
+            r.createdByName || ""
         ];
     });
 

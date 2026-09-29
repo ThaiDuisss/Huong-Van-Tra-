@@ -2,6 +2,8 @@ package org.hvtra.iventoryservice.document.service;
 
 import org.hvtra.iventoryservice.document.dto.request.*;
 import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
+import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentExportResponse;
+import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentListItemResponse;
 import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
@@ -9,11 +11,12 @@ import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public interface InventoryDocumentService {
 
-    PageResponse<InventoryDocumentResponse> findAll(
+    PageResponse<InventoryDocumentListItemResponse> findAll(
             InventoryDocumentType documentType,
             InventoryDocumentStatus status,
             UUID locationId,
@@ -22,6 +25,16 @@ public interface InventoryDocumentService {
             Instant fromDate,
             Instant toDate,
             Pageable pageable
+    );
+
+    List<InventoryDocumentExportResponse> export(
+            InventoryDocumentType documentType,
+            InventoryDocumentStatus status,
+            UUID locationId,
+            UUID supplierId,
+            String query,
+            Instant fromDate,
+            Instant toDate
     );
 
     GoodsReceiptSummaryCountResponse getSummaryCounts(InventoryDocumentType documentType);
@@ -47,4 +60,6 @@ public interface InventoryDocumentService {
     InventoryDocumentResponse post(UUID id);
 
     InventoryDocumentResponse cancel(UUID id, String note);
+
+    void delete(UUID id);
 }

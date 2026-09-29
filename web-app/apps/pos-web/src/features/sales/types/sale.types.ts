@@ -18,6 +18,7 @@ export interface SaleProductPreview {
   price: number;
   imageUrl: string;
   availableQuantity: number | null;
+  sellableQuantity: number;
   quantityOnHand?: number | null;
   quantityReserved?: number | null;
 }
@@ -33,6 +34,7 @@ export interface SaleCartItem {
   quantity: number;
   unitPrice: number;
   availableQuantity?: number | null;
+  sellableQuantity?: number;
   quantityOnHand?: number | null;
   quantityReserved?: number | null;
   manualDiscount?: SaleManualDiscount | null;

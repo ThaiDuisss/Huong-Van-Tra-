@@ -163,6 +163,18 @@ export function ProductVariantDetailPage() {
                                 <span className="text-sm font-semibold text-gray-700 text-right">{formatCurrency(variant.costPrice)}</span>
                             </div>
                             <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
+                                <span className="text-sm font-medium text-gray-500">Có thể bán</span>
+                                <span className="text-sm font-semibold text-gray-700 text-right">{variant.sellableQuantity}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
+                                <span className="text-sm font-medium text-gray-500">Ngưỡng sản xuất</span>
+                                <span className="text-sm font-semibold text-gray-700 text-right">{variant.productionThreshold}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
+                                <span className="text-sm font-medium text-gray-500">Mỗi mẻ sản xuất</span>
+                                <span className="text-sm font-semibold text-gray-700 text-right">{variant.productionBatchQuantity}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
                                 <span className="text-sm font-medium text-gray-500">Chính sách kho</span>
                                 <span className="text-sm font-semibold text-gray-800 text-right">
                                     {variant.inventoryPolicy === "TRACK_STOCK" ? "Theo dõi tồn kho" : "Không theo dõi"}

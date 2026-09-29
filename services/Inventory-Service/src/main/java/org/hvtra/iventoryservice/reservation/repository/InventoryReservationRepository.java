@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.reservation.repository;
 
 import org.hvtra.iventoryservice.domain.entity.InventoryReservation;
 import org.hvtra.iventoryservice.domain.enums.ReservationStatus;
+import org.hvtra.iventoryservice.domain.enums.ReservationType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
@@ -16,6 +17,11 @@ public interface InventoryReservationRepository extends JpaRepository<InventoryR
             UUID locationId);
 
     List<InventoryReservation> findByOrderIdAndStatus(UUID orderId, ReservationStatus status);
+
+    List<InventoryReservation> findByOrderIdAndReservationTypeAndStatus(
+            UUID orderId,
+            ReservationType reservationType,
+            ReservationStatus status);
 
     List<InventoryReservation> findByStatusAndExpiresAtBefore(ReservationStatus status, Instant expiresAt);
 }
