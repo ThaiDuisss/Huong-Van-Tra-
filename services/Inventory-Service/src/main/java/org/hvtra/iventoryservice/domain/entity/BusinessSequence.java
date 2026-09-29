@@ -1,4 +1,4 @@
-package org.hvtra.iventoryservice.domain.entity.production;
+package org.hvtra.iventoryservice.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -7,11 +7,12 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+/** Bộ đếm dùng chung để sinh mã tăng dần — mỗi loại mã là một {@code sequenceKey} (vd "LSX"). */
 @Entity
-@Table(name = "production_order_sequences")
+@Table(name = "business_sequences")
 @Getter
 @Setter
-public class ProductionOrderSequence {
+public class BusinessSequence {
 
     @Id
     @Column(name = "sequence_key", length = 50)
