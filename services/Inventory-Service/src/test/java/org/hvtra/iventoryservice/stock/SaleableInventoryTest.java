@@ -117,9 +117,10 @@ class SaleableInventoryTest {
     void internalPosAvailabilitySubtractsBlockedAndIgnoresDamagedAndQuarantineLocations() {
         when(itemRepository.findByReferenceIdInAndItemType(any(), eq(InventoryItemType.PRODUCT_VARIANT)))
                 .thenReturn(List.of(item));
-        when(balanceRepository.findSaleableBalancesByInventoryItemIds(
+        when(balanceRepository.findSellableBatchBalancesByInventoryItemIds(
                 eq(List.of(item.getId())),
                 eq(InventoryStatus.ACTIVE),
+                any(),
                 any()))
                 .thenReturn(List.of(
                         balance(item, warehouse, "10.00", "2.00", "3.00"),
@@ -137,6 +138,36 @@ class SaleableInventoryTest {
         assertThat(responses).hasSize(1);
         assertThat(responses.getFirst().availableQuantity()).isEqualByComparingTo("5.00");
         assertThat(responses.getFirst().inventoryLocationId()).isEqualTo(warehouse.getId());
+    }
+
+    @Test
+    void internalPosAvailabilitySumsAllBatchesAcrossShelves() {
+        when(itemRepository.findByReferenceIdInAndItemType(any(), eq(InventoryItemType.PRODUCT_VARIANT)))
+                .thenReturn(List.of(item));
+        when(balanceRepository.findSellableBatchBalancesByInventoryItemIds(
+                eq(List.of(item.getId())),
+                eq(InventoryStatus.ACTIVE),
+                any(),
+                any()))
+                .thenReturn(List.of(
+                        balance(item, shelf, "4.00", "1.00", "0.00"),
+                        balance(item, shelf, "2.00", "0.00", "0.00"),
+                        balance(item, shelfTarget, "10.00", "2.00", "1.00"),
+                        balance(item, damaged, "99.00", "0.00", "0.00")));
+
+        InventoryStockServiceImpl service = new InventoryStockServiceImpl(
+                balanceRepository,
+                itemRepository,
+                catalogClient);
+
+        List<StockVariantBatchResponse> responses = service.getStocksByVariantIds(
+                new StockVariantBatchRequest(List.of(variantId), null));
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().availableQuantity()).isEqualByComparingTo("12.00");
+        assertThat(responses.getFirst().reservedQuantity()).isEqualByComparingTo("3.00");
+        assertThat(responses.getFirst().stockStatus()).isEqualTo("IN_STOCK");
+        assertThat(responses.getFirst().inventoryLocationId()).isEqualTo(shelfTarget.getId());
     }
 
     @Test
@@ -168,9 +199,10 @@ class SaleableInventoryTest {
     void internalPosAvailabilityIsOutOfStockWhenOnlyNonSaleableLocationsExist() {
         when(itemRepository.findByReferenceIdInAndItemType(List.of(variantId), InventoryItemType.PRODUCT_VARIANT))
                 .thenReturn(List.of(item));
-        when(balanceRepository.findSaleableBalancesByInventoryItemIds(
+        when(balanceRepository.findSellableBatchBalancesByInventoryItemIds(
                 eq(List.of(item.getId())),
                 eq(InventoryStatus.ACTIVE),
+                any(),
                 any()))
                 .thenReturn(List.of(
                         balance(item, damaged, "10.00", "0.00", "0.00"),
