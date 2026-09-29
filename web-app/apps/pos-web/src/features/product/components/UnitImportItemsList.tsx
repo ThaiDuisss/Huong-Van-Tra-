@@ -181,20 +181,31 @@ function ItemRow({ item, editable, expanded, onToggle, onSave, onDelete, units }
                         </div>
 
                         <div className="grid gap-1.5">
-                            <label className="text-xs font-bold text-[#536078]">Tỉ lệ quy đổi</label>
+                            <label className="text-xs font-bold text-[#536078]">Mã đơn vị gốc</label>
                             <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
-                                disabled={!editable}
-                                onChange={(e) => setConversionRate(e.target.value ? Number(e.target.value) : "")}
-                                placeholder="Ví dụ: 1000 (nếu có đơn vị gốc)"
-                                step="any"
-                                type="number"
-                                value={conversionRate}
+                                className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600 bg-gray-50"
+                                disabled
+                                type="text"
+                                value={baseUnitId ? (units.find(u => u.id === baseUnitId)?.symbol || "") : ""}
+                                placeholder="Tự động điền khi chọn đơn vị gốc"
                             />
-                            {errorByField.get("conversionRate") ? (
-                                <p className="text-xs font-bold text-red-600">{errorByField.get("conversionRate")}</p>
-                            ) : null}
                         </div>
+                    </div>
+
+                    <div className="grid gap-1.5">
+                        <label className="text-xs font-bold text-[#536078]">Tỉ lệ quy đổi</label>
+                        <input
+                            className="h-10 rounded-lg border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-600"
+                            disabled={!editable}
+                            onChange={(e) => setConversionRate(e.target.value ? Number(e.target.value) : "")}
+                            placeholder="Ví dụ: 1000 (nếu có đơn vị gốc). Bỏ qua nếu là đơn vị gốc."
+                            step="any"
+                            type="number"
+                            value={conversionRate}
+                        />
+                        {errorByField.get("conversionRate") ? (
+                            <p className="text-xs font-bold text-red-600">{errorByField.get("conversionRate")}</p>
+                        ) : null}
                     </div>
 
                     <div className="grid gap-1.5">
