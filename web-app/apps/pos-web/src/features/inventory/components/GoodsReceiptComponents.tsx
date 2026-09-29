@@ -510,10 +510,11 @@ export function GoodsReceiptLineTable({
                             <TableHead>Tên nguyên liệu</TableHead>
                             <TableHead align="right">Số đặt</TableHead>
                             <TableHead align="right">Số nhận</TableHead>
-                            <TableHead align="right">Thiếu/thừa</TableHead>
+                            <TableHead align="right">Thiếu</TableHead>
+                            <TableHead align="right">Thừa</TableHead>
                             <TableHead align="right">Đạt QC</TableHead>
-                            <TableHead align="right">Cách ly</TableHead>
                             <TableHead align="right">Không đạt</TableHead>
+                            <TableHead>Ngày sản xuất</TableHead>
                             <TableHead>Hạn sử dụng</TableHead>
                         </tr>
                     </thead>
@@ -528,22 +529,23 @@ export function GoodsReceiptLineTable({
                                     {formatVietnamNumber(line.receivedQuantity)}
                                 </TableCell>
                                 <TableCell align="right">
+                                    {line.shortageQuantity > 0
+                                        ? formatVietnamNumber(line.shortageQuantity)
+                                        : "0"}
+                                </TableCell>
+                                <TableCell align="right">
                                     {line.surplusQuantity > 0
-                                        ? `+${formatVietnamNumber(line.surplusQuantity)}`
-                                        : line.shortageQuantity > 0
-                                            ? `-${formatVietnamNumber(line.shortageQuantity)}`
-                                            : "0"}
+                                        ? formatVietnamNumber(line.surplusQuantity)
+                                        : "0"}
                                 </TableCell>
                                 <TableCell align="right">
                                     {formatVietnamNumber(line.qc.passedQuantity)}
                                 </TableCell>
                                 <TableCell align="right">
-                                    {formatVietnamNumber(
-                                        line.qc.quarantinedQuantity
-                                    )}
-                                </TableCell>
-                                <TableCell align="right">
                                     {formatVietnamNumber(line.qc.failedQuantity)}
+                                </TableCell>
+                                <TableCell>
+                                    {formatVietnamDateTime(line.manufacturedAt)}
                                 </TableCell>
                                 <TableCell>
                                     {formatVietnamDateTime(line.expiryDate)}
