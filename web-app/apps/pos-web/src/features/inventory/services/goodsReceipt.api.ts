@@ -1,8 +1,4 @@
 import { apiClient } from "../../../api/api-client";
-import { supplierApi } from "../../manufacturing/services/supplier.api";
-import { ingredientApi } from "../../product/services/ingredient.api";
-import { inventoryItemApi } from "./inventoryItem.api";
-import { inventoryLocationApi } from "./inventoryLocation.api";
 import type {
     GoodsReceiptActionInput,
     GoodsReceiptApi,
@@ -16,16 +12,13 @@ import type {
     GoodsReceiptListQuery,
     GoodsReceiptListResult,
     GoodsReceiptOptions,
-    GoodsReceiptOptionsRequest,
     GoodsReceiptQcInput,
     GoodsReceiptStatus,
     GoodsReceiptSummary,
     QcResult
 } from "../types/goods-receipt.types";
-import type { SupplierResponse } from "../../manufacturing/types/supplier.types";
-import type { PageResult } from "../../product/types/product.types";
 import type { InventoryAuditEvent } from "../types/stock-document.types";
-import type { InventoryItemResponse, InventoryLocationResponse, PageResponse } from "../types/inventory.types";
+import type { PageResponse } from "../types/inventory.types";
 
 interface InventoryDocumentLineBackendResponse {
     id: string;
@@ -95,6 +88,13 @@ interface InventoryDocumentBackendResponse {
     totalReceivedQuantity: number;
     totalAcceptedQuantity: number;
     totalRejectedQuantity: number;
+}
+
+interface InventoryItemLookupBackendResponse {
+    id: string;
+    name?: string;
+    code?: string;
+    unitName?: string;
 }
 
 interface InventoryDocumentListItemBackendResponse {
@@ -654,223 +654,29 @@ export const goodsReceiptApi: GoodsReceiptApi = {
         return this.getGoodsReceipt(input.receiptId);
     },
 
-    async getGoodsReceiptOptions(
-        supplierId?: string,
-        opts?: GoodsReceiptOptionsRequest
-    ): Promise<GoodsReceiptOptions> {
-        let suppRes: unknown = null;
-        let locRes: unknown = null;
-        let itemRes: unknown = null;
-        let ingRes: unknown = null;
-
-        if (opts?.includeSuppliers !== false) {
-            try {
-                suppRes = await supplierApi.list({ page: 0, size: 100 });
-            } catch (e) {
-                console.warn("[GoodsReceipt] Lỗi supplierApi.list, thử fallback trực tiếp:", e);
-                try {
-                    suppRes = await apiClient.get<PageResult<SupplierResponse>>("/catalog/suppliers", {
-                        query: { page: 0, size: 100 }
-                    });
-                } catch (e2) {
-                    console.error("[GoodsReceipt] Lỗi gọi trực tiếp /catalog/suppliers:", e2);
-                }
-            }
+    async getGoodsReceiptOptions(supplierId?: string): Promise<GoodsReceiptOptions> {
+        if (!supplierId) {
+            return { locations: [], materials: [], suppliers: [] };
         }
 
-        if (opts?.includeLocations !== false) {
-            try {
-                locRes = await inventoryLocationApi.list({ page: 0, size: 100 });
-            } catch (e) {
-                console.warn("[GoodsReceipt] Lỗi inventoryLocationApi.list, thử fallback trực tiếp:", e);
-                try {
-                    locRes = await apiClient.get<PageResponse<InventoryLocationResponse>>("/inventory/inventory-locations", {
-                        query: { page: 0, size: 100 }
-                    });
-                } catch (e2) {
-                    console.error("[GoodsReceipt] Lỗi gọi trực tiếp /inventory/inventory-locations:", e2);
-                }
-            }
-        }
-
-        try {
-            itemRes = await inventoryItemApi.list({ itemType: "INGREDIENT", page: 0, size: 200, status: "ACTIVE" });
-        } catch (e) {
-            console.warn("[GoodsReceipt] Lỗi inventoryItemApi.list:", e);
-        }
-
-        if (supplierId) {
-            try {
-                ingRes = await ingredientApi.list({ page: 0, size: 200, status: "ACTIVE", supplierId });
-            } catch (e) {
-                console.warn("[GoodsReceipt] Lỗi ingredientApi.list:", e);
-            }
-        }
-
-        const extractArray = <T>(res: unknown): T[] => {
-            if (!res) return [];
-            let arr: unknown[] = [];
-            if (Array.isArray(res)) {
-                arr = res;
-            } else if (typeof res === "object" && res !== null) {
-                const obj = res as Record<string, unknown>;
-                if (Array.isArray(obj.content)) arr = obj.content;
-                else if (Array.isArray(obj.data)) arr = obj.data;
-                else if (Array.isArray(obj.result)) arr = obj.result;
-                else if (obj.data && typeof obj.data === "object" && obj.data !== null && Array.isArray((obj.data as Record<string, unknown>).content)) {
-                    arr = (obj.data as Record<string, unknown>).content as unknown[];
-                } else if (obj.result && typeof obj.result === "object" && obj.result !== null && Array.isArray((obj.result as Record<string, unknown>).content)) {
-                    arr = (obj.result as Record<string, unknown>).content as unknown[];
-                }
-            }
-            return arr.filter((item): item is T => item !== null && item !== undefined);
-        };
-
-        const rawSuppliers = extractArray<Record<string, unknown>>(suppRes);
-        const suppliers = rawSuppliers
-            .filter((s): s is Record<string, unknown> => Boolean(s))
-            .map((s) => ({
-                code: String(s.supplierCode || s.code || "SUP"),
-                id: String(s.id || ""),
-                name: String(s.name || "Nhà cung cấp"),
-                suppliedIngredientNames: (extractArray<Record<string, unknown>>(s.ingredients) || [])
-                    .filter((ing): ing is Record<string, unknown> => Boolean(ing))
-                    .map((ing) => String(ing.name || ""))
-                    .filter(Boolean)
-            }));
-
-        const rawLocations = extractArray<Record<string, unknown>>(locRes);
-        const locations = rawLocations
-            .filter((l): l is Record<string, unknown> => Boolean(l))
-            .map((l) => ({
-                code: String(l.code || "LOC"),
-                id: String(l.id || ""),
-                isCentral: Boolean(l.isCentral),
-                name: String(l.name || "Kho hàng")
-            }));
-
-        const validIngredientIds = new Set<string>();
-        const validIngredientCodes = new Set<string>();
-        const ingredientMap = new Map<string, { name: string; code: string; unit: string }>();
-
-        let rawIngredients = supplierId
-            ? extractArray<Record<string, unknown>>(ingRes).filter((ing): ing is Record<string, unknown> => Boolean(ing))
-            : [];
-
-        // Fallback: nếu supplierId có nhưng ingRes rỗng, tìm trong supplier.ingredients hoặc gọi supplierApi.getById
-        if (supplierId && rawIngredients.length === 0) {
-            const matchedSupp = rawSuppliers.find((s) => String(s.id) === String(supplierId));
-            if (matchedSupp && Array.isArray(matchedSupp.ingredients) && matchedSupp.ingredients.length > 0) {
-                rawIngredients = extractArray<Record<string, unknown>>(matchedSupp.ingredients)
-                    .filter((ing): ing is Record<string, unknown> => Boolean(ing));
-            } else {
-                try {
-                    const suppDetail = await supplierApi.getById(supplierId);
-                    if (suppDetail?.ingredients?.length) {
-                        rawIngredients = extractArray<Record<string, unknown>>(suppDetail.ingredients)
-                            .filter((ing): ing is Record<string, unknown> => Boolean(ing));
-                    }
-                } catch (e) {
-                    console.warn("[GoodsReceipt] Lỗi supplierApi.getById fallback:", e);
-                }
-            }
-        }
-
-        rawIngredients.forEach((ing) => {
-            if (!ing) return;
-            const unitObjName = typeof ing.unit === "object" && ing.unit !== null
-                ? ((ing.unit as Record<string, unknown>).symbol || (ing.unit as Record<string, unknown>).name)
-                : undefined;
-            const unit = String(
-                ing.unitSymbol ||
-                ing.unitName ||
-                ing.unit_name ||
-                unitObjName ||
-                "kg"
-            );
-            const info = {
-                code: String(ing.ingredientCode || ing.code || "NL"),
-                name: String(ing.name || "Nguyên liệu"),
-                unit
-            };
-            if (ing.id !== undefined && ing.id !== null) {
-                const idStr = String(ing.id);
-                validIngredientIds.add(idStr);
-                ingredientMap.set(idStr, info);
-            }
-            if (ing.ingredientCode) {
-                const codeStr = String(ing.ingredientCode);
-                validIngredientCodes.add(codeStr);
-                ingredientMap.set(codeStr, info);
-            }
-        });
-
-        const rawItems = supplierId
-            ? extractArray<InventoryItemResponse>(itemRes).filter((i) => {
-                if (!i) return false;
-                if (i.itemType && i.itemType !== "INGREDIENT") return false;
-                const refIdStr = i.referenceId !== undefined && i.referenceId !== null ? String(i.referenceId) : undefined;
-                return (refIdStr && validIngredientIds.has(refIdStr)) || (Boolean(i.referenceCode) && validIngredientCodes.has(String(i.referenceCode)));
-            })
-            : [];
-
-        const materials = !supplierId
-            ? []
-            : (rawItems.length > 0
-                ? rawItems.map((i) => {
-                    const refIdStr = i.referenceId !== undefined && i.referenceId !== null ? String(i.referenceId) : undefined;
-                    const matched = (refIdStr ? ingredientMap.get(refIdStr) : undefined)
-                        ?? (i.referenceCode ? ingredientMap.get(i.referenceCode) : undefined);
-
-                    return {
-                        id: String(i.id),
-                        name: matched?.name || i.referenceCode || "Nguyên liệu",
-                        shelfLifeWarningDays: 30,
-                        skuCode: matched?.code || i.referenceCode || "NL",
-                        unit: matched?.unit || "kg"
-                    };
-                })
-                : rawIngredients.map((ing) => {
-                    const unitObjName = typeof ing.unit === "object" && ing.unit !== null
-                        ? ((ing.unit as Record<string, unknown>).symbol || (ing.unit as Record<string, unknown>).name)
-                        : undefined;
-                    return {
-                        id: String(ing.id || ""),
-                        name: String(ing.name || "Nguyên liệu"),
-                        shelfLifeWarningDays: 30,
-                        skuCode: String(ing.ingredientCode || ing.code || "NL"),
-                        unit: String(
-                            ing.unitSymbol ||
-                            ing.unitName ||
-                            ing.unit_name ||
-                            unitObjName ||
-                            "kg"
-                        )
-                    };
-                }));
-
-        const finalResult: GoodsReceiptOptions = {
-            locations: locations.length > 0 || opts?.includeLocations === false ? locations : [
-                { code: "KHO-TONG", id: "1", isCentral: true, name: "Kho Tổng Hương Vân Trà" }
-            ],
-            materials,
-            suppliers
-        };
+        // 1 request: backend lấy nguyên liệu của NCC (Catalog) và quy đổi sang mặt hàng tồn kho (id = inventory_items.id)
+        const items = await apiClient.get<InventoryItemLookupBackendResponse[]>(
+            "/inventory/inventory-items/lookup",
+            { query: { supplierId } }
+        );
+        const materials = (items || []).map((item) => ({
+            id: item.id,
+            name: item.name || item.code || "Nguyên liệu",
+            shelfLifeWarningDays: 30,
+            skuCode: item.code || "NL",
+            unit: item.unitName || "kg"
+        }));
 
         materials.forEach((m) => {
-            if (m.id) globalIngredientNameMap.set(String(m.id), m.name);
-            if (m.skuCode) globalIngredientNameMap.set(String(m.skuCode), m.name);
-        });
-        rawIngredients.forEach((ing) => {
-            const id = ing.id !== undefined && ing.id !== null ? String(ing.id) : undefined;
-            const code = ing.ingredientCode || ing.code;
-            const name = ing.name;
-            if (name) {
-                if (id) globalIngredientNameMap.set(id, String(name));
-                if (code) globalIngredientNameMap.set(String(code), String(name));
-            }
+            globalIngredientNameMap.set(m.id, m.name);
+            if (m.skuCode) globalIngredientNameMap.set(m.skuCode, m.name);
         });
 
-        return finalResult;
+        return { locations: [], materials, suppliers: [] };
     }
 };

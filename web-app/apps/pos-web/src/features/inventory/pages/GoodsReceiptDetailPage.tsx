@@ -455,6 +455,7 @@ export function GoodsReceiptDetailPage() {
                             && (isAdmin() || (Boolean(keycloakSubject) && receipt.createdBy.id === keycloakSubject)) ? (
                             <Link
                                 className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] hover:bg-[#f4faf5]"
+                                state={{ receipt }}
                                 to={`/management/inventory/receipts/${receipt.id}/edit`}
                             >
                                 <Pencil size={15} aria-hidden="true" />

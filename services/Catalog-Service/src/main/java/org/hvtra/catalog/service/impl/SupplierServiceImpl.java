@@ -242,4 +242,10 @@ public class SupplierServiceImpl implements SupplierService {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier", id));
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findIngredientIds(UUID supplierId) {
+        return ingredientRepository.findIdsBySupplierId(supplierId);
+    }
 }

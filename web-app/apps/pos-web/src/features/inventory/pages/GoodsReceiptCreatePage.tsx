@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
@@ -9,6 +9,7 @@ import { inventoryLocationApi } from "../services/inventoryLocation.api";
 import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
 import type {
     GoodsReceiptCreateInput,
+    GoodsReceiptDetail,
     GoodsReceiptMaterialOption,
     GoodsReceiptOptions
 } from "../types/goods-receipt.types";
@@ -39,6 +40,12 @@ export function GoodsReceiptCreatePage() {
     // Có receiptId trên URL (/receipts/:receiptId/edit) => chế độ chỉnh sửa phiếu DRAFT/REJECTED
     const { receiptId } = useParams<{ receiptId: string }>();
     const isEdit = Boolean(receiptId);
+    // Phiếu truyền sẵn từ trang chi tiết (router state) — có thì dùng luôn, không gọi lại API.
+    // F5 / mở link trực tiếp / đi từ danh sách thì không có state => vẫn tải theo receiptId.
+    const location = useLocation();
+    const [prefetchedReceipt] = useState(
+        () => (location.state as { receipt?: GoodsReceiptDetail } | null)?.receipt
+    );
     const [loadingReceipt, setLoadingReceipt] = useState(isEdit);
     const [receiptCode, setReceiptCode] = useState("");
     const [rejectionReason, setRejectionReason] = useState("");
@@ -133,7 +140,7 @@ export function GoodsReceiptCreatePage() {
 
         setLoadingMaterials(true);
         void goodsReceiptApi
-            .getGoodsReceiptOptions(supplierId, { includeSuppliers: false, includeLocations: false })
+            .getGoodsReceiptOptions(supplierId)
             .then((response) => {
                 setOptions((cur) => ({
                     ...cur,
@@ -163,7 +170,9 @@ export function GoodsReceiptCreatePage() {
 
         void (async () => {
             try {
-                const receipt = await goodsReceiptApi.getGoodsReceipt(receiptId);
+                const receipt = prefetchedReceipt?.id === receiptId
+                    ? prefetchedReceipt
+                    : await goodsReceiptApi.getGoodsReceipt(receiptId);
                 if (!active) return;
 
                 setReceiptCode(receipt.code);
@@ -202,12 +211,20 @@ export function GoodsReceiptCreatePage() {
 
                 if (receipt.supplier.id) {
                     setLoadingMaterials(true);
-                    const response = await goodsReceiptApi.getGoodsReceiptOptions(receipt.supplier.id, {
-                        includeLocations: false,
-                        includeSuppliers: false
-                    });
-                    if (active) {
-                        setOptions((cur) => ({ ...cur, materials: response.materials }));
+                    // Lỗi tải nguyên liệu chỉ báo lỗi, không khóa form (phiếu đã tải được)
+                    try {
+                        const response = await goodsReceiptApi.getGoodsReceiptOptions(receipt.supplier.id);
+                        if (active) {
+                            setOptions((cur) => ({ ...cur, materials: response.materials }));
+                        }
+                    } catch (materialError) {
+                        if (active) {
+                            setError(
+                                materialError instanceof Error
+                                    ? materialError.message
+                                    : "Không thể tải danh sách nguyên liệu của nhà cung cấp."
+                            );
+                        }
                     }
                 }
             } catch (err) {
@@ -226,7 +243,7 @@ export function GoodsReceiptCreatePage() {
         return () => {
             active = false;
         };
-    }, [receiptId]);
+    }, [receiptId, prefetchedReceipt]);
 
     const totals = useMemo(() => {
         const totalOrderedQuantity = lines.reduce(
