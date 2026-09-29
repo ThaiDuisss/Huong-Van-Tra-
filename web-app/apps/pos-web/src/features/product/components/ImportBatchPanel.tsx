@@ -240,6 +240,9 @@ export function ImportBatchPanel({
                 loadBatch();
             } else {
                 showToast(err instanceof Error ? err.message : "Thao tác thất bại.", false);
+                // Gửi duyệt bị chặn vì dữ liệu không hợp lệ: backend đã ghi lỗi mới vào từng dòng (và tăng
+                // version) — tải lại để hiện lỗi và tránh 409 ở thao tác tiếp theo.
+                loadBatch();
             }
         } finally {
             setActionLoading(false);
@@ -310,9 +313,15 @@ export function ImportBatchPanel({
                 applyBatch(createdBatch);
                 onBatchSaved?.(createdBatch);
                 // Submit batch vừa tạo
-                const submitted = await api.submit(createdBatch.id, createdBatch.version);
-                applyBatch(submitted);
-                showToast("Đã lưu và gửi quản lý duyệt thành công.", true);
+                try {
+                    const submitted = await api.submit(createdBatch.id, createdBatch.version);
+                    applyBatch(submitted);
+                    showToast("Đã lưu và gửi quản lý duyệt thành công.", true);
+                } catch (submitErr) {
+                    // Nháp đã lưu nhưng còn dòng lỗi — tải lại để hiện lỗi từng dòng
+                    showToast(submitErr instanceof Error ? submitErr.message : "Gửi duyệt thất bại.", false);
+                    loadBatch(createdBatch.id);
+                }
             } catch (err) {
                 showToast(err instanceof Error ? err.message : "Gửi duyệt thất bại.", false);
             } finally {
