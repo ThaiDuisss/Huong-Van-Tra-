@@ -340,7 +340,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             id: `qc-${doc.id}`,
             note: "Kiểm tra chất lượng QC hoàn tất",
             roleSnapshot: "QC_STAFF",
-            type: "APPROVE"
+            type: "QC"
         });
     }
     if (doc.postedAt) {
