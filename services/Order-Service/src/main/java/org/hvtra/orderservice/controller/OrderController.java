@@ -219,13 +219,16 @@ public class OrderController {
     @GetMapping("/returns")
     public Page<OrderReturnSummaryResponse> getReturns(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String returnCode,
+            @RequestParam(required = false) String orderCode,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String displayStatus,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "createdAt,desc") String sort,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean paged
     ) {
         String effectiveDisplayStatus = displayStatus != null && !displayStatus.isBlank() ? displayStatus : status;
         ReturnStatus rawStatus = null;
@@ -235,6 +238,12 @@ public class OrderController {
             } catch (IllegalArgumentException ignored) {
                 // Not a raw ReturnStatus enum, will be handled as displayStatus
             }
+        }
+        if (paged || returnCode != null || orderCode != null) {
+            return orderReturnService.getFilteredReturns(
+                    keyword, returnCode, orderCode, rawStatus, effectiveDisplayStatus,
+                    fromDate, toDate, sort, page, size
+            );
         }
         return orderReturnService.getReturns(keyword, rawStatus, effectiveDisplayStatus, fromDate, toDate, sort, page, size);
     }

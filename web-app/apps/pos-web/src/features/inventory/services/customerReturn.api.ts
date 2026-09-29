@@ -26,11 +26,13 @@ export const customerReturnApi = {
             "/inventory/customer-return-inspections",
             {
                 query: {
+                    fromDate: query.fromDate,
                     orderCode: query.orderCode || undefined,
                     page: query.page,
                     returnCode: query.returnCode || undefined,
                     size: query.size,
-                    status: query.status === "ALL" ? undefined : query.status
+                    status: query.status === "ALL" ? undefined : query.status,
+                    toDate: query.toDate
                 }
             }
         );

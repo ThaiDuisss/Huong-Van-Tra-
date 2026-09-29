@@ -91,6 +91,66 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
             Pageable pageable
     );
 
+    @Query(
+            value = """
+                    select new org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse(
+                        orderReturn.id, orderReturn.returnCode, orders.id, orders.orderCode,
+                        orderReturn.status, orderReturn.createdAt, orderReturn.updatedAt,
+                        count(items.id), orders.customerNameSnapshot,
+                        orders.customerPhoneSnapshot, orderReturn.refundRequired
+                    )
+                    from OrderReturn orderReturn
+                    join orderReturn.order orders
+                    left join orderReturn.items items on items.isDeleted = false
+                    where orderReturn.isDeleted = false
+                      and orders.isDeleted = false
+                      and (:status is null or orderReturn.status = :status)
+                      and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+                      and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+                      and (:returnCodePattern is null or lower(orderReturn.returnCode) like :returnCodePattern)
+                      and (:orderCodePattern is null or lower(orders.orderCode) like :orderCodePattern)
+                      and (
+                          :keywordPattern is null
+                          or lower(orderReturn.returnCode) like :keywordPattern
+                          or lower(orders.orderCode) like :keywordPattern
+                          or lower(orders.customerNameSnapshot) like :keywordPattern
+                          or lower(orders.customerPhoneSnapshot) like :keywordPattern
+                      )
+                    group by orderReturn.id, orderReturn.returnCode, orders.id, orders.orderCode,
+                        orderReturn.status, orderReturn.createdAt, orderReturn.updatedAt,
+                        orders.customerNameSnapshot, orders.customerPhoneSnapshot,
+                        orderReturn.refundRequired
+                    """,
+            countQuery = """
+                    select count(orderReturn.id)
+                    from OrderReturn orderReturn
+                    join orderReturn.order orders
+                    where orderReturn.isDeleted = false
+                      and orders.isDeleted = false
+                      and (:status is null or orderReturn.status = :status)
+                      and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+                      and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+                      and (:returnCodePattern is null or lower(orderReturn.returnCode) like :returnCodePattern)
+                      and (:orderCodePattern is null or lower(orders.orderCode) like :orderCodePattern)
+                      and (
+                          :keywordPattern is null
+                          or lower(orderReturn.returnCode) like :keywordPattern
+                          or lower(orders.orderCode) like :keywordPattern
+                          or lower(orders.customerNameSnapshot) like :keywordPattern
+                          or lower(orders.customerPhoneSnapshot) like :keywordPattern
+                      )
+                    """
+    )
+    Page<OrderReturnSummaryResponse> findFilteredReturnSummaries(
+            @Param("keywordPattern") String keywordPattern,
+            @Param("returnCodePattern") String returnCodePattern,
+            @Param("orderCodePattern") String orderCodePattern,
+            @Param("status") ReturnStatus status,
+            @Param("fromCreatedAt") Instant fromCreatedAt,
+            @Param("toCreatedBefore") Instant toCreatedBefore,
+            Pageable pageable
+    );
+
     @Query("""
             select new org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse(
                 orderReturn.id,
@@ -183,6 +243,42 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, UUID> 
     List<OrderReturnSummaryResponse> findReturnSummariesList(
             @Param("keywordPattern") String keywordPattern,
             @Param("status") ReturnStatus status,
+            @Param("fromCreatedAt") Instant fromCreatedAt,
+            @Param("toCreatedBefore") Instant toCreatedBefore
+    );
+
+    @Query("""
+            select new org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse(
+                orderReturn.id, orderReturn.returnCode, orders.id, orders.orderCode,
+                orderReturn.status, orderReturn.createdAt, orderReturn.updatedAt,
+                count(items.id), orders.customerNameSnapshot,
+                orders.customerPhoneSnapshot, orderReturn.refundRequired
+            )
+            from OrderReturn orderReturn
+            join orderReturn.order orders
+            left join orderReturn.items items on items.isDeleted = false
+            where orderReturn.isDeleted = false
+              and orders.isDeleted = false
+              and (:fromCreatedAt is null or orderReturn.createdAt >= :fromCreatedAt)
+              and (:toCreatedBefore is null or orderReturn.createdAt < :toCreatedBefore)
+              and (:returnCodePattern is null or lower(orderReturn.returnCode) like :returnCodePattern)
+              and (:orderCodePattern is null or lower(orders.orderCode) like :orderCodePattern)
+              and (
+                  :keywordPattern is null
+                  or lower(orderReturn.returnCode) like :keywordPattern
+                  or lower(orders.orderCode) like :keywordPattern
+                  or lower(orders.customerNameSnapshot) like :keywordPattern
+                  or lower(orders.customerPhoneSnapshot) like :keywordPattern
+              )
+            group by orderReturn.id, orderReturn.returnCode, orders.id, orders.orderCode,
+                orderReturn.status, orderReturn.createdAt, orderReturn.updatedAt,
+                orders.customerNameSnapshot, orders.customerPhoneSnapshot,
+                orderReturn.refundRequired
+            """)
+    List<OrderReturnSummaryResponse> findFilteredReturnSummariesList(
+            @Param("keywordPattern") String keywordPattern,
+            @Param("returnCodePattern") String returnCodePattern,
+            @Param("orderCodePattern") String orderCodePattern,
             @Param("fromCreatedAt") Instant fromCreatedAt,
             @Param("toCreatedBefore") Instant toCreatedBefore
     );

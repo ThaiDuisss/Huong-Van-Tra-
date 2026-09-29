@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 
+import type { TimeRange } from "../../../components/shared/TimeHierarchyFilter.utils";
+import orderStyles from "../../order/pages/OrderListPage.module.css";
 import { ReturnInspectionModal } from "../../order/components/ReturnInspectionModal";
+import { OrderStatusBadge } from "../../order/components/OrderStatusBadge";
 import {
     getCustomerReturnQcSummary,
     getOrderReturnDetail,
@@ -15,14 +18,29 @@ import {
     getReturnErrorMessage,
     toReturnNumber
 } from "../../order/utils/order-return.utils";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import styles from "../pages/CustomerReturnListPage.module.css";
+import { ListFilterBar, ListMessage, ListPagination } from "./CustomerReturnListUi";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
+const STATUS_OPTIONS = [
+    { label: "Tất cả", value: "ALL" },
+    { label: "Chờ nhận hàng", value: "CREATED" },
+    { label: "Đã nhận hàng", value: "RECEIVED" },
+    { label: "Đã hoàn tất", value: "COMPLETED" },
+    { label: "Đã hủy", value: "CANCELLED" }
+];
 
-export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCreated: () => void }) {
-    const [page, setPage] = useState(0);
+export function CustomerReturnQcQueue({ onInspectionCreated, onPageChange, page, timeRange }: { onInspectionCreated: () => void; onPageChange: (page: number) => void; page: number; timeRange: TimeRange | null }) {
+    const [returnCode, setReturnCode] = useState("");
+    const [orderCode, setOrderCode] = useState("");
+    const [status, setStatus] = useState("ALL");
+    const debouncedReturnCode = useDebouncedValue(returnCode.trim());
+    const debouncedOrderCode = useDebouncedValue(orderCode.trim());
     const [reloadKey, setReloadKey] = useState(0);
     const [rows, setRows] = useState<OrderReturnListRow[]>([]);
     const [totalPages, setTotalPages] = useState(0);
+    const [totalElements, setTotalElements] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -33,16 +51,28 @@ export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCre
     const [notice, setNotice] = useState("");
 
     useEffect(() => {
+        if (returnCode.trim() !== debouncedReturnCode || orderCode.trim() !== debouncedOrderCode) return;
         let active = true;
         queueMicrotask(() => {
             if (!active) return;
             setLoading(true);
             setError("");
-            getOrderReturnList({ page, size: PAGE_SIZE, sort: "createdAt,desc" })
+            getOrderReturnList({
+                fromDate: timeRange?.fromDate,
+                orderCode: debouncedOrderCode,
+                page,
+                paged: true,
+                returnCode: debouncedReturnCode,
+                size: PAGE_SIZE,
+                sort: "createdAt,desc",
+                status: status === "ALL" ? undefined : status,
+                toDate: timeRange?.toDate
+            })
                 .then((response) => {
                     if (!active) return;
                     setRows(response.content ?? []);
                     setTotalPages(response.totalPages ?? 0);
+                    setTotalElements(response.totalElements ?? 0);
                 })
                 .catch((loadError: unknown) => {
                     if (active) setError(getReturnErrorMessage(loadError));
@@ -52,7 +82,14 @@ export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCre
                 });
         });
         return () => { active = false; };
-    }, [page, reloadKey]);
+    }, [page, reloadKey, status, returnCode, orderCode, debouncedReturnCode, debouncedOrderCode, timeRange?.fromDate, timeRange?.toDate]);
+
+    const resetFilters = () => {
+        setReturnCode("");
+        setOrderCode("");
+        setStatus("ALL");
+        onPageChange(0);
+    };
 
     useEffect(() => {
         if (!selectedId) return;
@@ -102,53 +139,59 @@ export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCre
     };
 
     return (
-        <section className="grid gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+        <section className={styles.section}>
+            <div className={styles.sectionHeading}>
                 <div>
-                    <h2 className="text-lg font-black text-[#172317]">Phiếu hoàn hàng</h2>
-                    <p className="text-sm font-semibold text-[#697684]">Phiếu đã nhận hàng có thể bắt đầu kiểm tra, kể cả khi chưa có phiếu kiểm định.</p>
+                    <h2 className={styles.sectionTitle}>Phiếu hoàn hàng</h2>
+                    <p className={styles.sectionDescription}>Phiếu đã nhận hàng có thể bắt đầu kiểm tra, kể cả khi chưa có phiếu kiểm định.</p>
                 </div>
-                <button className="h-9 rounded-lg border border-[#d8eadc] px-3 text-sm font-bold" onClick={reload} type="button">Tải lại</button>
+                <button className={orderStyles.secondaryButton} onClick={reload} type="button">Tải lại</button>
             </div>
-            {notice ? <div className="rounded-lg bg-green-50 p-3 text-sm font-semibold text-green-800">{notice}</div> : null}
-            {loading ? <div className="rounded-xl bg-white p-5 text-sm font-semibold">Đang tải phiếu hoàn...</div> : null}
-            {!loading && error ? <div className="rounded-xl bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</div> : null}
-            {!loading && !error ? (
-                <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
-                    <table className="w-full min-w-[760px] text-left text-sm">
-                        <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]">
-                            <tr><th className="px-4 py-3">Phiếu hoàn</th><th>Đơn hàng</th><th>Trạng thái</th><th>Còn kiểm</th><th>Thao tác</th></tr>
-                        </thead>
+            <ListFilterBar
+                onOrderCodeChange={(value) => { setOrderCode(value); onPageChange(0); }}
+                onReset={resetFilters}
+                onReturnCodeChange={(value) => { setReturnCode(value); onPageChange(0); }}
+                onStatusChange={(value) => { setStatus(value); onPageChange(0); }}
+                orderCode={orderCode}
+                returnCode={returnCode}
+                status={status}
+                statusOptions={STATUS_OPTIONS}
+            />
+            {notice ? <div className={styles.notice}>{notice}</div> : null}
+            {error ? <div className={styles.error}>{error}</div> : null}
+            <div className={orderStyles.tableCard}>
+                <div className={orderStyles.tableWrap}>
+                    <table className={`${orderStyles.orderTable} ${styles.dataTable} ${styles.returnTable}`}>
+                        <thead><tr><th>Phiếu hoàn</th><th>Đơn hàng</th><th>Trạng thái</th><th>Còn kiểm</th><th>Thao tác</th></tr></thead>
                         <tbody>
-                            {rows.map((row) => {
+                            {loading ? <ListMessage colSpan={5} message="Đang tải phiếu hoàn..." /> : null}
+                            {!loading && error ? <ListMessage colSpan={5} message="Không thể hiển thị phiếu hoàn hàng" /> : null}
+                            {!loading && !error && rows.map((row, index) => {
                                 const remaining = row.remainingQcQuantity == null ? null : toReturnNumber(row.remainingQcQuantity);
                                 const canInspect = row.status === "RECEIVED" && remaining !== 0 && !row.isPendingDisposition;
                                 return (
-                                    <tr className="border-t border-[#edf0f4]" key={row.id}>
-                                        <td className="px-4 py-3 font-black">{row.returnCode ?? "Chưa có mã phiếu"}</td>
+                                    <tr className={index % 2 === 0 ? orderStyles.zebraFirstRow : orderStyles.zebraSecondRow} key={row.id}>
+                                        <td className={orderStyles.code}>{row.returnCode ?? "Chưa có mã phiếu"}</td>
                                         <td>{row.orderCode ?? "--"}</td>
-                                        <td>{row.isPendingDisposition ? "Đang tạo phiếu kiểm định" : row.status === "RECEIVED" ? "Đã nhận hàng" : row.status === "CREATED" ? "Chờ nhận hàng" : row.status === "COMPLETED" ? "Đã hoàn tất" : "Đã hủy"}</td>
+                                        <td><OrderStatusBadge
+                                            label={row.isPendingDisposition ? "Đang tạo phiếu kiểm định" : row.status === "RECEIVED" ? "Đã nhận hàng" : row.status === "CREATED" ? "Chờ nhận hàng" : row.status === "COMPLETED" ? "Đã hoàn tất" : "Đã hủy"}
+                                            status={row.isPendingDisposition || row.status === "RECEIVED" ? "PROCESSING" : row.status === "CREATED" ? "PENDING" : row.status}
+                                        /></td>
                                         <td>{remaining == null ? "Chưa xác định" : formatReturnQuantity(remaining)}</td>
                                         <td>
                                             {canInspect ? (
-                                                <button className="rounded-lg bg-[#159734] px-3 py-2 font-bold text-white" onClick={() => setSelectedId(row.id)} type="button">Xử lý kho</button>
+                                                <button className={styles.actionButton} onClick={() => setSelectedId(row.id)} type="button">Xử lý kho</button>
                                             ) : row.isPendingDisposition ? "Chờ xử lý lệnh" : "--"}
                                         </td>
                                     </tr>
                                 );
                             })}
-                            {rows.length === 0 ? <tr><td className="px-4 py-5 text-[#697684]" colSpan={5}>Chưa có phiếu hoàn hàng.</td></tr> : null}
+                            {!loading && !error && rows.length === 0 ? <ListMessage colSpan={5} message="Không có phiếu hoàn hàng phù hợp" /> : null}
                         </tbody>
                     </table>
                 </div>
-            ) : null}
-            {totalPages > 1 ? (
-                <div className="flex items-center justify-end gap-3 text-sm font-semibold">
-                    <button disabled={page === 0} onClick={() => setPage((value) => value - 1)} type="button">Trước</button>
-                    <span>Trang {page + 1}/{totalPages}</span>
-                    <button disabled={page + 1 >= totalPages} onClick={() => setPage((value) => value + 1)} type="button">Sau</button>
-                </div>
-            ) : null}
+                {!loading && !error ? <ListPagination itemLabel="phiếu hoàn" onPageChange={onPageChange} page={page} pageSize={PAGE_SIZE} totalItems={totalElements} totalPages={totalPages} /> : null}
+            </div>
             {selectedId && (selectionLoading || selectionError) ? (
                 <div className="rounded-xl border border-[#e8eef0] bg-white p-4 text-sm font-semibold">
                     <p>{selectionLoading ? "Đang tải dữ liệu kiểm hàng..." : selectionError}</p>

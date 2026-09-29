@@ -68,6 +68,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -385,8 +386,12 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             String returnCode,
             String orderCode,
             CustomerReturnInspectionStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
             Pageable pageable
     ) {
+        Instant fromCreatedAt = fromDate == null ? null : fromDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant toCreatedBefore = toDate == null ? null : toDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
         Specification<CustomerReturnInspection> specification = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.isFalse(root.get("isDeleted")));
@@ -402,6 +407,12 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             }
             if (status != null) {
                 predicates.add(builder.equal(root.get("status"), status));
+            }
+            if (fromCreatedAt != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("createdAt"), fromCreatedAt));
+            }
+            if (toCreatedBefore != null) {
+                predicates.add(builder.lessThan(root.get("createdAt"), toCreatedBefore));
             }
             return builder.and(predicates.toArray(Predicate[]::new));
         };

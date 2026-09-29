@@ -75,6 +75,19 @@ public interface OrderReturnService {
             int size
     );
 
+    Page<OrderReturnSummaryResponse> getFilteredReturns(
+            String keyword,
+            String returnCode,
+            String orderCode,
+            ReturnStatus status,
+            String displayStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    );
+
     Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate);
 
     List<OrderReturnResponse> getReturnsByOrder(UUID orderId);

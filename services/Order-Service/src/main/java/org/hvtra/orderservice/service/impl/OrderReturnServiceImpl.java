@@ -946,6 +946,52 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<OrderReturnSummaryResponse> getFilteredReturns(
+            String keyword,
+            String returnCode,
+            String orderCode,
+            ReturnStatus status,
+            String displayStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    ) {
+        if (displayStatus != null && !"ALL".equalsIgnoreCase(displayStatus)
+                && status == null) {
+            List<OrderReturnSummaryResponse> candidates = orderReturnRepository.findFilteredReturnSummariesList(
+                    keywordPattern(keyword), keywordPattern(returnCode), keywordPattern(orderCode),
+                    startOfDay(fromDate), startOfDay(nextDay(toDate))
+            );
+            enrichReturnSummaries(candidates);
+            List<OrderReturnSummaryResponse> matched = candidates.stream()
+                    .filter(row -> displayStatus.equalsIgnoreCase(row.getDisplayStatus()))
+                    .sorted(RETURN_PRIORITY_COMPARATOR)
+                    .toList();
+            int pageIndex = Math.max(page, 0);
+            int pageSize = Math.min(Math.max(size, 1), 200);
+            int fromIndex = Math.min(pageIndex * pageSize, matched.size());
+            return new PageImpl<>(
+                    matched.subList(fromIndex, Math.min(fromIndex + pageSize, matched.size())),
+                    PageRequest.of(pageIndex, pageSize), matched.size()
+            );
+        }
+        Page<OrderReturnSummaryResponse> result = orderReturnRepository.findFilteredReturnSummaries(
+                keywordPattern(keyword),
+                keywordPattern(returnCode),
+                keywordPattern(orderCode),
+                status,
+                startOfDay(fromDate),
+                startOfDay(nextDay(toDate)),
+                returnPageRequest(page, size, sort)
+        );
+        enrichReturnSummaries(result.getContent());
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate) {
         List<OrderReturnSummaryResponse> summaries = orderReturnRepository.findReturnSummariesList(
                 keywordPattern(keyword),

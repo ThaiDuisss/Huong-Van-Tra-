@@ -143,9 +143,12 @@ export interface OrderReturnListRow extends OrderReturnSummaryResponse {
 export interface OrderReturnQueryParams {
     fromDate?: string;
     keyword?: string;
+    returnCode?: string;
+    orderCode?: string;
     status?: ReturnStatus | string;
     displayStatus?: string;
     toDate?: string;
+    paged?: boolean;
     page?: number;
     size?: number;
     sort?: string;
