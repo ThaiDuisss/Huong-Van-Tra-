@@ -5,6 +5,7 @@ import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemLookupResponse;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
 import org.hvtra.iventoryservice.item.service.InventoryItemService;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
@@ -17,6 +18,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -39,6 +41,13 @@ public class InventoryItemController {
             @RequestParam(name = "status", required = false) InventoryStatus status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.findAll(referenceId, referenceCode, itemType, status, pageable);
+    }
+
+    /** Nguyên liệu của 1 nhà cung cấp (đã quy đổi sang mặt hàng tồn kho) — dropdown khi lập phiếu nhập. */
+    @GetMapping("/lookup")
+    public List<InventoryItemLookupResponse> lookupIngredientsBySupplier(
+            @RequestParam(name = "supplierId") UUID supplierId) {
+        return service.lookupIngredientsBySupplier(supplierId);
     }
 
     @GetMapping("/{id}")

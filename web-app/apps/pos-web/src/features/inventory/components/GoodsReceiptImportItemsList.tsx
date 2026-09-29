@@ -547,7 +547,7 @@ export function GoodsReceiptImportItemsList({ items, editable, expandedId, onTog
         requestedSupplierIds.current.add(supplierId);
         setMaterialsLoadingSupplierId(supplierId);
         goodsReceiptApi
-            .getGoodsReceiptOptions(supplierId, { includeSuppliers: false, includeLocations: false })
+            .getGoodsReceiptOptions(supplierId)
             .then((res) => {
                 setMaterialsBySupplierId((prev) => ({ ...prev, [supplierId]: res.materials }));
             })

@@ -1,10 +1,13 @@
 package org.hvtra.iventoryservice.item.service;
 
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.item.dto.request.InventoryItemRequest;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
+import org.hvtra.iventoryservice.item.dto.response.InventoryItemLookupResponse;
 import org.hvtra.iventoryservice.item.dto.response.InventoryItemResponse;
 import org.hvtra.iventoryservice.item.mapper.InventoryItemMapper;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
@@ -17,20 +20,28 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 public class InventoryItemServiceImpl implements InventoryItemService {
     private final InventoryItemRepository repository;
     private final InventoryItemMapper mapper;
+    private final CatalogClient catalogClient;
 
     public InventoryItemServiceImpl(
             InventoryItemRepository repository,
-            InventoryItemMapper mapper
+            InventoryItemMapper mapper,
+            CatalogClient catalogClient
     ) {
         this.repository = repository;
         this.mapper = mapper;
+        this.catalogClient = catalogClient;
     }
 
     @Override
@@ -116,5 +127,53 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private InventoryItem get(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory item", id));
+    }
+
+    /**
+     * Nguyên liệu mà NCC cung cấp, quy đổi sang mặt hàng tồn kho (id = inventory_items.id) để lập phiếu nhập.
+     * 1 lần gọi Catalog lấy id nguyên liệu của NCC + 1 query inventory_items + 1 lần gọi Catalog lấy tên ĐVT.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<InventoryItemLookupResponse> lookupIngredientsBySupplier(UUID supplierId) {
+        List<UUID> ingredientIds = catalogClient.getSupplierIngredientIds(supplierId);
+        if (ingredientIds == null || ingredientIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<InventoryItem> items = repository.findByReferenceIdInAndItemTypeAndStatusOrderByNameAsc(
+                ingredientIds, InventoryItemType.INGREDIENT, InventoryStatus.ACTIVE);
+        Map<UUID, String> unitNames = fetchUnitNames(items.stream()
+                .map(InventoryItem::getUnitId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList());
+
+        return items.stream()
+                .map(item -> new InventoryItemLookupResponse(
+                        item.getId(),
+                        item.getName() != null ? item.getName() : item.getReferenceCode(),
+                        item.getReferenceCode(),
+                        item.getUnitId() != null ? unitNames.get(item.getUnitId()) : null
+                ))
+                .toList();
+    }
+
+    // Tên ĐVT chỉ phục vụ hiển thị — Catalog lỗi thì bỏ qua, không làm hỏng cả danh sách
+    private Map<UUID, String> fetchUnitNames(List<UUID> unitIds) {
+        Map<UUID, String> unitNames = new HashMap<>();
+        if (unitIds.isEmpty()) {
+            return unitNames;
+        }
+        try {
+            for (CatalogClient.UnitResponse unit : catalogClient.getUnitsBatch(unitIds)) {
+                if (unit != null && unit.id() != null) {
+                    unitNames.put(unit.id(), unit.symbol() != null && !unit.symbol().isBlank() ? unit.symbol() : unit.name());
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Không lấy được tên đơn vị tính từ Catalog-Service: {}", exception.getMessage());
+        }
+        return unitNames;
     }
 }

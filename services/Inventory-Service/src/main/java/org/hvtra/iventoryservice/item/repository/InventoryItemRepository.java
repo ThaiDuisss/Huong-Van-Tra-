@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.item.repository;
 import jakarta.persistence.LockModeType;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -35,6 +36,9 @@ public interface InventoryItemRepository
     Optional<InventoryItem> findByReferenceCodeAndItemType(String referenceCode, InventoryItemType itemType);
 
     List<InventoryItem> findByReferenceIdInAndItemType(Collection<UUID> referenceIds, InventoryItemType itemType);
+
+    List<InventoryItem> findByReferenceIdInAndItemTypeAndStatusOrderByNameAsc(
+            Collection<UUID> referenceIds, InventoryItemType itemType, InventoryStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from InventoryItem i where i.id = :id")

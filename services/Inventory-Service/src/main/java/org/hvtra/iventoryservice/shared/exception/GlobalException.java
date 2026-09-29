@@ -2,6 +2,8 @@ package org.hvtra.iventoryservice.shared.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
+import org.hvtra.commonservice.common_core.exception.AppException;
 import org.hvtra.commonservice.common_core.exception.BaseGlobalExceptionHandler;
 import org.hvtra.commonservice.common_core.exception.ErrorResponse;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,6 +18,23 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @ControllerAdvice
 @Slf4j(topic = "ERROR-EXCEPTION")
 public class GlobalException extends BaseGlobalExceptionHandler {
+    // Base handler trả 400 cho mọi AppException — lỗi khai báo trong ErrorCode thì trả đúng HTTP status của nó
+    @Override
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNotFoundException(AppException exception) {
+        returnError(exception);
+        HttpStatus status = ErrorCode.fromCode(exception.getCode())
+                .map(ErrorCode::getHttpStatus)
+                .orElse(HttpStatus.BAD_REQUEST);
+        ApiResponse<Object> response = ApiResponse.builder()
+                .status("error")
+                .code(exception.getCode())
+                .message(exception.getMessage())
+                .data(null)
+                .build();
+        return ResponseEntity.status(status).body(response);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(
             ResourceNotFoundException exception, HttpServletRequest request) {
