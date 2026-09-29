@@ -336,6 +336,7 @@ export function AppRouter() {
           <Route path="inventory/receipts/import" element={<GoodsReceiptImportPage />} />
           <Route path="inventory/receipts/import/:batchId" element={<GoodsReceiptImportReviewPage />} />
           <Route path="inventory/receipts/:receiptId" element={<GoodsReceiptDetailPage />} />
+          <Route path="inventory/receipts/:receiptId/edit" element={<GoodsReceiptCreatePage />} />
           <Route path="inventory/import-excel/new" element={<GoodsReceiptImportPage />} />
           <Route path="inventory/import-excel/:batchId" element={<GoodsReceiptImportReviewPage />} />
         </Route>

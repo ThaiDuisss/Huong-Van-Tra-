@@ -1,5 +1,5 @@
 import { ApiError } from "@hvt/api-client";
-import { Download, Eye, Filter, Plus, Trash2, Upload } from "lucide-react";
+import { Download, Eye, Filter, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -64,7 +64,7 @@ function getDeleteErrorMessage(error: unknown): string {
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
     const navigate = useNavigate();
-    const { isAdmin, user } = useAuthorization();
+    const { isAdmin, keycloakSubject } = useAuthorization();
     const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptListItem | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState("");
@@ -139,10 +139,13 @@ export function GoodsReceiptListPage() {
     }, []);
 
     // createdBy lưu Keycloak subject (JWT sub) nên so sánh với keycloakSubject, không phải user.id
-    const currentUserSubject = user?.keycloakSubject;
+    const currentUserSubject = keycloakSubject;
+    const isAdminOrCreator = (item: GoodsReceiptListItem) =>
+        isAdmin() || (Boolean(currentUserSubject) && item.createdById === currentUserSubject);
+    const canEditReceipt = (item: GoodsReceiptListItem) =>
+        (item.status === "DRAFT" || item.status === "REJECTED") && isAdminOrCreator(item);
     const canDeleteReceipt = (item: GoodsReceiptListItem) =>
-        item.status === "DRAFT"
-        && (isAdmin() || (Boolean(currentUserSubject) && item.createdById === currentUserSubject));
+        item.status === "DRAFT" && isAdminOrCreator(item);
 
     const confirmDelete = async () => {
         if (!deleteTarget || deleting) return;
@@ -334,6 +337,19 @@ export function GoodsReceiptListPage() {
                             <Eye size={14} />
                             Xem chi tiết
                         </button>
+                        {canEditReceipt(item) ? (
+                            <button
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
+                                onClick={() => {
+                                    closeMenu();
+                                    navigate(`/management/inventory/receipts/${item.id}/edit`);
+                                }}
+                                type="button"
+                            >
+                                <Pencil size={14} />
+                                Chỉnh sửa
+                            </button>
+                        ) : null}
                         {canDeleteReceipt(item) ? (
                             <button
                                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors cursor-pointer"

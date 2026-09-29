@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
@@ -115,7 +115,7 @@ export function GoodsReceiptDetailPage() {
         };
     }, [receiptId]);
 
-    const { hasAnyRole, isAdmin, isBranchManager, isInventoryManager, isInventoryStaff, isQc } = useAuthorization();
+    const { isAdmin, isBranchManager, isInventoryManager, isInventoryStaff, isQc, keycloakSubject } = useAuthorization();
 
     useEffect(() => loadReceipt(), [loadReceipt]);
 
@@ -450,6 +450,17 @@ export function GoodsReceiptDetailPage() {
 
                     {/* VÙNG NÚT HÀNH ĐỘNG THEO TỪNG BƯỚC VÒNG ĐỜI */}
                     <div className="flex flex-wrap items-center gap-2">
+                        {/* Chỉnh sửa: phiếu DRAFT/REJECTED, chỉ ADMIN hoặc người tạo (createdBy = Keycloak subject) */}
+                        {(receipt.status === "DRAFT" || receipt.status === "REJECTED")
+                            && (isAdmin() || (Boolean(keycloakSubject) && receipt.createdBy.id === keycloakSubject)) ? (
+                            <Link
+                                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] hover:bg-[#f4faf5]"
+                                to={`/management/inventory/receipts/${receipt.id}/edit`}
+                            >
+                                <Pencil size={15} aria-hidden="true" />
+                                Chỉnh sửa
+                            </Link>
+                        ) : null}
                         {receipt.status === "DRAFT" ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
@@ -504,7 +515,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "QC_PENDING" && (isQc() || isInventoryManager() || isAdmin()) ? (
+                        {receipt.status === "QC_PENDING" && (isQc()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}

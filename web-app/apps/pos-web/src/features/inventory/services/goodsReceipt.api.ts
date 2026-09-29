@@ -361,6 +361,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
         auditEvents,
         deliveryPerson: "Đại diện giao hàng",
         evidence: [],
+        expectedDate: doc.expectedDate,
         lines,
         note: doc.note,
         outsidePo: false,
@@ -466,13 +467,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
     },
 
     async getGoodsReceipt(receiptId: string): Promise<GoodsReceiptDetail> {
-        if (globalIngredientNameMap.size === 0) {
-            try {
-                await goodsReceiptApi.getGoodsReceiptOptions();
-            } catch {
-                // ignore
-            }
-        }
+        // Tên nguyên liệu đã có sẵn trong response (itemName/itemSku) — không cần tải trước danh sách NCC/kho/nguyên liệu
         const res = await apiClient.get<InventoryDocumentBackendResponse>(
             `/inventory/documents/${encodeURIComponent(receiptId)}`
         );
@@ -874,13 +869,6 @@ export const goodsReceiptApi: GoodsReceiptApi = {
                 if (id) globalIngredientNameMap.set(id, String(name));
                 if (code) globalIngredientNameMap.set(String(code), String(name));
             }
-        });
-
-        console.log("[GoodsReceipt API] Options loaded:", {
-            suppRes,
-            suppliers,
-            locRes,
-            locations
         });
 
         return finalResult;

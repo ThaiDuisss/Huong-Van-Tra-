@@ -1,7 +1,8 @@
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
+import { useAuthorization } from "../../../auth/useAuthorization";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import { supplierApi } from "../../manufacturing/services/supplier.api";
 import { inventoryLocationApi } from "../services/inventoryLocation.api";
@@ -31,8 +32,21 @@ function emptyLine(materialId = ""): CreateLine {
     };
 }
 
+const EDITABLE_STATUSES = new Set(["DRAFT", "REJECTED"]);
+
 export function GoodsReceiptCreatePage() {
     const navigate = useNavigate();
+    // Có receiptId trên URL (/receipts/:receiptId/edit) => chế độ chỉnh sửa phiếu DRAFT/REJECTED
+    const { receiptId } = useParams<{ receiptId: string }>();
+    const isEdit = Boolean(receiptId);
+    const [loadingReceipt, setLoadingReceipt] = useState(isEdit);
+    const [receiptCode, setReceiptCode] = useState("");
+    const [rejectionReason, setRejectionReason] = useState("");
+    const [editBlocked, setEditBlocked] = useState(false);
+    // Keycloak subject của người tạo phiếu (null khi tạo mới / chưa tải xong)
+    const [receiptCreatorId, setReceiptCreatorId] = useState<string | null>(null);
+    const { isAdmin, keycloakSubject } = useAuthorization();
+    const editForbidden = receiptCreatorId !== null && !isAdmin() && receiptCreatorId !== keycloakSubject;
     const [options, setOptions] = useState<GoodsReceiptOptions>({
         locations: [],
         materials: [],
@@ -60,8 +74,9 @@ export function GoodsReceiptCreatePage() {
 
     // Dropdown NCC & kho: lookup phân trang (chỉ id + name), tải thêm khi cuộn
     const [selectedSupplier, setSelectedSupplier] = useState<LookupItem | null>(null);
+    const [selectedLocation, setSelectedLocation] = useState<LookupItem | null>(null);
     const supplierDropdown = useLookupDropdown(supplierApi.lookup, { pinned: [selectedSupplier] });
-    const locationDropdown = useLookupDropdown(inventoryLocationApi.lookupLocations);
+    const locationDropdown = useLookupDropdown(inventoryLocationApi.lookupLocations, { pinned: [selectedLocation] });
     const { findOption: findSupplierOption } = supplierDropdown;
 
     // Trả về danh sách nguyên liệu khả dụng cho 1 dòng cụ thể (loại bỏ các nguyên liệu đã được chọn ở các dòng khác)
@@ -140,6 +155,78 @@ export function GoodsReceiptCreatePage() {
                 setLoadingMaterials(false);
             });
     }, [findSupplierOption]);
+
+    // Chế độ chỉnh sửa: nạp phiếu hiện có + danh sách nguyên liệu của NCC (không reset dòng như khi đổi NCC)
+    useEffect(() => {
+        if (!receiptId) return undefined;
+        let active = true;
+
+        void (async () => {
+            try {
+                const receipt = await goodsReceiptApi.getGoodsReceipt(receiptId);
+                if (!active) return;
+
+                setReceiptCode(receipt.code);
+                setReceiptCreatorId(receipt.createdBy.id);
+                if (!EDITABLE_STATUSES.has(receipt.status)) {
+                    setEditBlocked(true);
+                    setError("Chỉ có thể chỉnh sửa phiếu nhập kho ở trạng thái Bản nháp hoặc Từ chối.");
+                    return;
+                }
+
+                setRejectionReason(
+                    receipt.status === "REJECTED"
+                        ? receipt.auditEvents.find((event) => event.type === "REJECT")?.reason ?? ""
+                        : ""
+                );
+                setForm({
+                    expectedDate: receipt.expectedDate
+                        ? receipt.expectedDate.split("T")[0]
+                        : new Date().toISOString().split("T")[0],
+                    note: receipt.note ?? "",
+                    purchaseOrderCode: receipt.purchaseOrderCode ?? "",
+                    receivingLocationId: receipt.receivingLocation.id,
+                    supplierId: receipt.supplier.id
+                });
+                setSelectedSupplier({ id: receipt.supplier.id, name: receipt.supplier.name });
+                setSelectedLocation({ id: receipt.receivingLocation.id, name: receipt.receivingLocation.name });
+                setLines(
+                    receipt.lines.length > 0
+                        ? receipt.lines.map((line) => ({
+                            ...emptyLine(line.materialId),
+                            note: line.qc.inspectionNote ?? "",
+                            orderedQuantity: line.orderedQuantity ?? 0
+                        }))
+                        : [emptyLine()]
+                );
+
+                if (receipt.supplier.id) {
+                    setLoadingMaterials(true);
+                    const response = await goodsReceiptApi.getGoodsReceiptOptions(receipt.supplier.id, {
+                        includeLocations: false,
+                        includeSuppliers: false
+                    });
+                    if (active) {
+                        setOptions((cur) => ({ ...cur, materials: response.materials }));
+                    }
+                }
+            } catch (err) {
+                if (active) {
+                    setEditBlocked(true);
+                    setError(err instanceof Error ? err.message : "Không thể tải phiếu nhập kho cần chỉnh sửa.");
+                }
+            } finally {
+                if (active) {
+                    setLoadingReceipt(false);
+                    setLoadingMaterials(false);
+                }
+            }
+        })();
+
+        return () => {
+            active = false;
+        };
+    }, [receiptId]);
 
     const totals = useMemo(() => {
         const totalOrderedQuantity = lines.reduce(
@@ -263,11 +350,17 @@ export function GoodsReceiptCreatePage() {
 
         try {
             setSubmitting(true);
-            const created = await goodsReceiptApi.createGoodsReceipt(payload);
-            navigate(`/management/inventory/receipts/${created.id}`);
+            const saved = receiptId
+                ? await goodsReceiptApi.updateGoodsReceipt(receiptId, payload)
+                : await goodsReceiptApi.createGoodsReceipt(payload);
+            navigate(`/management/inventory/receipts/${saved.id}`);
         } catch (err) {
             setError(
-                err instanceof Error ? err.message : "Không thể tạo phiếu nhập nguyên liệu."
+                err instanceof Error
+                    ? err.message
+                    : isEdit
+                        ? "Không thể cập nhật phiếu nhập nguyên liệu."
+                        : "Không thể tạo phiếu nhập nguyên liệu."
             );
         } finally {
             setSubmitting(false);
@@ -285,12 +378,14 @@ export function GoodsReceiptCreatePage() {
         <section className="grid gap-4">
             <header className="flex flex-col gap-2">
                 <div className="text-xs font-bold text-[#697684]">
-                    Kho vận › Phiếu nhập nguyên liệu từ Nhà cung cấp › Tạo mới
+                    Kho vận › Phiếu nhập nguyên liệu từ Nhà cung cấp › {isEdit ? "Chỉnh sửa" : "Tạo mới"}
                 </div>
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h1 className="text-2xl font-black text-[#172317]">
-                            Tạo phiếu nhập nguyên liệu (DRAFT)
+                            {isEdit
+                                ? `Chỉnh sửa phiếu nhập ${receiptCode}`.trim()
+                                : "Tạo phiếu nhập nguyên liệu (DRAFT)"}
                         </h1>
                         <p className="text-sm font-semibold text-[#697684]">
                             Giai đoạn 1: Lập kế hoạch tiếp nhận nguyên liệu từ Nhà cung cấp. Thông tin thực nhận, Lô và QC sẽ được ghi nhận khi hàng về kho.
@@ -298,7 +393,7 @@ export function GoodsReceiptCreatePage() {
                     </div>
                     <Link
                         className="inline-flex h-9 items-center justify-center rounded-lg border border-[#dce5e1] px-4 text-xs font-bold text-[#536078] hover:bg-[#f7f8fb]"
-                        to="/management/inventory/receipts"
+                        to={receiptId ? `/management/inventory/receipts/${receiptId}` : "/management/inventory/receipts"}
                     >
                         Hủy & Quay lại
                     </Link>
@@ -308,6 +403,24 @@ export function GoodsReceiptCreatePage() {
             {error ? (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
                     {error}
+                </div>
+            ) : null}
+
+            {editForbidden ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                    Chỉ ADMIN hoặc người tạo phiếu mới được chỉnh sửa phiếu nhập kho này.
+                </div>
+            ) : null}
+
+            {isEdit && loadingReceipt ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs font-bold text-blue-800">
+                    Đang tải phiếu nhập kho...
+                </div>
+            ) : null}
+
+            {rejectionReason ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                    Phiếu đã bị từ chối với lý do: <strong>{rejectionReason}</strong>. Sau khi lưu, phiếu sẽ quay về trạng thái Bản nháp.
                 </div>
             ) : null}
 
@@ -610,14 +723,14 @@ export function GoodsReceiptCreatePage() {
             <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
                 <Link
                     className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] hover:bg-[#f7f8fb] inline-flex items-center"
-                    to="/management/inventory/receipts"
+                    to={receiptId ? `/management/inventory/receipts/${receiptId}` : "/management/inventory/receipts"}
                 >
                     Hủy bỏ
                 </Link>
                 <div className="flex flex-wrap gap-2">
                     <button
                         className="h-10 rounded-lg border border-[#d8eadc] bg-white px-5 text-sm font-black text-[#159734] hover:bg-[#f4faf5] disabled:opacity-60 cursor-pointer"
-                        disabled={submitting}
+                        disabled={submitting || loadingReceipt || editBlocked || editForbidden}
                         onClick={() => void handleSave(false)}
                         type="button"
                     >
@@ -625,7 +738,7 @@ export function GoodsReceiptCreatePage() {
                     </button>
                     <button
                         className="h-10 rounded-lg bg-[#159734] px-6 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-60 cursor-pointer"
-                        disabled={submitting}
+                        disabled={submitting || loadingReceipt || editBlocked || editForbidden}
                         onClick={() => void handleSave(true)}
                         type="button"
                     >

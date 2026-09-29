@@ -50,6 +50,7 @@ export const routePaths = {
   goodsReceipts: "/management/inventory/receipts",
   goodsReceiptCreate: "/management/inventory/receipts/new",
   goodsReceiptDetail: "/management/inventory/receipts/:receiptId",
+  goodsReceiptEdit: "/management/inventory/receipts/:receiptId/edit",
   goodsReceiptImportCreate: "/management/inventory/receipts/import",
   goodsReceiptImportDetail: "/management/inventory/receipts/import/:batchId",
   goodsReceiptImportLegacyCreate: "/management/inventory/import-excel/new",

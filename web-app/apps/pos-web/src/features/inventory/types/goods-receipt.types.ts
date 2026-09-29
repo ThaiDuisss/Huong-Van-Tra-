@@ -69,6 +69,7 @@ export interface GoodsReceiptSummary {
 }
 
 export interface GoodsReceiptDetail extends GoodsReceiptSummary {
+    expectedDate?: string;
     invoiceNumber?: string;
     deliveryPerson: string;
     vehiclePlate?: string;
