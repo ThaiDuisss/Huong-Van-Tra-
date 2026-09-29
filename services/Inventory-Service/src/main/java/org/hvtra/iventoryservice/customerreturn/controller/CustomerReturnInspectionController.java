@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.customerreturn.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
@@ -38,6 +39,12 @@ public class CustomerReturnInspectionController {
 
     private final CustomerReturnInspectionService service;
 
+    @Operation(
+            summary = "Create a Customer Return inspection within Inventory",
+            description = "Low-level Inventory operation for integration and tests. Customer Return business flows must submit "
+                    + "a disposition command through Order Service; Inventory then creates the inspection with command_id. "
+                    + "Directly created inspections have no Order command and cannot advance Order physical progress."
+    )
     @PostMapping("/customer-returns/{returnId}/inspections")
     public ResponseEntity<CustomerReturnInspectionResponse> createInspection(
             @PathVariable UUID returnId,

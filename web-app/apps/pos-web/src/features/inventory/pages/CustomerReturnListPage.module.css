@@ -206,18 +206,18 @@
 
 .returnTable th:nth-child(1),
 .returnTable td:nth-child(1) {
-  width: 28%;
+  width: 29%;
 }
 
 .returnTable th:nth-child(2),
 .returnTable td:nth-child(2) {
-  width: 27%;
+  width: 25%;
   text-align: left;
 }
 
 .returnTable th:nth-child(3),
 .returnTable td:nth-child(3) {
-  width: 25%;
+  width: 26%;
 }
 
 .returnTable th:nth-child(4),

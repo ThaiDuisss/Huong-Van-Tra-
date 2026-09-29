@@ -246,10 +246,10 @@ export function CustomerReturnQcQueue({
                     <table className={`${orderStyles.orderTable} ${styles.dataTable} ${styles.returnTable}`}>
                         <thead>
                             <tr>
-                                <th style={{ width: "28%" }}>Phiếu hoàn</th>
-                                <th style={{ width: "27%" }}>Đơn hàng</th>
-                                <th style={{ width: "25%" }}>Trạng thái</th>
-                                <th style={{ width: "20%" }}>Thao tác</th>
+                                <th>Phiếu hoàn</th>
+                                <th>Trạng thái</th>
+                                <th>Đơn hàng</th>
+                                <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -272,15 +272,15 @@ export function CustomerReturnQcQueue({
                                             </button>
                                         </td>
                                         <td>
-                                            <span className={styles.orderCodeText}>
-                                                {row.orderCode ?? "--"}
-                                            </span>
-                                        </td>
-                                        <td>
                                             <OrderStatusBadge
                                                 label={statusInfo.label}
                                                 status={statusInfo.status}
                                             />
+                                        </td>
+                                        <td>
+                                            <span className={styles.orderCodeText}>
+                                                {row.orderCode ?? "--"}
+                                            </span>
                                         </td>
                                         <td>
                                             {row.status === "CREATED" ? (

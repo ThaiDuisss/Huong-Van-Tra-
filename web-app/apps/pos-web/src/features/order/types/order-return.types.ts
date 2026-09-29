@@ -291,47 +291,6 @@ export interface CustomerReturnQcSummaryResponse {
     inspectedAt?: string | null;
 }
 
-export interface CreateCustomerReturnInspectionLinePayload {
-    returnItemId: string;
-    quantity: number;
-    result: CustomerReturnQcResult;
-    destinationLocationId?: string | null;
-    note?: string | null;
-}
-
-export interface CreateCustomerReturnInspectionPayload {
-    note?: string | null;
-    lines: CreateCustomerReturnInspectionLinePayload[];
-}
-
-export interface CustomerReturnInspectionLine {
-    id: string;
-    returnItemId: string;
-    orderItemId?: string | null;
-    productVariantId?: string | null;
-    inventoryItemId?: string | null;
-    quantity?: number | string | null;
-    result?: CustomerReturnQcResult | null;
-    destinationLocationId?: string | null;
-    note?: string | null;
-    posted?: boolean | null;
-    transactionId?: string | null;
-}
-
-export interface CustomerReturnInspectionResponse {
-    id: string;
-    inspectionCode?: string | null;
-    returnId?: string | null;
-    returnCode?: string | null;
-    branchId?: string | null;
-    orderId?: string | null;
-    orderCode?: string | null;
-    status?: CustomerReturnInspectionStatus | null;
-    postedAt?: string | null;
-    note?: string | null;
-    lines?: CustomerReturnInspectionLine[] | null;
-}
-
 export type OrderReturnInventoryCommandStatus =
     | "PENDING"
     | "PROCESSED"

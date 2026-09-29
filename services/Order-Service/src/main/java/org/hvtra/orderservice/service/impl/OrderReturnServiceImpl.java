@@ -110,25 +110,49 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     private static final String DOWNSTREAM_STATUS_UNAVAILABLE = "UNAVAILABLE";
     private static final String DOWNSTREAM_METHOD_UNKNOWN = "UNKNOWN";
 
-    private static final Map<String, Integer> DISPLAY_STATUS_PRIORITY = Map.of(
-            "PROCESSING_FAILED", 1,
-            "PENDING_REFUND", 2,
-            "RECEIVED", 3,
-            "PROCESSING", 4,
-            "CREATED", 5,
-            "COMPLETED", 6,
-            "CANCELLED", 7
-    );
-
-    private static int getDisplayStatusPriority(String displayStatus) {
-        if (displayStatus == null) {
-            return 99;
+    private static int getReturnPriority(OrderReturnSummaryResponse row) {
+        if (row.getStatus() == ReturnStatus.CREATED) {
+            return 4;
         }
-        return DISPLAY_STATUS_PRIORITY.getOrDefault(displayStatus.toUpperCase(Locale.ROOT), 99);
+        if ("PROCESSING_FAILED".equalsIgnoreCase(row.getDisplayStatus())
+                || Boolean.TRUE.equals(row.getHasFailedDisposition())) {
+            return 1;
+        }
+        if (Boolean.TRUE.equals(row.getIsPendingDisposition())) {
+            return 2;
+        }
+        if (row.getStatus() == ReturnStatus.CANCELLED
+                || "CANCELLED".equalsIgnoreCase(row.getDisplayStatus())) {
+            return 7;
+        }
+        if (row.getStatus() == ReturnStatus.COMPLETED
+                || "COMPLETED".equalsIgnoreCase(row.getDisplayStatus())) {
+            return 6;
+        }
+        if ("PENDING_REFUND".equalsIgnoreCase(row.getDisplayStatus())) {
+            return 5;
+        }
+        if (row.getStatus() == ReturnStatus.RECEIVED) {
+            if ("COMPLETED".equalsIgnoreCase(row.getQcStatus())
+                    || Boolean.TRUE.equals(row.getPhysicalDone())) {
+                return 5;
+            }
+            BigDecimal processed = row.getProcessedQuantity() != null
+                    ? row.getProcessedQuantity() : row.getPostedQcQuantity();
+            BigDecimal remaining = row.getRemainingQuantity() != null
+                    ? row.getRemainingQuantity() : row.getRemainingQcQuantity();
+            boolean partiallyProcessed = processed != null && processed.signum() > 0
+                    && remaining != null && remaining.signum() > 0;
+            if ("PARTIAL".equalsIgnoreCase(row.getQcStatus()) || partiallyProcessed) {
+                return 2;
+            }
+            return 3;
+        }
+        return 99;
     }
 
     private static final Comparator<OrderReturnSummaryResponse> RETURN_PRIORITY_COMPARATOR = Comparator
-            .comparingInt((OrderReturnSummaryResponse r) -> getDisplayStatusPriority(r.getDisplayStatus()))
+            .comparingInt(OrderReturnServiceImpl::getReturnPriority)
             .thenComparing(OrderReturnSummaryResponse::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
             .thenComparing(OrderReturnSummaryResponse::getId, Comparator.nullsLast(Comparator.reverseOrder()));
 

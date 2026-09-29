@@ -496,11 +496,11 @@ export function getCustomerReturnUiStatus(data?: CustomerReturnUiStatusSource | 
     if (data.status === "CREATED") {
         return { label: "Chờ nhận hàng", status: "PENDING" };
     }
-    if (data.isPendingDisposition) {
-        return { label: "Đang tạo phiếu kiểm định", status: "PROCESSING" };
-    }
     if (data.displayStatus === "PROCESSING_FAILED" || data.hasFailedDisposition) {
         return { label: "Xử lý kho thất bại", status: "FAILED" };
+    }
+    if (data.isPendingDisposition) {
+        return { label: "Đang tạo phiếu kiểm định", status: "PROCESSING" };
     }
     if (data.displayStatus === "CANCELLED" || data.status === "CANCELLED") {
         return { label: "Đã hủy", status: "CANCELLED" };
