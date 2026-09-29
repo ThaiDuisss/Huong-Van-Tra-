@@ -75,6 +75,7 @@ import { ProductListPage } from "../features/product/pages/ProductListPage";
 import { ProductImportPage } from "../features/product/pages/ProductImportPage";
 import { ProductVariantImportPage } from "../features/product/pages/ProductVariantImportPage";
 import { IngredientImportPage } from "../features/product/pages/IngredientImportPage";
+import { UnitImportPage } from "../features/product/pages/UnitImportPage";
 import { ProductImportReviewPage } from "../features/product/pages/ProductImportReviewPage";
 import { ImportBatchListPage } from "../features/product/pages/ImportBatchListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
@@ -225,6 +226,7 @@ export function AppRouter() {
         <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
           <Route path="categories" element={<CategoryListPage />} />
           <Route path="units" element={<UnitListPage />} />
+          <Route path="units/import" element={<UnitImportPage />} />
           <Route path="products" element={<ProductListPage />} />
           <Route path="products/import" element={<ProductImportPage />} />
 

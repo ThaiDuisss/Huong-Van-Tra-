@@ -29,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -360,7 +361,7 @@ public class UnitServiceImpl implements UnitService {
                 boolean hasMatch = false;
                 for (int c = 0; c < rRow.getLastCellNum(); c++) {
                     String h = getCellValueAsString(rRow.getCell(c)).toLowerCase().trim();
-                    String normalized = java.text.Normalizer.normalize(h, java.text.Normalizer.Form.NFD)
+                    String normalized = Normalizer.normalize(h, Normalizer.Form.NFD)
                             .replaceAll("\\p{M}", "");
                     if (normalized.contains("ten don vi") || normalized.contains("ky hieu") || normalized.contains("phan loai") || normalized.contains("unit name")) {
                         hasMatch = true;
@@ -383,7 +384,7 @@ public class UnitServiceImpl implements UnitService {
             if (headerRow != null) {
                 for (int c = 0; c < headerRow.getLastCellNum(); c++) {
                     String h = getCellValueAsString(headerRow.getCell(c)).toLowerCase().trim();
-                    String normalized = java.text.Normalizer.normalize(h, java.text.Normalizer.Form.NFD)
+                    String normalized = Normalizer.normalize(h, Normalizer.Form.NFD)
                             .replaceAll("\\p{M}", "");
                     if (normalized.contains("ten don vi") || (normalized.contains("don vi") && !normalized.contains("mau")) || normalized.contains("unit name")) {
                         colName = c;
@@ -491,6 +492,7 @@ public class UnitServiceImpl implements UnitService {
     private String formatUnitType(UnitType type) {
         if (type == null) return "Đếm";
         return switch (type) {
+            case PACKAGING -> "Đóng gói";
             case WEIGHT -> "Khối lượng";
             case VOLUME -> "Thể tích";
             case COUNT -> "Đếm";
@@ -504,6 +506,9 @@ public class UnitServiceImpl implements UnitService {
             return UnitType.WEIGHT;
         }
         if (lower.contains("thể tích") || lower.contains("volume")) {
+            return UnitType.VOLUME;
+        }
+        if (lower.contains("đóng gói") || lower.contains("packaging")) {
             return UnitType.VOLUME;
         }
         return UnitType.COUNT;

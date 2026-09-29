@@ -26,6 +26,7 @@ export const routePaths = {
   returnRefundReport: "/system/reports/returns",
   categories: "/system/categories",
   units: "/system/units",
+  unitImport: "/system/units/import",
   products: "/system/products",
   productDetail: "/system/products/:id",
   productImport: "/system/products/import",

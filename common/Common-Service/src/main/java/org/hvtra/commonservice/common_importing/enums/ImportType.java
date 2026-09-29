@@ -8,5 +8,6 @@ public enum ImportType {
     PRODUCT,
     PRODUCT_VARIANT,
     INGREDIENT,
+    UNIT,
     GOODS_RECEIPT
 }

@@ -1,5 +1,6 @@
 package org.hvtra.catalog.service.impl;
 
+import ch.qos.logback.core.spi.ErrorCodes;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -20,6 +21,8 @@ import org.hvtra.catalog.repository.BusinessSequenceRepository;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.SupplierRepository;
 import org.hvtra.catalog.service.SupplierService;
+import org.hvtra.commonservice.common_core.domain.constants.ErrorEnum;
+import org.hvtra.commonservice.common_core.exception.AppException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -234,7 +237,7 @@ public class SupplierServiceImpl implements SupplierService {
                 ? repository.existsBySupplierCode(code)
                 : repository.existsBySupplierCodeAndIdNot(code, id);
         if (exists) {
-            throw new BadRequestException("Mã nhà cung cấp đã tồn tại: " + code);
+            throw new AppException(ErrorEnum.SUPPLIER_CODE_EXIST);
         }
     }
 

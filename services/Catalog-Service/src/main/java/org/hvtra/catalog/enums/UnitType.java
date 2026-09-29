@@ -7,6 +7,7 @@ package org.hvtra.catalog.enums;
  * - COUNT: Đếm / đóng gói (ví dụ: cái, chiếc, hộp, thùng)
  */
 public enum UnitType {
+    PACKAGING,
     WEIGHT,
     VOLUME,
     COUNT

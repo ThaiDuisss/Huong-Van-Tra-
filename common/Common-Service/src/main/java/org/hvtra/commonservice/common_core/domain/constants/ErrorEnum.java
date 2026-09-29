@@ -24,7 +24,9 @@ public enum ErrorEnum {
     UNKNOWN_ERROR(9999, "Unknown error"),
     PHONE_EXIST(2002, "Phone is used to register."),
     CONVERSATION_NOT_FOUND(3001,"Conversation not found"),
-    FILE_NOT_FOUND(4001,"File not found");
+    FILE_NOT_FOUND(4001,"File not found"),
+    SUPPLIER_CODE_EXIST(4002, "Supplier code exist")
+    ;
 
 
     public static final String INVALID_STATUS_MS = "Status is invalid";
@@ -68,7 +70,7 @@ public enum ErrorEnum {
     public static final String INVALID_VIDEO_URL = "Video URL must be less than 255 characters";
     public static final String NOT_EMPTY_STATUS = "Status can not null";
 
-   private final int code;
+    private final int code;
    private final String message;
     public static ErrorEnum fromCode(int code) {
         for (ErrorEnum e : values()) {
