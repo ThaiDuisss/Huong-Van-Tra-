@@ -29,6 +29,9 @@ public record ProductResponse(
             String categoryName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
+            BigDecimal sellableQuantity,
+            BigDecimal productionThreshold,
+            BigDecimal productionBatchQuantity,
             String imageUrl,
             UUID unitId,
             String unitName,
@@ -51,6 +54,9 @@ public record ProductResponse(
             String categoryName,
             BigDecimal sellingPrice,
             BigDecimal costPrice,
+            BigDecimal sellableQuantity,
+            BigDecimal productionThreshold,
+            BigDecimal productionBatchQuantity,
             String imageUrl,
             UUID unitId,
             String unitName,
@@ -71,5 +77,4 @@ public record ProductResponse(
     ) {
     }
 }
-
 

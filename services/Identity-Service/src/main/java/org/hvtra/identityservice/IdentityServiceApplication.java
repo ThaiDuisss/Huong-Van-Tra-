@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {
         "org.hvtra.identityservice",
-        "org.hvtra.commonservice.common_core",
+        "org.hvtra.commonservice.common_core"
 })
 @EnableDiscoveryClient
 @Import(SwaggerConfig.class)

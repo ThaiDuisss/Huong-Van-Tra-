@@ -12,6 +12,7 @@ import org.hvtra.orderservice.dto.response.CustomerResponse;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.dto.response.PaymentResponse;
 import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
+import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderDraftService;
@@ -63,7 +64,6 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         order.setExpiresAt(expiresAt);
 
         var variant = productSnapshotResolver.resolvePosView(request.getProductVariantId());
-        log.info("variant: {}", variant);
         BigDecimal addQuantity = orderValidator.requirePositiveQuantity(request.getQuantity());
         OrderItem item = findDraftItem(
                 order,
@@ -75,13 +75,7 @@ public class OrderDraftServiceImpl implements OrderDraftService {
                 ? BigDecimal.ZERO
                 : orderAmountCalculator.defaultZero(item.getQuantity());
         BigDecimal targetQuantity = oldQuantity.add(addQuantity);
-        log.info("varient{} {}", variant.variantId(), request.getProductVariantId());
-        inventoryReservationService.applyReservation(
-                order,
-                variant.variantId(),
-                targetQuantity,
-                request.getInventoryLocationId()
-        );
+        validateSellableQuantity(variant.sellableQuantity(), targetQuantity);
 
         if (item == null) {
             item = orderItemMapper.toDraftOrderItem(
@@ -119,7 +113,8 @@ public class OrderDraftServiceImpl implements OrderDraftService {
             return removeDraftItemInCurrentTransaction(orderId, itemId);
         }
 
-        inventoryReservationService.applyReservation(order, item.getProductVariantId(), targetQuantity, null);
+        var variant = productSnapshotResolver.resolvePosView(item.getProductVariantId());
+        validateSellableQuantity(variant.sellableQuantity(), targetQuantity);
         item.setQuantity(targetQuantity);
         orderAmountCalculator.recalculateLine(item);
         orderAmountCalculator.recalculateOrderTotals(order);
@@ -141,7 +136,6 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         }
         orderValidator.validateDraftCancellation(order);
 
-        inventoryReservationService.releaseOrderReservation(order.getId());
         OrderStatus oldStatus = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
         Order savedOrder = orderRepository.save(order);
@@ -188,7 +182,6 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         Order order = getEditableDraftOrder(orderId);
         OrderItem item = getOrderItem(order, itemId);
 
-        inventoryReservationService.releaseItemReservation(order.getId(), item.getProductVariantId(), null);
         order.getItems().remove(item);
         order.setExpiresAt(orderDateTimeHelper.nextDraftExpiresAt());
         orderAmountCalculator.recalculateOrderTotals(order);
@@ -198,6 +191,14 @@ public class OrderDraftServiceImpl implements OrderDraftService {
     private Order getExistingOrder(UUID orderId) {
         return orderRepository.findByIdAndIsDeletedFalse(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng: " + orderId));
+    }
+
+    private void validateSellableQuantity(BigDecimal sellableQuantity, BigDecimal targetQuantity) {
+        BigDecimal safeSellable = sellableQuantity == null ? BigDecimal.ZERO : sellableQuantity;
+        BigDecimal safeTarget = targetQuantity == null ? BigDecimal.ZERO : targetQuantity;
+        if (safeTarget.compareTo(safeSellable) > 0) {
+            throw new InvalidOrderStatusException("Số lượng bán vượt quá số lượng có thể bán");
+        }
     }
 
     private Order createDraftOrder(AddDraftOrderItemRequest request, Instant expiresAt) {

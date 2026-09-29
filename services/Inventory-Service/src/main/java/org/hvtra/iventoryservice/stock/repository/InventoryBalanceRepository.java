@@ -18,6 +18,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -118,6 +119,30 @@ public interface InventoryBalanceRepository
             """)
     Optional<InventoryBalance> findForUpdateByBatchId(
             @Param("batchId") UUID batchId, @Param("locationId") UUID locationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.inventoryItem item
+            join fetch b.inventoryBatch batch
+            join fetch b.location location
+            where item.id = :inventoryItemId
+              and location.id = :locationId
+              and location.status = :locationStatus
+              and batch.status = org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus.AVAILABLE
+              and (batch.expiryDate is null or batch.expiryDate >= :today)
+              and (b.quantityOnHand - b.quantityReserved - b.quantityBlocked) > 0
+            order by
+              case when batch.expiryDate is null then 1 else 0 end,
+              batch.expiryDate asc,
+              batch.receivedAt asc,
+              batch.id asc
+            """)
+    List<InventoryBalance> findFefoAvailableForUpdate(
+            @Param("inventoryItemId") UUID inventoryItemId,
+            @Param("locationId") UUID locationId,
+            @Param("locationStatus") InventoryStatus locationStatus,
+            @Param("today") LocalDate today);
 
     /**
      * Toàn bộ bản ghi tồn của 1 batch, KHÔNG lọc theo kho — dùng lúc duyệt lệnh sản xuất để lấy nguyên

@@ -40,6 +40,13 @@ public class Ingredient extends BaseEntity {
     @Column(name = "reorder_point", nullable = false)
     private Integer reorderPoint = 0;
 
+    /**
+     * Ingredient kind. {@code 0} = packaging / non-recipe material (nylon bag, box, label...),
+     * {@code 1} = real recipe ingredient. Recommendation training ignores type 0.
+     */
+    @Column(name = "type", nullable = false)
+    private Integer type = 1;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private Status status = Status.ACTIVE;

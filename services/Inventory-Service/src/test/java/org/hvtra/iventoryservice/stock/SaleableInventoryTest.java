@@ -344,7 +344,8 @@ class SaleableInventoryTest {
                 reservationRepository,
                 itemRepository,
                 locationRepository,
-                balanceRepository);
+                balanceRepository,
+                transactionRepository);
     }
 
     private InventoryTransactionServiceImpl transactionService() {

@@ -12,6 +12,8 @@ import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.service.OrderCustomerService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
+import org.hvtra.orderservice.service.OrderPaymentEventService;
+import org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus;
 import org.hvtra.orderservice.service.validator.OrderValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -57,6 +60,9 @@ class OrderCheckoutPaymentProcessorTest {
     @Mock
     private OrderResponseAssembler orderResponseAssembler;
 
+    @Mock
+    private OrderPaymentEventService orderPaymentEventService;
+
     private OrderCheckoutPaymentProcessor processor;
 
     @BeforeEach
@@ -68,7 +74,8 @@ class OrderCheckoutPaymentProcessorTest {
                 orderCustomerService,
                 orderOutboxPublisher,
                 orderStatusHistoryWriter,
-                orderResponseAssembler
+                orderResponseAssembler,
+                orderPaymentEventService
         );
     }
 
@@ -101,6 +108,7 @@ class OrderCheckoutPaymentProcessorTest {
         assertEquals(OrderStatus.COMPLETED, order.getStatus());
         assertEquals("PAY-001", order.getPaymentCode());
         assertEquals(BigDecimal.ZERO, order.getDebtAmount());
+        verify(orderPaymentEventService).processPaidOrderInventory(org.mockito.Mockito.eq(order), any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq(true));
         ArgumentCaptor<PaymentCreateRequest> requestCaptor = ArgumentCaptor.forClass(PaymentCreateRequest.class);
         InOrder inOrder = inOrder(
                 orderValidator,
@@ -133,6 +141,28 @@ class OrderCheckoutPaymentProcessorTest {
         assertEquals(PaymentMethod.CASH, paymentRequest.getPaymentMethod());
         assertEquals(new BigDecimal("100000.00"), paymentRequest.getReceivedAmount());
         assertEquals(false, paymentRequest.getDeliveryRequired());
+    }
+
+    @Test
+    void deliveryCashPaymentKeepsMaterialsReservedUntilFulfillment() {
+        Order order = order(UUID.randomUUID(), null);
+        order.setOrderType("DELIVERY");
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        PaymentResponse payment = PaymentResponse.builder()
+                .paymentCode("PAY-DELIVERY")
+                .status("PAID")
+                .method("cash")
+                .build();
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderResponseAssembler.normalizePaymentMethod("cash")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, PaymentMethod.CASH.name())).thenReturn(UUID.randomUUID());
+        when(paymentClient.checkout(any(PaymentCreateRequest.class))).thenReturn(payment);
+
+        processor.checkoutPayment(order, "CASH", order.getFinalAmount(), null);
+
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        verify(orderPaymentEventService).processPaidOrderInventory(org.mockito.Mockito.eq(order),
+                any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq(false));
     }
 
     @Test

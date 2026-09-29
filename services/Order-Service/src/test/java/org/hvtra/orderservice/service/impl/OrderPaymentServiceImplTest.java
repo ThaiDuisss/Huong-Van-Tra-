@@ -12,6 +12,7 @@ import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderCustomerService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
+import org.hvtra.orderservice.service.OrderPaymentEventService;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
@@ -74,6 +75,9 @@ class OrderPaymentServiceImplTest {
     @Mock
     private OrderResponseAssembler orderResponseAssembler;
 
+    @Mock
+    private OrderPaymentEventService orderPaymentEventService;
+
     private OrderPaymentServiceImpl service;
 
     @BeforeEach
@@ -86,7 +90,8 @@ class OrderPaymentServiceImplTest {
                 orderValidator,
                 orderAmountCalculator,
                 orderStatusHistoryWriter,
-                orderResponseAssembler
+                orderResponseAssembler,
+                orderPaymentEventService
         );
     }
 
@@ -108,6 +113,7 @@ class OrderPaymentServiceImplTest {
         assertSame(expected, actual);
         assertEquals(OrderStatus.COMPLETED, order.getStatus());
         assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        verify(orderPaymentEventService).processPaidOrderInventory(order, null, true);
         assertEquals(new BigDecimal("100.00"), order.getPaidAmount());
         assertEquals(BigDecimal.ZERO, order.getDebtAmount());
 

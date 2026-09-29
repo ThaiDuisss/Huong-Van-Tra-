@@ -185,6 +185,7 @@ class OrderCheckoutServiceImplTest {
                 "Size M",
                 "Danh mục",
                 sellingPrice,
+                new BigDecimal("999"),
                 null
         );
     }
