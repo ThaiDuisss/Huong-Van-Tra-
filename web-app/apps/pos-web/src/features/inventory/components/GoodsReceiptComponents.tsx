@@ -120,8 +120,8 @@ export function GoodsReceiptSummaryCard({
     return (
         <article
             className={`grid min-h-[90px] gap-2 rounded-xl border p-4 shadow-pos-card transition-all ${active
-                    ? "border-[#159734] bg-[#f4faf5] ring-2 ring-[#159734]/20"
-                    : "border-[#e8eef0] bg-white hover:border-[#159734]/40"
+                ? "border-[#159734] bg-[#f4faf5] ring-2 ring-[#159734]/20"
+                : "border-[#e8eef0] bg-white hover:border-[#159734]/40"
                 } ${onClick ? "cursor-pointer" : ""}`}
             onClick={onClick}
         >
@@ -203,10 +203,10 @@ export function GoodsReceiptLifecycleStepper({
                         <div
                             key={step.key}
                             className={`flex flex-col justify-between rounded-lg border p-2.5 transition-all ${isCurrent
-                                    ? "border-[#159734] bg-[#f4faf5] text-[#159734] ring-2 ring-[#159734]/20"
-                                    : isPassed
-                                        ? "border-[#d8eadc] bg-[#fafdfa] text-[#315f3c]"
-                                        : "border-[#eef2f0] bg-slate-50 text-[#8c9ba5]"
+                                ? "border-[#159734] bg-[#f4faf5] text-[#159734] ring-2 ring-[#159734]/20"
+                                : isPassed
+                                    ? "border-[#d8eadc] bg-[#fafdfa] text-[#315f3c]"
+                                    : "border-[#eef2f0] bg-slate-50 text-[#8c9ba5]"
                                 }`}
                         >
                             <div className="flex items-center justify-between">
@@ -510,10 +510,11 @@ export function GoodsReceiptLineTable({
                             <TableHead>Tên nguyên liệu</TableHead>
                             <TableHead align="right">Số đặt</TableHead>
                             <TableHead align="right">Số nhận</TableHead>
-                            <TableHead align="right">Thiếu/thừa</TableHead>
+                            <TableHead align="right">Thiếu</TableHead>
+                            <TableHead align="right">Thừa</TableHead>
                             <TableHead align="right">Đạt QC</TableHead>
-                            <TableHead align="right">Cách ly</TableHead>
                             <TableHead align="right">Không đạt</TableHead>
+                            <TableHead>Ngày sản xuất</TableHead>
                             <TableHead>Hạn sử dụng</TableHead>
                         </tr>
                     </thead>
@@ -528,22 +529,23 @@ export function GoodsReceiptLineTable({
                                     {formatVietnamNumber(line.receivedQuantity)}
                                 </TableCell>
                                 <TableCell align="right">
+                                    {line.shortageQuantity > 0
+                                        ? formatVietnamNumber(line.shortageQuantity)
+                                        : "0"}
+                                </TableCell>
+                                <TableCell align="right">
                                     {line.surplusQuantity > 0
-                                        ? `+${formatVietnamNumber(line.surplusQuantity)}`
-                                        : line.shortageQuantity > 0
-                                            ? `-${formatVietnamNumber(line.shortageQuantity)}`
-                                            : "0"}
+                                        ? formatVietnamNumber(line.surplusQuantity)
+                                        : "0"}
                                 </TableCell>
                                 <TableCell align="right">
                                     {formatVietnamNumber(line.qc.passedQuantity)}
                                 </TableCell>
                                 <TableCell align="right">
-                                    {formatVietnamNumber(
-                                        line.qc.quarantinedQuantity
-                                    )}
-                                </TableCell>
-                                <TableCell align="right">
                                     {formatVietnamNumber(line.qc.failedQuantity)}
+                                </TableCell>
+                                <TableCell>
+                                    {formatVietnamDateTime(line.manufacturedAt)}
                                 </TableCell>
                                 <TableCell>
                                     {formatVietnamDateTime(line.expiryDate)}
@@ -656,14 +658,13 @@ export function GoodsReceiptAuditTimeline({
                         <p className="text-sm font-semibold text-[#536078]">
                             {event.actor.name} - {event.roleSnapshot}
                         </p>
-                        {event.note ? (
-                            <p className="text-sm font-semibold text-[#697684]">
-                                Ghi chú: {event.note}
-                            </p>
-                        ) : null}
                         {event.reason ? (
                             <p className="text-sm font-bold text-red-700">
                                 Lý do: {event.reason}
+                            </p>
+                        ) : event.note ? (
+                            <p className="text-sm font-semibold text-[#697684]">
+                                Ghi chú: {event.note}
                             </p>
                         ) : null}
                     </div>

@@ -25,5 +25,7 @@ public interface SupplierService {
     SupplierResponse update(UUID id, SupplierRequest request);
     SupplierResponse updateStatus(UUID id, Status status);
     void addIngredients(UUID supplierId, List<UUID> ingredientIds);
+
+    List<UUID> findIngredientIds(UUID supplierId);
     void delete(UUID id);
 }

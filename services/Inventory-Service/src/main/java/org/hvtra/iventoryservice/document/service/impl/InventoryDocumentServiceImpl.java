@@ -19,7 +19,6 @@ import org.hvtra.iventoryservice.document.repository.projection.InventoryDocumen
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.integration.identity.client.IdentityClient;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.hvtra.iventoryservice.document.mapper.InventoryDocumentMapper;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentBatchAllocationRepository;
@@ -41,6 +40,7 @@ import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
+import org.hvtra.iventoryservice.shared.exception.ErrorCode;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
@@ -524,14 +524,32 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     @Override
     @Transactional
     public InventoryDocumentResponse updatePurchaseReceipt(UUID id, UpdatePurchaseReceiptRequest request) {
-        InventoryDocument document = getDocument(id);
+        InventoryDocument document = documentRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> ErrorCode.INVENTORY_DOCUMENT_NOT_FOUND.exception());
 
-        if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
-            throw new BadRequestException("Only DRAFT documents can be updated");
+        if (!isAdminOrCreator(document)) {
+            throw ErrorCode.INVENTORY_DOCUMENT_EDIT_FORBIDDEN.exception();
+        }
+
+        if (document.getStatus() != InventoryDocumentStatus.DRAFT
+                && document.getStatus() != InventoryDocumentStatus.REJECTED) {
+            throw ErrorCode.INVENTORY_DOCUMENT_NOT_EDITABLE.exception();
         }
 
         InventoryLocation location = locationRepository.findById(request.locationId())
-                .orElseThrow(() -> new ResourceNotFoundException("InventoryLocation", request.locationId()));
+                .orElseThrow(() -> ErrorCode.INVENTORY_LOCATION_NOT_FOUND.exception());
+
+        Set<UUID> itemIds = request.items().stream()
+                .map(itemReq -> itemReq.inventoryItemId())
+                .collect(Collectors.toSet());
+        Map<UUID, InventoryItem> itemMap = itemRepository.findAllById(itemIds).stream()
+                .collect(Collectors.toMap(InventoryItem::getId, item -> item));
+
+        // Phiếu bị từ chối sau khi sửa quay về bản nháp để gửi duyệt lại — xóa thông tin từ chối cũ
+        document.setStatus(InventoryDocumentStatus.DRAFT);
+        document.setRejectedBy(null);
+        document.setRejectedAt(null);
+        document.setRejectionReason(null);
 
         document.setLocationId(location.getId());
         document.setDestinationLocation(location);
@@ -543,10 +561,15 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         document.setNote(request.note());
 
         document.getLines().clear();
+        // Flush để DELETE các dòng cũ chạy trước INSERT dòng mới — Hibernate mặc định INSERT trước,
+        // sẽ vi phạm unique (document_id, line_no)
+        documentRepository.flush();
         int lineNo = 1;
         for (var itemReq : request.items()) {
-            InventoryItem item = itemRepository.findById(itemReq.inventoryItemId())
-                    .orElseThrow(() -> new ResourceNotFoundException("InventoryItem", itemReq.inventoryItemId()));
+            InventoryItem item = itemMap.get(itemReq.inventoryItemId());
+            if (item == null) {
+                throw ErrorCode.INVENTORY_ITEM_NOT_FOUND.exception();
+            }
 
             InventoryDocumentLine line = new InventoryDocumentLine();
             line.setLineNo(lineNo++);
@@ -871,20 +894,27 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     @Transactional
     public void delete(UUID id) {
         InventoryDocument document = documentRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException("InventoryDocument", id));
+                .orElseThrow(() -> ErrorCode.INVENTORY_DOCUMENT_NOT_FOUND.exception());
 
-        UUID currentUserId = getCurrentUserId();
-        boolean isCreator = currentUserId != null && currentUserId.equals(document.getCreatedBy());
-        if (!SecurityUtils.isAdmin() && !isCreator) {
-            throw new AccessDeniedException("Chỉ ADMIN hoặc người tạo phiếu mới được xóa phiếu nhập kho này");
+        if (!isAdminOrCreator(document)) {
+            throw ErrorCode.INVENTORY_DOCUMENT_DELETE_FORBIDDEN.exception();
         }
 
         if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
-            throw new BadRequestException("Chỉ có thể xóa phiếu nhập kho ở trạng thái DRAFT");
+            throw ErrorCode.INVENTORY_DOCUMENT_NOT_DELETABLE.exception();
         }
 
         document.setIsDeleted(true);
         documentRepository.save(document);
+    }
+
+    // createdBy lưu Keycloak subject của người tạo — trùng với userId trong principal
+    private boolean isAdminOrCreator(InventoryDocument document) {
+        if (SecurityUtils.isAdmin()) {
+            return true;
+        }
+        UUID currentUserId = getCurrentUserId();
+        return currentUserId != null && currentUserId.equals(document.getCreatedBy());
     }
 
     private InventoryDocument getDocument(UUID id) {
