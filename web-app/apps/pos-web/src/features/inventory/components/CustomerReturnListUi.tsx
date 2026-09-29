@@ -11,6 +11,7 @@ export interface CustomerReturnStatusTab {
 
 export interface ListFilterBarProps {
     searchTerm: string;
+    searchPlaceholder?: string;
     onSearchChange(value: string): void;
     activeStatus: string;
     statusTabs: CustomerReturnStatusTab[];
@@ -23,6 +24,7 @@ export interface ListFilterBarProps {
 
 export function ListFilterBar({
     searchTerm,
+    searchPlaceholder = "Tìm mã phiếu hoàn hoặc mã đơn hàng",
     onSearchChange,
     activeStatus,
     statusTabs,
@@ -35,7 +37,7 @@ export function ListFilterBar({
                 <Search aria-hidden="true" size={18} />
                 <input
                     onChange={(event) => onSearchChange(event.currentTarget.value)}
-                    placeholder="Tìm mã phiếu hoàn hoặc mã đơn hàng"
+                    placeholder={searchPlaceholder}
                     value={searchTerm}
                 />
             </div>

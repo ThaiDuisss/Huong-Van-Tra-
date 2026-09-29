@@ -1,6 +1,7 @@
 import { Clock3 } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import orderStyles from "../../order/pages/OrderListPage.module.css";
 import {
     disposalStatusLabels
 } from "../constants/quality.constants";
@@ -10,7 +11,8 @@ import type {
     DisposalStatus,
     QualityBatchStatus
 } from "../types/quality.types";
-import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
+import styles from "../pages/CustomerReturnListPage.module.css";
+import disposalStyles from "../pages/DisposalListPage.module.css";
 
 export function QualityStatusBadge({ status }: { status: QualityBatchStatus }) {
     const meta = inventoryStatusMeta[status];
@@ -23,6 +25,63 @@ export function DisposalStatusBadge({ status }: { status: DisposalStatus }) {
     return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${tone}`}><Clock3 size={14} />{disposalStatusLabels[status]}</span>;
 }
 
-export function DisposalTable({ disposals }: { disposals: DisposalRequest[] }) {
-    return <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card"><table className="w-full min-w-[860px] text-left text-sm"><thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]"><tr><th className="px-4 py-3">Mã yêu cầu</th><th>Phiếu trả</th><th>Phiếu kiểm định</th><th>Trạng thái</th><th>Số dòng</th><th>Số lượng</th><th>Ngày tạo</th></tr></thead><tbody>{disposals.map((item) => <tr className="hover:bg-[#f8fbf8]" key={item.id}><td className="border-t border-[#edf0f4] px-4 py-3 font-black"><Link className="text-[#159734] hover:underline" to={`/management/inventory/disposals/${item.id}`}>{item.code}</Link></td><td className="border-t border-[#edf0f4]">{item.returnCode ?? "-"}</td><td className="border-t border-[#edf0f4]">{item.inspectionCode ?? "-"}</td><td className="border-t border-[#edf0f4]"><DisposalStatusBadge status={item.status} /></td><td className="border-t border-[#edf0f4]">{formatVietnamNumber(item.lines.length)}</td><td className="border-t border-[#edf0f4]">{formatVietnamNumber(item.lines.reduce((sum, line) => sum + line.quantity, 0))}</td><td className="border-t border-[#edf0f4]">{formatVietnamDateTime(item.requestedAt)}</td></tr>)}</tbody></table></div>;
+export function DisposalTable({
+    canApprove,
+    disposals,
+    onApprove
+}: {
+    canApprove: boolean;
+    disposals: DisposalRequest[];
+    onApprove(request: DisposalRequest): void;
+}) {
+    return (
+        <table className={`${orderStyles.orderTable} ${styles.dataTable} ${disposalStyles.table}`}>
+            <thead>
+                <tr>
+                    <th>Mã yêu cầu</th>
+                    <th>Trạng thái</th>
+                    <th>Phiếu trả</th>
+                    <th>Phiếu kiểm định</th>
+                    <th>Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {disposals.map((request, index) => (
+                    <tr
+                        className={index % 2 === 0 ? orderStyles.zebraFirstRow : orderStyles.zebraSecondRow}
+                        key={request.id}
+                    >
+                        <td>
+                            <Link className={styles.codeButton} to={`/management/inventory/disposals/${request.id}`}>
+                                {request.code}
+                            </Link>
+                        </td>
+                        <td><DisposalStatusBadge status={request.status} /></td>
+                        <td className={disposalStyles.reference}>{request.returnCode ?? "–"}</td>
+                        <td className={disposalStyles.reference}>{request.inspectionCode ?? "–"}</td>
+                        <td>
+                            {request.status === "PENDING_APPROVAL" ? (
+                                <button
+                                    className={styles.actionButtonPrimary}
+                                    disabled={!canApprove}
+                                    onClick={() => onApprove(request)}
+                                    title={canApprove ? undefined : "Bạn không có quyền phê duyệt tiêu hủy"}
+                                    type="button"
+                                >
+                                    Phê duyệt
+                                </button>
+                            ) : (
+                                <Link
+                                    className={`${styles.actionButtonSecondary} ${disposalStyles.detailAction}`}
+                                    to={`/management/inventory/disposals/${request.id}`}
+                                >
+                                    Xem chi tiết
+                                </Link>
+                            )}
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    );
 }
