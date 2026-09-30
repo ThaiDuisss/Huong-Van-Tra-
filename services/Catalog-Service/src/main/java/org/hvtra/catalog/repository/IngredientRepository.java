@@ -38,4 +38,7 @@ public interface IngredientRepository extends JpaRepository<Ingredient, UUID>, J
     /** Lấy tên theo id cho các giá trị đã chọn sẵn trong dropdown. */
     @Query("SELECT i.id AS id, i.name AS name FROM Ingredient i WHERE i.id IN :ids")
     List<IdNameView> findLookupByIds(@Param("ids") Collection<UUID> ids);
+
+    @Query("SELECT i.id FROM Ingredient i JOIN i.suppliers s WHERE s.id = :supplierId")
+    List<UUID> findIdsBySupplierId(@Param("supplierId") UUID supplierId);
 }

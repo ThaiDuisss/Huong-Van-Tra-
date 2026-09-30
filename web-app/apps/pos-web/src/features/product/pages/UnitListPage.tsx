@@ -1,5 +1,6 @@
 import { Download, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { SearchableDropdown } from "../../manufacturing/components/shared/SearchableDropdown";
 import type { LookupItem } from "../../manufacturing/components/shared/SearchableDropdown";
@@ -13,16 +14,16 @@ import {
     CatalogResourceManagement,
     TableCell
 } from "../components/CatalogResourceManagement";
-import { ExcelImportModal } from "../components/ExcelImportModal";
 import { usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { unitApi } from "../services/unit.api";
+import { routePaths } from "../../../routes/path";
 import type { CatalogStatus, Unit, UnitType } from "../types/product.types";
 import { getNumber, getString } from "../utils/form-values";
 
 export function UnitListPage() {
     const state = useCatalogPageState();
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const navigate = useNavigate();
 
     const loadUnits = useCallback(
         () =>
@@ -99,48 +100,6 @@ export function UnitListPage() {
         }
     };
 
-    const validateUnitRow = (row: any, index?: number, allRows?: any[]) => {
-        const name = String(row["Tên đơn vị (*)"] || row["Tên đơn vị"] || row["name"] || "").trim();
-        const symbol = String(row["Ký hiệu (*)"] || row["Ký hiệu"] || row["symbol"] || "").trim();
-
-        if (!name) {
-            return { isValid: false, error: "Tên đơn vị không được để trống" };
-        }
-        if (!symbol) {
-            return { isValid: false, error: "Ký hiệu không được để trống" };
-        }
-        if (allRows && typeof index === "number") {
-            const firstIdx = allRows.findIndex((r) => {
-                const s = String(r["Ký hiệu (*)"] || r["Ký hiệu"] || r["symbol"] || "").trim();
-                return s.toLowerCase() === symbol.toLowerCase();
-            });
-            if (firstIdx !== -1 && firstIdx !== index) {
-                return { isValid: false, error: `Ký hiệu '${symbol}' bị trùng lặp trong file (dòng ${firstIdx + 2})` };
-            }
-        }
-        return { isValid: true };
-    };
-
-    const handleImportExcel = async (file: File) => {
-        await unitApi.import(file);
-        handleRefresh();
-    };
-
-    const handleDownloadTemplate = async () => {
-        try {
-            const blob = await unitApi.downloadTemplate();
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", "mau_nhap_don_vi.xlsx");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            console.error("Lỗi tải file mẫu:", error);
-            alert("Có lỗi xảy ra khi tải file mẫu!");
-        }
-    };
 
     return (
         <>
@@ -152,7 +111,7 @@ export function UnitListPage() {
                 totalItemsLabel="Tổng số đơn vị"
                 extraHeaderActions={
                     <>
-                        <ActionButton variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+                        <ActionButton variant="secondary" onClick={() => navigate(routePaths.unitImport)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
                         </ActionButton>
@@ -362,15 +321,6 @@ export function UnitListPage() {
                 ]}
             />
 
-            <ExcelImportModal
-                isOpen={isImportModalOpen}
-                onClose={() => setIsImportModalOpen(false)}
-                title="Nhập danh sách Đơn vị tính từ Excel"
-                description="Tải lên danh sách đơn vị tính theo mẫu định dạng của hệ thống."
-                onDownloadTemplate={handleDownloadTemplate}
-                onImport={handleImportExcel}
-                validateRow={validateUnitRow}
-            />
         </>
     );
 }

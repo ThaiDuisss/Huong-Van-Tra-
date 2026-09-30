@@ -75,6 +75,7 @@ import { ProductListPage } from "../features/product/pages/ProductListPage";
 import { ProductImportPage } from "../features/product/pages/ProductImportPage";
 import { ProductVariantImportPage } from "../features/product/pages/ProductVariantImportPage";
 import { IngredientImportPage } from "../features/product/pages/IngredientImportPage";
+import { UnitImportPage } from "../features/product/pages/UnitImportPage";
 import { ProductImportReviewPage } from "../features/product/pages/ProductImportReviewPage";
 import { ImportBatchListPage } from "../features/product/pages/ImportBatchListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
@@ -84,6 +85,7 @@ import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
 import { ShelfManagementPage } from "../features/inventory/pages/ShelfManagementPage";
+import { WarehouseInventoryPage } from "../features/inventory/pages/WarehouseInventoryPage";
 import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
 import {
@@ -230,6 +232,7 @@ export function AppRouter() {
         <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
           <Route path="categories" element={<CategoryListPage />} />
           <Route path="units" element={<UnitListPage />} />
+          <Route path="units/import" element={<UnitImportPage />} />
           <Route path="products" element={<ProductListPage />} />
           <Route path="products/import" element={<ProductImportPage />} />
 
@@ -254,6 +257,7 @@ export function AppRouter() {
           <Route path="inventory/transactions" element={<InventoryTransactionPage />} />
           <Route path="inventory/shelves" element={<ShelfManagementPage />} />
           <Route path="inventory/balances" element={<InventoryBalancePage />} />
+          <Route path="inventory/warehouse" element={<WarehouseInventoryPage />} />
           <Route
             path="inventory/documents"
             element={<Navigate to={routePaths.inventoryDocuments} replace />}
@@ -341,6 +345,7 @@ export function AppRouter() {
           <Route path="inventory/receipts/import" element={<GoodsReceiptImportPage />} />
           <Route path="inventory/receipts/import/:batchId" element={<GoodsReceiptImportReviewPage />} />
           <Route path="inventory/receipts/:receiptId" element={<GoodsReceiptDetailPage />} />
+          <Route path="inventory/receipts/:receiptId/edit" element={<GoodsReceiptCreatePage />} />
           <Route path="inventory/import-excel/new" element={<GoodsReceiptImportPage />} />
           <Route path="inventory/import-excel/:batchId" element={<GoodsReceiptImportReviewPage />} />
         </Route>

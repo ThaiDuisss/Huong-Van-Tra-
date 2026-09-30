@@ -55,6 +55,9 @@ public interface CatalogClient {
             @RequestParam(name = "unitId", required = false) UUID unitId
     );
 
+    @GetMapping("/internal/catalog/suppliers/{supplierId}/ingredient-ids")
+    List<UUID> getSupplierIngredientIds(@PathVariable("supplierId") UUID supplierId);
+
     @PostMapping("/internal/catalog/ingredients/batch")
     List<IngredientResponse> getIngredientsBatch(@RequestBody List<UUID> ids);
 

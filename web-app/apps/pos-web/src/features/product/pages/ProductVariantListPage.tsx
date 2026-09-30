@@ -191,6 +191,9 @@ function ProductVariantFormWrapper({
                 quantity: Number(formQuantity),
                 sellingPrice: Number(formSellingPrice),
                 costPrice: Number(formCostPrice),
+                sellableQuantity: Number(formSellableQuantity),
+                productionThreshold: Number(formProductionThreshold),
+                productionBatchQuantity: Number(formProductionBatchQuantity),
                 unitId: formUnitId,
                 inventoryPolicy: formInventoryPolicy,
                 status: formStatus

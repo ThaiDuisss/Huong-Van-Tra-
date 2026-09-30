@@ -78,7 +78,8 @@ export interface InventoryAuditEvent {
         | "REJECT"
         | "POST"
         | "CANCEL"
-        | "REVERSE";
+        | "REVERSE"
+        | "QC";
     actor: UserSnapshot;
     roleSnapshot: StockDocumentRole;
     happenedAt: string;

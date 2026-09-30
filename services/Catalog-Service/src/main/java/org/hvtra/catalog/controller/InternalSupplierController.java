@@ -49,6 +49,12 @@ public class InternalSupplierController {
         return service.findAllForLookup();
     }
 
+    /** Id các nguyên liệu ACTIVE mà nhà cung cấp này cung cấp — Inventory-Service dùng để lọc mặt hàng khi lập phiếu nhập. */
+    @GetMapping("/{supplierId}/ingredient-ids")
+    public List<UUID> getIngredientIds(@PathVariable UUID supplierId) {
+        return service.findIngredientIds(supplierId);
+    }
+
     /** Bổ sung danh sách nguyên liệu được phép cung cấp cho nhà cung cấp. */
     @PostMapping("/{supplierId}/ingredients")
     @ResponseStatus(HttpStatus.NO_CONTENT)

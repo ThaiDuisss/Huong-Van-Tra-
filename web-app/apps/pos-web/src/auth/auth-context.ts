@@ -7,6 +7,8 @@ export type AuthContextValue = {
     authenticated: boolean;
     user?: CurrentUser;
     userId?: string;
+    /** Keycloak subject (JWT sub) của user đang đăng nhập — so sánh với createdBy của dữ liệu backend. */
+    keycloakSubject?: string;
     username?: string;
     email?: string;
     fullName?: string;

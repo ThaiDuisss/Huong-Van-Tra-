@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
@@ -13,8 +13,6 @@ import {
 } from "../../../components/ui/dialog";
 import {
     GoodsReceiptAuditTimeline,
-    GoodsReceiptCostTable,
-    GoodsReceiptEvidenceList,
     GoodsReceiptLifecycleStepper,
     GoodsReceiptLineTable,
     GoodsReceiptStatusBadge,
@@ -117,7 +115,7 @@ export function GoodsReceiptDetailPage() {
         };
     }, [receiptId]);
 
-    const { hasAnyRole, isAdmin, isBranchManager, isInventoryManager, isInventoryStaff, isQc } = useAuthorization();
+    const { isAdmin, isBranchManager, isInventoryManager, isInventoryStaff, isQc, keycloakSubject } = useAuthorization();
 
     useEffect(() => loadReceipt(), [loadReceipt]);
 
@@ -126,7 +124,7 @@ export function GoodsReceiptDetailPage() {
         window.setTimeout(() => setToast(null), 3000);
     }
 
-    const canShowCost = hasAnyRole(["ADMIN", "ACCOUNTANT", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
+    // const canShowCost = hasAnyRole(["ADMIN", "ACCOUNTANT", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
 
     // 1. Submit for Approval (DRAFT -> PENDING_APPROVAL)
     async function submitReceipt() {
@@ -422,12 +420,27 @@ export function GoodsReceiptDetailPage() {
                             <GoodsReceiptStatusBadge status={receipt.status} />
                             <QcBadge result={receipt.qcResult} />
                         </div>
-                        <p className="text-sm font-semibold text-[#536078]">
-                            <span className="font-bold text-[#172317]">Nhà cung cấp:</span> {receipt.supplier.name} ·{" "}
-                            <span className="font-bold text-[#172317]">Kho nhận:</span> {receipt.receivingLocation.name} ·{" "}
-                            {/* <span className="font-bold text-[#172317]">Đơn đặt PO:</span> {receipt.purchaseOrderCode || "Ngoài PO"} ·{" "} */}
-                            <span className="font-bold text-[#172317]">Ngày dự kiến:</span> {formatVietnamDateTime(receipt.receivedAt)}
-                        </p>
+                        <div className="text-sm font-semibold text-[#536078] space-y-1">
+                            <div>
+                                <span className="font-bold text-[#172317]">Nhà cung cấp:</span>{" "}
+                                {receipt.supplier.name}
+                            </div>
+
+                            <div>
+                                <span className="font-bold text-[#172317]">Kho nhận:</span>{" "}
+                                {receipt.receivingLocation.name}
+                            </div>
+
+                            {/* <div>
+        <span className="font-bold text-[#172317]">Đơn đặt PO:</span>{" "}
+        {receipt.purchaseOrderCode || "Ngoài PO"}
+    </div> */}
+
+                            <div>
+                                <span className="font-bold text-[#172317]">Ngày dự kiến:</span>{" "}
+                                {formatVietnamDateTime(receipt.receivedAt)}
+                            </div>
+                        </div>
                         {receipt.note ? (
                             <p className="text-xs font-semibold italic text-[#697684]">
                                 Ghi chú: {receipt.note}
@@ -437,6 +450,18 @@ export function GoodsReceiptDetailPage() {
 
                     {/* VÙNG NÚT HÀNH ĐỘNG THEO TỪNG BƯỚC VÒNG ĐỜI */}
                     <div className="flex flex-wrap items-center gap-2">
+                        {/* Chỉnh sửa: phiếu DRAFT/REJECTED, chỉ ADMIN hoặc người tạo (createdBy = Keycloak subject) */}
+                        {(receipt.status === "DRAFT" || receipt.status === "REJECTED")
+                            && (isAdmin() || (Boolean(keycloakSubject) && receipt.createdBy.id === keycloakSubject)) ? (
+                            <Link
+                                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] hover:bg-[#f4faf5]"
+                                state={{ receipt }}
+                                to={`/management/inventory/receipts/${receipt.id}/edit`}
+                            >
+                                <Pencil size={15} aria-hidden="true" />
+                                Chỉnh sửa
+                            </Link>
+                        ) : null}
                         {receipt.status === "DRAFT" ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
@@ -491,7 +516,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "QC_PENDING" && (isQc() || isInventoryManager() || isAdmin()) ? (
+                        {receipt.status === "QC_PENDING" && (isQc()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -509,7 +534,7 @@ export function GoodsReceiptDetailPage() {
                                 onClick={() => setPostOpen(true)}
                                 type="button"
                             >
-                                Ghi sổ Nhập kho khả dụng (Post)
+                                Ghi sổ nhập kho
                             </button>
                         ) : null}
 
@@ -536,11 +561,11 @@ export function GoodsReceiptDetailPage() {
             {/* THANH TAB NỘI DUNG */}
             <nav className="flex gap-2 overflow-x-auto pb-1">
                 {[
-                    ["lines", "Dòng hàng & Kiểm định"],
                     ["overview", "Tổng quan phiếu"],
-                    ["cost", "Giá trị nhập kho"],
-                    ["documents", "Chứng từ liên quan"],
-                    ["evidence", "Ảnh & Biên bản"],
+                    ["lines", "Dòng hàng & Kiểm định"],
+                    // ["cost", "Giá trị nhập kho"],
+                    // ["documents", "Chứng từ liên quan"],
+                    // ["evidence", "Ảnh & Biên bản"],
                     ["audit", "Lịch sử xử lý"]
                 ].map(([value, label]) => (
                     <button
@@ -581,7 +606,7 @@ export function GoodsReceiptDetailPage() {
             ) : null}
 
             {/* TAB: GIÁ TRỊ NHẬP KHO */}
-            {tab === "cost" ? (
+            {/* {tab === "cost" ? (
                 canShowCost ? (
                     <GoodsReceiptCostTable receipt={receipt} />
                 ) : (
@@ -589,10 +614,10 @@ export function GoodsReceiptDetailPage() {
                         Tài khoản hiện tại không có quyền xem chi phí giá nhập.
                     </div>
                 )
-            ) : null}
+            ) : null} */}
 
             {/* TAB: CHỨNG TỪ LIÊN QUAN */}
-            {tab === "documents" ? (
+            {/* {tab === "documents" ? (
                 <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4">
                     <div className="text-sm font-bold text-[#172317]">
                         Mã chứng từ kho: <span className="font-mono text-[#159734]">{receipt.stockDocumentCode || "Chưa ghi sổ"}</span>
@@ -602,10 +627,10 @@ export function GoodsReceiptDetailPage() {
                         Khi có số lượng lỗi QC, hệ thống tự động liên kết với Yêu cầu trả hàng NCC (Supplier Return Request).
                     </div>
                 </div>
-            ) : null}
+            ) : null} */}
 
             {/* TAB: ĐÍNH KÈM & AUDIT */}
-            {tab === "evidence" ? <GoodsReceiptEvidenceList receipt={receipt} /> : null}
+            {/* {tab === "evidence" ? <GoodsReceiptEvidenceList receipt={receipt} /> : null} */}
             {tab === "audit" ? <GoodsReceiptAuditTimeline receipt={receipt} /> : null}
 
             {/* ============================================================ */}
@@ -841,11 +866,10 @@ export function GoodsReceiptDetailPage() {
                                                     key={p}
                                                     type="button"
                                                     onClick={() => setQcPage(p)}
-                                                    className={`grid size-8 place-items-center rounded-lg text-xs font-black transition-colors cursor-pointer ${
-                                                        p === safeQcPage
-                                                            ? "bg-[#7c3aed] text-white shadow-sm"
-                                                            : "border border-[#dce5e1] bg-white text-[#536078] hover:bg-[#f7f8fb]"
-                                                    }`}
+                                                    className={`grid size-8 place-items-center rounded-lg text-xs font-black transition-colors cursor-pointer ${p === safeQcPage
+                                                        ? "bg-[#7c3aed] text-white shadow-sm"
+                                                        : "border border-[#dce5e1] bg-white text-[#536078] hover:bg-[#f7f8fb]"
+                                                        }`}
                                                 >
                                                     {p}
                                                 </button>

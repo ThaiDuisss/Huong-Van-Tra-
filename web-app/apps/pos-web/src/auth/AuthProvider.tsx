@@ -33,6 +33,7 @@ function isFreshCache(entry: UserCacheEntry) {
 function sanitizeUserForCache(user: CurrentUser): CurrentUser {
     return {
         id: user.id,
+        keycloakSubject: user.keycloakSubject,
         username: user.username,
         usernameSnapshot: user.usernameSnapshot,
         fullName: user.fullName,
@@ -218,6 +219,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         keycloak.authenticated ? readUserCache() : undefined
     );
     const tokenRoles = keycloak.realmAccess?.roles;
+    // JWT "sub" — đúng giá trị Gateway gửi sang backend (X-User-ID) và được lưu vào createdBy/updatedBy
+    const keycloakSubject = authenticated ? keycloak.subject ?? user?.keycloakSubject : undefined;
 
     const syncAuthState = () => {
         setAuthenticated(!!keycloak.authenticated);
@@ -299,6 +302,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             authenticated,
             user,
             userId: user?.id ?? user?.keycloakSubject,
+            keycloakSubject,
             username:
                 user?.usernameSnapshot ??
                 user?.username,
@@ -336,7 +340,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return keycloak.hasResourceRole(role, resource);
             },
         }),
-        [initialized, authenticated, tokenRoles, user]
+        [initialized, authenticated, tokenRoles, user, keycloakSubject]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
