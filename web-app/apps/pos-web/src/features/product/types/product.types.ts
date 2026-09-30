@@ -130,13 +130,17 @@ export interface ProductVariantInput {
     quantity: number;
     sellingPrice: number;
     costPrice: number;
-    sellableQuantity: number;
-    productionThreshold: number;
-    productionBatchQuantity: number;
     /** ID đơn vị bán thương mại */
     unitId: EntityId;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
+}
+
+/** Cấu hình bán hàng của Mặt hàng — chỉ SUPER_ADMIN được thay đổi, tách khỏi biểu mẫu sửa Mặt hàng. */
+export interface SellableConfigInput {
+    sellableQuantity: number;
+    productionThreshold: number;
+    productionBatchQuantity: number;
 }
 
 export interface PriceListItem {

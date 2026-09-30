@@ -30,6 +30,7 @@ export interface PosVariantResponse {
     availableQuantity?: number | string | null;
     sellableQuantity?: number | string | null;
     quantityOnHand?: number | string | null;
+    reservedQuantity?: number | string | null;
     quantityReserved?: number | string | null;
     stockStatus?: string | null;
 }
@@ -43,6 +44,9 @@ function toNumber(value: number | string | null | undefined) {
 function mapPosVariantToSaleProduct(
     variant: PosVariantResponse
 ): SaleProductPreview {
+    // Số lượng có thể bán lấy theo tồn khả dụng của Inventory (đã cộng mọi kệ, mọi batch).
+    const availableQuantity = toNumber(variant.availableQuantity);
+
     return {
         id: String(variant.variantId),
         productVariantId: String(variant.variantId),
@@ -55,10 +59,12 @@ function mapPosVariantToSaleProduct(
         imageUrl: variant.imageUrl ?? fallbackImageUrl,
         inventoryLocationId:
             variant.inventoryLocationId ?? variant.locationId ?? null,
-        availableQuantity: toNumber(variant.availableQuantity),
-        sellableQuantity: toNumber(variant.sellableQuantity),
+        availableQuantity,
+        sellableQuantity: availableQuantity,
         quantityOnHand: toNumber(variant.quantityOnHand),
-        quantityReserved: toNumber(variant.quantityReserved)
+        quantityReserved: toNumber(
+            variant.reservedQuantity ?? variant.quantityReserved
+        )
     };
 }
 
