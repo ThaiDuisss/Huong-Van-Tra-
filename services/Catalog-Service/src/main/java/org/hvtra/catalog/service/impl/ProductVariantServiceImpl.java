@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.entity.BusinessSequence;
 import org.hvtra.commonservice.common_core.util.CodeUtils;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
+import org.hvtra.catalog.dto.request.SellableConfigRequest;
 import org.hvtra.catalog.dto.request.SellableQuantityAdjustmentRequest;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.response.LookupResponse;
@@ -238,6 +239,20 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         return mapper.toVariantResponse(savedVariant);
     }
 
+    /**
+     * Khóa dòng trước khi ghi để không đè lên lượt trừ/hoàn sellable của đơn hàng đang chạy song song.
+     */
+    @Override
+    @Transactional
+    public ProductResponse.VariantResponse updateSellableConfig(UUID id, SellableConfigRequest request) {
+        ProductVariant variant = repository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
+        variant.setSellableQuantity(request.sellableQuantity());
+        variant.setProductionThreshold(request.productionThreshold());
+        variant.setProductionBatchQuantity(request.productionBatchQuantity());
+        return mapper.toVariantResponse(repository.save(variant));
+    }
+
     @Override
     @Transactional
     public SellableQuantityAdjustmentResponse decrementSellableQuantity(
@@ -358,9 +373,6 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         variant.setQuantity(request.quantity());
         variant.setSellingPrice(request.sellingPrice());
         variant.setCostPrice(request.costPrice());
-        variant.setSellableQuantity(defaultQuantity(request.sellableQuantity(), BigDecimal.ZERO));
-        variant.setProductionThreshold(defaultQuantity(request.productionThreshold(), BigDecimal.ZERO));
-        variant.setProductionBatchQuantity(defaultQuantity(request.productionBatchQuantity(), BigDecimal.ONE));
 
         Unit unit = unitRepository.findById(request.unitId())
                 .orElseThrow(() -> new ResourceNotFoundException("Unit", request.unitId()));
@@ -377,10 +389,6 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             throw new IllegalArgumentException("quantity must be greater than 0");
         }
         return quantity;
-    }
-
-    private BigDecimal defaultQuantity(BigDecimal value, BigDecimal fallback) {
-        return value != null ? value : fallback;
     }
 
     private BigDecimal safeQuantity(BigDecimal value) {

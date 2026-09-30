@@ -80,6 +80,7 @@ import { ProductImportReviewPage } from "../features/product/pages/ProductImport
 import { ImportBatchListPage } from "../features/product/pages/ImportBatchListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
 import { ProductVariantDetailPage } from "../features/product/pages/ProductVariantDetailPage";
+import { SellableConfigPage } from "../features/product/pages/SellableConfigPage";
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
@@ -98,6 +99,7 @@ import {
   POS_WORKSPACE_ROLES,
   PRODUCT_ROLES,
   REPORT_ROLES,
+  SELLABLE_CONFIG_ROLES,
   getDefaultRouteForRoles,
   type AppRole,
 } from "../auth/role-utils";
@@ -210,6 +212,9 @@ export function AppRouter() {
         <Route path="dashboard/*" element={<DashboardOverviewPage />} />
         <Route element={<RoleGate roles={ACTION_LOG_ROLES} />}>
           <Route path="action-logs" element={<ActionLogPage />} />
+        </Route>
+        <Route element={<RoleGate roles={SELLABLE_CONFIG_ROLES} />}>
+          <Route path="sellable-config" element={<SellableConfigPage />} />
         </Route>
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />

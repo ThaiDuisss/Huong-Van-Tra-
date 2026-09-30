@@ -260,6 +260,27 @@ public interface InventoryBalanceRepository
             @Param("locationStatus") InventoryStatus locationStatus,
             @Param("excludedLocationTypes") Collection<InventoryLocationType> excludedLocationTypes);
 
+    /**
+     * Tồn có thể bán của item trên mọi vị trí bán được (nhiều kệ, nhiều batch) — mỗi dòng là 1 cặp
+     * (batch + vị trí), chỉ lấy batch AVAILABLE và chưa hết hạn, cùng điều kiện với FEFO lúc xuất bán.
+     */
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.inventoryItem i
+            join fetch b.inventoryBatch batch
+            join fetch b.location l
+            where i.id in :inventoryItemIds
+              and l.status = :locationStatus
+              and l.type not in :excludedLocationTypes
+              and batch.status = org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus.AVAILABLE
+              and (batch.expiryDate is null or batch.expiryDate >= :today)
+            """)
+    List<InventoryBalance> findSellableBatchBalancesByInventoryItemIds(
+            @Param("inventoryItemIds") Collection<UUID> inventoryItemIds,
+            @Param("locationStatus") InventoryStatus locationStatus,
+            @Param("excludedLocationTypes") Collection<InventoryLocationType> excludedLocationTypes,
+            @Param("today") LocalDate today);
+
     @Query("""
             select b from InventoryBalance b
             where b.inventoryItem.id = :itemId and b.location.id = :locationId

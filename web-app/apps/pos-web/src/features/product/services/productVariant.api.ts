@@ -3,7 +3,8 @@ import type {
     CatalogQuery,
     PageResult,
     ProductVariant,
-    ProductVariantInput
+    ProductVariantInput,
+    SellableConfigInput
 } from "../types/product.types";
 
 export interface ProductVariantQuery extends CatalogQuery {
@@ -63,9 +64,6 @@ export const productVariantApi = {
             quantity: input.quantity,
             sellingPrice: input.sellingPrice,
             costPrice: input.costPrice,
-            sellableQuantity: input.sellableQuantity,
-            productionThreshold: input.productionThreshold,
-            productionBatchQuantity: input.productionBatchQuantity,
             unitId: input.unitId,
             inventoryPolicy: input.inventoryPolicy,
             status: input.status
@@ -86,6 +84,12 @@ export const productVariantApi = {
         >(
             `/catalog/product-variants/${encodeURIComponent(id)}/status`,
             { status }
+        );
+    },
+    updateSellableConfig(id: string, input: SellableConfigInput) {
+        return apiClient.patch<ProductVariant, SellableConfigInput>(
+            `/catalog/product-variants/${encodeURIComponent(id)}/sellable-config`,
+            input
         );
     },
     export(productId?: string) {

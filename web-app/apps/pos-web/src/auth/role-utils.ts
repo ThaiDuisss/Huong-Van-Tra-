@@ -80,6 +80,9 @@ export const SETTINGS_ROLES: AppRole[] = [ROLES.SUPER_ADMIN, ROLES.ADMIN];
 /** Nhật ký hoạt động người dùng: chỉ quản trị viên. */
 export const ACTION_LOG_ROLES: AppRole[] = [ROLES.SUPER_ADMIN, ROLES.ADMIN];
 
+/** Cấu hình số lượng có thể bán và ngưỡng sản xuất: chỉ SUPER_ADMIN. */
+export const SELLABLE_CONFIG_ROLES: AppRole[] = [ROLES.SUPER_ADMIN];
+
 export const IMPORT_MANAGEMENT_ROLES: AppRole[] = [
     "ADMIN",
     "BRANCH_MANAGER"

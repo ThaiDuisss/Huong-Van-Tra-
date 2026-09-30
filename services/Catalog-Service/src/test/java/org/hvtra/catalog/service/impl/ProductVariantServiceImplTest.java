@@ -3,6 +3,8 @@ package org.hvtra.catalog.service.impl;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.request.SellableQuantityAdjustmentRequest;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
+import org.hvtra.catalog.dto.request.SellableConfigRequest;
+import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.dto.response.SellableQuantityAdjustmentResponse;
 import org.hvtra.catalog.entity.Product;
@@ -188,6 +190,34 @@ class ProductVariantServiceImplTest {
 
         assertEquals(new BigDecimal("10"), response.oldSellableQuantity());
         verify(repository, org.mockito.Mockito.never()).decrementSellableIfEnough(any(), any());
+    }
+
+    @Test
+    void updateSellableConfig_locksRowAndOverwritesAllThreeValues() {
+        UUID variantId = UUID.randomUUID();
+        ProductVariant variant = variantWithSellable(
+                variantId, new BigDecimal("5.00"), BigDecimal.ZERO, BigDecimal.ONE);
+        when(repository.findByIdForUpdate(variantId)).thenReturn(Optional.of(variant));
+        when(repository.save(variant)).thenReturn(variant);
+
+        service.updateSellableConfig(variantId, new SellableConfigRequest(
+                new BigDecimal("120.00"), new BigDecimal("30.00"), new BigDecimal("50.00")));
+
+        assertEquals(new BigDecimal("120.00"), variant.getSellableQuantity());
+        assertEquals(new BigDecimal("30.00"), variant.getProductionThreshold());
+        assertEquals(new BigDecimal("50.00"), variant.getProductionBatchQuantity());
+        verify(repository).findByIdForUpdate(variantId);
+        verify(repository).save(variant);
+    }
+
+    @Test
+    void updateSellableConfig_rejectsUnknownVariant() {
+        UUID variantId = UUID.randomUUID();
+        when(repository.findByIdForUpdate(variantId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.updateSellableConfig(variantId,
+                new SellableConfigRequest(BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE)));
+        verify(repository, org.mockito.Mockito.never()).save(any());
     }
 
     private ProductVariant variantWithSellable(

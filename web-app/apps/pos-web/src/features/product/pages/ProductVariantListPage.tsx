@@ -61,9 +61,6 @@ function ProductVariantFormWrapper({
     const [formQuantity, setFormQuantity] = useState(editingItem?.quantity ?? 0);
     const [formSellingPrice, setFormSellingPrice] = useState(editingItem?.sellingPrice ?? 0);
     const [formCostPrice, setFormCostPrice] = useState(editingItem?.costPrice ?? 0);
-    const [formSellableQuantity, setFormSellableQuantity] = useState(editingItem?.sellableQuantity ?? 0);
-    const [formProductionThreshold, setFormProductionThreshold] = useState(editingItem?.productionThreshold ?? 0);
-    const [formProductionBatchQuantity, setFormProductionBatchQuantity] = useState(editingItem?.productionBatchQuantity ?? 1);
     const [formUnitId, setFormUnitId] = useState(editingItem?.unitId ? String(editingItem.unitId) : "");
     const [formInventoryPolicy, setFormInventoryPolicy] = useState<InventoryPolicy>(
         editingItem?.inventoryPolicy || "TRACK_STOCK"
@@ -150,10 +147,6 @@ function ProductVariantFormWrapper({
         }
         if (formSellingPrice < 0 || formCostPrice < 0) {
             setFormError("Giá bán/Giá vốn không được âm.");
-            return false;
-        }
-        if (formSellableQuantity < 0 || formProductionThreshold < 0 || formProductionBatchQuantity <= 0) {
-            setFormError("Số lượng có thể bán và ngưỡng sản xuất không được âm; số lượng mỗi mẻ phải lớn hơn 0.");
             return false;
         }
 
@@ -293,27 +286,6 @@ function ProductVariantFormWrapper({
                                 value={formCostPrice}
                                 onChange={(e) => setFormCostPrice(Number(e.target.value))}
                             />
-                        </label>
-
-                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                            Số lượng có thể bán
-                            <input type="number" min={0} step="0.01" value={formSellableQuantity}
-                                onChange={(e) => setFormSellableQuantity(Number(e.target.value))}
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700" />
-                        </label>
-
-                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                            Ngưỡng yêu cầu sản xuất
-                            <input type="number" min={0} step="0.01" value={formProductionThreshold}
-                                onChange={(e) => setFormProductionThreshold(Number(e.target.value))}
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700" />
-                        </label>
-
-                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
-                            Số lượng mỗi mẻ sản xuất
-                            <input type="number" min={0.01} step="0.01" value={formProductionBatchQuantity}
-                                onChange={(e) => setFormProductionBatchQuantity(Number(e.target.value))}
-                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-medium text-gray-700" />
                         </label>
 
                         <div className="grid gap-1.5 text-sm font-bold text-gray-500">
