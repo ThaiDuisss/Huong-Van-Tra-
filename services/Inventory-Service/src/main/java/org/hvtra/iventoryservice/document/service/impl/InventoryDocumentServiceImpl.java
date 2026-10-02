@@ -417,7 +417,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         long pendingApproval = statusCounts.getOrDefault(InventoryDocumentStatus.PENDING_APPROVAL, 0L);
         long receiving = statusCounts.getOrDefault(InventoryDocumentStatus.RECEIVING, 0L)
                 + statusCounts.getOrDefault(InventoryDocumentStatus.APPROVED, 0L);
-        long awaitingQc = statusCounts.getOrDefault(InventoryDocumentStatus.QC_PENDING, 0L);
+        long awaitingQc = 0L;
         long readyToPost = statusCounts.getOrDefault(InventoryDocumentStatus.QC_COMPLETED, 0L);
         long postedToday = statusCounts.getOrDefault(InventoryDocumentStatus.POSTED, 0L);
 
@@ -695,7 +695,6 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             }
         }
 
-        document.setStatus(InventoryDocumentStatus.QC_PENDING);
         return toEnrichedResponse(documentRepository.save(document));
     }
 
@@ -704,8 +703,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     public InventoryDocumentResponse completeQc(UUID id, QcReceiptRequest request) {
         InventoryDocument document = getDocument(id);
 
-        if (document.getStatus() != InventoryDocumentStatus.QC_PENDING) {
-            throw new BadRequestException("Only QC_PENDING documents can complete QC");
+        if (document.getStatus() != InventoryDocumentStatus.RECEIVING) {
+            throw new BadRequestException("Only RECEIVING documents can complete QC");
         }
 
         for (var qcItem : request.items()) {
@@ -764,7 +763,12 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             }
         }
 
-        document.setStatus(InventoryDocumentStatus.QC_COMPLETED);
+        // Determine next status based on exceptions
+        InventoryDocumentStatus nextStatus = hasException(document)
+            ? InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL
+            : InventoryDocumentStatus.POSTED;
+
+        document.setStatus(nextStatus);
         document.setQcBy(getCurrentUserId());
         document.setQcAt(Instant.now());
         return toEnrichedResponse(documentRepository.save(document));
@@ -775,8 +779,9 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     public InventoryDocumentResponse post(UUID id) {
         InventoryDocument document = getDocument(id);
 
-        if (document.getStatus() != InventoryDocumentStatus.QC_COMPLETED) {
-            throw new BadRequestException("Only QC_COMPLETED documents can be posted");
+        if (document.getStatus() != InventoryDocumentStatus.QC_COMPLETED &&
+            document.getStatus() != InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL) {
+            throw new BadRequestException("Only QC_COMPLETED or PENDING_EXCEPTION_APPROVAL documents can be posted");
         }
 
         InventoryLocation location = locationRepository.findById(document.getLocationId())
@@ -938,5 +943,23 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     private String generateTransactionCode() {
         return "TX-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + "-" +
                 UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    private boolean hasException(InventoryDocument document) {
+        for (InventoryDocumentLine line : document.getLines()) {
+            // Check for shortage or excess
+            if (line.getShortageQuantity() != null && line.getShortageQuantity().compareTo(BigDecimal.ZERO) > 0) {
+                return true; // SHORTAGE
+            }
+            if (line.getExcessQuantity() != null && line.getExcessQuantity().compareTo(BigDecimal.ZERO) > 0) {
+                return true; // EXCESS
+            }
+
+            // Check for rejected/damaged items (Quality failure)
+            if (line.getRejectedQuantity() != null && line.getRejectedQuantity().compareTo(BigDecimal.ZERO) > 0) {
+                return true; // DAMAGED/QUALITY_FAIL
+            }
+        }
+        return false;
     }
 }
