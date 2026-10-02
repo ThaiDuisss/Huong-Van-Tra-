@@ -20,6 +20,12 @@ public record PosProductVariantResponse(
         BigDecimal sellableQuantity,
         BigDecimal availableQuantity,
         BigDecimal reservedQuantity,
-        String stockStatus
+        String stockStatus,
+        /** Số đang trên kệ bán (SHELF). */
+        BigDecimal shelfQuantity,
+        /** Số còn trong kho (WAREHOUSE / STORAGE). */
+        BigDecimal warehouseQuantity,
+        UUID shelfLocationId,
+        UUID warehouseLocationId
 ) {
 }

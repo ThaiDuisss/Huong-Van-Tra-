@@ -17,6 +17,7 @@ import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderDraftService;
 import org.hvtra.orderservice.service.OrderInventoryReservationService;
+import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.OrderDateTimeHelper;
@@ -33,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -53,6 +55,7 @@ public class OrderDraftServiceImpl implements OrderDraftService {
     private final OrderInventoryReservationService inventoryReservationService;
     private final OrderResponseAssembler orderResponseAssembler;
     private final OrderCheckoutPaymentProcessor orderCheckoutPaymentProcessor;
+    private final InventoryClient inventoryClient;
 
     @Override
     @Transactional
@@ -75,7 +78,7 @@ public class OrderDraftServiceImpl implements OrderDraftService {
                 ? BigDecimal.ZERO
                 : orderAmountCalculator.defaultZero(item.getQuantity());
         BigDecimal targetQuantity = oldQuantity.add(addQuantity);
-        validateSellableQuantity(variant.sellableQuantity(), targetQuantity);
+        validateSellableQuantity(order, item, variant.variantId(), targetQuantity);
 
         if (item == null) {
             item = orderItemMapper.toDraftOrderItem(
@@ -114,7 +117,7 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         }
 
         var variant = productSnapshotResolver.resolvePosView(item.getProductVariantId());
-        validateSellableQuantity(variant.sellableQuantity(), targetQuantity);
+        validateSellableQuantity(order, item, variant.variantId(), targetQuantity);
         item.setQuantity(targetQuantity);
         orderAmountCalculator.recalculateLine(item);
         orderAmountCalculator.recalculateOrderTotals(order);
@@ -193,12 +196,33 @@ public class OrderDraftServiceImpl implements OrderDraftService {
                 .orElseThrow(() -> new OrderNotFoundException("Không tìm thấy đơn hàng: " + orderId));
     }
 
-    private void validateSellableQuantity(BigDecimal sellableQuantity, BigDecimal targetQuantity) {
-        BigDecimal safeSellable = sellableQuantity == null ? BigDecimal.ZERO : sellableQuantity;
-        BigDecimal safeTarget = targetQuantity == null ? BigDecimal.ZERO : targetQuantity;
-        if (safeTarget.compareTo(safeSellable) > 0) {
+    /**
+     * Số có thể bán = tồn thực − đang giữ chỗ, lấy từ Inventory (cộng cả kệ và kho).
+     * Không dùng product_variants.sellable_quantity của Catalog: đó là cấu hình sản xuất của admin.
+     * So trên tổng số đặt của mặt hàng trong đơn, vì một mặt hàng có thể nằm ở nhiều dòng (khác ghi chú).
+     */
+    private void validateSellableQuantity(Order order, OrderItem editedItem, UUID variantId, BigDecimal targetQuantity) {
+        BigDecimal otherLines = order.getItems() == null ? BigDecimal.ZERO : order.getItems().stream()
+                .filter(line -> line != editedItem && variantId.equals(line.getProductVariantId()))
+                .map(line -> line.getQuantity() == null ? BigDecimal.ZERO : line.getQuantity())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal requested = otherLines.add(targetQuantity == null ? BigDecimal.ZERO : targetQuantity);
+        if (requested.compareTo(availableToSell(variantId)) > 0) {
             throw new InvalidOrderStatusException("Số lượng bán vượt quá số lượng có thể bán");
         }
+    }
+
+    private BigDecimal availableToSell(UUID variantId) {
+        List<InventoryClient.StockVariantBatchResponse> stocks = inventoryClient.getStocksByVariantIds(
+                new InventoryClient.StockVariantBatchRequest(List.of(variantId)));
+        if (stocks == null) {
+            return BigDecimal.ZERO;
+        }
+        return stocks.stream()
+                .filter(stock -> variantId.equals(stock.variantId()) && stock.availableQuantity() != null)
+                .map(InventoryClient.StockVariantBatchResponse::availableQuantity)
+                .findFirst()
+                .orElse(BigDecimal.ZERO);
     }
 
     private Order createDraftOrder(AddDraftOrderItemRequest request, Instant expiresAt) {

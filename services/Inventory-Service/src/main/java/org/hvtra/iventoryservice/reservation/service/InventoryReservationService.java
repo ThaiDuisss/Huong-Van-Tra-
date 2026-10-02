@@ -17,6 +17,13 @@ public interface InventoryReservationService {
     List<InventoryReservationResponse> reserveMaterials(ReserveMaterialOrderRequest request);
     List<InventoryReservationResponse> consumeMaterials(ReleaseInventoryReservationOrderRequest request);
     List<InventoryReservationResponse> releaseMaterials(ReleaseInventoryReservationOrderRequest request);
+
+    /**
+     * Trả lại nguyên liệu đã giữ chỗ khi bán (để sản xuất bù) cho lệnh sản xuất dùng: giải phóng các giữ chỗ
+     * cũ nhất của mặt hàng cho tới khi đủ {@code quantity}. Trả về tổng số lượng đã giải phóng.
+     */
+    java.math.BigDecimal releasePlannedMaterials(java.util.UUID productVariantId, java.util.UUID inventoryItemId,
+            java.math.BigDecimal quantity);
     int expireReservations();
     List<InventoryReservationResponse> getExpiringReservations(int withinMinutes);
 }

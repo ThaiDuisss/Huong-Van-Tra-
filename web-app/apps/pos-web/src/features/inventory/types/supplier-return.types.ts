@@ -217,3 +217,5 @@ export interface SupplierReturnApi {
     cancelSupplierReturn(input: SupplierReturnActionInput): Promise<SupplierReturnDetail>;
     getSupplierReturnOptions(): Promise<SupplierReturnOptions>;
 }
+
+export type AppRole = SupplierReturnRole;

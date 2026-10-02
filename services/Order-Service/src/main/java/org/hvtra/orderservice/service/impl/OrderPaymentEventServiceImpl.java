@@ -309,6 +309,10 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
         }
         order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.PROCESSING);
         order.setInventoryFailureReason(null);
+        if (immediateConsume) {
+            fulfillImmediateSale(order);
+            return;
+        }
         Map<UUID, BigDecimal> decremented = new LinkedHashMap<>();
         List<InventoryClient.ProductionRequiredAlertRequest> thresholdAlerts = new ArrayList<>();
         boolean catalogCallUncertain = false;
@@ -384,6 +388,116 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
                 order.setInventoryFailureReason(ex.getMessage());
             }
         }
+    }
+
+    /**
+     * Đơn giao ngay tại quầy: tồn thật nằm ở Inventory nên trừ thành phẩm trên kệ (kệ thiếu thì Inventory xuất kho
+     * lên kệ ngay, manager duyệt phiếu sau). sellable_quantity của Catalog chỉ là cấu hình, không bị trừ.
+     * Nguyên liệu theo BOM chỉ được giữ chỗ cho việc sản xuất bù, không bị tiêu khi bán.
+     * Toàn bộ nằm trong một transaction của Inventory nên lỗi thì không có gì cần bù trừ; gọi lại là an toàn.
+     */
+    private void fulfillImmediateSale(Order order) {
+        try {
+            Map<UUID, BigDecimal> variantQuantities = new LinkedHashMap<>();
+            if (order.getItems() != null) {
+                for (var item : order.getItems()) {
+                    variantQuantities.merge(item.getProductVariantId(), item.getQuantity(), BigDecimal::add);
+                }
+            }
+            if (variantQuantities.isEmpty()) {
+                order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.CONSUMED);
+                order.setInventoryProcessedAt(Instant.now());
+                return;
+            }
+            List<InventoryClient.FulfillSaleLine> lines = variantQuantities.entrySet().stream()
+                    .map(entry -> new InventoryClient.FulfillSaleLine(entry.getKey(), entry.getValue()))
+                    .toList();
+
+            InventoryClient.FulfillSaleResponse response = inventoryClient.fulfillSale(
+                    new InventoryClient.FulfillSaleRequest(
+                            order.getId(), order.getBranchId(), order.getInventoryProcessingAttempt(),
+                            lines, restockMaterialLines(variantQuantities)));
+
+            order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.CONSUMED);
+            order.setInventoryProcessedAt(Instant.now());
+            if (response != null && !response.alreadyProcessed()) {
+                raiseProductionAlerts(order, response);
+            }
+        } catch (RuntimeException ex) {
+            order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.FAILED);
+            order.setInventoryFailureReason(ex.getMessage());
+        }
+    }
+
+    /**
+     * Nguyên liệu cần để sản xuất bù đúng số vừa bán. Mặt hàng không có BOM hoặc Catalog lỗi thì bỏ qua phần
+     * nguyên liệu, không chặn việc bán thành phẩm.
+     */
+    private List<InventoryClient.FulfillSaleMaterialLine> restockMaterialLines(Map<UUID, BigDecimal> variantQuantities) {
+        List<InventoryClient.FulfillSaleMaterialLine> materials = new ArrayList<>();
+        for (var entry : variantQuantities.entrySet()) {
+            List<CatalogClient.BomItemResponse> bom;
+            try {
+                bom = catalogClient.getBomItemsByVariantId(entry.getKey());
+            } catch (RuntimeException ex) {
+                log.warn("Cannot load BOM for variant {} to plan restock materials: {}", entry.getKey(), ex.getMessage());
+                continue;
+            }
+            if (bom == null) {
+                continue;
+            }
+            for (var bomItem : bom) {
+                if (bomItem.ingredient() == null || bomItem.ingredient().id() == null || bomItem.quantity() == null) {
+                    continue;
+                }
+                // wasteRate là phần trăm (0–100), cùng cách tính với lệnh sản xuất.
+                BigDecimal wasteFactor = BigDecimal.ONE.add((bomItem.wasteRate() == null ? BigDecimal.ZERO : bomItem.wasteRate())
+                        .divide(BigDecimal.valueOf(100)));
+                BigDecimal required = entry.getValue().multiply(bomItem.quantity()).multiply(wasteFactor);
+                if (required.compareTo(BigDecimal.ZERO) > 0) {
+                    materials.add(new InventoryClient.FulfillSaleMaterialLine(
+                            entry.getKey(), bomItem.ingredient().id(), required));
+                }
+            }
+        }
+        return materials;
+    }
+
+    /**
+     * Cảnh báo cần sản xuất khi tồn thật (kệ + kho) sau khi bán xuống tới ngưỡng production_threshold.
+     * Số đề xuất là phần còn thiếu để về lại mức sellable_quantity. Lỗi cảnh báo không làm hỏng đơn đã bán.
+     */
+    private void raiseProductionAlerts(Order order, InventoryClient.FulfillSaleResponse response) {
+        if (response.lines() == null) {
+            return;
+        }
+        for (var line : response.lines()) {
+            try {
+                var config = catalogClient.getVariantStockConfig(line.productVariantId());
+                if (config == null || config.productionThreshold() == null) {
+                    continue;
+                }
+                BigDecimal remaining = zeroIfNull(line.remainingShelfQuantity())
+                        .add(zeroIfNull(line.remainingWarehouseQuantity()));
+                if (remaining.compareTo(config.productionThreshold()) > 0) {
+                    continue;
+                }
+                BigDecimal toTarget = zeroIfNull(config.sellableQuantity()).subtract(remaining);
+                BigDecimal suggested = toTarget.compareTo(BigDecimal.ZERO) > 0
+                        ? toTarget
+                        : zeroIfNull(config.productionBatchQuantity());
+                inventoryClient.createProductionRequiredAlert(new InventoryClient.ProductionRequiredAlertRequest(
+                        line.productVariantId(), order.getBranchId(), remaining,
+                        config.productionThreshold(), suggested));
+            } catch (RuntimeException ex) {
+                log.warn("Cannot raise production alert for variant {} of order {}: {}",
+                        line.productVariantId(), order.getId(), ex.getMessage());
+            }
+        }
+    }
+
+    private BigDecimal zeroIfNull(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private boolean completeInventoryCompensation(Order order) {

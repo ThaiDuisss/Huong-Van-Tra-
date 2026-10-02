@@ -63,6 +63,9 @@ import { SupplierReturnListPage } from "../features/inventory/pages/SupplierRetu
 import { TransferCreatePage } from "../features/inventory/pages/TransferCreatePage";
 import { TransferDetailPage } from "../features/inventory/pages/TransferDetailPage";
 import { TransferListPage } from "../features/inventory/pages/TransferListPage";
+import { ShelfReplenishmentListPage } from "../features/inventory/pages/ShelfReplenishmentListPage";
+import { ShelfReplenishmentFormPage } from "../features/inventory/pages/ShelfReplenishmentFormPage";
+import { ShelfReplenishmentDetailPage } from "../features/inventory/pages/ShelfReplenishmentDetailPage";
 import { CouponListPage } from "../features/marketing/pages/CouponListPage";
 import { CouponUsageListPage } from "../features/marketing/pages/CouponUsageListPage";
 import { DiscountProgramListPage } from "../features/marketing/pages/DiscountProgramListPage";
@@ -369,6 +372,10 @@ export function AppRouter() {
           />
         </Route>
         <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
+          <Route path="inventory/shelf-replenishments" element={<ShelfReplenishmentListPage />} />
+          <Route path="inventory/shelf-replenishments/new" element={<ShelfReplenishmentFormPage />} />
+          <Route path="inventory/shelf-replenishments/:slipId" element={<ShelfReplenishmentDetailPage />} />
+          <Route path="inventory/shelf-replenishments/:slipId/edit" element={<ShelfReplenishmentFormPage />} />
           <Route path="inventory/transfers" element={<TransferListPage />} />
           <Route path="inventory/transfers/new" element={<TransferCreatePage />} />
           <Route path="inventory/transfers/:transferId" element={<TransferDetailPage />} />

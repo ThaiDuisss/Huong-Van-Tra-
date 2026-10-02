@@ -19,6 +19,12 @@ export interface SaleProductPreview {
   imageUrl: string;
   availableQuantity: number | null;
   sellableQuantity: number;
+  /** Số đang trên kệ bán. Vượt số này thì cần phiếu nhập kệ từ kho. */
+  shelfQuantity: number;
+  /** Số còn trong kho, chưa lên kệ. */
+  warehouseQuantity: number;
+  shelfLocationId?: string | null;
+  warehouseLocationId?: string | null;
   quantityOnHand?: number | null;
   quantityReserved?: number | null;
 }
