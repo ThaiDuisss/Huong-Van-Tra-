@@ -126,7 +126,7 @@ interface InventoryDocumentExportBackendResponse {
 }
 
 function resolveQcResult(status: GoodsReceiptStatus, totalAccepted: number, totalRejected: number): QcResult {
-    if (status !== "QC_COMPLETED" && status !== "POSTED") {
+    if (status !== "PENDING_EXCEPTION_APPROVAL" && status !== "POSTED") {
         return "PENDING";
     }
     if (totalRejected > 0 && totalAccepted > 0) {
@@ -376,34 +376,49 @@ export const goodsReceiptApi: GoodsReceiptApi = {
             const res = await apiClient.get<{
                 draft: number;
                 pendingApproval: number;
+                approved: number;
                 receiving: number;
+                pendingExceptionApproval: number;
                 awaitingQc: number;
                 readyToPost: number;
+                posted: number;
                 postedToday: number;
+                rejected: number;
+                cancelled: number;
                 total: number;
             }>("/inventory/documents/summary-counts", {
                 query: { documentType: "PURCHASE_RECEIPT" }
             });
             return {
+                approved: Number(res.approved || 0),
                 awaitingCost: 0,
                 awaitingQc: Number(res.awaitingQc || 0),
+                cancelled: Number(res.cancelled || 0),
                 draft: Number(res.draft || 0),
                 pendingApproval: Number(res.pendingApproval || 0),
+                pendingExceptionApproval: Number(res.pendingExceptionApproval || 0),
+                posted: Number(res.posted || 0),
                 postedToday: Number(res.postedToday || 0),
                 readyToPost: Number(res.readyToPost || 0),
                 receiving: Number(res.receiving || 0),
+                rejected: Number(res.rejected || 0),
                 total: Number(res.total || 0)
             };
         } catch (error) {
             console.error("Failed to get goods receipts summary counts:", error);
             return {
+                approved: 0,
                 awaitingCost: 0,
                 awaitingQc: 0,
+                cancelled: 0,
                 draft: 0,
                 pendingApproval: 0,
+                pendingExceptionApproval: 0,
+                posted: 0,
                 postedToday: 0,
                 readyToPost: 0,
                 receiving: 0,
+                rejected: 0,
                 total: 0
             };
         }
@@ -439,13 +454,18 @@ export const goodsReceiptApi: GoodsReceiptApi = {
                 page: res.page ?? query.page,
                 size: res.size ?? query.size,
                 summary: {
+                    approved: content.filter((r) => r.status === "APPROVED").length,
                     awaitingCost: 0,
-                    awaitingQc: content.filter((r) => r.status === "QC_PENDING" || r.status === "AWAITING_QC").length,
+                    awaitingQc: 0,
+                    cancelled: content.filter((r) => r.status === "CANCELLED").length,
                     draft: content.filter((r) => r.status === "DRAFT").length,
                     pendingApproval: content.filter((r) => r.status === "PENDING_APPROVAL").length,
+                    pendingExceptionApproval: content.filter((r) => r.status === "PENDING_EXCEPTION_APPROVAL").length,
+                    posted: content.filter((r) => r.status === "POSTED").length,
                     postedToday: content.filter((r) => r.status === "POSTED").length,
-                    readyToPost: content.filter((r) => r.status === "QC_COMPLETED" || r.status === "READY_TO_POST").length,
-                    receiving: content.filter((r) => r.status === "RECEIVING" || r.status === "APPROVED").length,
+                    readyToPost: 0,
+                    receiving: content.filter((r) => r.status === "RECEIVING").length,
+                    rejected: content.filter((r) => r.status === "REJECTED").length,
                     total: res.totalElements || content.length
                 },
                 totalElements: res.totalElements,
@@ -459,7 +479,21 @@ export const goodsReceiptApi: GoodsReceiptApi = {
                 last: true,
                 page: 0,
                 size: query.size,
-                summary: { awaitingCost: 0, awaitingQc: 0, draft: 0, pendingApproval: 0, postedToday: 0, readyToPost: 0, receiving: 0, total: 0 },
+                summary: {
+                    approved: 0,
+                    awaitingCost: 0,
+                    awaitingQc: 0,
+                    cancelled: 0,
+                    draft: 0,
+                    pendingApproval: 0,
+                    pendingExceptionApproval: 0,
+                    posted: 0,
+                    postedToday: 0,
+                    readyToPost: 0,
+                    receiving: 0,
+                    rejected: 0,
+                    total: 0
+                },
                 totalElements: 0,
                 totalPages: 0
             };
@@ -625,6 +659,45 @@ export const goodsReceiptApi: GoodsReceiptApi = {
 
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
             `/inventory/documents/${encodeURIComponent(input.receiptId)}/qc`,
+            payload
+        );
+        return mapDocToDetail(res);
+    },
+
+    async completeGoodsReceiptInspection(
+        receiptId: string,
+        receiveItems: Array<{ lineId: string; receivedQuantity: number; note?: string }>,
+        input: GoodsReceiptQcInput
+    ): Promise<GoodsReceiptDetail> {
+        const qcPayload = input.lines.map((line) => {
+            const batches = (line as unknown as { batches?: Array<{ batchCode: string; manufactureDate: string; expiryDate: string; quantity: number; supplierLot?: string }> }).batches;
+            return {
+                lineId: line.lineId,
+                acceptedQuantity: line.passedQuantity,
+                rejectedQuantity: line.failedQuantity,
+                batches: batches && batches.length > 0
+                    ? batches
+                    : line.passedQuantity > 0
+                        ? [
+                            {
+                                batchCode: `LOT-${Date.now()}`,
+                                expiryDate: "2027-12-31",
+                                manufactureDate: "2026-01-01",
+                                quantity: line.passedQuantity,
+                                supplierLot: ""
+                            }
+                        ]
+                        : []
+            };
+        });
+
+        const payload = {
+            receiveItems: receiveItems,
+            qcItems: qcPayload
+        };
+
+        const res = await apiClient.post<InventoryDocumentBackendResponse>(
+            `/inventory/documents/${encodeURIComponent(receiptId)}/qc`,
             payload
         );
         return mapDocToDetail(res);

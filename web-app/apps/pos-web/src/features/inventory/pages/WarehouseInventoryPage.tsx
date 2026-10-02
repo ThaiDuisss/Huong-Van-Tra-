@@ -77,9 +77,9 @@ export function WarehouseInventoryPage() {
     };
 
     return (
-        <section className="grid gap-5 p-5">
+        <section className="grid gap-5">
             {/* Header */}
-            <header className="flex flex-col gap-1">
+            <header className="flex flex-col gap-1 px-4 py-3">
                 <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
                     Tồn kho kho tổng
                 </h1>
