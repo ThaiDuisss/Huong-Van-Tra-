@@ -18,6 +18,7 @@ import {
     GoodsReceiptStatusBadge,
     QcBadge
 } from "../components/GoodsReceiptComponents";
+import { GoodsReceiptInspectionModal } from "../components/GoodsReceiptInspectionModal";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptDetail,
@@ -61,10 +62,9 @@ export function GoodsReceiptDetailPage() {
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectionReason, setRejectionReason] = useState("");
 
-    const [receiveOpen, setReceiveOpen] = useState(false);
+    const [inspectionOpen, setInspectionOpen] = useState(false);
+    const [inspectionTab, setInspectionTab] = useState<"receive" | "qc">("receive");
     const [receiveDraft, setReceiveDraft] = useState<ReceiveDraftLine[]>([]);
-
-    const [qcOpen, setQcOpen] = useState(false);
     const [qcDraft, setQcDraft] = useState<QcDraftLine[]>([]);
     const [qcPage, setQcPage] = useState(1);
     const [qcPageSize, setQcPageSize] = useState(3);
@@ -202,7 +202,7 @@ export function GoodsReceiptDetailPage() {
     }
 
     // 5. Open Receive Modal
-    function openReceiveModal() {
+    function openInspectionModal() {
         if (!receipt) return;
         setReceiveDraft(
             receipt.lines.map((l) => ({
@@ -214,63 +214,38 @@ export function GoodsReceiptDetailPage() {
                 unit: l.unit
             }))
         );
-        setReceiveOpen(true);
-    }
-
-    // 6. Confirm Receiving (RECEIVING)
-    async function submitReceive() {
-        if (!receipt) return;
-        try {
-            setMutationLoading(true);
-            const updated = await goodsReceiptApi.confirmReceivingGoodsReceipt(
-                receipt.id,
-                receiveDraft.map((l) => ({
-                    lineId: l.lineId,
-                    note: l.note,
-                    receivedQuantity: l.receivedQuantity
-                }))
-            );
-            setReceipt(updated);
-            setReceiveOpen(false);
-            showToast("Xác nhận kiểm đếm thực tế thành công! Phiếu sẵn sàng kiểm định QC.", true);
-        } catch (err) {
-            showToast(err instanceof Error ? err.message : "Xác nhận kiểm đếm thất bại.", false);
-        } finally {
-            setMutationLoading(false);
-        }
-    }
-
-    // 7. Open QC Modal
-    function openQcModal() {
-        if (!receipt) return;
-        const now = new Date();
-        const mfg = now.toISOString().split("T")[0];
-        const nextYear = new Date(now.setFullYear(now.getFullYear() + 1)).toISOString().split("T")[0];
-
         setQcDraft(
-            receipt.lines.map((l) => {
-                const received = l.receivedQuantity || 0;
-                const accepted = l.qc.passedQuantity || received;
-                const rejected = l.qc.failedQuantity || 0;
-
-                return {
-                    acceptedQuantity: accepted,
-                    expiryDate: l.expiryDate || nextYear,
-                    lineId: l.id,
-                    manufactureDate: l.manufacturedAt || mfg,
-                    materialName: l.materialName,
-                    receivedQuantity: received,
-                    rejectedQuantity: rejected,
-                    supplierLot: l.supplierLot || "",
-                    unit: l.unit
-                };
-            })
+            receipt.lines.map((l) => ({
+                lineId: l.id,
+                materialName: l.materialName,
+                unit: l.unit,
+                receivedQuantity: l.receivedQuantity || l.orderedQuantity || 0,
+                acceptedQuantity: l.qc?.passedQuantity ?? 0,
+                rejectedQuantity: l.qc?.failedQuantity ?? 0,
+                supplierLot: l.supplierLot ?? "",
+                manufactureDate: l.manufacturedAt ? l.manufacturedAt.split("T")[0] : "",
+                expiryDate: l.expiryDate ? l.expiryDate.split("T")[0] : "",
+                note: l.qc?.inspectionNote ?? ""
+            }))
         );
         setQcPage(1);
-        setQcOpen(true);
+        setInspectionTab("receive");
+        setInspectionOpen(true);
     }
 
-    // 7. Submit QC (RECEIVING -> QC_COMPLETED)
+    // 6. Confirm Receiving - submit tab 1
+    async function submitReceive() {
+        // Sync receivedQuantity từ receiveDraft sang qcDraft
+        setQcDraft((cur) =>
+            cur.map((qcLine) => {
+                const receiveLine = receiveDraft.find((r) => r.lineId === qcLine.lineId);
+                return receiveLine ? { ...qcLine, receivedQuantity: receiveLine.receivedQuantity } : qcLine;
+            })
+        );
+        setInspectionTab("qc");
+    }
+
+    // 7. Submit QC - gộp receive & QC thành 1 API call
     async function submitQc() {
         if (!receipt) return;
 
@@ -290,36 +265,45 @@ export function GoodsReceiptDetailPage() {
             }
         }
 
-        const input: GoodsReceiptQcInput = {
-            lines: qcDraft.map((l) => ({
-                acceptedQuantity: l.acceptedQuantity,
-                batches: l.acceptedQuantity > 0
-                    ? [
-                        {
-                            expiryDate: l.expiryDate,
-                            manufactureDate: l.manufactureDate,
-                            quantity: l.acceptedQuantity,
-                            supplierLot: l.supplierLot
-                        }
-                    ]
-                    : [],
-                failedQuantity: l.rejectedQuantity,
-                lineId: l.lineId,
-                passedQuantity: l.acceptedQuantity,
-                quarantinedQuantity: 0,
-                receivedQuantity: l.receivedQuantity
-            })),
-            receiptId: receipt.id
-        };
-
         try {
             setMutationLoading(true);
-            const updated = await goodsReceiptApi.performGoodsReceiptQc(input);
+            const input: GoodsReceiptQcInput = {
+                lines: qcDraft.map((l) => ({
+                    acceptedQuantity: l.acceptedQuantity,
+                    batches: l.acceptedQuantity > 0
+                        ? [
+                            {
+                                expiryDate: l.expiryDate,
+                                manufactureDate: l.manufactureDate,
+                                quantity: l.acceptedQuantity,
+                                supplierLot: l.supplierLot
+                            }
+                        ]
+                        : [],
+                    failedQuantity: l.rejectedQuantity,
+                    lineId: l.lineId,
+                    passedQuantity: l.acceptedQuantity,
+                    quarantinedQuantity: 0,
+                    receivedQuantity: l.receivedQuantity
+                })),
+                receiptId: receipt.id
+            };
+
+            const updated = await goodsReceiptApi.completeGoodsReceiptInspection(
+                receipt.id,
+                receiveDraft.map((l) => ({
+                    lineId: l.lineId,
+                    note: l.note,
+                    receivedQuantity: l.receivedQuantity
+                })),
+                input
+            );
             setReceipt(updated);
-            setQcOpen(false);
-            showToast("Kiểm định QC thành công.", true);
+            setInspectionOpen(false);
+            showToast("Kiểm định số lượng & chất lượng thành công.", true);
         } catch (err) {
-            showToast(err instanceof Error ? err.message : "Kiểm định QC thất bại.", false);
+            const errorMsg = err instanceof Error ? err.message : "Kiểm định thất bại.";
+            showToast(errorMsg, false);
         } finally {
             setMutationLoading(false);
         }
@@ -505,40 +489,18 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "RECEIVING" && (isInventoryStaff() || isManager() || isAdmin()) ? (
+                        {receipt.status === "RECEIVING" && isQc() ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
-                                onClick={openReceiveModal}
+                                onClick={openInspectionModal}
                                 type="button"
                             >
-                                Cập nhật số lượng kiểm đếm
+                                Kiểm định số lượng & Chất lượng
                             </button>
                         ) : null}
 
-                        {receipt.status === "RECEIVING" && (isQc()) ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={openQcModal}
-                                type="button"
-                            >
-                                Thực hiện Kiểm định QC & Lô
-                            </button>
-                        ) : null}
-
-                        {receipt.status === "QC_COMPLETED" && (isManager() || isAdmin()) ? (
-                            <button
-                                className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
-                                disabled={mutationLoading}
-                                onClick={() => setPostOpen(true)}
-                                type="button"
-                            >
-                                Ghi sổ nhập kho
-                            </button>
-                        ) : null}
-
-                        {receipt.status === "PENDING_EXCEPTION_APPROVAL" && (isManager() || isAdmin()) ? (
+                        {receipt.status === "PENDING_EXCEPTION_APPROVAL" && (isManager()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#d97706] px-4 text-sm font-black text-white hover:bg-[#b45309] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -616,6 +578,11 @@ export function GoodsReceiptDetailPage() {
                 </div>
             ) : null}
 
+            {/* TAB: LỊCH SỬ XỬ LÝ */}
+            {tab === "audit" ? (
+                <GoodsReceiptAuditTimeline receipt={receipt} />
+            ) : null}
+
             {/* TAB: GIÁ TRỊ NHẬP KHO */}
             {/* {tab === "cost" ? (
                 canShowCost ? (
@@ -633,283 +600,6 @@ export function GoodsReceiptDetailPage() {
                     <div className="text-sm font-bold text-[#172317]">
                         Mã chứng từ kho: <span className="font-mono text-[#159734]">{receipt.stockDocumentCode || "Chưa ghi sổ"}</span>
                     </div>
-                    <div className="text-xs text-[#697684]">
-                        Khi có số lượng thiếu, hệ thống tự động liên kết với Yêu cầu giao bù hàng (Supplement Request).
-                        Khi có số lượng lỗi QC, hệ thống tự động liên kết với Yêu cầu trả hàng NCC (Supplier Return Request).
-                    </div>
-                </div>
-            ) : null} */}
-
-            {/* TAB: ĐÍNH KÈM & AUDIT */}
-            {/* {tab === "evidence" ? <GoodsReceiptEvidenceList receipt={receipt} /> : null} */}
-            {tab === "audit" ? <GoodsReceiptAuditTimeline receipt={receipt} /> : null}
-
-            {/* ============================================================ */}
-            {/* 1. MODAL KIỂM ĐẾM THỰC TẾ (RECEIVING) */}
-            {/* ============================================================ */}
-            <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
-                <DialogContent className="max-w-[800px]">
-                    <DialogHeader>
-                        <DialogTitle>Giai đoạn 3: Tiếp nhận & Kiểm đếm thực tế</DialogTitle>
-                        <DialogDescription>
-                            Nhập số lượng thực nhận khi xe hàng giao đến kho. Hệ thống sẽ tự động so sánh với số lượng đặt theo PO và phát hiện chênh lệch Thừa/Thiếu.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid max-h-[60vh] gap-3 overflow-y-auto px-6 py-4">
-                        {receiveDraft.map((line, index) => {
-                            const shortage = Math.max(0, line.orderedQuantity - line.receivedQuantity);
-                            const excess = Math.max(0, line.receivedQuantity - line.orderedQuantity);
-                            return (
-                                <div className="grid gap-2 rounded-lg border border-[#e8eef0] p-3.5 bg-[#fbfdfb]" key={line.lineId}>
-                                    <div className="flex justify-between items-center font-bold text-sm text-[#172317]">
-                                        <span>#{index + 1}. {line.materialName}</span>
-                                        <span className="text-xs text-[#536078] bg-slate-100 px-2 py-1 rounded">
-                                            Đặt hàng: <strong className="text-[#172317]">{formatVietnamNumber(line.orderedQuantity)}</strong> {line.unit}
-                                        </span>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center mt-1">
-                                        <div>
-                                            <label className="text-xs font-bold text-[#536078]">Số lượng thực nhận ({line.unit}):</label>
-                                            <input
-                                                className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#172317]"
-                                                min="0"
-                                                step="any"
-                                                type="number"
-                                                value={line.receivedQuantity || ""}
-                                                onChange={(e) => {
-                                                    const val = Number(e.target.value) || 0;
-                                                    setReceiveDraft((cur) =>
-                                                        cur.map((item, idx) => (idx === index ? { ...item, receivedQuantity: val } : item))
-                                                    );
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="text-xs">
-                                            {shortage > 0 ? (
-                                                <div className="font-bold text-amber-700 bg-amber-50 border border-amber-200 p-2 rounded">
-                                                    Thiếu: {formatVietnamNumber(shortage)} {line.unit} (Hệ thống sẽ tạo yêu cầu giao bù hàng)
-                                                </div>
-                                            ) : excess > 0 ? (
-                                                <div className="font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 p-2 rounded">
-                                                    Giao thừa: {formatVietnamNumber(excess)} {line.unit} (Toàn bộ {formatVietnamNumber(line.receivedQuantity)} {line.unit} sẽ chuyển sang QC)
-                                                </div>
-                                            ) : (
-                                                <div className="font-bold text-green-700 bg-green-50 border border-green-200 p-2 rounded">
-                                                    ✓ Giao đủ {formatVietnamNumber(line.receivedQuantity)} {line.unit} theo đơn đặt
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <DialogFooter>
-                        <button
-                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                            disabled={mutationLoading}
-                            onClick={() => setReceiveOpen(false)}
-                            type="button"
-                        >
-                            Hủy
-                        </button>
-                        <button
-                            className="h-10 rounded-lg bg-[#0891b2] px-5 text-sm font-black text-white hover:bg-[#0e7490] disabled:opacity-60"
-                            disabled={mutationLoading}
-                            onClick={() => void submitReceive()}
-                            type="button"
-                        >
-                            {mutationLoading ? "Đang xử lý..." : "Xác nhận kiểm đếm & Chuyển sang QC"}
-                        </button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* ============================================================ */}
-            {/* 2. MODAL KIỂM ĐỊNH QC & KHAI BÁO LÔ (RECEIVING) */}
-            {/* ============================================================ */}
-            {(() => {
-                const totalQcPages = Math.max(1, Math.ceil(qcDraft.length / qcPageSize));
-                const safeQcPage = Math.min(qcPage, totalQcPages);
-                const startQcIdx = (safeQcPage - 1) * qcPageSize;
-                const endQcIdx = Math.min(startQcIdx + qcPageSize, qcDraft.length);
-                const paginatedQcDraft = qcDraft.slice(startQcIdx, startQcIdx + qcPageSize);
-
-                return (
-                    <Dialog open={qcOpen} onOpenChange={setQcOpen}>
-                        <DialogContent className="max-w-[900px]">
-                            <DialogHeader>
-                                <DialogTitle>Giai đoạn 4: Kiểm định chất lượng (QC) & Khai báo Lô</DialogTitle>
-                                <DialogDescription>
-                                    Kiểm tra từng dòng nguyên liệu, nhập số lượng đạt chuẩn (Accepted) và lỗi (Rejected). Khai báo thông tin Lô hàng cho lượng nguyên liệu đạt chuẩn.
-                                </DialogDescription>
-                            </DialogHeader>
-
-                            {/* DANH SÁCH DÒNG QC */}
-                            <div className="grid max-h-[60vh] gap-3.5 overflow-y-auto px-6 py-3">
-                                {paginatedQcDraft.map((line, relativeIdx) => {
-                                    const globalIdx = startQcIdx + relativeIdx;
-                                    return (
-                                        <div className="grid gap-3 rounded-xl border border-[#e8eef0] p-4 bg-[#fbfdfb] shadow-xs" key={line.lineId}>
-                                            <div className="flex justify-between items-center font-bold text-sm text-[#172317] border-b border-[#eef2f0] pb-2">
-                                                <span className="flex items-center gap-2">
-                                                    <span className="grid size-6 place-items-center rounded bg-[#edf8ef] text-xs font-black text-[#159734]">
-                                                        #{globalIdx + 1}
-                                                    </span>
-                                                    <span>{line.materialName}</span>
-                                                </span>
-                                                <span className="text-xs text-[#536078] bg-slate-100 px-2.5 py-1 rounded-md">
-                                                    Thực nhận: <strong className="text-[#172317]">{formatVietnamNumber(line.receivedQuantity)}</strong> {line.unit}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-xs font-bold text-[#159734]">Số lượng đạt QC (Accepted):</label>
-                                                    <input
-                                                        className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#159734] outline-none focus:border-[#159734]"
-                                                        min="0"
-                                                        max={line.receivedQuantity}
-                                                        step="any"
-                                                        type="number"
-                                                        value={line.acceptedQuantity || ""}
-                                                        onChange={(e) => {
-                                                            const pass = Number(e.target.value) || 0;
-                                                            const fail = Math.max(0, line.receivedQuantity - pass);
-                                                            updateQcLine(line.lineId, { acceptedQuantity: pass, rejectedQuantity: fail });
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs font-bold text-red-600">Số lượng lỗi QC (Rejected - Trả NCC):</label>
-                                                    <input
-                                                        className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-red-600 outline-none focus:border-red-500"
-                                                        min="0"
-                                                        max={line.receivedQuantity}
-                                                        step="any"
-                                                        type="number"
-                                                        value={line.rejectedQuantity || ""}
-                                                        onChange={(e) => {
-                                                            const fail = Number(e.target.value) || 0;
-                                                            const pass = Math.max(0, line.receivedQuantity - fail);
-                                                            updateQcLine(line.lineId, { acceptedQuantity: pass, rejectedQuantity: fail });
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {line.acceptedQuantity > 0 ? (
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[#f4faf5] p-3 rounded-lg border border-[#d8eadc]">
-                                                    <div>
-                                                        <label className="text-xs font-bold text-[#315f3c]">Mã lô NCC (Supplier Lot):</label>
-                                                        <input
-                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
-                                                            placeholder="Ví dụ: LOT-2026-001"
-                                                            type="text"
-                                                            value={line.supplierLot}
-                                                            onChange={(e) => {
-                                                                updateQcLine(line.lineId, { supplierLot: e.target.value });
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-bold text-[#315f3c]">Ngày sản xuất (MFG) *:</label>
-                                                        <input
-                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
-                                                            type="date"
-                                                            value={line.manufactureDate}
-                                                            onChange={(e) => {
-                                                                updateQcLine(line.lineId, { manufactureDate: e.target.value });
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-bold text-[#315f3c]">Hạn sử dụng (EXP) *:</label>
-                                                        <input
-                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
-                                                            type="date"
-                                                            value={line.expiryDate}
-                                                            onChange={(e) => {
-                                                                updateQcLine(line.lineId, { expiryDate: e.target.value });
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* PHÂN TRANG MODAL QC */}
-                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f4] px-6 py-2.5 text-xs bg-[#fafbfc]">
-                                <div className="text-[#536078] font-bold">
-                                    Hiển thị <span className="text-[#172317]">{qcDraft.length > 0 ? startQcIdx + 1 : 0} - {endQcIdx}</span> trên tổng <span className="text-[#172317]">{qcDraft.length}</span> nguyên liệu
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <div className="flex items-center gap-1.5 text-[#697684] font-bold">
-                                        <span>Hiển thị:</span>
-                                        <select
-                                            className="h-8 rounded-lg border border-[#dce5e1] bg-white px-2 text-xs font-bold text-[#172317] outline-none focus:border-[#159734]"
-                                            value={qcPageSize}
-                                            onChange={(e) => {
-                                                setQcPageSize(Number(e.target.value));
-                                                setQcPage(1);
-                                            }}
-                                        >
-                                            <option value={3}>3 dòng / trang</option>
-                                            <option value={5}>5 dòng / trang</option>
-                                            <option value={10}>10 dòng / trang</option>
-                                        </select>
-                                    </div>
-                                    {totalQcPages > 1 && (
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                type="button"
-                                                disabled={safeQcPage <= 1}
-                                                onClick={() => setQcPage((p) => Math.max(1, p - 1))}
-                                                className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                                                title="Trang trước"
-                                            >
-                                                <ChevronLeft size={16} />
-                                            </button>
-                                            {Array.from({ length: totalQcPages }, (_, i) => i + 1).map((p) => (
-                                                <button
-                                                    key={p}
-                                                    type="button"
-                                                    onClick={() => setQcPage(p)}
-                                                    className={`grid size-8 place-items-center rounded-lg text-xs font-black transition-colors cursor-pointer ${p === safeQcPage
-                                                        ? "bg-[#7c3aed] text-white shadow-sm"
-                                                        : "border border-[#dce5e1] bg-white text-[#536078] hover:bg-[#f7f8fb]"
-                                                        }`}
-                                                >
-                                                    {p}
-                                                </button>
-                                            ))}
-                                            <button
-                                                type="button"
-                                                disabled={safeQcPage >= totalQcPages}
-                                                onClick={() => setQcPage((p) => Math.min(totalQcPages, p + 1))}
-                                                className="grid size-8 place-items-center rounded-lg border border-[#dce5e1] text-[#536078] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                                                title="Trang sau"
-                                            >
-                                                <ChevronRight size={16} />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <DialogFooter className="px-6 py-3 border-t border-[#eef2f0]">
-                                <button
-                                    className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078] hover:bg-[#f7f8fb] cursor-pointer"
-                                    disabled={mutationLoading}
-                                    onClick={() => setQcOpen(false)}
-                                    type="button"
-                                >
-                                    Hủy
-                                </button>
-                                <button
-                                    className="h-10 rounded-lg bg-[#7c3aed] px-5 text-sm font-black text-white hover:bg-[#6d28d9] disabled:opacity-60 cursor-pointer shadow-sm"
                                     disabled={mutationLoading}
                                     onClick={() => void submitQc()}
                                     type="button"
@@ -922,8 +612,27 @@ export function GoodsReceiptDetailPage() {
                 );
             })()}
 
+            {/* INSPECTION MODAL - Kiểm định số lượng & Chất lượng */}
+            <GoodsReceiptInspectionModal
+                open={inspectionOpen}
+                onOpenChange={setInspectionOpen}
+                tab={inspectionTab}
+                onTabChange={setInspectionTab}
+                receiveDraft={receiveDraft}
+                onReceiveChange={setReceiveDraft}
+                qcDraft={qcDraft}
+                onQcChange={setQcDraft}
+                qcPage={qcPage}
+                onQcPageChange={setQcPage}
+                qcPageSize={qcPageSize}
+                onQcPageSizeChange={setQcPageSize}
+                onReceiveSubmit={submitReceive}
+                onQcSubmit={submitQc}
+                loading={mutationLoading}
+            />
+
             {/* ============================================================ */}
-            {/* 3. MODAL GHI SỔ NHẬP KHO (QC_COMPLETED -> POSTED) */}
+            {/* 3. MODAL GHI SỔ NHẬP KHO (PENDING_EXCEPTION_APPROVAL/POSTED) */}
             {/* ============================================================ */}
             <Dialog open={postOpen} onOpenChange={setPostOpen}>
                 <DialogContent className="max-w-[500px]">

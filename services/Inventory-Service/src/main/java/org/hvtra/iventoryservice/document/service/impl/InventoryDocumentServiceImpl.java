@@ -415,19 +415,28 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
 
         long draft = statusCounts.getOrDefault(InventoryDocumentStatus.DRAFT, 0L);
         long pendingApproval = statusCounts.getOrDefault(InventoryDocumentStatus.PENDING_APPROVAL, 0L);
-        long receiving = statusCounts.getOrDefault(InventoryDocumentStatus.RECEIVING, 0L)
-                + statusCounts.getOrDefault(InventoryDocumentStatus.APPROVED, 0L);
+        long approved = statusCounts.getOrDefault(InventoryDocumentStatus.APPROVED, 0L);
+        long receiving = statusCounts.getOrDefault(InventoryDocumentStatus.RECEIVING, 0L);
+        long pendingExceptionApproval = statusCounts.getOrDefault(InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL, 0L);
         long awaitingQc = 0L;
-        long readyToPost = statusCounts.getOrDefault(InventoryDocumentStatus.QC_COMPLETED, 0L);
-        long postedToday = statusCounts.getOrDefault(InventoryDocumentStatus.POSTED, 0L);
+        long readyToPost = 0L;
+        long posted = statusCounts.getOrDefault(InventoryDocumentStatus.POSTED, 0L);
+        long postedToday = posted;
+        long rejected = statusCounts.getOrDefault(InventoryDocumentStatus.REJECTED, 0L);
+        long cancelled = statusCounts.getOrDefault(InventoryDocumentStatus.CANCELLED, 0L);
 
         return new GoodsReceiptSummaryCountResponse(
                 draft,
                 pendingApproval,
+                approved,
                 receiving,
+                pendingExceptionApproval,
                 awaitingQc,
                 readyToPost,
+                posted,
                 postedToday,
+                rejected,
+                cancelled,
                 total
         );
     }
@@ -763,15 +772,58 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             }
         }
 
-        // Determine next status based on exceptions
         InventoryDocumentStatus nextStatus = hasException(document)
-            ? InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL
-            : InventoryDocumentStatus.POSTED;
-
+                ? InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL
+                : InventoryDocumentStatus.POSTED;
         document.setStatus(nextStatus);
         document.setQcBy(getCurrentUserId());
         document.setQcAt(Instant.now());
-        return toEnrichedResponse(documentRepository.save(document));
+
+        InventoryDocument savedDocument = documentRepository.save(document);
+
+        // Auto post nếu QC pass (không có exception)
+        if (nextStatus == InventoryDocumentStatus.POSTED) {
+            performPost(savedDocument);
+            savedDocument.setStatus(InventoryDocumentStatus.POSTED);
+            savedDocument = documentRepository.save(savedDocument);
+        }
+
+        return toEnrichedResponse(savedDocument);
+    }
+
+    @Override
+    @Transactional
+    public InventoryDocumentResponse completeInspection(UUID id, CompleteInspectionRequest request) {
+        // Step 1: Confirm receiving
+        confirmReceiving(id, new ReceiveReceiptRequest(
+            request.receiveItems().stream()
+                .map(item -> new ReceiveReceiptRequest.ReceiveItemRequest(
+                    item.lineId(),
+                    item.receivedQuantity(),
+                    item.note()
+                ))
+                .toList()
+        ));
+
+        // Step 2: Complete QC
+        return completeQc(id, new QcReceiptRequest(
+            request.qcItems().stream()
+                .map(item -> new QcReceiptRequest.QcItemRequest(
+                    item.lineId(),
+                    item.acceptedQuantity(),
+                    item.rejectedQuantity(),
+                    item.batches().stream()
+                        .map(batch -> new QcReceiptRequest.BatchAllocationInput(
+                            batch.batchCode(),
+                            batch.manufactureDate(),
+                            batch.expiryDate(),
+                            batch.quantity(),
+                            batch.supplierLot()
+                        ))
+                        .toList()
+                ))
+                .toList()
+        ));
     }
 
     @Override
@@ -779,11 +831,52 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     public InventoryDocumentResponse post(UUID id) {
         InventoryDocument document = getDocument(id);
 
-        if (document.getStatus() != InventoryDocumentStatus.QC_COMPLETED &&
-            document.getStatus() != InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL) {
-            throw new BadRequestException("Only QC_COMPLETED or PENDING_EXCEPTION_APPROVAL documents can be posted");
+        if (document.getStatus() != InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL) {
+            throw new BadRequestException("Only PENDING_EXCEPTION_APPROVAL documents can be posted");
         }
 
+        performPost(document);
+        document.setStatus(InventoryDocumentStatus.POSTED);
+
+        return toEnrichedResponse(documentRepository.save(document));
+    }
+
+    @Override
+    @Transactional
+    public InventoryDocumentResponse cancel(UUID id, String note) {
+        InventoryDocument document = getDocument(id);
+
+        if (document.getStatus() == InventoryDocumentStatus.POSTED) {
+            throw new BadRequestException("Cannot cancel an already POSTED document");
+        }
+
+        document.setStatus(InventoryDocumentStatus.CANCELLED);
+        if (note != null && !note.isBlank()) {
+            document.setNote((document.getNote() != null ? document.getNote() + " | " : "") + "Hủy phiếu: " + note);
+        }
+
+        return toEnrichedResponse(documentRepository.save(document));
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {
+        InventoryDocument document = documentRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> ErrorCode.INVENTORY_DOCUMENT_NOT_FOUND.exception());
+
+        if (!isAdminOrCreator(document)) {
+            throw ErrorCode.INVENTORY_DOCUMENT_DELETE_FORBIDDEN.exception();
+        }
+
+        if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
+            throw ErrorCode.INVENTORY_DOCUMENT_NOT_DELETABLE.exception();
+        }
+
+        document.setIsDeleted(true);
+        documentRepository.save(document);
+    }
+
+    private void performPost(InventoryDocument document) {
         InventoryLocation location = locationRepository.findById(document.getLocationId())
                 .orElseThrow(() -> new ResourceNotFoundException("InventoryLocation", document.getLocationId()));
 
@@ -870,47 +963,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
 
         transactionRepository.save(transaction);
-
-        document.setStatus(InventoryDocumentStatus.POSTED);
         document.setPostedBy(getCurrentUserId());
         document.setPostedAt(Instant.now());
-
-        return toEnrichedResponse(documentRepository.save(document));
-    }
-
-    @Override
-    @Transactional
-    public InventoryDocumentResponse cancel(UUID id, String note) {
-        InventoryDocument document = getDocument(id);
-
-        if (document.getStatus() == InventoryDocumentStatus.POSTED) {
-            throw new BadRequestException("Cannot cancel an already POSTED document");
-        }
-
-        document.setStatus(InventoryDocumentStatus.CANCELLED);
-        if (note != null && !note.isBlank()) {
-            document.setNote((document.getNote() != null ? document.getNote() + " | " : "") + "Hủy phiếu: " + note);
-        }
-
-        return toEnrichedResponse(documentRepository.save(document));
-    }
-
-    @Override
-    @Transactional
-    public void delete(UUID id) {
-        InventoryDocument document = documentRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> ErrorCode.INVENTORY_DOCUMENT_NOT_FOUND.exception());
-
-        if (!isAdminOrCreator(document)) {
-            throw ErrorCode.INVENTORY_DOCUMENT_DELETE_FORBIDDEN.exception();
-        }
-
-        if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
-            throw ErrorCode.INVENTORY_DOCUMENT_NOT_DELETABLE.exception();
-        }
-
-        document.setIsDeleted(true);
-        documentRepository.save(document);
     }
 
     // createdBy lưu Keycloak subject của người tạo — trùng với userId trong principal
@@ -947,17 +1001,15 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
 
     private boolean hasException(InventoryDocument document) {
         for (InventoryDocumentLine line : document.getLines()) {
-            // Check for shortage or excess
-            if (line.getShortageQuantity() != null && line.getShortageQuantity().compareTo(BigDecimal.ZERO) > 0) {
-                return true; // SHORTAGE
-            }
-            if (line.getExcessQuantity() != null && line.getExcessQuantity().compareTo(BigDecimal.ZERO) > 0) {
-                return true; // EXCESS
-            }
-
-            // Check for rejected/damaged items (Quality failure)
+            // Check rejected quantity
             if (line.getRejectedQuantity() != null && line.getRejectedQuantity().compareTo(BigDecimal.ZERO) > 0) {
-                return true; // DAMAGED/QUALITY_FAIL
+                return true;
+            }
+            // Check shortage/excess (thừa/thiếu)
+            BigDecimal ordered = line.getOrderedQuantity() != null ? line.getOrderedQuantity() : BigDecimal.ZERO;
+            BigDecimal received = line.getReceivedQuantity() != null ? line.getReceivedQuantity() : BigDecimal.ZERO;
+            if (ordered.compareTo(received) != 0) {
+                return true;
             }
         }
         return false;

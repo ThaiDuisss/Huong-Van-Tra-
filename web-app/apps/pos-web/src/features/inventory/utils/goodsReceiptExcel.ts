@@ -17,8 +17,8 @@ export function formatGoodsReceiptStatus(status: GoodsReceiptStatus): string {
             return "Đã duyệt";
         case "RECEIVING":
             return "Đang tiếp nhận";
-        case "QC_COMPLETED":
-            return "QC hoàn thành";
+        case "PENDING_EXCEPTION_APPROVAL":
+            return "Chờ duyệt ngoại lệ";
         case "POSTED":
             return "Đã nhập kho";
         case "REJECTED":

@@ -12,7 +12,6 @@ export const goodsReceiptStatusLabels: Record<GoodsReceiptStatus, string> = {
     APPROVED: "Đã duyệt",
     REJECTED: "Từ chối",
     RECEIVING: "Đang tiếp nhận",
-    QC_COMPLETED: "QC hoàn thành",
     PENDING_EXCEPTION_APPROVAL: "Chờ duyệt ngoại lệ",
     POSTED: "Đã nhập kho",
     CANCELLED: "Đã hủy"
@@ -56,7 +55,6 @@ export const goodsReceiptStatusOptions: GoodsReceiptStatus[] = [
     "PENDING_APPROVAL",
     "APPROVED",
     "RECEIVING",
-    "QC_COMPLETED",
     "PENDING_EXCEPTION_APPROVAL",
     "POSTED",
     "REJECTED",

@@ -1,11 +1,9 @@
--- Migration: Remove QC_PENDING status and consolidate to QC_COMPLETED
--- This migration updates the workflow to eliminate the QC_PENDING status
--- by transitioning any documents in QC_PENDING state to QC_COMPLETED.
-
--- Update any inventory documents with QC_PENDING status to QC_COMPLETED
+-- Update any QC_PENDING documents to PENDING_EXCEPTION_APPROVAL
 UPDATE inventory_documents
-SET status = 'QC_COMPLETED'
+SET status = 'PENDING_EXCEPTION_APPROVAL'
 WHERE status = 'QC_PENDING';
 
--- Verify migration was successful
--- SELECT COUNT(*) as qc_pending_count FROM inventory_documents WHERE status = 'QC_PENDING';
+-- Update any QC_COMPLETED documents to POSTED
+UPDATE inventory_documents
+SET status = 'POSTED'
+WHERE status = 'QC_COMPLETED' AND status != 'POSTED';
