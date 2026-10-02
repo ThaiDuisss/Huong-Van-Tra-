@@ -94,9 +94,18 @@ public class OrderCheckoutPaymentProcessor {
                     "Thanh toán POS trực tiếp bằng " + paymentMethod + ", mã thanh toán: " + order.getPaymentCode(),
                     changedBy
             );
-            orderPaymentSagaService.completePaymentSaga(order, eventFromPaymentResponse(order, payment, sagaId), order.getPaymentCode());
+            PaymentOrderEventPayload paidEvent = eventFromPaymentResponse(order, payment, sagaId);
+            orderPaymentSagaService.completePaymentSaga(order, paidEvent, order.getPaymentCode());
+            orderPaymentSagaService.markResourceConfirmationRequested(order, sagaId);
             orderCustomerService.updateCustomerPurchase(order.getId());
             orderOutboxPublisher.publishPaymentCompletedOrchestration(order, order.getPaymentCode(), sagaId.toString());
+            orderOutboxPublisher.publishOrderPaymentSucceededNotification(
+                    order,
+                    paidEvent,
+                    oldStatus,
+                    paidOrderStatus,
+                    sagaId.toString()
+            );
             return;
         }
 

@@ -42,6 +42,15 @@ public interface InventoryDocumentRepository extends JpaRepository<InventoryDocu
 
     Optional<InventoryDocument> findByIdAndIsDeletedFalse(UUID id);
 
+    /** Phiếu còn mở gắn với cùng một tham chiếu (vd. đơn POS), để gộp các dòng thiếu vào một phiếu. */
+    Optional<InventoryDocument> findFirstByDocumentTypeAndReferenceIdAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
+            InventoryDocumentType documentType, String referenceId, Collection<InventoryDocumentStatus> statuses);
+
+    long countByDocumentTypeAndStatusAndIsDeletedFalse(InventoryDocumentType documentType, InventoryDocumentStatus status);
+
+    long countByDocumentTypeAndStatusAndApprovedAtIsNullAndIsDeletedFalse(
+            InventoryDocumentType documentType, InventoryDocumentStatus status);
+
     @Query("SELECT d.status, COUNT(d) FROM InventoryDocument d WHERE d.documentType = :type AND d.isDeleted = false GROUP BY d.status")
     List<Object[]> countByStatusGroupByDocumentType(InventoryDocumentType type);
 

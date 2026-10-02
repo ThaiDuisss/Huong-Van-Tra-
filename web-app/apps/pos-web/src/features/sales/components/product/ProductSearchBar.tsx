@@ -26,11 +26,12 @@ export function ProductSearchBar({
   onAdd
 }: ProductSearchBarProps) {
   const visibleResults = results.slice(0, 5);
-  const getStockLabel = (product: SaleProductPreview) => {
-    return product.sellableQuantity <= 0
-      ? "Hết hàng"
-      : `Có thể bán: ${product.sellableQuantity}`;
-  };
+  const stockChipClass = (quantity: number) =>
+    `rounded-md px-2 py-1 text-xs font-semibold ${
+      quantity <= 0
+        ? "bg-neutral-100 text-neutral-500"
+        : "bg-hvt-green-50 text-hvt-green-800"
+    }`;
 
   return (
     <div className="relative">
@@ -125,15 +126,20 @@ export function ProductSearchBar({
                     </p>
                   </div>
 
-                  <span
-                    className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                      product.sellableQuantity <= 0
-                        ? "bg-red-50 text-red-700"
-                        : "bg-hvt-green-50 text-hvt-green-800"
-                    }`}
-                  >
-                    {getStockLabel(product)}
-                  </span>
+                  {product.sellableQuantity <= 0 ? (
+                    <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+                      Hết hàng
+                    </span>
+                  ) : (
+                    <div className="grid justify-items-end gap-1">
+                      <span className={stockChipClass(product.shelfQuantity)}>
+                        Trên kệ: {product.shelfQuantity}
+                      </span>
+                      <span className={stockChipClass(product.warehouseQuantity)}>
+                        Trong kho: {product.warehouseQuantity}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="grid justify-items-end gap-2">
                     <strong className="text-base text-hvt-green-900">

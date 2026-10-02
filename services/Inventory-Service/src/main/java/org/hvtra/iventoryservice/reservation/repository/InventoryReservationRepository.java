@@ -24,4 +24,11 @@ public interface InventoryReservationRepository extends JpaRepository<InventoryR
             ReservationStatus status);
 
     List<InventoryReservation> findByStatusAndExpiresAtBefore(ReservationStatus status, Instant expiresAt);
+
+    /** Nguyên liệu đang giữ chỗ cho việc sản xuất bù một mặt hàng (sinh ra khi bán), cũ nhất trước. */
+    List<InventoryReservation> findByProductVariantIdAndInventoryItem_IdAndReservationTypeAndStatusOrderByCreatedAtAsc(
+            UUID productVariantId,
+            UUID inventoryItemId,
+            ReservationType reservationType,
+            ReservationStatus status);
 }

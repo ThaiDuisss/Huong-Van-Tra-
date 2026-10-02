@@ -1,6 +1,7 @@
 package org.hvtra.orderservice.service.impl;
 
 import org.hvtra.orderservice.client.CatalogClient;
+import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
@@ -49,7 +50,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -98,6 +101,9 @@ class OrderDraftServiceImplTest {
     @Mock
     private OrderCheckoutPaymentProcessor orderCheckoutPaymentProcessor;
 
+    @Mock
+    private InventoryClient inventoryClient;
+
     private OrderDraftServiceImpl service;
 
     @BeforeEach
@@ -115,8 +121,16 @@ class OrderDraftServiceImplTest {
                 productSnapshotResolver,
                 inventoryReservationService,
                 orderResponseAssembler,
-                orderCheckoutPaymentProcessor
+                orderCheckoutPaymentProcessor,
+                inventoryClient
         );
+        // Mặc định Inventory còn dư hàng; test nào cần thiếu hàng thì tự stub lại.
+        lenient().when(inventoryClient.getStocksByVariantIds(any())).thenAnswer(invocation -> {
+            InventoryClient.StockVariantBatchRequest request = invocation.getArgument(0);
+            return request.variantIds().stream()
+                    .map(variantId -> stock(variantId, new BigDecimal("999")))
+                    .toList();
+        });
     }
 
     @Test
@@ -301,7 +315,7 @@ class OrderDraftServiceImplTest {
     }
 
     @Test
-    void addDraftItemRejectsQuantityAboveSellable() {
+    void addDraftItemRejectsQuantityAboveInventoryAvailable() {
         UUID orderId = UUID.randomUUID();
         UUID variantId = UUID.randomUUID();
         Instant expiresAt = Instant.parse("2026-07-25T01:25:00Z");
@@ -310,15 +324,18 @@ class OrderDraftServiceImplTest {
         request.setProductVariantId(variantId);
         request.setQuantity(new BigDecimal("3"));
         Order order = draftOrder(orderId);
+        // Cấu hình sản xuất của Catalog rất lớn nhưng tồn thực − giữ chỗ chỉ còn 2.
         CatalogClient.ProductVariantPosViewResponse variant = variant(
                 variantId,
                 BigDecimal.TEN,
-                new BigDecimal("2")
+                new BigDecimal("999")
         );
         when(orderDateTimeHelper.nextDraftExpiresAt()).thenReturn(expiresAt);
         when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
         when(productSnapshotResolver.resolvePosView(variantId)).thenReturn(variant);
         when(orderValidator.requirePositiveQuantity(new BigDecimal("3"))).thenReturn(new BigDecimal("3"));
+        doReturn(List.of(stock(variantId, new BigDecimal("2"))))
+                .when(inventoryClient).getStocksByVariantIds(any());
 
         InvalidOrderStatusException exception = assertThrows(
                 InvalidOrderStatusException.class,
@@ -327,6 +344,35 @@ class OrderDraftServiceImplTest {
 
         assertEquals("Số lượng bán vượt quá số lượng có thể bán", exception.getMessage());
         verifyNoInteractions(inventoryReservationService, orderItemMapper, orderResponseAssembler);
+    }
+
+    @Test
+    void addDraftItemIgnoresCatalogSellableSettingWhenInventoryHasStock() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        AddDraftOrderItemRequest request = new AddDraftOrderItemRequest();
+        request.setOrderId(orderId);
+        request.setProductVariantId(variantId);
+        request.setQuantity(new BigDecimal("3"));
+        Order order = draftOrder(orderId);
+        // product_variants.sellable_quantity = 0 (admin chưa cấu hình) không được chặn bán khi kho còn 50.
+        CatalogClient.ProductVariantPosViewResponse variant = variant(variantId, BigDecimal.TEN, BigDecimal.ZERO);
+        OrderItem item = new OrderItem();
+        OrderResponse response = OrderResponse.builder().id(orderId).build();
+        when(orderDateTimeHelper.nextDraftExpiresAt()).thenReturn(Instant.parse("2026-07-25T01:25:00Z"));
+        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(productSnapshotResolver.resolvePosView(variantId)).thenReturn(variant);
+        when(orderValidator.requirePositiveQuantity(new BigDecimal("3"))).thenReturn(new BigDecimal("3"));
+        doReturn(List.of(stock(variantId, new BigDecimal("50"))))
+                .when(inventoryClient).getStocksByVariantIds(any());
+        when(orderAmountCalculator.defaultZero(any())).thenAnswer(invocation ->
+                invocation.getArgument(0) == null ? BigDecimal.ZERO : invocation.getArgument(0));
+        when(orderItemMapper.toDraftOrderItem(any(), any(), any(), any(), any(), any())).thenReturn(item);
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderResponseAssembler.toResponse(order)).thenReturn(response);
+
+        assertSame(response, service.addDraftItem(request));
+        verify(orderRepository).save(order);
     }
 
     @Test
@@ -535,6 +581,12 @@ class OrderDraftServiceImplTest {
                 .build();
         item.setId(itemId);
         return item;
+    }
+
+    private InventoryClient.StockVariantBatchResponse stock(UUID variantId, BigDecimal availableQuantity) {
+        return new InventoryClient.StockVariantBatchResponse(
+                variantId, null, availableQuantity, BigDecimal.ZERO, "IN_STOCK",
+                availableQuantity, BigDecimal.ZERO, null, null);
     }
 
     private CatalogClient.ProductVariantPosViewResponse variant(UUID variantId, BigDecimal sellingPrice) {

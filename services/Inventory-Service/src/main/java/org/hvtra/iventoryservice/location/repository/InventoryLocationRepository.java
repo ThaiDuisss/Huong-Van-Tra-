@@ -66,6 +66,13 @@ public interface InventoryLocationRepository
     @Query("SELECT l.id AS id, l.name AS name FROM InventoryLocation l WHERE l.id IN :ids")
     List<IdNameView> findLookupByIds(@Param("ids") Collection<UUID> ids);
 
+    /** Các kệ (hoặc vị trí con) thuộc một kho, dùng khi phiếu nhập kệ không chỉ định kệ. */
+    List<InventoryLocation> findByParentLocation_IdAndTypeAndStatusAndIsDeletedFalseOrderByCreatedAtAsc(
+            UUID parentLocationId,
+            InventoryLocationType type,
+            InventoryStatus status
+    );
+
     Page<InventoryLocation> findByNameContainingIgnoreCaseAndTypeAndIsDeletedFalse(
             String name,
             InventoryLocationType type,

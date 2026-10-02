@@ -19,4 +19,16 @@ public interface InventoryReplenishmentAlertRepository extends JpaRepository<Inv
                                org.hvtra.iventoryservice.domain.enums.InventoryReplenishmentAlertStatus.ORDERED)
             """)
     boolean existsOpenProductionAlert(@Param("itemId") UUID itemId, @Param("locationId") UUID locationId);
+
+    /** Đã có cảnh báo còn mở thuộc một trong các loại cho mặt hàng tại vị trí này chưa (tránh tạo trùng). */
+    @Query("""
+            select (count(a) > 0) from InventoryReplenishmentAlert a
+            where a.inventoryItem.id = :itemId and a.location.id = :locationId
+              and a.alertType in :types
+              and a.status in (org.hvtra.iventoryservice.domain.enums.InventoryReplenishmentAlertStatus.OPEN,
+                               org.hvtra.iventoryservice.domain.enums.InventoryReplenishmentAlertStatus.ACKNOWLEDGED,
+                               org.hvtra.iventoryservice.domain.enums.InventoryReplenishmentAlertStatus.ORDERED)
+            """)
+    boolean existsOpenAlert(@Param("itemId") UUID itemId, @Param("locationId") UUID locationId,
+            @Param("types") java.util.Collection<org.hvtra.iventoryservice.domain.enums.InventoryReplenishmentAlertType> types);
 }

@@ -23,6 +23,7 @@ import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
+import org.hvtra.iventoryservice.reservation.service.InventoryReservationService;
 import org.hvtra.iventoryservice.production.dto.request.CancelProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.request.CompleteProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.request.CreateProductionOrderRequest;
@@ -67,6 +68,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     private final InventoryTransactionRepository transactionRepository;
     private final CatalogClient catalogClient;
     private final ProductionOrderMapper mapper;
+    private final InventoryReservationService reservationService;
 
     public ProductionOrderServiceImpl(
             ProductionOrderRepository productionOrderRepository,
@@ -77,7 +79,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             InventoryBalanceRepository balanceRepository,
             InventoryTransactionRepository transactionRepository,
             CatalogClient catalogClient,
-            ProductionOrderMapper mapper
+            ProductionOrderMapper mapper,
+            InventoryReservationService reservationService
     ) {
         this.productionOrderRepository = productionOrderRepository;
         this.sequenceService = sequenceService;
@@ -87,6 +90,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         this.balanceRepository = balanceRepository;
         this.transactionRepository = transactionRepository;
         this.catalogClient = catalogClient;
+        this.reservationService = reservationService;
         this.mapper = mapper;
     }
 
@@ -204,6 +208,11 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
+
+            // Nguyên liệu đã được giữ chỗ lúc bán hàng (để sản xuất bù) thì trả lại cho chính lệnh này dùng,
+            // nếu không phần giữ chỗ đó sẽ khóa nguyên liệu mãi.
+            reservationService.releasePlannedMaterials(
+                    order.getProductVariantId(), line.getInventoryItem().getId(), remaining);
 
             List<InventoryBatch> candidates = batchRepository.findFefoCandidates(
                     line.getInventoryItem().getId(), InventoryBatchStatus.AVAILABLE);
