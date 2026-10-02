@@ -217,7 +217,7 @@ export function GoodsReceiptDetailPage() {
         setReceiveOpen(true);
     }
 
-    // 6. Confirm Receiving (RECEIVING -> QC_PENDING)
+    // 6. Confirm Receiving (RECEIVING)
     async function submitReceive() {
         if (!receipt) return;
         try {
@@ -232,7 +232,7 @@ export function GoodsReceiptDetailPage() {
             );
             setReceipt(updated);
             setReceiveOpen(false);
-            showToast("Xác nhận kiểm đếm thực tế thành công! Phiếu đã chuyển sang Chờ kiểm định QC.", true);
+            showToast("Xác nhận kiểm đếm thực tế thành công! Phiếu sẵn sàng kiểm định QC.", true);
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Xác nhận kiểm đếm thất bại.", false);
         } finally {
@@ -270,7 +270,7 @@ export function GoodsReceiptDetailPage() {
         setQcOpen(true);
     }
 
-    // 8. Submit QC (QC_PENDING -> QC_COMPLETED)
+    // 7. Submit QC (RECEIVING -> QC_COMPLETED)
     async function submitQc() {
         if (!receipt) return;
 
@@ -516,7 +516,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "QC_PENDING" && (isQc()) ? (
+                        {receipt.status === "RECEIVING" && (isQc()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -535,6 +535,17 @@ export function GoodsReceiptDetailPage() {
                                 type="button"
                             >
                                 Ghi sổ nhập kho
+                            </button>
+                        ) : null}
+
+                        {receipt.status === "PENDING_EXCEPTION_APPROVAL" && (isManager() || isAdmin()) ? (
+                            <button
+                                className="inline-flex h-10 items-center rounded-lg bg-[#d97706] px-4 text-sm font-black text-white hover:bg-[#b45309] shadow-sm disabled:opacity-50"
+                                disabled={mutationLoading}
+                                onClick={() => setPostOpen(true)}
+                                type="button"
+                            >
+                                Duyệt ngoại lệ & Ghi sổ
                             </button>
                         ) : null}
 
@@ -715,7 +726,7 @@ export function GoodsReceiptDetailPage() {
             </Dialog>
 
             {/* ============================================================ */}
-            {/* 2. MODAL KIỂM ĐỊNH QC & KHAI BÁO LÔ (QC_PENDING) */}
+            {/* 2. MODAL KIỂM ĐỊNH QC & KHAI BÁO LÔ (RECEIVING) */}
             {/* ============================================================ */}
             {(() => {
                 const totalQcPages = Math.max(1, Math.ceil(qcDraft.length / qcPageSize));
