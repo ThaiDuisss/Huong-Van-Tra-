@@ -4,6 +4,12 @@ Thư mục này chứa các script SQL khởi tạo dữ liệu mẫu chuẩn ng
 
 ---
 
+## Sử dụng dữ liệu mẫu an toàn
+
+Hai script Catalog và Inventory chỉ thêm hoặc cập nhật các dòng demo cố định, không xóa dữ liệu hiện có. Chỉ chạy trên DB demo độc lập, theo thứ tự Catalog rồi Inventory. Chạy lại script Inventory có thể ghi đè giá trị của các dòng demo cố định, gồm cả số dư tồn kho.
+
+Các script này không khôi phục biến thể lịch sử đã bị bản seed cũ xóa. Cần phục hồi biến thể cùng sản phẩm và đơn vị gốc từ nguồn dữ liệu có thẩm quyền, rồi đồng bộ sang Inventory qua API Catalog hiện có. Không dựng lại biến thể chỉ từ snapshot của Order.
+
 ## 1. Cấu trúc tệp tin
 
 | Tệp tin | Cơ sở dữ liệu đích | Mô tả nội dung |

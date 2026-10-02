@@ -69,7 +69,7 @@ const emptyPage: OrderPageResponse<OrderReturnReportDetail> = {
 
 const returnStatusOptions: Array<{ label: string; value: ReturnStatusFilter }> = [
     { label: "Tất cả trạng thái", value: "ALL" },
-    { label: "Đã tạo", value: "CREATED" },
+    { label: "Chờ nhận hàng", value: "CREATED" },
     { label: "Đã nhận hàng", value: "RECEIVED" },
     { label: "Hoàn tất", value: "COMPLETED" },
     { label: "Đã hủy", value: "CANCELLED" }

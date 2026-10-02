@@ -68,6 +68,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -168,7 +169,9 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             inspection.addLine(line);
         }
 
-        return toResponse(inspectionRepository.saveAndFlush(inspection));
+        CustomerReturnInspection saved = inspectionRepository.saveAndFlush(inspection);
+        ensurePendingDisposal(saved);
+        return toResponse(saved);
     }
 
     @Override
@@ -291,13 +294,13 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         acknowledgePostedInspection(inspection);
     }
 
-    private void ensurePendingDisposal(CustomerReturnInspection inspection) {
+    private Optional<DisposalRequest> ensurePendingDisposal(CustomerReturnInspection inspection) {
         List<CustomerReturnInspectionLine> writeOffLines = inspection.getLines().stream()
                 .filter(line -> line.getResult() == CustomerReturnQcResult.WRITE_OFF)
                 .filter(line -> !Boolean.TRUE.equals(line.getPosted()))
                 .toList();
         if (writeOffLines.isEmpty()) {
-            return;
+            return Optional.empty();
         }
 
         Optional<DisposalRequest> existing = disposalRequestRepository
@@ -309,8 +312,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                     request.addLine(line);
                 }
             }
-            disposalRequestRepository.saveAndFlush(request);
-            return;
+            inspectionRepository.saveAndFlush(inspection);
+            return Optional.of(request);
         }
 
         DisposalRequest request = new DisposalRequest();
@@ -322,8 +325,11 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         request.setBranchId(inspection.getBranchId());
         request.setStatus(DisposalRequestStatus.PENDING_APPROVAL);
         request.setNote(inspection.getNote());
+        // saveAndFlush may return a managed copy; link lines only to that instance.
+        request = disposalRequestRepository.saveAndFlush(request);
         writeOffLines.forEach(request::addLine);
-        disposalRequestRepository.saveAndFlush(request);
+        inspectionRepository.saveAndFlush(inspection);
+        return Optional.of(request);
     }
 
     private void acknowledgePostedInspection(CustomerReturnInspection inspection) {
@@ -385,8 +391,12 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             String returnCode,
             String orderCode,
             CustomerReturnInspectionStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
             Pageable pageable
     ) {
+        Instant fromCreatedAt = fromDate == null ? null : fromDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant toCreatedBefore = toDate == null ? null : toDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
         Specification<CustomerReturnInspection> specification = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.isFalse(root.get("isDeleted")));
@@ -402,6 +412,12 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             }
             if (status != null) {
                 predicates.add(builder.equal(root.get("status"), status));
+            }
+            if (fromCreatedAt != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("createdAt"), fromCreatedAt));
+            }
+            if (toCreatedBefore != null) {
+                predicates.add(builder.lessThan(root.get("createdAt"), toCreatedBefore));
             }
             return builder.and(predicates.toArray(Predicate[]::new));
         };

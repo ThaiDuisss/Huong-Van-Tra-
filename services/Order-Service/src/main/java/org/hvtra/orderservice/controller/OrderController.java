@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import lombok.*;
 import org.hvtra.orderservice.domain.enums.OrderReturnEligibility;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
+import org.hvtra.orderservice.domain.enums.RefundProgressStatus;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -219,13 +220,17 @@ public class OrderController {
     @GetMapping("/returns")
     public Page<OrderReturnSummaryResponse> getReturns(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String returnCode,
+            @RequestParam(required = false) String orderCode,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String displayStatus,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "createdAt,desc") String sort,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean paged,
+            @RequestParam(defaultValue = "false") boolean warehouseActiveOnly
     ) {
         String effectiveDisplayStatus = displayStatus != null && !displayStatus.isBlank() ? displayStatus : status;
         ReturnStatus rawStatus = null;
@@ -236,7 +241,13 @@ public class OrderController {
                 // Not a raw ReturnStatus enum, will be handled as displayStatus
             }
         }
-        return orderReturnService.getReturns(keyword, rawStatus, effectiveDisplayStatus, fromDate, toDate, sort, page, size);
+        if (paged || returnCode != null || orderCode != null) {
+            return orderReturnService.getFilteredReturns(
+                    keyword, returnCode, orderCode, rawStatus, effectiveDisplayStatus,
+                    fromDate, toDate, sort, page, size, warehouseActiveOnly
+            );
+        }
+        return orderReturnService.getReturns(keyword, rawStatus, effectiveDisplayStatus, fromDate, toDate, sort, page, size, warehouseActiveOnly);
     }
 
     public Page<OrderReturnSummaryResponse> getReturns(
@@ -248,7 +259,7 @@ public class OrderController {
             int page,
             int size
     ) {
-        return orderReturnService.getReturns(keyword, status, null, fromDate, toDate, sort, page, size);
+        return orderReturnService.getReturns(keyword, status, null, fromDate, toDate, sort, page, size, false);
     }
 
     @Operation(summary = "thong ke so luong phieu hoan theo trang thai hien thi")
@@ -256,9 +267,10 @@ public class OrderController {
     public Map<String, Long> getReturnStatusCounts(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "false") boolean warehouseActiveOnly
     ) {
-        return orderReturnService.getReturnStatusCounts(keyword, fromDate, toDate);
+        return orderReturnService.getReturnStatusCounts(keyword, fromDate, toDate, warehouseActiveOnly);
     }
 
     @Operation(summary = "lay danh sach hoan tien tu phieu hoan hang")
@@ -266,13 +278,14 @@ public class OrderController {
     public Page<OrderRefundSummaryResponse> getRefunds(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) OrderRefundStatus status,
+            @RequestParam(required = false) RefundProgressStatus progressStatus,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "createdAt,desc") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return orderReturnService.getRefunds(keyword, status, fromDate, toDate, sort, page, size);
+        return orderReturnService.getRefunds(keyword, status, progressStatus, fromDate, toDate, sort, page, size);
     }
 
     @Operation(summary = "thong ke trang thai hoan tien")

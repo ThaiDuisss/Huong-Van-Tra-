@@ -12,6 +12,7 @@ import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnSummaryResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnTimelineResponse;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
+import org.hvtra.orderservice.domain.enums.RefundProgressStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.springframework.data.domain.Page;
 
@@ -39,6 +40,7 @@ public interface OrderReturnService {
     Page<OrderRefundSummaryResponse> getRefunds(
             String keyword,
             OrderRefundStatus status,
+            RefundProgressStatus progressStatus,
             LocalDate fromDate,
             LocalDate toDate,
             String sort,
@@ -64,7 +66,7 @@ public interface OrderReturnService {
         return getReturns(keyword, status, null, fromDate, toDate, sort, page, size);
     }
 
-    Page<OrderReturnSummaryResponse> getReturns(
+    default Page<OrderReturnSummaryResponse> getReturns(
             String keyword,
             ReturnStatus status,
             String displayStatus,
@@ -73,9 +75,56 @@ public interface OrderReturnService {
             String sort,
             int page,
             int size
+    ) {
+        return getReturns(keyword, status, displayStatus, fromDate, toDate, sort, page, size, false);
+    }
+
+    Page<OrderReturnSummaryResponse> getReturns(
+            String keyword,
+            ReturnStatus status,
+            String displayStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size,
+            boolean warehouseActiveOnly
     );
 
-    Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate);
+    default Page<OrderReturnSummaryResponse> getFilteredReturns(
+            String keyword,
+            String returnCode,
+            String orderCode,
+            ReturnStatus status,
+            String displayStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size
+    ) {
+        return getFilteredReturns(keyword, returnCode, orderCode, status, displayStatus, fromDate, toDate, sort, page, size, false);
+    }
+
+    Page<OrderReturnSummaryResponse> getFilteredReturns(
+            String keyword,
+            String returnCode,
+            String orderCode,
+            ReturnStatus status,
+            String displayStatus,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String sort,
+            int page,
+            int size,
+            boolean warehouseActiveOnly
+    );
+
+    default Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate) {
+        return getReturnStatusCounts(keyword, fromDate, toDate, false);
+    }
+
+    Map<String, Long> getReturnStatusCounts(String keyword, LocalDate fromDate, LocalDate toDate, boolean warehouseActiveOnly);
 
     List<OrderReturnResponse> getReturnsByOrder(UUID orderId);
 

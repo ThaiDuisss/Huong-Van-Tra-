@@ -1,48 +1,149 @@
 import { useEffect, useState } from "react";
 
+import type { TimeRange } from "../../../components/shared/TimeHierarchyFilter.utils";
+import { ConfirmDialog } from "../../product/components/ConfirmDialog";
+import orderStyles from "../../order/pages/OrderListPage.module.css";
 import { ReturnInspectionModal } from "../../order/components/ReturnInspectionModal";
+import { OrderStatusBadge } from "../../order/components/OrderStatusBadge";
 import {
     getCustomerReturnQcSummary,
     getOrderReturnDetail,
-    getOrderReturnList
+    getOrderReturnList,
+    getOrderReturnStatusCounts,
+    receiveOrderReturn
 } from "../../order/services/order-return.api";
 import type {
     CustomerReturnQcSummaryResponse,
     OrderReturnListRow
 } from "../../order/types/order-return.types";
 import {
-    formatReturnQuantity,
+    canInspectCustomerReturn,
+    getCustomerReturnUiStatus,
     getReturnErrorMessage,
     toReturnNumber
 } from "../../order/utils/order-return.utils";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import styles from "../pages/CustomerReturnListPage.module.css";
+import {
+    type CustomerReturnStatusTab,
+    ListFilterBar,
+    ListMessage,
+    ListPagination
+} from "./CustomerReturnListUi";
+import { CustomerReturnDetailModal } from "./CustomerReturnDetailModal";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
+const CUSTOMER_RETURN_STATUS_TABS: CustomerReturnStatusTab[] = [
+    { key: "ALL", label: "Tất cả" },
+    { key: "CREATED", label: "Chờ nhận hàng" },
+    { key: "RECEIVED", label: "Chờ kiểm định" },
+    { key: "PROCESSING", label: "Đang xử lý" },
+    { key: "COMPLETED", label: "Hoàn thành" },
+    { key: "CANCELLED", label: "Đã hủy" },
+    { key: "PROCESSING_FAILED", label: "Có lỗi", isError: true }
+];
 
-export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCreated: () => void }) {
-    const [page, setPage] = useState(0);
+const INITIAL_STATUS_COUNTS: Record<string, number> = {
+    ALL: 0,
+    CREATED: 0,
+    RECEIVED: 0,
+    PROCESSING: 0,
+    COMPLETED: 0,
+    CANCELLED: 0,
+    PROCESSING_FAILED: 0
+};
+
+export function CustomerReturnQcQueue({
+    onInspectionCreated,
+    onPageChange,
+    page,
+    timeRange
+}: {
+    onInspectionCreated?: () => void;
+    onPageChange: (page: number) => void;
+    page: number;
+    timeRange?: TimeRange | null;
+}) {
+    const [searchTerm, setSearchTerm] = useState("");
+    const [status, setStatus] = useState("ALL");
+    const [statusCounts, setStatusCounts] = useState<Record<string, number>>(INITIAL_STATUS_COUNTS);
+    const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 300);
     const [reloadKey, setReloadKey] = useState(0);
     const [rows, setRows] = useState<OrderReturnListRow[]>([]);
     const [totalPages, setTotalPages] = useState(0);
+    const [totalElements, setTotalElements] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+
+    // Inspection modal state
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [selectedReturn, setSelectedReturn] = useState<OrderReturnListRow | null>(null);
     const [qcSummary, setQcSummary] = useState<CustomerReturnQcSummaryResponse | null>(null);
     const [selectionLoading, setSelectionLoading] = useState(false);
     const [selectionError, setSelectionError] = useState("");
+
+    // Detail modal state
+    const [detailModalItem, setDetailModalItem] = useState<OrderReturnListRow | null>(null);
+    const [receivingId, setReceivingId] = useState<string | null>(null);
+    const [confirmReceiveRow, setConfirmReceiveRow] = useState<OrderReturnListRow | null>(null);
+    const [receiveConfirmError, setReceiveConfirmError] = useState("");
     const [notice, setNotice] = useState("");
 
     useEffect(() => {
+        let active = true;
+        getOrderReturnStatusCounts({
+            fromDate: timeRange?.fromDate,
+            keyword: debouncedSearchTerm || undefined,
+            toDate: timeRange?.toDate,
+            warehouseActiveOnly: true
+        })
+            .then((counts) => {
+                if (!active || !counts) return;
+                setStatusCounts({
+                    ALL: counts.ALL ?? 0,
+                    CREATED: counts.CREATED ?? 0,
+                    RECEIVED: counts.RECEIVED ?? 0,
+                    PROCESSING: counts.PROCESSING ?? 0,
+                    COMPLETED: counts.COMPLETED ?? 0,
+                    CANCELLED: counts.CANCELLED ?? 0,
+                    PROCESSING_FAILED: counts.PROCESSING_FAILED ?? 0
+                });
+            })
+            .catch((countsErr: unknown) => {
+                if (active) {
+                    console.warn("Không thể tải số lượng trạng thái phiếu hoàn:", countsErr);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [debouncedSearchTerm, reloadKey, timeRange?.fromDate, timeRange?.toDate]);
+
+    useEffect(() => {
+        if (searchTerm.trim() !== debouncedSearchTerm) return;
         let active = true;
         queueMicrotask(() => {
             if (!active) return;
             setLoading(true);
             setError("");
-            getOrderReturnList({ page, size: PAGE_SIZE, sort: "createdAt,desc" })
+            getOrderReturnList({
+                displayStatus: status === "ALL" ? undefined : status,
+                fromDate: timeRange?.fromDate,
+                keyword: debouncedSearchTerm || undefined,
+                page,
+                paged: true,
+                size: PAGE_SIZE,
+                sort: "createdAt,desc",
+                status: status === "ALL" ? undefined : status,
+                toDate: timeRange?.toDate,
+                warehouseActiveOnly: true
+            })
                 .then((response) => {
                     if (!active) return;
                     setRows(response.content ?? []);
                     setTotalPages(response.totalPages ?? 0);
+                    setTotalElements(response.totalElements ?? 0);
                 })
                 .catch((loadError: unknown) => {
                     if (active) setError(getReturnErrorMessage(loadError));
@@ -52,7 +153,8 @@ export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCre
                 });
         });
         return () => { active = false; };
-    }, [page, reloadKey]);
+    }, [page, reloadKey, status, searchTerm, debouncedSearchTerm, timeRange?.fromDate, timeRange?.toDate]);
+
 
     useEffect(() => {
         if (!selectedId) return;
@@ -92,8 +194,9 @@ export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCre
 
     const reload = () => {
         setReloadKey((key) => key + 1);
-        onInspectionCreated();
+        onInspectionCreated?.();
     };
+
     const closeSelection = () => {
         setSelectedId(null);
         setSelectedReturn(null);
@@ -101,60 +204,145 @@ export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCre
         setSelectionError("");
     };
 
+    const handleConfirmReceive = (row: OrderReturnListRow) => {
+        setReceivingId(row.id);
+        setReceiveConfirmError("");
+        receiveOrderReturn(row.id)
+            .then(() => {
+                setNotice(`Đã xác nhận nhận hàng cho phiếu ${row.returnCode ?? ""}.`);
+                setConfirmReceiveRow(null);
+                reload();
+            })
+            .catch((err: unknown) => {
+                setReceiveConfirmError(getReturnErrorMessage(err));
+            })
+            .finally(() => {
+                setReceivingId(null);
+            });
+    };
+
     return (
-        <section className="grid gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                    <h2 className="text-lg font-black text-[#172317]">Phiếu hoàn hàng</h2>
-                    <p className="text-sm font-semibold text-[#697684]">Phiếu đã nhận hàng có thể bắt đầu kiểm tra, kể cả khi chưa có phiếu kiểm định.</p>
-                </div>
-                <button className="h-9 rounded-lg border border-[#d8eadc] px-3 text-sm font-bold" onClick={reload} type="button">Tải lại</button>
-            </div>
-            {notice ? <div className="rounded-lg bg-green-50 p-3 text-sm font-semibold text-green-800">{notice}</div> : null}
-            {loading ? <div className="rounded-xl bg-white p-5 text-sm font-semibold">Đang tải phiếu hoàn...</div> : null}
-            {!loading && error ? <div className="rounded-xl bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</div> : null}
-            {!loading && !error ? (
-                <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
-                    <table className="w-full min-w-[760px] text-left text-sm">
-                        <thead className="bg-[#eaf7ec] text-xs font-black uppercase text-[#172317]">
-                            <tr><th className="px-4 py-3">Phiếu hoàn</th><th>Đơn hàng</th><th>Trạng thái</th><th>Còn kiểm</th><th>Thao tác</th></tr>
+        <section className={styles.section}>
+            <ListFilterBar
+                activeStatus={status}
+                onSearchChange={(value) => {
+                    setSearchTerm(value);
+                    onPageChange(0);
+                }}
+                onStatusChange={(value) => {
+                    setStatus(value);
+                    onPageChange(0);
+                }}
+                searchTerm={searchTerm}
+                statusCounts={statusCounts}
+                statusTabs={CUSTOMER_RETURN_STATUS_TABS}
+            />
+
+            {notice ? <div className={styles.notice}>{notice}</div> : null}
+            {error ? <div className={styles.error}>{error}</div> : null}
+
+            <div className={orderStyles.tableCard}>
+                <div className={orderStyles.tableWrap}>
+                    <table className={`${orderStyles.orderTable} ${styles.dataTable} ${styles.returnTable}`}>
+                        <thead>
+                            <tr>
+                                <th>Phiếu hoàn</th>
+                                <th>Trạng thái</th>
+                                <th>Đơn hàng</th>
+                                <th>Thao tác</th>
+                            </tr>
                         </thead>
                         <tbody>
-                            {rows.map((row) => {
-                                const remaining = row.remainingQcQuantity == null ? null : toReturnNumber(row.remainingQcQuantity);
-                                const canInspect = row.status === "RECEIVED" && remaining !== 0 && !row.isPendingDisposition;
+                            {loading ? <ListMessage colSpan={4} message="Đang tải danh sách phiếu hoàn..." /> : null}
+                            {!loading && error ? <ListMessage colSpan={4} message="Không thể hiển thị phiếu hoàn hàng" /> : null}
+                            {!loading && !error && rows.map((row, index) => {
+                                const canInspect = canInspectCustomerReturn(row);
+                                const statusInfo = getCustomerReturnUiStatus(row);
+
                                 return (
-                                    <tr className="border-t border-[#edf0f4]" key={row.id}>
-                                        <td className="px-4 py-3 font-black">{row.returnCode ?? "Chưa có mã phiếu"}</td>
-                                        <td>{row.orderCode ?? "--"}</td>
-                                        <td>{row.isPendingDisposition ? "Đang tạo phiếu kiểm định" : row.status === "RECEIVED" ? "Đã nhận hàng" : row.status === "CREATED" ? "Chờ nhận hàng" : row.status === "COMPLETED" ? "Đã hoàn tất" : "Đã hủy"}</td>
-                                        <td>{remaining == null ? "Chưa xác định" : formatReturnQuantity(remaining)}</td>
+                                    <tr className={index % 2 === 0 ? orderStyles.zebraFirstRow : orderStyles.zebraSecondRow} key={row.id}>
                                         <td>
-                                            {canInspect ? (
-                                                <button className="rounded-lg bg-[#159734] px-3 py-2 font-bold text-white" onClick={() => setSelectedId(row.id)} type="button">Xử lý kho</button>
-                                            ) : row.isPendingDisposition ? "Chờ xử lý lệnh" : "--"}
+                                            <button
+                                                className={styles.codeButton}
+                                                onClick={() => setDetailModalItem(row)}
+                                                title="Nhấn để xem chi tiết phiếu hoàn"
+                                                type="button"
+                                            >
+                                                {row.returnCode ?? "Chưa có mã phiếu"}
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <OrderStatusBadge
+                                                label={statusInfo.label}
+                                                status={statusInfo.status}
+                                            />
+                                        </td>
+                                        <td>
+                                            <span className={styles.orderCodeText}>
+                                                {row.orderCode ?? "--"}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {row.status === "CREATED" ? (
+                                                <button
+                                                    className={styles.actionButtonPrimary}
+                                                    disabled={receivingId === row.id}
+                                                    onClick={() => {
+                                                        setReceiveConfirmError("");
+                                                        setConfirmReceiveRow(row);
+                                                    }}
+                                                    type="button"
+                                                >
+                                                    {receivingId === row.id ? "Đang nhận..." : "Nhận hàng"}
+                                                </button>
+                                            ) : canInspect ? (
+                                                <button
+                                                    className={styles.actionButtonPrimary}
+                                                    onClick={() => setSelectedId(row.id)}
+                                                    type="button"
+                                                >
+                                                    {row.qcStatus === "PARTIAL" ? "Tiếp tục kiểm định" : "Kiểm định"}
+                                                </button>
+                                            ) : row.isPendingDisposition ? (
+                                                <span className={styles.mutedText}>Đang xử lý...</span>
+                                            ) : (
+                                                <button
+                                                    className={styles.actionButtonSecondary}
+                                                    onClick={() => setDetailModalItem(row)}
+                                                    type="button"
+                                                >
+                                                    Xem chi tiết
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 );
                             })}
-                            {rows.length === 0 ? <tr><td className="px-4 py-5 text-[#697684]" colSpan={5}>Chưa có phiếu hoàn hàng.</td></tr> : null}
+                            {!loading && !error && rows.length === 0 ? <ListMessage colSpan={4} message="Không có phiếu hoàn hàng phù hợp" /> : null}
                         </tbody>
                     </table>
                 </div>
-            ) : null}
-            {totalPages > 1 ? (
-                <div className="flex items-center justify-end gap-3 text-sm font-semibold">
-                    <button disabled={page === 0} onClick={() => setPage((value) => value - 1)} type="button">Trước</button>
-                    <span>Trang {page + 1}/{totalPages}</span>
-                    <button disabled={page + 1 >= totalPages} onClick={() => setPage((value) => value + 1)} type="button">Sau</button>
-                </div>
-            ) : null}
+
+                {!loading && !error ? (
+                    <ListPagination
+                        itemLabel="phiếu hoàn"
+                        onPageChange={onPageChange}
+                        page={page}
+                        pageSize={PAGE_SIZE}
+                        totalItems={totalElements}
+                        totalPages={totalPages}
+                    />
+                ) : null}
+            </div>
+
             {selectedId && (selectionLoading || selectionError) ? (
                 <div className="rounded-xl border border-[#e8eef0] bg-white p-4 text-sm font-semibold">
                     <p>{selectionLoading ? "Đang tải dữ liệu kiểm hàng..." : selectionError}</p>
                     <button className="mt-2 text-[#159734]" onClick={closeSelection} type="button">Đóng</button>
                 </div>
             ) : null}
+
+            {/* Inspection Form Modal */}
             {selectedReturn && qcSummary ? (
                 <ReturnInspectionModal
                     isOpen
@@ -164,6 +352,38 @@ export function CustomerReturnQcQueue({ onInspectionCreated }: { onInspectionCre
                     onToast={setNotice}
                     qcSummary={qcSummary}
                     returnItem={selectedReturn}
+                />
+            ) : null}
+
+            {/* Detail Drawer/Modal */}
+            {detailModalItem ? (
+                <CustomerReturnDetailModal
+                    isOpen={Boolean(detailModalItem)}
+                    onClose={() => setDetailModalItem(null)}
+                    onOpenInspection={(returnDetail, summary) => {
+                        setDetailModalItem(null);
+                        setSelectedReturn(returnDetail);
+                        setQcSummary(summary);
+                    }}
+                    onRefreshList={reload}
+                    returnItem={detailModalItem}
+                />
+            ) : null}
+
+            {confirmReceiveRow ? (
+                <ConfirmDialog
+                    confirmLabel="Xác nhận nhận hàng"
+                    confirmVariant="primary"
+                    description={`Bạn xác nhận đã nhận hàng của phiếu hoàn ${confirmReceiveRow.returnCode ?? "này"}?`}
+                    error={receiveConfirmError}
+                    onCancel={() => {
+                        if (receivingId !== null) return;
+                        setConfirmReceiveRow(null);
+                        setReceiveConfirmError("");
+                    }}
+                    onConfirm={() => handleConfirmReceive(confirmReceiveRow)}
+                    submitting={receivingId === confirmReceiveRow.id}
+                    title="Xác nhận nhận hàng"
                 />
             ) : null}
         </section>

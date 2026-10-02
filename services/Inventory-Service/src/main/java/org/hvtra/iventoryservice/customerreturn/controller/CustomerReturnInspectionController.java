@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.customerreturn.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
@@ -36,6 +39,12 @@ public class CustomerReturnInspectionController {
 
     private final CustomerReturnInspectionService service;
 
+    @Operation(
+            summary = "Create a Customer Return inspection within Inventory",
+            description = "Low-level Inventory operation for integration and tests. Customer Return business flows must submit "
+                    + "a disposition command through Order Service; Inventory then creates the inspection with command_id. "
+                    + "Directly created inspections have no Order command and cannot advance Order physical progress."
+    )
     @PostMapping("/customer-returns/{returnId}/inspections")
     public ResponseEntity<CustomerReturnInspectionResponse> createInspection(
             @PathVariable UUID returnId,
@@ -62,10 +71,12 @@ public class CustomerReturnInspectionController {
             @RequestParam(required = false) String returnCode,
             @RequestParam(required = false) String orderCode,
             @RequestParam(required = false) CustomerReturnInspectionStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable
     ) {
-        return ResponseEntity.ok(service.listInspections(returnCode, orderCode, status, pageable));
+        return ResponseEntity.ok(service.listInspections(returnCode, orderCode, status, fromDate, toDate, pageable));
     }
 
     @GetMapping("/customer-returns/{returnId}/qc-summary")

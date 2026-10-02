@@ -12,6 +12,7 @@ import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,6 +37,8 @@ public interface CustomerReturnInspectionService {
             String returnCode,
             String orderCode,
             CustomerReturnInspectionStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
             Pageable pageable
     );
 

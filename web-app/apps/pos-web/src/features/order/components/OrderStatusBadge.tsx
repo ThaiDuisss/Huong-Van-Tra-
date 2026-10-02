@@ -13,7 +13,9 @@ const STATUS_STYLES: Record<string, string> = {
     REFUNDED: "bg-violet-50 text-violet-700",
     PAYMENT_FAILED: "bg-red-50 text-red-600",
     EXPIRED: "bg-slate-100 text-slate-600",
-    DRAFT: "bg-slate-100 text-slate-600"
+    DRAFT: "bg-slate-100 text-slate-600",
+    FAILED: "bg-red-50 text-red-600",
+    QC_COMPLETED: "bg-teal-50 text-teal-700"
 };
 
 interface OrderStatusBadgeProps {
