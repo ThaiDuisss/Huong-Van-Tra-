@@ -9,6 +9,7 @@ import org.hvtra.iventoryservice.stock.dto.response.StockVariantBatchResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
@@ -18,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -148,12 +151,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
                         (left, ignored) -> left));
         if (itemByVariantId.isEmpty()) {
             return variantIds.stream()
-                    .map(variantId -> new StockVariantBatchResponse(
-                            variantId,
-                            request.warehouseId(),
-                            ZERO,
-                            ZERO,
-                            "OUT_OF_STOCK"))
+                    .map(variantId -> StockVariantBatchResponse.empty(variantId, request.warehouseId()))
                     .toList();
         }
         for (InventoryItem item : itemByVariantId.values()) {
@@ -162,23 +160,20 @@ public class InventoryStockServiceImpl implements InventoryStockService {
             }
         }
 
-
-
-
-        List<InventoryBalance> balances = balanceRepository.findSaleableBalancesByInventoryItemIds(
+        List<InventoryBalance> balances = balanceRepository.findSellableBatchBalancesByInventoryItemIds(
                 itemByVariantId.values().stream().map(InventoryItem::getId).toList(),
                 InventoryStatus.ACTIVE,
-                InventoryLocationSaleability.nonSaleableTypes()
+                InventoryLocationSaleability.nonSaleableTypes(),
+                LocalDate.now()
         );
 
-
-        Map<UUID, InventoryBalance> balanceByItemId = selectBestBalanceByItemId(balances);
+        Map<UUID, VariantTotals> totalsByItemId = sumBalancesByItemId(balances);
 
         return variantIds.stream()
                 .map(variantId -> {
                     InventoryItem item = itemByVariantId.get(variantId);
-                    InventoryBalance balance = item == null ? null : balanceByItemId.get(item.getId());
-                    return toVariantResponse(variantId, balance, request.warehouseId());
+                    VariantTotals totals = item == null ? null : totalsByItemId.get(item.getId());
+                    return toVariantResponse(variantId, totals, request.warehouseId());
                 })
                 .toList();
     }
@@ -198,40 +193,85 @@ public class InventoryStockServiceImpl implements InventoryStockService {
                 available.compareTo(ZERO) > 0 ? "IN_STOCK" : "OUT_OF_STOCK");
     }
 
-    private StockVariantBatchResponse toVariantResponse(UUID variantId, InventoryBalance balance, UUID warehouseId) {
-        if (balance == null) {
-            return new StockVariantBatchResponse(variantId, warehouseId, ZERO, ZERO, "OUT_OF_STOCK");
+    private StockVariantBatchResponse toVariantResponse(UUID variantId, VariantTotals totals, UUID warehouseId) {
+        if (totals == null) {
+            return StockVariantBatchResponse.empty(variantId, warehouseId);
         }
-        BigDecimal reserved = balance.getQuantityReserved() != null ? balance.getQuantityReserved() : ZERO;
-        BigDecimal available = balance.getAvailableQuantity();
         return new StockVariantBatchResponse(
                 variantId,
-                balance.getLocation().getId(),
-                available,
-                reserved,
-                available.compareTo(ZERO) > 0 ? "IN_STOCK" : "OUT_OF_STOCK");
+                totals.bestLocationId(),
+                totals.available,
+                totals.reserved,
+                totals.available.compareTo(ZERO) > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
+                totals.shelf,
+                totals.warehouse,
+                totals.bestLocationId(InventoryLocationType.SHELF),
+                totals.bestWarehouseLocationId(warehouseId));
     }
 
-    private Map<UUID, InventoryBalance> selectBestBalanceByItemId(List<InventoryBalance> balances) {
-        return balances.stream()
-                .filter(balance -> InventoryLocationSaleability.isSaleable(balance.getLocation()))
-                .collect(Collectors.toMap(
-                        balance -> balance.getInventoryItem().getId(),
-                        balance -> balance,
-                        this::pickBalanceWithMoreAvailable));
-    }
-
-    private InventoryBalance pickBalanceWithMoreAvailable(InventoryBalance left, InventoryBalance right) {
-        BigDecimal leftAvailable = availableQuantity(left);
-        BigDecimal rightAvailable = availableQuantity(right);
-        return rightAvailable.compareTo(leftAvailable) > 0 ? right : left;
-    }
-
-    private BigDecimal availableQuantity(InventoryBalance balance) {
-        if (balance == null) {
-            return ZERO;
+    /**
+     * 1 item có nhiều dòng tồn (mỗi batch trên mỗi kệ là 1 dòng) nên số lượng phải cộng dồn toàn bộ.
+     */
+    private Map<UUID, VariantTotals> sumBalancesByItemId(List<InventoryBalance> balances) {
+        Map<UUID, VariantTotals> totalsByItemId = new HashMap<>();
+        for (InventoryBalance balance : balances) {
+            if (!InventoryLocationSaleability.isSaleable(balance.getLocation())) {
+                continue;
+            }
+            totalsByItemId.computeIfAbsent(balance.getInventoryItem().getId(), ignored -> new VariantTotals())
+                    .add(balance);
         }
-        return balance.getAvailableQuantity();
+        return totalsByItemId;
+    }
+
+    private static class VariantTotals {
+        private BigDecimal available = ZERO;
+        private BigDecimal reserved = ZERO;
+        // Tách riêng số trên kệ (SHELF) và số trong kho (WAREHOUSE / STORAGE) để POS hiển thị hai con số.
+        private BigDecimal shelf = ZERO;
+        private BigDecimal warehouse = ZERO;
+        private final Map<UUID, BigDecimal> availableByLocationId = new LinkedHashMap<>();
+        private final Map<UUID, InventoryLocationType> typeByLocationId = new HashMap<>();
+
+        private void add(InventoryBalance balance) {
+            BigDecimal rowAvailable = balance.getAvailableQuantity();
+            available = available.add(rowAvailable);
+            reserved = reserved.add(balance.getQuantityReserved() != null ? balance.getQuantityReserved() : ZERO);
+            UUID locationId = balance.getLocation().getId();
+            InventoryLocationType type = balance.getLocation().getType();
+            availableByLocationId.merge(locationId, rowAvailable, BigDecimal::add);
+            typeByLocationId.put(locationId, type);
+            if (type == InventoryLocationType.SHELF) {
+                shelf = shelf.add(rowAvailable);
+            } else {
+                warehouse = warehouse.add(rowAvailable);
+            }
+        }
+
+        // Response chỉ mang 1 locationId nên trả về vị trí đang còn nhiều hàng nhất.
+        private UUID bestLocationId() {
+            return availableByLocationId.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+        }
+
+        private UUID bestLocationId(InventoryLocationType type) {
+            return availableByLocationId.entrySet().stream()
+                    .filter(entry -> typeByLocationId.get(entry.getKey()) == type)
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+        }
+
+        private UUID bestWarehouseLocationId(UUID fallback) {
+            UUID best = availableByLocationId.entrySet().stream()
+                    .filter(entry -> typeByLocationId.get(entry.getKey()) != InventoryLocationType.SHELF)
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+            return best != null ? best : fallback;
+        }
     }
 
     private static class Totals {

@@ -335,10 +335,11 @@ class OrderPaymentEventServiceImplTest {
     }
 
     @Test
-    void thresholdCrossingRequestsOneProductionAlert() {
+    void posSaleRaisesProductionAlertWhenRealStockDropsToThreshold() {
         UUID orderId = UUID.randomUUID();
         UUID variantId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("POS");
         OrderItem item = new OrderItem();
         item.setProductVariantId(variantId);
         item.setQuantity(BigDecimal.ONE);
@@ -347,17 +348,47 @@ class OrderPaymentEventServiceImplTest {
         when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
         when(orderRepository.save(order)).thenReturn(order);
         when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
-        when(catalogClient.getBomItemsByVariantId(variantId)).thenReturn(List.of(
-                new CatalogClient.BomItemResponse(UUID.randomUUID(), BigDecimal.ONE, BigDecimal.ZERO)));
-        when(catalogClient.decrementSellableQuantity(eq(variantId), any())).thenReturn(
-                new CatalogClient.SellableQuantityAdjustmentResponse(variantId, BigDecimal.ONE,
-                        new BigDecimal("31"), new BigDecimal("30"), true,
-                        new BigDecimal("30"), new BigDecimal("100"), null, "SALE"));
+        // Sau khi bán: kệ còn 20, kho còn 10 => tồn thật 30, đúng bằng ngưỡng sản xuất.
+        when(inventoryClient.fulfillSale(any())).thenReturn(new InventoryClient.FulfillSaleResponse(
+                orderId, false, null, List.of(new InventoryClient.FulfillSaleLineResult(
+                        variantId, BigDecimal.ONE, BigDecimal.ZERO, new BigDecimal("20"), new BigDecimal("10")))));
+        when(catalogClient.getVariantStockConfig(variantId)).thenReturn(new CatalogClient.VariantStockConfigResponse(
+                variantId, new BigDecimal("100"), new BigDecimal("30"), new BigDecimal("50")));
 
         service.handlePaymentEvent(event);
 
+        // Số đề xuất = phần thiếu để về lại mức sellable_quantity (100 − 30).
         verify(inventoryClient).createProductionRequiredAlert(argThat(r ->
-                r.variantId().equals(variantId) && r.sellableQuantity().compareTo(new BigDecimal("30")) == 0));
+                r.variantId().equals(variantId)
+                        && r.sellableQuantity().compareTo(new BigDecimal("30")) == 0
+                        && r.productionThreshold().compareTo(new BigDecimal("30")) == 0
+                        && r.productionBatchQuantity().compareTo(new BigDecimal("70")) == 0));
+        verify(catalogClient, never()).decrementSellableQuantity(any(), any());
+    }
+
+    @Test
+    void posSaleDoesNotAlertWhileRealStockIsAboveThreshold() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("POS");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(BigDecimal.ONE);
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+        when(inventoryClient.fulfillSale(any())).thenReturn(new InventoryClient.FulfillSaleResponse(
+                orderId, false, null, List.of(new InventoryClient.FulfillSaleLineResult(
+                        variantId, BigDecimal.ONE, BigDecimal.ZERO, new BigDecimal("40"), new BigDecimal("60")))));
+        when(catalogClient.getVariantStockConfig(variantId)).thenReturn(new CatalogClient.VariantStockConfigResponse(
+                variantId, new BigDecimal("100"), new BigDecimal("30"), new BigDecimal("50")));
+
+        service.handlePaymentEvent(event);
+
+        verify(inventoryClient, never()).createProductionRequiredAlert(any());
     }
 
     @Test
@@ -386,7 +417,46 @@ class OrderPaymentEventServiceImplTest {
     }
 
     @Test
-    void lostConsumeResponseDoesNotRestoreAlreadyConsumedSellable() {
+    void posSaleDeductsShelfStockInInventoryAndNeverTouchesCatalogSellable() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        UUID ingredientId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("POS");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(new BigDecimal("30"));
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+        // BOM: 2 đơn vị nguyên liệu cho 1 thành phẩm, hao hụt 10%.
+        when(catalogClient.getBomItemsByVariantId(variantId)).thenReturn(List.of(
+                new CatalogClient.BomItemResponse(ingredientId, new BigDecimal("2"), new BigDecimal("10"))));
+        when(inventoryClient.fulfillSale(any())).thenReturn(new InventoryClient.FulfillSaleResponse(
+                orderId, false, "NKE-00001", List.of()));
+
+        service.handlePaymentEvent(event);
+
+        verify(inventoryClient).fulfillSale(argThat(r ->
+                r.orderId().equals(orderId)
+                        && r.lines().size() == 1
+                        && r.lines().get(0).productVariantId().equals(variantId)
+                        && r.lines().get(0).quantity().compareTo(new BigDecimal("30")) == 0
+                        && r.materials().size() == 1
+                        && r.materials().get(0).ingredientId().equals(ingredientId)
+                        // 30 × 2 × 1.10 = 66 nguyên liệu cần để sản xuất bù.
+                        && r.materials().get(0).quantity().compareTo(new BigDecimal("66")) == 0));
+        verify(catalogClient, never()).decrementSellableQuantity(any(), any());
+        verify(inventoryClient, never()).reserveMaterials(any());
+        verify(inventoryClient, never()).consumeMaterials(any());
+        assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+    }
+
+    @Test
+    void posSaleWithoutBomStillDeductsFinishedGoods() {
         UUID orderId = UUID.randomUUID();
         UUID variantId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
@@ -399,15 +469,65 @@ class OrderPaymentEventServiceImplTest {
         when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
         when(orderRepository.save(order)).thenReturn(order);
         when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
-        when(catalogClient.getBomItemsByVariantId(variantId)).thenReturn(List.of(
-                new CatalogClient.BomItemResponse(UUID.randomUUID(), BigDecimal.ONE, BigDecimal.ZERO)));
-        doThrow(new IllegalStateException("timeout")).when(inventoryClient).consumeMaterials(any());
-        when(inventoryClient.releaseMaterials(any())).thenReturn(List.of(new InventoryClient.MaterialReservationResponse("CONFIRMED")));
+        when(catalogClient.getBomItemsByVariantId(variantId)).thenThrow(new IllegalStateException("catalog down"));
+        when(inventoryClient.fulfillSale(any())).thenReturn(new InventoryClient.FulfillSaleResponse(
+                orderId, false, null, List.of()));
+
+        service.handlePaymentEvent(event);
+
+        verify(inventoryClient).fulfillSale(argThat(r -> r.lines().size() == 1 && r.materials().isEmpty()));
+        assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
+    }
+
+    @Test
+    void posSaleOutOfStockKeepsPaymentPaidAndStaysRetryableWithoutCompensation() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("POS");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(new BigDecimal("50"));
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(inventoryClient.fulfillSale(any())).thenThrow(
+                new IllegalStateException("Không đủ hàng cho Trà sen: cần 50, trên kệ 30, trong kho 10"));
+
+        service.handlePaymentEvent(event);
+
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        assertEquals(OrderInventoryProcessingStatus.FAILED, order.getInventoryProcessingStatus());
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals("Không đủ hàng cho Trà sen: cần 50, trên kệ 30, trong kho 10", order.getInventoryFailureReason());
+        // Inventory tự rollback trong một transaction nên Order không phải bù trừ gì.
+        verify(inventoryClient, never()).releaseMaterials(any());
+        verify(catalogClient, never()).restoreSellableQuantity(any(), any());
+    }
+
+    @Test
+    void posSaleReplayedAfterItWasAlreadyDeductedDoesNotAlertAgain() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setOrderType("POS");
+        OrderItem item = new OrderItem();
+        item.setProductVariantId(variantId);
+        item.setQuantity(BigDecimal.ONE);
+        order.addItem(item);
+        PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+        when(inventoryClient.fulfillSale(any())).thenReturn(new InventoryClient.FulfillSaleResponse(
+                orderId, true, null, List.of()));
 
         service.handlePaymentEvent(event);
 
         assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
-        verify(catalogClient, never()).restoreSellableQuantity(any(), any());
+        verify(inventoryClient, never()).createProductionRequiredAlert(any());
+        verify(catalogClient, never()).getVariantStockConfig(any());
     }
 
     @Test

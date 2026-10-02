@@ -1,6 +1,7 @@
 package org.hvtra.catalog.service;
 
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
+import org.hvtra.catalog.dto.request.SellableConfigRequest;
 import org.hvtra.catalog.dto.request.SellableQuantityAdjustmentRequest;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
@@ -23,6 +24,7 @@ public interface ProductVariantService {
     ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request);
     ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request);
     ProductResponse.VariantResponse updateStatus(UUID id, Status status);
+    ProductResponse.VariantResponse updateSellableConfig(UUID id, SellableConfigRequest request);
     SellableQuantityAdjustmentResponse decrementSellableQuantity(UUID id, SellableQuantityAdjustmentRequest request);
     SellableQuantityAdjustmentResponse restoreSellableQuantity(UUID id, SellableQuantityAdjustmentRequest request);
     byte[] exportToExcel(UUID productId);

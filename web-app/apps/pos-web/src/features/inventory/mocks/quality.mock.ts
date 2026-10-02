@@ -1,5 +1,5 @@
 import type { InventoryAuditEvent, UserSnapshot } from "../types/stock-document.types";
-import type { BatchQualityDetail, DisposalRequest, QualityRole } from "../types/quality.types";
+import type { BatchQualityDetail, DisposalRequest, AppRole } from "../types/quality.types";
 import {
     inventoryMasterBatches,
     inventoryMasterDocuments,
@@ -8,10 +8,10 @@ import {
     inventoryMasterUsers
 } from "./inventory-master-data.mock";
 
-const users: Record<QualityRole, UserSnapshot> = {
+const users: Record<AppRole, UserSnapshot> = {
     ACCOUNTANT: inventoryMasterUsers.accountant,
     ADMIN: inventoryMasterUsers.admin,
-    BRANCH_MANAGER: inventoryMasterUsers.branchManager,
+    MANAGER: inventoryMasterUsers.manager,
     DIRECTOR: inventoryMasterUsers.director,
     INVENTORY_STAFF: inventoryMasterUsers.warehouse,
     QC_STAFF: inventoryMasterUsers.qc
@@ -24,11 +24,11 @@ export const qualityLocations = [
     inventoryMasterLocations.branchCauGiay
 ];
 
-export function qualityActor(role: QualityRole) {
+export function qualityActor(role: AppRole) {
     return users[role];
 }
 
-export function qualityAudit(type: InventoryAuditEvent["type"], role: QualityRole, note: string): InventoryAuditEvent {
+export function qualityAudit(type: InventoryAuditEvent["type"], role: AppRole, note: string): InventoryAuditEvent {
     const actor = qualityActor(role);
     return { actor, happenedAt: new Date().toISOString(), id: `${type}-${Date.now()}-${Math.random().toString(16).slice(2)}`, note, roleSnapshot: actor.role, type };
 }

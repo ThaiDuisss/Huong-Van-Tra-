@@ -19,7 +19,7 @@ export type CustomerReturnStatus =
 
 export type CustomerReturnRole =
     | "SALES_STAFF"
-    | "BRANCH_MANAGER"
+    | "MANAGER"
     | "QC_STAFF"
     | "ADMIN"
     | "ACCOUNTANT"
@@ -245,3 +245,5 @@ export interface CustomerReturnApi {
     cancelCustomerReturn(input: CustomerReturnActionInput): Promise<CustomerReturnDetail>;
     getCustomerReturnOptions(): Promise<CustomerReturnOptions>;
 }
+
+export type AppRole = CustomerReturnRole;

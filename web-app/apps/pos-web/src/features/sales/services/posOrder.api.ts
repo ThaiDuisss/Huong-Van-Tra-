@@ -142,8 +142,10 @@ const paymentMethodMap: Record<SalePaymentMethod, string> = {
     COMBINED: "COMBINED"
 };
 
+// Chỉ kiểm tra định dạng: ID seed (vd b1000000-0000-0000-0000-000000000001) không theo version RFC
+// nhưng backend vẫn chấp nhận.
 const uuidPattern =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getProductVariantId(item: SaleCartItem) {
     const productVariantId = item.productVariantId ?? item.productId;
@@ -205,15 +207,6 @@ export const posOrderApi = {
     }) {
         if (!uuidPattern.test(input.productVariantId)) {
             throw new Error("Không xác định được productVariantId dạng UUID.");
-        }
-
-        if (
-            !input.orderId &&
-            (!input.branchId || !uuidPattern.test(input.branchId))
-        ) {
-            throw new Error(
-                "POS chưa được cấu hình chi nhánh để tạo đơn hàng."
-            );
         }
 
         return apiClient.post<PosOrderDto, AddDraftOrderItemRequestBody>(

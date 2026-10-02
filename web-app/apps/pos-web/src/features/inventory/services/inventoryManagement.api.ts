@@ -66,7 +66,7 @@ export const inventoryManagementApi: InventoryManagementApi = {
                 {
                     id: `approval-${Date.now()}`,
                     label: "Chờ quản lý kho duyệt",
-                    role: "INVENTORY_MANAGER",
+                    role: "MANAGER",
                     status: "WAITING"
                 }
             ],

@@ -63,6 +63,9 @@ import { SupplierReturnListPage } from "../features/inventory/pages/SupplierRetu
 import { TransferCreatePage } from "../features/inventory/pages/TransferCreatePage";
 import { TransferDetailPage } from "../features/inventory/pages/TransferDetailPage";
 import { TransferListPage } from "../features/inventory/pages/TransferListPage";
+import { ShelfReplenishmentListPage } from "../features/inventory/pages/ShelfReplenishmentListPage";
+import { ShelfReplenishmentFormPage } from "../features/inventory/pages/ShelfReplenishmentFormPage";
+import { ShelfReplenishmentDetailPage } from "../features/inventory/pages/ShelfReplenishmentDetailPage";
 import { CouponListPage } from "../features/marketing/pages/CouponListPage";
 import { CouponUsageListPage } from "../features/marketing/pages/CouponUsageListPage";
 import { DiscountProgramListPage } from "../features/marketing/pages/DiscountProgramListPage";
@@ -80,6 +83,7 @@ import { ProductImportReviewPage } from "../features/product/pages/ProductImport
 import { ImportBatchListPage } from "../features/product/pages/ImportBatchListPage";
 import { ProductVariantListPage } from "../features/product/pages/ProductVariantListPage";
 import { ProductVariantDetailPage } from "../features/product/pages/ProductVariantDetailPage";
+import { SellableConfigPage } from "../features/product/pages/SellableConfigPage";
 import { routePaths } from "../routes/path";
 import { PosSalePage } from "../features/sales/pages/PosSalePage";
 import { PosShell } from "../components/layout/Pos/PosShell";
@@ -98,6 +102,7 @@ import {
   POS_WORKSPACE_ROLES,
   PRODUCT_ROLES,
   REPORT_ROLES,
+  SELLABLE_CONFIG_ROLES,
   getDefaultRouteForRoles,
   type AppRole,
 } from "../auth/role-utils";
@@ -211,6 +216,9 @@ export function AppRouter() {
         <Route element={<RoleGate roles={ACTION_LOG_ROLES} />}>
           <Route path="action-logs" element={<ActionLogPage />} />
         </Route>
+        <Route element={<RoleGate roles={SELLABLE_CONFIG_ROLES} />}>
+          <Route path="sellable-config" element={<SellableConfigPage />} />
+        </Route>
         <Route element={<RoleGate roles={ORDER_ROLES} />}>
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/:orderId/returns/create" element={<CreateReturnPage />} />
@@ -299,7 +307,7 @@ export function AppRouter() {
           />
           <Route path="inventory/:workspaceId" element={<InventoryManagementPage />} />
         </Route>
-        <Route element={<RoleGate roles={["ADMIN", "BRANCH_MANAGER"]} />}>
+        <Route element={<RoleGate roles={["ADMIN", "MANAGER"]} />}>
           <Route path="customers" element={<CustomerListPage />} />
           <Route path="customers/groups" element={<CustomerListPage />} />
           <Route path="customers/tiers" element={<CustomerTierManagementPage />} />
@@ -364,6 +372,10 @@ export function AppRouter() {
           />
         </Route>
         <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
+          <Route path="inventory/shelf-replenishments" element={<ShelfReplenishmentListPage />} />
+          <Route path="inventory/shelf-replenishments/new" element={<ShelfReplenishmentFormPage />} />
+          <Route path="inventory/shelf-replenishments/:slipId" element={<ShelfReplenishmentDetailPage />} />
+          <Route path="inventory/shelf-replenishments/:slipId/edit" element={<ShelfReplenishmentFormPage />} />
           <Route path="inventory/transfers" element={<TransferListPage />} />
           <Route path="inventory/transfers/new" element={<TransferCreatePage />} />
           <Route path="inventory/transfers/:transferId" element={<TransferDetailPage />} />

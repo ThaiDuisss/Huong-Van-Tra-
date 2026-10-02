@@ -12,28 +12,19 @@ export function formatGoodsReceiptStatus(status: GoodsReceiptStatus): string {
         case "DRAFT":
             return "Bản nháp";
         case "PENDING_APPROVAL":
-        case "SUBMITTED":
             return "Chờ duyệt";
         case "APPROVED":
             return "Đã duyệt";
         case "RECEIVING":
             return "Đang tiếp nhận";
-        case "QC_PENDING":
-        case "AWAITING_QC":
-            return "Chờ QC";
-        case "QC_COMPLETED":
-        case "READY_TO_POST":
-            return "Chờ ghi sổ";
+        case "PENDING_EXCEPTION_APPROVAL":
+            return "Chờ duyệt ngoại lệ";
         case "POSTED":
             return "Đã nhập kho";
         case "REJECTED":
             return "Từ chối";
         case "CANCELLED":
             return "Đã hủy";
-        case "PARTIALLY_PASSED":
-            return "QC đạt một phần";
-        case "AWAITING_COST":
-            return "Chờ tính giá";
         default:
             return status;
     }

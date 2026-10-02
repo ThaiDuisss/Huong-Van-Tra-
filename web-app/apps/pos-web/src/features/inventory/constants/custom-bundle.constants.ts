@@ -1,4 +1,4 @@
-import type { BundlePaymentStatus, BundleReservationStatus, CustomBundleRole, CustomBundleStatus } from "../types/custom-bundle.types";
+import type { BundlePaymentStatus, BundleReservationStatus,  CustomBundleStatus } from "../types/custom-bundle.types";
 
 export const customBundleStatusLabels: Record<CustomBundleStatus, string> = {
     AWAITING_PAYMENT: "Chờ thanh toán",
@@ -29,10 +29,10 @@ export const bundleReservationLabels: Record<BundleReservationStatus, string> = 
     RESERVED: "Đã giữ"
 };
 
-export const customBundleRoleLabels: Record<CustomBundleRole, string> = {
+export const customBundleRoleLabels: Record<string, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
-    BRANCH_MANAGER: "Quản lý chi nhánh",
+    MANAGER: "Quản lý chi nhánh",
     INVENTORY_STAFF: "Nhân viên kho",
     QC_STAFF: "Nhân viên QC",
     SALES_STAFF: "Nhân viên bán hàng"

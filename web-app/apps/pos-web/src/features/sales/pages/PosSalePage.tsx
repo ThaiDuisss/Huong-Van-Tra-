@@ -8,6 +8,11 @@ import type { NotificationResponse } from "../../notification/types/notification
 import { CheckoutPanel } from "../components/checkout/CheckoutPanel";
 import { DeliveryCheckoutPanel } from "../components/delivery/DeliveryCheckoutPanel";
 import { CustomTeaRequestDialog } from "../components/dialogs/CustomTeaRequestDialog";
+import {
+    ShelfShortageDialog,
+    type ShelfShortage
+} from "../components/dialogs/ShelfShortageDialog";
+import { shelfReplenishmentApi } from "../../inventory/services/shelfReplenishment.api";
 import type { PaymentStatusValue } from "../components/dialogs/PaymentStatus";
 import { SaleWorkspace } from "../components/workspace/SaleWorkspace";
 import { deliveryApi } from "../services/delivery.api";
@@ -69,7 +74,7 @@ const currentInvoiceId = "invoice-1";
 const currentBranchId = import.meta.env.VITE_POS_BRANCH_ID ?? null;
 const currentBranchLocation: BranchLocation | null = null;
 const uuidPattern =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const initialDeliveryState: DeliveryCheckoutState = {
     addresses: [],
@@ -374,6 +379,16 @@ export function PosSalePage() {
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchError, setSearchError] = useState("");
     const [customTeaOpen, setCustomTeaOpen] = useState(false);
+    const [shelfShortage, setShelfShortage] = useState<ShelfShortage | null>(null);
+    const [shelfShortageSubmitting, setShelfShortageSubmitting] = useState(false);
+    const [shelfShortageError, setShelfShortageError] = useState("");
+    // Tồn kệ / kho của các mặt hàng đã thêm vào giỏ, để so khi tăng số lượng.
+    const stockByVariantIdRef = useRef<Record<string, SaleProductPreview>>({});
+    // Số thiếu đã có phiếu nhập kệ cho từng mặt hàng trong đơn hiện tại, tránh hỏi lại cùng một số.
+    const replenishedMissingRef = useRef<Record<string, number>>({});
+    // Phương án nhân viên đã chọn cho mặt hàng (true = gửi kho ngay, false = lưu nháp), để lần tăng số lượng sau
+    // tự cập nhật phiếu đã có thay vì hỏi lại.
+    const replenishmentModeRef = useRef<Record<string, boolean>>({});
     const [customTeaSearchQuery, setCustomTeaSearchQuery] = useState("");
     const [customTeaSearchResults, setCustomTeaSearchResults] = useState<
         SaleProductPreview[]
@@ -388,6 +403,12 @@ export function PosSalePage() {
         Record<string, SaleCartItem>
     >(initialCartItems);
     const [draftOrder, setDraftOrder] = useState<PosOrderDto | null>(null);
+
+    // Đơn mới thì bắt đầu theo dõi phiếu nhập kệ lại từ đầu.
+    useEffect(() => {
+        replenishedMissingRef.current = {};
+        replenishmentModeRef.current = {};
+    }, [draftOrder?.id]);
     const [note, setNote] = useState("");
     const [orderType, setOrderType] =
         useState<SaleOrderType>("QUICK_SALE");
@@ -981,6 +1002,131 @@ export function PosSalePage() {
         setBankTransferEventMessage("");
     }
 
+    /**
+     * Sau mỗi lần giỏ thay đổi: nếu tổng số đặt của mặt hàng vượt số trên kệ thì hỏi tạo phiếu nhập kệ.
+     * Chỉ hỏi một lần cho mỗi mặt hàng trong đơn; các lần tăng số lượng sau tự cập nhật số thiếu trên phiếu đã có.
+     */
+    async function checkShelfShortage(order: PosOrderDto, variantId: string) {
+        const lines = (order.items ?? []).filter(
+            (item) => item.productVariantId === variantId
+        );
+        const requestedQuantity = lines.reduce(
+            (total, item) => total + toNumber(item.quantity),
+            0
+        );
+
+        if (requestedQuantity <= 0) {
+            delete replenishedMissingRef.current[variantId];
+            delete replenishmentModeRef.current[variantId];
+            return;
+        }
+
+        let stock = stockByVariantIdRef.current[variantId];
+
+        if (!stock) {
+            try {
+                stock = await posProductApi.getPosView(variantId);
+                stockByVariantIdRef.current[variantId] = stock;
+            } catch (error) {
+                logApiError(error);
+                return;
+            }
+        }
+
+        const missingQuantity = requestedQuantity - stock.shelfQuantity;
+
+        if (
+            missingQuantity <= 0 ||
+            missingQuantity <= (replenishedMissingRef.current[variantId] ?? 0)
+        ) {
+            return;
+        }
+
+        const shortage: ShelfShortage = {
+            productVariantId: variantId,
+            name: lines[0]?.productNameSnapshot ?? lines[0]?.productName ?? stock.name,
+            sku: lines[0]?.skuSnapshot ?? lines[0]?.sku ?? stock.sku,
+            requestedQuantity,
+            shelfQuantity: stock.shelfQuantity,
+            warehouseQuantity: stock.warehouseQuantity,
+            missingQuantity,
+            shelfLocationId: stock.shelfLocationId,
+            warehouseLocationId: stock.warehouseLocationId
+        };
+        const chosenMode = replenishmentModeRef.current[variantId];
+
+        if (chosenMode !== undefined) {
+            try {
+                await saveShelfReplenishment(shortage, chosenMode, order.id);
+            } catch (error) {
+                logApiError(error);
+                setCheckoutError(
+                    `Không thể cập nhật phiếu nhập kệ: ${getErrorMessage(error)}`
+                );
+            }
+            return;
+        }
+
+        setShelfShortageError("");
+        setShelfShortage(shortage);
+    }
+
+    /** Backend gộp theo referenceId (mã đơn) nên gọi lại chỉ cập nhật số lượng trên phiếu đang mở của đơn. */
+    async function saveShelfReplenishment(
+        shortage: ShelfShortage,
+        submit: boolean,
+        orderId: string | null
+    ) {
+        const slip = await shelfReplenishmentApi.create({
+            shelfId: shortage.shelfLocationId ?? null,
+            warehouseId: shortage.warehouseLocationId ?? null,
+            branchId: currentBranchId,
+            referenceId: orderId,
+            note: `POS: thiếu trên kệ khi bán ${shortage.name}`,
+            submit,
+            lines: [
+                {
+                    productVariantId: shortage.productVariantId,
+                    quantity: shortage.missingQuantity
+                }
+            ]
+        });
+        replenishedMissingRef.current[shortage.productVariantId] =
+            shortage.missingQuantity;
+        replenishmentModeRef.current[shortage.productVariantId] = submit;
+        setCheckoutError("");
+        setCheckoutSuccess(
+            submit
+                ? `Phiếu nhập kệ ${slip.documentCode}: cần đưa ${shortage.missingQuantity} ${shortage.name} lên kệ, đã gửi kho.`
+                : `Đã lưu nháp phiếu nhập kệ ${slip.documentCode} (thiếu ${shortage.missingQuantity} ${shortage.name}).`
+        );
+    }
+
+    async function createShelfReplenishment(submit: boolean) {
+        if (!shelfShortage || shelfShortageSubmitting) {
+            return;
+        }
+
+        setShelfShortageSubmitting(true);
+        setShelfShortageError("");
+
+        try {
+            await saveShelfReplenishment(
+                shelfShortage,
+                submit,
+                draftOrder?.id ?? null
+            );
+            setShelfShortage(null);
+        } catch (error) {
+            logApiError(error);
+            setShelfShortageError(
+                `Không thể tạo phiếu nhập kệ: ${getErrorMessage(error)}`
+            );
+        } finally {
+            setShelfShortageSubmitting(false);
+        }
+    }
+
     async function addProduct(product: SaleProductPreview) {
         const variantId = product.productVariantId ?? product.id;
 
@@ -1014,6 +1160,8 @@ export function PosSalePage() {
             applyDraftOrder(order);
             setCheckoutError("");
             setCheckoutSuccess("");
+            stockByVariantIdRef.current[variantId] = product;
+            void checkShelfShortage(order, variantId);
             return true;
         } catch (error) {
             logApiError(error);
@@ -1096,6 +1244,10 @@ export function PosSalePage() {
             applyDraftOrder(order);
             setCheckoutError("");
             setCheckoutSuccess("");
+
+            if (currentItem.productVariantId) {
+                void checkShelfShortage(order, currentItem.productVariantId);
+            }
         } catch (error) {
             logApiError(error);
             setCheckoutError(getErrorMessage(error));
@@ -1969,6 +2121,20 @@ export function PosSalePage() {
                 onNoteChange={setNote}
                 onOrderTypeChange={setOrderType}
             />
+            {shelfShortage ? (
+                <ShelfShortageDialog
+                    shortage={shelfShortage}
+                    submitting={shelfShortageSubmitting}
+                    error={shelfShortageError}
+                    onCreateNow={() => {
+                        void createShelfReplenishment(true);
+                    }}
+                    onSaveDraft={() => {
+                        void createShelfReplenishment(false);
+                    }}
+                    onDismiss={() => setShelfShortage(null)}
+                />
+            ) : null}
             {customTeaOpen ? (
                 <CustomTeaRequestDialog
                     open={customTeaOpen}

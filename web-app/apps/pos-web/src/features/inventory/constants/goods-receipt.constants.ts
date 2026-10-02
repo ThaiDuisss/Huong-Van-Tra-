@@ -1,7 +1,6 @@
 import type {
     CostStatus,
     GoodsReceiptQcReasonCode,
-    GoodsReceiptRole,
     GoodsReceiptStatus,
     QcResult
 } from "../types/goods-receipt.types";
@@ -12,15 +11,9 @@ export const goodsReceiptStatusLabels: Record<GoodsReceiptStatus, string> = {
     APPROVED: "Đã duyệt",
     REJECTED: "Từ chối",
     RECEIVING: "Đang tiếp nhận",
-    QC_PENDING: "Chờ kiểm định QC",
-    QC_COMPLETED: "Chờ ghi sổ",
+    PENDING_EXCEPTION_APPROVAL: "Chờ duyệt ngoại lệ",
     POSTED: "Đã nhập kho",
-    CANCELLED: "Đã hủy",
-    AWAITING_COST: "Chờ xác nhận giá",
-    AWAITING_QC: "Chờ QC",
-    PARTIALLY_PASSED: "Đạt một phần",
-    READY_TO_POST: "Chờ ghi sổ",
-    SUBMITTED: "Đã gửi duyệt"
+    CANCELLED: "Đã hủy"
 };
 
 export const qcResultLabels: Record<QcResult, string> = {
@@ -36,12 +29,11 @@ export const costStatusLabels: Record<CostStatus, string> = {
     PROVISIONAL: "Giá tạm tính"
 };
 
-export const goodsReceiptRoleLabels: Record<GoodsReceiptRole, string> = {
+export const goodsReceiptRoleLabels: Record<string, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
-    BRANCH_MANAGER: "Quản lý chi nhánh",
+    MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
-    INVENTORY_MANAGER: "Quản lý kho",
     INVENTORY_STAFF: "Nhân viên kho",
     QC_STAFF: "Nhân viên QC"
 };
@@ -61,16 +53,10 @@ export const goodsReceiptStatusOptions: GoodsReceiptStatus[] = [
     "PENDING_APPROVAL",
     "APPROVED",
     "RECEIVING",
-    "QC_PENDING",
-    "QC_COMPLETED",
+    "PENDING_EXCEPTION_APPROVAL",
     "POSTED",
     "REJECTED",
-    "CANCELLED",
-    "SUBMITTED",
-    "AWAITING_QC",
-    "PARTIALLY_PASSED",
-    "AWAITING_COST",
-    "READY_TO_POST"
+    "CANCELLED"
 ];
 
 export const qcResultOptions: QcResult[] = [

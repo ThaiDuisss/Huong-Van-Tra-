@@ -10,15 +10,9 @@ export type GoodsReceiptStatus =
     | "APPROVED"
     | "REJECTED"
     | "RECEIVING"
-    | "QC_PENDING"
-    | "QC_COMPLETED"
+    | "PENDING_EXCEPTION_APPROVAL"
     | "POSTED"
-    | "CANCELLED"
-    | "SUBMITTED"
-    | "AWAITING_QC"
-    | "PARTIALLY_PASSED"
-    | "AWAITING_COST"
-    | "READY_TO_POST";
+    | "CANCELLED";
 
 export type QcResult =
     | "PENDING"
@@ -31,10 +25,9 @@ export type CostStatus = "PENDING" | "PROVISIONAL" | "FINAL";
 export type GoodsReceiptRole =
     | "ADMIN"
     | "INVENTORY_STAFF"
-    | "INVENTORY_MANAGER"
     | "QC_STAFF"
     | "ACCOUNTANT"
-    | "BRANCH_MANAGER"
+    | "MANAGER"
     | "DIRECTOR";
 
 export type GoodsReceiptBatchStatus =
@@ -177,11 +170,16 @@ export interface GoodsReceiptListQuery {
 export interface GoodsReceiptDashboardSummary {
     draft: number;
     pendingApproval: number;
+    approved: number;
     receiving: number;
+    pendingExceptionApproval: number;
     awaitingQc: number;
     awaitingCost: number;
     readyToPost: number;
+    posted: number;
     postedToday: number;
+    rejected: number;
+    cancelled: number;
     total: number;
 }
 
@@ -333,6 +331,11 @@ export interface GoodsReceiptApi {
     performGoodsReceiptQc(
         input: GoodsReceiptQcInput
     ): Promise<GoodsReceiptDetail>;
+    completeGoodsReceiptInspection(
+        receiptId: string,
+        receiveItems: Array<{ lineId: string; receivedQuantity: number; note?: string }>,
+        input: GoodsReceiptQcInput
+    ): Promise<GoodsReceiptDetail>;
     saveGoodsReceiptCost(
         input: GoodsReceiptCostInput
     ): Promise<GoodsReceiptDetail>;
@@ -347,3 +350,5 @@ export interface GoodsReceiptApi {
     ): Promise<GoodsReceiptDetail>;
     getGoodsReceiptOptions(supplierId?: string): Promise<GoodsReceiptOptions>;
 }
+
+export type AppRole = GoodsReceiptRole;

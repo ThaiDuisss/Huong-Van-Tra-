@@ -43,7 +43,11 @@ public interface InventoryClient {
             UUID inventoryLocationId,
             BigDecimal availableQuantity,
             BigDecimal reservedQuantity,
-            String stockStatus
+            String stockStatus,
+            BigDecimal shelfQuantity,
+            BigDecimal warehouseQuantity,
+            UUID shelfLocationId,
+            UUID warehouseLocationId
     ) {
     }
 
@@ -67,6 +71,13 @@ public interface InventoryClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record MaterialReservationResponse(String status) {}
+
+    /**
+     * Xử lý tồn kho cho đơn giao ngay tại quầy trong một transaction của Inventory: xuất kho bù kệ nếu thiếu,
+     * trừ thành phẩm trên kệ theo FEFO, giữ chỗ nguyên liệu cho việc sản xuất bù. Gọi lại không trừ lần hai.
+     */
+    @PostMapping("/internal/inventory/sales/fulfill")
+    FulfillSaleResponse fulfillSale(@RequestBody FulfillSaleRequest request);
 
     @PostMapping("/internal/inventory/production-alerts")
     void createProductionRequiredAlert(@RequestBody ProductionRequiredAlertRequest request);
@@ -216,4 +227,38 @@ public interface InventoryClient {
             BigDecimal quantity
     ) {}
 
+
+    record FulfillSaleRequest(
+            UUID orderId,
+            UUID branchId,
+            int processingAttempt,
+            List<FulfillSaleLine> lines,
+            List<FulfillSaleMaterialLine> materials
+    ) {
+    }
+
+    record FulfillSaleLine(UUID productVariantId, BigDecimal quantity) {
+    }
+
+    record FulfillSaleMaterialLine(UUID productVariantId, UUID ingredientId, BigDecimal quantity) {
+    }
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    record FulfillSaleResponse(
+            UUID orderId,
+            boolean alreadyProcessed,
+            String replenishmentCode,
+            List<FulfillSaleLineResult> lines
+    ) {
+    }
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    record FulfillSaleLineResult(
+            UUID productVariantId,
+            BigDecimal soldQuantity,
+            BigDecimal movedFromWarehouse,
+            BigDecimal remainingShelfQuantity,
+            BigDecimal remainingWarehouseQuantity
+    ) {
+    }
 }

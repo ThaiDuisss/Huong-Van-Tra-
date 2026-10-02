@@ -30,8 +30,13 @@ export interface PosVariantResponse {
     availableQuantity?: number | string | null;
     sellableQuantity?: number | string | null;
     quantityOnHand?: number | string | null;
+    reservedQuantity?: number | string | null;
     quantityReserved?: number | string | null;
     stockStatus?: string | null;
+    shelfQuantity?: number | string | null;
+    warehouseQuantity?: number | string | null;
+    shelfLocationId?: string | null;
+    warehouseLocationId?: string | null;
 }
 
 function toNumber(value: number | string | null | undefined) {
@@ -43,6 +48,14 @@ function toNumber(value: number | string | null | undefined) {
 function mapPosVariantToSaleProduct(
     variant: PosVariantResponse
 ): SaleProductPreview {
+    // Tồn khả dụng của Inventory tách làm hai phần: trên kệ bán và trong kho. Tổng hai phần là số có thể bán.
+    const shelfQuantity = toNumber(variant.shelfQuantity);
+    const warehouseQuantity = toNumber(variant.warehouseQuantity);
+    const availableQuantity =
+        variant.shelfQuantity == null && variant.warehouseQuantity == null
+            ? toNumber(variant.availableQuantity)
+            : shelfQuantity + warehouseQuantity;
+
     return {
         id: String(variant.variantId),
         productVariantId: String(variant.variantId),
@@ -55,10 +68,16 @@ function mapPosVariantToSaleProduct(
         imageUrl: variant.imageUrl ?? fallbackImageUrl,
         inventoryLocationId:
             variant.inventoryLocationId ?? variant.locationId ?? null,
-        availableQuantity: toNumber(variant.availableQuantity),
-        sellableQuantity: toNumber(variant.sellableQuantity),
+        availableQuantity,
+        sellableQuantity: availableQuantity,
+        shelfQuantity,
+        warehouseQuantity,
+        shelfLocationId: variant.shelfLocationId ?? null,
+        warehouseLocationId: variant.warehouseLocationId ?? null,
         quantityOnHand: toNumber(variant.quantityOnHand),
-        quantityReserved: toNumber(variant.quantityReserved)
+        quantityReserved: toNumber(
+            variant.reservedQuantity ?? variant.quantityReserved
+        )
     };
 }
 

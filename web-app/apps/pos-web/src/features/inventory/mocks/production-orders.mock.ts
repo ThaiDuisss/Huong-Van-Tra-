@@ -7,7 +7,7 @@ import type {
     ProductionOrderOutput,
     ProductionOrderStatus,
     ProductionPriority,
-    ProductionRole
+    AppRole
 } from "../types/production-order.types";
 import type {
     InventoryAuditEvent,
@@ -102,13 +102,13 @@ export const materialSkus: MaterialSkuOption[] = [
     }
 ];
 
-function user(role: ProductionRole) {
+function user(role: AppRole) {
     return productionUsers.find((item) => item.role === role) ?? productionUsers[0];
 }
 
 function audit(
     type: InventoryAuditEvent["type"],
-    role: ProductionRole,
+    role: AppRole,
     hoursAgo: number,
     note?: string
 ): InventoryAuditEvent {
@@ -316,6 +316,6 @@ export const productionOrderMockOptions = {
     users: productionUsers
 };
 
-export function productionActor(role: ProductionRole) {
+export function productionActor(role: AppRole) {
     return user(role);
 }

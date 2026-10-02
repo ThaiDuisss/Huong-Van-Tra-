@@ -336,6 +336,29 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     @Override
     @Transactional
+    public BigDecimal releasePlannedMaterials(UUID productVariantId, UUID inventoryItemId, BigDecimal quantity) {
+        BigDecimal target = normalizeQuantity(quantity);
+        BigDecimal released = BigDecimal.ZERO;
+        if (productVariantId == null || inventoryItemId == null || target.compareTo(BigDecimal.ZERO) <= 0) {
+            return released;
+        }
+        List<InventoryReservation> planned = reservationRepository
+                .findByProductVariantIdAndInventoryItem_IdAndReservationTypeAndStatusOrderByCreatedAtAsc(
+                        productVariantId, inventoryItemId, ReservationType.MATERIAL, ReservationStatus.RESERVED);
+        for (InventoryReservation reservation : planned) {
+            if (released.compareTo(target) >= 0) {
+                break;
+            }
+            BigDecimal reservedQuantity = normalizeQuantity(reservation.getQuantity());
+            releaseMaterialReservation(reservation);
+            reservationRepository.save(reservation);
+            released = released.add(reservedQuantity);
+        }
+        return released;
+    }
+
+    @Override
+    @Transactional
     public int expireReservations() {
         List<InventoryReservation> reservations = reservationRepository.findByStatusAndExpiresAtBefore(
                 ReservationStatus.RESERVED,

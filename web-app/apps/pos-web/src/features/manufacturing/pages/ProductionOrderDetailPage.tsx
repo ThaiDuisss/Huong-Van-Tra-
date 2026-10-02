@@ -50,8 +50,8 @@ export function ProductionOrderDetailPage() {
     const [completeNote, setCompleteNote] = useState("");
 
     const { hasAnyRole } = useAuthorization();
-    const canApprove = hasAnyRole(["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
-    const canOperate = hasAnyRole(["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER", "INVENTORY_STAFF"]);
+    const canApprove = hasAnyRole(["ADMIN", "MANAGER", "MANAGER"]);
+    const canOperate = hasAnyRole(["ADMIN", "MANAGER", "MANAGER", "INVENTORY_STAFF"]);
 
     const loadOrder = useCallback(() => {
         if (!id) return;

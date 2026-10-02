@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
+import org.hvtra.catalog.dto.request.SellableConfigRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
@@ -11,6 +12,7 @@ import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.hvtra.catalog.service.BarcodeService;
+import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -18,8 +20,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Set;
 import java.util.UUID;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +40,9 @@ import org.springframework.http.ResponseEntity;
 @RestController
 @RequestMapping("/api/catalog/product-variants")
 public class ProductVariantController {
+    /** So khớp không phân biệt hoa/thường vì gateway giữ nguyên tên role của Keycloak (vd. "superadmin"). */
+    private static final Set<String> SUPER_ADMIN_ROLES = Set.of("ROLE_SUPER_ADMIN", "ROLE_SUPERADMIN");
+
     private final ProductVariantService service;
     private final BarcodeService barcodeService;
 
@@ -91,6 +100,15 @@ public class ProductVariantController {
         return service.updateStatus(id, request.status());
     }
 
+    /** Cấu hình số lượng có thể bán và ngưỡng sản xuất. Chỉ SUPER_ADMIN. */
+    @UserAction(value = "PRODUCT_VARIANT_SELLABLE_CONFIG_UPDATE", entityType = "ProductVariant", entityId = "#id", detail = "#request")
+    @PatchMapping("/{id}/sellable-config")
+    public ProductResponse.VariantResponse updateSellableConfig(
+            @PathVariable("id") UUID id, @Valid @RequestBody SellableConfigRequest request) {
+        requireSuperAdmin();
+        return service.updateSellableConfig(id, request);
+    }
+
     @UserAction(value = "BARCODE_CREATE", entityType = "Barcode", entityId = "#result.id", detail = "#variantId")
     @PostMapping("/{variantId}/barcodes")
     @ResponseStatus(HttpStatus.CREATED)
@@ -144,5 +162,21 @@ public class ProductVariantController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") UUID id) {
         service.delete(id);
+    }
+
+    private void requireSuperAdmin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            boolean allowed = authentication.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .anyMatch(authority -> SUPER_ADMIN_ROLES.contains(authority.toUpperCase()));
+            if (allowed) {
+                return;
+            }
+            log.warn("Sellable config access denied. user={} authorities={}",
+                    authentication.getName(), authentication.getAuthorities());
+        }
+        throw new BusinessException(
+                "FORBIDDEN", "Chỉ SUPER_ADMIN được cấu hình số lượng bán và ngưỡng sản xuất.", HttpStatus.FORBIDDEN);
     }
 }

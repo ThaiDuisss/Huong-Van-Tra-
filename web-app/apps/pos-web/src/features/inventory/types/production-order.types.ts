@@ -19,7 +19,7 @@ export type ProductionPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type ProductionRole =
     | "ADMIN"
     | "INVENTORY_STAFF"
-    | "BRANCH_MANAGER"
+    | "MANAGER"
     | "ACCOUNTANT"
     | "DIRECTOR"
     | "QC_STAFF";
@@ -261,3 +261,5 @@ export interface ProductionOrderApi {
     ): Promise<ProductionOrder>;
     getProductionOrderOptions(): Promise<ProductionOrderOptions>;
 }
+
+export type AppRole = ProductionRole;

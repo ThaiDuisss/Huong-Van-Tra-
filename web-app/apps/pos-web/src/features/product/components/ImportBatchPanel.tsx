@@ -72,7 +72,7 @@ export function ImportBatchPanel({
     api = defaultImportBatchApi
 }: ImportBatchPanelProps) {
     const { hasAnyRole } = useAuthorization();
-    const canApprove = hasAnyRole(["ADMIN", "BRANCH_MANAGER"]);
+    const canApprove = hasAnyRole(["ADMIN", "MANAGER"]);
 
     // State khi đã lưu hoặc đang xem theo batchId
     const [batch, setBatch] = useState<ImportBatch | null>(null);

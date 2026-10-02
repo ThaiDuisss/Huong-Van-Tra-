@@ -17,7 +17,7 @@ import type {
     ProductionOrderOutput,
     ProductionOrderSummary,
     ProductionPriority,
-    ProductionRole,
+    AppRole,
     ProductionOrderStatus
 } from "../types/production-order.types";
 import type { InventoryLocationSummary, UserSnapshot } from "../types/stock-document.types";
@@ -154,7 +154,7 @@ export function Progress({ value }: { value: number }) {
     );
 }
 
-export function RoleUnavailable({ role }: { role: ProductionRole }) {
+export function RoleUnavailable({ role }: { role: AppRole }) {
     return <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#e8eef0] bg-[#f7f8fb] px-3 text-xs font-black text-[#697684]"><Lock size={14}/>Không khả dụng với {productionRoleLabels[role]}</span>;
 }
 

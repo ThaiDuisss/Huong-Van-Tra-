@@ -34,12 +34,11 @@ export function useAuthorization() {
 
         isAccountant: () => hasRole(roles, ROLES.ACCOUNTANT),
         isAdmin: () => hasRole(roles, ROLES.ADMIN),
-        isBranchManager: () => hasRole(roles, ROLES.BRANCH_MANAGER),
+        isManager: () => hasRole(roles, ROLES.MANAGER),
         isCustomer: () => hasRole(roles, ROLES.CUSTOMER),
         isDelivery: () => hasRole(roles, ROLES.DELIVERY),
-        isInventoryManager: () => hasRole(roles, ROLES.INVENTORY_MANAGER),
         isInventoryStaff: () => hasRole(roles, ROLES.INVENTORY_STAFF),
-        isPosStaff: () => hasRole(roles, ROLES.POS_STAFF),
+        isSaleStaff: () => hasRole(roles, ROLES.SALE_STAFF),
         isQc: () => hasRole(roles, ROLES.QC)
     };
 }

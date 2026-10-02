@@ -16,7 +16,7 @@ export type QualityBatchStatus =
 export type QualityRole =
     | "QC_STAFF"
     | "INVENTORY_STAFF"
-    | "BRANCH_MANAGER"
+    | "MANAGER"
     | "ADMIN"
     | "DIRECTOR"
     | "ACCOUNTANT";
@@ -250,3 +250,5 @@ export interface QualityApi {
     rejectDisposalRequest(input: DisposalActionInput): Promise<DisposalRequest>;
     completeDisposalRequest(input: DisposalCompleteInput): Promise<DisposalRequest>;
 }
+
+export type AppRole = QualityRole;

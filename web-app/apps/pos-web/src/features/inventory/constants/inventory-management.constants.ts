@@ -22,16 +22,16 @@ import type {
     InventoryWorkspaceId
 } from "../types/inventory-management.types";
 
-export const inventoryRoleLabels: Record<InventoryRole, string> = {
-    INVENTORY_MANAGER: "Quản lý kho",
+export const inventoryRoleLabels: Record<string, string> = {
+    MANAGER: "Quản lý kho",
     INVENTORY_STAFF: "Nhân viên kho",
     PRODUCTION_STAFF: "Nhân viên sản xuất",
     BRANCH_STAFF: "Nhân viên chi nhánh",
     AUDITOR: "Kiểm kê viên"
 };
 
-export const inventoryRoleDescriptions: Record<InventoryRole, string> = {
-    INVENTORY_MANAGER:
+export const inventoryRoleDescriptions: Record<string, string> = {
+    MANAGER:
         "Duyệt chứng từ, điều phối bổ sung hàng và xử lý ngoại lệ tồn kho.",
     INVENTORY_STAFF:
         "Tạo chứng từ nhập, chuyển kho, trả nhà cung cấp và tiêu hủy.",
@@ -78,20 +78,20 @@ export const inventoryActionLabels: Record<InventoryActionType, string> = {
     EXPORT: "Xuất dữ liệu"
 };
 
-const managerRoles: InventoryRole[] = ["INVENTORY_MANAGER"];
+const managerRoles: InventoryRole[] = ["MANAGER"];
 const warehouseRoles: InventoryRole[] = [
-    "INVENTORY_MANAGER",
+    "MANAGER",
     "INVENTORY_STAFF"
 ];
 const productionRoles: InventoryRole[] = [
-    "INVENTORY_MANAGER",
+    "MANAGER",
     "PRODUCTION_STAFF"
 ];
 const branchRoles: InventoryRole[] = [
-    "INVENTORY_MANAGER",
+    "MANAGER",
     "BRANCH_STAFF"
 ];
-const auditorRoles: InventoryRole[] = ["INVENTORY_MANAGER", "AUDITOR"];
+const auditorRoles: InventoryRole[] = ["MANAGER", "AUDITOR"];
 
 export const inventoryWorkspaceConfigs: InventoryWorkspaceConfig[] = [
     {

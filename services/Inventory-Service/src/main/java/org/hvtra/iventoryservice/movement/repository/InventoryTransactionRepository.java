@@ -23,4 +23,7 @@ public interface InventoryTransactionRepository extends
             where t.id in :ids
             """)
     List<InventoryTransaction> findAllWithLinesByIdIn(@Param("ids") Collection<UUID> ids);
+
+    /** Mã giao dịch là duy nhất, dùng để chặn ghi trùng khi một đơn bán được xử lý lại. */
+    boolean existsByTransactionCode(String transactionCode);
 }

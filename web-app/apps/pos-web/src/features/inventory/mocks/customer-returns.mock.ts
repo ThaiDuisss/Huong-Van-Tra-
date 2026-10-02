@@ -1,14 +1,14 @@
 import type { InventoryAuditEvent, UserSnapshot } from "../types/stock-document.types";
 import type {
     CustomerReturnDetail,
-    CustomerReturnRole,
+    AppRole,
     ReturnableOrder
 } from "../types/customer-return.types";
 
-const users: Record<CustomerReturnRole, UserSnapshot> = {
+const users: Record<AppRole, UserSnapshot> = {
     ACCOUNTANT: { id: "cr-accountant", name: "Lan Kế toán", role: "ACCOUNTANT" },
     ADMIN: { id: "cr-admin", name: "Admin Hương Vân", role: "ADMIN" },
-    BRANCH_MANAGER: { id: "cr-branch", name: "Minh Quản lý CN", role: "BRANCH_MANAGER" },
+    MANAGER: { id: "cr-branch", name: "Minh Quản lý CN", role: "MANAGER" },
     QC_STAFF: { id: "cr-qc", name: "Vy QC", role: "QC_STAFF" },
     SALES_STAFF: { id: "cr-sales", name: "An Thu ngân", role: "SALES_STAFF" },
     INVENTORY_STAFF: { id: "cr-warehouse", name: "Kho Trung tâm", role: "INVENTORY_STAFF" }
@@ -50,13 +50,13 @@ export const returnableOrders: ReturnableOrder[] = [
     }
 ];
 
-export function customerReturnActor(role: CustomerReturnRole) {
+export function customerReturnActor(role: AppRole) {
     return users[role];
 }
 
 export function customerReturnAudit(
     type: InventoryAuditEvent["type"],
-    role: CustomerReturnRole,
+    role: AppRole,
     note: string
 ): InventoryAuditEvent {
     const actor = customerReturnActor(role);
@@ -152,12 +152,12 @@ export const customerReturnMockData: CustomerReturnDetail[] = [
                 unknownBatch: true
             }
         ],
-        managerReview: { accepted: true, reviewedAt: "2026-08-01T13:10:00.000Z", reviewedBy: users.BRANCH_MANAGER },
+        managerReview: { accepted: true, reviewedAt: "2026-08-01T13:10:00.000Z", reviewedBy: users.MANAGER },
         order: returnableOrders[1],
         orderCode: "ORD-20260801-041",
         qc: { evidence: "qc-hop-uot.jpg", inspectedAt: "2026-08-01T15:00:00.000Z", inspectedBy: users.QC_STAFF, note: "Không đủ điều kiện nhập lại.", remainingShelfLifeDays: 0, sealStatus: "BROKEN" },
         reason: "DAMAGED",
-        receiving: { receivedAt: "2026-08-01T14:00:00.000Z", receivedBy: users.BRANCH_MANAGER, note: "Đã nhận hàng trả, chờ kiểm định." },
+        receiving: { receivedAt: "2026-08-01T14:00:00.000Z", receivedBy: users.MANAGER, note: "Đưa vào CUSTOMER_RETURN_QUARANTINE." },
         refundStatus: "EXCHANGE_ORDER_CREATED",
         exchangeOrderCode: "ORD-EX-20260801-002",
         requestedAt: "2026-08-01T12:40:00.000Z",

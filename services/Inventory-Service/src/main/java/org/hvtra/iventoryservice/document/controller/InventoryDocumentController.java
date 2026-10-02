@@ -120,22 +120,13 @@ public class InventoryDocumentController {
         return ResponseEntity.ok(service.startReceiving(id));
     }
 
-    @UserAction(value = "PURCHASE_RECEIPT_RECEIVE", entityType = "InventoryDocument", entityId = "#id")
-    @PostMapping("/{id}/receive")
-    public ResponseEntity<InventoryDocumentResponse> confirmReceiving(
-            @PathVariable UUID id,
-            @Valid @RequestBody ReceiveReceiptRequest request
-    ) {
-        return ResponseEntity.ok(service.confirmReceiving(id, request));
-    }
-
     @UserAction(value = "PURCHASE_RECEIPT_QC", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/qc")
-    public ResponseEntity<InventoryDocumentResponse> completeQc(
+    public ResponseEntity<InventoryDocumentResponse> completeInspection(
             @PathVariable UUID id,
-            @Valid @RequestBody QcReceiptRequest request
+            @Valid @RequestBody CompleteInspectionRequest request
     ) {
-        return ResponseEntity.ok(service.completeQc(id, request));
+        return ResponseEntity.ok(service.completeInspection(id, request));
     }
 
     @UserAction(value = "PURCHASE_RECEIPT_POST", entityType = "InventoryDocument", entityId = "#id")

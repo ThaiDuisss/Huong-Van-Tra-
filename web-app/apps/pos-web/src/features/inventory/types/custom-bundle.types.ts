@@ -18,7 +18,7 @@ export type CustomBundleStatus =
 
 export type BundlePaymentStatus = "PENDING" | "SUCCESS" | "FAILED" | "REFUND_REQUIRED";
 export type BundleReservationStatus = "NONE" | "RESERVED" | "FAILED" | "RELEASED" | "COMMITTED" | "EXPIRED";
-export type CustomBundleRole = "SALES_STAFF" | "BRANCH_MANAGER" | "INVENTORY_STAFF" | "ADMIN" | "ACCOUNTANT" | "QC_STAFF";
+export type CustomBundleRole = "SALES_STAFF" | "MANAGER" | "INVENTORY_STAFF" | "ADMIN" | "ACCOUNTANT" | "QC_STAFF";
 
 export interface BundleIngredientOption {
     id: string;
@@ -160,3 +160,5 @@ export interface CustomBundleApi {
     getCustomBundleOptions(): Promise<CustomBundleOptions>;
     mockPaymentResult(bundleId: string, success: boolean): Promise<CustomBundleDetail>;
 }
+
+export type AppRole = CustomBundleRole;

@@ -6,7 +6,7 @@ import type {
     GoodsReceiptDetail,
     GoodsReceiptLine,
     GoodsReceiptMaterialOption,
-    GoodsReceiptRole,
+    AppRole,
     SupplierSummary
 } from "../types/goods-receipt.types";
 import type {
@@ -26,7 +26,7 @@ export const goodsReceiptUsers: UserSnapshot[] = [
     { id: "gr-warehouse", name: "Nguyễn Minh Anh", role: "INVENTORY_STAFF" },
     { id: "gr-qc", name: "Đặng Mai Chi", role: "QC_STAFF" },
     { id: "gr-accountant", name: "Lê Hoài Nam", role: "ACCOUNTANT" },
-    { id: "gr-branch", name: "Trần Bảo Ngọc", role: "BRANCH_MANAGER" },
+    { id: "gr-branch", name: "Trần Bảo Ngọc", role: "MANAGER" },
     { id: "gr-director", name: "Vũ Thanh Hà", role: "DIRECTOR" }
 ];
 
@@ -91,13 +91,13 @@ export const goodsReceiptMaterials: GoodsReceiptMaterialOption[] = [
     }
 ];
 
-function actor(role: GoodsReceiptRole) {
+function actor(role: AppRole) {
     return goodsReceiptUsers.find((user) => user.role === role) ?? goodsReceiptUsers[0];
 }
 
 function audit(
     type: InventoryAuditEvent["type"],
-    role: GoodsReceiptRole,
+    role: AppRole,
     hoursAgo: number,
     note?: string,
     reason?: string
@@ -321,13 +321,13 @@ function detail(
 
 export const goodsReceiptMockData: GoodsReceiptDetail[] = [
     detail(0, "DRAFT", "PENDING", "PENDING"),
-    detail(1, "AWAITING_QC", "PENDING", "PENDING"),
-    detail(2, "PARTIALLY_PASSED", "PARTIALLY_PASSED", "PENDING"),
-    detail(3, "AWAITING_COST", "PASSED", "PENDING"),
+    detail(1, "PENDING_APPROVAL", "PENDING", "PENDING"),
+    detail(2, "APPROVED", "PASSED", "PENDING"),
+    detail(3, "RECEIVING", "PASSED", "PENDING"),
     detail(4, "POSTED", "PASSED", "FINAL"),
     detail(5, "REJECTED", "FAILED", "PENDING"),
-    detail(6, "READY_TO_POST", "PASSED", "FINAL"),
-    detail(7, "SUBMITTED", "PENDING", "PENDING")
+    detail(6, "PENDING_EXCEPTION_APPROVAL", "PASSED", "FINAL"),
+    detail(7, "CANCELLED", "PENDING", "PENDING")
 ];
 
 export const goodsReceiptMockOptions = {
@@ -336,6 +336,6 @@ export const goodsReceiptMockOptions = {
     suppliers: goodsReceiptSuppliers
 };
 
-export function goodsReceiptActorForRole(role: GoodsReceiptRole) {
+export function goodsReceiptActorForRole(role: AppRole) {
     return actor(role);
 }
