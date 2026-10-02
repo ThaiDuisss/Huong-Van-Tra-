@@ -307,7 +307,7 @@ export function AppRouter() {
           />
           <Route path="inventory/:workspaceId" element={<InventoryManagementPage />} />
         </Route>
-        <Route element={<RoleGate roles={["ADMIN", "BRANCH_MANAGER"]} />}>
+        <Route element={<RoleGate roles={["ADMIN", "MANAGER"]} />}>
           <Route path="customers" element={<CustomerListPage />} />
           <Route path="customers/groups" element={<CustomerListPage />} />
           <Route path="customers/tiers" element={<CustomerTierManagementPage />} />

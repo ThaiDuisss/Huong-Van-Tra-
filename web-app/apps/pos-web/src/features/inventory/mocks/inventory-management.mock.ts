@@ -92,7 +92,7 @@ function createApprovals(status: InventoryRecordStatus): InventoryApprovalStep[]
                     : "2026-08-01T15:20:00+07:00",
             id: "approval-manager",
             label: "Duyệt quản lý kho",
-            role: "INVENTORY_MANAGER",
+            role: "MANAGER",
             status:
                 status === "REJECTED"
                     ? "REJECTED"

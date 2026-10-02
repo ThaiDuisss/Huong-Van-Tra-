@@ -1,7 +1,7 @@
 import type {
     SupplierReturnReason,
     SupplierReturnResolution,
-    SupplierReturnRole,
+    
     SupplierReturnStatus
 } from "../types/supplier-return.types";
 
@@ -34,7 +34,7 @@ export const supplierReturnResolutionLabels: Record<SupplierReturnResolution, st
     REPLACEMENT: "Hàng thay thế"
 };
 
-export const supplierReturnRoleLabels: Record<SupplierReturnRole, string> = {
+export const supplierReturnRoleLabels: Record< string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
     DIRECTOR: "Giám đốc",

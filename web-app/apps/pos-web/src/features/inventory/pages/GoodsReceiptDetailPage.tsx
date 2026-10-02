@@ -115,7 +115,7 @@ export function GoodsReceiptDetailPage() {
         };
     }, [receiptId]);
 
-    const { isAdmin, isBranchManager, isInventoryManager, isInventoryStaff, isQc, keycloakSubject } = useAuthorization();
+    const { isAdmin, isManager, isInventoryStaff, isQc, keycloakSubject } = useAuthorization();
 
     useEffect(() => loadReceipt(), [loadReceipt]);
 
@@ -124,7 +124,7 @@ export function GoodsReceiptDetailPage() {
         window.setTimeout(() => setToast(null), 3000);
     }
 
-    // const canShowCost = hasAnyRole(["ADMIN", "ACCOUNTANT", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
+    // const canShowCost = hasAnyRole(["ADMIN", "ACCOUNTANT", "MANAGER", "MANAGER"]);
 
     // 1. Submit for Approval (DRAFT -> PENDING_APPROVAL)
     async function submitReceipt() {
@@ -473,7 +473,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "PENDING_APPROVAL" && (isInventoryManager() || isAdmin() || isBranchManager()) ? (
+                        {receipt.status === "PENDING_APPROVAL" && (isManager() || isAdmin()) ? (
                             <>
                                 <button
                                     className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
@@ -494,7 +494,7 @@ export function GoodsReceiptDetailPage() {
                             </>
                         ) : null}
 
-                        {receipt.status === "APPROVED" && (isInventoryStaff() || isInventoryManager() || isAdmin() || isBranchManager()) ? (
+                        {receipt.status === "APPROVED" && (isInventoryStaff() || isManager() || isAdmin()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -505,7 +505,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "RECEIVING" && (isInventoryStaff() || isInventoryManager() || isAdmin() || isBranchManager()) ? (
+                        {receipt.status === "RECEIVING" && (isInventoryStaff() || isManager() || isAdmin()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -527,7 +527,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "QC_COMPLETED" && (isInventoryManager() || isAdmin() || isBranchManager()) ? (
+                        {receipt.status === "QC_COMPLETED" && (isManager() || isAdmin()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#159734] px-4 text-sm font-black text-white hover:bg-[#12802c] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -541,7 +541,7 @@ export function GoodsReceiptDetailPage() {
                         {receipt.status !== "POSTED" &&
                             receipt.status !== "CANCELLED" &&
                             receipt.status !== "REJECTED" &&
-                            (isAdmin() || isInventoryManager() || isBranchManager()) ? (
+                            (isAdmin() || isManager()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg border border-[#e8eef0] bg-white px-3 text-sm font-bold text-[#697684] hover:bg-[#f7f8fb] disabled:opacity-50"
                                 disabled={mutationLoading}

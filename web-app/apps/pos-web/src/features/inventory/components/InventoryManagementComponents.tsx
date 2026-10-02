@@ -43,7 +43,7 @@ import type {
     InventoryManagementQuery,
     InventoryManagementRecord,
     InventoryRecordStatus,
-    InventoryRole,
+    AppRole,
     InventorySkuOption
 } from "../types/inventory-management.types";
 
@@ -827,9 +827,9 @@ export function RoleRestrictedAction({
     children,
     currentRole
 }: {
-    allowedRoles: InventoryRole[];
+    allowedRoles: AppRole[];
     children: ReactNode;
-    currentRole: InventoryRole;
+    currentRole: AppRole;
 }) {
     const allowed = allowedRoles.includes(currentRole);
 

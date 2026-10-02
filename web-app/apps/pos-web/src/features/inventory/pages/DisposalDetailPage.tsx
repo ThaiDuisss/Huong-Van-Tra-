@@ -11,7 +11,7 @@ import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-f
 export function DisposalDetailPage() {
     const { disposalId } = useParams();
     const { hasAnyRole } = useAuthorization();
-    const canApprove = hasAnyRole(["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
+    const canApprove = hasAnyRole(["ADMIN", "MANAGER", "MANAGER"]);
     const [disposal, setDisposal] = useState<DisposalRequest | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);

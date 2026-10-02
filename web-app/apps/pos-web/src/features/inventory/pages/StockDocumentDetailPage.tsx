@@ -33,31 +33,31 @@ function allowedRolesForAction(
     document: StockDocumentDetail
 ): string[] {
     if (action === "SUBMIT") {
-        return ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"];
+        return ["ADMIN", "INVENTORY_STAFF", "MANAGER", "MANAGER"];
     }
 
     if (action === "APPROVE") {
         return document.totalQuantity > 80
-            ? ["ADMIN", "INVENTORY_MANAGER", "BRANCH_MANAGER"]
-            : ["ADMIN", "INVENTORY_MANAGER", "INVENTORY_STAFF", "BRANCH_MANAGER"];
+            ? ["ADMIN", "MANAGER", "MANAGER"]
+            : ["ADMIN", "MANAGER", "INVENTORY_STAFF", "MANAGER"];
     }
 
     if (action === "REJECT") {
-        return ["ADMIN", "INVENTORY_MANAGER", "INVENTORY_STAFF", "BRANCH_MANAGER"];
+        return ["ADMIN", "MANAGER", "INVENTORY_STAFF", "MANAGER"];
     }
 
     if (action === "POST") {
         return document.sourceLocation?.isCentral ||
             document.destinationLocation?.isCentral
-            ? ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "ACCOUNTANT"]
-            : ["ADMIN", "BRANCH_MANAGER", "ACCOUNTANT", "INVENTORY_MANAGER"];
+            ? ["ADMIN", "INVENTORY_STAFF", "MANAGER", "ACCOUNTANT"]
+            : ["ADMIN", "MANAGER", "ACCOUNTANT", "MANAGER"];
     }
 
     if (action === "CANCEL") {
-        return ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"];
+        return ["ADMIN", "INVENTORY_STAFF", "MANAGER", "MANAGER"];
     }
 
-    return ["ADMIN", "ACCOUNTANT", "INVENTORY_MANAGER"];
+    return ["ADMIN", "ACCOUNTANT", "MANAGER"];
 }
 
 function actionsForStatus(status: StockDocumentStatus): StockDocumentAction[] {

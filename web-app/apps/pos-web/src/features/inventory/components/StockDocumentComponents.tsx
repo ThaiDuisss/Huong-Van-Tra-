@@ -38,7 +38,7 @@ import type {
     StockDocumentDetail,
     StockDocumentLine,
     StockDocumentListQuery,
-    StockDocumentRole,
+    AppRole,
     StockDocumentStatus,
     StockDocumentSummary,
     UserSnapshot
@@ -737,7 +737,7 @@ export function StockDocumentAuditTimeline({
 export function RoleUnavailable({
     currentRole
 }: {
-    currentRole: StockDocumentRole;
+    currentRole: AppRole;
 }) {
     return (
         <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#e8eef0] bg-[#f7f8fb] px-3 text-xs font-black text-[#697684]">

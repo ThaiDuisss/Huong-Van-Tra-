@@ -18,7 +18,7 @@ import type {
     StockAlertActionInput,
     StockAlertApi,
     StockAlertListQuery,
-    StockAlertRole,
+    AppRole,
     StockAlertSeverity,
     StockAlertType,
     SuggestedActionType
@@ -28,14 +28,14 @@ function wait<T>(value: T, ms = 260) {
     return new Promise<T>((resolve) => window.setTimeout(() => resolve(value), ms));
 }
 
-function user(role: StockAlertRole) {
+function user(role: AppRole) {
     return stockAlertUsers[role];
 }
 
-function canSeeLocation(role: StockAlertRole, locationId: string) {
+function canSeeLocation(role: AppRole, locationId: string) {
     if (role === "ADMIN" || role === "ACCOUNTANT" || role === "DIRECTOR") return true;
     if (role === "INVENTORY_STAFF") return locationId === "loc-central";
-    if (role === "BRANCH_MANAGER") return locationId === inventoryMasterLocations.branchCauGiay.id;
+    if (role === "MANAGER") return locationId === inventoryMasterLocations.branchCauGiay.id;
     return false;
 }
 
@@ -133,7 +133,7 @@ function refreshGeneratedAlerts() {
     });
 }
 
-function findAlert(alertId: string, role: StockAlertRole) {
+function findAlert(alertId: string, role: AppRole) {
     refreshGeneratedAlerts();
     const alert = stockAlerts.find((item) => item.id === alertId);
     if (!alert) throw new Error("Không tìm thấy cảnh báo tồn kho.");
@@ -204,7 +204,7 @@ export const stockAlertApi: StockAlertApi = {
         return wait(makeAlertDetail(cloneAlert(alert)));
     },
 
-    getStockAlert(alertId: string, role?: StockAlertRole) {
+    getStockAlert(alertId: string, role?: AppRole) {
         return wait(makeAlertDetail(cloneAlert(findAlert(alertId, role ?? "ADMIN"))));
     },
 
