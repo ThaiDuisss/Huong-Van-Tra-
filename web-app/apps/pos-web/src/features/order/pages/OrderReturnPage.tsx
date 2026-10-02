@@ -156,7 +156,7 @@ function getReturnLineMeta(
 const QC_DISPOSITION_DISPLAY_LABELS: Record<CustomerReturnQcResult, string> = {
     RESTOCK: "Đạt chất lượng",
     DAMAGED: "Hàng hỏng",
-    QUARANTINE: "Cách ly",
+    QUARANTINE: "Cách ly (lịch sử)",
     WRITE_OFF: "Tiêu hủy"
 };
 

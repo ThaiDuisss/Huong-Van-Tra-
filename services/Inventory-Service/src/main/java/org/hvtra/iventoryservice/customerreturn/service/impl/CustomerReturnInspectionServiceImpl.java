@@ -535,6 +535,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         BigDecimal afterOnHand = beforeOnHand.add(line.getQuantity());
         balance.setQuantityOnHand(afterOnHand);
 
+        // QUARANTINE is legacy-only: existing inspections can finish without rewriting their disposition.
         if (line.getResult() == CustomerReturnQcResult.QUARANTINE || line.getResult() == CustomerReturnQcResult.DAMAGED) {
             balance.setQuantityBlocked(nullSafe(balance.getQuantityBlocked()).add(line.getQuantity()));
         }
@@ -715,6 +716,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         if (result == CustomerReturnQcResult.RESTOCK && !InventoryLocationSaleability.isSaleable(location)) {
             throw new BadRequestException("RESTOCK destination must be an active saleable location");
         }
+        // Preserve destination validation when posting a stored legacy inspection.
         if (result == CustomerReturnQcResult.QUARANTINE && location.getType() != InventoryLocationType.QUARANTINE) {
             throw new BadRequestException("QUARANTINE destination must be a QUARANTINE location");
         }
@@ -729,10 +731,16 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             CustomerReturnQcResult result,
             String lineNote,
             String inspectionNote) {
+        if (result == null) {
+            throw new BadRequestException("Customer return disposition result is required");
+        }
+        if (!result.isAllowedForNewReturn()) {
+            throw new BadRequestException("QUARANTINE is no longer supported for new customer returns; use DAMAGED");
+        }
         if (result == CustomerReturnQcResult.WRITE_OFF) {
             return;
         }
-        if (result == CustomerReturnQcResult.QUARANTINE || result == CustomerReturnQcResult.DAMAGED) {
+        if (result == CustomerReturnQcResult.DAMAGED) {
             return;
         }
         if (condition == OrderReturnCondition.SEALED) {

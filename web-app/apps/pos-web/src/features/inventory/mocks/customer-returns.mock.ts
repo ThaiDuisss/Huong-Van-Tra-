@@ -157,7 +157,7 @@ export const customerReturnMockData: CustomerReturnDetail[] = [
         orderCode: "ORD-20260801-041",
         qc: { evidence: "qc-hop-uot.jpg", inspectedAt: "2026-08-01T15:00:00.000Z", inspectedBy: users.QC_STAFF, note: "Không đủ điều kiện nhập lại.", remainingShelfLifeDays: 0, sealStatus: "BROKEN" },
         reason: "DAMAGED",
-        receiving: { receivedAt: "2026-08-01T14:00:00.000Z", receivedBy: users.BRANCH_MANAGER, note: "Đưa vào CUSTOMER_RETURN_QUARANTINE." },
+        receiving: { receivedAt: "2026-08-01T14:00:00.000Z", receivedBy: users.BRANCH_MANAGER, note: "Đã nhận hàng trả, chờ kiểm định." },
         refundStatus: "EXCHANGE_ORDER_CREATED",
         exchangeOrderCode: "ORD-EX-20260801-002",
         requestedAt: "2026-08-01T12:40:00.000Z",

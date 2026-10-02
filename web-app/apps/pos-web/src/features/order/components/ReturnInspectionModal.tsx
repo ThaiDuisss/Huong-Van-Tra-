@@ -12,7 +12,7 @@ import { inventoryLocationApi } from "../../inventory/services/inventoryLocation
 import type { InventoryLocationResponse } from "../../inventory/types/inventory.types";
 import { submitReturnInventoryDisposition } from "../services/order-return.api";
 import type {
-    CustomerReturnQcResult,
+    CustomerReturnDisposition,
     CustomerReturnQcSummaryLine,
     CustomerReturnQcSummaryResponse,
     OrderReturnListRow,
@@ -44,13 +44,13 @@ interface ReturnInspectionModalProps {
 interface QcDraftLine {
     selected: boolean;
     quantity: string;
-    result: CustomerReturnQcResult;
+    result: CustomerReturnDisposition;
     destinationLocationId: string;
     note: string;
 }
 
 const QC_RESULT_OPTIONS: {
-    result: CustomerReturnQcResult;
+    result: CustomerReturnDisposition;
     title: string;
     desc: string;
 }[] = [
@@ -63,11 +63,6 @@ const QC_RESULT_OPTIONS: {
         result: "DAMAGED",
         title: "Hàng hỏng",
         desc: "Chuyển sang khu hàng hỏng, không được bán"
-    },
-    {
-        result: "QUARANTINE",
-        title: "Cách ly",
-        desc: "Chuyển sang khu cách ly, chờ kiểm định thêm"
     },
     {
         result: "WRITE_OFF",
@@ -95,7 +90,7 @@ function getLocationOptionLabel(location: InventoryLocationResponse) {
     return name || code || "Vị trí kho";
 }
 
-function getDefaultQcResult(condition?: ReturnCondition | null): CustomerReturnQcResult {
+function getDefaultQcResult(condition?: ReturnCondition | null): CustomerReturnDisposition {
     return condition === "SEALED" ? "RESTOCK" : "DAMAGED";
 }
 
@@ -114,7 +109,6 @@ export function ReturnInspectionModal({
     const [isGeneralNoteOpen, setIsGeneralNoteOpen] = useState(false);
     const [activeLocations, setActiveLocations] = useState<InventoryLocationResponse[]>([]);
     const [damagedLocations, setDamagedLocations] = useState<InventoryLocationResponse[]>([]);
-    const [quarantineLocations, setQuarantineLocations] = useState<InventoryLocationResponse[]>([]);
     const [isLocationLoading, setIsLocationLoading] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -158,39 +152,24 @@ export function ReturnInspectionModal({
         return Array.from(map.values());
     }, [activeLocations, damagedLocations]);
 
-    const normalizedQuarantineLocations = useMemo(() => {
-        const map = new Map<string, InventoryLocationResponse>();
-        activeLocations
-            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
-            .forEach((l) => map.set(String(l.id), l));
-        quarantineLocations
-            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
-            .forEach((l) => map.set(String(l.id), l));
-        return Array.from(map.values());
-    }, [activeLocations, quarantineLocations]);
-
     const allLocationsMap = useMemo(() => {
         const map = new Map<string, InventoryLocationResponse>();
         activeLocations.forEach((loc) => map.set(String(loc.id), loc));
         damagedLocations.forEach((loc) => map.set(String(loc.id), loc));
-        quarantineLocations.forEach((loc) => map.set(String(loc.id), loc));
         return map;
-    }, [activeLocations, damagedLocations, quarantineLocations]);
+    }, [activeLocations, damagedLocations]);
 
     const getValidLocations = useCallback(
-        (result: CustomerReturnQcResult) => {
+        (result: CustomerReturnDisposition) => {
             if (result === "RESTOCK") {
                 return restockLocations;
             }
             if (result === "DAMAGED") {
                 return normalizedDamagedLocations;
             }
-            if (result === "QUARANTINE") {
-                return normalizedQuarantineLocations;
-            }
             return [];
         },
-        [normalizedDamagedLocations, normalizedQuarantineLocations, restockLocations]
+        [normalizedDamagedLocations, restockLocations]
     );
 
     // Load locations when modal opens
@@ -215,26 +194,18 @@ export function ReturnInspectionModal({
                     size: 100,
                     status: "ACTIVE",
                     type: "DAMAGED"
-                }),
-                inventoryLocationApi.list({
-                    page: 0,
-                    size: 100,
-                    status: "ACTIVE",
-                    type: "QUARANTINE"
                 })
             ])
-                .then(([activePage, damagedPage, quarantinePage]) => {
+                .then(([activePage, damagedPage]) => {
                     if (!ignore) {
                         setActiveLocations(activePage.content ?? []);
                         setDamagedLocations(damagedPage.content ?? []);
-                        setQuarantineLocations(quarantinePage.content ?? []);
                     }
                 })
                 .catch((error: unknown) => {
                     if (!ignore) {
                         setActiveLocations([]);
                         setDamagedLocations([]);
-                        setQuarantineLocations([]);
                         setLocationError(getReturnErrorMessage(error));
                     }
                 })
@@ -309,7 +280,7 @@ export function ReturnInspectionModal({
 
             return Object.fromEntries(nextEntries);
         });
-    }, [isOpen, normalizedDamagedLocations, normalizedQuarantineLocations, remainingLines, restockLocations]);
+    }, [isOpen, normalizedDamagedLocations, remainingLines, restockLocations]);
 
     // Handle updating location when location lists finish loading
     useEffect(() => {
@@ -337,7 +308,7 @@ export function ReturnInspectionModal({
 
             return changed ? updated : current;
         });
-    }, [getValidLocations, isOpen, normalizedDamagedLocations, normalizedQuarantineLocations, restockLocations]);
+    }, [getValidLocations, isOpen, normalizedDamagedLocations, restockLocations]);
 
     const updateDraftLine = (
         returnItemId: string,
@@ -447,18 +418,6 @@ export function ReturnInspectionModal({
                 const isValid = normalizedDamagedLocations.some((l) => String(l.id) === draft.destinationLocationId);
                 if (!draft.destinationLocationId || !isValid) {
                     setFormError(`Vui lòng chọn vị trí kho hàng hỏng cho "${name}".`);
-                    return false;
-                }
-            }
-
-            if (draft.result === "QUARANTINE") {
-                if (normalizedQuarantineLocations.length === 0) {
-                    setFormError(`Chưa có vị trí kho cách ly trong hệ thống.`);
-                    return false;
-                }
-                const isValid = normalizedQuarantineLocations.some((l) => String(l.id) === draft.destinationLocationId);
-                if (!draft.destinationLocationId || !isValid) {
-                    setFormError(`Vui lòng chọn vị trí kho cách ly cho "${name}".`);
                     return false;
                 }
             }
@@ -819,11 +778,9 @@ export function ReturnInspectionModal({
                                                             htmlFor={`loc-${line.returnItemId}`}
                                                         >
                                                             <span>
-                                                                {draft.result === "RESTOCK"
-                                                                    ? "Vị trí kho bán được"
-                                                                    : draft.result === "DAMAGED"
-                                                                        ? "Vị trí kho hàng hỏng"
-                                                                        : "Vị trí kho cách ly"}
+                                                                 {draft.result === "RESTOCK"
+                                                                     ? "Vị trí kho bán được"
+                                                                     : "Vị trí kho hàng hỏng"}
                                                             </span>
                                                             {isLocationLoading ? (
                                                                 <span className={styles.fieldHelp}>

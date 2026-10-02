@@ -1448,21 +1448,6 @@ class OrderReturnServiceImplTest {
     void submitReturnInventoryDisposition_quarantineWithoutDestination_throwsException() {
         UUID returnId = UUID.randomUUID();
         UUID returnItemId = UUID.randomUUID();
-        OrderReturn orderReturn = OrderReturn.builder()
-                .status(ReturnStatus.RECEIVED)
-                .build();
-        orderReturn.setId(returnId);
-
-        OrderReturnItem item = OrderReturnItem.builder()
-                .quantity(new BigDecimal("2.000"))
-                .build();
-        item.setId(returnItemId);
-        item.setIsDeleted(false);
-        orderReturn.setItems(List.of(item));
-
-        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId))
-                .thenReturn(Optional.of(orderReturn));
-
         SubmitReturnInventoryDispositionRequest request = SubmitReturnInventoryDispositionRequest.builder()
                 .commandId(UUID.randomUUID())
                 .lines(List.of(
@@ -1475,45 +1460,20 @@ class OrderReturnServiceImplTest {
                 ))
                 .build();
 
-        org.junit.jupiter.api.Assertions.assertThrows(
+        InvalidOrderReturnException exception = assertThrows(
                 InvalidOrderReturnException.class,
                 () -> service.submitInventoryDisposition(returnId, request)
         );
+        assertEquals("QUARANTINE is no longer supported for new customer returns; use DAMAGED", exception.getMessage());
+        verifyNoInteractions(orderReturnRepository, orderReturnInventoryCommandRepository, orderOutboxPublisher);
     }
 
     @Test
-    void submitReturnInventoryDisposition_quarantineWithDestination_succeeds() {
+    void submitReturnInventoryDisposition_quarantineWithDestination_throwsException() {
         UUID returnId = UUID.randomUUID();
         UUID returnItemId = UUID.randomUUID();
         UUID locId = UUID.randomUUID();
         UUID cmdId = UUID.randomUUID();
-
-        OrderReturn orderReturn = OrderReturn.builder()
-                .status(ReturnStatus.RECEIVED)
-                .build();
-        orderReturn.setId(returnId);
-
-        OrderItem ordItem = OrderItem.builder()
-                .productVariantId(UUID.randomUUID())
-                .build();
-        ordItem.setId(UUID.randomUUID());
-
-        OrderReturnItem item = OrderReturnItem.builder()
-                .quantity(new BigDecimal("2.000"))
-                .orderItem(ordItem)
-                .build();
-        item.setId(returnItemId);
-        item.setIsDeleted(false);
-        orderReturn.setItems(List.of(item));
-
-        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId))
-                .thenReturn(Optional.of(orderReturn));
-        when(orderReturnInventoryCommandRepository.findByCommandIdAndIsDeletedFalse(cmdId))
-                .thenReturn(Optional.empty());
-        when(orderReturnInventoryCommandRepository.sumCommandedQuantityByReturnItemId(returnItemId))
-                .thenReturn(BigDecimal.ZERO);
-        when(orderReturnInventoryCommandRepository.saveAndFlush(any()))
-                .thenAnswer(inv -> inv.getArgument(0));
 
         SubmitReturnInventoryDispositionRequest request = SubmitReturnInventoryDispositionRequest.builder()
                 .commandId(cmdId)
@@ -1527,9 +1487,11 @@ class OrderReturnServiceImplTest {
                 ))
                 .build();
 
-        var response = service.submitInventoryDisposition(returnId, request);
-        org.junit.jupiter.api.Assertions.assertNotNull(response);
-        org.junit.jupiter.api.Assertions.assertEquals(cmdId, response.getCommandId());
-        verify(orderReturnInventoryCommandRepository).saveAndFlush(any());
+        InvalidOrderReturnException exception = assertThrows(
+                InvalidOrderReturnException.class,
+                () -> service.submitInventoryDisposition(returnId, request)
+        );
+        assertEquals("QUARANTINE is no longer supported for new customer returns; use DAMAGED", exception.getMessage());
+        verifyNoInteractions(orderReturnRepository, orderReturnInventoryCommandRepository, orderOutboxPublisher);
     }
 }

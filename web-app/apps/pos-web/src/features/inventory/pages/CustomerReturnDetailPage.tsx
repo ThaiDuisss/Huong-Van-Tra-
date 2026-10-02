@@ -12,7 +12,7 @@ import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-f
 const resultLabels: Record<CustomerReturnQcResult, string> = {
     RESTOCK: "Nhập lại kho",
     DAMAGED: "Hàng hỏng",
-    QUARANTINE: "Cách ly",
+    QUARANTINE: "Cách ly (lịch sử)",
     WRITE_OFF: "Tiêu hủy"
 };
 
@@ -95,6 +95,7 @@ export function CustomerReturnDetailPage() {
             return locations.filter((loc) => loc.type === "DAMAGED");
         }
         if (result === "QUARANTINE") {
+            // Only existing legacy inspections can have this result.
             return locations.filter((loc) => loc.type === "QUARANTINE");
         }
         return [];

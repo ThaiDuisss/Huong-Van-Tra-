@@ -705,6 +705,13 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         if (request.getLines() == null || request.getLines().isEmpty()) {
             throw new InvalidOrderReturnException("Inventory disposition lines are required");
         }
+        for (SubmitReturnInventoryDispositionLineRequest line : request.getLines()) {
+            if (line != null && line.getResult() != null && !line.getResult().isAllowedForNewReturn()) {
+                throw new InvalidOrderReturnException(
+                        "QUARANTINE is no longer supported for new customer returns; use DAMAGED"
+                );
+            }
+        }
     }
 
     private Map<UUID, SubmitReturnInventoryDispositionLineRequest> requestedDispositionLines(
@@ -743,8 +750,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     ) {
         BigDecimal quantity = requirePositiveQuantity(lineRequest.getQuantity());
         if ((ReturnInventoryDispositionResult.RESTOCK == lineRequest.getResult()
-                || ReturnInventoryDispositionResult.DAMAGED == lineRequest.getResult()
-                || ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult())
+                || ReturnInventoryDispositionResult.DAMAGED == lineRequest.getResult())
                 && lineRequest.getDestinationLocationId() == null) {
             throw new InvalidOrderReturnException("Destination location is required for inventory disposition");
         }

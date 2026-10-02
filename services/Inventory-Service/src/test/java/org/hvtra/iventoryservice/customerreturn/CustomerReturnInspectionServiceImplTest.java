@@ -21,6 +21,7 @@ import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcStatus;
+import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
@@ -42,6 +43,8 @@ import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -133,6 +136,12 @@ class CustomerReturnInspectionServiceImplTest {
                 .thenAnswer(invocation -> assignInspectionIds(invocation.getArgument(0)));
         lenient().when(transactionRepository.saveAndFlush(any(InventoryTransaction.class)))
                 .thenAnswer(invocation -> assignTransactionId(invocation.getArgument(0)));
+        lenient().when(disposalRequestRepository.saveAndFlush(any(DisposalRequest.class)))
+                .thenAnswer(invocation -> {
+                    DisposalRequest request = invocation.getArgument(0);
+                    request.setId(UUID.randomUUID());
+                    return request;
+                });
         lenient().when(inspectionRepository.findByReturnIdAndStatus(
                 any(),
                 eq(CustomerReturnInspectionStatus.POSTED)))
@@ -244,19 +253,20 @@ class CustomerReturnInspectionServiceImplTest {
     }
 
     @Test
-    void createInspectionAllowsOpenedQuarantine() {
+    void createInspectionRejectsQuarantineWithDestination() {
         stubReceivedReturn(OrderReturnCondition.OPENED, "3.00");
-        stubActiveItem();
-        when(locationRepository.findById(quarantine.getId())).thenReturn(Optional.of(quarantine));
 
-        CustomerReturnInspectionResponse response = service.createInspection(returnId, request(
+        assertThatThrownBy(() -> service.createInspection(returnId, request(
                 returnItemId,
                 "1.00",
                 CustomerReturnQcResult.QUARANTINE,
                 quarantine.getId(),
-                null));
+                null)))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("QUARANTINE is no longer supported");
 
-        assertThat(response.lines().getFirst().result()).isEqualTo(CustomerReturnQcResult.QUARANTINE);
+        verify(inspectionRepository, never()).saveAndFlush(any());
+        verify(transactionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -275,19 +285,19 @@ class CustomerReturnInspectionServiceImplTest {
     }
 
     @Test
-    void createInspectionAllowsDamagedQuarantine() {
+    void createInspectionAllowsDamagedDisposition() {
         stubReceivedReturn(OrderReturnCondition.DAMAGED, "3.00");
         stubActiveItem();
-        when(locationRepository.findById(quarantine.getId())).thenReturn(Optional.of(quarantine));
+        when(locationRepository.findById(damaged.getId())).thenReturn(Optional.of(damaged));
 
         CustomerReturnInspectionResponse response = service.createInspection(returnId, request(
                 returnItemId,
                 "1.00",
-                CustomerReturnQcResult.QUARANTINE,
-                quarantine.getId(),
+                CustomerReturnQcResult.DAMAGED,
+                damaged.getId(),
                 null));
 
-        assertThat(response.lines().getFirst().result()).isEqualTo(CustomerReturnQcResult.QUARANTINE);
+        assertThat(response.lines().getFirst().result()).isEqualTo(CustomerReturnQcResult.DAMAGED);
     }
 
     @Test
@@ -413,7 +423,6 @@ class CustomerReturnInspectionServiceImplTest {
     @Test
     void createInspectionRejectsQuarantineWithoutDestination() {
         stubReceivedReturn(OrderReturnCondition.DAMAGED, "3.00");
-        stubActiveItem();
 
         assertThatThrownBy(() -> service.createInspection(returnId, request(
                 returnItemId,
@@ -422,11 +431,12 @@ class CustomerReturnInspectionServiceImplTest {
                 null,
                 null)))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("destinationLocationId is required");
+                .hasMessageContaining("QUARANTINE is no longer supported");
+        verify(inspectionRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void createInspectionRejectsQuarantineToNonQuarantineLocation() {
+    void createInspectionRejectsDamagedToSaleableLocation() {
         stubReceivedReturn(OrderReturnCondition.DAMAGED, "3.00");
         stubActiveItem();
         when(locationRepository.findById(shelf.getId())).thenReturn(Optional.of(shelf));
@@ -434,11 +444,11 @@ class CustomerReturnInspectionServiceImplTest {
         assertThatThrownBy(() -> service.createInspection(returnId, request(
                 returnItemId,
                 "1.00",
-                CustomerReturnQcResult.QUARANTINE,
+                CustomerReturnQcResult.DAMAGED,
                 shelf.getId(),
                 null)))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("QUARANTINE location");
+                .hasMessageContaining("DAMAGED location");
     }
 
     @Test
@@ -459,20 +469,24 @@ class CustomerReturnInspectionServiceImplTest {
         assertThat(captor.getValue().getLines()).hasSize(1);
     }
 
-    @Test
-    void postQuarantineIncreasesOnHandAndBlocked() {
-        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.QUARANTINE, quarantine, "1.00");
-        InventoryBalance balance = balance("5.00", "0.00", "2.00", quarantine);
+    @ParameterizedTest
+    @EnumSource(value = CustomerReturnQcResult.class, names = {"DAMAGED", "QUARANTINE"})
+    void postDamagedAndLegacyQuarantineIncreaseOnHandAndBlocked(CustomerReturnQcResult result) {
+        InventoryLocation destination = result == CustomerReturnQcResult.DAMAGED ? damaged : quarantine;
+        CustomerReturnInspection inspection = inspection(result, destination, "1.00");
+        InventoryBalance balance = balance("5.00", "0.00", "2.00", destination);
         stubPost(inspection, balance);
 
-        service.postInspection(inspection.getId());
+        CustomerReturnInspectionResponse response = service.postInspection(inspection.getId());
 
+        assertThat(response.lines().getFirst().result()).isEqualTo(result);
         assertThat(balance.getQuantityOnHand()).isEqualByComparingTo("6.00");
         assertThat(balance.getQuantityBlocked()).isEqualByComparingTo("3.00");
+        verify(transactionRepository).saveAndFlush(any());
     }
 
     @Test
-    void postWriteOffCreatesAuditTransactionWithoutBalanceChange() {
+    void postWriteOffCreatesDisposalRequestWithoutBalanceChange() {
         CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
         when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId()))
                 .thenReturn(Optional.of(inspection));
@@ -485,6 +499,7 @@ class CustomerReturnInspectionServiceImplTest {
 
         ArgumentCaptor<DisposalRequest> captor = ArgumentCaptor.forClass(DisposalRequest.class);
         verify(disposalRequestRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(DisposalRequestStatus.PENDING_APPROVAL);
         assertThat(captor.getValue().getLines()).containsExactly(inspection.getLines().getFirst());
         assertThat(response.status()).isEqualTo(CustomerReturnInspectionStatus.PROCESSING);
         assertThat(inspection.getLines().getFirst().getPosted()).isFalse();
