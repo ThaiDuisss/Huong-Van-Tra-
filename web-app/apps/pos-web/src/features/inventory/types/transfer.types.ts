@@ -17,7 +17,7 @@ export type TransferStatus =
     | "CANCELLED";
 
 export type TransferRole =
-    | "BRANCH_MANAGER"
+    | "MANAGER"
     | "INVENTORY_STAFF"
     | "ADMIN"
     | "DIRECTOR"
@@ -267,3 +267,5 @@ export interface TransferApi {
     cancelTransfer(input: TransferActionInput): Promise<TransferDetail>;
     getTransferOptions(): Promise<TransferOptions>;
 }
+
+export type AppRole = TransferRole;

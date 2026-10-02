@@ -133,8 +133,16 @@ class OrderCheckoutPaymentProcessorTest {
                 changedBy
         );
         inOrder.verify(orderPaymentSagaService).completePaymentSaga(any(Order.class), any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq("PAY-001"));
+        inOrder.verify(orderPaymentSagaService).markResourceConfirmationRequested(order, sagaId);
         inOrder.verify(orderCustomerService).updateCustomerPurchase(orderId);
         inOrder.verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(order, "PAY-001", sagaId.toString());
+        inOrder.verify(orderOutboxPublisher).publishOrderPaymentSucceededNotification(
+                org.mockito.Mockito.eq(order),
+                any(PaymentOrderEventPayload.class),
+                org.mockito.Mockito.eq(OrderStatus.PENDING_PAYMENT),
+                org.mockito.Mockito.eq(OrderStatus.COMPLETED),
+                org.mockito.Mockito.eq(sagaId.toString())
+        );
         PaymentCreateRequest paymentRequest = requestCaptor.getValue();
         assertEquals(orderId, paymentRequest.getOrderId());
         assertEquals(sagaId, paymentRequest.getSagaId());

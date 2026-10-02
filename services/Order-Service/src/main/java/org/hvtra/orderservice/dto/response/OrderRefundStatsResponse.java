@@ -12,4 +12,7 @@ public class OrderRefundStatsResponse {
     private long refunded;
     private long notReady;
     private long failed;
+    private long waitingReceipt;
+    private long waitingInspection;
+    private long other;
 }

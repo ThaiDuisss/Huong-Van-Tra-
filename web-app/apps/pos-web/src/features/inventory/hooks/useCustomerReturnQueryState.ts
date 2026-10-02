@@ -19,8 +19,8 @@ export function useCustomerReturnQueryState() {
             orderCode: searchParams.get("orderCode") ?? "",
             page: numberParam(searchParams.get("page"), 1) - 1,
             returnCode: searchParams.get("returnCode") ?? "",
-            size: numberParam(searchParams.get("size"), 10),
-            status: oneOf(searchParams.get("status"), ["ALL", "CREATED", "POSTED", "CANCELLED"], "ALL")
+            size: 10,
+            status: oneOf(searchParams.get("status"), ["ALL", "CREATED", "PROCESSING", "POSTED", "CANCELLED"], "ALL")
         }),
         [searchParams]
     );

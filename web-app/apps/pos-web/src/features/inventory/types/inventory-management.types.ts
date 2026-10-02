@@ -1,7 +1,7 @@
 import type { EntityId, PageResponse } from "./inventory.types";
 
 export type InventoryRole =
-    | "INVENTORY_MANAGER"
+    | "MANAGER"
     | "INVENTORY_STAFF"
     | "PRODUCTION_STAFF"
     | "BRANCH_STAFF"
@@ -193,3 +193,5 @@ export interface InventoryManagementApi {
         batches: InventoryBatchOption[];
     }>;
 }
+
+export type AppRole = InventoryRole;

@@ -25,10 +25,9 @@ export type CostStatus = "PENDING" | "PROVISIONAL" | "FINAL";
 export type GoodsReceiptRole =
     | "ADMIN"
     | "INVENTORY_STAFF"
-    | "INVENTORY_MANAGER"
     | "QC_STAFF"
     | "ACCOUNTANT"
-    | "BRANCH_MANAGER"
+    | "MANAGER"
     | "DIRECTOR";
 
 export type GoodsReceiptBatchStatus =
@@ -351,3 +350,5 @@ export interface GoodsReceiptApi {
     ): Promise<GoodsReceiptDetail>;
     getGoodsReceiptOptions(supplierId?: string): Promise<GoodsReceiptOptions>;
 }
+
+export type AppRole = GoodsReceiptRole;

@@ -14,6 +14,7 @@ import type {
     DisposalListQuery,
     DisposalListResult,
     DisposalRequest,
+    DisposalStatusCounts,
     QualityActionInput,
     QualityApi,
     QualityBatchQuery,
@@ -77,8 +78,8 @@ function mapBackendDisposal(request: BackendDisposalRequest): DisposalRequest {
             quantity: Number(line.quantity),
             reason: "Hàng khách trả được chỉ định tiêu hủy",
             reservedQuantity: 0,
-            skuCode: line.itemCode ?? "Chưa có SKU",
-            skuName: line.itemName ?? "Sản phẩm",
+            skuCode: line.itemCode ?? "–",
+            skuName: line.itemName ?? "–",
             unit: "",
             unitCost: 0
         })),
@@ -201,12 +202,17 @@ export const qualityApi: QualityApi = {
             .then(mapBackendDisposal);
     },
 
+    getDisposalStatusCounts(keyword?: string) {
+        return apiClient.get<DisposalStatusCounts>("/inventory/disposal-requests/status-counts", {
+            query: { keyword: keyword || undefined }
+        });
+    },
+
     listDisposalRequests(query: DisposalListQuery) {
         return apiClient.get<BackendDisposalPage>("/inventory/disposal-requests", {
             query: {
+                keyword: query.keyword || undefined,
                 page: query.page,
-                requestCode: query.code || undefined,
-                returnCode: query.returnCode || query.reason || undefined,
                 size: query.size,
                 status: query.status === "ALL" ? undefined : query.status
             }

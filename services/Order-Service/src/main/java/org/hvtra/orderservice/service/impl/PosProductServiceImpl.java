@@ -147,6 +147,11 @@ public class PosProductServiceImpl implements PosProductService {
                 .availableQuantity(stock != null ? stock.availableQuantity() : BigDecimal.ZERO)
                 .reservedQuantity(stock != null ? stock.reservedQuantity() : BigDecimal.ZERO)
                 .stockStatus(stock != null ? stock.stockStatus() : "OUT_OF_STOCK")
+                .shelfQuantity(stock != null && stock.shelfQuantity() != null ? stock.shelfQuantity() : BigDecimal.ZERO)
+                .warehouseQuantity(stock != null && stock.warehouseQuantity() != null
+                        ? stock.warehouseQuantity() : BigDecimal.ZERO)
+                .shelfLocationId(stock != null ? stock.shelfLocationId() : null)
+                .warehouseLocationId(stock != null ? stock.warehouseLocationId() : null)
                 .build();
     }
 }

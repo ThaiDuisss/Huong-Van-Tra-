@@ -9,6 +9,7 @@ import org.hvtra.iventoryservice.stock.dto.response.StockVariantBatchResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
@@ -150,12 +151,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
                         (left, ignored) -> left));
         if (itemByVariantId.isEmpty()) {
             return variantIds.stream()
-                    .map(variantId -> new StockVariantBatchResponse(
-                            variantId,
-                            request.warehouseId(),
-                            ZERO,
-                            ZERO,
-                            "OUT_OF_STOCK"))
+                    .map(variantId -> StockVariantBatchResponse.empty(variantId, request.warehouseId()))
                     .toList();
         }
         for (InventoryItem item : itemByVariantId.values()) {
@@ -199,14 +195,18 @@ public class InventoryStockServiceImpl implements InventoryStockService {
 
     private StockVariantBatchResponse toVariantResponse(UUID variantId, VariantTotals totals, UUID warehouseId) {
         if (totals == null) {
-            return new StockVariantBatchResponse(variantId, warehouseId, ZERO, ZERO, "OUT_OF_STOCK");
+            return StockVariantBatchResponse.empty(variantId, warehouseId);
         }
         return new StockVariantBatchResponse(
                 variantId,
                 totals.bestLocationId(),
                 totals.available,
                 totals.reserved,
-                totals.available.compareTo(ZERO) > 0 ? "IN_STOCK" : "OUT_OF_STOCK");
+                totals.available.compareTo(ZERO) > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
+                totals.shelf,
+                totals.warehouse,
+                totals.bestLocationId(InventoryLocationType.SHELF),
+                totals.bestWarehouseLocationId(warehouseId));
     }
 
     /**
@@ -227,13 +227,25 @@ public class InventoryStockServiceImpl implements InventoryStockService {
     private static class VariantTotals {
         private BigDecimal available = ZERO;
         private BigDecimal reserved = ZERO;
+        // Tách riêng số trên kệ (SHELF) và số trong kho (WAREHOUSE / STORAGE) để POS hiển thị hai con số.
+        private BigDecimal shelf = ZERO;
+        private BigDecimal warehouse = ZERO;
         private final Map<UUID, BigDecimal> availableByLocationId = new LinkedHashMap<>();
+        private final Map<UUID, InventoryLocationType> typeByLocationId = new HashMap<>();
 
         private void add(InventoryBalance balance) {
             BigDecimal rowAvailable = balance.getAvailableQuantity();
             available = available.add(rowAvailable);
             reserved = reserved.add(balance.getQuantityReserved() != null ? balance.getQuantityReserved() : ZERO);
-            availableByLocationId.merge(balance.getLocation().getId(), rowAvailable, BigDecimal::add);
+            UUID locationId = balance.getLocation().getId();
+            InventoryLocationType type = balance.getLocation().getType();
+            availableByLocationId.merge(locationId, rowAvailable, BigDecimal::add);
+            typeByLocationId.put(locationId, type);
+            if (type == InventoryLocationType.SHELF) {
+                shelf = shelf.add(rowAvailable);
+            } else {
+                warehouse = warehouse.add(rowAvailable);
+            }
         }
 
         // Response chỉ mang 1 locationId nên trả về vị trí đang còn nhiều hàng nhất.
@@ -242,6 +254,23 @@ public class InventoryStockServiceImpl implements InventoryStockService {
                     .max(Map.Entry.comparingByValue())
                     .map(Map.Entry::getKey)
                     .orElse(null);
+        }
+
+        private UUID bestLocationId(InventoryLocationType type) {
+            return availableByLocationId.entrySet().stream()
+                    .filter(entry -> typeByLocationId.get(entry.getKey()) == type)
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+        }
+
+        private UUID bestWarehouseLocationId(UUID fallback) {
+            UUID best = availableByLocationId.entrySet().stream()
+                    .filter(entry -> typeByLocationId.get(entry.getKey()) != InventoryLocationType.SHELF)
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+            return best != null ? best : fallback;
         }
     }
 

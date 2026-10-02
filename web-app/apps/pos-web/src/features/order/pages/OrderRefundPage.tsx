@@ -1,4 +1,4 @@
-import {
+﻿import {
     ChevronLeft,
     ChevronRight,
     RefreshCw,
@@ -25,7 +25,7 @@ import type { OrderPageResponse } from "../types/order.types";
 import type {
     OrderRefundDetailResponse,
     OrderRefundStatsResponse,
-    OrderRefundStatus,
+    RefundProgressStatus,
     OrderRefundSummaryResponse,
     OrderReturnRefundPreviewResponse,
     OrderReturnRefundResponse
@@ -38,7 +38,7 @@ import {
 } from "../utils/order-formatters";
 import styles from "./OrderRefundPage.module.css";
 
-type RefundFilterKey = "ALL" | OrderRefundStatus;
+type RefundFilterKey = "ALL" | Exclude<RefundProgressStatus, "OTHER">;
 type ToastState = { message: string; type: "success" | "error" };
 
 const PAGE_SIZE = 10;
@@ -54,24 +54,17 @@ const emptyPage: OrderPageResponse<OrderRefundSummaryResponse> = {
 const FILTERS: {
     key: RefundFilterKey;
     label: string;
-    status?: OrderRefundStatus;
+    progressStatus?: RefundProgressStatus;
     countKey: keyof OrderRefundStatsResponse;
     isError?: boolean;
 }[] = [
     { key: "ALL", label: "Tất cả", countKey: "total" },
-    { key: "PENDING", label: "Chờ hoàn tiền", status: "PENDING", countKey: "pendingRefund" },
-    { key: "NOT_READY", label: "Chờ xử lý", status: "NOT_READY", countKey: "notReady" },
-    { key: "REFUNDED", label: "Đã hoàn tiền", status: "REFUNDED", countKey: "refunded" },
-    { key: "FAILED", label: "Có lỗi", status: "FAILED", countKey: "failed", isError: true }
+    { key: "WAITING_RECEIPT", label: "Chờ nhận hàng", progressStatus: "WAITING_RECEIPT", countKey: "waitingReceipt" },
+    { key: "WAITING_INSPECTION", label: "Chờ kiểm hàng", progressStatus: "WAITING_INSPECTION", countKey: "waitingInspection" },
+    { key: "WAITING_REFUND", label: "Chờ hoàn tiền", progressStatus: "WAITING_REFUND", countKey: "pendingRefund" },
+    { key: "REFUNDED", label: "Đã hoàn tiền", progressStatus: "REFUNDED", countKey: "refunded" },
+    { key: "FAILED", label: "Có lỗi", progressStatus: "FAILED", countKey: "failed", isError: true }
 ];
-
-const REFUND_STATUS_LABELS: Record<OrderRefundStatus, string> = {
-    FAILED: "Hoàn tiền thất bại",
-    NOT_READY: "Chờ xử lý",
-    PENDING: "Chờ hoàn tiền",
-    REFUNDED: "Đã hoàn tiền",
-    NOT_REQUIRED: "Không hoàn tiền"
-};
 
 const QC_STATUS_LABELS: Record<string, string> = {
     COMPLETED: "Hoàn tất",
@@ -195,10 +188,6 @@ function displayText(value?: string | null, fallback = "--") {
     return value?.trim() || fallback;
 }
 
-function getRefundStatusLabel(status?: OrderRefundStatus | null) {
-    return status ? REFUND_STATUS_LABELS[status] ?? status : "--";
-}
-
 function getQcStatusLabel(status?: string | null) {
     return status ? QC_STATUS_LABELS[status] ?? status : "--";
 }
@@ -207,50 +196,95 @@ function getMethodLabel(method?: string | null) {
     return method ? METHOD_LABELS[method] ?? method : "--";
 }
 
-function getRefundProgress(row: OrderRefundSummaryResponse): { label: string; className: string } {
-    if (row.refundStatus === "FAILED" || row.refundBlockReason === "REFUND_FAILED") {
-        return { label: "Hoàn tiền thất bại", className: styles.failedBadge };
-    }
+export type RefundDisplayStatusKey =
+    | "REFUNDED"
+    | "FAILED"
+    | "NOT_REQUIRED"
+    | "WAITING_REFUND"
+    | "INVENTORY_FAILED"
+    | "UNSUPPORTED_METHOD"
+    | "NO_PAYMENT"
+    | "PAYMENT_UNAVAILABLE"
+    | "CANCELLED"
+    | "WAITING_RECEIPT"
+    | "WAITING_INSPECTION"
+    | "PROCESSING";
+
+export interface RefundProgressInfo {
+    key: RefundDisplayStatusKey;
+    label: string;
+    className: string;
+}
+
+function getRefundProgress(row: OrderRefundSummaryResponse): RefundProgressInfo {
+    // 1. Refunded
     if (row.refundStatus === "REFUNDED" || row.refundBlockReason === "ALREADY_REFUNDED") {
-        return { label: "Đã hoàn tiền", className: styles.refundedBadge };
+        return { key: "REFUNDED", label: "Đã hoàn tiền", className: styles.refundedBadge };
     }
+
+    // 2. Refund Failed
+    if (row.refundStatus === "FAILED" || row.refundBlockReason === "REFUND_FAILED") {
+        return { key: "FAILED", label: "Có lỗi", className: styles.failedBadge };
+    }
+
+    if (row.inventoryProcessingStatus === "FAILED" || row.displayStatus === "PROCESSING_FAILED") {
+        return { key: "INVENTORY_FAILED", label: "Xử lý kho thất bại", className: styles.failedBadge };
+    }
+
+    // 3. Not Required
     if (row.refundStatus === "NOT_REQUIRED" || row.refundRequired === false || row.refundBlockReason === "REFUND_NOT_REQUIRED") {
-        return { label: "Không hoàn tiền", className: styles.notRequiredBadge };
+        return { key: "NOT_REQUIRED", label: "Không hoàn tiền", className: styles.notRequiredBadge };
     }
-    if (row.refundEligible === true) {
-        return { label: "Chờ hoàn tiền", className: styles.pendingRefundBadge };
+    if (row.returnStatus === "CANCELLED") {
+        return { key: "CANCELLED", label: "Đã hủy", className: styles.neutralBadge };
     }
+
+    // 4. Waiting Refund (Eligible)
+    if (row.refundStatus === "PENDING" || row.refundEligible === true) {
+        return { key: "WAITING_REFUND", label: "Chờ hoàn tiền", className: styles.pendingRefundBadge };
+    }
+
+    // 5. Waiting Receipt / Inspection (Pre-refund physical progress)
     if (row.returnStatus === "CREATED" || row.refundBlockReason === "RETURN_NOT_RECEIVED") {
-        return { label: "Chờ nhận hàng", className: styles.waitingReceiptBadge };
+        return { key: "WAITING_RECEIPT", label: "Chờ nhận hàng", className: styles.waitingReceiptBadge };
     }
-    if (row.inventoryProcessingStatus === "FAILED") {
-        return { label: "Xử lý kho thất bại", className: styles.failedBadge };
+    if (
+        row.returnStatus === "RECEIVED" &&
+        (row.refundBlockReason == null || row.refundBlockReason === "PHYSICAL_DISPOSITION_NOT_COMPLETED") &&
+        (row.physicalDone === false ||
+            row.refundBlockReason === "PHYSICAL_DISPOSITION_NOT_COMPLETED" ||
+            row.inventoryProcessingStatus === "PENDING" ||
+            row.inventoryProcessingStatus === "PROCESSING")
+    ) {
+        return { key: "WAITING_INSPECTION", label: "Chờ kiểm hàng", className: styles.waitingQcBadge };
     }
-    if (row.inventoryProcessingStatus === "PROCESSING") {
-        return { label: "Đang xử lý kho", className: styles.waitingQcBadge };
-    }
-    if (row.physicalDone === false || row.refundBlockReason === "PHYSICAL_DISPOSITION_NOT_COMPLETED") {
-        return { label: "Chờ kiểm hàng", className: styles.waitingQcBadge };
-    }
-    if (row.refundBlockReason === "PAYMENT_SERVICE_UNAVAILABLE") {
-        return { label: "Dịch vụ thanh toán bận", className: styles.waitingReceiptBadge };
+
+    // 6. Payment block reasons (Pre-refund payment conditions)
+    if (row.refundBlockReason === "UNSUPPORTED_PAYMENT_METHOD") {
+        return { key: "UNSUPPORTED_METHOD", label: "Phương thức chưa hỗ trợ", className: styles.neutralBadge };
     }
     if (row.refundBlockReason === "PAYMENT_NOT_FOUND") {
-        return { label: "Chưa có thanh toán", className: styles.waitingReceiptBadge };
+        return { key: "NO_PAYMENT", label: "Chưa có thanh toán", className: styles.neutralBadge };
     }
-    if (row.refundBlockReason === "UNSUPPORTED_PAYMENT_METHOD") {
-        return { label: "Phương thức chưa hỗ trợ", className: styles.waitingReceiptBadge };
+    if (row.refundBlockReason === "PAYMENT_SERVICE_UNAVAILABLE") {
+        return { key: "PAYMENT_UNAVAILABLE", label: "Dịch vụ thanh toán bận", className: styles.neutralBadge };
     }
     if (row.refundBlockReason === "PAYMENT_NOT_REFUNDABLE") {
-        return { label: "Không thể hoàn tiền", className: styles.failedBadge };
-    }
-    if (row.refundBlockReason === "NO_REFUND_AMOUNT") {
-        return { label: "Số tiền hoàn bằng 0", className: styles.notRequiredBadge };
+        return { key: "FAILED", label: "Không thể hoàn tiền", className: styles.failedBadge };
     }
     if (row.refundBlockReason === "REFUND_AMOUNT_EXCEEDS_REMAINING") {
-        return { label: "Vượt tiền có thể hoàn", className: styles.failedBadge };
+        return { key: "FAILED", label: "Vượt tiền có thể hoàn", className: styles.failedBadge };
     }
-    return { label: "Chờ xử lý", className: styles.waitingReceiptBadge };
+    if (row.refundBlockReason === "NO_REFUND_AMOUNT") {
+        return { key: "NOT_REQUIRED", label: "Số tiền hoàn bằng 0", className: styles.notRequiredBadge };
+    }
+
+    // 7. In processing
+    if (row.inventoryProcessingStatus === "PROCESSING" || row.displayStatus === "PROCESSING") {
+        return { key: "PROCESSING", label: "Chờ xử lý", className: styles.waitingReceiptBadge };
+    }
+
+    return { key: "PROCESSING", label: "Chờ xử lý", className: styles.waitingReceiptBadge };
 }
 
 function canRefund(row: OrderRefundSummaryResponse | OrderRefundDetailResponse) {
@@ -284,7 +318,7 @@ export function OrderRefundPage() {
     const refundInFlightRef = useRef(false);
 
     const timeRange = getDateRangeFromTimeNode(selectedTimeNode);
-    const activeStatus = activeFilter === "ALL" ? undefined : activeFilter;
+    const activeProgressStatus = activeFilter === "ALL" ? undefined : activeFilter;
     const visibleRefunds = refundPage.content ?? [];
     const totalElements = refundPage.totalElements ?? 0;
     const totalPages = Math.max(refundPage.totalPages ?? 0, 1);
@@ -292,8 +326,8 @@ export function OrderRefundPage() {
     const toRecord = Math.min((refundPage.number + 1) * (refundPage.size || PAGE_SIZE), totalElements);
 
     const refreshKey = useMemo(
-        () => `${timeRange?.fromDate ?? ""}:${timeRange?.toDate ?? ""}:${debouncedKeyword}:${activeStatus ?? ""}:${currentPage}`,
-        [activeStatus, currentPage, debouncedKeyword, timeRange?.fromDate, timeRange?.toDate]
+        () => `${timeRange?.fromDate ?? ""}:${timeRange?.toDate ?? ""}:${debouncedKeyword}:${activeProgressStatus ?? ""}:${currentPage}`,
+        [activeProgressStatus, currentPage, debouncedKeyword, timeRange?.fromDate, timeRange?.toDate]
     );
 
     useEffect(() => {
@@ -308,7 +342,7 @@ export function OrderRefundPage() {
                 page: currentPage,
                 size: PAGE_SIZE,
                 sort: "createdAt,desc",
-                status: activeStatus,
+                progressStatus: activeProgressStatus,
                 toDate: timeRange?.toDate
             })
                 .then((page) => {
@@ -336,7 +370,7 @@ export function OrderRefundPage() {
             ignore = true;
             window.clearTimeout(timerId);
         };
-    }, [activeStatus, currentPage, debouncedKeyword, refreshKey, timeRange?.fromDate, timeRange?.toDate]);
+    }, [activeProgressStatus, currentPage, debouncedKeyword, refreshKey, timeRange?.fromDate, timeRange?.toDate]);
 
     useEffect(() => {
         let ignore = false;
@@ -414,7 +448,7 @@ export function OrderRefundPage() {
             page: currentPage,
             size: PAGE_SIZE,
             sort: "createdAt,desc",
-            status: activeStatus,
+            progressStatus: activeProgressStatus,
             toDate: timeRange?.toDate
         }).then((page) => {
             setRefundPage({ ...emptyPage, ...page, content: page.content ?? [] });
@@ -685,7 +719,7 @@ export function OrderRefundPage() {
                                         <RefundTableMessage
                                             description="Thử đổi bộ lọc thời gian, trạng thái hoặc từ khóa"
                                             title={
-                                                activeFilter === "PENDING"
+                                                activeFilter === "WAITING_REFUND"
                                                     ? "Không có phiếu nào đang chờ hoàn tiền."
                                                     : debouncedKeyword
                                                         ? "Không tìm thấy phiếu hoàn tiền phù hợp."
@@ -852,7 +886,7 @@ function RefundDetailModal({
                                     ["Tổng đã hoàn", detail.totalAmountRefunded ? formatCurrency(detail.totalAmountRefunded) : "--"],
                                     ["Phương thức", getMethodLabel(detail.method)],
                                     ["Payment status", getPaymentStatusLabel(detail.paymentStatus)],
-                                    ["Refund status", getRefundStatusLabel(detail.refundStatus)],
+                                    ["Trạng thái hoàn tiền", getRefundProgress(detail).label],
                                     ...(detail.refundBlockReason && detail.refundBlockReason !== "NONE"
                                         ? [["Lý do chặn", getBlockReasonLabel(detail.refundBlockReason)] as [string, string]]
                                         : []),

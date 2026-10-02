@@ -22,6 +22,7 @@ import org.hvtra.iventoryservice.movement.repository.InventoryTransactionReposit
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
@@ -33,8 +34,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -57,14 +60,61 @@ public class DisposalRequestServiceImpl implements DisposalRequestService {
 
     @Override
     public Page<DisposalRequestResponse> listRequests(
+            String keyword,
             String requestCode,
             String returnCode,
             DisposalRequestStatus status,
             Pageable pageable
     ) {
-        Specification<DisposalRequest> specification = (root, query, builder) -> {
+        Specification<DisposalRequest> specification = matchingRequests(keyword, requestCode, returnCode, status);
+        Specification<DisposalRequest> priorityOrder = (root, query, builder) -> {
+            if (query != null && !Long.class.equals(query.getResultType())) {
+                var priority = builder.<Integer>selectCase()
+                        .when(builder.equal(root.get("status"), DisposalRequestStatus.PENDING_APPROVAL), 0)
+                        .when(builder.equal(root.get("status"), DisposalRequestStatus.APPROVED), 1)
+                        .otherwise(2);
+                query.orderBy(
+                        builder.asc(priority),
+                        builder.desc(root.get("createdAt")),
+                        builder.asc(root.get("requestCode"))
+                );
+            }
+            return builder.conjunction();
+        };
+        // Pageable sort would override the Specification order; pagination must use the global priority order.
+        Pageable priorityPageable = pageable.isPaged()
+                ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize())
+                : pageable;
+        return requestRepository.findAll(specification.and(priorityOrder), priorityPageable).map(this::toResponse);
+    }
+
+    @Override
+    public Map<String, Long> getStatusCounts(String keyword, String requestCode, String returnCode) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("ALL", requestRepository.count(matchingRequests(keyword, requestCode, returnCode, null)));
+        counts.put("PENDING_APPROVAL", requestRepository.count(matchingRequests(
+                keyword, requestCode, returnCode, DisposalRequestStatus.PENDING_APPROVAL)));
+        counts.put("APPROVED", requestRepository.count(matchingRequests(
+                keyword, requestCode, returnCode, DisposalRequestStatus.APPROVED)));
+        return counts;
+    }
+
+    private Specification<DisposalRequest> matchingRequests(
+            String keyword,
+            String requestCode,
+            String returnCode,
+            DisposalRequestStatus status
+    ) {
+        return (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.isFalse(root.get("isDeleted")));
+            if (keyword != null && !keyword.isBlank()) {
+                String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+                predicates.add(builder.or(
+                        builder.like(builder.lower(root.get("requestCode")), pattern),
+                        builder.like(builder.lower(root.get("returnCode")), pattern)
+                ));
+            }
             if (requestCode != null && !requestCode.isBlank()) {
                 predicates.add(builder.like(
                         builder.lower(root.get("requestCode")),
@@ -80,8 +130,6 @@ public class DisposalRequestServiceImpl implements DisposalRequestService {
             }
             return builder.and(predicates.toArray(Predicate[]::new));
         };
-
-        return requestRepository.findAll(specification, pageable).map(this::toResponse);
     }
 
     @Override

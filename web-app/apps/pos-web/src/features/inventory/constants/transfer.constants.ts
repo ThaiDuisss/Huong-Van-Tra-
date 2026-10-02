@@ -3,7 +3,6 @@ import type {
     TransferDiscrepancyType,
     TransferListTab,
     TransferPriority,
-    
     TransferStatus
 } from "../types/transfer.types";
 
@@ -20,10 +19,10 @@ export const transferStatusLabels: Record<TransferStatus, string> = {
     SHIPPED: "Đang vận chuyển"
 };
 
-export const transferRoleLabels: Record< string> = {
+export const transferRoleLabels: Record<string, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
-    BRANCH_MANAGER: "Quản lý chi nhánh",
+    MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
     INVENTORY_STAFF: "Nhân viên kho",
     SALES_STAFF: "Nhân viên bán hàng"

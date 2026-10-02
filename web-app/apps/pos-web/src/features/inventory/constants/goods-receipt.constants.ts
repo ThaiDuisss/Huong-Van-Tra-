@@ -4,7 +4,6 @@ import type {
     GoodsReceiptStatus,
     QcResult
 } from "../types/goods-receipt.types";
-import type { AppRole } from "../../../auth/role-utils";
 
 export const goodsReceiptStatusLabels: Record<GoodsReceiptStatus, string> = {
     DRAFT: "Bản nháp",
@@ -30,12 +29,11 @@ export const costStatusLabels: Record<CostStatus, string> = {
     PROVISIONAL: "Giá tạm tính"
 };
 
-export const goodsReceiptRoleLabels: Record<AppRole, string> = {
+export const goodsReceiptRoleLabels: Record<string, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
-    BRANCH_MANAGER: "Quản lý chi nhánh",
+    MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
-    INVENTORY_MANAGER: "Quản lý kho",
     INVENTORY_STAFF: "Nhân viên kho",
     QC_STAFF: "Nhân viên QC"
 };

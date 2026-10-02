@@ -28,6 +28,13 @@ export type CustomerReturnQcStatus =
 export type CustomerReturnInspectionStatus = "CREATED" | "PROCESSING" | "POSTED" | "CANCELLED";
 
 export type OrderRefundStatus = "PENDING" | "REFUNDED" | "NOT_READY" | "FAILED" | "NOT_REQUIRED";
+export type RefundProgressStatus =
+    | "WAITING_RECEIPT"
+    | "WAITING_INSPECTION"
+    | "WAITING_REFUND"
+    | "REFUNDED"
+    | "FAILED"
+    | "OTHER";
 
 export type OrderRefundBlockReason =
     | "NONE"
@@ -143,22 +150,28 @@ export interface OrderReturnListRow extends OrderReturnSummaryResponse {
 export interface OrderReturnQueryParams {
     fromDate?: string;
     keyword?: string;
+    returnCode?: string;
+    orderCode?: string;
     status?: ReturnStatus | string;
     displayStatus?: string;
     toDate?: string;
+    paged?: boolean;
     page?: number;
     size?: number;
     sort?: string;
+    warehouseActiveOnly?: boolean;
 }
 
 export interface OrderRefundQueryParams {
     fromDate?: string;
     keyword?: string;
     status?: OrderRefundStatus;
+    progressStatus?: RefundProgressStatus;
     toDate?: string;
     page?: number;
     size?: number;
     sort?: string;
+    warehouseActiveOnly?: boolean;
 }
 
 export interface OrderRefundSummaryResponse {
@@ -178,6 +191,7 @@ export interface OrderRefundSummaryResponse {
     inspectionId?: string | null;
     inventoryProcessedAt?: string | null;
     refundStatus?: OrderRefundStatus | null;
+    progressStatus?: RefundProgressStatus | null;
     refundEligible?: boolean | null;
     refundBlockReason?: OrderRefundBlockReason | string | null;
     refundAmount?: number | string | null;
@@ -222,6 +236,9 @@ export interface OrderRefundStatsResponse {
     refunded?: number;
     notReady?: number;
     failed?: number;
+    waitingReceipt?: number;
+    waitingInspection?: number;
+    other?: number;
 }
 
 export interface CustomerReturnQcSummaryLine {
@@ -272,47 +289,6 @@ export interface CustomerReturnQcSummaryResponse {
     qcStatus?: CustomerReturnQcStatus | null;
     lines?: CustomerReturnQcSummaryLine[] | null;
     inspectedAt?: string | null;
-}
-
-export interface CreateCustomerReturnInspectionLinePayload {
-    returnItemId: string;
-    quantity: number;
-    result: CustomerReturnQcResult;
-    destinationLocationId?: string | null;
-    note?: string | null;
-}
-
-export interface CreateCustomerReturnInspectionPayload {
-    note?: string | null;
-    lines: CreateCustomerReturnInspectionLinePayload[];
-}
-
-export interface CustomerReturnInspectionLine {
-    id: string;
-    returnItemId: string;
-    orderItemId?: string | null;
-    productVariantId?: string | null;
-    inventoryItemId?: string | null;
-    quantity?: number | string | null;
-    result?: CustomerReturnQcResult | null;
-    destinationLocationId?: string | null;
-    note?: string | null;
-    posted?: boolean | null;
-    transactionId?: string | null;
-}
-
-export interface CustomerReturnInspectionResponse {
-    id: string;
-    inspectionCode?: string | null;
-    returnId?: string | null;
-    returnCode?: string | null;
-    branchId?: string | null;
-    orderId?: string | null;
-    orderCode?: string | null;
-    status?: CustomerReturnInspectionStatus | null;
-    postedAt?: string | null;
-    note?: string | null;
-    lines?: CustomerReturnInspectionLine[] | null;
 }
 
 export type OrderReturnInventoryCommandStatus =

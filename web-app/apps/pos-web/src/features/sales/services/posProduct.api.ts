@@ -33,6 +33,10 @@ export interface PosVariantResponse {
     reservedQuantity?: number | string | null;
     quantityReserved?: number | string | null;
     stockStatus?: string | null;
+    shelfQuantity?: number | string | null;
+    warehouseQuantity?: number | string | null;
+    shelfLocationId?: string | null;
+    warehouseLocationId?: string | null;
 }
 
 function toNumber(value: number | string | null | undefined) {
@@ -44,8 +48,13 @@ function toNumber(value: number | string | null | undefined) {
 function mapPosVariantToSaleProduct(
     variant: PosVariantResponse
 ): SaleProductPreview {
-    // Số lượng có thể bán lấy theo tồn khả dụng của Inventory (đã cộng mọi kệ, mọi batch).
-    const availableQuantity = toNumber(variant.availableQuantity);
+    // Tồn khả dụng của Inventory tách làm hai phần: trên kệ bán và trong kho. Tổng hai phần là số có thể bán.
+    const shelfQuantity = toNumber(variant.shelfQuantity);
+    const warehouseQuantity = toNumber(variant.warehouseQuantity);
+    const availableQuantity =
+        variant.shelfQuantity == null && variant.warehouseQuantity == null
+            ? toNumber(variant.availableQuantity)
+            : shelfQuantity + warehouseQuantity;
 
     return {
         id: String(variant.variantId),
@@ -61,6 +70,10 @@ function mapPosVariantToSaleProduct(
             variant.inventoryLocationId ?? variant.locationId ?? null,
         availableQuantity,
         sellableQuantity: availableQuantity,
+        shelfQuantity,
+        warehouseQuantity,
+        shelfLocationId: variant.shelfLocationId ?? null,
+        warehouseLocationId: variant.warehouseLocationId ?? null,
         quantityOnHand: toNumber(variant.quantityOnHand),
         quantityReserved: toNumber(
             variant.reservedQuantity ?? variant.quantityReserved

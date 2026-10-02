@@ -16,7 +16,7 @@ export type QualityBatchStatus =
 export type QualityRole =
     | "QC_STAFF"
     | "INVENTORY_STAFF"
-    | "BRANCH_MANAGER"
+    | "MANAGER"
     | "ADMIN"
     | "DIRECTOR"
     | "ACCOUNTANT";
@@ -183,11 +183,15 @@ export interface DisposalRequest {
 export interface DisposalListQuery {
     page: number;
     size: number;
-    status: "ALL" | DisposalStatus;
-    code: string;
-    locationId: "ALL" | string;
-    reason: string;
-    returnCode?: string;
+    status: "ALL" | "PENDING_APPROVAL" | "APPROVED";
+    keyword: string;
+}
+
+export interface DisposalStatusCounts {
+    [status: string]: number;
+    ALL: number;
+    PENDING_APPROVAL: number;
+    APPROVED: number;
 }
 
 export interface DisposalListResult {
@@ -240,8 +244,11 @@ export interface QualityApi {
     unblockBatch(input: QualityActionInput): Promise<BatchQualityDetail>;
     createDisposalRequest(input: DisposalCreateInput): Promise<DisposalRequest>;
     listDisposalRequests(query: DisposalListQuery): Promise<DisposalListResult>;
+    getDisposalStatusCounts(keyword?: string): Promise<DisposalStatusCounts>;
     getDisposalRequest(disposalId: string): Promise<DisposalRequest>;
     approveDisposalRequest(input: DisposalActionInput): Promise<DisposalRequest>;
     rejectDisposalRequest(input: DisposalActionInput): Promise<DisposalRequest>;
     completeDisposalRequest(input: DisposalCompleteInput): Promise<DisposalRequest>;
 }
+
+export type AppRole = QualityRole;

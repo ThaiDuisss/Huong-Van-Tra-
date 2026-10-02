@@ -171,6 +171,35 @@ class SaleableInventoryTest {
     }
 
     @Test
+    void internalPosAvailabilitySplitsShelfAndWarehouseQuantities() {
+        when(itemRepository.findByReferenceIdInAndItemType(any(), eq(InventoryItemType.PRODUCT_VARIANT)))
+                .thenReturn(List.of(item));
+        when(balanceRepository.findSellableBatchBalancesByInventoryItemIds(
+                eq(List.of(item.getId())),
+                eq(InventoryStatus.ACTIVE),
+                any(),
+                any()))
+                .thenReturn(List.of(
+                        balance(item, shelf, "30.00", "0.00", "0.00"),
+                        balance(item, shelfTarget, "20.00", "0.00", "0.00"),
+                        balance(item, warehouse, "55.00", "5.00", "0.00")));
+
+        InventoryStockServiceImpl service = new InventoryStockServiceImpl(
+                balanceRepository,
+                itemRepository,
+                catalogClient);
+
+        StockVariantBatchResponse response = service.getStocksByVariantIds(
+                new StockVariantBatchRequest(List.of(variantId), null)).getFirst();
+
+        assertThat(response.shelfQuantity()).isEqualByComparingTo("50.00");
+        assertThat(response.warehouseQuantity()).isEqualByComparingTo("50.00");
+        assertThat(response.availableQuantity()).isEqualByComparingTo("100.00");
+        assertThat(response.shelfLocationId()).isEqualTo(shelf.getId());
+        assertThat(response.warehouseLocationId()).isEqualTo(warehouse.getId());
+    }
+
+    @Test
     void productAvailabilitySubtractsBlockedQuantity() {
         UUID productId = UUID.randomUUID();
         when(catalogClient.getVariantRefsByProductIds(List.of(productId)))

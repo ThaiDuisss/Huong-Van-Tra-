@@ -13,7 +13,7 @@ import type {
 } from "../types/order-return.types";
 
 export const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {
-    CREATED: "Đã tạo",
+    CREATED: "Chờ nhận hàng",
     RECEIVED: "Chờ kiểm hàng",
     COMPLETED: "Hoàn thành",
     CANCELLED: "Đã hủy"
@@ -22,7 +22,7 @@ export const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {
 export type { ReturnDisplayStatus };
 
 export const RETURN_DISPLAY_STATUS_LABELS: Record<ReturnDisplayStatus, string> = {
-    CREATED: "Đã tạo",
+    CREATED: "Chờ nhận hàng",
     RECEIVED: "Chờ xử lý kho",
     PROCESSING: "Đang xử lý kho",
     PROCESSING_FAILED: "Xử lý kho thất bại",
@@ -427,3 +427,128 @@ export function getReturnErrorMessage(error: unknown, fallbackMessage?: string) 
 
     return message;
 }
+
+export interface CustomerReturnQuantitySource {
+    requiredQuantity?: number | string | null;
+    processedQuantity?: number | string | null;
+    remainingQuantity?: number | string | null;
+    remainingQcQuantity?: number | string | null;
+    postedQcQuantity?: number | string | null;
+    items?: Array<{ quantity?: number | string | null }> | null;
+}
+
+export function resolveCustomerReturnQuantities(data?: CustomerReturnQuantitySource | null) {
+    if (!data) {
+        return { required: 0, processed: 0, remaining: 0 };
+    }
+
+    const required = data.requiredQuantity != null
+        ? toReturnNumber(data.requiredQuantity)
+        : (data.items ?? []).reduce((sum, item) => sum + toReturnNumber(item.quantity), 0);
+
+    const processed = data.processedQuantity != null
+        ? toReturnNumber(data.processedQuantity)
+        : toReturnNumber(data.postedQcQuantity);
+
+    let remaining = 0;
+    if (data.remainingQuantity != null) {
+        remaining = toReturnNumber(data.remainingQuantity);
+    } else if (data.remainingQcQuantity != null) {
+        remaining = toReturnNumber(data.remainingQcQuantity);
+    } else if (required > 0) {
+        remaining = Math.max(0, required - processed);
+    }
+
+    return { required, processed, remaining };
+}
+
+export function canInspectCustomerReturn(data?: (CustomerReturnQuantitySource & {
+    status?: string | null;
+    physicalDone?: boolean | null;
+    isPendingDisposition?: boolean | null;
+}) | null): boolean {
+    if (!data) return false;
+    if (data.status !== "RECEIVED") return false;
+    if (Boolean(data.physicalDone)) return false;
+    if (Boolean(data.isPendingDisposition)) return false;
+
+    const { remaining } = resolveCustomerReturnQuantities(data);
+    return remaining > 0;
+}
+
+export interface CustomerReturnUiStatusSource extends CustomerReturnQuantitySource {
+    status?: string | null;
+    displayStatus?: string | null;
+    isPendingDisposition?: boolean | null;
+    hasFailedDisposition?: boolean | null;
+    qcStatus?: string | null;
+    physicalDone?: boolean | null;
+}
+
+export function getCustomerReturnUiStatus(data?: CustomerReturnUiStatusSource | null): {
+    label: string;
+    status: string;
+} {
+    if (!data) {
+        return { label: "--", status: "DRAFT" };
+    }
+
+    if (data.status === "CREATED") {
+        return { label: "Chờ nhận hàng", status: "PENDING" };
+    }
+    if (data.displayStatus === "PROCESSING_FAILED" || data.hasFailedDisposition) {
+        return { label: "Xử lý kho thất bại", status: "FAILED" };
+    }
+    if (data.isPendingDisposition) {
+        return { label: "Đang tạo phiếu kiểm định", status: "PROCESSING" };
+    }
+    if (data.displayStatus === "CANCELLED" || data.status === "CANCELLED") {
+        return { label: "Đã hủy", status: "CANCELLED" };
+    }
+    if (data.displayStatus === "COMPLETED" || data.status === "COMPLETED") {
+        return { label: "Hoàn tất", status: "COMPLETED" };
+    }
+    if (data.displayStatus === "PENDING_REFUND") {
+        return { label: "Chờ hoàn tiền", status: "PENDING" };
+    }
+
+    if (data.status === "RECEIVED") {
+        if (data.qcStatus === "COMPLETED" || Boolean(data.physicalDone)) {
+            return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+        }
+        if (data.qcStatus === "PARTIAL") {
+            return { label: "Đang kiểm định", status: "PROCESSING" };
+        }
+        const { processed, remaining } = resolveCustomerReturnQuantities(data);
+        if (processed > 0 && remaining > 0) {
+            return { label: "Đang kiểm định", status: "PROCESSING" };
+        }
+        return { label: "Chờ kiểm định", status: "PENDING" };
+    }
+
+    return { label: data.status ?? "--", status: data.status ?? "DRAFT" };
+}
+
+export function getCustomerReturnQcProgressStatus(data?: (CustomerReturnQuantitySource & {
+    status?: string | null;
+    qcStatus?: string | null;
+    physicalDone?: boolean | null;
+}) | null): { label: string; status: string } {
+    if (!data || data.status === "CREATED") {
+        return { label: "Chưa nhận hàng", status: "PENDING" };
+    }
+
+    const { required, processed, remaining } = resolveCustomerReturnQuantities(data);
+    const isDone = (required > 0 && remaining === 0) || data.qcStatus === "COMPLETED" || Boolean(data.physicalDone);
+    if (isDone) {
+        return { label: "Đã kiểm định", status: "QC_COMPLETED" };
+    }
+
+    const isProcessing = data.qcStatus === "PARTIAL" || (processed > 0 && remaining > 0);
+    if (isProcessing) {
+        return { label: "Đang kiểm định", status: "PROCESSING" };
+    }
+
+    return { label: "Chờ kiểm định", status: "PENDING" };
+}
+

@@ -39,6 +39,10 @@ public interface CatalogClient {
     @GetMapping("/internal/catalog/product-variants/{variantId}/bom-items")
     List<BomItemResponse> getBomItemsByVariantId(@PathVariable("variantId") UUID variantId);
 
+    /** Cấu hình tồn mục tiêu / ngưỡng sản xuất của mặt hàng (chỉ đọc, không bị trừ khi bán). */
+    @GetMapping("/api/catalog/product-variants/{variantId}")
+    VariantStockConfigResponse getVariantStockConfig(@PathVariable("variantId") UUID variantId);
+
     @PatchMapping("/internal/catalog/product-variants/{variantId}/sellable/decrement")
     SellableQuantityAdjustmentResponse decrementSellableQuantity(
             @PathVariable("variantId") UUID variantId,
@@ -95,4 +99,13 @@ public interface CatalogClient {
             UUID locationId,
             String reason
     ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    record VariantStockConfigResponse(
+            UUID id,
+            BigDecimal sellableQuantity,
+            BigDecimal productionThreshold,
+            BigDecimal productionBatchQuantity
+    ) {
+    }
 }

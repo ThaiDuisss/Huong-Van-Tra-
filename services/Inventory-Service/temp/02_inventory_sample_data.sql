@@ -7,18 +7,8 @@
 
 USE inventory_db;
 
--- -----------------------------------------------------------------------------
--- 0. XOA DU LIEU CU TRUOC KHI KHOI TAO LAI (CLEAR DATA)
--- Tat ca cac bang lien quan duoc lam sach de dam bao khong xung dot du lieu cu
--- -----------------------------------------------------------------------------
-SET FOREIGN_KEY_CHECKS = 0;
-
-DELETE FROM inventory_balances;
-DELETE FROM inventory_batches;
-DELETE FROM inventory_items;
-DELETE FROM inventory_locations;
-
-SET FOREIGN_KEY_CHECKS = 1;
+-- Add sample rows without clearing existing Inventory data. Deleting
+-- inventory_items would remove PRODUCT_VARIANT mappings used by old returns.
 
 -- -----------------------------------------------------------------------------
 -- 1. BANG VI TRI KHO (INVENTORY_LOCATIONS)

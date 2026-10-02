@@ -13,6 +13,7 @@ import {
   Layers3,
   MapPinned,
   Package,
+  PackagePlus,
   Plane,
   RefreshCw,
   Ruler,
@@ -245,6 +246,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             label: "Nhập kho",
             icon: Boxes,
             to: routePaths.goodsReceipts,
+            roles: INVENTORY_OPERATION_ROLES,
+          },
+          {
+            key: "inventory-shelf-replenishments",
+            label: "Nhập kệ",
+            icon: PackagePlus,
+            to: routePaths.shelfReplenishments,
             roles: INVENTORY_OPERATION_ROLES,
           },
           {

@@ -112,6 +112,42 @@ public interface InventoryBalanceRepository
     Optional<InventoryBalance> findForUpdate(
             @Param("itemId") UUID itemId, @Param("locationId") UUID locationId);
 
+    /** FEFO trên nhiều vị trí cùng lúc (vd. mọi kệ của một kho): lô hết hạn sớm nhất trước, khóa dòng để trừ. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select b from InventoryBalance b
+            join fetch b.inventoryItem item
+            join fetch b.inventoryBatch batch
+            join fetch b.location location
+            where item.id = :inventoryItemId
+              and location.id in :locationIds
+              and location.status = :locationStatus
+              and batch.status = org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus.AVAILABLE
+              and (batch.expiryDate is null or batch.expiryDate >= :today)
+              and (b.quantityOnHand - b.quantityReserved - b.quantityBlocked) > 0
+            order by
+              case when batch.expiryDate is null then 1 else 0 end,
+              batch.expiryDate asc,
+              batch.receivedAt asc,
+              batch.id asc
+            """)
+    List<InventoryBalance> findFefoAvailableForUpdateInLocations(
+            @Param("inventoryItemId") UUID inventoryItemId,
+            @Param("locationIds") Collection<UUID> locationIds,
+            @Param("locationStatus") InventoryStatus locationStatus,
+            @Param("today") LocalDate today);
+
+    /** Tồn khả dụng (onHand − reserved − blocked) của từng mặt hàng tại các vị trí, gộp mọi batch. */
+    @Query("""
+            select b.inventoryItem.id, b.location.id,
+                   coalesce(sum(b.quantityOnHand - b.quantityReserved - b.quantityBlocked), 0)
+            from InventoryBalance b
+            where b.inventoryItem.id in :itemIds and b.location.id in :locationIds
+            group by b.inventoryItem.id, b.location.id
+            """)
+    List<Object[]> sumAvailableByItemsAndLocations(
+            @Param("itemIds") Collection<UUID> itemIds, @Param("locationIds") Collection<UUID> locationIds);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select b from InventoryBalance b
