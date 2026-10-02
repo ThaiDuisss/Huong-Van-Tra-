@@ -1,6 +1,7 @@
 package org.hvtra.iventoryservice.customerreturn;
 
 import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
+import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
@@ -9,6 +10,7 @@ import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSum
 import org.hvtra.iventoryservice.customerreturn.repository.CustomerReturnInspectionRepository;
 import org.hvtra.iventoryservice.customerreturn.service.impl.CustomerReturnInspectionServiceImpl;
 import org.hvtra.iventoryservice.disposal.repository.DisposalRequestRepository;
+import org.hvtra.iventoryservice.disposal.service.impl.DisposalRequestServiceImpl;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -41,10 +43,16 @@ import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -53,6 +61,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -64,6 +73,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerReturnInspectionServiceImplTest {
@@ -106,9 +117,12 @@ class CustomerReturnInspectionServiceImplTest {
     private InventoryLocation shelf;
     private InventoryLocation quarantine;
     private InventoryLocation damaged;
+    private UUID actorId;
 
     @BeforeEach
     void setUp() {
+        actorId = UUID.randomUUID();
+        authenticate("QC");
         service = new CustomerReturnInspectionServiceImpl(
                 inspectionRepository,
                 orderReturnClient,
@@ -139,13 +153,27 @@ class CustomerReturnInspectionServiceImplTest {
         lenient().when(disposalRequestRepository.saveAndFlush(any(DisposalRequest.class)))
                 .thenAnswer(invocation -> {
                     DisposalRequest request = invocation.getArgument(0);
-                    request.setId(UUID.randomUUID());
+                    if (request.getId() == null) {
+                        request.setId(UUID.randomUUID());
+                    }
                     return request;
                 });
         lenient().when(inspectionRepository.findByReturnIdAndStatus(
                 any(),
                 eq(CustomerReturnInspectionStatus.POSTED)))
                 .thenReturn(List.of());
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticate(String role) {
+        InternalUserPrincipal principal = new InternalUserPrincipal(
+                actorId.toString(), "qc-test", "test", Set.of(role), "test-request");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_" + role))));
     }
 
     @Test
@@ -485,26 +513,234 @@ class CustomerReturnInspectionServiceImplTest {
         verify(transactionRepository).saveAndFlush(any());
     }
 
-    @Test
-    void postWriteOffCreatesDisposalRequestWithoutBalanceChange() {
+    @ParameterizedTest
+    @ValueSource(strings = {"QC", "QC_STAFF", "MANAGER", "BRANCH_MANAGER", "INVENTORY_MANAGER", "ROLE_QC", "qc"})
+    void postWriteOffDirectlyWithoutApprovalOrBalanceChange(String role) {
+        authenticate(role);
         CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
-        when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId()))
-                .thenReturn(Optional.of(inspection));
-        when(inspectionRepository.findByReturnIdForUpdate(returnId)).thenReturn(List.of(inspection));
-        when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(OrderReturnStatus.RECEIVED));
-        when(disposalRequestRepository.findBySourceInspectionId(inspection.getId()))
-                .thenReturn(Optional.empty());
+        stubWriteOffPost(inspection);
+        InventoryInbox inbox = attachInbox(inspection);
 
         CustomerReturnInspectionResponse response = service.postInspection(inspection.getId());
 
-        ArgumentCaptor<DisposalRequest> captor = ArgumentCaptor.forClass(DisposalRequest.class);
-        verify(disposalRequestRepository).saveAndFlush(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(DisposalRequestStatus.PENDING_APPROVAL);
-        assertThat(captor.getValue().getLines()).containsExactly(inspection.getLines().getFirst());
-        assertThat(response.status()).isEqualTo(CustomerReturnInspectionStatus.PROCESSING);
-        assertThat(inspection.getLines().getFirst().getPosted()).isFalse();
-        verify(transactionRepository, never()).saveAndFlush(any());
-        verify(balanceRepository, never()).save(any());
+        assertThat(response.status()).isEqualTo(CustomerReturnInspectionStatus.POSTED);
+        assertThat(inspection.getPostedAt()).isNotNull();
+        assertThat(response.lines().getFirst().posted()).isTrue();
+        assertThat(response.lines().getFirst().disposalRequestId()).isNull();
+        ArgumentCaptor<InventoryTransaction> captor = ArgumentCaptor.forClass(InventoryTransaction.class);
+        verify(transactionRepository).saveAndFlush(captor.capture());
+        InventoryTransaction transaction = captor.getValue();
+        assertThat(transaction.getType()).isEqualTo(InventoryTransactionType.WRITE_OFF);
+        assertThat(transaction.getReferenceId()).isEqualTo(returnId.toString());
+        assertThat(transaction.getLines()).hasSize(1);
+        assertThat(transaction.getLines().getFirst().getQuantity()).isEqualByComparingTo("-1.00");
+        assertThat(transaction.getLines().getFirst().getLocation()).isNull();
+        assertThat(transaction.getLines().getFirst().getBeforeQuantity()).isZero();
+        assertThat(transaction.getLines().getFirst().getAfterQuantity()).isZero();
+        assertThat(response.lines().getFirst().transactionId()).isEqualTo(transaction.getId());
+        verify(disposalRequestRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(balanceRepository, batchRepository);
+        assertThat(inbox.getStatus()).isEqualTo(InboxStatus.PROCESSED);
+        verify(inventoryOutboxPublisher).publishReturnInventoryDispositionProcessed(
+                inbox.getCommandId(), returnId.toString(), inspection.getId().toString(),
+                inbox.getSagaId(), inbox.getCorrelationId());
+    }
+
+    @Test
+    void createWriteOffDoesNotCreatePendingDisposalRequest() {
+        stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
+        stubActiveItem();
+        CustomerReturnInspectionResponse response = service.createInspection(returnId,
+                request(returnItemId, "1.00", CustomerReturnQcResult.WRITE_OFF, null, null));
+        assertThat(response.status()).isEqualTo(CustomerReturnInspectionStatus.CREATED);
+        assertThat(response.lines().getFirst().disposalStatus()).isNull();
+        verifyNoInteractions(disposalRequestRepository, transactionRepository, balanceRepository);
+    }
+
+    @Test
+    void postLegacyPendingDisposalCompletesOnQcPostAndPreservesReference() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
+        inspection.setStatus(CustomerReturnInspectionStatus.PROCESSING);
+        stubWriteOffPost(inspection);
+        DisposalRequest legacy = new DisposalRequest();
+        legacy.setId(UUID.randomUUID());
+        legacy.setSourceType("CUSTOMER_RETURN_INSPECTION");
+        legacy.setSourceInspection(inspection);
+        legacy.setStatus(DisposalRequestStatus.PENDING_APPROVAL);
+        legacy.addLine(inspection.getLines().getFirst());
+        when(disposalRequestRepository.findBySourceInspectionId(inspection.getId())).thenReturn(Optional.of(legacy));
+        when(disposalRequestRepository.findDetailByIdForUpdate(legacy.getId())).thenReturn(Optional.of(legacy));
+
+        CustomerReturnInspectionResponse response = service.postInspection(inspection.getId());
+
+        assertThat(response.status()).isEqualTo(CustomerReturnInspectionStatus.POSTED);
+        assertThat(legacy.getStatus()).isEqualTo(DisposalRequestStatus.APPROVED);
+        assertThat(legacy.getApprovedBy()).isEqualTo(actorId);
+        assertThat(legacy.getApprovedAt()).isNotNull();
+        assertThat(legacy.getTransactionId()).isEqualTo(response.lines().getFirst().transactionId());
+        ArgumentCaptor<InventoryTransaction> captor = ArgumentCaptor.forClass(InventoryTransaction.class);
+        verify(transactionRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getReferenceId()).isEqualTo(legacy.getId().toString());
+        verify(disposalRequestRepository).saveAndFlush(legacy);
+        verifyNoInteractions(balanceRepository);
+
+        authenticate("ADMIN");
+        when(disposalRequestRepository.findDetailById(legacy.getId())).thenReturn(Optional.of(legacy));
+        when(inspectionRepository.findByIdAndIsDeletedFalseForUpdate(inspection.getId()))
+                .thenReturn(Optional.of(inspection));
+        DisposalRequestServiceImpl legacyApproval = new DisposalRequestServiceImpl(
+                disposalRequestRepository, inspectionRepository, transactionRepository, service);
+        legacyApproval.approveRequest(legacy.getId());
+        verify(transactionRepository, times(1)).saveAndFlush(any());
+    }
+
+    @Test
+    void postWriteOffRetryDoesNotDuplicateMovement() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
+        stubWriteOffPost(inspection);
+        attachInbox(inspection);
+
+        service.postInspection(inspection.getId());
+        service.postInspection(inspection.getId());
+
+        verify(transactionRepository, times(1)).saveAndFlush(any());
+        verify(disposalRequestRepository, never()).saveAndFlush(any());
+        verify(inboxRepository, times(1)).saveAndFlush(any());
+        verifyNoInteractions(balanceRepository);
+    }
+
+    @Test
+    void postWriteOffPreservesPartialQuantityAndCompletesFullQuantity() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
+        stubWriteOffPost(inspection);
+        service.postInspection(inspection.getId());
+        when(inspectionRepository.findQcProgressByReturnId(returnId)).thenReturn(List.of(inspection));
+        CustomerReturnQcSummaryResponse partial = service.getQcSummary(returnId);
+        assertThat(partial.qcStatus()).isEqualTo(CustomerReturnQcStatus.PARTIAL);
+        assertThat(partial.lines().getFirst().postedQcQuantity()).isEqualByComparingTo("1.00");
+        assertThat(partial.lines().getFirst().remainingQcQuantity()).isEqualByComparingTo("2.00");
+
+        CustomerReturnInspection remaining = inspection(CustomerReturnQcResult.WRITE_OFF, null, "2.00");
+        when(inspectionRepository.findByIdAndIsDeletedFalse(remaining.getId())).thenReturn(Optional.of(remaining));
+        when(inspectionRepository.findByReturnIdForUpdate(returnId)).thenReturn(List.of(inspection, remaining));
+        service.postInspection(remaining.getId());
+        when(inspectionRepository.findQcProgressByReturnId(returnId)).thenReturn(List.of(inspection, remaining));
+        CustomerReturnQcSummaryResponse completed = service.getQcSummary(returnId);
+        assertThat(completed.qcStatus()).isEqualTo(CustomerReturnQcStatus.COMPLETED);
+        assertThat(completed.lines().getFirst().postedQcQuantity()).isEqualByComparingTo("3.00");
+        assertThat(completed.lines().getFirst().remainingQcQuantity()).isZero();
+        verify(transactionRepository, times(2)).saveAndFlush(any());
+        verifyNoInteractions(balanceRepository);
+    }
+
+    @Test
+    void postWriteOffRejectsInactiveItemBeforeMovement() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
+        stubWriteOffPost(inspection);
+        item.setStatus(InventoryStatus.INACTIVE);
+        assertThatThrownBy(() -> service.postInspection(inspection.getId()))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("active mapped inventory item");
+        verifyNoInteractions(transactionRepository, disposalRequestRepository, balanceRepository);
+    }
+
+    @Test
+    void postMultipleWriteOffLinesUsesOneNegativeTransaction() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
+        CustomerReturnInspectionLine second = inspection(CustomerReturnQcResult.WRITE_OFF, null, "2.00")
+                .getLines().getFirst();
+        second.setReturnItemId(UUID.randomUUID());
+        inspection.addLine(second);
+        stubWriteOffPost(inspection);
+        stubSecondReturnItem(second);
+
+        CustomerReturnInspectionResponse response = service.postInspection(inspection.getId());
+
+        assertThat(response.status()).isEqualTo(CustomerReturnInspectionStatus.POSTED);
+        ArgumentCaptor<InventoryTransaction> captor = ArgumentCaptor.forClass(InventoryTransaction.class);
+        verify(transactionRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getLines()).hasSize(2);
+        assertThat(captor.getValue().getLines().stream().map(line -> line.getQuantity())
+                .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("-3.00");
+        assertThat(response.lines()).allSatisfy(line -> {
+            assertThat(line.posted()).isTrue();
+            assertThat(line.transactionId()).isEqualTo(captor.getValue().getId());
+        });
+        verifyNoInteractions(balanceRepository, batchRepository);
+    }
+
+    @Test
+    void postMixedRestockAndWriteOffCompletesBothBeforeAcknowledging() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.RESTOCK, shelf, "1.00");
+        CustomerReturnInspectionLine writeOff = inspection(CustomerReturnQcResult.WRITE_OFF, null, "2.00")
+                .getLines().getFirst();
+        writeOff.setReturnItemId(UUID.randomUUID());
+        inspection.addLine(writeOff);
+        InventoryBalance balance = balance("5.00", "0.00", "0.00", shelf);
+        stubPost(inspection, balance);
+        stubSecondReturnItem(writeOff);
+        InventoryInbox inbox = attachInbox(inspection);
+
+        CustomerReturnInspectionResponse response = service.postInspection(inspection.getId());
+
+        assertThat(response.status()).isEqualTo(CustomerReturnInspectionStatus.POSTED);
+        assertThat(balance.getQuantityOnHand()).isEqualByComparingTo("6.00");
+        assertThat(balance.getQuantityBlocked()).isZero();
+        ArgumentCaptor<InventoryTransaction> captor = ArgumentCaptor.forClass(InventoryTransaction.class);
+        verify(transactionRepository, times(2)).saveAndFlush(captor.capture());
+        assertThat(captor.getAllValues()).extracting(InventoryTransaction::getType)
+                .containsExactly(InventoryTransactionType.CUSTOMER_RETURN_RECEIPT, InventoryTransactionType.WRITE_OFF);
+        assertThat(captor.getAllValues().getLast().getLines().getFirst().getQuantity()).isEqualByComparingTo("-2.00");
+        assertThat(writeOff.getPosted()).isTrue();
+        verify(balanceRepository, times(1)).save(any());
+        assertThat(inbox.getStatus()).isEqualTo(InboxStatus.PROCESSED);
+        verify(inventoryOutboxPublisher).publishReturnInventoryDispositionProcessed(
+                inbox.getCommandId(), returnId.toString(), inspection.getId().toString(),
+                inbox.getSagaId(), inbox.getCorrelationId());
+    }
+
+    private void stubSecondReturnItem(CustomerReturnInspectionLine line) {
+        OrderReturnResponse original = orderReturn(OrderReturnStatus.RECEIVED);
+        OrderReturnItemResponse second = new OrderReturnItemResponse(
+                line.getReturnItemId(), line.getOrderItemId(), productVariantId, new BigDecimal("2.00"),
+                "DEFECTIVE", OrderReturnCondition.SEALED, null, "SKU-001", "Tra sen", "100g");
+        when(orderReturnClient.getReturnById(returnId)).thenReturn(new OrderReturnResponse(
+                original.id(), original.returnCode(), original.orderId(), original.orderCode(), original.branchId(),
+                original.status(), original.note(), original.createdAt(), original.updatedAt(),
+                List.of(original.items().getFirst(), second)));
+    }
+
+    @Test
+    void postInspectionRejectsInventoryStaffBeforeAnyMutation() {
+        authenticate("INVENTORY_STAFF");
+        assertThatThrownBy(() -> service.postInspection(UUID.randomUUID()))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(inspectionRepository, transactionRepository, disposalRequestRepository, balanceRepository);
+    }
+
+    @Test
+    void createInspectionRejectsNonQcRoleBeforeAnyMutation() {
+        authenticate("SALE_STAFF");
+        assertThatThrownBy(() -> service.createInspection(returnId,
+                request(returnItemId, "1.00", CustomerReturnQcResult.WRITE_OFF, null, null)))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(inspectionRepository, orderReturnClient, transactionRepository, disposalRequestRepository);
+    }
+
+    private void stubWriteOffPost(CustomerReturnInspection inspection) {
+        when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId())).thenReturn(Optional.of(inspection));
+        when(inspectionRepository.findByReturnIdForUpdate(returnId)).thenReturn(List.of(inspection));
+        when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(OrderReturnStatus.RECEIVED));
+    }
+
+    private InventoryInbox attachInbox(CustomerReturnInspection inspection) {
+        InventoryInbox inbox = new InventoryInbox();
+        inspection.setCommandId(UUID.randomUUID());
+        inbox.setCommandId(inspection.getCommandId().toString());
+        inbox.setStatus(InboxStatus.RECEIVED);
+        inbox.setSagaId(UUID.randomUUID().toString());
+        inbox.setCorrelationId(UUID.randomUUID().toString());
+        when(inboxRepository.findByCommandIdAndConsumerGroup(inbox.getCommandId(), null)).thenReturn(Optional.of(inbox));
+        return inbox;
     }
 
     @Test

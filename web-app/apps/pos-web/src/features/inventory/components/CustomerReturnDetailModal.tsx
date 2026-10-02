@@ -1,6 +1,7 @@
 import { ExternalLink, PackageCheck, Plus, RefreshCw, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../auth/role-utils";
 
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 import { OrderStatusBadge } from "../../order/components/OrderStatusBadge";
@@ -45,6 +46,8 @@ export function CustomerReturnDetailModal({
     onRefreshList,
     onOpenInspection
 }: CustomerReturnDetailModalProps) {
+    const { hasAnyRole } = useAuthorization();
+    const canExecuteQc = hasAnyRole(CUSTOMER_RETURN_QC_ROLES);
     const [detail, setDetail] = useState<OrderReturnResponse | null>(null);
     const [inspections, setInspections] = useState<CustomerReturnInspection[]>([]);
     const [qcSummary, setQcSummary] = useState<CustomerReturnQcSummaryResponse | null>(null);
@@ -109,7 +112,7 @@ export function CustomerReturnDetailModal({
         items
     });
 
-    const canInspect = canInspectCustomerReturn({
+    const canInspect = canExecuteQc && canInspectCustomerReturn({
         ...currentReturn,
         items
     });
@@ -304,7 +307,7 @@ export function CustomerReturnDetailModal({
                                     type="button"
                                 >
                                     <Plus aria-hidden="true" size={16} />
-                                    {currentReturn.qcStatus === "PARTIAL" ? "Tiếp tục kiểm định" : "Kiểm định hàng"}
+                                    {qcSummary?.qcStatus === "PARTIAL" ? "Tiếp tục kiểm định" : "Kiểm định hàng"}
                                 </button>
                             ) : null}
                         </div>

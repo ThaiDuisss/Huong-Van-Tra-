@@ -33,6 +33,7 @@ interface BackendDisposalLine {
 
 interface BackendDisposalRequest {
     id: string;
+    sourceType?: string;
     requestCode: string;
     sourceInspectionId: string;
     inspectionCode: string;
@@ -92,6 +93,7 @@ function mapBackendDisposal(request: BackendDisposalRequest): DisposalRequest {
         returnCode: request.returnCode,
         scheduledAt: request.requestedAt,
         sourceInspectionId: request.sourceInspectionId,
+        sourceType: request.sourceType,
         status: request.status,
         stockDocumentCode: request.transactionId ? "WRITE_OFF" : undefined,
         stockDocumentId: request.transactionId,

@@ -144,7 +144,7 @@ public class ReturnInventoryDispositionInboxService {
 
         inbox.setInspectionId(createdInspection.id().toString());
         inventoryInboxRepository.saveAndFlush(inbox);
-        log.info("Created return inventory inspection in CREATED status (awaiting manual approval). commandId={}, returnId={}, inspectionId={}",
+        log.info("Created return inventory inspection in CREATED status (awaiting QC posting). commandId={}, returnId={}, inspectionId={}",
                 commandId, returnId, createdInspection.id());
     }
 

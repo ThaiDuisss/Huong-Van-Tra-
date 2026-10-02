@@ -7,6 +7,7 @@ import org.hvtra.orderservice.domain.enums.OrderReturnEligibility;
 import org.hvtra.orderservice.domain.enums.OrderRefundStatus;
 import org.hvtra.orderservice.domain.enums.RefundProgressStatus;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
@@ -48,6 +49,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -55,6 +57,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -383,6 +387,13 @@ public class OrderController {
             @PathVariable UUID returnId,
             @Valid @RequestBody SubmitReturnInventoryDispositionRequest request
     ) {
+        Set<String> allowed = Set.of("QC", "QC_STAFF", "MANAGER", "ADMIN", "SUPER_ADMIN",
+                "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        if (SecurityUtils.currentRoles().stream()
+                .map(role -> role.trim().toUpperCase(Locale.ROOT).replaceFirst("^ROLE_", ""))
+                .noneMatch(allowed::contains)) {
+            throw new AccessDeniedException("Customer return disposition requires QC or manager role");
+        }
         return orderReturnService.submitInventoryDisposition(returnId, request);
     }
 
