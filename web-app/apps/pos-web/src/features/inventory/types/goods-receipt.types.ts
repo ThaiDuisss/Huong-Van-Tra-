@@ -10,15 +10,10 @@ export type GoodsReceiptStatus =
     | "APPROVED"
     | "REJECTED"
     | "RECEIVING"
-    | "QC_PENDING"
     | "QC_COMPLETED"
+    | "PENDING_EXCEPTION_APPROVAL"
     | "POSTED"
-    | "CANCELLED"
-    | "SUBMITTED"
-    | "AWAITING_QC"
-    | "PARTIALLY_PASSED"
-    | "AWAITING_COST"
-    | "READY_TO_POST";
+    | "CANCELLED";
 
 export type QcResult =
     | "PENDING"

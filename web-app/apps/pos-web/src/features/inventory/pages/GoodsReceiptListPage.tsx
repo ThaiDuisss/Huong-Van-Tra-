@@ -183,8 +183,7 @@ export function GoodsReceiptListPage() {
         { label: `Chờ duyệt (${summaryCounts.pendingApproval ?? 0})`, value: "PENDING_APPROVAL" },
         { label: "Đã duyệt (Chờ giao) (0)", value: "APPROVED" },
         { label: `Đang tiếp nhận (${summaryCounts.receiving ?? 0})`, value: "RECEIVING" },
-        { label: `Chờ QC (${summaryCounts.awaitingQc ?? 0})`, value: "QC_PENDING" },
-        { label: `Chờ ghi sổ (${summaryCounts.readyToPost ?? 0})`, value: "QC_COMPLETED" },
+        { label: `QC hoàn thành (${summaryCounts.readyToPost ?? 0})`, value: "QC_COMPLETED" },
         { label: `Đã nhập kho (${summaryCounts.postedToday ?? 0})`, value: "POSTED" },
         { label: "Từ chối (0)", value: "REJECTED" },
         { label: "Đã hủy (0)", value: "CANCELLED" }

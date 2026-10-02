@@ -440,11 +440,11 @@ export const goodsReceiptApi: GoodsReceiptApi = {
                 size: res.size ?? query.size,
                 summary: {
                     awaitingCost: 0,
-                    awaitingQc: content.filter((r) => r.status === "QC_PENDING" || r.status === "AWAITING_QC").length,
+                    awaitingQc: 0,
                     draft: content.filter((r) => r.status === "DRAFT").length,
                     pendingApproval: content.filter((r) => r.status === "PENDING_APPROVAL").length,
                     postedToday: content.filter((r) => r.status === "POSTED").length,
-                    readyToPost: content.filter((r) => r.status === "QC_COMPLETED" || r.status === "READY_TO_POST").length,
+                    readyToPost: content.filter((r) => r.status === "QC_COMPLETED").length,
                     receiving: content.filter((r) => r.status === "RECEIVING" || r.status === "APPROVED").length,
                     total: res.totalElements || content.length
                 },
