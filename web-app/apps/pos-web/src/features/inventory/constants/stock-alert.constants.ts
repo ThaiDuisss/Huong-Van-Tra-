@@ -1,5 +1,5 @@
 import type {
-    StockAlertRole,
+    
     StockAlertSeverity,
     StockAlertStatus,
     StockAlertType,
@@ -38,7 +38,7 @@ export const suggestedActionLabels: Record<SuggestedActionType, string> = {
     TRANSFER: "Tạo yêu cầu chuyển kho"
 };
 
-export const stockAlertRoleLabels: Record<StockAlertRole, string> = {
+export const stockAlertRoleLabels: Record< string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",

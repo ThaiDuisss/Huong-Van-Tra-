@@ -3,7 +3,7 @@ import type {
     CustomerReturnReason,
     CustomerReturnRefundStatus,
     CustomerReturnResolution,
-    CustomerReturnRole,
+    
     CustomerReturnStatus
 } from "../types/customer-return.types";
 
@@ -54,7 +54,7 @@ export const customerReturnRefundStatusLabels: Record<CustomerReturnRefundStatus
     REQUESTED: "Đã gửi yêu cầu"
 };
 
-export const customerReturnRoleLabels: Record<CustomerReturnRole, string> = {
+export const customerReturnRoleLabels: Record< string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",

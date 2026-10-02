@@ -3,7 +3,7 @@ import type {
     StockDocumentAction,
     StockDocumentDirection,
     StockDocumentLineStatus,
-    StockDocumentRole,
+    
     StockDocumentStatus,
     StockDocumentType
 } from "../types/stock-document.types";
@@ -33,7 +33,7 @@ export const stockDocumentStatusLabels: Record<StockDocumentStatus, string> = {
     SUBMITTED: "Chờ duyệt"
 };
 
-export const stockDocumentRoleLabels: Record<StockDocumentRole, string> = {
+export const stockDocumentRoleLabels: Record< string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",

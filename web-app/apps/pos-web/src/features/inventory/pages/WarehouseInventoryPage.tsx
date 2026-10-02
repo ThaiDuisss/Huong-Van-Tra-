@@ -51,7 +51,7 @@ export function WarehouseInventoryPage() {
 
     // Load location details when viewing product
     const handleLocationSelect = useCallback(
-        async (itemId: string, locationId: string, locationName: string, locationType: string) => {
+        async (itemId: string, locationId: string, locationName: string) => {
             try {
                 // Find product
                 const product = products.find((p) => p.inventoryItemId === itemId);

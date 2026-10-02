@@ -48,7 +48,7 @@ import type {
     InventoryLocationOption,
     InventoryManagementListResult,
     InventoryManagementRecord,
-    InventoryRole,
+    AppRole,
     InventorySkuOption,
     InventoryWorkspaceId
 } from "../types/inventory-management.types";
@@ -97,16 +97,16 @@ export function InventoryManagementPage() {
     const params = useParams();
     const workspaceId = params.workspaceId;
     const { roles } = useAuth();
-    const effectiveRole: InventoryRole =
-        roles?.includes("ADMIN") || roles?.includes("BRANCH_MANAGER") || roles?.includes("INVENTORY_MANAGER")
-            ? "INVENTORY_MANAGER"
+    const effectiveRole: AppRole =
+        roles?.includes("ADMIN") || roles?.includes("MANAGER") || roles?.includes("MANAGER")
+            ? "MANAGER"
             : roles?.includes("ACCOUNTANT") || roles?.includes("AUDITOR")
             ? "AUDITOR"
             : roles?.includes("INVENTORY_STAFF") || roles?.includes("WAREHOUSE_STAFF") || roles?.includes("WAREHOUSE")
             ? "INVENTORY_STAFF"
-            : roles?.includes("POS_STAFF") || roles?.includes("SALES_STAFF") || roles?.includes("STAFF")
+            : roles?.includes("SALE_STAFF") || roles?.includes("SALES_STAFF") || roles?.includes("STAFF")
             ? "BRANCH_STAFF"
-            : "INVENTORY_MANAGER";
+            : "MANAGER";
 
     const { query, setQuery } = useInventoryQueryState();
     const [result, setResult] = useState<InventoryManagementListResult | null>(
@@ -607,9 +607,9 @@ function QuickViewPanel({
 }: {
     actionAllowedRoles: Record<
         "APPROVE" | "CANCEL" | "COMPLETE",
-        InventoryRole[]
+        AppRole[]
     >;
-    currentRole: InventoryRole;
+    currentRole: AppRole;
     onAction: (
         action: "APPROVE" | "CANCEL" | "COMPLETE",
         record: InventoryManagementRecord

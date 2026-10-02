@@ -17,12 +17,12 @@ import type {
     InventoryActionType,
     InventoryDocumentType,
     InventoryRecordStatus,
-    InventoryRole,
+    
     InventoryWorkspaceConfig,
     InventoryWorkspaceId
 } from "../types/inventory-management.types";
 
-export const inventoryRoleLabels: Record<InventoryRole, string> = {
+export const inventoryRoleLabels: Record< string> = {
     INVENTORY_MANAGER: "Quản lý kho",
     INVENTORY_STAFF: "Nhân viên kho",
     PRODUCTION_STAFF: "Nhân viên sản xuất",
@@ -30,7 +30,7 @@ export const inventoryRoleLabels: Record<InventoryRole, string> = {
     AUDITOR: "Kiểm kê viên"
 };
 
-export const inventoryRoleDescriptions: Record<InventoryRole, string> = {
+export const inventoryRoleDescriptions: Record< string> = {
     INVENTORY_MANAGER:
         "Duyệt chứng từ, điều phối bổ sung hàng và xử lý ngoại lệ tồn kho.",
     INVENTORY_STAFF:

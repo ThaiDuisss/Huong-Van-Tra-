@@ -2,10 +2,10 @@ import type { InventoryAuditEvent, UserSnapshot } from "../types/stock-document.
 import type {
     SupplierReturnDetail,
     SupplierReturnOptions,
-    SupplierReturnRole
+    AppRole
 } from "../types/supplier-return.types";
 
-const users: Record<SupplierReturnRole, UserSnapshot> = {
+const users: Record<AppRole, UserSnapshot> = {
     ACCOUNTANT: { id: "sr-accountant", name: "Lan Kế toán", role: "ACCOUNTANT" },
     ADMIN: { id: "sr-admin", name: "Admin Hương Vân", role: "ADMIN" },
     DIRECTOR: { id: "sr-director", name: "Hà Giám đốc", role: "DIRECTOR" },
@@ -30,11 +30,11 @@ export const supplierReturnOptions: SupplierReturnOptions = {
     users: Object.values(users)
 };
 
-export function supplierReturnActor(role: SupplierReturnRole) {
+export function supplierReturnActor(role: AppRole) {
     return users[role];
 }
 
-export function supplierReturnAudit(type: InventoryAuditEvent["type"], role: SupplierReturnRole, note: string): InventoryAuditEvent {
+export function supplierReturnAudit(type: InventoryAuditEvent["type"], role: AppRole, note: string): InventoryAuditEvent {
     const actor = supplierReturnActor(role);
     return { actor, happenedAt: new Date().toISOString(), id: `${type}-${Date.now()}-${Math.random().toString(16).slice(2)}`, note, roleSnapshot: actor.role, type };
 }

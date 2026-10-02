@@ -22,7 +22,7 @@ export const productionPriorityLabels: Record<ProductionPriority, string> = {
     URGENT: "Khẩn cấp"
 };
 
-export const productionRoleLabels: Record<ProductionRole, string> = {
+export const productionRoleLabels: Record< string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
     BRANCH_MANAGER: "Quản lý chi nhánh",
