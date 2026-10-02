@@ -29,10 +29,10 @@ export const bundleReservationLabels: Record<BundleReservationStatus, string> = 
     RESERVED: "Đã giữ"
 };
 
-export const customBundleRoleLabels: Record< string> = {
+export const customBundleRoleLabels: Record<string, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
-    BRANCH_MANAGER: "Quản lý chi nhánh",
+    MANAGER: "Quản lý chi nhánh",
     INVENTORY_STAFF: "Nhân viên kho",
     QC_STAFF: "Nhân viên QC",
     SALES_STAFF: "Nhân viên bán hàng"

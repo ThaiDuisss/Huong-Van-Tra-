@@ -21,7 +21,7 @@ export type StockAlertStatus =
     | "DISMISSED";
 
 export type StockAlertSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-export type StockAlertRole = "INVENTORY_STAFF" | "BRANCH_MANAGER" | "ADMIN" | "ACCOUNTANT" | "DIRECTOR" | "SALES_STAFF";
+export type StockAlertRole = "INVENTORY_STAFF" | "MANAGER" | "ADMIN" | "ACCOUNTANT" | "DIRECTOR" | "SALES_STAFF";
 export type SuggestedActionType = "TRANSFER" | "PURCHASE" | "NONE";
 
 export interface StockSkuSummary {
@@ -205,3 +205,5 @@ export interface StockAlertApi {
     updateReorderPolicy(input: ReorderPolicyUpdateInput): Promise<ReorderPolicy>;
     bulkUpdateReorderPolicies(input: ReorderPolicyBulkUpdateInput): Promise<ReorderPolicy[]>;
 }
+
+export type AppRole = StockAlertRole;

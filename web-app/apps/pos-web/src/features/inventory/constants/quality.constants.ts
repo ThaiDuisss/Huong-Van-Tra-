@@ -2,7 +2,6 @@ import type {
     DisposalMethod,
     DisposalStatus,
     QualityBatchStatus,
-    
     QualityTab
 } from "../types/quality.types";
 
@@ -42,10 +41,10 @@ export const disposalMethodLabels: Record<DisposalMethod, string> = {
     RETURN_TO_VENDOR: "Trả NCC"
 };
 
-export const qualityRoleLabels: Record< string> = {
+export const qualityRoleLabels: Record<string, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
-    BRANCH_MANAGER: "Quản lý chi nhánh",
+    MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
     INVENTORY_STAFF: "Nhân viên kho",
     QC_STAFF: "Nhân viên QC"

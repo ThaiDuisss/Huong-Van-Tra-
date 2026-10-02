@@ -28,7 +28,7 @@ export type StockDocumentDirection = "ALL" | "IN" | "OUT";
 export type StockDocumentRole =
     | "ADMIN"
     | "INVENTORY_STAFF"
-    | "BRANCH_MANAGER"
+    | "MANAGER"
     | "ACCOUNTANT"
     | "DIRECTOR"
     | "QC_STAFF"
@@ -215,3 +215,5 @@ export interface StockDocumentApi {
     ): Promise<StockDocumentDetail>;
     getStockDocumentOptions(): Promise<StockDocumentOptions>;
 }
+
+export type AppRole = StockDocumentRole;

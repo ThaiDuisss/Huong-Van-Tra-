@@ -1,7 +1,6 @@
 import type {
     ProductionOrderStatus,
     ProductionPriority,
-    ProductionRole
 } from "../types/production-order.types";
 
 export const productionStatusLabels: Record<ProductionOrderStatus, string> = {
@@ -22,10 +21,10 @@ export const productionPriorityLabels: Record<ProductionPriority, string> = {
     URGENT: "Khẩn cấp"
 };
 
-export const productionRoleLabels: Record< string> = {
+export const productionRoleLabels: Record<string, string> = {
     ACCOUNTANT: "Kế toán",
     ADMIN: "Quản trị viên",
-    BRANCH_MANAGER: "Quản lý chi nhánh",
+    MANAGER: "Quản lý chi nhánh",
     DIRECTOR: "Giám đốc",
     INVENTORY_STAFF: "Nhân viên kho",
     QC_STAFF: "Nhân viên QC"
