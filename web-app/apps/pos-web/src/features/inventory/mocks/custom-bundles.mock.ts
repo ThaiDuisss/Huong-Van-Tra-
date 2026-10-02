@@ -1,7 +1,7 @@
 import type {
     BundleIngredientOption,
     CustomBundleDetail,
-    CustomBundleRole
+    AppRole
 } from "../types/custom-bundle.types";
 import type { InventoryAuditEvent, InventoryLocationSummary, UserSnapshot } from "../types/stock-document.types";
 
@@ -10,7 +10,7 @@ const hours = (value: number) => new Date(now + value * 60 * 60 * 1000).toISOStr
 
 export const bundleUsers: UserSnapshot[] = [
     { id: "bundle-sales", name: "Mai Anh", role: "SALES_STAFF" },
-    { id: "bundle-branch", name: "Trần Bảo Ngọc", role: "BRANCH_MANAGER" },
+    { id: "bundle-branch", name: "Trần Bảo Ngọc", role: "MANAGER" },
     { id: "bundle-warehouse", name: "Nguyễn Minh Anh", role: "INVENTORY_STAFF" },
     { id: "bundle-admin", name: "Phạm Thu Hương", role: "ADMIN" },
     { id: "bundle-accountant", name: "Lê Hoài Nam", role: "ACCOUNTANT" }
@@ -30,11 +30,11 @@ export const bundleIngredients: BundleIngredientOption[] = [
     { blocked: false, branchAvailableQuantity: 0, category: "Trà nền", centralAvailableQuantity: 0, expired: true, id: "ing-expired", name: "Trà cũ hết hạn", nearLowStock: false, pricePerGram: 300, skuCode: "TRA-OLD", unit: "g" }
 ];
 
-export function bundleActor(role: CustomBundleRole) {
+export function bundleActor(role: AppRole) {
     return bundleUsers.find((user) => user.role === role) ?? bundleUsers[0];
 }
 
-function audit(type: InventoryAuditEvent["type"], role: CustomBundleRole, note: string): InventoryAuditEvent {
+function audit(type: InventoryAuditEvent["type"], role: AppRole, note: string): InventoryAuditEvent {
     const actor = bundleActor(role);
     return { actor, happenedAt: new Date().toISOString(), id: `${type}-${Date.now()}`, note, roleSnapshot: actor.role, type };
 }
@@ -69,7 +69,7 @@ export const customBundleMockData: CustomBundleDetail[] = [
         usagePurpose: "GIFT"
     },
     {
-        auditEvents: [audit("APPROVE", "BRANCH_MANAGER", "Đã thanh toán, chờ đóng gói.")],
+        auditEvents: [audit("APPROVE", "MANAGER", "Đã thanh toán, chờ đóng gói.")],
         branch: bundleLocations[1],
         code: "CB-2026-00002",
         createdAt: hours(-3),

@@ -29,7 +29,7 @@ import type {
     CostStatus,
     GoodsReceiptDetail,
     GoodsReceiptListQuery,
-    GoodsReceiptRole,
+    AppRole,
     GoodsReceiptStatus,
     GoodsReceiptSummary,
     QcResult
@@ -476,7 +476,7 @@ export function GoodsReceiptTable({
 export function RoleUnavailable({
     currentRole
 }: {
-    currentRole: GoodsReceiptRole;
+    currentRole: AppRole;
 }) {
     return (
         <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#e8eef0] bg-[#f7f8fb] px-3 text-xs font-black text-[#697684]">

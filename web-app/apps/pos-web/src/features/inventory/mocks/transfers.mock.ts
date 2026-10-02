@@ -1,5 +1,5 @@
 import type { InventoryAuditEvent, UserSnapshot } from "../types/stock-document.types";
-import type { TransferDetail, TransferRole, TransferOptions } from "../types/transfer.types";
+import type { TransferDetail, AppRole, TransferOptions } from "../types/transfer.types";
 import {
     inventoryMasterFinishedProducts,
     inventoryMasterLocations,
@@ -7,10 +7,10 @@ import {
     inventoryMasterUsers
 } from "./inventory-master-data.mock";
 
-const users: Record<TransferRole, UserSnapshot> = {
+const users: Record<AppRole, UserSnapshot> = {
     ACCOUNTANT: inventoryMasterUsers.accountant,
     ADMIN: inventoryMasterUsers.admin,
-    BRANCH_MANAGER: inventoryMasterUsers.branchManager,
+    MANAGER: inventoryMasterUsers.manager,
     DIRECTOR: inventoryMasterUsers.director,
     INVENTORY_STAFF: inventoryMasterUsers.warehouse,
     SALES_STAFF: inventoryMasterUsers.sales
@@ -69,13 +69,13 @@ export const transferSkus: TransferOptions["skus"] = [
     }
 ];
 
-export function transferActor(role: TransferRole) {
+export function transferActor(role: AppRole) {
     return users[role];
 }
 
 export function transferAudit(
     type: InventoryAuditEvent["type"],
-    role: TransferRole,
+    role: AppRole,
     note: string
 ): InventoryAuditEvent {
     const actor = transferActor(role);
@@ -97,7 +97,7 @@ export const transferMockOptions: TransferOptions = {
 
 export const transferMockData: TransferDetail[] = [
     {
-        auditEvents: [transferAudit("SUBMIT", "BRANCH_MANAGER", "Chi nhánh tạo yêu cầu chuyển kho.")],
+        auditEvents: [transferAudit("SUBMIT", "MANAGER", "Chi nhánh tạo yêu cầu chuyển kho.")],
         code: "TRF-20260802-001",
         destinationLocation: transferLocations[1],
         discrepancies: [],
@@ -128,7 +128,7 @@ export const transferMockData: TransferDetail[] = [
         priority: "HIGH",
         reason: "Chi nhánh Q1 dưới tồn tối thiểu.",
         requestedAt: "2026-08-02T08:15:00.000Z",
-        requestedBy: users.BRANCH_MANAGER,
+        requestedBy: users.MANAGER,
         sourceLocation: transferLocations[0],
         status: "REQUESTED",
         totalQuantity: 40,
@@ -170,7 +170,7 @@ export const transferMockData: TransferDetail[] = [
         priority: "NORMAL",
         reason: "Bổ sung tuần.",
         requestedAt: "2026-08-01T07:00:00.000Z",
-        requestedBy: users.BRANCH_MANAGER,
+        requestedBy: users.MANAGER,
         shipment: {
             carrierName: "Tài xế nội bộ",
             expectedArrivalAt: "2026-08-02T17:30:00.000Z",
@@ -186,7 +186,7 @@ export const transferMockData: TransferDetail[] = [
         totalValue: 2875000
     },
     {
-        auditEvents: [transferAudit("POST", "BRANCH_MANAGER", "Nhận hàng thiếu 2 gói và hỏng 1 gói.")],
+        auditEvents: [transferAudit("POST", "MANAGER", "Nhận hàng thiếu 2 gói và hỏng 1 gói.")],
         code: "TRF-20260731-002",
         destinationLocation: transferLocations[1],
         discrepancies: [
@@ -225,7 +225,7 @@ export const transferMockData: TransferDetail[] = [
         receiptDocumentCode: "PNK-TRF-20260731-002",
         receiptDocumentId: "doc-transfer-receipt-3",
         requestedAt: "2026-07-31T06:30:00.000Z",
-        requestedBy: users.BRANCH_MANAGER,
+        requestedBy: users.MANAGER,
         shipment: {
             carrierName: "Tài xế nội bộ",
             expectedArrivalAt: "2026-08-01T12:00:00.000Z",

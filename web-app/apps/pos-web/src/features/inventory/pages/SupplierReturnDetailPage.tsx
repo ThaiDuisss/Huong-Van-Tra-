@@ -71,8 +71,8 @@ export function SupplierReturnDetailPage() {
         }
     }
 
-    const canApprove = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
-    const canWarehouse = hasAnyRole(roles, ["ADMIN", "INVENTORY_STAFF", "INVENTORY_MANAGER", "BRANCH_MANAGER"]);
+    const canApprove = hasAnyRole(roles, ["ADMIN", "MANAGER", "MANAGER"]);
+    const canWarehouse = hasAnyRole(roles, ["ADMIN", "INVENTORY_STAFF", "MANAGER", "MANAGER"]);
     const canAccountant = hasAnyRole(roles, ["ADMIN", "ACCOUNTANT"]);
     const readonly = detail?.status === "COMPLETED";
 

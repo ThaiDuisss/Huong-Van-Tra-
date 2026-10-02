@@ -3,7 +3,7 @@ import type {
     InventoryLocationSummary,
     StockDocumentDetail,
     StockDocumentLine,
-    StockDocumentRole,
+    AppRole,
     StockDocumentStatus,
     StockDocumentType,
     UserSnapshot
@@ -12,7 +12,7 @@ import type {
 const users: UserSnapshot[] = [
     { id: "user-admin", name: "Phạm Thu Hương", role: "ADMIN" },
     { id: "user-warehouse", name: "Nguyễn Minh Anh", role: "INVENTORY_STAFF" },
-    { id: "user-branch", name: "Trần Bảo Ngọc", role: "BRANCH_MANAGER" },
+    { id: "user-branch", name: "Trần Bảo Ngọc", role: "MANAGER" },
     { id: "user-accountant", name: "Lê Hoài Nam", role: "ACCOUNTANT" },
     { id: "user-director", name: "Vũ Thanh Hà", role: "DIRECTOR" },
     { id: "user-qc", name: "Đặng Mai Chi", role: "QC_STAFF" }
@@ -315,6 +315,6 @@ export const stockDocumentMockData = Array.from(
     (_, index) => documentDetail(index)
 );
 
-export function actorForRole(role: StockDocumentRole) {
+export function actorForRole(role: AppRole) {
     return users.find((user) => user.role === role) ?? users[0];
 }

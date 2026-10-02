@@ -4,7 +4,7 @@ import type {
     ReorderPolicy,
     StockAlert,
     StockAlertDetail,
-    StockAlertRole,
+    AppRole,
     StockSkuSummary
 } from "../types/stock-alert.types";
 import {
@@ -14,10 +14,10 @@ import {
     inventoryMasterUsers
 } from "./inventory-master-data.mock";
 
-export const stockAlertUsers: Record<StockAlertRole, UserSnapshot> = {
+export const stockAlertUsers: Record<AppRole, UserSnapshot> = {
     ACCOUNTANT: inventoryMasterUsers.accountant,
     ADMIN: inventoryMasterUsers.admin,
-    BRANCH_MANAGER: inventoryMasterUsers.branchManager,
+    MANAGER: inventoryMasterUsers.manager,
     DIRECTOR: inventoryMasterUsers.director,
     INVENTORY_STAFF: inventoryMasterUsers.warehouse,
     SALES_STAFF: inventoryMasterUsers.sales

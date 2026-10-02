@@ -6,7 +6,7 @@ import type {
     GoodsReceiptDetail,
     GoodsReceiptLine,
     GoodsReceiptMaterialOption,
-    GoodsReceiptRole,
+    AppRole,
     SupplierSummary
 } from "../types/goods-receipt.types";
 import type {
@@ -26,7 +26,7 @@ export const goodsReceiptUsers: UserSnapshot[] = [
     { id: "gr-warehouse", name: "Nguyễn Minh Anh", role: "INVENTORY_STAFF" },
     { id: "gr-qc", name: "Đặng Mai Chi", role: "QC_STAFF" },
     { id: "gr-accountant", name: "Lê Hoài Nam", role: "ACCOUNTANT" },
-    { id: "gr-branch", name: "Trần Bảo Ngọc", role: "BRANCH_MANAGER" },
+    { id: "gr-branch", name: "Trần Bảo Ngọc", role: "MANAGER" },
     { id: "gr-director", name: "Vũ Thanh Hà", role: "DIRECTOR" }
 ];
 
@@ -91,13 +91,13 @@ export const goodsReceiptMaterials: GoodsReceiptMaterialOption[] = [
     }
 ];
 
-function actor(role: GoodsReceiptRole) {
+function actor(role: AppRole) {
     return goodsReceiptUsers.find((user) => user.role === role) ?? goodsReceiptUsers[0];
 }
 
 function audit(
     type: InventoryAuditEvent["type"],
-    role: GoodsReceiptRole,
+    role: AppRole,
     hoursAgo: number,
     note?: string,
     reason?: string
@@ -336,6 +336,6 @@ export const goodsReceiptMockOptions = {
     suppliers: goodsReceiptSuppliers
 };
 
-export function goodsReceiptActorForRole(role: GoodsReceiptRole) {
+export function goodsReceiptActorForRole(role: AppRole) {
     return actor(role);
 }

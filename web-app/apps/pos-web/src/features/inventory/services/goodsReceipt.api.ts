@@ -291,12 +291,12 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             actor: {
                 id: doc.approvedBy || "manager",
                 name: doc.approvedByName || "Quản lý kho",
-                role: "BRANCH_MANAGER"
+                role: "MANAGER"
             },
             happenedAt: doc.approvedAt,
             id: `approve-${doc.id}`,
             note: doc.approvalNote || "Duyệt phiếu nhập",
-            roleSnapshot: "BRANCH_MANAGER",
+            roleSnapshot: "MANAGER",
             type: "APPROVE"
         });
     }
@@ -305,13 +305,13 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             actor: {
                 id: doc.rejectedBy || "manager",
                 name: doc.rejectedByName || "Quản lý kho",
-                role: "BRANCH_MANAGER"
+                role: "MANAGER"
             },
             happenedAt: doc.rejectedAt,
             id: `reject-${doc.id}`,
             note: doc.rejectionReason || "Từ chối phiếu nhập",
             reason: doc.rejectionReason,
-            roleSnapshot: "BRANCH_MANAGER",
+            roleSnapshot: "MANAGER",
             type: "REJECT"
         });
     }

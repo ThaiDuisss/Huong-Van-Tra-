@@ -10,7 +10,7 @@ import { stocktakeApi } from "../services/stocktake.api";
 import type { StocktakeDetail } from "../types/stocktake.types";
 import { formatVietnamNumber } from "../utils/inventory-format";
 
-const managerRoles = ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"];
+const managerRoles = ["ADMIN", "MANAGER", "MANAGER"];
 
 export function StocktakeReconciliationPage() {
   const { stocktakeId } = useParams();
