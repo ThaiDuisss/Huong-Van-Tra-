@@ -68,6 +68,7 @@ export function GoodsReceiptInspectionModal({
     loading
 }: Props) {
     const [localLoading, setLocalLoading] = useState(false);
+    const [submitError, setSubmitError] = useState<string>("");
 
     const handleReceiveSubmit = async () => {
         setLocalLoading(true);
@@ -80,10 +81,15 @@ export function GoodsReceiptInspectionModal({
     };
 
     const handleQcSubmit = async () => {
+        setIsValidating(true);
+        if (hasQcErrors) return;
+        setSubmitError("");
         setLocalLoading(true);
         try {
             await onQcSubmit();
             onOpenChange(false);
+        } catch (err: any) {
+            setSubmitError(err?.message || "Có lỗi xảy ra khi hoàn tất kiểm định QC");
         } finally {
             setLocalLoading(false);
         }
@@ -99,7 +105,8 @@ export function GoodsReceiptInspectionModal({
     const paginatedQcDraft = qcDraft.slice(startQcIdx, endQcIdx);
 
     // QC Validation
-    const getQcLineError = (line: QcDraftLine): string | null => {
+    const getQcLineError = (line: QcDraftLine, isValidating: boolean = false): string | null => {
+        if (!isValidating) return null;
         if (line.acceptedQuantity + line.rejectedQuantity !== line.receivedQuantity) {
             return `Tổng SL Đạt + Lỗi (${line.acceptedQuantity + line.rejectedQuantity}) phải bằng Thực nhận (${line.receivedQuantity})`;
         }
@@ -109,9 +116,10 @@ export function GoodsReceiptInspectionModal({
         return null;
     };
 
-    const qcErrors = new Map(qcDraft.map((line, idx) => [idx, getQcLineError(line)]));
+    const [isValidating, setIsValidating] = useState(false);
+    const qcErrors = new Map(qcDraft.map((line, idx) => [idx, getQcLineError(line, isValidating)]));
     const hasQcErrors = Array.from(qcErrors.values()).some((error) => error !== null);
-    const isQcSubmitDisabled = tab === "qc" && (isLoading || hasQcErrors);
+    const isQcSubmitDisabled = tab === "qc" && (isLoading || (isValidating && hasQcErrors));
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -242,9 +250,9 @@ export function GoodsReceiptInspectionModal({
                                                     <span>{lineError}</span>
                                                 </div>
                                             )}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-xs font-bold text-[#159734]">Số lượng đạt QC (Accepted):</label>
+                                            <div className="flex flex-col lg:flex-row gap-3 items-start flex-wrap">
+                                                <div className="flex-1 min-w-[130px]">
+                                                    <label className="text-xs font-bold text-[#159734]">Số lượng đạt:</label>
                                                     <input
                                                         className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-[#159734] outline-none focus:border-[#159734]"
                                                         min="0"
@@ -264,8 +272,8 @@ export function GoodsReceiptInspectionModal({
                                                         }}
                                                     />
                                                 </div>
-                                                <div>
-                                                    <label className="text-xs font-bold text-red-600">Số lượng lỗi QC (Rejected - Trả NCC):</label>
+                                                <div className="flex-1 min-w-[130px]">
+                                                    <label className="text-xs font-bold text-red-600">Số lượng lỗi:</label>
                                                     <input
                                                         className="mt-1 h-9 w-full rounded-lg border border-[#dce5e1] px-3 text-sm font-bold text-red-600 outline-none focus:border-red-500"
                                                         min="0"
@@ -285,61 +293,56 @@ export function GoodsReceiptInspectionModal({
                                                         }}
                                                     />
                                                 </div>
-                                            </div>
-
-                                            {line.acceptedQuantity > 0 && (
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[#f4faf5] p-3 rounded-lg border border-[#d8eadc]">
-                                                    <div>
-                                                        <label className="text-xs font-bold text-[#315f3c]">Mã lô NCC </label>
-                                                        <input
-                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
-                                                            placeholder="Ví dụ: LOT-2026-001"
-                                                            type="text"
-                                                            value={line.supplierLot}
-                                                            onChange={(e) => {
-                                                                const idx = qcDraft.findIndex((l) => l.lineId === line.lineId);
-                                                                onQcChange(
-                                                                    qcDraft.map((l, i) =>
-                                                                        i === idx ? { ...l, supplierLot: e.target.value } : l
-                                                                    )
-                                                                );
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-bold text-[#315f3c]">Ngày sản xuất (MFG) *:</label>
-                                                        <input
-                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
-                                                            type="date"
-                                                            value={line.manufactureDate}
-                                                            onChange={(e) => {
-                                                                const idx = qcDraft.findIndex((l) => l.lineId === line.lineId);
-                                                                onQcChange(
-                                                                    qcDraft.map((l, i) =>
-                                                                        i === idx ? { ...l, manufactureDate: e.target.value } : l
-                                                                    )
-                                                                );
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-bold text-[#315f3c]">Hạn sử dụng (EXP) *:</label>
-                                                        <input
-                                                            className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
-                                                            type="date"
-                                                            value={line.expiryDate}
-                                                            onChange={(e) => {
-                                                                const idx = qcDraft.findIndex((l) => l.lineId === line.lineId);
-                                                                onQcChange(
-                                                                    qcDraft.map((l, i) =>
-                                                                        i === idx ? { ...l, expiryDate: e.target.value } : l
-                                                                    )
-                                                                );
-                                                            }}
-                                                        />
-                                                    </div>
+                                                <div className="flex-1 min-w-[150px]">
+                                                    <label className="text-xs font-bold text-[#315f3c]">Mã lô NCC </label>
+                                                    <input
+                                                        className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                        placeholder="LOT-2026-001"
+                                                        type="text"
+                                                        value={line.supplierLot}
+                                                        onChange={(e) => {
+                                                            const idx = qcDraft.findIndex((l) => l.lineId === line.lineId);
+                                                            onQcChange(
+                                                                qcDraft.map((l, i) =>
+                                                                    i === idx ? { ...l, supplierLot: e.target.value } : l
+                                                                )
+                                                            );
+                                                        }}
+                                                    />
                                                 </div>
-                                            )}
+                                                <div className="flex-1 min-w-[130px]">
+                                                    <label className="text-xs font-bold text-[#315f3c]">Ngày sản xuất (MFG) *:</label>
+                                                    <input
+                                                        className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                        type="date"
+                                                        value={line.manufactureDate}
+                                                        onChange={(e) => {
+                                                            const idx = qcDraft.findIndex((l) => l.lineId === line.lineId);
+                                                            onQcChange(
+                                                                qcDraft.map((l, i) =>
+                                                                    i === idx ? { ...l, manufactureDate: e.target.value } : l
+                                                                )
+                                                            );
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className="flex-1 min-w-[130px]">
+                                                    <label className="text-xs font-bold text-[#315f3c]">Hạn sử dụng (EXP) *:</label>
+                                                    <input
+                                                        className="mt-1 h-8 w-full rounded border border-[#dce5e1] px-2 text-xs font-semibold text-[#172317] outline-none focus:border-[#159734] bg-white"
+                                                        type="date"
+                                                        value={line.expiryDate}
+                                                        onChange={(e) => {
+                                                            const idx = qcDraft.findIndex((l) => l.lineId === line.lineId);
+                                                            onQcChange(
+                                                                qcDraft.map((l, i) =>
+                                                                    i === idx ? { ...l, expiryDate: e.target.value } : l
+                                                                )
+                                                            );
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                     );
                                     })}
@@ -407,7 +410,16 @@ export function GoodsReceiptInspectionModal({
                     </>
                 )}
 
-                <DialogFooter className="px-6 py-3 border-t border-[#eef2f0]">
+                {submitError && (
+                    <div className="mx-6 mb-3 rounded-lg bg-red-50 border border-red-200 p-3">
+                        <div className="flex gap-2">
+                            <span className="text-red-500 font-bold">⚠️</span>
+                            <div className="text-sm text-red-700 font-semibold">{submitError}</div>
+                        </div>
+                    </div>
+                )}
+
+                <DialogFooter className="sticky bottom-0 px-6 py-3 border-t border-[#eef2f0] bg-white">
                     <button
                         className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078] hover:bg-[#f7f8fb] cursor-pointer"
                         disabled={isLoading}
@@ -422,7 +434,7 @@ export function GoodsReceiptInspectionModal({
                                 ? "bg-[#0891b2] hover:bg-[#0e7490]"
                                 : "bg-[#7c3aed] hover:bg-[#6d28d9]"
                         }`}
-                        disabled={isLoading || (tab === "qc" && hasQcErrors)}
+                        disabled={tab === "receive" ? isLoading : isQcSubmitDisabled}
                         onClick={tab === "receive" ? handleReceiveSubmit : handleQcSubmit}
                         type="button"
                         title={tab === "qc" && hasQcErrors ? "Vui lòng sửa các lỗi trước khi tiếp tục" : ""}
