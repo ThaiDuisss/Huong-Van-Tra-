@@ -39,6 +39,12 @@ public class CheckoutRequest {
      */
     private BigDecimal receivedAmount;
 
+    /**
+     * Chỉ dùng cho CASH. Đơn đặt trước: lần này chỉ thu tiền cọc (nhỏ hơn finalAmount), phần còn lại thu khi
+     * giao hàng bằng một lần checkout nữa cho cùng orderId.
+     */
+    private BigDecimal depositAmount;
+
     private Boolean deliveryRequired;
     private UUID deliveryId;
 }

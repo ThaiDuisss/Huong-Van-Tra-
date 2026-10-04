@@ -56,6 +56,12 @@ public class CreateOrderRequest {
     private String paymentMethod;
     private String paymentCode;
 
+    /** Khách đồng ý chờ hàng: đơn thiếu hàng sẽ được ghi nhận là đơn chờ hàng thay vì bị từ chối. */
+    private Boolean allowBackorder;
+
+    /** Chỉ dùng cho đơn chờ hàng trả tiền mặt: thu trước tiền cọc, phần còn lại thu khi giao hàng. */
+    private BigDecimal depositAmount;
+
     @Valid
     @NotEmpty(message = "items không được rỗng")
     private List<CreateOrderItemRequest> items =

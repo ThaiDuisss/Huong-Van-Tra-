@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.production.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.hvtra.iventoryservice.availability.service.SupplyLeadTimeService;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -69,6 +70,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     private final CatalogClient catalogClient;
     private final ProductionOrderMapper mapper;
     private final InventoryReservationService reservationService;
+    private final SupplyLeadTimeService supplyLeadTimeService;
 
     public ProductionOrderServiceImpl(
             ProductionOrderRepository productionOrderRepository,
@@ -80,7 +82,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             InventoryTransactionRepository transactionRepository,
             CatalogClient catalogClient,
             ProductionOrderMapper mapper,
-            InventoryReservationService reservationService
+            InventoryReservationService reservationService,
+            SupplyLeadTimeService supplyLeadTimeService
     ) {
         this.productionOrderRepository = productionOrderRepository;
         this.sequenceService = sequenceService;
@@ -91,6 +94,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         this.transactionRepository = transactionRepository;
         this.catalogClient = catalogClient;
         this.reservationService = reservationService;
+        this.supplyLeadTimeService = supplyLeadTimeService;
         this.mapper = mapper;
     }
 
@@ -424,7 +428,9 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         order.setStatus(ProductionOrderStatus.COMPLETED);
         order.setCompletedBy(getCurrentUserId());
         order.setCompletedAt(Instant.now());
-        return mapper.toResponse(productionOrderRepository.save(order));
+        ProductionOrder completed = productionOrderRepository.save(order);
+        supplyLeadTimeService.onProductionCompleted(completed);
+        return mapper.toResponse(completed);
     }
 
     @Override

@@ -10,6 +10,7 @@ import org.hvtra.notificationservice.dto.event.OrderNotificationEventPayload;
 import org.hvtra.notificationservice.dto.response.NotificationResponse;
 import org.hvtra.notificationservice.integration.consumer.OrderNotificationEventMetadataResolver;
 import org.hvtra.notificationservice.integration.consumer.OrderNotificationEventPayloadParser;
+import org.hvtra.notificationservice.invoice.InvoiceEmailService;
 import org.hvtra.notificationservice.repository.NotificationInboxRepository;
 import org.hvtra.notificationservice.repository.NotificationRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ public class NotificationEventService {
     private final OrderNotificationEventPayloadParser payloadParser;
     private final OrderNotificationEventMetadataResolver metadataResolver;
     private final NotificationSseService notificationSseService;
+    private final InvoiceEmailService invoiceEmailService;
 
     @Value("${kafka-consumer-config.group-id:Notification-Service-order-events}")
     private String consumerGroup;
@@ -62,6 +64,7 @@ public class NotificationEventService {
 
             Notification notification = createNotificationIfAbsent(record, event, eventId);
             sendAfterCommit(notification);
+            invoiceEmailService.sendAfterCommit(event);
             markProcessed(inbox);
         } catch (RuntimeException ex) {
             log.error(

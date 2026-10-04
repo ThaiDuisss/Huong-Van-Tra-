@@ -1,6 +1,7 @@
 export const routePaths = {
   home: "/",
   posSales: "/pos/sales",
+  posBackorders: "/pos/backorders",
   posCustomBundleCreate: "/pos/custom-bundles/new",
   posCustomBundleDetail: "/pos/custom-bundles/:bundleId",
   posCustomerReturnCreate: "/pos/customer-returns/new",

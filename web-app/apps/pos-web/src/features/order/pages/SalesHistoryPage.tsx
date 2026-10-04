@@ -18,6 +18,7 @@ import type {
     SalesHistorySummary,
     SalesOrderDetail
 } from "../types/sales-history.types";
+import { printReceipt } from "../utils/receipt-print";
 import styles from "./SalesHistoryPage.module.css";
 
 const PAGE_SIZE = 10;
@@ -239,11 +240,21 @@ export function SalesHistoryPage() {
     };
 
     const handlePrintDetail = (order: SalesOrderDetail) => {
-        console.log("TODO: In lại hóa đơn", order.orderCode || order.orderId);
+        try {
+            printReceipt(order);
+        } catch (error) {
+            window.alert(
+                error instanceof Error ? error.message : "Không in được hóa đơn."
+            );
+        }
     };
 
     const handlePrintFromTable = (order: SalesHistoryOrder) => {
-        console.log("TODO: In lại hóa đơn", order.orderCode);
+        getSalesOrderDetail(order.orderId)
+            .then(handlePrintDetail)
+            .catch(() => {
+                window.alert("Không tải được hóa đơn để in. Vui lòng thử lại.");
+            });
     };
 
     const handleClickImport = () => {

@@ -16,6 +16,7 @@ import org.hvtra.orderservice.service.OrderCustomerService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
+import org.hvtra.orderservice.service.support.OrderBackorderSupport;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
 import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
 import org.hvtra.orderservice.service.validator.OrderValidator;
@@ -86,6 +87,9 @@ class OrderPaymentEventServiceImplTest {
     @Mock
     private InventoryClient inventoryClient;
 
+    @Mock
+    private OrderBackorderSupport orderBackorderSupport;
+
     private OrderPaymentEventServiceImpl service;
 
     @BeforeEach
@@ -100,7 +104,8 @@ class OrderPaymentEventServiceImplTest {
                 orderStatusHistoryWriter,
                 orderResponseAssembler,
                 catalogClient,
-                inventoryClient
+                inventoryClient,
+                orderBackorderSupport
         );
     }
 
@@ -835,6 +840,29 @@ class OrderPaymentEventServiceImplTest {
             assertFalse(OrderService.class.isAssignableFrom(field.getType()));
             assertFalse(OrderServiceImpl.class.isAssignableFrom(field.getType()));
         }
+    }
+
+    @Test
+    void bankTransferPaymentOfBackorderWaitsForStock() {
+        UUID orderId = UUID.randomUUID();
+        UUID sagaId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setBackorder(true);
+        PaymentOrderEventPayload event = event("payment.succeeded", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderBackorderSupport.isAwaitingStock(order)).thenReturn(true);
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(sagaId);
+
+        service.handlePaymentSucceeded(event);
+
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        assertEquals(0, order.getDebtAmount().signum());
+        verify(orderBackorderSupport).enterWaitingStock(order);
+        verify(inventoryClient, org.mockito.Mockito.never()).fulfillSale(any());
+        verify(orderCustomerService, org.mockito.Mockito.never()).updateCustomerPurchase(any());
+        verify(orderOutboxPublisher, org.mockito.Mockito.never()).publishPaymentCompletedOrchestration(any(), any(), any());
     }
 
     private Order order(UUID orderId, OrderStatus status, PaymentStatus paymentStatus) {

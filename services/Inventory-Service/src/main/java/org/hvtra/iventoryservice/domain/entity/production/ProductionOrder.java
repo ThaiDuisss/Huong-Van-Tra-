@@ -95,6 +95,13 @@ public class ProductionOrder extends BaseEntity {
     @Column(name = "cancel_reason", length = 500)
     private String cancelReason;
 
+    /** Đơn hàng đang chờ hàng mà lệnh này sản xuất cho (bán trước – trừ sau). Null = sản xuất bù tồn. */
+    @Column(name = "source_order_id", columnDefinition = "BINARY(16)")
+    private UUID sourceOrderId;
+
+    @Column(name = "source_order_code", length = 50)
+    private String sourceOrderCode;
+
     @OneToMany(mappedBy = "productionOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionOrderLine> lines = new ArrayList<>();
 

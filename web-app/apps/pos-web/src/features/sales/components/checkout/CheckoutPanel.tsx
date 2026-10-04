@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { AddDebtAction } from "./AddDebtAction";
 import { CashReceivedInput } from "./CashReceivedInput";
@@ -42,6 +42,12 @@ interface CheckoutPanelProps {
     customersLoading: boolean;
     customersError: string;
     selectedCustomer: SaleCustomer | null;
+    /** Số tiền phải thu ở lần này (tiền cọc của đơn chờ hàng). Mặc định là tổng tiền. */
+    amountDue?: number;
+    /** Thông báo đơn chờ hàng kèm lựa chọn thu đủ / đặt cọc. */
+    backorderNotice?: ReactNode;
+    /** Đơn chờ hàng đang chọn đặt cọc nhưng số tiền cọc chưa hợp lệ. */
+    paymentBlocked?: boolean;
     onDiscountChange(discountId: string): void;
     onManualOrderDiscountChange(value: SaleManualDiscount | null): void;
     onCashReceivedChange(value: number): void;
@@ -76,6 +82,9 @@ export function CheckoutPanel({
     customersLoading,
     customersError,
     selectedCustomer,
+    amountDue,
+    backorderNotice,
+    paymentBlocked = false,
     onDiscountChange,
     onManualOrderDiscountChange,
     onCashReceivedChange,
@@ -93,11 +102,13 @@ export function CheckoutPanel({
     const [combinedPaymentOpen, setCombinedPaymentOpen] = useState(false);
     const isBankTransfer = paymentMethod === "BANK_TRANSFER";
     const isCombinedPayment = paymentMethod === "COMBINED";
+    const cashDue = amountDue ?? totals.total;
     const canCompletePayment =
         totals.total > 0 &&
         orderType === "QUICK_SALE" &&
-        (paymentMethod !== "CASH" || cashReceived >= totals.total) &&
+        (paymentMethod !== "CASH" || cashReceived >= cashDue) &&
         !isBankTransfer &&
+        !paymentBlocked &&
         !checkoutLoading;
 
     useEffect(() => {
@@ -139,6 +150,8 @@ export function CheckoutPanel({
                 />
             </div>
 
+            {backorderNotice}
+
             {paymentMethod === "CASH" ? (
                 <>
                     <CashReceivedInput
@@ -148,7 +161,7 @@ export function CheckoutPanel({
                     />
 
                     <QuickCashButtons
-                        total={totals.total}
+                        total={cashDue}
                         onSelect={onCashReceivedChange}
                     />
                 </>

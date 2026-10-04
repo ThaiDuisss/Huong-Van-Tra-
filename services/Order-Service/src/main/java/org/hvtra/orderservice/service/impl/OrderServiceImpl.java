@@ -316,11 +316,22 @@ public class OrderServiceImpl implements OrderService {
                 request.getCashierId()
         );
 
-        PaymentResponse payment = checkoutPayment(
-                savedOrder,
-                paymentMethod,
-                request.getPaidAmount()
-        );
+        boolean depositRequested = request.getDepositAmount() != null
+                && request.getDepositAmount().compareTo(BigDecimal.ZERO) > 0;
+        PaymentResponse payment = orderCheckoutPaymentProcessor != null
+                && (Boolean.TRUE.equals(request.getAllowBackorder()) || depositRequested)
+                ? orderCheckoutPaymentProcessor.checkoutBackorderPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount(),
+                        getUserId(),
+                        request.getDepositAmount()
+                )
+                : checkoutPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount()
+                );
 
         return toResponse(savedOrder, payment);
     }
@@ -1691,6 +1702,10 @@ public class OrderServiceImpl implements OrderService {
                 .debtAmount(order.getDebtAmount())
                 .changeAmount(changeAmount)
                 .expiresAt(order.getExpiresAt())
+                .backorder(order.isBackorder())
+                .expectedAvailableAt(order.getExpectedAvailableAt())
+                .depositAmount(order.getDepositAmount())
+                .inventoryProcessingStatus(order.getInventoryProcessingStatus())
                 .items(order.getItems().stream().map(this::toItemResponse).toList())
                 .customerName(order.getCustomerNameSnapshot())
                 .customerPhone(order.getCustomerPhoneSnapshot())
@@ -1957,6 +1972,7 @@ public class OrderServiceImpl implements OrderService {
             case FAILED -> "Thanh toán thất bại";
             case REFUNDED -> "Đã hoàn tiền";
             case PARTIALLY_REFUNDED -> "Hoàn tiền một phần";
+            case PARTIALLY_PAID -> "Đã đặt cọc";
         };
     }
 

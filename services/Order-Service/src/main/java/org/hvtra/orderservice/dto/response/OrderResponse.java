@@ -44,6 +44,10 @@ public class OrderResponse {
     private BigDecimal changeAmount;
     private Instant expiresAt;
 
+    private boolean backorder;
+    private Instant expectedAvailableAt;
+    private BigDecimal depositAmount;
+
     private List<OrderItemResponse> items;
 
     private String customerName;

@@ -30,4 +30,6 @@ public class AddDraftOrderItemRequest {
     private UUID bomVersionId;
     private UUID inventoryLocationId;
     private String note;
+    /** Khách đồng ý chờ hàng: cho đặt vượt số lượng có thể bán. */
+    private Boolean allowBackorder;
 }

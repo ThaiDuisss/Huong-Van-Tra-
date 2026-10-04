@@ -14,6 +14,23 @@ spring:
         format_sql: true
   flyway:
     baseline-on-migrate: true
+  # SMTP gửi hóa đơn cho khách hàng. Với Gmail: MAIL_USERNAME là địa chỉ Gmail,
+  # MAIL_PASSWORD là "App password" 16 ký tự (không dùng mật khẩu đăng nhập).
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 10000
+          writetimeout: 10000
 
 server:
   port: 8085
@@ -65,6 +82,14 @@ kafka-consumer-config:
   poll-timeout-ms: 150
 
 notification:
+  invoice-email:
+    # Gửi hóa đơn qua email cho khách khi đơn hoàn tất (khách có email). Mặc định tắt.
+    enabled: ${INVOICE_EMAIL_ENABLED:false}
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    from-name: ${MAIL_FROM_NAME:Hương Vân Trà}
+    store-name: ${STORE_NAME:Hương Vân Trà}
+    store-address: ${STORE_ADDRESS:}
+    store-hotline: ${STORE_HOTLINE:}
   order:
     events:
       topics:
@@ -86,3 +111,8 @@ notification:
 security:
   internal:
       header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}
+
+management:
+  health:
+    mail:
+      enabled: false

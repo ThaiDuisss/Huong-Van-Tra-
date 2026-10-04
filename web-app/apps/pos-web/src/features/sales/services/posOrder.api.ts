@@ -23,6 +23,10 @@ export interface CheckoutPosOrderInput extends CreatePosOrderInput {
     paidAmount: number;
     receivedAmount?: number;
     changeAmount?: number;
+    /** Khách đồng ý chờ hàng: đơn thiếu hàng được ghi nhận là đơn chờ hàng. */
+    allowBackorder?: boolean;
+    /** Đơn chờ hàng trả tiền mặt: chỉ thu tiền cọc, phần còn lại thu khi giao. */
+    depositAmount?: number;
 }
 
 interface PosOrderItemRequest {
@@ -51,6 +55,8 @@ interface CreatePosOrderRequestBody {
     paidAmount?: number;
     paymentMethod?: string;
     paymentCode?: string;
+    allowBackorder?: boolean;
+    depositAmount?: number;
     items: PosOrderItemRequest[];
 }
 
@@ -64,10 +70,12 @@ interface AddDraftOrderItemRequestBody {
     discountAmount: number;
     inventoryLocationId?: string;
     note?: string;
+    allowBackorder?: boolean;
 }
 
 interface UpdateDraftOrderItemQuantityRequestBody {
     quantity: number;
+    allowBackorder?: boolean;
 }
 
 export interface PosCheckoutPaymentResponse {
@@ -106,6 +114,11 @@ export interface PosOrderDto {
     finalAmount?: number;
     paidAmount?: number;
     debtAmount?: number;
+    /** Đơn chờ hàng: đã thu tiền (đủ hoặc cọc), giao sau khi có hàng. */
+    backorder?: boolean;
+    expectedAvailableAt?: string | null;
+    depositAmount?: number;
+    inventoryProcessingStatus?: string;
     items?: PosOrderItemDto[];
 }
 
@@ -204,6 +217,7 @@ export const posOrderApi = {
         inventoryLocationId?: string | null;
         quantity?: number;
         note?: string;
+        allowBackorder?: boolean;
     }) {
         if (!uuidPattern.test(input.productVariantId)) {
             throw new Error("Không xác định được productVariantId dạng UUID.");
@@ -223,15 +237,21 @@ export const posOrderApi = {
                 quantity: input.quantity ?? 1,
                 discountAmount: 0,
                 inventoryLocationId: input.inventoryLocationId ?? undefined,
-                note: input.note?.trim() || undefined
+                note: input.note?.trim() || undefined,
+                allowBackorder: input.allowBackorder || undefined
             }
         );
     },
 
-    updateDraftItemQuantity(orderId: string, itemId: string, quantity: number) {
+    updateDraftItemQuantity(
+        orderId: string,
+        itemId: string,
+        quantity: number,
+        allowBackorder = false
+    ) {
         return apiClient.put<PosOrderDto, UpdateDraftOrderItemQuantityRequestBody>(
             `/orders/pos/draft/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}`,
-            { quantity }
+            { quantity, allowBackorder: allowBackorder || undefined }
         );
     },
 
@@ -260,6 +280,8 @@ export const posOrderApi = {
             shippingFee: 0,
             paidAmount: input.paidAmount,
             paymentMethod: paymentMethodMap[input.paymentMethod],
+            allowBackorder: input.allowBackorder || undefined,
+            depositAmount: input.depositAmount,
             items: input.items.map((item) => ({
                 productVariantId: getProductVariantId(item),
                 quantity: item.quantity,

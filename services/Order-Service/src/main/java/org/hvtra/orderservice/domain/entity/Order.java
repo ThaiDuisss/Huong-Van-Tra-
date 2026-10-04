@@ -147,6 +147,18 @@ public class Order extends BaseEntity {
     @Column(name = "expires_at")
     private Instant expiresAt;
 
+    /** Đơn chờ hàng: đã thu tiền (đủ hoặc cọc) nhưng hàng chưa có, giao sau khi sản xuất / nhập xong. */
+    @Builder.Default
+    @Column(name = "backorder", nullable = false)
+    private boolean backorder = false;
+
+    @Column(name = "expected_available_at")
+    private Instant expectedAvailableAt;
+
+    @Builder.Default
+    @Column(name = "deposit_amount", nullable = false, precision = 14, scale = 2)
+    private BigDecimal depositAmount = BigDecimal.ZERO;
+
     @Builder.Default
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();

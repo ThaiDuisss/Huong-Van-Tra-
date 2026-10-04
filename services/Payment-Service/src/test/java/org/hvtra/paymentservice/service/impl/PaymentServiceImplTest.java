@@ -9,7 +9,9 @@ import org.hvtra.paymentservice.domain.enums.PaymentProvider;
 import org.hvtra.paymentservice.domain.enums.PaymentStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
+import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
+import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
 import org.hvtra.paymentservice.dto.response.PaymentRefundResponse;
 import org.hvtra.paymentservice.repository.PaymentAttemptRepository;
 import org.hvtra.paymentservice.repository.PaymentRepository;
@@ -242,6 +244,98 @@ class PaymentServiceImplTest {
         RefundPaymentRequest request = new RefundPaymentRequest();
         request.setReturnId(returnId);
         request.setAmount(new BigDecimal(amount));
+        return request;
+    }
+
+    @Test
+    void cashCheckoutWithoutDepositPaysInFull() {
+        stubCashCheckout(null);
+
+        PaymentCheckoutResponse response = service.checkout(cashRequest("200000", "250000", null));
+
+        assertEquals("PAID", response.getStatus());
+        assertEquals(new BigDecimal("200000"), response.getAmountPaid());
+        assertEquals(new BigDecimal("50000"), response.getChangeAmount());
+        assertEquals(new BigDecimal("200000"), savedTransaction().getAmount());
+    }
+
+    @Test
+    void cashCheckoutWithDepositMarksPartiallyPaid() {
+        stubCashCheckout(null);
+
+        PaymentCheckoutResponse response = service.checkout(cashRequest("200000", "100000", "60000"));
+
+        assertEquals("PARTIALLY_PAID", response.getStatus());
+        assertEquals(new BigDecimal("200000"), response.getAmountRequired());
+        assertEquals(new BigDecimal("60000"), response.getAmountPaid());
+        assertEquals(new BigDecimal("40000"), response.getChangeAmount());
+        assertEquals(new BigDecimal("60000"), savedTransaction().getAmount());
+    }
+
+    @Test
+    void cashCheckoutAfterDepositCollectsOnlyTheRemainder() {
+        Payment deposited = payment(PaymentMethod.CASH, PaymentStatus.PARTIALLY_PAID, "60000", "0");
+        deposited.setAmountRequired(new BigDecimal("200000"));
+        stubCashCheckout(deposited);
+
+        PaymentCheckoutResponse response = service.checkout(cashRequest("200000", "150000", null));
+
+        assertEquals("PAID", response.getStatus());
+        assertEquals(new BigDecimal("200000"), response.getAmountPaid());
+        assertEquals(new BigDecimal("10000"), response.getChangeAmount());
+        assertEquals(new BigDecimal("140000"), savedTransaction().getAmount());
+        assertEquals(PaymentStatus.PAID, deposited.getStatus());
+    }
+
+    @Test
+    void cashCheckoutAfterDepositRejectsWhenReceivedLessThanRemainder() {
+        Payment deposited = payment(PaymentMethod.CASH, PaymentStatus.PARTIALLY_PAID, "60000", "0");
+        deposited.setAmountRequired(new BigDecimal("200000"));
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.of(deposited));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.checkout(cashRequest("200000", "100000", null)));
+        verify(paymentTransactionRepository, never()).save(any());
+    }
+
+    @Test
+    void cashDepositRejectsWhenReceivedLessThanDeposit() {
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.checkout(cashRequest("200000", "50000", "60000")));
+    }
+
+    @Test
+    void depositIsCashOnly() {
+        CheckoutRequest request = cashRequest("200000", null, "60000");
+        request.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
+
+        assertThrows(IllegalArgumentException.class, () -> service.checkout(request));
+    }
+
+    private void stubCashCheckout(Payment existing) {
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.ofNullable(existing));
+        when(paymentRepository.existsByOrderIdAndStatus(orderId, PaymentStatus.PAID)).thenReturn(false);
+        when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentTransactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private PaymentTransaction savedTransaction() {
+        ArgumentCaptor<PaymentTransaction> captor = ArgumentCaptor.forClass(PaymentTransaction.class);
+        verify(paymentTransactionRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    private CheckoutRequest cashRequest(String finalAmount, String receivedAmount, String depositAmount) {
+        CheckoutRequest request = new CheckoutRequest();
+        request.setOrderId(orderId);
+        request.setOrderCode("ORD-001");
+        request.setSagaId(UUID.randomUUID());
+        request.setPaymentMethod(PaymentMethod.CASH);
+        request.setFinalAmount(new BigDecimal(finalAmount));
+        request.setReceivedAmount(receivedAmount == null ? null : new BigDecimal(receivedAmount));
+        request.setDepositAmount(depositAmount == null ? null : new BigDecimal(depositAmount));
         return request;
     }
 

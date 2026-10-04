@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.document.service.impl;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.commonservice.common_core.exception.FeignClientException;
+import org.hvtra.iventoryservice.availability.service.SupplyLeadTimeService;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.dto.request.*;
 import org.hvtra.iventoryservice.document.dto.response.GoodsReceiptSummaryCountResponse;
@@ -74,6 +75,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     private final CatalogClient catalogClient;
     private final IdentityClient identityClient;
     private final InventoryDocumentMapper mapper;
+    private final SupplyLeadTimeService supplyLeadTimeService;
 
     public InventoryDocumentServiceImpl(
             InventoryDocumentRepository documentRepository,
@@ -87,7 +89,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             InventoryDocumentLineRepository lineRepository1, InventoryDocumentBatchAllocationRepository allocationRepository1,
             CatalogClient catalogClient,
             IdentityClient identityClient,
-            InventoryDocumentMapper mapper
+            InventoryDocumentMapper mapper,
+            SupplyLeadTimeService supplyLeadTimeService
     ) {
         this.documentRepository = documentRepository;
         this.locationRepository = locationRepository;
@@ -100,6 +103,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         this.catalogClient = catalogClient;
         this.identityClient = identityClient;
         this.mapper = mapper;
+        this.supplyLeadTimeService = supplyLeadTimeService;
     }
 
     private static final int MAX_EXPORT_ROWS = 10_000;
@@ -870,7 +874,9 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         document.setPostedBy(getCurrentUserId());
         document.setPostedAt(Instant.now());
 
-        return toEnrichedResponse(documentRepository.save(document));
+        InventoryDocument posted = documentRepository.save(document);
+        supplyLeadTimeService.onReceiptPosted(posted);
+        return toEnrichedResponse(posted);
     }
 
     @Override

@@ -23,11 +23,33 @@ interface PosCheckoutInput {
     manualOrderDiscount: SaleManualDiscount | null;
     couponUsageId?: string | null;
     selectedCustomerId: string | null;
+    /** Khách đồng ý chờ hàng cho mặt hàng đang thiếu. */
+    allowBackorder?: boolean;
+    /** Tiền cọc thu trước của đơn chờ hàng (chỉ tiền mặt). 0 hoặc bỏ trống = thu đủ. */
+    depositAmount?: number;
 }
 
 interface PosCheckoutResult {
     orderCode: string;
     payment: PosCheckoutPaymentResult | null;
+    /** Đơn được ghi nhận là đơn chờ hàng: chưa giao, chưa trừ tồn. */
+    backorder: boolean;
+    expectedAvailableAt: string | null;
+    debtAmount: number;
+}
+
+/** Số tiền phải thu ở lần thanh toán này: tiền cọc nếu đơn chờ hàng đặt cọc, ngược lại là tổng tiền. */
+export function getPosAmountDue(
+    input: Pick<PosCheckoutInput, "paymentMethod" | "totals" | "allowBackorder" | "depositAmount">
+) {
+    const deposit = input.depositAmount ?? 0;
+
+    return input.allowBackorder &&
+        input.paymentMethod === "CASH" &&
+        deposit > 0 &&
+        deposit < input.totals.total
+        ? deposit
+        : input.totals.total;
 }
 
 export interface PosCheckoutPaymentResult {
@@ -152,7 +174,14 @@ function toPaymentResult(
 export function getPosCheckoutValidationMessage(
     input: Pick<
         PosCheckoutInput,
-        "orderId" | "cartItems" | "orderType" | "paymentMethod" | "cashReceived" | "totals"
+        | "orderId"
+        | "cartItems"
+        | "orderType"
+        | "paymentMethod"
+        | "cashReceived"
+        | "totals"
+        | "allowBackorder"
+        | "depositAmount"
     >
 ) {
     if (input.cartItems.length === 0) {
@@ -167,9 +196,23 @@ export function getPosCheckoutValidationMessage(
         return "Vui lòng chọn tab Bán nhanh để thanh toán.";
     }
 
+    if ((input.depositAmount ?? 0) > 0) {
+        if (!input.allowBackorder) {
+            return "Chỉ đơn chờ hàng mới được đặt cọc.";
+        }
+
+        if (input.paymentMethod !== "CASH") {
+            return "Đặt cọc hiện chỉ hỗ trợ tiền mặt.";
+        }
+
+        if ((input.depositAmount ?? 0) >= input.totals.total) {
+            return "Tiền cọc phải nhỏ hơn tổng tiền của đơn.";
+        }
+    }
+
     if (
         input.paymentMethod === "CASH" &&
-        input.cashReceived < input.totals.total
+        input.cashReceived < getPosAmountDue(input)
     ) {
         return "Tiền khách đưa chưa đủ để thanh toán.";
     }
@@ -182,14 +225,16 @@ async function checkoutPosOrder(input: PosCheckoutInput) {
         throw new Error("Chưa có sản phẩm trong đơn.");
     }
 
+    const amountDue = getPosAmountDue(input);
+    const depositAmount = amountDue < input.totals.total ? amountDue : undefined;
     const receivedAmount =
         input.paymentMethod === "CASH"
-            ? Math.max(input.cashReceived, input.totals.total)
+            ? Math.max(input.cashReceived, amountDue)
             : undefined;
     const changeAmount =
         receivedAmount === undefined
             ? undefined
-            : Math.max(0, receivedAmount - input.totals.total);
+            : Math.max(0, receivedAmount - amountDue);
 
     try {
         return await posOrderApi.checkout({
@@ -202,9 +247,11 @@ async function checkoutPosOrder(input: PosCheckoutInput) {
             orderDiscounts: getOrderDiscounts(input),
             items: input.cartItems,
             paymentMethod: input.paymentMethod,
-            paidAmount: input.totals.total,
+            paidAmount: amountDue,
             receivedAmount,
-            changeAmount
+            changeAmount,
+            allowBackorder: input.allowBackorder,
+            depositAmount
         });
     } catch (error) {
         throw new Error(
@@ -229,6 +276,9 @@ export async function completePosCheckout(
 
     return {
         orderCode: order.orderCode,
-        payment: toPaymentResult(order.payment)
+        payment: toPaymentResult(order.payment),
+        backorder: Boolean(order.backorder),
+        expectedAvailableAt: order.expectedAvailableAt ?? null,
+        debtAmount: Number(order.debtAmount ?? 0)
     };
 }

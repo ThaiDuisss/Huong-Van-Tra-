@@ -19,6 +19,7 @@ import { OrderRefundPage } from "../features/order/pages/OrderRefundPage";
 import { OrderReturnDetailPage } from "../features/order/pages/OrderReturnDetailPage";
 import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
 import { ReturnRefundReportPage } from "../features/order/pages/ReturnRefundReportPage";
+import { BackorderOrdersPage } from "../features/order/pages/BackorderOrdersPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
@@ -188,6 +189,17 @@ export function AppRouter() {
         element={
           <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
             <PosCustomerReturnDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path={routePaths.posBackorders}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosShell>
+              <BackorderOrdersPage />
+            </PosShell>
           </ProtectedRoute>
         }
       />
