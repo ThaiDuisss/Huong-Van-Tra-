@@ -26,6 +26,7 @@ public record ProductionOrderResponse(
         UUID cancelledBy,
         Instant cancelledAt,
         String cancelReason,
+        Instant expectedCompletionDate,
         Instant createdAt,
         Instant updatedAt
 ) {

@@ -51,6 +51,7 @@ public class ProductionOrderMapper {
                 order.getCancelledBy(),
                 order.getCancelledAt(),
                 order.getCancelReason(),
+                order.getExpectedCompletionDate(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()
         );

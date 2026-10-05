@@ -76,6 +76,9 @@ public class ProductionOrder extends BaseEntity {
     @Column(name = "cancel_reason", length = 500)
     private String cancelReason;
 
+    @Column(name = "expected_completion_date")
+    private Instant expectedCompletionDate;
+
     @OneToMany(mappedBy = "productionOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionOrderLine> lines = new ArrayList<>();
 

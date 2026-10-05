@@ -51,6 +51,7 @@ export interface ProductionOrder {
     cancelledBy: string | null;
     cancelledAt: string | null;
     cancelReason: string | null;
+    expectedCompletionDate: string | null;
     createdAt: string;
     updatedAt: string;
 }
