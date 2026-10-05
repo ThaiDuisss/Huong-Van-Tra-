@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Entity
 @Table(
-        name = "production_order_material_allocations",
+        name = "production_order_batch_allocations",
         uniqueConstraints = @UniqueConstraint(
                 name = "uq_prod_order_alloc_line_batch",
                 columnNames = {"production_order_line_id", "inventory_batch_id"}
@@ -20,7 +20,7 @@ import java.util.UUID;
 )
 @Getter
 @Setter
-public class ProductionOrderMaterialAllocation extends BaseEntity {
+public class ProductionOrderBatchAllocation extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "production_order_line_id", nullable = false)

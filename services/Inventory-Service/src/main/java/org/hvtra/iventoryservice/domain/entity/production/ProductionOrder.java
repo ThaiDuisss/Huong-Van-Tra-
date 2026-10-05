@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
+import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
 
 import java.math.BigDecimal;
@@ -28,8 +29,9 @@ public class ProductionOrder extends BaseEntity {
     @Column(name = "order_code", nullable = false, length = 100)
     private String orderCode;
 
-    @Column(name = "product_variant_id", nullable = false, columnDefinition = "BINARY(16)")
-    private UUID productVariantId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_variant_id", nullable = false)
+    private InventoryItem productVariant;
 
     @Column(name = "planned_quantity", nullable = false, precision = 18, scale = 2)
     private BigDecimal plannedQuantity;

@@ -23,14 +23,8 @@ public class ProductionOrderLine extends BaseEntity {
     private ProductionOrder productionOrder;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "inventory_item_id", nullable = false)
-    private InventoryItem inventoryItem;
-
-    @Column(name = "ingredient_id", columnDefinition = "BINARY(16)")
-    private UUID ingredientId;
-
-    @Column(name = "ingredient_name", length = 255)
-    private String ingredientName;
+    @JoinColumn(name = "ingredient_id", nullable = false)
+    private InventoryItem ingredient;
 
     @Column(name = "required_quantity", nullable = false, precision = 18, scale = 4)
     private BigDecimal requiredQuantity;
@@ -55,9 +49,9 @@ public class ProductionOrderLine extends BaseEntity {
     // orphan deletion was no longer referenced by the owning entity instance" khi flush).
     @BatchSize(size = 50)
     @OneToMany(mappedBy = "productionOrderLine", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProductionOrderMaterialAllocation> allocations = new ArrayList<>();
+    private List<ProductionOrderBatchAllocation> allocations = new ArrayList<>();
 
-    public void addAllocation(ProductionOrderMaterialAllocation allocation) {
+    public void addAllocation(ProductionOrderBatchAllocation allocation) {
         allocations.add(allocation);
         allocation.setProductionOrderLine(this);
     }

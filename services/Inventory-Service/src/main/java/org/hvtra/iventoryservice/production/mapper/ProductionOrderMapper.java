@@ -36,7 +36,7 @@ public class ProductionOrderMapper {
                 order.getId(),
                 order.getOrderCode(),
                 order.getStatus(),
-                order.getProductVariantId(),
+                order.getProductVariant().getId(),
                 order.getPlannedQuantity(),
                 order.getUnitId(),
                 order.getLocationId(),
@@ -66,8 +66,8 @@ public class ProductionOrderMapper {
     public ProductionOrderLineResponse toLineResponse(ProductionOrderLine line) {
         return new ProductionOrderLineResponse(
                 line.getId(),
-                line.getIngredientId(),
-                line.getIngredientName(),
+                line.getIngredient().getId(),
+                null,
                 line.getRequiredQuantity(),
                 line.getUnitId(),
                 line.getWasteRate(),

@@ -12,7 +12,7 @@ import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatc
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrder;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrderLine;
-import org.hvtra.iventoryservice.domain.entity.production.ProductionOrderMaterialAllocation;
+import org.hvtra.iventoryservice.domain.entity.production.ProductionOrderBatchAllocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
@@ -104,7 +104,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                 predicates.add(cb.equal(root.get("status"), status));
             }
             if (productVariantId != null) {
-                predicates.add(cb.equal(root.get("productVariantId"), productVariantId));
+                predicates.add(cb.equal(root.get("productVariant").get("referenceId"), productVariantId));
             }
             if (search != null && !search.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("orderCode")), "%" + search.toLowerCase() + "%"));
@@ -136,9 +136,14 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         InventoryLocation location = locationRepository.findById(request.locationId())
                 .orElseThrow(() -> new ResourceNotFoundException("InventoryLocation", request.locationId()));
 
+        // Get InventoryItem for product variant
+        InventoryItem variantItem = itemRepository.findByReferenceIdAndItemType(
+                request.productVariantId(), InventoryItemType.PRODUCT_VARIANT)
+                .orElseThrow(() -> new ResourceNotFoundException("InventoryItem for variant", request.productVariantId()));
+
         ProductionOrder order = new ProductionOrder();
         order.setOrderCode(generateOrderCode());
-        order.setProductVariantId(request.productVariantId());
+        order.setProductVariant(variantItem);
         order.setPlannedQuantity(request.plannedQuantity());
         order.setUnitId(variant.unitId());
         order.setLocationId(location.getId());
@@ -158,8 +163,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             if (bomItem.ingredient() == null) {
                 continue;
             }
-            InventoryItem inventoryItem = inventoryItemByIngredientId.get(bomItem.ingredient().id());
-            if (inventoryItem == null) {
+            InventoryItem ingredientItem = inventoryItemByIngredientId.get(bomItem.ingredient().id());
+            if (ingredientItem == null) {
                 throw new ResourceNotFoundException("InventoryItem for ingredient", bomItem.ingredient().id());
             }
 
@@ -171,9 +176,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     .multiply(wasteMultiplier);
 
             ProductionOrderLine line = new ProductionOrderLine();
-            line.setInventoryItem(inventoryItem);
-            line.setIngredientId(bomItem.ingredient().id());
-            line.setIngredientName(bomItem.ingredient().name());
+            line.setIngredient(ingredientItem);
             line.setRequiredQuantity(requiredQuantity);
             line.setUnitId(bomItem.unit() != null ? bomItem.unit().id() : null);
             line.setWasteRate(wasteRate);
@@ -212,10 +215,10 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
             // Nguyên liệu đã được giữ chỗ lúc bán hàng (để sản xuất bù) thì trả lại cho chính lệnh này dùng,
             // nếu không phần giữ chỗ đó sẽ khóa nguyên liệu mãi.
             reservationService.releasePlannedMaterials(
-                    order.getProductVariantId(), line.getInventoryItem().getId(), remaining);
+                    order.getProductVariant().getReferenceId(), line.getIngredient().getId(), remaining);
 
             List<InventoryBatch> candidates = batchRepository.findFefoCandidates(
-                    line.getInventoryItem().getId(), InventoryBatchStatus.AVAILABLE);
+                    line.getIngredient().getId(), InventoryBatchStatus.AVAILABLE);
 
             for (InventoryBatch batch : candidates) {
                 if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
@@ -238,7 +241,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                     balance.setQuantityReserved(balance.getQuantityReserved().add(take));
                     balanceRepository.save(balance);
 
-                    ProductionOrderMaterialAllocation allocation = new ProductionOrderMaterialAllocation();
+                    ProductionOrderBatchAllocation allocation = new ProductionOrderBatchAllocation();
                     allocation.setInventoryBatch(batch);
                     allocation.setLocationId(balance.getLocation().getId());
                     allocation.setReservedQuantity(take);
@@ -252,7 +255,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
 
             if (remaining.compareTo(BigDecimal.ZERO) > 0) {
                 throw new OutOfStockException(
-                        "Không đủ tồn kho nguyên liệu \"" + line.getIngredientName() + "\": còn thiếu " + remaining);
+                        "Không đủ tồn kho nguyên liệu \"" + line.getIngredient().getReferenceId() + "\": còn thiếu " + remaining);
             }
         }
 
@@ -280,7 +283,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
         transaction.setBranchId(branchId != null ? branchId : location.getId());
 
         for (ProductionOrderLine line : order.getLines()) {
-            for (ProductionOrderMaterialAllocation allocation : line.getAllocations()) {
+            for (ProductionOrderBatchAllocation allocation : line.getAllocations()) {
                 if (allocation.getStatus() != ReservationStatus.RESERVED) {
                     continue;
                 }
@@ -302,7 +305,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                 line.setConsumedQuantity(line.getConsumedQuantity().add(allocation.getReservedQuantity()));
 
                 InventoryTransactionLine transLine = new InventoryTransactionLine();
-                transLine.setInventoryItem(line.getInventoryItem());
+                transLine.setInventoryItem(line.getIngredient());
                 transLine.setLocation(balance.getLocation());
                 transLine.setQuantity(allocation.getReservedQuantity());
                 transLine.setBeforeQuantity(before);
@@ -353,8 +356,8 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("InventoryLocation", order.getLocationId()));
 
         InventoryItem outputItem = itemRepository
-                .findByReferenceIdAndItemType(order.getProductVariantId(), InventoryItemType.PRODUCT_VARIANT)
-                .orElseThrow(() -> new ResourceNotFoundException("InventoryItem for product variant", order.getProductVariantId()));
+                .findByReferenceIdAndItemType(order.getProductVariant().getReferenceId(), InventoryItemType.PRODUCT_VARIANT)
+                .orElseThrow(() -> new ResourceNotFoundException("InventoryItem for product variant", order.getProductVariant().getReferenceId()));
 
         if (request.actualGoodQuantity().compareTo(BigDecimal.ZERO) > 0) {
             String batchCode = order.getOrderCode() + "-TP";
@@ -439,7 +442,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
 
         if (order.getStatus() == ProductionOrderStatus.APPROVED) {
             for (ProductionOrderLine line : order.getLines()) {
-                for (ProductionOrderMaterialAllocation allocation : line.getAllocations()) {
+                for (ProductionOrderBatchAllocation allocation : line.getAllocations()) {
                     if (allocation.getStatus() != ReservationStatus.RESERVED) {
                         continue;
                     }

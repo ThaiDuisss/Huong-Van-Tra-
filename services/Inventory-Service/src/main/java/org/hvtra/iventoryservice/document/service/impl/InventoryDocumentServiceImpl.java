@@ -676,6 +676,10 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             throw new BadRequestException("Only RECEIVING documents can be confirmed");
         }
 
+        if (!isAdminOrCreator(document)) {
+            throw ErrorCode.INVENTORY_DOCUMENT_EDIT_FORBIDDEN.exception();
+        }
+
         if (document.getReceivedBy() == null) {
             document.setReceivedBy(getCurrentUserId());
         }
@@ -716,6 +720,10 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             throw new BadRequestException("Only RECEIVING documents can complete QC");
         }
 
+        if (!isAdminOrCreator(document)) {
+            throw ErrorCode.INVENTORY_DOCUMENT_EDIT_FORBIDDEN.exception();
+        }
+
         for (var qcItem : request.items()) {
             InventoryDocumentLine line = document.getLines().stream()
                     .filter(l -> l.getId().equals(qcItem.lineId()))
@@ -731,10 +739,18 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                         ") must equal received quantity (" + received + ") for line: " + line.getLineNo());
             }
 
+            if (accepted.compareTo(BigDecimal.ZERO) < 0 || rejected.compareTo(BigDecimal.ZERO) < 0) {
+                throw new BadRequestException("Accepted and rejected quantities cannot be negative for line: " + line.getLineNo());
+            }
+
             line.setAcceptedQuantity(accepted);
             line.setRejectedQuantity(rejected);
 
             line.getBatchAllocations().clear();
+            if (accepted.compareTo(BigDecimal.ZERO) > 0 && (qcItem.batches() == null || qcItem.batches().isEmpty())) {
+                throw new BadRequestException("Batch allocation is required when accepted quantity > 0 for line: " + line.getLineNo());
+            }
+
             if (qcItem.batches() != null && !qcItem.batches().isEmpty()) {
                 BigDecimal batchTotal = BigDecimal.ZERO;
                 for (var batchInput : qcItem.batches()) {
@@ -747,14 +763,25 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                             ? batchInput.batchCode().trim()
                             : generateBatchCode(line.getInventoryItem().getReferenceCode());
 
+                    LocalDate manufactureDate = batchInput.manufactureDate();
+                    LocalDate expiryDate = batchInput.expiryDate();
+
+                    if (expiryDate != null && manufactureDate != null && expiryDate.isBefore(manufactureDate)) {
+                        throw new BadRequestException("Expiry date cannot be before manufacture date for batch: " + batchCode);
+                    }
+
+                    if ((manufactureDate == null && expiryDate != null) || (manufactureDate != null && expiryDate == null)) {
+                        throw new BadRequestException("Both manufacture date and expiry date must be provided together for batch: " + batchCode);
+                    }
+
                     InventoryBatch batch = batchRepository.findByInventoryItemIdAndBatchCode(line.getInventoryItem().getId(), batchCode)
                             .orElseGet(() -> {
                                 InventoryBatch newBatch = new InventoryBatch();
                                 newBatch.setInventoryItem(line.getInventoryItem());
                                 newBatch.setBatchCode(batchCode);
                                 newBatch.setSupplierBatchCode(batchInput.supplierLot());
-                                newBatch.setManufactureDate(batchInput.manufactureDate());
-                                newBatch.setExpiryDate(batchInput.expiryDate());
+                                newBatch.setManufactureDate(manufactureDate);
+                                newBatch.setExpiryDate(expiryDate);
                                 newBatch.setStatus(InventoryBatchStatus.AVAILABLE);
                                 return batchRepository.save(newBatch);
                             });
@@ -845,6 +872,10 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
     @Transactional
     public InventoryDocumentResponse cancel(UUID id, String note) {
         InventoryDocument document = getDocument(id);
+
+        if (!isAdminOrCreator(document)) {
+            throw ErrorCode.INVENTORY_DOCUMENT_EDIT_FORBIDDEN.exception();
+        }
 
         if (document.getStatus() == InventoryDocumentStatus.POSTED) {
             throw new BadRequestException("Cannot cancel an already POSTED document");
