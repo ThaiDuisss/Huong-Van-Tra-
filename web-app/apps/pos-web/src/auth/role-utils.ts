@@ -58,6 +58,13 @@ export const INVENTORY_OPERATION_ROLES: AppRole[] = [
     "QC"
 ];
 
+export const CUSTOMER_RETURN_QC_ROLES: AppRole[] = [
+    "ADMIN",
+    "SUPER_ADMIN",
+    "MANAGER",
+    "QC"
+];
+
 export const MARKETING_ROLES: AppRole[] = [
     "ADMIN",
     "MANAGER"

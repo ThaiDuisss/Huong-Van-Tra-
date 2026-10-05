@@ -595,34 +595,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             return resolveExistingInventoryDispositionCommand(returnId, request, existingCommand);
         }
 
-        List<OrderReturnInventoryCommand> returnCommands =
-                orderReturnInventoryCommandRepository.findByOrderReturnIdWithLines(returnId);
-        for (OrderReturnInventoryCommand existing : returnCommands) {
-            if (sameDispositionCommand(existing, request)) {
-                if (existing.getStatus() == OrderReturnInventoryCommandStatus.PROCESSED) {
-                    return toDispositionResponse(existing);
-                }
-                if (existing.getStatus() == OrderReturnInventoryCommandStatus.PENDING) {
-                    try {
-                        ReturnDispositionStatusResponse invStatus =
-                                inventoryClient.getReturnDispositionStatus(existing.getCommandId());
-                        if (invStatus != null) {
-                            inventoryCommandReconciliationWriter.reconcileCommand(
-                                    OrderReturnInventoryCommandReconciliationWriter.CommandEvidence.from(invStatus)
-                            );
-                            existing = orderReturnInventoryCommandRepository
-                                    .findByCommandIdAndIsDeletedFalse(existing.getCommandId())
-                                    .orElse(existing);
-                        }
-                    } catch (Exception ex) {
-                        log.warn("Failed to reconcile disposition status with inventory for commandId {}: {}",
-                                existing.getCommandId(), ex.getMessage());
-                    }
-                    return toDispositionResponse(existing);
-                }
-            }
-        }
-
+        // A new commandId is a new action, even when all business fields match an earlier action.
         if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
             throw new InvalidOrderReturnException("Only received returns can request inventory disposition");
         }
@@ -692,6 +665,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             throw new InvalidOrderReturnException("Inventory disposition commandId belongs to another return");
         }
         if (!sameDispositionCommand(existingCommand, request)) {
+            log.warn("Same commandId reused with different payload. commandId={}, returnId={}",
+                    request.getCommandId(), returnId);
             throw new InvalidOrderReturnException("Inventory disposition commandId was already used differently");
         }
 
@@ -704,6 +679,13 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         }
         if (request.getLines() == null || request.getLines().isEmpty()) {
             throw new InvalidOrderReturnException("Inventory disposition lines are required");
+        }
+        for (SubmitReturnInventoryDispositionLineRequest line : request.getLines()) {
+            if (line != null && line.getResult() != null && !line.getResult().isAllowedForNewReturn()) {
+                throw new InvalidOrderReturnException(
+                        "QUARANTINE is no longer supported for new customer returns; use DAMAGED"
+                );
+            }
         }
     }
 
@@ -743,8 +725,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     ) {
         BigDecimal quantity = requirePositiveQuantity(lineRequest.getQuantity());
         if ((ReturnInventoryDispositionResult.RESTOCK == lineRequest.getResult()
-                || ReturnInventoryDispositionResult.DAMAGED == lineRequest.getResult()
-                || ReturnInventoryDispositionResult.QUARANTINE == lineRequest.getResult())
+                || ReturnInventoryDispositionResult.DAMAGED == lineRequest.getResult())
                 && lineRequest.getDestinationLocationId() == null) {
             throw new InvalidOrderReturnException("Destination location is required for inventory disposition");
         }

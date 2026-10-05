@@ -6,18 +6,20 @@ import {
     Plus,
     X
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ApiError } from "@hvt/api-client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
 import type { InventoryLocationResponse } from "../../inventory/types/inventory.types";
 import { submitReturnInventoryDisposition } from "../services/order-return.api";
 import type {
-    CustomerReturnQcResult,
+    CustomerReturnDisposition,
     CustomerReturnQcSummaryLine,
     CustomerReturnQcSummaryResponse,
     OrderReturnListRow,
     OrderReturnResponse,
     ReturnCondition,
+    SubmitReturnInventoryDispositionPayload,
     ReturnReason
 } from "../types/order-return.types";
 import {
@@ -44,13 +46,13 @@ interface ReturnInspectionModalProps {
 interface QcDraftLine {
     selected: boolean;
     quantity: string;
-    result: CustomerReturnQcResult;
+    result: CustomerReturnDisposition;
     destinationLocationId: string;
     note: string;
 }
 
 const QC_RESULT_OPTIONS: {
-    result: CustomerReturnQcResult;
+    result: CustomerReturnDisposition;
     title: string;
     desc: string;
 }[] = [
@@ -63,11 +65,6 @@ const QC_RESULT_OPTIONS: {
         result: "DAMAGED",
         title: "Hàng hỏng",
         desc: "Chuyển sang khu hàng hỏng, không được bán"
-    },
-    {
-        result: "QUARANTINE",
-        title: "Cách ly",
-        desc: "Chuyển sang khu cách ly, chờ kiểm định thêm"
     },
     {
         result: "WRITE_OFF",
@@ -95,7 +92,7 @@ function getLocationOptionLabel(location: InventoryLocationResponse) {
     return name || code || "Vị trí kho";
 }
 
-function getDefaultQcResult(condition?: ReturnCondition | null): CustomerReturnQcResult {
+function getDefaultQcResult(condition?: ReturnCondition | null): CustomerReturnDisposition {
     return condition === "SEALED" ? "RESTOCK" : "DAMAGED";
 }
 
@@ -114,11 +111,12 @@ export function ReturnInspectionModal({
     const [isGeneralNoteOpen, setIsGeneralNoteOpen] = useState(false);
     const [activeLocations, setActiveLocations] = useState<InventoryLocationResponse[]>([]);
     const [damagedLocations, setDamagedLocations] = useState<InventoryLocationResponse[]>([]);
-    const [quarantineLocations, setQuarantineLocations] = useState<InventoryLocationResponse[]>([]);
     const [isLocationLoading, setIsLocationLoading] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
+    const submissionRef = useRef<SubmitReturnInventoryDispositionPayload | null>(null);
+    const [hasUnresolvedSubmission, setHasUnresolvedSubmission] = useState(false);
 
     const summaryLines = useMemo(
         () => qcSummary?.lines ?? [],
@@ -158,39 +156,24 @@ export function ReturnInspectionModal({
         return Array.from(map.values());
     }, [activeLocations, damagedLocations]);
 
-    const normalizedQuarantineLocations = useMemo(() => {
-        const map = new Map<string, InventoryLocationResponse>();
-        activeLocations
-            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
-            .forEach((l) => map.set(String(l.id), l));
-        quarantineLocations
-            .filter((l) => l.status === "ACTIVE" && l.type === "QUARANTINE")
-            .forEach((l) => map.set(String(l.id), l));
-        return Array.from(map.values());
-    }, [activeLocations, quarantineLocations]);
-
     const allLocationsMap = useMemo(() => {
         const map = new Map<string, InventoryLocationResponse>();
         activeLocations.forEach((loc) => map.set(String(loc.id), loc));
         damagedLocations.forEach((loc) => map.set(String(loc.id), loc));
-        quarantineLocations.forEach((loc) => map.set(String(loc.id), loc));
         return map;
-    }, [activeLocations, damagedLocations, quarantineLocations]);
+    }, [activeLocations, damagedLocations]);
 
     const getValidLocations = useCallback(
-        (result: CustomerReturnQcResult) => {
+        (result: CustomerReturnDisposition) => {
             if (result === "RESTOCK") {
                 return restockLocations;
             }
             if (result === "DAMAGED") {
                 return normalizedDamagedLocations;
             }
-            if (result === "QUARANTINE") {
-                return normalizedQuarantineLocations;
-            }
             return [];
         },
-        [normalizedDamagedLocations, normalizedQuarantineLocations, restockLocations]
+        [normalizedDamagedLocations, restockLocations]
     );
 
     // Load locations when modal opens
@@ -215,26 +198,18 @@ export function ReturnInspectionModal({
                     size: 100,
                     status: "ACTIVE",
                     type: "DAMAGED"
-                }),
-                inventoryLocationApi.list({
-                    page: 0,
-                    size: 100,
-                    status: "ACTIVE",
-                    type: "QUARANTINE"
                 })
             ])
-                .then(([activePage, damagedPage, quarantinePage]) => {
+                .then(([activePage, damagedPage]) => {
                     if (!ignore) {
                         setActiveLocations(activePage.content ?? []);
                         setDamagedLocations(damagedPage.content ?? []);
-                        setQuarantineLocations(quarantinePage.content ?? []);
                     }
                 })
                 .catch((error: unknown) => {
                     if (!ignore) {
                         setActiveLocations([]);
                         setDamagedLocations([]);
-                        setQuarantineLocations([]);
                         setLocationError(getReturnErrorMessage(error));
                     }
                 })
@@ -309,7 +284,7 @@ export function ReturnInspectionModal({
 
             return Object.fromEntries(nextEntries);
         });
-    }, [isOpen, normalizedDamagedLocations, normalizedQuarantineLocations, remainingLines, restockLocations]);
+    }, [isOpen, normalizedDamagedLocations, remainingLines, restockLocations]);
 
     // Handle updating location when location lists finish loading
     useEffect(() => {
@@ -337,7 +312,7 @@ export function ReturnInspectionModal({
 
             return changed ? updated : current;
         });
-    }, [getValidLocations, isOpen, normalizedDamagedLocations, normalizedQuarantineLocations, restockLocations]);
+    }, [getValidLocations, isOpen, normalizedDamagedLocations, restockLocations]);
 
     const updateDraftLine = (
         returnItemId: string,
@@ -451,18 +426,6 @@ export function ReturnInspectionModal({
                 }
             }
 
-            if (draft.result === "QUARANTINE") {
-                if (normalizedQuarantineLocations.length === 0) {
-                    setFormError(`Chưa có vị trí kho cách ly trong hệ thống.`);
-                    return false;
-                }
-                const isValid = normalizedQuarantineLocations.some((l) => String(l.id) === draft.destinationLocationId);
-                if (!draft.destinationLocationId || !isValid) {
-                    setFormError(`Vui lòng chọn vị trí kho cách ly cho "${name}".`);
-                    return false;
-                }
-            }
-
         }
 
         setFormError(null);
@@ -477,7 +440,8 @@ export function ReturnInspectionModal({
 
     // Final Submission
     const handleConfirmSubmit = () => {
-        if (!validateBeforeReview()) {
+        if (isSubmitting) return;
+        if (!submissionRef.current && !validateBeforeReview()) {
             setStep(1);
             return;
         }
@@ -496,15 +460,16 @@ export function ReturnInspectionModal({
             };
         });
 
-        const commandId = crypto.randomUUID();
+        const request = submissionRef.current ?? { commandId: crypto.randomUUID(), lines: linesPayload };
+        submissionRef.current = request;
+        setHasUnresolvedSubmission(true);
         setIsSubmitting(true);
         setFormError(null);
 
-        submitReturnInventoryDisposition(returnItem.id, {
-            commandId,
-            lines: linesPayload
-        })
+        submitReturnInventoryDisposition(returnItem.id, request)
             .then((response) => {
+                submissionRef.current = null;
+                setHasUnresolvedSubmission(false);
                 if (response.status === "PROCESSED") {
                     onToast("Đã kiểm tra và cập nhật kho thành công.");
                     onSuccess();
@@ -514,6 +479,7 @@ export function ReturnInspectionModal({
                         ? getReturnErrorMessage(new Error(response.failureReason))
                         : "Không thể cập nhật kho.";
                     setFormError(failureMsg);
+                    setStep(1);
                     onRefresh?.();
                 } else {
                     onToast("Đã tạo lệnh kiểm định. Vào Kho > Hàng khách trả để xác nhận xử lý tồn kho.");
@@ -523,9 +489,17 @@ export function ReturnInspectionModal({
             })
             .catch((error: unknown) => {
                 const mappedError = getReturnErrorMessage(error);
-                setFormError(mappedError);
-                setStep(1);
-                onRefresh?.();
+                const rejected = error instanceof ApiError && error.status >= 400 && error.status < 500
+                    && ![408, 429, 499].includes(error.status);
+                if (rejected) {
+                    submissionRef.current = null;
+                    setHasUnresolvedSubmission(false);
+                    setFormError(mappedError);
+                    setStep(1);
+                    onRefresh?.();
+                } else {
+                    setFormError(`${mappedError} Chưa xác định được kết quả. Bấm xác nhận để gửi lại cùng yêu cầu.`);
+                }
             })
             .finally(() => {
                 setIsSubmitting(false);
@@ -819,11 +793,9 @@ export function ReturnInspectionModal({
                                                             htmlFor={`loc-${line.returnItemId}`}
                                                         >
                                                             <span>
-                                                                {draft.result === "RESTOCK"
-                                                                    ? "Vị trí kho bán được"
-                                                                    : draft.result === "DAMAGED"
-                                                                        ? "Vị trí kho hàng hỏng"
-                                                                        : "Vị trí kho cách ly"}
+                                                                 {draft.result === "RESTOCK"
+                                                                     ? "Vị trí kho bán được"
+                                                                     : "Vị trí kho hàng hỏng"}
                                                             </span>
                                                             {isLocationLoading ? (
                                                                 <span className={styles.fieldHelp}>
@@ -1056,7 +1028,7 @@ export function ReturnInspectionModal({
                         <>
                             <button
                                 className={styles.secondaryButton}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || hasUnresolvedSubmission}
                                 onClick={() => setStep(1)}
                                 type="button"
                             >

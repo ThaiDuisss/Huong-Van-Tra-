@@ -73,6 +73,13 @@ class TrainingDataRepository:
         )
 
     @staticmethod
+    def load_active_products(
+        db: Session,
+    ) -> tuple[ActiveProductRecord, ...]:
+        """Reusable read-only catalog projection for training/offline consumers."""
+        return TrainingDataRepository._load_active_products(db)
+
+    @staticmethod
     def _load_active_products(
         db: Session,
     ) -> tuple[ActiveProductRecord, ...]:

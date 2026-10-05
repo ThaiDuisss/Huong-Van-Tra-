@@ -14,7 +14,7 @@ export const customerReturnStatusLabels: Record<CustomerReturnStatus, string> = 
     DRAFT: "Nháp",
     PENDING_MANAGER_REVIEW: "Chờ Manager",
     PENDING_QC: "Chờ QC",
-    RECEIVED_IN_QUARANTINE: "Đã nhận vào khu cách ly",
+    RECEIVED_IN_QUARANTINE: "Đã nhận hàng",
     REJECTED: "Từ chối",
     REQUESTED: "Đã yêu cầu",
     RESTOCK_APPROVED: "Được nhập lại kho"

@@ -15,7 +15,7 @@ import styles from "./ReturnBusinessProgress.module.css";
 const dispositionLabels: Record<string, string> = {
     RESTOCK: "Đã nhập lại kho bán",
     DAMAGED: "Đã chuyển vào khu hàng hỏng",
-    QUARANTINE: "Đã chuyển vào khu cách ly",
+    QUARANTINE: "Đã chuyển vào khu cách ly (lịch sử)",
     WRITE_OFF: "Đã ghi nhận tiêu hủy / loại bỏ"
 };
 

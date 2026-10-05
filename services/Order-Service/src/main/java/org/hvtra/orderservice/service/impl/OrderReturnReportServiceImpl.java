@@ -240,7 +240,10 @@ public class OrderReturnReportServiceImpl implements OrderReturnReportService {
         BigDecimal total = quantities.values().stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        return List.of("RESTOCK", "DAMAGED", "QUARANTINE", "WRITE_OFF").stream()
+        return List.of("RESTOCK", "DAMAGED", "WRITE_OFF", "QUARANTINE").stream()
+                // Include the retired disposition only when the report contains historical quantities.
+                .filter(result -> !"QUARANTINE".equals(result)
+                        || defaultZero(quantities.get(result)).signum() > 0)
                 .map(result -> {
                     BigDecimal quantity = quantities.getOrDefault(result, BigDecimal.ZERO);
                     BigDecimal percentage = total.compareTo(BigDecimal.ZERO) == 0

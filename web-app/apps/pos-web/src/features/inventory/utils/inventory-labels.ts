@@ -5,6 +5,12 @@ import type {
     InventoryStatus,
     InventoryTransactionType
 } from "../types/inventory.types";
+import type { DisposalRequest } from "../types/quality.types";
+
+export function isCustomerReturnDisposal(request: DisposalRequest | null | undefined): boolean {
+    return request?.sourceType === "CUSTOMER_RETURN_INSPECTION"
+        || (!request?.sourceType && Boolean(request?.sourceInspectionId));
+}
 
 export const locationTypeLabels: Record<InventoryLocationType, string> = {
     WAREHOUSE: "Cửa hàng",

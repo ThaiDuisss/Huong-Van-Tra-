@@ -173,7 +173,7 @@ const mockCustomerReturnApi: CustomerReturnApi = {
     inspectCustomerReturn(input: InspectCustomerReturnInput) {
         const detail = findReturn(input.returnId);
         if (!["RECEIVED_IN_QUARANTINE", "PENDING_QC"].includes(detail.status)) {
-            return Promise.reject(new Error("Chỉ QC sau khi hàng vào CUSTOMER_RETURN_QUARANTINE."));
+            return Promise.reject(new Error("Chỉ kiểm định sau khi đã nhận hàng trả."));
         }
         input.lines.forEach((lineInput) => {
             const line = detail.lines.find((item) => item.id === lineInput.lineId);
@@ -234,8 +234,8 @@ const mockCustomerReturnApi: CustomerReturnApi = {
             line.receivedCondition = lineInput.receivedCondition;
         });
         detail.status = "RECEIVED_IN_QUARANTINE";
-        detail.receiving = { receivedAt: new Date().toISOString(), receivedBy: customerReturnActor("ADMIN"), note: input.note ?? "Hàng vào CUSTOMER_RETURN_QUARANTINE, chưa cộng available." };
-        detail.auditEvents = [customerReturnAudit("APPROVE", "ADMIN", "Nhận hàng thực tế vào CUSTOMER_RETURN_QUARANTINE."), ...detail.auditEvents];
+        detail.receiving = { receivedAt: new Date().toISOString(), receivedBy: customerReturnActor("ADMIN"), note: input.note ?? "Đã nhận hàng trả, chưa tăng tồn kho bán được." };
+        detail.auditEvents = [customerReturnAudit("APPROVE", "ADMIN", "Đã nhận hàng trả thực tế."), ...detail.auditEvents];
         return wait(copy(detail));
     },
 

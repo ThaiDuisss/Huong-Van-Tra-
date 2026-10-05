@@ -1,6 +1,7 @@
 import type { OrderDetailResponse, OrderItemResponse } from "../types/order.types";
 import type {
     CustomerReturnInspectionStatus,
+    CustomerReturnDisposition,
     CustomerReturnQcResult,
     CustomerReturnQcStatus,
     CustomerReturnQcSummaryResponse,
@@ -66,24 +67,22 @@ export const CUSTOMER_RETURN_QC_RESULT_LABELS: Record<
 > = {
     RESTOCK: "Nhập lại kho",
     DAMAGED: "Hàng hỏng",
-    QUARANTINE: "Cách ly",
+    QUARANTINE: "Cách ly (lịch sử)",
     WRITE_OFF: "Tiêu hủy"
 };
 
 export const CUSTOMER_RETURN_QC_RESULT_EFFECTS: Record<
-    CustomerReturnQcResult,
+    CustomerReturnDisposition,
     string
 > = {
     RESTOCK: "Sản phẩm sẽ được nhập lại kho bán được.",
     DAMAGED: "Sản phẩm sẽ được đưa vào khu hàng hỏng và không thể bán.",
-    QUARANTINE: "Sản phẩm sẽ được đưa vào khu cách ly và không thể bán.",
     WRITE_OFF: "Sản phẩm sẽ bị tiêu hủy và không tăng tồn kho."
 };
 
-export const CUSTOMER_RETURN_QC_RESULTS: CustomerReturnQcResult[] = [
+export const CUSTOMER_RETURN_QC_RESULTS: CustomerReturnDisposition[] = [
     "RESTOCK",
     "DAMAGED",
-    "QUARANTINE",
     "WRITE_OFF"
 ];
 
@@ -382,10 +381,9 @@ export function getReturnErrorMessage(error: unknown, fallbackMessage?: string) 
     }
 
     if (
-        message.includes("QUARANTINE destination must be a QUARANTINE location") ||
-        message.includes("Destination location must be QUARANTINE")
+        message.includes("QUARANTINE is no longer supported for new customer returns")
     ) {
-        return "Vui lòng chọn vị trí cách ly.";
+        return "Vui lòng chọn Hàng hỏng cho hàng trả không bán được.";
     }
 
     if (
@@ -469,8 +467,8 @@ export function canInspectCustomerReturn(data?: (CustomerReturnQuantitySource & 
 }) | null): boolean {
     if (!data) return false;
     if (data.status !== "RECEIVED") return false;
-    if (Boolean(data.physicalDone)) return false;
-    if (Boolean(data.isPendingDisposition)) return false;
+    if (data.physicalDone) return false;
+    if (data.isPendingDisposition) return false;
 
     const { remaining } = resolveCustomerReturnQuantities(data);
     return remaining > 0;
