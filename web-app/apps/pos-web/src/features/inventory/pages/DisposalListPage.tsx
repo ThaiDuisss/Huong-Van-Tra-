@@ -29,7 +29,7 @@ const STATUS_TABS: CustomerReturnStatusTab[] = [
 
 export function DisposalListPage() {
     const { hasAnyRole } = useAuthorization();
-    const canApprove = hasAnyRole(["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
+    const canApprove = hasAnyRole(["ADMIN", "MANAGER"]);
     const [searchTerm, setSearchTerm] = useState("");
     const keyword = useDebouncedValue(searchTerm.trim(), 300);
     const [status, setStatus] = useState<DisposalListQuery["status"]>("ALL");

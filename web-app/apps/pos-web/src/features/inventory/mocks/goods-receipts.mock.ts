@@ -247,7 +247,7 @@ function detail(
                 ? [audit("SUBMIT", "INVENTORY_STAFF", 70 - index, "Submit phiếu nhập.")]
                 : []),
             ...(qcResult !== "PENDING"
-                ? [audit("APPROVE", "QC_STAFF", 48 - index, "Hoạt tất kiểm tra QC.")]
+                ? [audit("QC", "QC_STAFF", 48 - index, "Kiểm tra chất lượng QC hoàn tất.")]
                 : []),
             ...(costStatus !== "PENDING"
                 ? [audit("APPROVE", "ACCOUNTANT", 30 - index, "Xác nhận giá nhập.")]

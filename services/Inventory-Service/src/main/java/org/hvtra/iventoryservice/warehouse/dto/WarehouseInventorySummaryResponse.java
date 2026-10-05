@@ -9,6 +9,7 @@ public record WarehouseInventorySummaryResponse(
     String productName,
     String categoryName,
     String unitName,
+    String unitSymbol,
     BigDecimal sellingPrice,
     BigDecimal totalQuantity,
     BigDecimal shelfQuantity,

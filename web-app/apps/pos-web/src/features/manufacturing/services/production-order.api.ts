@@ -2,12 +2,14 @@ import { apiClient } from "../../../api/api-client";
 import type { PageResult } from "../../product/types/product.types";
 import type {
     ProductionOrder,
-    ProductionOrderCompleteInput,
     ProductionOrderCreateInput,
     ProductionOrderQuery
 } from "../types/production-order.types";
 
 export const productionOrderApi = {
+    getStatuses() {
+        return apiClient.get<string[]>("/inventory/production-orders/statuses");
+    },
     list(query: ProductionOrderQuery = {}) {
         return apiClient.get<PageResult<ProductionOrder>>("/inventory/production-orders", {
             query: {
@@ -34,17 +36,8 @@ export const productionOrderApi = {
     approve(id: string) {
         return apiClient.post<ProductionOrder>(`/inventory/production-orders/${encodeURIComponent(id)}/approve`);
     },
-    release(id: string) {
-        return apiClient.post<ProductionOrder>(`/inventory/production-orders/${encodeURIComponent(id)}/release`);
-    },
-    start(id: string) {
-        return apiClient.post<ProductionOrder>(`/inventory/production-orders/${encodeURIComponent(id)}/start`);
-    },
-    complete(id: string, input: ProductionOrderCompleteInput) {
-        return apiClient.post<ProductionOrder, ProductionOrderCompleteInput>(
-            `/inventory/production-orders/${encodeURIComponent(id)}/complete`,
-            input
-        );
+    reject(id: string) {
+        return apiClient.post<ProductionOrder>(`/inventory/production-orders/${encodeURIComponent(id)}/reject`);
     },
     cancel(id: string, reason: string) {
         return apiClient.post<ProductionOrder, { reason: string }>(

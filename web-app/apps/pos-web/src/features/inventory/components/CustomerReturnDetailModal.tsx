@@ -304,7 +304,7 @@ export function CustomerReturnDetailModal({
                                     type="button"
                                 >
                                     <Plus aria-hidden="true" size={16} />
-                                    {currentReturn.qcStatus === "PARTIAL" ? "Tiếp tục kiểm định" : "Kiểm định hàng"}
+                                    {qcProgressStatus.status === "PARTIAL" ? "Tiếp tục kiểm định" : "Kiểm định hàng"}
                                 </button>
                             ) : null}
                         </div>
