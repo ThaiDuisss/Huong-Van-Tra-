@@ -34,6 +34,18 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     CANCELLED: "bg-red-100 text-red-700"
 };
 
+function createStatusOptions(
+    statuses: string[]
+): Array<{ label: string; value: "ALL" | ProductionOrderApiStatus }> {
+    return [
+        { label: "Tất cả trạng thái", value: "ALL" as const },
+        ...statuses.map((s) => ({
+            label: STATUS_LABEL_MAP[s as ProductionOrderApiStatus] || s,
+            value: s as ProductionOrderApiStatus
+        }))
+    ] as Array<{ label: string; value: "ALL" | ProductionOrderApiStatus }>;
+}
+
 function StatusPill({ status }: { status: ProductionOrderApiStatus }) {
     return (
         <span className={`inline-flex h-7 items-center rounded-full px-2.5 text-xs font-bold ${STATUS_BADGE_CLASS[status] || 'bg-gray-50 text-gray-700'}`}>
@@ -60,7 +72,7 @@ export function ProductionOrderListPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [statusOptions, setStatusOptions] = useState<Array<{ label: string; value: "ALL" | string }>>([
+    const [statusOptions, setStatusOptions] = useState<Array<{ label: string; value: "ALL" | ProductionOrderApiStatus }>>([
         { label: "Tất cả trạng thái", value: "ALL" }
     ]);
 
@@ -68,14 +80,7 @@ export function ProductionOrderListPage() {
         productionOrderApi
             .getStatuses()
             .then((statuses) => {
-                const options: Array<{ label: string; value: "ALL" | string }> = [
-                    { label: "Tất cả trạng thái", value: "ALL" },
-                    ...statuses.map((s) => ({
-                        label: STATUS_LABEL_MAP[s] || s,
-                        value: s
-                    }))
-                ];
-                setStatusOptions(options);
+                setStatusOptions(createStatusOptions(statuses));
             })
             .catch(() => {
                 console.error("Failed to load statuses from API");

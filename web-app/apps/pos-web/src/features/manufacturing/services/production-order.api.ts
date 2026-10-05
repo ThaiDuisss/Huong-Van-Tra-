@@ -2,7 +2,6 @@ import { apiClient } from "../../../api/api-client";
 import type { PageResult } from "../../product/types/product.types";
 import type {
     ProductionOrder,
-    ProductionOrderCompleteInput,
     ProductionOrderCreateInput,
     ProductionOrderQuery
 } from "../types/production-order.types";

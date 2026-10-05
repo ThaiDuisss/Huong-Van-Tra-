@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.warehouse.service.impl;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.warehouse.dto.LocationInventoryDetailResponse;
 import org.hvtra.iventoryservice.warehouse.dto.WarehouseInventorySummaryResponse;
 import org.hvtra.iventoryservice.warehouse.service.WarehouseInventoryService;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 public class WarehouseInventoryServiceImpl implements WarehouseInventoryService {
 
     private final org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository balanceRepository;
+    private final CatalogClient catalogClient;
 
     @Override
     public Page<WarehouseInventorySummaryResponse> getProductInventorySummary(
@@ -59,8 +61,24 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
         Map<UUID, List<InventoryBalance>> groupedByItem = balances.stream()
             .collect(Collectors.groupingBy(b -> b.getInventoryItem().getId()));
 
+        // Collect all unit IDs to fetch in batch
+        var unitIds = groupedByItem.values().stream()
+            .map(balances1 -> balances1.get(0).getInventoryItem().getUnitId())
+            .filter(uuid -> uuid != null)
+            .distinct()
+            .collect(Collectors.toList());
+
+        // Fetch all units in batch
+        Map<UUID, CatalogClient.UnitResponse> unitMap = new java.util.HashMap<>();
+        if (!unitIds.isEmpty()) {
+            var units = catalogClient.getUnitsBatch(unitIds);
+            for (var unit : units) {
+                unitMap.put(unit.id(), unit);
+            }
+        }
+
         List<WarehouseInventorySummaryResponse> summaries = groupedByItem.entrySet().stream()
-            .map(entry -> createSummary(entry.getValue()))
+            .map(entry -> createSummary(entry.getValue(), unitMap))
             .collect(Collectors.toList());
 
         // Manual pagination
@@ -78,16 +96,21 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
 
         var balances = balanceRepository.findAll(spec);
 
+        final String unitSymbol = getUnitSymbolFromBalance(balances);
+
         // Group by location
         Map<UUID, List<InventoryBalance>> groupedByLocation = balances.stream()
             .collect(Collectors.groupingBy(b -> b.getLocation().getId()));
 
         return groupedByLocation.entrySet().stream()
-            .map(entry -> createLocationDetail(entry.getValue()))
+            .map(entry -> createLocationDetail(entry.getValue(), unitSymbol))
             .collect(Collectors.toList());
     }
 
-    private WarehouseInventorySummaryResponse createSummary(List<InventoryBalance> balances) {
+    private WarehouseInventorySummaryResponse createSummary(
+        List<InventoryBalance> balances,
+        Map<UUID, CatalogClient.UnitResponse> unitMap
+    ) {
         var item = balances.get(0).getInventoryItem();
 
         BigDecimal totalOnHand = BigDecimal.ZERO;
@@ -111,6 +134,11 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
             : BigDecimal.ZERO;
         String stockStatus = getStockStatus(totalOnHand, reorderPoint);
 
+        String unitSymbol = null;
+        if (item.getUnitId() != null && unitMap.containsKey(item.getUnitId())) {
+            unitSymbol = unitMap.get(item.getUnitId()).symbol();
+        }
+
         return new WarehouseInventorySummaryResponse(
             item.getId().toString(),
             item.getReferenceCode(),
@@ -118,6 +146,7 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
             "-",
             "-",
             "-",
+            unitSymbol,
             BigDecimal.ZERO,
             totalOnHand,
             shelfQuantity,
@@ -127,7 +156,10 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
         );
     }
 
-    private LocationInventoryDetailResponse createLocationDetail(List<InventoryBalance> balances) {
+    private LocationInventoryDetailResponse createLocationDetail(
+        List<InventoryBalance> balances,
+        String unitSymbol
+    ) {
         var location = balances.get(0).getLocation();
 
         BigDecimal totalOnHand = BigDecimal.ZERO;
@@ -151,12 +183,27 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
             location.getId(),
             location.getName(),
             location.getType().name(),
+            unitSymbol,
             totalOnHand,
             totalReserved,
             totalBlocked,
             available,
             batchCount
         );
+    }
+
+    private String getUnitSymbolFromBalance(List<InventoryBalance> balances) {
+        if (!balances.isEmpty()) {
+            var item = balances.get(0).getInventoryItem();
+            if (item.getUnitId() != null) {
+                try {
+                    return catalogClient.getUnit(item.getUnitId()).symbol();
+                } catch (Exception e) {
+                    // If unit fetch fails, continue without unitSymbol
+                }
+            }
+        }
+        return null;
     }
 
     private String getStockStatus(BigDecimal quantity, BigDecimal reorderPoint) {
