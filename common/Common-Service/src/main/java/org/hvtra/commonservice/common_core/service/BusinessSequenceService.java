@@ -1,9 +1,14 @@
-package org.hvtra.iventoryservice.shared.sequence;
+package org.hvtra.commonservice.common_core.service;
 
-import org.hvtra.iventoryservice.domain.entity.BusinessSequence;
+import org.hvtra.commonservice.common_core.entity.BusinessSequence;
+import org.hvtra.commonservice.common_core.repository.BusinessSequenceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Service quản lý bộ đếm dùng chung (business_sequences).
+ * Cung cấp các method sinh mã tăng dần an toàn trong môi trường đa luồng.
+ */
 @Service
 public class BusinessSequenceService {
 
