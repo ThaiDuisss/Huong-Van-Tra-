@@ -7,6 +7,7 @@ public record LocationInventoryDetailResponse(
     UUID locationId,
     String locationName,
     String locationType, // SHELF, WAREHOUSE, etc
+    String unitSymbol,
     BigDecimal quantityOnHand,
     BigDecimal quantityReserved,
     BigDecimal quantityBlocked,

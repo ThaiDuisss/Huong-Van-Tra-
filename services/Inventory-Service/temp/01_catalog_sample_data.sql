@@ -7,22 +7,8 @@
 
 USE catalog_db;
 
--- -----------------------------------------------------------------------------
--- 0. XOA DU LIEU CU TRUOC KHI KHOI TAO LAI (CLEAR DATA)
--- -----------------------------------------------------------------------------
-SET FOREIGN_KEY_CHECKS = 0;
-
-DELETE FROM barcodes;
-DELETE FROM bom_items;
-DELETE FROM price_list_items;
-DELETE FROM price_lists;
-DELETE FROM product_variants;
-DELETE FROM products;
-DELETE FROM categories;
-DELETE FROM ingredients;
-DELETE FROM units;
-
-SET FOREIGN_KEY_CHECKS = 1;
+-- Add sample rows without clearing existing Catalog data. Order-Service keeps
+-- product_variant_id snapshots, so deleting variants would orphan old orders.
 
 -- -----------------------------------------------------------------------------
 -- 1. BANG DON VI TINH (UNITS)

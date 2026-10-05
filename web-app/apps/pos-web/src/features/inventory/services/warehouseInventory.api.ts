@@ -7,6 +7,7 @@ export interface WarehouseInventorySummary {
     productName: string;
     categoryName: string;
     unitName: string;
+    unitSymbol: string;
     sellingPrice: number;
     totalQuantity: number;
     shelfQuantity: number;

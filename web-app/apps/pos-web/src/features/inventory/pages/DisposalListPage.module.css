@@ -1,0 +1,39 @@
+.table {
+  min-width: 840px;
+}
+
+.table th:nth-child(1),
+.table td:nth-child(1) {
+  width: 27%;
+}
+
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  width: 18%;
+}
+
+.table th:nth-child(3),
+.table td:nth-child(3) {
+  width: 23%;
+}
+
+.table th:nth-child(4),
+.table td:nth-child(4) {
+  width: 20%;
+}
+
+.table th:nth-child(5),
+.table td:nth-child(5) {
+  width: 12%;
+  white-space: nowrap;
+}
+
+.reference {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailAction {
+  text-decoration: none;
+}

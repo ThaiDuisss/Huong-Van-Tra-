@@ -42,7 +42,7 @@ public interface InventoryDashboardRepository extends JpaRepository<InventoryBal
                     SELECT COUNT(*)
                     FROM inventory_documents d
                     WHERE d.is_deleted = false
-                      AND d.status IN ('DRAFT', 'PENDING_APPROVAL', 'RECEIVING', 'QC_PENDING')
+                      AND d.status IN ('DRAFT', 'PENDING_APPROVAL', 'RECEIVING', 'PENDING_EXCEPTION_APPROVAL')
                       AND (:branchId IS NULL OR d.branch_id = :branchId)
                       AND (:locationId IS NULL OR d.location_id = :locationId)
                 ), 0) AS pendingDocumentsCount

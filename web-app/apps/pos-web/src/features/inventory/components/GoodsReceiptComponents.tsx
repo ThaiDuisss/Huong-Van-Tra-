@@ -1,5 +1,4 @@
 import {
-    AlertTriangle,
     CheckCircle2,
     Clock3,
     Eye,
@@ -46,28 +45,18 @@ const statusTone: Record<GoodsReceiptStatus, string> = {
     APPROVED: "border-blue-200 bg-blue-50 text-blue-700",
     REJECTED: "border-red-200 bg-red-50 text-red-700",
     RECEIVING: "border-cyan-200 bg-cyan-50 text-cyan-700",
-    QC_PENDING: "border-purple-200 bg-purple-50 text-purple-700",
-    QC_COMPLETED: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    PENDING_EXCEPTION_APPROVAL: "border-orange-200 bg-orange-50 text-orange-700",
     POSTED: "border-green-200 bg-green-50 text-green-700",
-    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600",
-    AWAITING_COST: "border-blue-200 bg-blue-50 text-blue-700",
-    AWAITING_QC: "border-amber-200 bg-amber-50 text-amber-700",
-    PARTIALLY_PASSED: "border-orange-200 bg-orange-50 text-orange-700",
-    READY_TO_POST: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    SUBMITTED: "border-amber-200 bg-amber-50 text-amber-700"
+    CANCELLED: "border-slate-200 bg-slate-50 text-slate-600"
 };
 
 function statusIcon(status: GoodsReceiptStatus) {
-    if (status === "POSTED" || status === "READY_TO_POST") {
+    if (status === "POSTED") {
         return <CheckCircle2 size={14} aria-hidden="true" />;
     }
 
     if (status === "REJECTED" || status === "CANCELLED") {
         return <XCircle size={14} aria-hidden="true" />;
-    }
-
-    if (status === "PARTIALLY_PASSED") {
-        return <AlertTriangle size={14} aria-hidden="true" />;
     }
 
     return <Clock3 size={14} aria-hidden="true" />;
@@ -150,10 +139,9 @@ export function GoodsReceiptLifecycleStepper({
         { key: "DRAFT", label: "1. Bản nháp", sub: "Lập danh sách đặt" },
         { key: "PENDING_APPROVAL", label: "2. Chờ duyệt", sub: "Quản lý xem xét" },
         { key: "APPROVED", label: "3. Đã duyệt", sub: "Chờ NCC giao" },
-        { key: "RECEIVING", label: "4. Tiếp nhận", sub: "Kiểm đếm thực tế" },
-        { key: "QC_PENDING", label: "5. Kiểm định QC", sub: "Kiểm tra & Tạo lô" },
-        { key: "QC_COMPLETED", label: "6. Chờ ghi sổ", sub: "Sẵn sàng nhập kho" },
-        { key: "POSTED", label: "7. Đã nhập kho", sub: "Tồn kho đã tăng" }
+        { key: "RECEIVING", label: "4. Tiếp nhận", sub: "Kiểm đếm & QC" },
+        { key: "PENDING_EXCEPTION_APPROVAL", label: "5. Chờ duyệt ngoại lệ", sub: "Quản lý xem xét ngoại lệ" },
+        { key: "POSTED", label: "6. Đã nhập kho", sub: "Tồn kho đã tăng" }
     ];
 
     const orderMap: Record<string, number> = {
@@ -161,12 +149,8 @@ export function GoodsReceiptLifecycleStepper({
         PENDING_APPROVAL: 1,
         APPROVED: 2,
         RECEIVING: 3,
-        QC_PENDING: 4,
-        AWAITING_QC: 4,
-        PARTIALLY_PASSED: 4,
-        QC_COMPLETED: 5,
-        READY_TO_POST: 5,
-        POSTED: 6
+        PENDING_EXCEPTION_APPROVAL: 4,
+        POSTED: 5
     };
 
     const isRejected = status === "REJECTED";

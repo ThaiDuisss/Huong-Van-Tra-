@@ -10,15 +10,9 @@ export type GoodsReceiptStatus =
     | "APPROVED"
     | "REJECTED"
     | "RECEIVING"
-    | "QC_PENDING"
-    | "QC_COMPLETED"
+    | "PENDING_EXCEPTION_APPROVAL"
     | "POSTED"
-    | "CANCELLED"
-    | "SUBMITTED"
-    | "AWAITING_QC"
-    | "PARTIALLY_PASSED"
-    | "AWAITING_COST"
-    | "READY_TO_POST";
+    | "CANCELLED";
 
 export type QcResult =
     | "PENDING"
@@ -176,11 +170,16 @@ export interface GoodsReceiptListQuery {
 export interface GoodsReceiptDashboardSummary {
     draft: number;
     pendingApproval: number;
+    approved: number;
     receiving: number;
+    pendingExceptionApproval: number;
     awaitingQc: number;
     awaitingCost: number;
     readyToPost: number;
+    posted: number;
     postedToday: number;
+    rejected: number;
+    cancelled: number;
     total: number;
 }
 
@@ -330,6 +329,11 @@ export interface GoodsReceiptApi {
         items: Array<{ lineId: string; receivedQuantity: number; note?: string }>
     ): Promise<GoodsReceiptDetail>;
     performGoodsReceiptQc(
+        input: GoodsReceiptQcInput
+    ): Promise<GoodsReceiptDetail>;
+    completeGoodsReceiptInspection(
+        receiptId: string,
+        receiveItems: Array<{ lineId: string; receivedQuantity: number; note?: string }>,
         input: GoodsReceiptQcInput
     ): Promise<GoodsReceiptDetail>;
     saveGoodsReceiptCost(

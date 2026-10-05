@@ -48,7 +48,7 @@ export function BatchDetailDrawer({
         <>
             {/* Drawer - Slide in từ phải */}
             <div
-                className={`fixed right-0 top-0 bottom-0 w-[50vw] max-w-[50%] bg-white border-l border-gray-200 shadow-lg flex flex-col transition-all duration-300 transform z-50 overflow-y-auto ${
+                className={`fixed right-0 top-0 bottom-0 w-[65vw] max-w-[65%] bg-white border-l border-gray-200 shadow-lg flex flex-col transition-all duration-300 transform z-50 overflow-y-auto ${
                     open ? "translate-x-0" : "translate-x-full"
                 }`}
             >

@@ -34,12 +34,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AvailabilityQueryRepositoryTest {
 
     private static final List<ProductionOrderStatus> OPEN_PRODUCTION = List.of(
-            ProductionOrderStatus.PENDING_APPROVAL, ProductionOrderStatus.APPROVED,
-            ProductionOrderStatus.RELEASED, ProductionOrderStatus.IN_PROGRESS);
+            ProductionOrderStatus.PENDING_APPROVAL);
     private static final List<InventoryDocumentStatus> OPEN_RECEIPT = List.of(
             InventoryDocumentStatus.PENDING_APPROVAL, InventoryDocumentStatus.APPROVED,
-            InventoryDocumentStatus.RECEIVING, InventoryDocumentStatus.QC_PENDING,
-            InventoryDocumentStatus.QC_COMPLETED);
+            InventoryDocumentStatus.RECEIVING, InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL);
 
     @Autowired EntityManager entityManager;
     @Autowired AvailabilityQueryRepository queries;
@@ -49,12 +47,15 @@ class AvailabilityQueryRepositoryTest {
         UUID variantId = UUID.randomUUID();
         UUID otherVariantId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        production("LSX-OPEN", variantId, ProductionOrderStatus.IN_PROGRESS, null, null);
-        production("LSX-DRAFT", variantId, ProductionOrderStatus.DRAFT, orderId, null);
-        production("LSX-DONE", variantId, ProductionOrderStatus.COMPLETED, orderId,
+        InventoryItem variant = product(variantId);
+        InventoryItem otherVariant = product(otherVariantId);
+        production("LSX-OPEN", variant, ProductionOrderStatus.PENDING_APPROVAL, null, null);
+        production("LSX-DRAFT", variant, ProductionOrderStatus.DRAFT, orderId, null);
+        production("LSX-DONE", variant, ProductionOrderStatus.APPROVED, orderId,
                 Instant.parse("2026-09-20T00:00:00Z"));
-        production("LSX-CANCELLED", variantId, ProductionOrderStatus.CANCELLED, orderId, null);
-        production("LSX-OTHER-DONE", otherVariantId, ProductionOrderStatus.COMPLETED, null,
+        production("LSX-CANCELLED", variant, ProductionOrderStatus.CANCELLED, orderId, null);
+        production("LSX-REJECTED", variant, ProductionOrderStatus.REJECTED, orderId, null);
+        production("LSX-OTHER-DONE", otherVariant, ProductionOrderStatus.APPROVED, null,
                 Instant.parse("2026-09-25T00:00:00Z"));
         entityManager.flush();
         entityManager.clear();
@@ -63,7 +64,7 @@ class AvailabilityQueryRepositoryTest {
                 .extracting(ProductionOrder::getOrderCode).containsExactly("LSX-OPEN");
         assertThat(queries.findRecentCompletedByVariant(variantId, PageRequest.of(0, 20)))
                 .extracting(ProductionOrder::getOrderCode).containsExactly("LSX-DONE");
-        // Lệnh đã hoàn tất hoặc đã hủy không còn giữ chỗ cho đơn.
+        // Lệnh đã hoàn tất, bị từ chối hoặc đã hủy không còn giữ chỗ cho đơn.
         assertThat(queries.findBySourceOrderAndVariant(orderId, variantId))
                 .extracting(ProductionOrder::getOrderCode).containsExactly("LSX-DRAFT");
     }
@@ -100,42 +101,30 @@ class AvailabilityQueryRepositoryTest {
         assertThat(queries.averageSupplyLeadSeconds(InventoryItemType.PRODUCT_VARIANT)).isNull();
     }
 
-    /** Chạy đúng các câu UPDATE trong file migration để chắc phần điền số liệu cũ đúng cú pháp và đúng kết quả. */
+    /**
+     * Chạy câu UPDATE điền thời gian nhập hàng trong file migration để chắc nó đúng cú pháp và đúng kết quả.
+     * Câu điền thời gian sản xuất dựa trên cột completed_at đã bị bỏ ở migration sau nên không chạy lại được ở đây.
+     */
     @Test
-    void migrationBackfillStoresAverageLeadTimePerItem() throws Exception {
-        UUID variantId = UUID.randomUUID();
-        InventoryItem product = new InventoryItem();
-        product.setReferenceId(variantId);
-        product.setItemType(InventoryItemType.PRODUCT_VARIANT);
-        product.setStatus(InventoryStatus.ACTIVE);
-        product.setReorderPoint(0);
-        entityManager.persist(product);
+    void migrationBackfillStoresAverageReceiptLeadTimePerMaterial() throws Exception {
         InventoryItem tea = material();
         InventoryItem sugar = material();
-        production("LSX-1", variantId, ProductionOrderStatus.COMPLETED, null, null);
-        production("LSX-2", variantId, ProductionOrderStatus.COMPLETED, null, null);
-        production("LSX-3", variantId, ProductionOrderStatus.IN_PROGRESS, null, null);
         receipt("PN-1", InventoryDocumentStatus.POSTED, null, tea, "5");
         receipt("PN-2", InventoryDocumentStatus.APPROVED, null, tea, "5");
         entityManager.flush();
-        // created_at do Hibernate tự gán nên đặt mốc thời gian bằng SQL: 2 lệnh mất 1 và 3 ngày, phiếu nhập mất 2 ngày.
-        timestamps("production_orders", "order_code", "LSX-1", "completed_at", 1);
-        timestamps("production_orders", "order_code", "LSX-2", "completed_at", 3);
+        // created_at do Hibernate tự gán nên đặt mốc thời gian bằng SQL: phiếu nhập mất 2 ngày.
         timestamps("inventory_documents", "document_code", "PN-1", "posted_at", 2);
 
         String migration = java.nio.file.Files.readString(java.nio.file.Path.of(
                 "src/main/resources/db/migration/V261004100000__add_supply_lead_time_to_inventory_items.sql"));
         String withoutComments = migration.replaceAll("(?m)^--.*$", "");
         for (String statement : withoutComments.split(";")) {
-            if (statement.trim().toUpperCase().startsWith("UPDATE")) {
+            if (statement.trim().toUpperCase().startsWith("UPDATE") && !statement.contains("production_orders")) {
                 entityManager.createNativeQuery(statement).executeUpdate();
             }
         }
         entityManager.clear();
 
-        InventoryItem storedProduct = entityManager.find(InventoryItem.class, product.getId());
-        assertThat(storedProduct.getAvgSupplyLeadSeconds()).isEqualTo(2 * 86_400L);
-        assertThat(storedProduct.getSupplyLeadSamples()).isEqualTo(2);
         InventoryItem storedTea = entityManager.find(InventoryItem.class, tea.getId());
         assertThat(storedTea.getAvgSupplyLeadSeconds()).isEqualTo(2 * 86_400L);
         assertThat(storedTea.getSupplyLeadSamples()).isEqualTo(1);
@@ -153,17 +142,27 @@ class AvailabilityQueryRepositoryTest {
                 .executeUpdate();
     }
 
-    private void production(String code, UUID variantId, ProductionOrderStatus status, UUID sourceOrderId,
-                            Instant completedAt) {
+    private void production(String code, InventoryItem variant, ProductionOrderStatus status, UUID sourceOrderId,
+                            Instant approvedAt) {
         ProductionOrder order = new ProductionOrder();
         order.setOrderCode(code);
-        order.setProductVariantId(variantId);
+        order.setProductVariant(variant);
         order.setPlannedQuantity(BigDecimal.TEN);
         order.setLocationId(UUID.randomUUID());
         order.setStatus(status);
         order.setSourceOrderId(sourceOrderId);
-        order.setCompletedAt(completedAt);
+        order.setApprovedAt(approvedAt);
         entityManager.persist(order);
+    }
+
+    private InventoryItem product(UUID variantId) {
+        InventoryItem item = new InventoryItem();
+        item.setReferenceId(variantId);
+        item.setItemType(InventoryItemType.PRODUCT_VARIANT);
+        item.setStatus(InventoryStatus.ACTIVE);
+        item.setReorderPoint(0);
+        entityManager.persist(item);
+        return item;
     }
 
     private InventoryItem material() {

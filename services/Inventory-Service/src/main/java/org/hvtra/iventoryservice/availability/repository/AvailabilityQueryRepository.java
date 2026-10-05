@@ -21,20 +21,23 @@ public interface AvailabilityQueryRepository extends Repository<ProductionOrder,
     /** Lệnh sản xuất còn mở của một mặt hàng, cũ trước. */
     @Query("""
             select o from ProductionOrder o
-            where o.productVariantId = :variantId and o.isDeleted = false and o.status in :statuses
+            where o.productVariant.referenceId = :variantId and o.isDeleted = false and o.status in :statuses
             order by o.createdAt asc
             """)
     List<ProductionOrder> findOpenProductionOrders(
             @Param("variantId") UUID variantId,
             @Param("statuses") Collection<ProductionOrderStatus> statuses);
 
-    /** Lệnh sản xuất đã hoàn tất gần nhất của một mặt hàng (để tính lại thời gian sản xuất trung bình). */
+    /**
+     * Lệnh sản xuất đã hoàn tất gần nhất của một mặt hàng (để tính lại thời gian sản xuất trung bình).
+     * Lệnh được duyệt là hoàn tất: thành phẩm nhập kho ngay lúc duyệt.
+     */
     @Query("""
             select o from ProductionOrder o
-            where o.productVariantId = :variantId and o.isDeleted = false
-              and o.status = org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus.COMPLETED
-              and o.completedAt is not null
-            order by o.completedAt desc
+            where o.productVariant.referenceId = :variantId and o.isDeleted = false
+              and o.status = org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus.APPROVED
+              and o.approvedAt is not null
+            order by o.approvedAt desc
             """)
     List<ProductionOrder> findRecentCompletedByVariant(@Param("variantId") UUID variantId, Pageable pageable);
 
@@ -54,9 +57,10 @@ public interface AvailabilityQueryRepository extends Repository<ProductionOrder,
      */
     @Query("""
             select o from ProductionOrder o
-            where o.sourceOrderId = :orderId and o.productVariantId = :variantId and o.isDeleted = false
+            where o.sourceOrderId = :orderId and o.productVariant.referenceId = :variantId and o.isDeleted = false
               and o.status not in (org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus.CANCELLED,
-                                   org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus.COMPLETED)
+                                   org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus.REJECTED,
+                                   org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus.APPROVED)
             order by o.createdAt asc
             """)
     List<ProductionOrder> findBySourceOrderAndVariant(@Param("orderId") UUID orderId, @Param("variantId") UUID variantId);

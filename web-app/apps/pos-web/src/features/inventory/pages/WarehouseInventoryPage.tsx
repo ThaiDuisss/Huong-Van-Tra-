@@ -77,9 +77,9 @@ export function WarehouseInventoryPage() {
     };
 
     return (
-        <section className="grid gap-5 p-5">
+        <section className="grid gap-5">
             {/* Header */}
-            <header className="flex flex-col gap-1">
+            <header className="flex flex-col gap-1 px-4 py-3">
                 <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
                     Tồn kho kho tổng
                 </h1>
@@ -89,7 +89,7 @@ export function WarehouseInventoryPage() {
             </header>
 
             {/* Search & Filter Card */}
-            <div className="rounded-2xl bg-white p-4 shadow-pos-card">
+            <div className={`rounded-2xl bg-white p-4 shadow-pos-card transition-all duration-300 ${drawerOpen ? "opacity-50 pointer-events-none" : ""}`}>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">
                     <div className="relative flex-1">
                         <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -120,11 +120,12 @@ export function WarehouseInventoryPage() {
             </div>
 
             {/* Table Card */}
-            <div className="rounded-2xl bg-white shadow-pos-card overflow-hidden">
+            <div className={`rounded-2xl bg-white shadow-pos-card overflow-hidden transition-all duration-300 ${drawerOpen ? "opacity-50 pointer-events-none" : ""}`}>
                 <ProductInventorySummaryTable
                     products={products}
                     loading={loading}
                     onLocationSelect={handleLocationSelect}
+                    isDetailPanelOpen={drawerOpen}
                 />
 
                 {/* Pagination */}

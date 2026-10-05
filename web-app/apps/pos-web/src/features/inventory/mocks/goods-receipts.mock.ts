@@ -247,7 +247,7 @@ function detail(
                 ? [audit("SUBMIT", "INVENTORY_STAFF", 70 - index, "Submit phiếu nhập.")]
                 : []),
             ...(qcResult !== "PENDING"
-                ? [audit("APPROVE", "QC_STAFF", 48 - index, "Hoạt tất kiểm tra QC.")]
+                ? [audit("QC", "QC_STAFF", 48 - index, "Kiểm tra chất lượng QC hoàn tất.")]
                 : []),
             ...(costStatus !== "PENDING"
                 ? [audit("APPROVE", "ACCOUNTANT", 30 - index, "Xác nhận giá nhập.")]
@@ -321,13 +321,13 @@ function detail(
 
 export const goodsReceiptMockData: GoodsReceiptDetail[] = [
     detail(0, "DRAFT", "PENDING", "PENDING"),
-    detail(1, "AWAITING_QC", "PENDING", "PENDING"),
-    detail(2, "PARTIALLY_PASSED", "PARTIALLY_PASSED", "PENDING"),
-    detail(3, "AWAITING_COST", "PASSED", "PENDING"),
+    detail(1, "PENDING_APPROVAL", "PENDING", "PENDING"),
+    detail(2, "APPROVED", "PASSED", "PENDING"),
+    detail(3, "RECEIVING", "PASSED", "PENDING"),
     detail(4, "POSTED", "PASSED", "FINAL"),
     detail(5, "REJECTED", "FAILED", "PENDING"),
-    detail(6, "READY_TO_POST", "PASSED", "FINAL"),
-    detail(7, "SUBMITTED", "PENDING", "PENDING")
+    detail(6, "PENDING_EXCEPTION_APPROVAL", "PASSED", "FINAL"),
+    detail(7, "CANCELLED", "PENDING", "PENDING")
 ];
 
 export const goodsReceiptMockOptions = {

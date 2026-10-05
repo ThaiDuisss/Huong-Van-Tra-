@@ -73,13 +73,18 @@ export function GoodsReceiptListPage() {
     const [showFilters, setShowFilters] = useState(false);
     const [result, setResult] = useState<GoodsReceiptListResult | null>(null);
     const [summaryCounts, setSummaryCounts] = useState<GoodsReceiptDashboardSummary>({
+        approved: 0,
         awaitingCost: 0,
         awaitingQc: 0,
+        cancelled: 0,
         draft: 0,
         pendingApproval: 0,
+        pendingExceptionApproval: 0,
+        posted: 0,
         postedToday: 0,
         readyToPost: 0,
         receiving: 0,
+        rejected: 0,
         total: 0
     });
     const [loading, setLoading] = useState(true);
@@ -181,13 +186,12 @@ export function GoodsReceiptListPage() {
         { label: `Tất cả (${summaryCounts.total ?? 0})`, value: "ALL" },
         { label: `Bản nháp (${summaryCounts.draft ?? 0})`, value: "DRAFT" },
         { label: `Chờ duyệt (${summaryCounts.pendingApproval ?? 0})`, value: "PENDING_APPROVAL" },
-        { label: "Đã duyệt (Chờ giao) (0)", value: "APPROVED" },
+        { label: `Đã duyệt (Chờ giao) (${summaryCounts.approved ?? 0})`, value: "APPROVED" },
         { label: `Đang tiếp nhận (${summaryCounts.receiving ?? 0})`, value: "RECEIVING" },
-        { label: `Chờ QC (${summaryCounts.awaitingQc ?? 0})`, value: "QC_PENDING" },
-        { label: `Chờ ghi sổ (${summaryCounts.readyToPost ?? 0})`, value: "QC_COMPLETED" },
+        { label: `Chờ duyệt ngoại lệ (${summaryCounts.pendingExceptionApproval ?? 0})`, value: "PENDING_EXCEPTION_APPROVAL" },
         { label: `Đã nhập kho (${summaryCounts.postedToday ?? 0})`, value: "POSTED" },
-        { label: "Từ chối (0)", value: "REJECTED" },
-        { label: "Đã hủy (0)", value: "CANCELLED" }
+        { label: `Từ chối (${summaryCounts.rejected ?? 0})`, value: "REJECTED" },
+        { label: `Đã hủy (${summaryCounts.cancelled ?? 0})`, value: "CANCELLED" }
     ];
 
     // Xuất toàn bộ phiếu khớp bộ lọc hiện tại qua API riêng, không chỉ trang đang xem

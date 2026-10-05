@@ -7,6 +7,7 @@ export interface WarehouseBatchResponse {
     manufactureDate?: string;
     expiryDate?: string;
     status: string;
+    unitSymbol: string;
     quantityOnHand: number;
     quantityReserved: number;
     quantityBlocked: number;

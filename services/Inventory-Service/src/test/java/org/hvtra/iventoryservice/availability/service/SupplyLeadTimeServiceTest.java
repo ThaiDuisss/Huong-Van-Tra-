@@ -102,9 +102,11 @@ class SupplyLeadTimeServiceTest {
 
     private ProductionOrder production(UUID variantId, Duration took) {
         ProductionOrder order = new ProductionOrder();
-        order.setProductVariantId(variantId);
+        InventoryItem variant = new InventoryItem();
+        variant.setReferenceId(variantId);
+        order.setProductVariant(variant);
         order.setCreatedAt(START);
-        order.setCompletedAt(took == null ? null : START.plus(took));
+        order.setApprovedAt(took == null ? null : START.plus(took));
         return order;
     }
 

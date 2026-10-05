@@ -64,13 +64,12 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class AvailabilityEstimateService {
 
+    // Lệnh APPROVED đã nhập thành phẩm vào tồn nên không còn là hàng "đang sản xuất".
     static final List<ProductionOrderStatus> OPEN_PRODUCTION_STATUSES = List.of(
-            ProductionOrderStatus.PENDING_APPROVAL, ProductionOrderStatus.APPROVED,
-            ProductionOrderStatus.RELEASED, ProductionOrderStatus.IN_PROGRESS);
+            ProductionOrderStatus.PENDING_APPROVAL);
     static final List<InventoryDocumentStatus> OPEN_RECEIPT_STATUSES = List.of(
             InventoryDocumentStatus.PENDING_APPROVAL, InventoryDocumentStatus.APPROVED,
-            InventoryDocumentStatus.RECEIVING, InventoryDocumentStatus.QC_PENDING,
-            InventoryDocumentStatus.QC_COMPLETED);
+            InventoryDocumentStatus.RECEIVING, InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL);
 
     private static final ZoneId STORE_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -419,8 +418,7 @@ public class AvailabilityEstimateService {
 
     private BigDecimal incomingQuantity(InventoryDocumentLine line, InventoryDocumentStatus status) {
         return switch (status) {
-            case QC_COMPLETED -> zero(line.getAcceptedQuantity());
-            case QC_PENDING -> zero(line.getReceivedQuantity());
+            case PENDING_EXCEPTION_APPROVAL -> zero(line.getAcceptedQuantity());
             default -> zero(line.getOrderedQuantity());
         };
     }

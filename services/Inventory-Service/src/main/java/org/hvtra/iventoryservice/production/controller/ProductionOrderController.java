@@ -3,7 +3,6 @@ package org.hvtra.iventoryservice.production.controller;
 import jakarta.validation.Valid;
 import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
 import org.hvtra.iventoryservice.production.dto.request.CancelProductionOrderRequest;
-import org.hvtra.iventoryservice.production.dto.request.CompleteProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.request.CreateProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.response.ProductionOrderResponse;
 import org.hvtra.iventoryservice.production.service.ProductionOrderService;
@@ -15,6 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -25,6 +26,13 @@ public class ProductionOrderController {
 
     public ProductionOrderController(ProductionOrderService service) {
         this.service = service;
+    }
+
+    @GetMapping("/statuses")
+    public ResponseEntity<List<String>> getAvailableStatuses() {
+        return ResponseEntity.ok(Arrays.stream(ProductionOrderStatus.values())
+                .map(Enum::name)
+                .toList());
     }
 
     @GetMapping
@@ -57,20 +65,9 @@ public class ProductionOrderController {
         return ResponseEntity.ok(service.approve(id));
     }
 
-    @PostMapping("/{id}/release")
-    public ResponseEntity<ProductionOrderResponse> release(@PathVariable UUID id) {
-        return ResponseEntity.ok(service.release(id));
-    }
-
-    @PostMapping("/{id}/start")
-    public ResponseEntity<ProductionOrderResponse> start(@PathVariable UUID id) {
-        return ResponseEntity.ok(service.start(id));
-    }
-
-    @PostMapping("/{id}/complete")
-    public ResponseEntity<ProductionOrderResponse> complete(
-            @PathVariable UUID id, @Valid @RequestBody CompleteProductionOrderRequest request) {
-        return ResponseEntity.ok(service.complete(id, request));
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ProductionOrderResponse> reject(@PathVariable UUID id) {
+        return ResponseEntity.ok(service.reject(id));
     }
 
     @PostMapping("/{id}/cancel")

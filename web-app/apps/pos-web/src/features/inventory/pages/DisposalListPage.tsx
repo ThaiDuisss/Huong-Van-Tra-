@@ -1,27 +1,49 @@
-import { AlertTriangle, CheckCircle2, PackageX } from "lucide-react";
-import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
+import { useAuthorization } from "../../../auth/useAuthorization";
+import { ConfirmDialog } from "../../product/components/ConfirmDialog";
+import orderStyles from "../../order/pages/OrderListPage.module.css";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { DisposalTable } from "../components/QualityComponents";
+import {
+    ListFilterBar,
+    ListMessage,
+    ListPagination,
+    type CustomerReturnStatusTab
+} from "../components/CustomerReturnListUi";
 import { qualityApi } from "../services/quality.api";
-import type { DisposalListQuery, DisposalListResult } from "../types/quality.types";
-import { formatVietnamNumber } from "../utils/inventory-format";
+import type {
+    DisposalListQuery,
+    DisposalListResult,
+    DisposalRequest,
+    DisposalStatusCounts
+} from "../types/quality.types";
+import styles from "./CustomerReturnListPage.module.css";
 
-const initialQuery: DisposalListQuery = {
-    code: "",
-    locationId: "ALL",
-    page: 0,
-    reason: "",
-    returnCode: "",
-    size: 10,
-    status: "ALL"
-};
+const PAGE_SIZE = 10;
+const STATUS_TABS: CustomerReturnStatusTab[] = [
+    { key: "ALL", label: "Tất cả" },
+    { key: "PENDING_APPROVAL", label: "Chờ duyệt" },
+    { key: "APPROVED", label: "Đã duyệt" }
+];
 
 export function DisposalListPage() {
-    const [query, setQuery] = useState<DisposalListQuery>(initialQuery);
+    const { hasAnyRole } = useAuthorization();
+    const canApprove = hasAnyRole(["ADMIN", "MANAGER"]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const keyword = useDebouncedValue(searchTerm.trim(), 300);
+    const [status, setStatus] = useState<DisposalListQuery["status"]>("ALL");
+    const [page, setPage] = useState(0);
+    const [reloadKey, setReloadKey] = useState(0);
     const [result, setResult] = useState<DisposalListResult | null>(null);
+    const [statusCounts, setStatusCounts] = useState<DisposalStatusCounts | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [countsError, setCountsError] = useState("");
+    const [notice, setNotice] = useState("");
+    const [confirmRequest, setConfirmRequest] = useState<DisposalRequest | null>(null);
+    const [approvalError, setApprovalError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         let active = true;
@@ -29,9 +51,13 @@ export function DisposalListPage() {
             if (!active) return;
             setLoading(true);
             setError("");
-            void qualityApi.listDisposalRequests(query)
+            void qualityApi.listDisposalRequests({ keyword, page, size: PAGE_SIZE, status })
                 .then((response) => {
-                    if (active) setResult(response);
+                    if (!active) return;
+                    setResult(response);
+                    if (page > 0 && page >= response.totalPages) {
+                        setPage(Math.max(0, response.totalPages - 1));
+                    }
                 })
                 .catch((loadError: unknown) => {
                     if (active) {
@@ -45,76 +71,138 @@ export function DisposalListPage() {
                 });
         });
         return () => { active = false; };
-    }, [query]);
+    }, [keyword, page, reloadKey, status]);
 
-    const disposals = useMemo(() => result?.content ?? [], [result?.content]);
-    const pending = disposals.filter((item) => item.status === "PENDING_APPROVAL").length;
-    const approved = disposals.filter((item) => item.status === "APPROVED").length;
-    const quantity = disposals.reduce(
-        (sum, item) => sum + item.lines.reduce((lineSum, line) => lineSum + line.quantity, 0),
-        0
-    );
+    useEffect(() => {
+        let active = true;
+        queueMicrotask(() => {
+            if (!active) return;
+            setStatusCounts(null);
+            setCountsError("");
+            void qualityApi.getDisposalStatusCounts(keyword || undefined)
+                .then((counts) => {
+                    if (active) setStatusCounts(counts);
+                })
+                .catch(() => {
+                    if (active) setCountsError("Không thể tải số lượng yêu cầu theo trạng thái.");
+                });
+        });
+        return () => { active = false; };
+    }, [keyword, reloadKey]);
+
+    async function approveRequest() {
+        if (!confirmRequest || submitting || !canApprove) return;
+        setSubmitting(true);
+        setApprovalError("");
+        try {
+            await qualityApi.approveDisposalRequest({ disposalId: confirmRequest.id });
+            setNotice(`Đã phê duyệt yêu cầu tiêu hủy ${confirmRequest.code}.`);
+            setConfirmRequest(null);
+            setReloadKey((key) => key + 1);
+        } catch (approveError) {
+            setApprovalError(approveError instanceof Error
+                ? approveError.message
+                : "Không thể phê duyệt yêu cầu tiêu hủy.");
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    const hasFilter = Boolean(searchTerm.trim()) || status !== "ALL";
 
     return (
-        <section className="grid gap-4">
-            <header>
-                <p className="text-xs font-black uppercase text-[#159734]">Quản lý / Kho</p>
-                <h1 className="text-2xl font-black text-[#172317]">Phê duyệt tiêu hủy hàng trả</h1>
-                <p className="text-sm font-semibold text-[#697684]">
-                    Yêu cầu được tạo tự động khi phiếu kiểm định có dòng tiêu hủy. Duyệt sẽ ghi nhận WRITE_OFF đúng một lần.
-                </p>
-            </header>
-
-            <section className="grid gap-3 md:grid-cols-3">
-                <Summary icon={<AlertTriangle size={18} />} label="Chờ duyệt trong trang" value={formatVietnamNumber(pending)} />
-                <Summary icon={<CheckCircle2 size={18} />} label="Đã duyệt trong trang" value={formatVietnamNumber(approved)} />
-                <Summary icon={<PackageX size={18} />} label="Tổng số lượng trong trang" value={formatVietnamNumber(quantity)} />
-            </section>
-
-            <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card md:grid-cols-3">
-                <label className="grid gap-1 text-xs font-black text-[#536078]">
-                    Mã yêu cầu
-                    <input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(event) => setQuery({ ...query, code: event.currentTarget.value, page: 0 })} value={query.code} />
-                </label>
-                <label className="grid gap-1 text-xs font-black text-[#536078]">
-                    Mã trả hàng
-                    <input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(event) => setQuery({ ...query, page: 0, returnCode: event.currentTarget.value })} value={query.returnCode ?? ""} />
-                </label>
-                <label className="grid gap-1 text-xs font-black text-[#536078]">
-                    Trạng thái
-                    <select className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(event) => setQuery({ ...query, page: 0, status: event.currentTarget.value as DisposalListQuery["status"] })} value={query.status}>
-                        <option value="ALL">Tất cả</option>
-                        <option value="PENDING_APPROVAL">Chờ duyệt</option>
-                        <option value="APPROVED">Đã duyệt và ghi nhận</option>
-                    </select>
-                </label>
-            </section>
-
-            {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}
-            {error ? <div className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : null}
-            {!loading && !error && disposals.length === 0 ? <div className="rounded-xl bg-white p-8 text-center text-sm font-bold text-[#697684]">Chưa có yêu cầu tiêu hủy phù hợp bộ lọc.</div> : null}
-            {!loading && !error && disposals.length > 0 ? <DisposalTable disposals={disposals} /> : null}
-            {result ? (
-                <footer className="flex items-center justify-between rounded-xl bg-white p-3 text-sm font-bold text-[#536078]">
-                    <span>Trang {result.page + 1}/{Math.max(result.totalPages, 1)} · {formatVietnamNumber(result.totalElements)} yêu cầu</span>
-                    <div className="flex gap-2">
-                        <button className="h-9 rounded-lg border border-[#d8eadc] px-3 font-black" disabled={query.page === 0} onClick={() => setQuery({ ...query, page: Math.max(0, query.page - 1) })} type="button">Trước</button>
-                        <button className="h-9 rounded-lg border border-[#d8eadc] px-3 font-black" disabled={query.page + 1 >= result.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })} type="button">Sau</button>
+        <section className={styles.page}>
+            <div className={styles.content}>
+                <header className={orderStyles.header}>
+                    <div className={orderStyles.title}>
+                        <h1>Phê duyệt tiêu hủy hàng trả</h1>
+                        <p>Theo dõi và phê duyệt các yêu cầu tiêu hủy hàng trả.</p>
                     </div>
-                </footer>
+                </header>
+
+                <section className={styles.section}>
+                    <ListFilterBar
+                        activeStatus={status}
+                        onSearchChange={(value) => {
+                            setSearchTerm(value);
+                            setPage(0);
+                        }}
+                        onStatusChange={(value) => {
+                            setStatus(value as DisposalListQuery["status"]);
+                            setPage(0);
+                        }}
+                        searchPlaceholder="Tìm mã yêu cầu hoặc mã phiếu trả"
+                        searchTerm={searchTerm}
+                        statusCounts={statusCounts ?? undefined}
+                        statusTabs={STATUS_TABS}
+                    />
+
+                    {notice ? <div className={styles.notice}>{notice}</div> : null}
+                    {countsError ? <div className={styles.error}>{countsError}</div> : null}
+                    {error ? <div className={styles.error}>{error}</div> : null}
+
+                    <div className={orderStyles.tableCard}>
+                        <div className={orderStyles.tableWrap}>
+                            {loading || error || !result?.content.length ? (
+                                <table className={orderStyles.orderTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Mã yêu cầu</th>
+                                            <th>Trạng thái</th>
+                                            <th>Phiếu trả</th>
+                                            <th>Phiếu kiểm định</th>
+                                            <th>Thao tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {loading ? <ListMessage colSpan={5} message="Đang tải danh sách yêu cầu tiêu hủy..." /> : null}
+                                        {!loading && error ? <ListMessage colSpan={5} message="Không thể hiển thị yêu cầu tiêu hủy." /> : null}
+                                        {!loading && !error && !result?.content.length ? (
+                                            <ListMessage
+                                                colSpan={5}
+                                                message={hasFilter
+                                                    ? "Chưa có yêu cầu tiêu hủy phù hợp bộ lọc."
+                                                    : "Chưa có yêu cầu tiêu hủy phù hợp."}
+                                            />
+                                        ) : null}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <DisposalTable
+                                    canApprove={canApprove}
+                                    disposals={result.content}
+                                    onApprove={(request) => {
+                                        setApprovalError("");
+                                        setConfirmRequest(request);
+                                    }}
+                                />
+                            )}
+                        </div>
+                        {!loading && !error ? (
+                            <ListPagination
+                                itemLabel="yêu cầu"
+                                onPageChange={setPage}
+                                page={page}
+                                pageSize={PAGE_SIZE}
+                                totalItems={result?.totalElements ?? 0}
+                                totalPages={result?.totalPages ?? 0}
+                            />
+                        ) : null}
+                    </div>
+                </section>
+            </div>
+
+            {confirmRequest ? (
+                <ConfirmDialog
+                    confirmLabel="Xác nhận phê duyệt"
+                    description={`Bạn xác nhận phê duyệt yêu cầu tiêu hủy ${confirmRequest.code}?`}
+                    error={approvalError}
+                    onCancel={() => setConfirmRequest(null)}
+                    onConfirm={() => void approveRequest()}
+                    submitting={submitting}
+                    title="Xác nhận phê duyệt tiêu hủy"
+                />
             ) : null}
         </section>
-    );
-}
-
-function Summary({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-    return (
-        <article className="grid gap-2 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-            <div className="flex items-center gap-2 text-sm font-black text-[#315f3c]">
-                <span className="grid size-8 place-items-center rounded-lg bg-[#edf8ef] text-[#159734]">{icon}</span>
-                {label}
-            </div>
-            <strong className="text-2xl font-black text-[#172317]">{value}</strong>
-        </article>
     );
 }

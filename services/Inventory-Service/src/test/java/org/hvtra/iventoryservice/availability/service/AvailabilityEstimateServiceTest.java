@@ -116,7 +116,7 @@ class AvailabilityEstimateServiceTest {
         stock("0", "2");
         // Thời gian sản xuất trung bình lưu sẵn trên mặt hàng: 3 ngày.
         product.setAvgSupplyLeadSeconds(Duration.ofDays(3).getSeconds());
-        ProductionOrder running = production("LSX-001", "20", ProductionOrderStatus.IN_PROGRESS,
+        ProductionOrder running = production("LSX-001", "20", ProductionOrderStatus.PENDING_APPROVAL,
                 NOW.minus(Duration.ofDays(1)), null);
         when(queries.findOpenProductionOrders(eq(variantId), anyCollection())).thenReturn(List.of(running));
 
@@ -137,7 +137,7 @@ class AvailabilityEstimateServiceTest {
     @Test
     void productionOrderReservedForAnotherOrder_isNotCounted() {
         stock("0", "0");
-        ProductionOrder other = production("LSX-002", "20", ProductionOrderStatus.APPROVED, NOW, UUID.randomUUID());
+        ProductionOrder other = production("LSX-002", "20", ProductionOrderStatus.PENDING_APPROVAL, NOW, UUID.randomUUID());
         when(queries.findOpenProductionOrders(eq(variantId), anyCollection())).thenReturn(List.of(other));
         materialStock("5");
 
@@ -150,7 +150,7 @@ class AvailabilityEstimateServiceTest {
     @Test
     void overdueProductionOrder_neverPromisesADateInThePast() {
         stock("0", "0");
-        ProductionOrder late = production("LSX-003", "10", ProductionOrderStatus.RELEASED,
+        ProductionOrder late = production("LSX-003", "10", ProductionOrderStatus.PENDING_APPROVAL,
                 NOW.minus(Duration.ofDays(9)), null);
         when(queries.findOpenProductionOrders(eq(variantId), anyCollection())).thenReturn(List.of(late));
 
@@ -292,7 +292,7 @@ class AvailabilityEstimateServiceTest {
     @Test
     void partOfMissingCoveredByRunningOrder_restProducedFromMaterials() {
         stock("0", "0");
-        ProductionOrder running = production("LSX-004", "4", ProductionOrderStatus.IN_PROGRESS, NOW, null);
+        ProductionOrder running = production("LSX-004", "4", ProductionOrderStatus.PENDING_APPROVAL, NOW, null);
         when(queries.findOpenProductionOrders(eq(variantId), anyCollection())).thenReturn(List.of(running));
         materialStock("0.6"); // còn phải làm 6 hộp → cần 0,6
 
@@ -360,7 +360,7 @@ class AvailabilityEstimateServiceTest {
                                        UUID sourceOrderId) {
         ProductionOrder order = new ProductionOrder();
         order.setOrderCode(code);
-        order.setProductVariantId(variantId);
+        order.setProductVariant(product);
         order.setPlannedQuantity(new BigDecimal(planned));
         order.setStatus(status);
         order.setCreatedAt(createdAt);

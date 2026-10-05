@@ -46,10 +46,10 @@ public class SupplyLeadTimeService {
     @Transactional
     public void onProductionCompleted(ProductionOrder order) {
         try {
-            UUID variantId = order.getProductVariantId();
+            UUID variantId = order.getProductVariant().getReferenceId();
             itemRepository.findByReferenceIdAndItemType(variantId, InventoryItemType.PRODUCT_VARIANT)
                     .ifPresent(item -> store(item, queries.findRecentCompletedByVariant(variantId, sample()),
-                            ProductionOrder::getCreatedAt, ProductionOrder::getCompletedAt));
+                            ProductionOrder::getCreatedAt, ProductionOrder::getApprovedAt));
         } catch (RuntimeException exception) {
             log.warn("Cannot refresh production lead time. productionOrder={}, reason={}",
                     order.getOrderCode(), exception.getMessage());

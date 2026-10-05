@@ -207,7 +207,7 @@ class BackorderPreparationServiceTest {
 
     private ProductionOrderResponse response(UUID id, String code) {
         return new ProductionOrderResponse(id, code, ProductionOrderStatus.DRAFT, variantId, BigDecimal.TEN, null,
-                warehouse.getId(), null, null, null, null, List.of(), null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+                warehouse.getId(), null, List.of(), null, null, null, null, null, null, null, null, null, null,
+                null, null);
     }
 }
