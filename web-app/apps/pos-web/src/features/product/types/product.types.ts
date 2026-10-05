@@ -171,6 +171,43 @@ export interface PriceListInput {
     }>;
 }
 
+export type PriceChangeType =
+    | "CREATED"
+    | "UPDATED"
+    | "REMOVED"
+    | "STATUS_CHANGED";
+
+export interface PriceChangeHistory {
+    id: EntityId;
+    priceListId: EntityId;
+    priceListName: string;
+    /** null khi changeType = STATUS_CHANGED */
+    productVariantId: EntityId | null;
+    sku: string | null;
+    variantName: string | null;
+    changeType: PriceChangeType;
+    oldPrice: number | null;
+    newPrice: number | null;
+    /** newPrice - oldPrice; null khi thiếu một trong hai */
+    priceDifference: number | null;
+    oldStatus: CatalogStatus | null;
+    newStatus: CatalogStatus | null;
+    changedBy: string | null;
+    changedByName: string | null;
+    /** ISO-8601 UTC */
+    changedAt: string;
+}
+
+export interface PriceChangeHistoryQuery extends QueryParams {
+    page?: number;
+    size?: number;
+    variantId?: string;
+    changeType?: PriceChangeType;
+    /** ISO-8601 có múi giờ, vd 2026-10-01T00:00:00Z */
+    from?: string;
+    to?: string;
+}
+
 export interface Ingredient {
     id: EntityId;
     ingredientCode: string;

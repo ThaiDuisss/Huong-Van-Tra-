@@ -151,6 +151,45 @@ export interface ChangeTierStatusRequest {
     status: CustomerTierStatus;
 }
 
+export interface ChangeCustomerStatusRequest {
+    status: CustomerStatus;
+}
+
+export type CustomerImportRowStatus = "VALID" | "IMPORTED" | "INVALID" | "FAILED";
+
+export interface CustomerImportRow {
+    rowNumber: number;
+    customerCode?: string | null;
+    fullName?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    dateOfBirth?: string | null;
+    customerType?: string | null;
+}
+
+export interface CustomerImportRequest {
+    rows: CustomerImportRow[];
+    dryRun: boolean;
+}
+
+export interface CustomerImportRowResult {
+    rowNumber: number;
+    status: CustomerImportRowStatus;
+    message: string | null;
+    customerId: string | null;
+    customerCode: string | null;
+    fullName: string | null;
+    phone: string | null;
+}
+
+export interface CustomerImportResponse {
+    dryRun: boolean;
+    totalRows: number;
+    successCount: number;
+    failedCount: number;
+    results: CustomerImportRowResult[];
+}
+
 export interface CustomerQuery extends QueryParams {
     q?: string;
     status?: CustomerStatus;

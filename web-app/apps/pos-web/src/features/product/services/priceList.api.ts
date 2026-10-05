@@ -2,6 +2,8 @@ import { apiClient } from "../../../api/api-client";
 import type {
     CatalogQuery,
     PageResult,
+    PriceChangeHistory,
+    PriceChangeHistoryQuery,
     PriceList,
     PriceListInput
 } from "../types/product.types";
@@ -44,6 +46,21 @@ export const priceListApi = {
         return apiClient.patch<PriceList, { status: PriceList["status"] }>(
             `/catalog/price-lists/${encodeURIComponent(id)}/status`,
             { status }
+        );
+    },
+    history(id: string, query: PriceChangeHistoryQuery = {}) {
+        return apiClient.get<PageResult<PriceChangeHistory>>(
+            `/catalog/price-lists/${encodeURIComponent(id)}/history`,
+            {
+                query: {
+                    page: query.page,
+                    size: query.size,
+                    variantId: query.variantId,
+                    changeType: query.changeType,
+                    from: query.from,
+                    to: query.to
+                }
+            }
         );
     },
     // Backend cập nhật toàn bộ items qua PUT /catalog/price-lists/{id}.

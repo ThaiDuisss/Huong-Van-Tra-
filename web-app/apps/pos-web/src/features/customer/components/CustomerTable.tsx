@@ -5,6 +5,8 @@ import {
     MoreHorizontal,
     Pencil,
     Search,
+    ShieldCheck,
+    ShieldOff,
     Trash2
 } from "lucide-react";
 import {
@@ -20,6 +22,11 @@ import type {
     PageResponse
 } from "../types/customer.types";
 import {
+    CUSTOMER_STATUS_CLASS_NAMES,
+    CUSTOMER_STATUS_LABELS
+} from "../constants/customer-list.constants";
+import {
+    customerStatusActionLabel,
     customerTierBadgeStyle,
     formatCustomerRelativeDate
 } from "../utils/customer-list.utils";
@@ -32,6 +39,7 @@ interface Props {
     onCustomerClick: (customer: CustomerResponse) => void;
     onCustomerEdit: (customer: CustomerResponse) => void;
     onCustomerDelete: (customer: CustomerResponse) => void;
+    onCustomerStatusChange: (customer: CustomerResponse) => void;
 }
 
 export function CustomerTable({
@@ -41,7 +49,8 @@ export function CustomerTable({
     onPageChange,
     onCustomerClick,
     onCustomerEdit,
-    onCustomerDelete
+    onCustomerDelete,
+    onCustomerStatusChange
 }: Props) {
     const totalCustomers = result?.totalElements ?? customers.length;
     const currentPage = (result?.page ?? 0) + 1;
@@ -85,6 +94,7 @@ export function CustomerTable({
                                     onClick={() => onCustomerClick(customer)}
                                     onDelete={() => onCustomerDelete(customer)}
                                     onEdit={() => onCustomerEdit(customer)}
+                                    onStatusChange={() => onCustomerStatusChange(customer)}
                                 />
                             ))}
                     </tbody>
@@ -102,6 +112,7 @@ export function CustomerTable({
                             onClick={() => onCustomerClick(customer)}
                             onDelete={() => onCustomerDelete(customer)}
                             onEdit={() => onCustomerEdit(customer)}
+                            onStatusChange={() => onCustomerStatusChange(customer)}
                         />
                     ))}
             </div>
@@ -234,13 +245,15 @@ function CustomerTableRow({
     rowIndex,
     onClick,
     onDelete,
-    onEdit
+    onEdit,
+    onStatusChange
 }: {
     customer: CustomerResponse;
     rowIndex: number;
     onClick: () => void;
     onDelete: () => void;
     onEdit: () => void;
+    onStatusChange: () => void;
 }) {
     return (
         <tr
@@ -272,6 +285,7 @@ function CustomerTableRow({
                     onDelete={onDelete}
                     onEdit={onEdit}
                     onOpen={onClick}
+                    onStatusChange={onStatusChange}
                 />
             </TableCell>
         </tr>
@@ -282,12 +296,14 @@ function CustomerActionMenu({
     customer,
     onDelete,
     onEdit,
-    onOpen
+    onOpen,
+    onStatusChange
 }: {
     customer: CustomerResponse;
     onDelete: () => void;
     onEdit: () => void;
     onOpen: () => void;
+    onStatusChange: () => void;
 }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
@@ -335,7 +351,7 @@ function CustomerActionMenu({
         const rect = menuButtonRef.current?.getBoundingClientRect();
         if (!rect) return;
         const menuWidth = 192;
-        const menuHeight = 132;
+        const menuHeight = 166;
         const gap = 4;
         const spaceBelow = window.innerHeight - rect.bottom;
         const top =
@@ -380,6 +396,11 @@ function CustomerActionMenu({
                     >
                         <ActionItem icon={Eye} label="Xem chi tiết" onClick={() => runAction(onOpen)} />
                         <ActionItem icon={Pencil} label="Sửa thông tin" onClick={() => runAction(onEdit)} />
+                        <ActionItem
+                            icon={customer.status === "ACTIVE" ? ShieldOff : ShieldCheck}
+                            label={customerStatusActionLabel(customer.status)}
+                            onClick={() => runAction(onStatusChange)}
+                        />
                         <ActionItem danger icon={Trash2} label="Xóa khách hàng" onClick={() => runAction(onDelete)} />
                     </div>,
                     document.body
@@ -392,12 +413,14 @@ function MobileCustomerCard({
     customer,
     onClick,
     onDelete,
-    onEdit
+    onEdit,
+    onStatusChange
 }: {
     customer: CustomerResponse;
     onClick: () => void;
     onDelete: () => void;
     onEdit: () => void;
+    onStatusChange: () => void;
 }) {
     return (
         <article className="rounded-lg border border-[#e1e8e5] bg-white p-3">
@@ -421,6 +444,7 @@ function MobileCustomerCard({
                     onDelete={onDelete}
                     onEdit={onEdit}
                     onOpen={onClick}
+                    onStatusChange={onStatusChange}
                 />
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -484,15 +508,11 @@ function TierBadge({ customer }: { customer: CustomerResponse }) {
 }
 
 function StatusBadge({ status }: { status: CustomerResponse["status"] }) {
-    const locked = status === "SUSPENDED" || status === "INACTIVE";
     return (
         <span
-            className={`inline-flex h-[24px] items-center rounded-full px-2 text-[11px] font-black ${locked
-                ? "bg-[#fff0ed] text-[#c4422e]"
-                : "bg-[#e9f8ed] text-[#159734]"
-                }`}
+            className={`inline-flex h-[24px] items-center rounded-full px-2 text-[11px] font-black ${CUSTOMER_STATUS_CLASS_NAMES[status]}`}
         >
-            {locked ? "Đã khóa" : "Hoạt động"}
+            {CUSTOMER_STATUS_LABELS[status]}
         </span>
     );
 }

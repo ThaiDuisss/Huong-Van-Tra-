@@ -7,7 +7,12 @@ import { ProductionOrderCreatePage as ManufacturingProductionOrderCreatePage } f
 import { ProductionOrderDetailPage as ManufacturingProductionOrderDetailPage } from "../features/manufacturing/pages/ProductionOrderDetailPage";
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
+import { AccountListPage } from "../features/account/pages/AccountListPage";
 import { ActionLogPage } from "../features/action-log/pages/ActionLogPage";
+import {
+  TopSalesStaffReportPage,
+  TopSellingProductsReportPage,
+} from "../features/report";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
@@ -93,17 +98,22 @@ import { WarehouseInventoryPage } from "../features/inventory/pages/WarehouseInv
 import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
 import {
+  ACCOUNT_ROLES,
   ACTION_LOG_ROLES,
   BACKOFFICE_ROLES,
+  CUSTOMER_ROLES,
   INVENTORY_OPERATION_ROLES,
   INVENTORY_ROLES,
   MANUFACTURING_ROLES,
   MARKETING_ROLES,
   ORDER_ROLES,
   POS_WORKSPACE_ROLES,
+  PRICE_LIST_ROLES,
   PRODUCT_ROLES,
   REPORT_ROLES,
   SELLABLE_CONFIG_ROLES,
+  STATISTIC_REPORT_ROLES,
+  VOUCHER_ROLES,
   getDefaultRouteForRoles,
   type AppRole,
 } from "../auth/role-utils";
@@ -228,6 +238,9 @@ export function AppRouter() {
         <Route element={<RoleGate roles={ACTION_LOG_ROLES} />}>
           <Route path="action-logs" element={<ActionLogPage />} />
         </Route>
+        <Route element={<RoleGate roles={ACCOUNT_ROLES} />}>
+          <Route path="accounts" element={<AccountListPage />} />
+        </Route>
         <Route element={<RoleGate roles={SELLABLE_CONFIG_ROLES} />}>
           <Route path="sellable-config" element={<SellableConfigPage />} />
         </Route>
@@ -244,6 +257,10 @@ export function AppRouter() {
         <Route element={<RoleGate roles={REPORT_ROLES} />}>
           <Route path="reports/returns" element={<ReturnRefundReportPage />} />
         </Route>
+        <Route element={<RoleGate roles={STATISTIC_REPORT_ROLES} />}>
+          <Route path="reports/top-sales-staff" element={<TopSalesStaffReportPage />} />
+          <Route path="reports/top-selling-products" element={<TopSellingProductsReportPage />} />
+        </Route>
         <Route element={<RoleGate roles={PRODUCT_ROLES} />}>
           <Route path="categories" element={<CategoryListPage />} />
           <Route path="units" element={<UnitListPage />} />
@@ -255,7 +272,8 @@ export function AppRouter() {
           <Route path="product-variants" element={<ProductVariantListPage />} />
           <Route path="product-variants/import" element={<ProductVariantImportPage />} />
           <Route path="product-variants/:id" element={<ProductVariantDetailPage />} />
-
+        </Route>
+        <Route element={<RoleGate roles={PRICE_LIST_ROLES} />}>
           <Route path="price-lists" element={<PriceListPage />} />
         </Route>
 
@@ -319,7 +337,7 @@ export function AppRouter() {
           />
           <Route path="inventory/:workspaceId" element={<InventoryManagementPage />} />
         </Route>
-        <Route element={<RoleGate roles={["ADMIN", "MANAGER"]} />}>
+        <Route element={<RoleGate roles={CUSTOMER_ROLES} />}>
           <Route path="customers" element={<CustomerListPage />} />
           <Route path="customers/groups" element={<CustomerListPage />} />
           <Route path="customers/tiers" element={<CustomerTierManagementPage />} />
@@ -328,6 +346,8 @@ export function AppRouter() {
           <Route path="marketing/events" element={<DiscountProgramListPage />} />
           <Route path="marketing/discount-programs" element={<PromotionPage />} />
           <Route path="marketing/discount-programs/:programId" element={<PromotionDetailPage />} />
+        </Route>
+        <Route element={<RoleGate roles={VOUCHER_ROLES} />}>
           <Route path="marketing/discount-codes" element={<CouponListPage />} />
           <Route path="marketing/discount-history" element={<CouponUsageListPage />} />
         </Route>

@@ -3,6 +3,7 @@ package org.hvtra.customer.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
+import org.hvtra.customer.dto.request.ChangeCustomerStatusRequest;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
@@ -76,10 +77,6 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public CustomerResponse create(CustomerRequest request) {
-        if (customerRepository.existsByPhone(request.phone())){
-            throw new RuntimeException();
-        }
-
         CustomerRequest normalizedRequest = normalizeCreateRequest(request);
         ensureUniqueFields(normalizedRequest, null);
         Customer customer = new Customer();
@@ -182,6 +179,15 @@ public class CustomerServiceImpl implements CustomerService {
         return customerMapper.toResponse(customerRepository.save(customer));
     }
 
+    // Đổi trạng thái khách hàng (kích hoạt / ngừng hoạt động / tạm khóa) mà không xóa dữ liệu.
+    @Override
+    @Transactional
+    public CustomerResponse changeStatus(UUID id, ChangeCustomerStatusRequest request) {
+        Customer customer = findCustomer(id);
+        customer.setStatus(request.status());
+        return customerMapper.toResponse(customerRepository.save(customer));
+    }
+
     // Xóa mềm khách hàng.
     @Override
     @Transactional
@@ -260,7 +266,7 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
-    // Giữ lại mã và trạng thái hiện tại khi dữ liệu cập nhật không cung cấp giá trị mới.
+    // Giữ lại mã, trạng thái và số liệu mua hàng hiện tại khi dữ liệu cập nhật không cung cấp giá trị mới.
     private CustomerRequest normalizeUpdateRequest(CustomerRequest request, Customer customer) {
         return new CustomerRequest(
                 hasText(request.customerCode()) ? request.customerCode() : customer.getCustomerCode(),
@@ -271,9 +277,9 @@ public class CustomerServiceImpl implements CustomerService {
                 request.customerType() != null ? request.customerType() : customer.getCustomerType(),
                 request.tierId(),
                 request.creditLimit(),
-                request.lastPurchaseDate(),
-                request.totalSpent(),
-                request.totalOrderCount(),
+                request.lastPurchaseDate() != null ? request.lastPurchaseDate() : customer.getLastPurchaseDate(),
+                request.totalSpent() != null ? request.totalSpent() : customer.getTotalSpent(),
+                request.totalOrderCount() != null ? request.totalOrderCount() : customer.getTotalOrderCount(),
                 request.status() != null ? request.status() : customer.getStatus()
         );
     }

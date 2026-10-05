@@ -5,11 +5,13 @@ import { Dialog } from "../../../components/ui/dialog";
 import { CustomerCreateDialog } from "../components/CustomerCreateDialog";
 import { CustomerDeleteDialog } from "../components/CustomerDeleteDialog";
 import { CustomerDetailDrawer } from "../components/CustomerDetailDrawer";
+import { CustomerImportDialog } from "../components/CustomerImportDialog";
 import {
     type CustomerHeaderFilterState,
     CustomerPageHeader,
     CustomerTierChips
 } from "../components/CustomerPageSections";
+import { CustomerStatusDialog } from "../components/CustomerStatusDialog";
 import { CustomerTable } from "../components/CustomerTable";
 import { useCustomerListData } from "../hooks/useCustomerListData";
 import { customerApi } from "../services/customer.api";
@@ -36,6 +38,9 @@ export function CustomerListPage() {
         useState<CustomerResponse | null>(null);
     const [deletingCustomer, setDeletingCustomer] =
         useState<CustomerResponse | null>(null);
+    const [statusCustomer, setStatusCustomer] =
+        useState<CustomerResponse | null>(null);
+    const [showImportDialog, setShowImportDialog] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [detailError, setDetailError] = useState("");
     const [detailLoading, setDetailLoading] = useState(false);
@@ -148,6 +153,7 @@ export function CustomerListPage() {
         <section className="flex h-full min-h-0 flex-col gap-4 text-[#172317]">
             <CustomerPageHeader
                 onCreate={() => setShowCreateDialog(true)}
+                onImport={() => setShowImportDialog(true)}
             />
 
             <CustomerTierChips
@@ -172,6 +178,7 @@ export function CustomerListPage() {
                 onCustomerClick={(customer) => void openCustomerDetail(customer)}
                 onCustomerDelete={setDeletingCustomer}
                 onCustomerEdit={setEditingCustomer}
+                onCustomerStatusChange={setStatusCustomer}
                 onPageChange={changePage}
             />
 
@@ -224,6 +231,36 @@ export function CustomerListPage() {
                     />
                 )}
             </Dialog>
+            <Dialog
+                onOpenChange={(open) => {
+                    if (!open) setStatusCustomer(null);
+                }}
+                open={statusCustomer !== null}
+            >
+                {statusCustomer && (
+                    <CustomerStatusDialog
+                        customer={statusCustomer}
+                        onCancel={() => setStatusCustomer(null)}
+                        onChanged={(updated) => {
+                            setStatusCustomer(null);
+                            setSelectedCustomer((current) =>
+                                current?.id === updated.id ? updated : current
+                            );
+                            reload();
+                        }}
+                    />
+                )}
+            </Dialog>
+
+            <Dialog onOpenChange={setShowImportDialog} open={showImportDialog}>
+                {showImportDialog && (
+                    <CustomerImportDialog
+                        onClose={() => setShowImportDialog(false)}
+                        onImported={reload}
+                    />
+                )}
+            </Dialog>
+
             <CustomerDetailDrawer
                 customer={selectedCustomer}
                 error={detailError}
@@ -231,6 +268,7 @@ export function CustomerListPage() {
                 onClose={closeDetail}
                 onDelete={setDeletingCustomer}
                 onEdit={setEditingCustomer}
+                onStatusChange={setStatusCustomer}
                 open={detailOpen}
             />
         </section>
