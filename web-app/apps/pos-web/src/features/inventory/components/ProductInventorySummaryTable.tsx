@@ -7,12 +7,14 @@ interface ProductInventorySummaryTableProps {
     products: WarehouseInventorySummary[];
     loading?: boolean;
     onLocationSelect?: (itemId: string, locationId: string, locationName: string, locationType: string) => void;
+    isDetailPanelOpen?: boolean;
 }
 
 export function ProductInventorySummaryTable({
     products,
     loading,
-    onLocationSelect
+    onLocationSelect,
+    isDetailPanelOpen
 }: ProductInventorySummaryTableProps) {
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
     const [locationDetails, setLocationDetails] = useState<Record<string, LocationInventoryDetail[]>>({});
@@ -46,19 +48,6 @@ export function ProductInventorySummaryTable({
         return <div className="p-4 text-center text-gray-500">Không có mặt hàng</div>;
     }
 
-    const getStockStatusBadge = (status: string) => {
-        switch (status) {
-            case "OUT_OF_STOCK":
-                return <span className="inline-block px-2 py-1 text-xs font-bold bg-red-50 text-red-700 rounded">Hết hàng</span>;
-            case "LOW_STOCK":
-                return <span className="inline-block px-2 py-1 text-xs font-bold bg-orange-50 text-orange-700 rounded">Sắp hết</span>;
-            case "SUFFICIENT":
-                return <span className="inline-block px-2 py-1 text-xs font-bold bg-green-50 text-green-700 rounded">Còn hàng</span>;
-            default:
-                return null;
-        }
-    };
-
     const getLocationTypeLabel = (type: string): string => {
         switch (type) {
             case "SHELF":
@@ -77,11 +66,15 @@ export function ProductInventorySummaryTable({
                     <tr>
                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px] w-8"></th>
                         <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">SKU</th>
-                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Tên mặt hàng</th>
-                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Kệ POS</th>
-                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Kho tổng</th>
-                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Tổng tồn</th>
-                        <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-center pr-[18px]">Trạng thái</th>
+                        {!isDetailPanelOpen && (
+                            <>
+                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4]">Tên mặt hàng</th>
+                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-center">Đơn vị</th>
+                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Kệ POS</th>
+                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Kho tổng</th>
+                                <th className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] text-right pr-[18px]">Tổng tồn</th>
+                            </>
+                        )}
                     </tr>
                 </thead>
                 <tbody>
@@ -104,23 +97,27 @@ export function ProductInventorySummaryTable({
                                     )}
                                 </td>
                                 <td className="px-4 py-3 font-mono text-[#172317]">{product.sku}</td>
-                                <td className="px-4 py-3 font-semibold text-[#172317]">{product.itemName}</td>
-                                <td className="px-4 py-3 text-right text-blue-600 font-semibold">
-                                    {product.shelfQuantity.toFixed(2)}
-                                </td>
-                                <td className="px-4 py-3 text-right text-purple-600 font-semibold">
-                                    {product.warehouseQuantity.toFixed(2)}
-                                </td>
-                                <td className="px-4 py-3 text-right text-gray-900 font-bold">
-                                    {product.totalQuantity.toFixed(2)}
-                                </td>
-                                <td className="px-4 py-3 text-center">{getStockStatusBadge(product.stockStatus)}</td>
+                                {!isDetailPanelOpen && (
+                                    <>
+                                        <td className="px-4 py-3 font-semibold text-[#172317]">{product.itemName}</td>
+                                        <td className="px-4 py-3 text-center text-gray-700 font-medium">{product.unitSymbol}</td>
+                                        <td className="px-4 py-3 text-right text-blue-600 font-semibold">
+                                            {product.shelfQuantity.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right text-purple-600 font-semibold">
+                                            {product.warehouseQuantity.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right text-gray-900 font-bold">
+                                            {product.totalQuantity.toFixed(2)}
+                                        </td>
+                                    </>
+                                )}
                             </tr>
 
                             {/* Level 2: Locations (Expanded) */}
                             {expandedItemId === product.inventoryItemId && (
                                 <tr className="bg-gray-50 border-b border-[#f2f4f2]">
-                                    <td colSpan={7} className="p-4">
+                                    <td colSpan={isDetailPanelOpen ? 2 : 8} className="p-4">
                                         <div className="space-y-2">
                                             <div className="text-sm font-semibold text-gray-700 mb-3">Tồn kho theo vị trí:</div>
 

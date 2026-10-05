@@ -11,6 +11,7 @@ public record WarehouseBatchResponse(
     LocalDate manufactureDate,
     LocalDate expiryDate,
     String status,
+    String unitSymbol,
     BigDecimal quantityOnHand,
     BigDecimal quantityReserved,
     BigDecimal quantityBlocked,

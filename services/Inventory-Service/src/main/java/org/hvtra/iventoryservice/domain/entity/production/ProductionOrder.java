@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
+import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
 
 import java.math.BigDecimal;
@@ -28,8 +29,9 @@ public class ProductionOrder extends BaseEntity {
     @Column(name = "order_code", nullable = false, length = 100)
     private String orderCode;
 
-    @Column(name = "product_variant_id", nullable = false, columnDefinition = "BINARY(16)")
-    private UUID productVariantId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_variant_id", nullable = false)
+    private InventoryItem productVariant;
 
     @Column(name = "planned_quantity", nullable = false, precision = 18, scale = 2)
     private BigDecimal plannedQuantity;
@@ -47,15 +49,6 @@ public class ProductionOrder extends BaseEntity {
     @Column(name = "note", length = 1000)
     private String note;
 
-    @Column(name = "actual_good_quantity", precision = 18, scale = 2)
-    private BigDecimal actualGoodQuantity;
-
-    @Column(name = "actual_rejected_quantity", precision = 18, scale = 2)
-    private BigDecimal actualRejectedQuantity;
-
-    @Column(name = "finished_batch_id", columnDefinition = "BINARY(16)")
-    private UUID finishedBatchId;
-
     @Column(name = "submitted_by", columnDefinition = "BINARY(16)")
     private UUID submittedBy;
 
@@ -68,23 +61,11 @@ public class ProductionOrder extends BaseEntity {
     @Column(name = "approved_at")
     private Instant approvedAt;
 
-    @Column(name = "released_by", columnDefinition = "BINARY(16)")
-    private UUID releasedBy;
+    @Column(name = "rejected_by", columnDefinition = "BINARY(16)")
+    private UUID rejectedBy;
 
-    @Column(name = "released_at")
-    private Instant releasedAt;
-
-    @Column(name = "started_by", columnDefinition = "BINARY(16)")
-    private UUID startedBy;
-
-    @Column(name = "started_at")
-    private Instant startedAt;
-
-    @Column(name = "completed_by", columnDefinition = "BINARY(16)")
-    private UUID completedBy;
-
-    @Column(name = "completed_at")
-    private Instant completedAt;
+    @Column(name = "rejected_at")
+    private Instant rejectedAt;
 
     @Column(name = "cancelled_by", columnDefinition = "BINARY(16)")
     private UUID cancelledBy;
@@ -94,6 +75,9 @@ public class ProductionOrder extends BaseEntity {
 
     @Column(name = "cancel_reason", length = 500)
     private String cancelReason;
+
+    @Column(name = "expected_completion_date")
+    private Instant expectedCompletionDate;
 
     @OneToMany(mappedBy = "productionOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionOrderLine> lines = new ArrayList<>();

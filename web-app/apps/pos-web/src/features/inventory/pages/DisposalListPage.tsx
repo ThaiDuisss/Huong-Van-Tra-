@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
-import { hasAnyRole } from "../../../auth/auth.utils";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
 import orderStyles from "../../order/pages/OrderListPage.module.css";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
@@ -30,8 +29,8 @@ const STATUS_TABS: CustomerReturnStatusTab[] = [
 ];
 
 export function DisposalListPage() {
-    const { roles } = useAuthorization();
-    const canApprove = hasAnyRole(roles, ["ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"]);
+    const { hasAnyRole } = useAuthorization();
+    const canApprove = hasAnyRole(["ADMIN", "MANAGER"]);
     const [searchTerm, setSearchTerm] = useState("");
     const keyword = useDebouncedValue(searchTerm.trim(), 300);
     const [status, setStatus] = useState<DisposalListQuery["status"]>("ALL");

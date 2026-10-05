@@ -4,8 +4,6 @@ public enum ProductionOrderStatus {
     DRAFT,
     PENDING_APPROVAL,
     APPROVED,
-    RELEASED,
-    IN_PROGRESS,
-    COMPLETED,
+    REJECTED,
     CANCELLED
 }

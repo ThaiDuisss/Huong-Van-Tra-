@@ -15,44 +15,42 @@ const columns: Column[] = [
     { key: "orderCode", label: "Mã lệnh sản xuất" },
     { align: "right", key: "plannedQuantity", label: "Số lượng kế hoạch" },
     { key: "status", label: "Trạng thái" },
+    { key: "expectedCompletionDate", label: "Ngày dự kiến xong" },
     { key: "createdAt", label: "Ngày tạo" }
 ];
 
-const STATUS_LABEL: Record<ProductionOrderApiStatus, string> = {
+const STATUS_LABEL_MAP: Record<string, string> = {
     DRAFT: "Mới tạo",
     PENDING_APPROVAL: "Chờ duyệt",
     APPROVED: "Đã duyệt",
-    RELEASED: "Đã xuất kho",
-    IN_PROGRESS: "Đang sản xuất",
-    COMPLETED: "Hoàn thành",
+    REJECTED: "Từ chối",
     CANCELLED: "Đã hủy"
 };
 
-const STATUS_BADGE_CLASS: Record<ProductionOrderApiStatus, string> = {
+const STATUS_BADGE_CLASS: Record<string, string> = {
     DRAFT: "bg-neutral-100 text-neutral-700",
     PENDING_APPROVAL: "bg-purple-50 text-purple-700",
     APPROVED: "bg-blue-50 text-blue-700",
-    RELEASED: "bg-sky-50 text-sky-700",
-    IN_PROGRESS: "bg-amber-50 text-amber-700",
-    COMPLETED: "bg-emerald-50 text-emerald-700",
-    CANCELLED: "bg-red-50 text-red-700"
+    REJECTED: "bg-red-50 text-red-700",
+    CANCELLED: "bg-red-100 text-red-700"
 };
 
-const statusOptions: Array<{ label: string; value: "ALL" | ProductionOrderApiStatus }> = [
-    { label: "Tất cả trạng thái", value: "ALL" },
-    { label: STATUS_LABEL.DRAFT, value: "DRAFT" },
-    { label: STATUS_LABEL.PENDING_APPROVAL, value: "PENDING_APPROVAL" },
-    { label: STATUS_LABEL.APPROVED, value: "APPROVED" },
-    { label: STATUS_LABEL.RELEASED, value: "RELEASED" },
-    { label: STATUS_LABEL.IN_PROGRESS, value: "IN_PROGRESS" },
-    { label: STATUS_LABEL.COMPLETED, value: "COMPLETED" },
-    { label: STATUS_LABEL.CANCELLED, value: "CANCELLED" }
-];
+function createStatusOptions(
+    statuses: string[]
+): Array<{ label: string; value: "ALL" | ProductionOrderApiStatus }> {
+    return [
+        { label: "Tất cả trạng thái", value: "ALL" as const },
+        ...statuses.map((s) => ({
+            label: STATUS_LABEL_MAP[s as ProductionOrderApiStatus] || s,
+            value: s as ProductionOrderApiStatus
+        }))
+    ] as Array<{ label: string; value: "ALL" | ProductionOrderApiStatus }>;
+}
 
 function StatusPill({ status }: { status: ProductionOrderApiStatus }) {
     return (
-        <span className={`inline-flex h-7 items-center rounded-full px-2.5 text-xs font-bold ${STATUS_BADGE_CLASS[status]}`}>
-            {STATUS_LABEL[status]}
+        <span className={`inline-flex h-7 items-center rounded-full px-2.5 text-xs font-bold ${STATUS_BADGE_CLASS[status] || 'bg-gray-50 text-gray-700'}`}>
+            {STATUS_LABEL_MAP[status] || status}
         </span>
     );
 }
@@ -75,6 +73,20 @@ export function ProductionOrderListPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [statusOptions, setStatusOptions] = useState<Array<{ label: string; value: "ALL" | ProductionOrderApiStatus }>>([
+        { label: "Tất cả trạng thái", value: "ALL" }
+    ]);
+
+    useEffect(() => {
+        productionOrderApi
+            .getStatuses()
+            .then((statuses) => {
+                setStatusOptions(createStatusOptions(statuses));
+            })
+            .catch(() => {
+                console.error("Failed to load statuses from API");
+            });
+    }, []);
 
     const loadOrders = useCallback(() => {
         let active = true;
@@ -146,6 +158,7 @@ export function ProductionOrderListPage() {
                     <TableCell>
                         <StatusPill status={item.status} />
                     </TableCell>
+                    <TableCell>{item.expectedCompletionDate ? formatDateTime(item.expectedCompletionDate) : "—"}</TableCell>
                     <TableCell>{formatDateTime(item.createdAt)}</TableCell>
                 </>
             )}

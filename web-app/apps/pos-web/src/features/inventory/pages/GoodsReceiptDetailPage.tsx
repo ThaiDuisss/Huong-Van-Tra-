@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
@@ -74,12 +74,6 @@ export function GoodsReceiptDetailPage() {
     const [cancelNote, setCancelNote] = useState("");
 
     const [mutationLoading, setMutationLoading] = useState(false);
-
-    function updateQcLine(lineId: string, patch: Partial<QcDraftLine>) {
-        setQcDraft((cur) =>
-            cur.map((item) => (item.lineId === lineId ? { ...item, ...patch } : item))
-        );
-    }
 
     const loadReceipt = useCallback(() => {
         if (!receiptId) return;
@@ -299,11 +293,10 @@ export function GoodsReceiptDetailPage() {
                 input
             );
             setReceipt(updated);
-            setInspectionOpen(false);
             showToast("Kiểm định số lượng & chất lượng thành công.", true);
+            setInspectionOpen(false);
         } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : "Kiểm định thất bại.";
-            showToast(errorMsg, false);
+            throw err;
         } finally {
             setMutationLoading(false);
         }
@@ -465,7 +458,7 @@ export function GoodsReceiptDetailPage() {
                                     onClick={approveReceipt}
                                     type="button"
                                 >
-                                    Phê duyệt phiếu nhập
+                                    Phê duyệt
                                 </button>
                                 <button
                                     className="inline-flex h-10 items-center rounded-lg border border-red-200 bg-white px-4 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
@@ -600,17 +593,8 @@ export function GoodsReceiptDetailPage() {
                     <div className="text-sm font-bold text-[#172317]">
                         Mã chứng từ kho: <span className="font-mono text-[#159734]">{receipt.stockDocumentCode || "Chưa ghi sổ"}</span>
                     </div>
-                                    disabled={mutationLoading}
-                                    onClick={() => void submitQc()}
-                                    type="button"
-                                >
-                                    {mutationLoading ? "Đang xử lý..." : "Hoàn tất kiểm định QC & Khai báo Lô"}
-                                </button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                );
-            })()}
+                </div>
+            ) : null} */}
 
             {/* INSPECTION MODAL - Kiểm định số lượng & Chất lượng */}
             <GoodsReceiptInspectionModal

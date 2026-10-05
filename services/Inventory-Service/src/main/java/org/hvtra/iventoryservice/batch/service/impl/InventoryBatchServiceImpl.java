@@ -5,6 +5,7 @@ import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.batch.service.InventoryBatchService;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.stock.dto.response.WarehouseBatchResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
@@ -24,6 +25,7 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
 
     private final InventoryBatchRepository batchRepository;
     private final InventoryBalanceRepository balanceRepository;
+    private final CatalogClient catalogClient;
 
     @Override
     public List<WarehouseBatchResponse> getBatchesByItemAndLocation(UUID itemId, UUID locationId) {
@@ -35,9 +37,10 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
         };
 
         var balances = balanceRepository.findAll(spec);
+        final String unitSymbol = getUnitSymbolFromBalance(balances);
 
         return balances.stream()
-            .map(balance -> mapToResponse(balance))
+            .map(balance -> mapToResponse(balance, unitSymbol))
             .sorted((a, b) -> {
                 // FEFO sort: null expiry dates last, then by expiry date ascending
                 if (a.expiryDate() == null && b.expiryDate() == null) return 0;
@@ -61,10 +64,25 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
             .findFirst()
             .orElseThrow(() -> new ResourceNotFoundException("InventoryBalance", batchId));
 
-        return mapToResponse(balance);
+        final String unitSymbol = getUnitSymbolFromBalance(List.of(balance));
+        return mapToResponse(balance, unitSymbol);
     }
 
-    private WarehouseBatchResponse mapToResponse(InventoryBalance balance) {
+    private String getUnitSymbolFromBalance(List<InventoryBalance> balances) {
+        if (!balances.isEmpty()) {
+            var item = balances.get(0).getInventoryItem();
+            if (item.getUnitId() != null) {
+                try {
+                    return catalogClient.getUnit(item.getUnitId()).symbol();
+                } catch (Exception e) {
+                    // If unit fetch fails, continue without unitSymbol
+                }
+            }
+        }
+        return null;
+    }
+
+    private WarehouseBatchResponse mapToResponse(InventoryBalance balance, String unitSymbol) {
         var batch = balance.getInventoryBatch();
         var quantityOnHand = balance.getQuantityOnHand();
         var quantityReserved = balance.getQuantityReserved();
@@ -83,6 +101,7 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
             batch.getManufactureDate(),
             batch.getExpiryDate(),
             batch.getStatus().name(),
+            unitSymbol,
             quantityOnHand,
             quantityReserved,
             quantityBlocked,
