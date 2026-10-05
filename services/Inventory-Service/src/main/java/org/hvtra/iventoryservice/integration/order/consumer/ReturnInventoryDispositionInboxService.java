@@ -110,8 +110,11 @@ public class ReturnInventoryDispositionInboxService {
         }
 
         InventoryInbox inbox = claimInbox(record, event, eventId, payloadHash, commandId);
+        if (hasConflictingPayload(inbox, event, eventId, payloadHash)) {
+            return;
+        }
         if (isTerminal(inbox.getStatus())) {
-            handleTerminalDuplicate(inbox, event, eventId, payloadHash);
+            handleTerminalDuplicate(inbox, event);
             return;
         }
 
@@ -128,7 +131,7 @@ public class ReturnInventoryDispositionInboxService {
 
         // If inspection was already created for this inbox command (e.g. redelivery), do not create again
         if (hasText(inbox.getInspectionId())) {
-            log.info("Inspection already created for commandId={}, inspectionId={}. Waiting for manual approval.",
+            log.info("Inspection already created for commandId={}, inspectionId={}. Waiting for QC posting.",
                     commandId, inbox.getInspectionId());
             inventoryInboxRepository.saveAndFlush(inbox);
             return;
@@ -178,20 +181,8 @@ public class ReturnInventoryDispositionInboxService {
 
     private void handleTerminalDuplicate(
             InventoryInbox inbox,
-            ReturnInventoryDispositionRequestedEvent event,
-            String eventId,
-            String payloadHash
+            ReturnInventoryDispositionRequestedEvent event
     ) {
-        if (hasText(inbox.getBusinessPayloadHash())
-                && hasText(payloadHash)
-                && !inbox.getBusinessPayloadHash().equals(payloadHash)) {
-            String message = "Duplicate commandId delivered with conflicting payload. commandId="
-                    + inbox.getCommandId() + ", eventId=" + eventId;
-            inbox.setLastError(message);
-            log.error("{} existingStatus={}, returnId={}", message, inbox.getStatus(), event.getReturnId());
-            return;
-        }
-
         if (inbox.getStatus() == InboxStatus.PROCESSED && hasText(inbox.getInspectionId())) {
             inventoryOutboxPublisher.publishReturnInventoryDispositionProcessed(
                     inbox.getCommandId(),
@@ -205,6 +196,23 @@ public class ReturnInventoryDispositionInboxService {
 
         log.debug("Duplicate return inventory disposition already terminal. commandId={}, status={}",
                 inbox.getCommandId(), inbox.getStatus());
+    }
+
+    private boolean hasConflictingPayload(
+            InventoryInbox inbox,
+            ReturnInventoryDispositionRequestedEvent event,
+            String eventId,
+            String payloadHash) {
+        if (hasText(inbox.getBusinessPayloadHash())
+                && hasText(payloadHash)
+                && !inbox.getBusinessPayloadHash().equals(payloadHash)) {
+            String message = "Duplicate commandId delivered with conflicting payload. commandId="
+                    + inbox.getCommandId() + ", eventId=" + eventId;
+            inbox.setLastError(message);
+            log.error("{} existingStatus={}, returnId={}", message, inbox.getStatus(), event.getReturnId());
+            return true;
+        }
+        return false;
     }
 
     private CreateCustomerReturnInspectionRequest toInspectionRequest(ReturnInventoryDispositionRequestedEvent event) {
@@ -315,8 +323,12 @@ public class ReturnInventoryDispositionInboxService {
 
             if (existing.isPresent()) {
                 InventoryInbox inbox = existing.get();
+                if (hasConflictingPayload(inbox, event, eventId, payloadHash)) {
+                    inventoryInboxRepository.saveAndFlush(inbox);
+                    return;
+                }
                 if (isTerminal(inbox.getStatus())) {
-                    handleTerminalDuplicate(inbox, event, eventId, payloadHash);
+                    handleTerminalDuplicate(inbox, event);
                     return;
                 }
                 markFailed(inbox, ex);

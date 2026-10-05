@@ -595,34 +595,7 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             return resolveExistingInventoryDispositionCommand(returnId, request, existingCommand);
         }
 
-        List<OrderReturnInventoryCommand> returnCommands =
-                orderReturnInventoryCommandRepository.findByOrderReturnIdWithLines(returnId);
-        for (OrderReturnInventoryCommand existing : returnCommands) {
-            if (sameDispositionCommand(existing, request)) {
-                if (existing.getStatus() == OrderReturnInventoryCommandStatus.PROCESSED) {
-                    return toDispositionResponse(existing);
-                }
-                if (existing.getStatus() == OrderReturnInventoryCommandStatus.PENDING) {
-                    try {
-                        ReturnDispositionStatusResponse invStatus =
-                                inventoryClient.getReturnDispositionStatus(existing.getCommandId());
-                        if (invStatus != null) {
-                            inventoryCommandReconciliationWriter.reconcileCommand(
-                                    OrderReturnInventoryCommandReconciliationWriter.CommandEvidence.from(invStatus)
-                            );
-                            existing = orderReturnInventoryCommandRepository
-                                    .findByCommandIdAndIsDeletedFalse(existing.getCommandId())
-                                    .orElse(existing);
-                        }
-                    } catch (Exception ex) {
-                        log.warn("Failed to reconcile disposition status with inventory for commandId {}: {}",
-                                existing.getCommandId(), ex.getMessage());
-                    }
-                    return toDispositionResponse(existing);
-                }
-            }
-        }
-
+        // A new commandId is a new action, even when all business fields match an earlier action.
         if (ReturnStatus.RECEIVED != orderReturn.getStatus()) {
             throw new InvalidOrderReturnException("Only received returns can request inventory disposition");
         }
@@ -692,6 +665,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
             throw new InvalidOrderReturnException("Inventory disposition commandId belongs to another return");
         }
         if (!sameDispositionCommand(existingCommand, request)) {
+            log.warn("Same commandId reused with different payload. commandId={}, returnId={}",
+                    request.getCommandId(), returnId);
             throw new InvalidOrderReturnException("Inventory disposition commandId was already used differently");
         }
 

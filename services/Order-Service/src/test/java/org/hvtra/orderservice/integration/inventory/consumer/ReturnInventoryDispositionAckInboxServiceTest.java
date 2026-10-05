@@ -8,6 +8,8 @@ import org.hvtra.commonservice.common_core.kafka.event.EventMetadataResolver;
 import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.orderservice.domain.entity.OrderInbox;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.entity.OrderReturnItem;
+import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommandLine;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
 import org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
@@ -16,6 +18,8 @@ import org.hvtra.orderservice.integration.inventory.dto.ReturnInventoryDispositi
 import org.hvtra.orderservice.repository.OrderInboxRepository;
 import org.hvtra.orderservice.repository.OrderReturnInventoryCommandRepository;
 import org.hvtra.orderservice.service.OrderReturnService;
+import org.hvtra.orderservice.repository.OrderReturnRepository;
+import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgressResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +29,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,6 +44,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class ReturnInventoryDispositionAckInboxServiceTest {
@@ -66,6 +76,65 @@ class ReturnInventoryDispositionAckInboxServiceTest {
     private OrderReturnInventoryCommand command;
     private ConsumerRecord<String, String> record;
     private ReturnInventoryDispositionProcessedEvent processedEvent;
+
+    @Test
+    void twoPartialAcknowledgementsAndTheirReplaysCountEachCommandOnlyOnce() {
+        OrderReturnItem returnedItem = new OrderReturnItem();
+        returnedItem.setId(UUID.randomUUID());
+        returnedItem.setIsDeleted(false);
+        returnedItem.setQuantity(new BigDecimal("2"));
+        orderReturn.setItems(List.of(returnedItem));
+        UUID secondId = UUID.randomUUID();
+        OrderReturnInventoryCommand second = OrderReturnInventoryCommand.builder().commandId(secondId)
+                .orderReturn(orderReturn).status(OrderReturnInventoryCommandStatus.PENDING).build();
+        Map<UUID, OrderReturnInventoryCommand> commands = Map.of(commandId, command, secondId, second);
+        for (var current : commands.values()) {
+            OrderReturnInventoryCommandLine line = new OrderReturnInventoryCommandLine();
+            line.setReturnItem(returnedItem);
+            line.setQuantity(BigDecimal.ONE);
+            current.addLine(line);
+        }
+        OrderReturnRepository returns = mock(OrderReturnRepository.class);
+        OrderReturnPhysicalProgressResolver resolver = new OrderReturnPhysicalProgressResolver(returns, orderReturnInventoryCommandRepository);
+        when(orderReturnInventoryCommandRepository.sumQuantityByReturnIdAndCommandStatus(returnId, OrderReturnInventoryCommandStatus.PROCESSED))
+                .thenAnswer(call -> List.<Object[]>of(new Object[]{returnedItem.getId(), BigDecimal.valueOf(
+                        commands.values().stream().filter(current -> current.getStatus() == OrderReturnInventoryCommandStatus.PROCESSED).count())}));
+        when(orderReturnService.isPhysicalDispositionCompleted(returnId)).thenAnswer(call -> resolver.resolve(orderReturn).physicalDone());
+        when(orderReturnInventoryCommandRepository.findByCommandIdForUpdate(any()))
+                .thenAnswer(call -> Optional.ofNullable(commands.get(call.getArgument(0))));
+        when(orderReturnInventoryCommandRepository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        Map<String, OrderInbox> inboxes = new HashMap<>();
+        when(orderInboxRepository.findByEventIdAndConsumerGroup(any(), any()))
+                .thenAnswer(call -> Optional.ofNullable(inboxes.get(call.getArgument(0))));
+        when(orderInboxRepository.saveAndFlush(any())).thenAnswer(call -> {
+            OrderInbox inbox = call.getArgument(0);
+            inboxes.put(inbox.getEventId(), inbox);
+            return inbox;
+        });
+        when(eventParser.parseProcessedCreateEvent(any())).thenAnswer(call -> {
+            String delivery = call.getArgument(0);
+            ReturnInventoryDispositionProcessedEvent event = new ReturnInventoryDispositionProcessedEvent();
+            event.setEventId(delivery);
+            event.setEventType("RETURN_INVENTORY_DISPOSITION_PROCESSED");
+            event.setCommandId((delivery.startsWith("A") ? commandId : secondId).toString());
+            event.setReturnId(returnId.toString());
+            event.setInspectionId(inspectionId.toString());
+            event.setProcessedAt(Instant.now().toString());
+            return Optional.of(event);
+        });
+        when(metadataResolver.resolveEventId(any(), any(), any()))
+                .thenAnswer(call -> ((ReturnInventoryDispositionProcessedEvent) call.getArgument(1)).getEventId());
+        for (String delivery : List.of("A", "A", "A-replay", "B", "B", "B-replay", "A-replay-again")) {
+            ackInboxService.handle(new ConsumerRecord<>("inventory.event.RETURN_INVENTORY_DISPOSITION_PROCESSED", 0, 1L, null, delivery));
+            var progress = resolver.resolve(orderReturn);
+            assertEquals(0, progress.processedQuantity().compareTo(BigDecimal.valueOf(delivery.startsWith("B")
+                    || second.getStatus() == OrderReturnInventoryCommandStatus.PROCESSED ? 2 : 1)));
+        }
+        assertTrue(resolver.resolve(orderReturn).physicalDone());
+        assertEquals(BigDecimal.ZERO, resolver.resolve(orderReturn).remainingQuantity());
+        verify(orderReturnInventoryCommandRepository, times(2)).saveAndFlush(any());
+        verify(orderReturnService, times(1)).recordPhysicalCompletion(eq(returnId), any(), eq(inspectionId));
+    }
 
     @BeforeEach
     void setUp() {

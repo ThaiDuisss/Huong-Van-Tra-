@@ -5,6 +5,7 @@ import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
+import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
 import org.hvtra.orderservice.domain.enums.OrderReturnHistoryAction;
@@ -44,6 +45,11 @@ import org.hvtra.orderservice.service.support.OrderReturnRefundEligibilityResolv
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -59,6 +65,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -77,6 +85,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class OrderReturnServiceImplTest {
@@ -1442,6 +1451,142 @@ class OrderReturnServiceImplTest {
         service.recordPhysicalCompletion(returnId, null, null);
 
         verify(orderReturnHistoryWriter, never()).writeIfAbsent(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Nested
+    class DispositionCommandIdentity {
+        private OrderReturn returned;
+        private Map<UUID, OrderReturnInventoryCommand> commands;
+
+        private void initialize(String quantity) {
+            returned = orderReturn(UUID.randomUUID(), ReturnStatus.RECEIVED, new BigDecimal(quantity));
+            commands = new LinkedHashMap<>();
+            lenient().when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returned.getId()))
+                    .thenReturn(Optional.of(returned));
+            when(orderReturnInventoryCommandRepository.findByCommandIdAndIsDeletedFalse(any()))
+                    .thenAnswer(call -> Optional.ofNullable(commands.get(call.getArgument(0))));
+            // This also exercises the removed payload-reuse path when the test runs against old code.
+            lenient().when(orderReturnInventoryCommandRepository.findByOrderReturnIdWithLines(returned.getId()))
+                    .thenAnswer(call -> List.copyOf(commands.values()));
+            lenient().when(orderReturnInventoryCommandRepository.sumCommandedQuantityByReturnItemId(any()))
+                    .thenAnswer(call -> commands.values().stream()
+                            .filter(command -> command.getStatus() != OrderReturnInventoryCommandStatus.FAILED)
+                            .flatMap(command -> command.getLines().stream())
+                            .map(line -> line.getQuantity()).reduce(BigDecimal.ZERO, BigDecimal::add));
+            lenient().when(orderReturnInventoryCommandRepository.saveAndFlush(any()))
+                    .thenAnswer(call -> {
+                        OrderReturnInventoryCommand command = call.getArgument(0);
+                        command.setId(UUID.randomUUID());
+                        commands.put(command.getCommandId(), command);
+                        return command;
+                    });
+            lenient().when(orderReturnInventoryCommandRepository.sumQuantityByReturnIdAndCommandStatus(
+                    returned.getId(), OrderReturnInventoryCommandStatus.PROCESSED))
+                    .thenAnswer(call -> List.<Object[]>of(new Object[]{returned.getItems().getFirst().getId(),
+                            commands.values().stream()
+                                    .filter(command -> command.getStatus() == OrderReturnInventoryCommandStatus.PROCESSED)
+                                    .flatMap(command -> command.getLines().stream())
+                                    .map(line -> line.getQuantity()).reduce(BigDecimal.ZERO, BigDecimal::add)}));
+        }
+
+        private SubmitReturnInventoryDispositionRequest action(UUID commandId, ReturnInventoryDispositionResult result, String note) {
+            return SubmitReturnInventoryDispositionRequest.builder().commandId(commandId).lines(List.of(
+                    SubmitReturnInventoryDispositionLineRequest.builder()
+                            .returnItemId(returned.getItems().getFirst().getId()).quantity(BigDecimal.ONE)
+                            .result(result).destinationLocationId(result == ReturnInventoryDispositionResult.WRITE_OFF ? null : orderId)
+                            .note(note).build())).build();
+        }
+
+        private void process(SubmitReturnInventoryDispositionRequest request) {
+            assertEquals(request.getCommandId(), service.submitInventoryDisposition(returned.getId(), request).getCommandId());
+            commands.get(request.getCommandId()).setStatus(OrderReturnInventoryCommandStatus.PROCESSED);
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @ValueSource(strings = {"same note", "  "})
+        void twoIdenticalWriteOffActionsUseTheirOwnCommandIds(String note) {
+            initialize("2");
+            for (int completed = 1; completed <= 2; completed++) {
+                process(action(UUID.randomUUID(), ReturnInventoryDispositionResult.WRITE_OFF, note));
+                var progress = new OrderReturnPhysicalProgressResolver(orderReturnRepository, orderReturnInventoryCommandRepository)
+                        .resolve(returned);
+                assertEquals(0, progress.processedQuantity().compareTo(BigDecimal.valueOf(completed)));
+                assertEquals(0, progress.remainingQuantity().compareTo(BigDecimal.valueOf(2 - completed)));
+                assertEquals(completed == 2, progress.physicalDone());
+            }
+            assertEquals(2, commands.size());
+            verify(orderReturnInventoryCommandRepository, times(2)).saveAndFlush(any());
+            verify(orderOutboxPublisher, times(2)).publishReturnInventoryDispositionRequested(any(), any());
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = ReturnInventoryDispositionResult.class, names = {"RESTOCK", "DAMAGED", "WRITE_OFF"})
+        void threeIdenticalPartialActionsAreDistinctAndRetriesDoNotReserveAgain(ReturnInventoryDispositionResult result) {
+            initialize("3");
+            for (int index = 0; index < 3; index++) {
+                var request = action(UUID.randomUUID(), result, null);
+                process(request);
+                for (int retry = 0; retry < 3; retry++) {
+                    assertEquals(request.getCommandId(), service.submitInventoryDisposition(returned.getId(), request).getCommandId());
+                }
+            }
+            assertEquals(3, commands.size());
+            assertTrue(new OrderReturnPhysicalProgressResolver(orderReturnRepository, orderReturnInventoryCommandRepository)
+                    .resolve(returned).physicalDone());
+            verify(orderReturnInventoryCommandRepository, times(3)).saveAndFlush(any());
+            verify(orderOutboxPublisher, times(3)).publishReturnInventoryDispositionRequested(any(), any());
+        }
+
+        @Test
+        void mixedPartialActionsCompleteAllReturnedQuantity() {
+            initialize("3");
+            for (var result : List.of(ReturnInventoryDispositionResult.RESTOCK, ReturnInventoryDispositionResult.DAMAGED,
+                    ReturnInventoryDispositionResult.WRITE_OFF)) {
+                process(action(UUID.randomUUID(), result, null));
+            }
+            assertTrue(new OrderReturnPhysicalProgressResolver(orderReturnRepository, orderReturnInventoryCommandRepository)
+                    .resolve(returned).physicalDone());
+            assertEquals(3, commands.size());
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"quantity", "result", "destination", "note"})
+        void sameCommandIdWithChangedPayloadIsRejectedWithoutOverwriting(String field) {
+            initialize("2");
+            var original = action(UUID.randomUUID(), ReturnInventoryDispositionResult.WRITE_OFF, null);
+            service.submitInventoryDisposition(returned.getId(), original);
+            var changed = action(original.getCommandId(), ReturnInventoryDispositionResult.WRITE_OFF, null);
+            var line = changed.getLines().getFirst();
+            switch (field) {
+                case "quantity" -> line.setQuantity(new BigDecimal("2"));
+                case "result" -> line.setResult(ReturnInventoryDispositionResult.RESTOCK);
+                case "destination" -> line.setDestinationLocationId(UUID.randomUUID());
+                case "note" -> line.setNote("changed");
+            }
+            assertEquals("Inventory disposition commandId was already used differently",
+                    assertThrows(InvalidOrderReturnException.class,
+                            () -> service.submitInventoryDisposition(returned.getId(), changed)).getMessage());
+            assertEquals(BigDecimal.ONE, commands.get(original.getCommandId()).getLines().getFirst().getQuantity());
+            assertEquals(ReturnInventoryDispositionResult.WRITE_OFF, commands.get(original.getCommandId()).getLines().getFirst().getResult());
+            verify(orderReturnInventoryCommandRepository, times(1)).saveAndFlush(any());
+        }
+
+        @Test
+        void pendingRetryReusesIdentityAndNewIdentityMustRespectReservedQuantity() {
+            initialize("1");
+            var original = action(UUID.randomUUID(), ReturnInventoryDispositionResult.WRITE_OFF, null);
+            service.submitInventoryDisposition(returned.getId(), original);
+            service.submitInventoryDisposition(returned.getId(), original);
+            var next = action(UUID.randomUUID(), ReturnInventoryDispositionResult.WRITE_OFF, null);
+            assertEquals("No remaining quantity available for inventory disposition",
+                    assertThrows(InvalidOrderReturnException.class,
+                            () -> service.submitInventoryDisposition(returned.getId(), next)).getMessage());
+            commands.get(original.getCommandId()).setStatus(OrderReturnInventoryCommandStatus.PROCESSED);
+            assertThrows(InvalidOrderReturnException.class, () -> service.submitInventoryDisposition(returned.getId(), next));
+            verify(orderReturnInventoryCommandRepository, times(1)).saveAndFlush(any());
+            verify(orderOutboxPublisher, times(1)).publishReturnInventoryDispositionRequested(any(), any());
+        }
     }
 
     @Test

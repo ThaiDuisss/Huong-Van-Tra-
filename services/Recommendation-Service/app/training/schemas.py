@@ -1,7 +1,12 @@
-from dataclasses import dataclass
+from __future__ import annotations
 
-from lightfm.data import Dataset
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 from scipy.sparse import coo_matrix, csr_matrix
+
+if TYPE_CHECKING:
+    from lightfm.data import Dataset
 
 
 @dataclass(frozen=True, slots=True)

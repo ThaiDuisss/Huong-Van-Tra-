@@ -60,6 +60,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -724,6 +725,44 @@ class CustomerReturnInspectionServiceImplTest {
                 request(returnItemId, "1.00", CustomerReturnQcResult.WRITE_OFF, null, null)))
                 .isInstanceOf(AccessDeniedException.class);
         verifyNoInteractions(inspectionRepository, orderReturnClient, transactionRepository, disposalRequestRepository);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CustomerReturnQcResult.class, names = {"RESTOCK", "DAMAGED", "WRITE_OFF"})
+    void distinctCommandsWithIdenticalLinesPostThreePartialsAndRetriesDoNotMoveAgain(CustomerReturnQcResult result) {
+        InventoryLocation destination = result == CustomerReturnQcResult.WRITE_OFF ? null
+                : result == CustomerReturnQcResult.DAMAGED ? damaged : shelf;
+        InventoryBalance stock = balance("10.00", "0.00", "0.00", destination == null ? shelf : destination);
+        List<CustomerReturnInspection> inspections = new ArrayList<>();
+        when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(OrderReturnStatus.RECEIVED));
+        when(inspectionRepository.findByReturnIdForUpdate(returnId)).thenAnswer(call -> List.copyOf(inspections));
+        when(inspectionRepository.findQcProgressByReturnId(returnId)).thenAnswer(call -> List.copyOf(inspections));
+        if (destination != null) {
+            when(batchRepository.findFirstByInventoryItemId(item.getId())).thenReturn(Optional.of(batch));
+            when(balanceRepository.findForUpdateByBatchId(batch.getId(), destination.getId())).thenReturn(Optional.of(stock));
+        }
+        for (int count = 1; count <= 3; count++) {
+            CustomerReturnInspection inspection = inspection(result, destination, "1.00");
+            inspection.getLines().getFirst().setNote(null);
+            inspections.add(inspection);
+            attachInbox(inspection);
+            when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId())).thenReturn(Optional.of(inspection));
+            service.postInspection(inspection.getId());
+            UUID transactionId = inspection.getLines().getFirst().getTransactionId();
+            service.postInspection(inspection.getId());
+            service.postInspection(inspection.getId());
+            assertThat(inspection.getLines().getFirst().getTransactionId()).isEqualTo(transactionId);
+            assertThat(service.getQcSummary(returnId).lines().getFirst().postedQcQuantity()).isEqualByComparingTo(Integer.toString(count));
+        }
+        assertThat(inspections.stream().map(CustomerReturnInspection::getCommandId).distinct().count()).isEqualTo(3);
+        assertThat(inspections.stream().map(row -> row.getLines().getFirst().getTransactionId()).distinct().count()).isEqualTo(3);
+        assertThat(service.getQcSummary(returnId).qcStatus()).isEqualTo(CustomerReturnQcStatus.COMPLETED);
+        verify(transactionRepository, times(3)).saveAndFlush(any());
+        if (destination == null) {
+            verifyNoInteractions(balanceRepository);
+        } else {
+            assertThat(stock.getQuantityOnHand()).isEqualByComparingTo("13");
+        }
     }
 
     private void stubWriteOffPost(CustomerReturnInspection inspection) {

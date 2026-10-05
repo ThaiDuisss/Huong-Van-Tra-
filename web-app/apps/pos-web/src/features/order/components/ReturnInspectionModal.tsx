@@ -6,7 +6,8 @@ import {
     Plus,
     X
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ApiError } from "@hvt/api-client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
 import type { InventoryLocationResponse } from "../../inventory/types/inventory.types";
@@ -18,6 +19,7 @@ import type {
     OrderReturnListRow,
     OrderReturnResponse,
     ReturnCondition,
+    SubmitReturnInventoryDispositionPayload,
     ReturnReason
 } from "../types/order-return.types";
 import {
@@ -113,6 +115,8 @@ export function ReturnInspectionModal({
     const [locationError, setLocationError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
+    const submissionRef = useRef<SubmitReturnInventoryDispositionPayload | null>(null);
+    const [hasUnresolvedSubmission, setHasUnresolvedSubmission] = useState(false);
 
     const summaryLines = useMemo(
         () => qcSummary?.lines ?? [],
@@ -436,7 +440,8 @@ export function ReturnInspectionModal({
 
     // Final Submission
     const handleConfirmSubmit = () => {
-        if (!validateBeforeReview()) {
+        if (isSubmitting) return;
+        if (!submissionRef.current && !validateBeforeReview()) {
             setStep(1);
             return;
         }
@@ -455,15 +460,16 @@ export function ReturnInspectionModal({
             };
         });
 
-        const commandId = crypto.randomUUID();
+        const request = submissionRef.current ?? { commandId: crypto.randomUUID(), lines: linesPayload };
+        submissionRef.current = request;
+        setHasUnresolvedSubmission(true);
         setIsSubmitting(true);
         setFormError(null);
 
-        submitReturnInventoryDisposition(returnItem.id, {
-            commandId,
-            lines: linesPayload
-        })
+        submitReturnInventoryDisposition(returnItem.id, request)
             .then((response) => {
+                submissionRef.current = null;
+                setHasUnresolvedSubmission(false);
                 if (response.status === "PROCESSED") {
                     onToast("Đã kiểm tra và cập nhật kho thành công.");
                     onSuccess();
@@ -473,6 +479,7 @@ export function ReturnInspectionModal({
                         ? getReturnErrorMessage(new Error(response.failureReason))
                         : "Không thể cập nhật kho.";
                     setFormError(failureMsg);
+                    setStep(1);
                     onRefresh?.();
                 } else {
                     onToast("Đã tạo lệnh kiểm định. Vào Kho > Hàng khách trả để xác nhận xử lý tồn kho.");
@@ -482,9 +489,17 @@ export function ReturnInspectionModal({
             })
             .catch((error: unknown) => {
                 const mappedError = getReturnErrorMessage(error);
-                setFormError(mappedError);
-                setStep(1);
-                onRefresh?.();
+                const rejected = error instanceof ApiError && error.status >= 400 && error.status < 500
+                    && ![408, 429, 499].includes(error.status);
+                if (rejected) {
+                    submissionRef.current = null;
+                    setHasUnresolvedSubmission(false);
+                    setFormError(mappedError);
+                    setStep(1);
+                    onRefresh?.();
+                } else {
+                    setFormError(`${mappedError} Chưa xác định được kết quả. Bấm xác nhận để gửi lại cùng yêu cầu.`);
+                }
             })
             .finally(() => {
                 setIsSubmitting(false);
@@ -1013,7 +1028,7 @@ export function ReturnInspectionModal({
                         <>
                             <button
                                 className={styles.secondaryButton}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || hasUnresolvedSubmission}
                                 onClick={() => setStep(1)}
                                 type="button"
                             >
