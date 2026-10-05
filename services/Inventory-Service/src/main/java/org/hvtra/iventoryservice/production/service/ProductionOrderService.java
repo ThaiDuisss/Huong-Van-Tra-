@@ -2,7 +2,6 @@ package org.hvtra.iventoryservice.production.service;
 
 import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
 import org.hvtra.iventoryservice.production.dto.request.CancelProductionOrderRequest;
-import org.hvtra.iventoryservice.production.dto.request.CompleteProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.request.CreateProductionOrderRequest;
 import org.hvtra.iventoryservice.production.dto.response.ProductionOrderResponse;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
@@ -22,11 +21,7 @@ public interface ProductionOrderService {
 
     ProductionOrderResponse approve(UUID id);
 
-    ProductionOrderResponse release(UUID id);
-
-    ProductionOrderResponse start(UUID id);
-
-    ProductionOrderResponse complete(UUID id, CompleteProductionOrderRequest request);
+    ProductionOrderResponse reject(UUID id);
 
     ProductionOrderResponse cancel(UUID id, CancelProductionOrderRequest request);
 }
