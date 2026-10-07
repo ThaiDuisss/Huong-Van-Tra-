@@ -76,7 +76,10 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
             var item = balances.get(0).getInventoryItem();
             if (item.getUnitId() != null) {
                 try {
-                    return catalogClient.getUnit(item.getUnitId()).symbol();
+                    return catalogClient.getUnitsBatch(List.of(item.getUnitId())).stream()
+                            .findFirst()
+                            .map(CatalogClient.UnitResponse::symbol)
+                            .orElse(null);
                 } catch (Exception e) {
                     log.error("Exception occurred while processing request", e);
                 }

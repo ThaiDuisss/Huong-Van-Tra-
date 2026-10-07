@@ -2,6 +2,7 @@ package org.hvtra.iventoryservice.warehouse.service.impl;
 
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.warehouse.dto.LocationInventoryDetailResponse;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class WarehouseInventoryServiceImpl implements WarehouseInventoryService {
 
     private final org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository balanceRepository;
@@ -197,9 +199,12 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
             var item = balances.get(0).getInventoryItem();
             if (item.getUnitId() != null) {
                 try {
-                    return catalogClient.getUnit(item.getUnitId()).symbol();
+                    return catalogClient.getUnitsBatch(List.of(item.getUnitId())).stream()
+                            .findFirst()
+                            .map(CatalogClient.UnitResponse::symbol)
+                            .orElse(null);
                 } catch (Exception e) {
-                    // If unit fetch fails, continue without unitSymbol
+                    log.error("Exception occurred while processing request", e);
                 }
             }
         }
