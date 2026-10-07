@@ -167,18 +167,15 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
         BigDecimal totalOnHand = BigDecimal.ZERO;
         BigDecimal totalReserved = BigDecimal.ZERO;
         BigDecimal totalBlocked = BigDecimal.ZERO;
+        BigDecimal totalAvailable = BigDecimal.ZERO;
         long batchCount = 0;
 
         for (InventoryBalance balance : balances) {
             totalOnHand = totalOnHand.add(balance.getQuantityOnHand());
             totalReserved = totalReserved.add(balance.getQuantityReserved());
             totalBlocked = totalBlocked.add(balance.getQuantityBlocked());
+            totalAvailable = totalAvailable.add(balance.getAvailableQuantity());
             batchCount++;
-        }
-
-        BigDecimal available = totalOnHand.subtract(totalReserved).subtract(totalBlocked);
-        if (available.compareTo(BigDecimal.ZERO) < 0) {
-            available = BigDecimal.ZERO;
         }
 
         return new LocationInventoryDetailResponse(
@@ -189,7 +186,7 @@ public class WarehouseInventoryServiceImpl implements WarehouseInventoryService 
             totalOnHand,
             totalReserved,
             totalBlocked,
-            available,
+            totalAvailable,
             batchCount
         );
     }
