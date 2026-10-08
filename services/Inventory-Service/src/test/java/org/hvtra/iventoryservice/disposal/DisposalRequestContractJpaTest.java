@@ -10,6 +10,11 @@ import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.test.context.ContextConfiguration;
+import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
@@ -29,7 +34,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=create-drop"
 })
+@ContextConfiguration(classes = DisposalRequestContractJpaTest.JpaConfiguration.class)
 class DisposalRequestContractJpaTest {
+    @Configuration(proxyBeanMethods = false)
+    @EntityScan(basePackageClasses = InventoryItem.class)
+    @EnableJpaRepositories(basePackageClasses = DisposalRequestRepository.class)
+    static class JpaConfiguration {
+    }
 
     @Autowired
     EntityManager entityManager;

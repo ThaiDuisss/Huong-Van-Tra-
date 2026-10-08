@@ -82,6 +82,30 @@ export interface CreateOrderReturnPayload {
     refundRequired?: boolean;
 }
 
+export interface CheckOrderReturnEligibilityPayload {
+    items: Array<Omit<CreateOrderReturnItemPayload, "reason"> & { reason: ReturnReason | null }>;
+}
+
+export interface OrderReturnEligibilityCheck {
+    code: string;
+    passed: boolean;
+    message: string;
+}
+
+export interface OrderReturnItemEligibility {
+    orderItemId: string;
+    reason: ReturnReason | null;
+    remainingQuantity: number;
+    policy: string[];
+    checks: OrderReturnEligibilityCheck[];
+}
+
+export interface OrderReturnEligibilityResponse {
+    eligible: boolean;
+    checks: OrderReturnEligibilityCheck[];
+    items: OrderReturnItemEligibility[];
+}
+
 export interface OrderReturnItemResponse {
     id?: string | null;
     orderItemId?: string | null;

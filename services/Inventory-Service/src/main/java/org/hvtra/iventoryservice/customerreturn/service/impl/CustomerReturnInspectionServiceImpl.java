@@ -35,6 +35,7 @@ import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
+import org.hvtra.iventoryservice.domain.enums.CustomerReturnActualCondition;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcStatus;
 import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
@@ -46,7 +47,6 @@ import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
 import org.hvtra.iventoryservice.domain.support.InventoryLocationSaleability;
 import org.hvtra.iventoryservice.integration.order.client.OrderReturnClient;
-import org.hvtra.iventoryservice.integration.order.dto.OrderReturnCondition;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnItemResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnResponse;
 import org.hvtra.iventoryservice.integration.order.dto.OrderReturnStatus;
@@ -153,7 +153,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             }
             validatePositive(lineRequest.quantity(), "quantity");
             validateWithinReturnedQuantity(returnItem, allocatedQuantities.get(returnItem.id()), lineRequest.quantity());
-            validateConditionResult(returnItem.condition(), lineRequest.result(), lineRequest.note(), request.note());
+            validateConditionResult(lineRequest.actualCondition(), lineRequest.result(), commandId != null, false);
 
             InventoryItem item = activeProductVariantItem(returnItem.productVariantId());
             InventoryLocation destination = resolveDestination(
@@ -166,6 +166,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             line.setProductVariantId(returnItem.productVariantId());
             line.setInventoryItem(item);
             line.setQuantity(lineRequest.quantity());
+            line.setActualCondition(lineRequest.actualCondition());
             line.setResult(lineRequest.result());
             line.setDestinationLocation(destination);
             line.setNote(lineRequest.note());
@@ -173,7 +174,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         }
 
         CustomerReturnInspection saved = inspectionRepository.saveAndFlush(inspection);
-        return toResponse(saved);
+        return toEnrichedResponse(saved, orderReturn);
     }
 
     @Override
@@ -220,23 +221,14 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             throw new BadRequestException("Cancelled customer return inspection cannot be posted: " + inspectionId);
         }
 
-        // Apply optional destination location overrides if provided from UI
-        if (request != null && request.lines() != null && !request.lines().isEmpty()) {
-            Map<UUID, PostCustomerReturnInspectionRequest.LineOverride> overridesByReturnItemId = request.lines().stream()
-                    .filter(o -> o.returnItemId() != null)
-                    .collect(Collectors.toMap(PostCustomerReturnInspectionRequest.LineOverride::returnItemId, Function.identity(), (a, b) -> a));
-            Map<UUID, PostCustomerReturnInspectionRequest.LineOverride> overridesByLineId = request.lines().stream()
-                    .filter(o -> o.lineId() != null)
-                    .collect(Collectors.toMap(PostCustomerReturnInspectionRequest.LineOverride::lineId, Function.identity(), (a, b) -> a));
+        applyQcOverrides(inspection, request);
 
-            for (CustomerReturnInspectionLine line : inspection.getLines()) {
-                PostCustomerReturnInspectionRequest.LineOverride override = overridesByReturnItemId.get(line.getReturnItemId());
-                if (override == null && line.getId() != null) {
-                    override = overridesByLineId.get(line.getId());
-                }
-                if (override != null && override.destinationLocationId() != null && line.getResult() != CustomerReturnQcResult.WRITE_OFF) {
-                    InventoryLocation newDest = resolveDestination(line.getResult(), override.destinationLocationId());
-                    line.setDestinationLocation(newDest);
+        // Validate all observations before issuing any Inventory movement.
+        for (CustomerReturnInspectionLine line : inspection.getLines()) {
+            if (!Boolean.TRUE.equals(line.getPosted())) {
+                validateConditionResult(line.getActualCondition(), line.getResult(), false, true);
+                if (line.getResult() != CustomerReturnQcResult.WRITE_OFF) {
+                    validateDestinationForPosting(line.getResult(), line.getDestinationLocation());
                 }
             }
         }
@@ -756,27 +748,65 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     }
 
     private void validateConditionResult(
-            OrderReturnCondition condition,
+            CustomerReturnActualCondition actualCondition,
             CustomerReturnQcResult result,
-            String lineNote,
-            String inspectionNote) {
+            boolean allowDraft,
+            boolean allowLegacyResult) {
         if (result == null) {
             throw new BadRequestException("Customer return disposition result is required");
         }
-        if (!result.isAllowedForNewReturn()) {
+        if (!result.isAllowedForNewReturn() && !allowLegacyResult) {
             throw new BadRequestException("QUARANTINE is no longer supported for new customer returns; use DAMAGED");
         }
-        if (result == CustomerReturnQcResult.WRITE_OFF) {
+        if (actualCondition == null && allowDraft) {
             return;
         }
-        if (result == CustomerReturnQcResult.DAMAGED) {
+        if (actualCondition == null) {
+            throw new BadRequestException("QC actual condition is required before confirming inspection");
+        }
+        if (result == CustomerReturnQcResult.RESTOCK && actualCondition != CustomerReturnActualCondition.SEALED) {
+            throw new BadRequestException("RESTOCK is not allowed for QC actual condition " + actualCondition);
+        }
+    }
+
+    private void applyQcOverrides(CustomerReturnInspection inspection, PostCustomerReturnInspectionRequest request) {
+        if (request == null || request.lines() == null) {
             return;
         }
-        if (condition == OrderReturnCondition.SEALED) {
-            return;
-        }
-        if (result == CustomerReturnQcResult.RESTOCK) {
-            throw new BadRequestException("RESTOCK is not allowed for return condition " + condition);
+        Set<UUID> updatedItems = new HashSet<>();
+        for (PostCustomerReturnInspectionRequest.LineOverride override : request.lines()) {
+            if (override == null || (override.lineId() == null && override.returnItemId() == null)) {
+                throw new BadRequestException("QC override must identify an inspection line");
+            }
+            CustomerReturnInspectionLine line = inspection.getLines().stream()
+                    .filter(candidate -> (override.lineId() == null || override.lineId().equals(candidate.getId()))
+                            && (override.returnItemId() == null || override.returnItemId().equals(candidate.getReturnItemId())))
+                    .findFirst()
+                    .orElseThrow(() -> new BadRequestException("QC override does not belong to inspection"));
+            if (!updatedItems.add(line.getReturnItemId())) {
+                throw new BadRequestException("Duplicate QC override for inspection line");
+            }
+            if (Boolean.TRUE.equals(line.getPosted())) {
+                throw new BadRequestException("Posted inspection lines cannot be changed");
+            }
+            if (override.result() != null) {
+                if (!override.result().isAllowedForNewReturn() && override.result() != line.getResult()) {
+                    throw new BadRequestException("QUARANTINE is no longer supported for new customer returns; use DAMAGED");
+                }
+                line.setResult(override.result());
+            }
+            if (override.actualCondition() != null) {
+                line.setActualCondition(override.actualCondition());
+            }
+            if (override.note() != null) {
+                line.setNote(override.note().isBlank() ? null : override.note().trim());
+            }
+            validateConditionResult(line.getActualCondition(), line.getResult(), false, true);
+            if (line.getResult() == CustomerReturnQcResult.WRITE_OFF) {
+                line.setDestinationLocation(null);
+            } else if (override.destinationLocationId() != null) {
+                line.setDestinationLocation(resolveDestination(line.getResult(), override.destinationLocationId()));
+            }
         }
     }
 
@@ -963,7 +993,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                             disposalRequest == null ? null : disposalRequest.getRequestCode(),
                             disposalRequest == null ? null : disposalRequest.getStatus(),
                             condition,
-                            returnReason
+                            returnReason,
+                            line.getActualCondition()
                     );
                 })
                 .toList();
@@ -1023,7 +1054,8 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
                 disposalRequest == null ? null : disposalRequest.getRequestCode(),
                 disposalRequest == null ? null : disposalRequest.getStatus(),
                 null,
-                null);
+                null,
+                line.getActualCondition());
     }
 
     private CustomerReturnQcStatus lineQcStatus(BigDecimal returnedQuantity, BigDecimal postedQuantity) {

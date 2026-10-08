@@ -45,6 +45,7 @@ public class OrderReturnItem extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "product_condition", nullable = false, length = 50)
+    // Immutable creation declaration; QC actual condition belongs to Inventory inspection lines.
     private ReturnCondition condition;
 
     @Column(name = "note", length = 500)

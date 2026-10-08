@@ -1,5 +1,7 @@
 package org.hvtra.iventoryservice.customerreturn.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.hvtra.iventoryservice.domain.enums.CustomerReturnActualCondition;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
 import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
@@ -26,8 +28,9 @@ public record CustomerReturnInspectionLineResponse(
         UUID disposalRequestId,
         String disposalRequestCode,
         DisposalRequestStatus disposalStatus,
-        String condition,
-        String returnReason
+        String declaredCondition,
+        String returnReason,
+        CustomerReturnActualCondition actualCondition
 ) {
     public CustomerReturnInspectionLineResponse(
             UUID id,
@@ -48,7 +51,8 @@ public record CustomerReturnInspectionLineResponse(
             String disposalRequestCode,
             DisposalRequestStatus disposalStatus,
             String condition,
-            String returnReason
+            String returnReason,
+            CustomerReturnActualCondition actualCondition
     ) {
         this(
                 id,
@@ -70,7 +74,8 @@ public record CustomerReturnInspectionLineResponse(
                 disposalRequestCode,
                 disposalStatus,
                 condition,
-                returnReason
+                returnReason,
+                actualCondition
         );
     }
 
@@ -88,9 +93,16 @@ public record CustomerReturnInspectionLineResponse(
             String destinationLocationName,
             String note,
             Boolean posted,
-            UUID transactionId
+            UUID transactionId,
+            CustomerReturnActualCondition actualCondition
     ) {
-        this(id, returnItemId, orderItemId, productVariantId, inventoryItemId, itemCode, itemName, quantity, result, destinationLocationId, destinationLocationName, note, posted, transactionId, null, null, null, null, null);
+        this(id, returnItemId, orderItemId, productVariantId, inventoryItemId, itemCode, itemName, quantity, result, destinationLocationId, destinationLocationName, note, posted, transactionId, null, null, null, null, null, actualCondition);
+    }
+
+    /** Compatibility alias; this is the historical declaration, never the QC observation. */
+    @JsonProperty("condition")
+    public String condition() {
+        return declaredCondition;
     }
 
     private static InventoryTransactionType transactionType(CustomerReturnQcResult result) {

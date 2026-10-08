@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     internal_header_secret: str = "dev-internal-header-secret"
     internal_service_name: str = "recommendation-service"
 
-    model_artifact_path: str = "artifacts/lightfm_model.pkl"
+    model_artifact_path: str = "artifacts/lightfm_model.pkl"  # Legacy research training only.
+    v1_artifact_path: str = "artifacts/v1_hybrid_model.npz"
     recommendation_default_limit: int = 10
     recommendation_max_limit: int = 50
 

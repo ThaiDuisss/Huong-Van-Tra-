@@ -1,0 +1,3 @@
+# Optional legacy research/training, never required by V1 API serving.
+-r requirements.txt
+lightfm==1.17
