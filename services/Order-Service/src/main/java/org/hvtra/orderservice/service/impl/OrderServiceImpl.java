@@ -118,9 +118,15 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
+        boolean offlineSale = Boolean.TRUE.equals(request.getOfflineSale());
+
         Order order = Order.builder()
                 .orderCode(generateOrderCode())
                 .tenantId(request.getTenantId())
+                .branchId(request.getBranchId())
+                .clientOrderId(request.getClientOrderId())
+                .offlineSale(offlineSale)
+                .soldAt(offlineSale ? request.getSoldAt() : null)
                 .terminalId(request.getTerminalId())
                 .shiftId(request.getShiftId())
                 .customerId(request.getCustomerId())
@@ -187,8 +193,13 @@ public class OrderServiceImpl implements OrderService {
                 );
             }
 
-            BigDecimal actualUnitPrice = variant.sellingPrice()
+            BigDecimal catalogUnitPrice = variant.sellingPrice()
                     .setScale(2, RoundingMode.HALF_UP);
+            // Đơn offline giữ đúng giá đã in cho khách tại quầy, kể cả khi catalog đã đổi giá.
+            BigDecimal actualUnitPrice =
+                    offlineSale && itemRequest.getUnitPriceSnapshot() != null
+                            ? itemRequest.getUnitPriceSnapshot().setScale(2, RoundingMode.HALF_UP)
+                            : catalogUnitPrice;
 
             if (actualUnitPrice.compareTo(BigDecimal.ZERO) < 0) {
                 throw new IllegalArgumentException(
@@ -215,7 +226,7 @@ public class OrderServiceImpl implements OrderService {
                     .productNameSnapshot(variant.productName())
                     .variantNameSnapshot(variant.variantName())
                     .quantity(quantity)
-                    .originalUnitPrice(actualUnitPrice)
+                    .originalUnitPrice(catalogUnitPrice)
                     .actualUnitPrice(actualUnitPrice)
                     .discountAmount(itemDiscount)
                     .lineTotal(lineTotal)
@@ -1705,6 +1716,8 @@ public class OrderServiceImpl implements OrderService {
                 .backorder(order.isBackorder())
                 .expectedAvailableAt(order.getExpectedAvailableAt())
                 .depositAmount(order.getDepositAmount())
+                .offlineSale(order.isOfflineSale())
+                .clientOrderId(order.getClientOrderId())
                 .inventoryProcessingStatus(order.getInventoryProcessingStatus())
                 .items(order.getItems().stream().map(this::toItemResponse).toList())
                 .customerName(order.getCustomerNameSnapshot())
@@ -1726,7 +1739,7 @@ public class OrderServiceImpl implements OrderService {
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
                 .createdByName(order.getCashierNameSnapshot())
                 .createdAt(createdAt)
-                .soldAt(createdAt)
+                .soldAt(order.getSoldAt() != null ? toLocalDateTime(order.getSoldAt()) : createdAt)
                 .updatedBy(toAuditString(auditValue(order, "getUpdatedBy")))
                 .updatedAt(toLocalDateTime(auditValue(order, "getUpdatedAt")))
                 .statusHistories(toStatusHistoryResponses(order.getId()))

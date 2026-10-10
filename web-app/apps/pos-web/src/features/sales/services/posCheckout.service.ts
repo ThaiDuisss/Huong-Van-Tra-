@@ -1,6 +1,13 @@
 import { ApiError } from "@hvt/api-client";
 
 import { posOrderApi } from "./posOrder.api";
+import type { OfflinePosCheckoutRequestBody } from "./posOrder.api";
+import type { SalesOrderDetail } from "../../order/types/sales-history.types";
+import type { OfflineOrderRecord } from "../offline/offline-order-types";
+import {
+    buildOfflineTempCode,
+    createClientOrderId
+} from "../offline/offline-order-queue";
 import type {
     SaleCartItem,
     SaleDiscountOption,
@@ -10,6 +17,7 @@ import type {
     SaleTotals
 } from "../types/sale.types";
 import type { PosDiscountRequest } from "./posOrder.api";
+import type { SaleCustomer } from "../types/sale.types";
 
 interface PosCheckoutInput {
     orderId: string | null;
@@ -98,7 +106,11 @@ function getCustomerId(value: string | null) {
     return value && uuidPattern.test(value) ? value : null;
 }
 
-function getOrderDiscounts(input: PosCheckoutInput): PosDiscountRequest[] {
+function getOrderDiscounts(
+    input: Pick<PosCheckoutInput, "selectedDiscount" | "manualOrderDiscount" | "totals"> & {
+        couponUsageId?: string | null;
+    }
+): PosDiscountRequest[] {
     const discounts: PosDiscountRequest[] = [];
 
     if (
@@ -280,5 +292,165 @@ export async function completePosCheckout(
         backorder: Boolean(order.backorder),
         expectedAvailableAt: order.expectedAvailableAt ?? null,
         debtAmount: Number(order.debtAmount ?? 0)
+    };
+}
+
+export interface LocalPosSaleInput {
+    cartItems: SaleCartItem[];
+    orderType: SaleOrderType;
+    paymentMethod: SalePaymentMethod;
+    cashReceived: number;
+    totals: SaleTotals;
+    originalSubtotal: number;
+    selectedDiscount: SaleDiscountOption;
+    manualOrderDiscount: SaleManualDiscount | null;
+    selectedCustomer: SaleCustomer | null;
+    /** Thu ngân đang bán (UUID identity) để máy chủ ghi đúng người bán khi đồng bộ muộn. */
+    cashierId: string | null;
+    cashierName: string | null;
+    ownerId: string | null;
+    branchId: string | null;
+    /** Đơn nháp đã tạo trên máy chủ trước khi mất mạng; huỷ sau khi đồng bộ. */
+    staleDraftOrderId: string | null;
+    /** true khi đang mất mạng: đơn vào hàng chờ, giữ giá đã in. */
+    offline: boolean;
+    now?: Date;
+}
+
+/**
+ * Kiểm tra giỏ cục bộ trước khi lưu/gửi một phát. Khác với checkout đơn nháp:
+ * không cần orderId, nhưng chỉ tiền mặt và không dùng mã giảm giá (cần máy chủ giữ mã).
+ */
+export function getLocalPosSaleValidationMessage(
+    input: Pick<
+        LocalPosSaleInput,
+        "cartItems" | "orderType" | "paymentMethod" | "cashReceived" | "totals" | "selectedDiscount" | "offline"
+    >
+) {
+    if (input.cartItems.length === 0) {
+        return "Giỏ hàng đang rỗng.";
+    }
+
+    if (input.orderType !== "QUICK_SALE") {
+        return "Vui lòng chọn tab Bán nhanh để thanh toán.";
+    }
+
+    if (input.paymentMethod !== "CASH") {
+        return input.offline
+            ? "Mất kết nối máy chủ: chỉ thu tiền mặt được."
+            : "Giỏ có mặt hàng thêm khi mất mạng: vui lòng thu tiền mặt, hoặc đóng hoá đơn và tạo lại.";
+    }
+
+    if (input.selectedDiscount.couponCode) {
+        return "Mã giảm giá cần máy chủ xác nhận, không dùng được cho đơn này.";
+    }
+
+    if (input.cashReceived < input.totals.total) {
+        return "Tiền khách đưa chưa đủ để thanh toán.";
+    }
+
+    return "";
+}
+
+function toUnitPrice(value: number) {
+    return Math.round(value * 100) / 100;
+}
+
+/**
+ * Dựng bản ghi đơn bán offline: body gửi máy chủ + hoá đơn in tại máy với mã tạm.
+ * Tổng tiền lấy từ máy POS (đã hiện cho khách), máy chủ tính lại khi đồng bộ.
+ */
+export function buildLocalPosSale(input: LocalPosSaleInput): OfflineOrderRecord {
+    const now = input.now ?? new Date();
+    const clientOrderId = createClientOrderId();
+    const tempCode = buildOfflineTempCode(clientOrderId, now);
+    const soldAt = now.toISOString();
+    const total = input.totals.total;
+    const paidAmount = total;
+    const receivedAmount = Math.max(input.cashReceived, total);
+    const changeAmount = Math.max(0, receivedAmount - total);
+    const customerId = getCustomerId(input.selectedCustomer?.id ?? null);
+
+    const request: OfflinePosCheckoutRequestBody = {
+        clientOrderId,
+        soldAt,
+        offlineSale: input.offline,
+        branchId: input.branchId && uuidPattern.test(input.branchId) ? input.branchId : undefined,
+        cashierId: input.cashierId && uuidPattern.test(input.cashierId) ? input.cashierId : undefined,
+        cashierNameSnapshot: input.cashierName ?? undefined,
+        customerId: customerId ?? undefined,
+        orderType: "POS",
+        orderDiscounts: getOrderDiscounts({
+            selectedDiscount: input.selectedDiscount,
+            manualOrderDiscount: input.manualOrderDiscount,
+            totals: input.totals
+        }),
+        shippingFee: 0,
+        paidAmount,
+        paymentMethod: "CASH",
+        items: input.cartItems.map((item) => ({
+            productVariantId: item.productVariantId ?? item.productId,
+            quantity: item.quantity,
+            note: item.note?.trim() || undefined,
+            unitPriceSnapshot: toUnitPrice(item.unitPrice),
+            itemDiscounts:
+                item.manualDiscount && item.manualDiscount.discountValue > 0
+                    ? [
+                          {
+                              discountType: item.manualDiscount.discountType,
+                              discountValue: item.manualDiscount.discountValue,
+                              source: "MANUAL" as const,
+                              reasonCode: item.manualDiscount.reasonCode,
+                              note: item.manualDiscount.note
+                          }
+                      ]
+                    : []
+        }))
+    };
+
+    const receipt: SalesOrderDetail = {
+        orderCode: tempCode,
+        soldAt,
+        createdAt: soldAt,
+        cashierName: input.cashierName,
+        customerName: input.selectedCustomer?.name ?? null,
+        customerPhone: input.selectedCustomer?.phone ?? null,
+        paymentMethod: "CASH",
+        paymentMethodLabel: "Tiền mặt",
+        originalAmount: input.originalSubtotal,
+        subTotal: input.totals.subtotal,
+        discountAmount: input.totals.discountAmount,
+        finalAmount: total,
+        paidAmount: receivedAmount,
+        changeAmount,
+        debtAmount: 0,
+        totalItems: input.cartItems.reduce((sum, item) => sum + item.quantity, 0),
+        items: input.cartItems.map((item) => ({
+            productName: item.name,
+            variantName: item.variant || null,
+            sku: item.sku,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: toUnitPrice(item.unitPrice * item.quantity)
+        }))
+    };
+
+    return {
+        clientOrderId,
+        tempCode,
+        ownerId: input.ownerId,
+        cashierName: input.cashierName,
+        soldAt,
+        status: "PENDING",
+        attempts: 0,
+        lastError: null,
+        lastAttemptAt: null,
+        totalAmount: total,
+        itemCount: input.cartItems.length,
+        request,
+        receipt,
+        staleDraftOrderId: input.staleDraftOrderId,
+        result: null,
+        syncedAt: null
     };
 }

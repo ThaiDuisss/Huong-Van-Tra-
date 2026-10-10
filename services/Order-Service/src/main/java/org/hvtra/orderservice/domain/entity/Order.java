@@ -159,6 +159,18 @@ public class Order extends BaseEntity {
     @Column(name = "deposit_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal depositAmount = BigDecimal.ZERO;
 
+    /** Khoá idempotency do POS sinh cho đơn bán offline; replay cùng khoá trả về đơn đã tạo. */
+    @Column(name = "client_order_id", unique = true, columnDefinition = "BINARY(16)")
+    private UUID clientOrderId;
+
+    /** Giờ bán thật tại quầy (đơn offline đồng bộ muộn). Null = lấy createdAt. */
+    @Column(name = "sold_at")
+    private Instant soldAt;
+
+    @Builder.Default
+    @Column(name = "offline_sale", nullable = false)
+    private boolean offlineSale = false;
+
     @Builder.Default
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();

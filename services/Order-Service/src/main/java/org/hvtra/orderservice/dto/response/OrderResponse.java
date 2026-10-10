@@ -45,6 +45,9 @@ public class OrderResponse {
     private Instant expiresAt;
 
     private boolean backorder;
+    /** Đơn bán offline đã đồng bộ; clientOrderId là khoá idempotency POS gửi lên. */
+    private boolean offlineSale;
+    private UUID clientOrderId;
     private Instant expectedAvailableAt;
     private BigDecimal depositAmount;
 

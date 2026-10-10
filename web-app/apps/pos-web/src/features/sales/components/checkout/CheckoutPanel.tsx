@@ -55,8 +55,8 @@ interface CheckoutPanelProps {
     /** Đơn chờ hàng đang chọn đặt cọc nhưng số tiền cọc chưa hợp lệ. */
     paymentBlocked?: boolean;
     /**
-     * Mất kết nối máy chủ: khoá chuyển khoản/QR (cần webhook ngân hàng) và
-     * nút hoàn tất vì API thanh toán không gọi được. Giỏ vẫn sửa được.
+     * Mất kết nối máy chủ: khoá chuyển khoản/QR (cần webhook ngân hàng). Tiền mặt
+     * vẫn hoàn tất được: đơn lưu trên máy, in hoá đơn mã tạm, đồng bộ sau.
      */
     offline?: boolean;
     onDiscountChange(discountId: string): void;
@@ -121,7 +121,7 @@ export function CheckoutPanel({
         (paymentMethod !== "CASH" || cashReceived >= cashDue) &&
         !isBankTransfer &&
         !paymentBlocked &&
-        !offline &&
+        (!offline || paymentMethod === "CASH") &&
         !checkoutLoading;
 
     useEffect(() => {
@@ -185,8 +185,8 @@ export function CheckoutPanel({
                     role="status"
                     className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
                 >
-                    Mất kết nối máy chủ. Vẫn có thể chọn hàng và nhập tiền khách
-                    đưa; chuyển khoản và hoàn tất thanh toán sẽ mở lại khi có mạng.
+                    Mất kết nối máy chủ. Thu tiền mặt vẫn được: đơn lưu trên máy này,
+                    in hoá đơn mã tạm và tự đồng bộ khi có mạng. Chuyển khoản tạm khoá.
                 </p>
             ) : null}
 
@@ -273,7 +273,7 @@ export function CheckoutPanel({
                 <CompletePaymentButton
                     total={totals.total}
                     disabled={!canCompletePayment}
-                    label={offline ? "Mất kết nối máy chủ" : undefined}
+                    label={offline ? "Lưu đơn & in hoá đơn tạm" : undefined}
                     loading={checkoutLoading}
                     onClick={onCompletePayment}
                 />

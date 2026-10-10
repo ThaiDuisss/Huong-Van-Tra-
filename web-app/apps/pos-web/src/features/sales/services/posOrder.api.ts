@@ -46,6 +46,37 @@ export interface PosDiscountRequest {
     note?: string;
 }
 
+export interface OfflinePosCheckoutItemBody {
+    productVariantId: string;
+    quantity: number;
+    note?: string;
+    /** Giá đã chốt với khách tại quầy; máy chủ dùng khi offlineSale = true. */
+    unitPriceSnapshot: number;
+    itemDiscounts: PosDiscountRequest[];
+}
+
+/**
+ * Body của POST /orders/pos/offline-checkout: cả giỏ hàng trong một request,
+ * clientOrderId là khoá idempotency nên gửi lại bao nhiêu lần cũng chỉ ra một đơn.
+ */
+export interface OfflinePosCheckoutRequestBody {
+    clientOrderId: string;
+    /** ISO, giờ bán thật tại quầy. */
+    soldAt: string;
+    /** true = bán khi mất mạng (giữ giá đã in); false = giỏ cục bộ nhưng đang online. */
+    offlineSale: boolean;
+    branchId?: string;
+    cashierId?: string;
+    cashierNameSnapshot?: string;
+    customerId?: string;
+    orderType: string;
+    orderDiscounts: PosDiscountRequest[];
+    shippingFee: 0;
+    paidAmount: number;
+    paymentMethod: string;
+    items: OfflinePosCheckoutItemBody[];
+}
+
 interface CreatePosOrderRequestBody {
     orderId?: string;
     customerId?: string;
@@ -265,6 +296,22 @@ export const posOrderApi = {
         return apiClient.post<PosOrderDto, Record<string, never>>(
             `/orders/pos/draft/${encodeURIComponent(orderId)}/cancel`,
             {}
+        );
+    },
+
+    /**
+     * Đồng bộ đơn bán offline (hoặc giỏ cục bộ). Không retry tự động ở lớp HTTP:
+     * bộ đồng bộ offline tự quyết định thử lại, và replay cùng clientOrderId là an toàn.
+     */
+    checkoutOffline(body: OfflinePosCheckoutRequestBody) {
+        return apiClient.post<PosOrderDto, OfflinePosCheckoutRequestBody>(
+            "/orders/pos/offline-checkout",
+            body,
+            {
+                headers: { "Idempotency-Key": body.clientOrderId },
+                timeoutMs: 60_000,
+                retry: false
+            }
         );
     },
 

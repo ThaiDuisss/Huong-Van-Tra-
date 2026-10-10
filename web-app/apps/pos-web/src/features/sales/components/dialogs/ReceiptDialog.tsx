@@ -9,31 +9,70 @@ import {
 } from "../../../order/utils/receipt-print";
 
 interface ReceiptDialogProps {
-    /** Mã định danh đơn vừa thanh toán; null thì không hiển thị. */
+    /** Mã định danh đơn vừa thanh toán trên máy chủ; null thì không tải. */
     orderId: string | null;
+    /** Hoá đơn dựng tại máy (đơn bán offline, mã tạm); ưu tiên hơn orderId. */
+    localOrder?: SalesOrderDetail | null;
+    /** Tiêu đề thay cho "Thanh toán thành công" (vd đơn offline). */
+    title?: string;
+    /** Ghi chú dưới tiêu đề, vd nhắc đơn sẽ đồng bộ sau. */
+    hint?: string;
     onClose: () => void;
 }
 
-export function ReceiptDialog({ orderId, onClose }: ReceiptDialogProps) {
+export function ReceiptDialog({ orderId, localOrder, title, hint, onClose }: ReceiptDialogProps) {
+    if (localOrder) {
+        return (
+            <ReceiptDialogContent
+                key={localOrder.orderCode ?? "local"}
+                localOrder={localOrder}
+                title={title}
+                hint={hint}
+                onClose={onClose}
+            />
+        );
+    }
+
     if (!orderId) {
         return null;
     }
 
     // key theo orderId để mỗi hóa đơn có trạng thái tải riêng.
-    return <ReceiptDialogContent key={orderId} orderId={orderId} onClose={onClose} />;
+    return (
+        <ReceiptDialogContent
+            key={orderId}
+            orderId={orderId}
+            title={title}
+            hint={hint}
+            onClose={onClose}
+        />
+    );
 }
 
 interface ReceiptDialogContentProps {
-    orderId: string;
+    orderId?: string;
+    localOrder?: SalesOrderDetail;
+    title?: string;
+    hint?: string;
     onClose: () => void;
 }
 
-function ReceiptDialogContent({ orderId, onClose }: ReceiptDialogContentProps) {
-    const [order, setOrder] = useState<SalesOrderDetail | null>(null);
-    const [loading, setLoading] = useState(true);
+function ReceiptDialogContent({
+    orderId,
+    localOrder,
+    title = "Thanh toán thành công",
+    hint,
+    onClose
+}: ReceiptDialogContentProps) {
+    const [order, setOrder] = useState<SalesOrderDetail | null>(localOrder ?? null);
+    const [loading, setLoading] = useState(!localOrder);
     const [error, setError] = useState("");
 
     useEffect(() => {
+        if (!orderId || localOrder) {
+            return undefined;
+        }
+
         let ignore = false;
 
         getSalesOrderDetail(orderId)
@@ -56,7 +95,7 @@ function ReceiptDialogContent({ orderId, onClose }: ReceiptDialogContentProps) {
         return () => {
             ignore = true;
         };
-    }, [orderId]);
+    }, [orderId, localOrder]);
 
     const receiptHtml = useMemo(
         () => (order ? buildReceiptHtml(order) : ""),
@@ -99,13 +138,16 @@ function ReceiptDialogContent({ orderId, onClose }: ReceiptDialogContentProps) {
                             className="text-xl font-black text-[#172317]"
                             id="receipt-dialog-title"
                         >
-                            Thanh toán thành công
+                            {title}
                         </h2>
                         <p className="text-sm font-semibold text-[#697684]">
                             {order?.orderCode
                                 ? `Hóa đơn ${order.orderCode}`
                                 : "Hóa đơn bán hàng"}
                         </p>
+                        {hint ? (
+                            <p className="text-[12px] font-semibold text-amber-800">{hint}</p>
+                        ) : null}
                     </div>
                 </header>
 

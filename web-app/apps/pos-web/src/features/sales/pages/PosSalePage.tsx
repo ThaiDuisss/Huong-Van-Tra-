@@ -42,11 +42,17 @@ import {
 import { formatCurrency } from "../services/money";
 import { posCustomerApi } from "../services/posCustomer.api";
 import {
+    buildLocalPosSale,
+    getLocalPosSaleValidationMessage,
     getPosAmountDue,
     completePosCheckout,
     type PosCheckoutPaymentResult
 } from "../services/posCheckout.service";
 import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
+import { getOfflineOrderDb } from "../offline/offline-order-db";
+import { enqueueOfflineOrder } from "../offline/offline-order-queue";
+import { getOfflineOrderSync } from "../offline/offline-order-sync.instance";
+import type { SalesOrderDetail } from "../../order/types/sales-history.types";
 import { useProductSearch } from "../hooks/useProductSearch";
 import { posProductApi } from "../services/posProduct.api";
 import {
@@ -414,7 +420,7 @@ function getBackorderSuccessMessage(
 }
 
 export function PosSalePage() {
-    const { userId, keycloakSubject } = useAuth();
+    const { userId, keycloakSubject, displayName } = useAuth();
     const { online } = useNetworkStatus();
     // Khoá chủ sở hữu giỏ: dùng subject Keycloak vì có ngay từ lúc mount và
     // không đổi trong phiên; userId từ identity-service có thể tải xong sau
@@ -526,6 +532,8 @@ export function PosSalePage() {
             : ""
     );
     const [receiptOrderId, setReceiptOrderId] = useState<string | null>(null);
+    /** Hoá đơn mã tạm của đơn vừa lưu khi mất mạng. */
+    const [offlineReceipt, setOfflineReceipt] = useState<SalesOrderDetail | null>(null);
     const [bankTransferEventMessage, setBankTransferEventMessage] =
         useState("");
     const { notifications } = useNotifications();
@@ -565,6 +573,11 @@ export function PosSalePage() {
         () => Object.values(cartItemsById),
         [cartItemsById]
     );
+    /**
+     * Giỏ có dòng chưa nằm trong đơn nháp trên máy chủ (thêm/sửa khi mất mạng).
+     * Khi đó thanh toán đi đường "một phát" kèm clientOrderId thay vì checkout đơn nháp.
+     */
+    const hasLocalLines = cartItems.some((item) => !item.itemId);
     const selectedCustomer =
         selectedCustomersByInvoice[currentInvoiceId] ?? null;
     const selectedCustomerId = selectedCustomer?.id ?? null;
@@ -899,7 +912,98 @@ export function PosSalePage() {
         }
     }
 
+    /**
+     * Bán với giỏ cục bộ: mất mạng thì lưu vào hàng chờ IndexedDB và in hoá đơn mã tạm;
+     * có mạng (giỏ có dòng thêm khi offline) thì gửi một phát lên máy chủ. Cả hai đều
+     * mang clientOrderId nên gửi lại không tạo đơn trùng.
+     */
+    async function completeLocalSale() {
+        const validationMessage = getLocalPosSaleValidationMessage({
+            cartItems,
+            orderType,
+            paymentMethod,
+            cashReceived,
+            totals,
+            selectedDiscount,
+            offline: !online
+        });
+
+        if (validationMessage) {
+            setCheckoutError(validationMessage);
+            return;
+        }
+
+        setCheckoutLoading(true);
+        setCheckoutError("");
+        setCheckoutSuccess("");
+
+        const record = buildLocalPosSale({
+            cartItems,
+            orderType,
+            paymentMethod,
+            cashReceived,
+            totals,
+            originalSubtotal: baseTotals.subtotal,
+            selectedDiscount,
+            manualOrderDiscount,
+            selectedCustomer,
+            cashierId: getUuid(userId) ?? null,
+            cashierName: displayName ?? null,
+            ownerId: saleOwnerId,
+            branchId: currentBranchId,
+            staleDraftOrderId:
+                draftOrder?.id && draftOrder.status === "DRAFT" ? draftOrder.id : null,
+            offline: !online
+        });
+
+        try {
+            if (online) {
+                try {
+                    const order = await posOrderApi.checkoutOffline(record.request);
+
+                    if (record.staleDraftOrderId) {
+                        void posOrderApi
+                            .cancelDraftOrder(record.staleDraftOrderId)
+                            .catch(logApiError);
+                    }
+
+                    resetCurrentSale();
+                    setCheckoutSuccess(`Thanh toán thành công đơn ${order.orderCode}.`);
+                    setReceiptOrderId(order.id);
+                    return;
+                } catch (error) {
+                    if (!(error instanceof ApiError && error.isNetworkError)) {
+                        throw error;
+                    }
+                    // Mạng rớt đúng lúc gửi: chuyển sang lưu offline. Máy chủ có thể đã
+                    // nhận đơn, nhưng replay cùng clientOrderId chỉ trả về đơn đó.
+                }
+            }
+
+            await enqueueOfflineOrder(getOfflineOrderDb(), {
+                ...record,
+                request: { ...record.request, offlineSale: true }
+            });
+            void getOfflineOrderSync().notifyEnqueued();
+            resetCurrentSale();
+            setCheckoutSuccess(
+                `Đã lưu đơn ${record.tempCode} trên máy (${formatCurrency(record.totalAmount)}). Sẽ tự đồng bộ lên máy chủ khi có mạng.`
+            );
+            setOfflineReceipt(record.receipt);
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(getErrorMessage(error));
+        } finally {
+            setCheckoutLoading(false);
+        }
+    }
+
     async function completePayment() {
+        if (!online || hasLocalLines) {
+            await completeLocalSale();
+            return;
+        }
+
         if (
             paymentMethod === "BANK_TRANSFER" &&
             bankTransferStatus === "RECEIVED"
@@ -1302,6 +1406,117 @@ export function PosSalePage() {
         }
     }
 
+    function clearBankTransferAndMessages() {
+        setBankTransferPayment(null);
+        setBankTransferStatus("WAITING");
+        setBankTransferEventMessage("");
+        setCheckoutError("");
+        setCheckoutSuccess("");
+    }
+
+    /**
+     * Thêm vào giỏ cục bộ (mất mạng): không gọi API đơn nháp. Dòng cùng mặt hàng và
+     * cùng ghi chú thì cộng số lượng; dòng vốn là của đơn nháp thì bỏ liên kết (itemId).
+     */
+    function upsertLocalCartItem(
+        product: SaleProductPreview,
+        quantity: number,
+        note?: string
+    ) {
+        const variantId = product.productVariantId ?? product.id;
+        const normalizedNote = note?.trim() || undefined;
+
+        setCartItemsById((currentItemsById) => {
+            const existingKey = Object.keys(currentItemsById).find((key) => {
+                const item = currentItemsById[key];
+
+                return (
+                    (item.productVariantId ?? item.productId) === variantId &&
+                    (item.note?.trim() || undefined) === normalizedNote
+                );
+            });
+
+            if (existingKey) {
+                const existing = currentItemsById[existingKey];
+
+                return {
+                    ...currentItemsById,
+                    [existingKey]: {
+                        ...existing,
+                        itemId: undefined,
+                        quantity: existing.quantity + quantity
+                    }
+                };
+            }
+
+            const key = `local:${variantId}:${normalizedNote ?? ""}`;
+
+            return {
+                ...currentItemsById,
+                [key]: {
+                    productId: key,
+                    productVariantId: variantId,
+                    inventoryLocationId: product.inventoryLocationId ?? null,
+                    name: product.name,
+                    sku: product.sku,
+                    variant: product.variant,
+                    quantity,
+                    unitPrice: product.price,
+                    availableQuantity: product.availableQuantity,
+                    sellableQuantity: product.sellableQuantity,
+                    manualDiscount: null,
+                    note: normalizedNote
+                }
+            };
+        });
+        stockByVariantIdRef.current[variantId] = product;
+        clearBankTransferAndMessages();
+    }
+
+    function updateLocalCartItemQuantity(productId: string, quantity: number) {
+        setCartItemsById((currentItemsById) => {
+            const item = currentItemsById[productId];
+
+            if (!item) {
+                return currentItemsById;
+            }
+
+            if (quantity <= 0) {
+                return Object.fromEntries(
+                    Object.entries(currentItemsById).filter(([key]) => key !== productId)
+                );
+            }
+
+            return {
+                ...currentItemsById,
+                [productId]: { ...item, itemId: undefined, quantity }
+            };
+        });
+        clearBankTransferAndMessages();
+
+        return true;
+    }
+
+    function changeLocalCartItemNote(productId: string, nextNote: string) {
+        setCartItemsById((currentItemsById) => {
+            const item = currentItemsById[productId];
+
+            if (!item) {
+                return currentItemsById;
+            }
+
+            return {
+                ...currentItemsById,
+                [productId]: {
+                    ...item,
+                    itemId: undefined,
+                    note: nextNote.trim() || undefined
+                }
+            };
+        });
+        clearBankTransferAndMessages();
+    }
+
     async function addProduct(product: SaleProductPreview, allowBackorder = false) {
         const variantId = product.productVariantId ?? product.id;
 
@@ -1316,6 +1531,18 @@ export function PosSalePage() {
 
         const waitAccepted =
             allowBackorder || backorderVariantIdsRef.current.has(variantId);
+
+        if (!online) {
+            if (product.sellableQuantity <= 0 && !waitAccepted) {
+                setCheckoutError(
+                    `${product.name} đã hết hàng theo dữ liệu đã tải; không đặt chờ hàng được khi mất mạng.`
+                );
+                return false;
+            }
+
+            upsertLocalCartItem(product, 1);
+            return true;
+        }
 
         if (product.sellableQuantity <= 0 && !waitAccepted) {
             setAddingProductId(product.id);
@@ -1436,9 +1663,13 @@ export function PosSalePage() {
     ) {
         const currentItem = cartItemsById[productId];
 
-        if (!draftOrder?.id || !currentItem?.itemId) {
-            setCheckoutError("Hóa đơn nháp chưa sẵn sàng.");
+        if (!currentItem) {
             return false;
+        }
+
+        // Mất mạng, hoặc dòng chưa có trên đơn nháp: sửa cục bộ, gửi cả giỏ khi thanh toán.
+        if (!online || !draftOrder?.id || !currentItem.itemId) {
+            return updateLocalCartItemQuantity(productId, quantity);
         }
 
         const variantId = currentItem.productVariantId ?? currentItem.productId;
@@ -1542,8 +1773,12 @@ export function PosSalePage() {
         const currentItem = cartItemsById[productId];
         const productVariantId = currentItem?.productVariantId;
 
-        if (!draftOrder?.id || !currentItem?.itemId || !productVariantId) {
-            setCheckoutError("Hóa đơn nháp chưa sẵn sàng.");
+        if (!currentItem) {
+            return;
+        }
+
+        if (!online || !draftOrder?.id || !currentItem.itemId || !productVariantId) {
+            changeLocalCartItemNote(productId, nextNote);
             return;
         }
 
@@ -1595,6 +1830,12 @@ export function PosSalePage() {
             return;
         }
 
+        if (!online) {
+            upsertLocalCartItem(input.product, input.quantity, input.note);
+            closeCustomTeaDialog();
+            return;
+        }
+
         setCustomTeaSubmitLoading(true);
 
         try {
@@ -1636,6 +1877,13 @@ export function PosSalePage() {
             return;
         }
 
+        if (hasLocalLines && (method === "BANK_TRANSFER" || method === "COMBINED")) {
+            setCheckoutError(
+                "Giỏ có mặt hàng thêm khi mất mạng nên chỉ thu tiền mặt. Muốn chuyển khoản, hãy đóng hoá đơn và tạo lại."
+            );
+            return;
+        }
+
         setPaymentMethod(method);
 
         if (method === "BANK_TRANSFER") {
@@ -1653,7 +1901,8 @@ export function PosSalePage() {
         try {
             await releaseCouponUsage(reservedCouponUsage, "cancel");
 
-            if (draftOrder?.id && draftOrder.status === "DRAFT") {
+            // Mất mạng thì chỉ dọn cục bộ; đơn nháp trên máy chủ tự hết hạn.
+            if (online && draftOrder?.id && draftOrder.status === "DRAFT") {
                 try {
                     await posOrderApi.cancelDraftOrder(draftOrder.id);
                 } catch (error) {
@@ -2425,7 +2674,17 @@ export function PosSalePage() {
             ) : null}
             <ReceiptDialog
                 orderId={receiptOrderId}
-                onClose={() => setReceiptOrderId(null)}
+                localOrder={offlineReceipt}
+                title={offlineReceipt ? "Đã lưu đơn bán offline" : undefined}
+                hint={
+                    offlineReceipt
+                        ? "Mã tạm. Đơn sẽ tự đồng bộ lên máy chủ và nhận mã chính thức khi có mạng."
+                        : undefined
+                }
+                onClose={() => {
+                    setReceiptOrderId(null);
+                    setOfflineReceipt(null);
+                }}
             />
             {customTeaOpen ? (
                 <CustomTeaRequestDialog

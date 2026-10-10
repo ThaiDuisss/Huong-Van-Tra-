@@ -190,7 +190,11 @@ public class OrderMapper {
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
                 .createdByName(order.getCashierNameSnapshot())
                 .createdAt(createdAt)
-                .soldAt(createdAt)
+                .soldAt(order.getSoldAt() != null
+                        ? orderDateTimeHelper.toLocalDateTime(order.getSoldAt())
+                        : createdAt)
+                .offlineSale(order.isOfflineSale())
+                .clientOrderId(order.getClientOrderId())
                 .updatedBy(toAuditString(auditValue(order, "getUpdatedBy")))
                 .updatedAt(orderDateTimeHelper.toLocalDateTime(auditValue(order, "getUpdatedAt")))
                 .build();

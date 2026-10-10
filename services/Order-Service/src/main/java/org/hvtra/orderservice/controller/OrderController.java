@@ -42,6 +42,7 @@ import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.service.OrderReturnReportService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
+import org.hvtra.orderservice.service.PosOfflineCheckoutService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -67,6 +68,7 @@ public class OrderController {
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     private final OrderService orderService;
+    private final PosOfflineCheckoutService posOfflineCheckoutService;
     private final OrderExportService orderExportService;
     private final OrderReturnService orderReturnService;
     private final OrderReturnReportService orderReturnReportService;
@@ -81,6 +83,13 @@ public class OrderController {
             );
         }
         return orderService.createOrder(request);
+    }
+
+    @Operation(summary = "dong bo don da ban offline tai POS (idempotent theo clientOrderId)")
+    @UserAction(value = "ORDER_OFFLINE_CHECKOUT", entityType = "Order", entityId = "#result.id")
+    @PostMapping("/pos/offline-checkout")
+    public OrderResponse checkoutOfflineOrder(@Valid @RequestBody CreateOrderRequest request) {
+        return posOfflineCheckoutService.checkout(request);
     }
 
     @Operation(summary = "them san pham vao hoa don nhap POS")
