@@ -8,6 +8,7 @@ import { ProductionOrderDetailPage as ManufacturingProductionOrderDetailPage } f
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
 import { ActionLogPage } from "../features/action-log/pages/ActionLogPage";
+import { AiReportsPage } from "../features/ai/pages/AiReportsPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
@@ -93,6 +94,7 @@ import { useAuth } from "../auth/auth-context";
 import { ProtectedRoute } from "../auth/ProtectedRoute";
 import {
   ACTION_LOG_ROLES,
+  AI_REPORT_ROLES,
   BACKOFFICE_ROLES,
   INVENTORY_OPERATION_ROLES,
   INVENTORY_ROLES,
@@ -202,6 +204,17 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       />
+
+      {/* Separate shell branch keeps the existing backoffice gate intact. */}
+      <Route
+        element={
+          <ProtectedRoute roles={AI_REPORT_ROLES}>
+            <SystemShell />
+          </ProtectedRoute>
+        }
+      >
+        <Route path={routePaths.aiReports} element={<AiReportsPage />} />
+      </Route>
 
       <Route
         path={routePaths.system}

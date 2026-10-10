@@ -23,6 +23,9 @@ export const BACKOFFICE_ROLES: AppRole[] = [
     "ACCOUNTANT"
 ];
 
+/** Access to the AI report page only; does not grant backoffice access. */
+export const AI_REPORT_ROLES: AppRole[] = [...BACKOFFICE_ROLES, "SALE_STAFF"];
+
 export const ORDER_ROLES: AppRole[] = [
     "ADMIN",
     "MANAGER",

@@ -6,10 +6,9 @@ import { useAuth } from "../../../auth/auth-context";
 import { routePaths } from "../../../routes/path";
 import { HvtLogo } from "../../shared/HvtLogo";
 import {
-    filterNavigationByRoles,
+    filterSystemNavigationByRoles,
     getFirstNavigationPath,
     isNavigationItemActive,
-    systemNavigationItems,
     type SystemNavigationItem
 } from "./system-navigation";
 
@@ -148,7 +147,7 @@ export function SystemSidebar() {
     const navigate = useNavigate();
     const { avatarUrl, displayName, roleLabel, roles, username } = useAuth();
     const visibleNavigationItems = useMemo(
-        () => filterNavigationByRoles(systemNavigationItems, roles),
+        () => filterSystemNavigationByRoles(roles),
         [roles]
     );
     const activeKeys = useMemo(
