@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@hvt/api-client";
 
+import { useNetworkStatus } from "../../../app/network/useNetworkStatus";
 import { useAuth } from "../../../auth/auth-context";
 import { PosShell } from "../../../components/layout/Pos/PosShell";
 import { useNotifications } from "../../notification/context/useNotifications";
@@ -47,6 +48,10 @@ import {
 } from "../services/posCheckout.service";
 import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
 import { posProductApi } from "../services/posProduct.api";
+import {
+    loadPersistedSale,
+    savePersistedSale
+} from "../store/sale-persistence";
 import {
     calculateNetSubtotal,
     calculateSaleTotals
@@ -408,7 +413,15 @@ function getBackorderSuccessMessage(
 }
 
 export function PosSalePage() {
-    const { userId } = useAuth();
+    const { userId, keycloakSubject } = useAuth();
+    const { online } = useNetworkStatus();
+    // Khoá chủ sở hữu giỏ: dùng subject Keycloak vì có ngay từ lúc mount và
+    // không đổi trong phiên; userId từ identity-service có thể tải xong sau
+    // (nếu dùng nó, lần render đầu sẽ coi snapshot là của người khác và xoá).
+    const saleOwnerId = keycloakSubject ?? userId ?? null;
+    // Đọc một lần khi mount: đơn đang bán của chính thu ngân này trên máy này
+    // (giữ lại sau khi mất mạng, reload hay tắt nhầm tab).
+    const [persistedSale] = useState(() => loadPersistedSale(saleOwnerId));
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<
         SaleProductPreview[]
@@ -449,27 +462,35 @@ export function PosSalePage() {
     );
     const [cartItemsById, setCartItemsById] = useState<
         Record<string, SaleCartItem>
-    >(initialCartItems);
-    const [draftOrder, setDraftOrder] = useState<PosOrderDto | null>(null);
+    >(persistedSale?.cartItemsById ?? initialCartItems);
+    const [draftOrder, setDraftOrder] = useState<PosOrderDto | null>(
+        persistedSale?.draftOrder ?? null
+    );
 
     // Đơn mới thì bắt đầu theo dõi phiếu nhập kệ lại từ đầu.
     useEffect(() => {
         replenishedMissingRef.current = {};
         replenishmentModeRef.current = {};
     }, [draftOrder?.id]);
-    const [note, setNote] = useState("");
+    const [note, setNote] = useState(persistedSale?.note ?? "");
     const [orderType, setOrderType] =
-        useState<SaleOrderType>("QUICK_SALE");
+        useState<SaleOrderType>(persistedSale?.orderType ?? "QUICK_SALE");
     const [selectedDiscountId, setSelectedDiscountId] =
-        useState("none");
+        useState(persistedSale?.selectedDiscountId ?? "none");
     const [promotionDiscounts, setPromotionDiscounts] = useState<
         SaleDiscountOption[]
     >([]);
     const [reservedCouponUsage, setReservedCouponUsage] =
         useState<CouponUsageResponse | null>(null);
     const [manualOrderDiscount, setManualOrderDiscount] =
-        useState<SaleManualDiscount | null>(null);
-    const [cashReceived, setCashReceived] = useState(0);
+        useState<SaleManualDiscount | null>(
+            persistedSale?.manualOrderDiscount ?? null
+        );
+    const [cashReceived, setCashReceived] = useState(
+        persistedSale?.cashReceived ?? 0
+    );
+    // Luôn về tiền mặt khi khôi phục: phiên chuyển khoản (QR, mã tham chiếu)
+    // không dựng lại được, dù snapshot có lưu paymentMethod để đối soát.
     const [paymentMethod, setPaymentMethod] =
         useState<SalePaymentMethod>("CASH");
     const [bankTransferStatus, setBankTransferStatus] =
@@ -482,7 +503,7 @@ export function PosSalePage() {
     const [customersError, setCustomersError] = useState("");
     const [selectedCustomersByInvoice, setSelectedCustomersByInvoice] =
         useState<Record<string, SaleCustomer | null>>({
-            [currentInvoiceId]: null
+            [currentInvoiceId]: persistedSale?.selectedCustomer ?? null
         });
     const [deliveryStateByInvoice, setDeliveryStateByInvoice] =
         useState<Record<string, DeliveryCheckoutState>>({
@@ -490,7 +511,15 @@ export function PosSalePage() {
         });
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [checkoutError, setCheckoutError] = useState("");
-    const [checkoutSuccess, setCheckoutSuccess] = useState("");
+    const [checkoutSuccess, setCheckoutSuccess] = useState(
+        persistedSale
+            ? `Đã khôi phục đơn đang bán${
+                  persistedSale.draftOrder?.orderCode
+                      ? ` ${persistedSale.draftOrder.orderCode}`
+                      : ""
+              } (${Object.keys(persistedSale.cartItemsById).length} mặt hàng).`
+            : ""
+    );
     const [receiptOrderId, setReceiptOrderId] = useState<string | null>(null);
     const [bankTransferEventMessage, setBankTransferEventMessage] =
         useState("");
@@ -614,6 +643,33 @@ export function PosSalePage() {
     const selectedCustomer =
         selectedCustomersByInvoice[currentInvoiceId] ?? null;
     const selectedCustomerId = selectedCustomer?.id ?? null;
+
+    // Lưu đơn đang bán để mất mạng / reload không mất giỏ. Giỏ rỗng = xoá.
+    useEffect(() => {
+        savePersistedSale({
+            userId: saleOwnerId,
+            draftOrder,
+            cartItemsById,
+            note,
+            orderType,
+            paymentMethod,
+            cashReceived,
+            selectedDiscountId,
+            manualOrderDiscount,
+            selectedCustomer
+        });
+    }, [
+        cartItemsById,
+        cashReceived,
+        draftOrder,
+        manualOrderDiscount,
+        note,
+        orderType,
+        paymentMethod,
+        saleOwnerId,
+        selectedCustomer,
+        selectedDiscountId
+    ]);
     const discounts = useMemo(
         () => [noDiscount, ...promotionDiscounts],
         [promotionDiscounts]
@@ -1673,6 +1729,13 @@ export function PosSalePage() {
     }
 
     function changePaymentMethod(method: SalePaymentMethod) {
+        if (!online && (method === "BANK_TRANSFER" || method === "COMBINED")) {
+            setCheckoutError(
+                "Mất kết nối máy chủ: chưa thể thanh toán chuyển khoản. Vui lòng thu tiền mặt hoặc chờ có mạng."
+            );
+            return;
+        }
+
         setPaymentMethod(method);
 
         if (method === "BANK_TRANSFER") {
@@ -1691,7 +1754,17 @@ export function PosSalePage() {
             await releaseCouponUsage(reservedCouponUsage, "cancel");
 
             if (draftOrder?.id && draftOrder.status === "DRAFT") {
-                await posOrderApi.cancelDraftOrder(draftOrder.id);
+                try {
+                    await posOrderApi.cancelDraftOrder(draftOrder.id);
+                } catch (error) {
+                    // Đơn nháp khôi phục từ máy có thể đã bị huỷ/thanh toán trên
+                    // máy chủ: vẫn dọn giỏ cục bộ. Chỉ giữ lại khi mất mạng.
+                    if (error instanceof ApiError && error.isNetworkError) {
+                        throw error;
+                    }
+
+                    logApiError(error);
+                }
             }
             setDraftOrder(null);
             setCartItemsById({});
@@ -2355,6 +2428,7 @@ export function PosSalePage() {
                         selectedCustomer={selectedCustomer}
                         amountDue={amountDue}
                         paymentBlocked={depositInvalid}
+                        offline={!online}
                         backorderNotice={
                             backorderEstimate ? (
                                 <BackorderCheckoutNotice

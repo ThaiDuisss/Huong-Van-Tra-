@@ -1,5 +1,19 @@
 import type { QueryParams } from "./query-params";
+import type { RetryOption } from "./retry";
 import type { TokenProvider } from "./token-provider";
+import type { ApiError } from "./api-error";
+
+export interface RequestErrorContext {
+    method: string;
+    path: string;
+    requestId: string;
+
+    /** Lần gọi thứ mấy, bắt đầu từ 0. */
+    attempt: number;
+
+    /** Client sẽ tự thử lại sau lỗi này. */
+    willRetry: boolean;
+}
 
 export type ResponseType =
     | "json"
@@ -25,6 +39,35 @@ export interface ApiClientOptions {
      * Timeout mặc định cho mỗi request.
      */
     timeoutMs?: number;
+
+    /**
+     * Timeout cho upload và download (xuất Excel, nhập file).
+     * Mặc định 5 phút vì các request này chạy lâu hơn request thường.
+     */
+    longTimeoutMs?: number;
+
+    /**
+     * Tự thử lại khi mất mạng. Mặc định thử lại 2 lần cho GET/HEAD.
+     * false = tắt hoàn toàn.
+     */
+    retry?: RetryOption;
+
+    /**
+     * Được gọi mỗi khi một request kết thúc bằng lỗi, kể cả khi client
+     * sắp tự thử lại. Dùng để báo trạng thái mạng cho toàn app.
+     */
+    onRequestError?: (
+        error: ApiError,
+        context: RequestErrorContext
+    ) => void;
+
+    /**
+     * Được gọi khi một request nhận được phản hồi thành công.
+     * Dùng để đánh dấu "đã có mạng lại" ngay khi thao tác thật thành công.
+     */
+    onRequestSuccess?: (
+        context: Omit<RequestErrorContext, "willRetry">
+    ) => void;
 
     /**
      * Header mặc định gửi trong tất cả request.
@@ -72,6 +115,12 @@ export interface RequestOptions
      * Timeout riêng của request.
      */
     timeoutMs?: number;
+
+    /**
+     * Ghi đè chính sách thử lại cho request này.
+     * false = không thử lại dù là GET.
+     */
+    retry?: RetryOption;
 
     /**
      * Kiểu response muốn nhận.

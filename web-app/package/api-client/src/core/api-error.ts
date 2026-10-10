@@ -48,4 +48,19 @@ export class ApiError extends Error {
     get isServerError(): boolean {
         return this.status >= 500;
     }
+
+    /**
+     * Không nhận được phản hồi HTTP nào: mất mạng, DNS lỗi, gateway tắt,
+     * hoặc request chờ quá lâu. Khác với lỗi 5xx là backend đã nhận request.
+     */
+    get isNetworkError(): boolean {
+        return (
+            this.code === "NETWORK_ERROR" ||
+            this.code === "REQUEST_TIMEOUT"
+        );
+    }
+
+    get isTimeout(): boolean {
+        return this.code === "REQUEST_TIMEOUT";
+    }
 }

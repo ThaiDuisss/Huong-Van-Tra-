@@ -1,6 +1,12 @@
 import { ApiError } from "./api-error";
 import { appendQueryParams } from "./query-params";
 import { createRequestId } from "./request-id";
+import {
+    getRetryDelayMs,
+    resolveRetryPolicy,
+    shouldRetry,
+    sleep
+} from "./retry";
 import { createTimeoutController } from "./timeout";
 
 import type {
@@ -301,6 +307,10 @@ export function createApiClient(
         options.baseUrl
     );
 
+    const longTimeoutMs =
+        options.longTimeoutMs ??
+        Math.max(options.timeoutMs ?? 0, 300_000);
+
     let refreshPromise:
         | Promise<string | null>
         | null = null;
@@ -331,9 +341,71 @@ export function createApiClient(
         await options.onUnauthorized?.();
     }
 
+    /**
+     * Vòng thử lại bọc ngoài một lần gọi thật.
+     *
+     * Chỉ lỗi mạng (không có phản hồi HTTP) hoặc 502/503/504 của GET/HEAD
+     * mới được thử lại. Mọi lỗi, kể cả lỗi sắp được thử lại, đều báo qua
+     * onRequestError để app biết mạng đang có vấn đề.
+     */
     async function request<T>(
         path: string,
         requestOptions: RequestOptions = {}
+    ): Promise<T> {
+        const method = (requestOptions.method ?? "GET").toUpperCase();
+        const policy = resolveRetryPolicy(
+            options.retry,
+            requestOptions.retry
+        );
+
+        for (let attempt = 0; ; attempt += 1) {
+            const requestId =
+                (options.createRequestId ??
+                    createRequestId)();
+
+            try {
+                const result = await requestOnce<T>(
+                    path,
+                    requestOptions,
+                    requestId
+                );
+
+                options.onRequestSuccess?.({
+                    method,
+                    path,
+                    requestId,
+                    attempt
+                });
+
+                return result;
+            } catch (error) {
+                const willRetry =
+                    !requestOptions.signal?.aborted &&
+                    shouldRetry(policy, method, attempt, error);
+
+                if (error instanceof ApiError) {
+                    options.onRequestError?.(error, {
+                        method,
+                        path,
+                        requestId,
+                        attempt,
+                        willRetry
+                    });
+                }
+
+                if (!willRetry) {
+                    throw error;
+                }
+
+                await sleep(getRetryDelayMs(policy, attempt));
+            }
+        }
+    }
+
+    async function requestOnce<T>(
+        path: string,
+        requestOptions: RequestOptions,
+        requestId: string
     ): Promise<T> {
         const {
             method = "GET",
@@ -346,12 +418,10 @@ export function createApiClient(
             authenticated = true,
             headers: requestHeaders,
             signal: externalSignal,
+            retry: _retry,
             ...fetchOptions
         } = requestOptions;
-
-        const requestId =
-            (options.createRequestId ??
-                createRequestId)();
+        void _retry;
 
         const headers = new Headers(
             options.defaultHeaders
@@ -607,6 +677,7 @@ export function createApiClient(
             requestOptions: RequestOptions = {}
         ) {
             return request<T>(path, {
+                timeoutMs: longTimeoutMs,
                 ...requestOptions,
                 method: "POST",
                 body: formData
@@ -618,6 +689,7 @@ export function createApiClient(
             requestOptions: RequestOptions = {}
         ) {
             return request<Blob>(path, {
+                timeoutMs: longTimeoutMs,
                 ...requestOptions,
                 method: "GET",
                 responseType: "blob",

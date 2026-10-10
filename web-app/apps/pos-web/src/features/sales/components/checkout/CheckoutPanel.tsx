@@ -22,6 +22,12 @@ import type {
     SaleTotals
 } from "../../types/sale.types";
 
+/** Các phương thức cần máy chủ xác nhận giao dịch, không dùng được khi offline. */
+const OFFLINE_DISABLED_METHODS: readonly SalePaymentMethod[] = [
+    "BANK_TRANSFER",
+    "COMBINED"
+];
+
 interface CheckoutPanelProps {
     discounts: SaleDiscountOption[];
     selectedDiscountId: string;
@@ -48,6 +54,11 @@ interface CheckoutPanelProps {
     backorderNotice?: ReactNode;
     /** Đơn chờ hàng đang chọn đặt cọc nhưng số tiền cọc chưa hợp lệ. */
     paymentBlocked?: boolean;
+    /**
+     * Mất kết nối máy chủ: khoá chuyển khoản/QR (cần webhook ngân hàng) và
+     * nút hoàn tất vì API thanh toán không gọi được. Giỏ vẫn sửa được.
+     */
+    offline?: boolean;
     onDiscountChange(discountId: string): void;
     onManualOrderDiscountChange(value: SaleManualDiscount | null): void;
     onCashReceivedChange(value: number): void;
@@ -85,6 +96,7 @@ export function CheckoutPanel({
     amountDue,
     backorderNotice,
     paymentBlocked = false,
+    offline = false,
     onDiscountChange,
     onManualOrderDiscountChange,
     onCashReceivedChange,
@@ -109,6 +121,7 @@ export function CheckoutPanel({
         (paymentMethod !== "CASH" || cashReceived >= cashDue) &&
         !isBankTransfer &&
         !paymentBlocked &&
+        !offline &&
         !checkoutLoading;
 
     useEffect(() => {
@@ -167,9 +180,25 @@ export function CheckoutPanel({
                 </>
             ) : null}
 
+            {offline ? (
+                <p
+                    role="status"
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
+                >
+                    Mất kết nối máy chủ. Vẫn có thể chọn hàng và nhập tiền khách
+                    đưa; chuyển khoản và hoàn tất thanh toán sẽ mở lại khi có mạng.
+                </p>
+            ) : null}
+
             <PaymentMethodGrid
                 value={paymentMethod}
+                disabledMethods={offline ? OFFLINE_DISABLED_METHODS : undefined}
+                disabledReason="Cần kết nối mạng để nhận xác nhận từ ngân hàng"
                 onChange={(value) => {
+                    if (offline && OFFLINE_DISABLED_METHODS.includes(value)) {
+                        return;
+                    }
+
                     const alreadySelected = value === paymentMethod;
                     onPaymentMethodChange(value);
 
@@ -244,6 +273,7 @@ export function CheckoutPanel({
                 <CompletePaymentButton
                     total={totals.total}
                     disabled={!canCompletePayment}
+                    label={offline ? "Mất kết nối máy chủ" : undefined}
                     loading={checkoutLoading}
                     onClick={onCompletePayment}
                 />
