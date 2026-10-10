@@ -292,6 +292,19 @@ export const posOrderApi = {
         );
     },
 
+    /** Trạng thái thật của đơn trên máy chủ (thanh toán, mã đơn) để POS không tự suy đoán. */
+    getOrder(orderId: string) {
+        return apiClient.get<PosOrderDto>(`/orders/${encodeURIComponent(orderId)}`);
+    },
+
+    /** Huỷ phiên chuyển khoản đang chờ: máy chủ đóng QR và trả đơn về nháp để chọn lại phương thức. */
+    cancelPosPayment(orderId: string) {
+        return apiClient.post<PosOrderDto, Record<string, never>>(
+            `/orders/pos/${encodeURIComponent(orderId)}/payment/cancel`,
+            {}
+        );
+    },
+
     cancelDraftOrder(orderId: string) {
         return apiClient.post<PosOrderDto, Record<string, never>>(
             `/orders/pos/draft/${encodeURIComponent(orderId)}/cancel`,

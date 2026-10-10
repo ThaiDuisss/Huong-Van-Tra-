@@ -22,6 +22,20 @@ public interface PaymentClient {
     @PostMapping("/api/payments/checkout")
     PaymentResponse checkout(@RequestBody PaymentCreateRequest request);
 
+    /** Thu ngân huỷ phiên chuyển khoản đang chờ: Payment-Service đóng attempt, không phát event. */
+    @PostMapping("/api/payments/orders/{orderId}/cancel")
+    PaymentOrderInfoResponse cancelPendingPayment(@PathVariable("orderId") UUID orderId);
+
+    /** Quản lý đã đối soát tay: Payment-Service ghi PAID cho giao dịch đang NEED_REVIEW / chờ. */
+    @PostMapping("/api/payments/orders/{orderId}/confirm-manual")
+    PaymentOrderInfoResponse confirmManualPayment(
+            @PathVariable("orderId") UUID orderId,
+            @RequestBody ManualPaymentConfirmRequest request
+    );
+
+    record ManualPaymentConfirmRequest(String paymentCode, String note) {
+    }
+
     @PostMapping("/api/payments/orders/{orderId}/refunds")
     PaymentRefundResponse refundOrderReturn(
             @PathVariable("orderId") UUID orderId,

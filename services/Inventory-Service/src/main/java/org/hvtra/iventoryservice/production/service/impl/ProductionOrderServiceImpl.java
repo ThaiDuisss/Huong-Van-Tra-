@@ -125,6 +125,16 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
     @Override
     @Transactional
     public ProductionOrderResponse create(CreateProductionOrderRequest request) {
+        return create(request, true);
+    }
+
+    @Override
+    @Transactional
+    public ProductionOrderResponse createDraft(CreateProductionOrderRequest request) {
+        return create(request, false);
+    }
+
+    private ProductionOrderResponse create(CreateProductionOrderRequest request, boolean requireMaterialStock) {
         CatalogClient.VariantResponse variant = catalogClient.getVariant(request.productVariantId());
         if (variant == null) {
             throw new ResourceNotFoundException("Product variant", request.productVariantId());
@@ -161,7 +171,7 @@ public class ProductionOrderServiceImpl implements ProductionOrderService {
 
         // Auto check: Verify ingredient stock >= required quantity for all lines
         for (CatalogClient.BomItemResponse bomItem : bomItems) {
-            if (bomItem.ingredient() == null) {
+            if (!requireMaterialStock || bomItem.ingredient() == null) {
                 continue;
             }
             InventoryItem ingredientItem = inventoryItemByIngredientId.get(bomItem.ingredient().id());

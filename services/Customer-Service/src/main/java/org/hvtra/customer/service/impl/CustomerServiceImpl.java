@@ -112,6 +112,10 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse updatePurchase(UUID orderId) {
         OrderClient.OrderResponse res = orderGateway.getOrderById(orderId);
 
+        if (res.customerId() == null || res.finalAmount() == null || res.finalAmount().compareTo(BigDecimal.ZERO) < 0) {
+            throw invalidRequest("Thông tin đơn hàng không hợp lệ");
+        }
+
         OrderCompletedEvent event = new OrderCompletedEvent(
                 orderId,
                 res.orderCode(),
@@ -120,11 +124,8 @@ public class CustomerServiceImpl implements CustomerService {
                 res.soldAt()
         );
 
+        // recordPurchase đã cộng tổng chi tiêu, số đơn, ngày mua gần nhất và xét hạng; idempotent theo orderId.
         loyaltyTierService.recordPurchase(event);
-
-        if (res.customerId() == null || res.finalAmount() == null || res.finalAmount().compareTo(BigDecimal.ZERO) < 0) {
-            throw invalidRequest("Thông tin đơn hàng không hợp lệ");
-        }
 
         Customer cus = customerRepository.findByIdAndIsDeletedFalse(res.customerId())
                 .orElseThrow(() -> notFound(Message.CUSTOMER_NOT_FOUND));
@@ -156,27 +157,9 @@ public class CustomerServiceImpl implements CustomerService {
             );
         }
 
+        // Không cộng lại totalSpent / totalOrderCount ở đây: recordPurchase đã làm, cộng thêm là nhân đôi doanh số.
         Customer customer = findCustomer(res.customerId());
-        BigDecimal currentTotalSpent = defaultMoney(customer.getTotalSpent());
-        BigDecimal newTotalSpent = currentTotalSpent.add(res.finalAmount());
-
-        customer.setLastPurchaseDate(java.time.LocalDateTime.now());
-        customer.setTotalSpent(newTotalSpent);
-        customer.setTotalOrderCount(Math.max((customer.getTotalOrderCount() == null ? 0 : customer.getTotalOrderCount()) + 1, 0));
-        /*
-         * Tạm thời không dùng luồng nâng hạng cũ trong updatePurchase.
-         * Khi Kafka/loyalty tier event flow được bật lại ổn định, việc xét hạng
-         * nên đi qua LoyaltyTierService.recordPurchase(...) để ghi metric,
-         * transaction và tier assignment nhất quán.
-         */
-//        customerTierRepository
-//                .findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(
-//                        newTotalSpent,
-//                        CustomerTierStatus.ACTIVE
-//                )
-//                .ifPresent(customer::setTier);
-
-        return customerMapper.toResponse(customerRepository.save(customer));
+        return customerMapper.toResponse(customer);
     }
 
     // Đổi trạng thái khách hàng (kích hoạt / ngừng hoạt động / tạm khóa) mà không xóa dữ liệu.

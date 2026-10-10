@@ -67,7 +67,6 @@ interface CheckoutPanelProps {
     onCustomerChange(customerId: string): void;
     onCustomerClear(): void;
     onBankTransferCancel(): void;
-    onBankTransferConfirm(): void;
     onBankTransferRefresh(): void;
     onBankTransferStart(): void;
     onCompletePayment(): void;
@@ -105,7 +104,6 @@ export function CheckoutPanel({
     onCustomerChange,
     onCustomerClear,
     onBankTransferCancel,
-    onBankTransferConfirm,
     onBankTransferRefresh,
     onBankTransferStart,
     onCompletePayment
@@ -248,7 +246,6 @@ export function CheckoutPanel({
                         error={checkoutError}
                         onClose={() => setBankTransferOpen(false)}
                         onCancel={onBankTransferCancel}
-                        onConfirmReceived={onBankTransferConfirm}
                         onRefreshStatus={onBankTransferRefresh}
                     />
                 </div>

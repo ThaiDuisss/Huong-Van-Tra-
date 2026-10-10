@@ -12,6 +12,8 @@ import org.hvtra.paymentservice.domain.enums.PaymentProvider;
 import org.hvtra.paymentservice.domain.enums.PaymentStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
+import org.hvtra.paymentservice.dto.request.ManualPaymentConfirmRequest;
+import org.hvtra.paymentservice.outbox.service.PaymentOutboxPublisher;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
 import org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest;
@@ -51,6 +53,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final SepayQrCodeGenerator sepayQrCodeGenerator;
     private final SepayProperties sepayProperties;
+    private final PaymentOutboxPublisher paymentOutboxPublisher;
 
     @Override
     @Transactional
@@ -427,6 +430,91 @@ public class PaymentServiceImpl implements PaymentService {
                 .status(payment.getStatus().name())
                 .method(payment.getMethod().name())
                 .methodLabel(toPaymentMethodLabel(payment.getMethod()))
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public OrderPaymentMethodResponse cancelPendingPayment(UUID orderId) {
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment not found"));
+        if (payment.getStatus() == PaymentStatus.PAID || payment.getStatus() == PaymentStatus.PARTIALLY_PAID) {
+            throw new IllegalArgumentException("Đơn hàng đã có tiền, không huỷ phiên thanh toán được");
+        }
+        if (payment.getStatus() == PaymentStatus.WAITING_PAYMENT || payment.getStatus() == PaymentStatus.PENDING) {
+            LocalDateTime now = LocalDateTime.now();
+            payment.setStatus(PaymentStatus.CANCELLED);
+            payment.setCancelledAt(now);
+            payment.setFailureReason("Thu ngân huỷ phiên thanh toán");
+            closeOpenAttempt(payment, PaymentAttemptStatus.CANCELLED, now);
+            payment = paymentRepository.save(payment);
+        }
+        return toOrderPaymentMethodResponse(payment);
+    }
+
+    @Override
+    @Transactional
+    public OrderPaymentMethodResponse confirmManualPayment(UUID orderId, ManualPaymentConfirmRequest request) {
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment not found"));
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return toOrderPaymentMethodResponse(payment);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setAmountPaid(normalizeMoney(payment.getAmountRequired()));
+        payment.setCompletedAt(now);
+        payment.setCancelledAt(null);
+        payment.setFailureReason(null);
+        payment.setReviewReason(request == null || request.getNote() == null
+                ? "Xác nhận thủ công" : "Xác nhận thủ công: " + request.getNote());
+        closeOpenAttempt(payment, PaymentAttemptStatus.SUCCEEDED, now);
+        return toOrderPaymentMethodResponse(paymentRepository.save(payment));
+    }
+
+    @Override
+    @Transactional
+    public int expireOverduePayments() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Payment> overdue = paymentRepository.findByStatusAndMethodAndExpiresAtBefore(
+                PaymentStatus.WAITING_PAYMENT, PaymentMethod.BANK_TRANSFER, now);
+        int expired = 0;
+        for (Payment payment : overdue) {
+            payment.setStatus(PaymentStatus.EXPIRED);
+            payment.setFailureReason("Quá " + sepayProperties.getPaymentTimeoutMinutes() + " phút chưa nhận được tiền");
+            closeOpenAttempt(payment, PaymentAttemptStatus.EXPIRED, now);
+            Payment saved = paymentRepository.save(payment);
+            paymentOutboxPublisher.publishExpired(saved);
+            expired++;
+        }
+        return expired;
+    }
+
+    /** Attempt mới nhất còn WAITING của payment được đóng cùng trạng thái với payment. */
+    private void closeOpenAttempt(Payment payment, PaymentAttemptStatus status, LocalDateTime now) {
+        paymentAttemptRepository.findTopByPaymentIdOrderByAttemptNoDesc(payment.getId())
+                .filter(attempt -> attempt.getStatus() == PaymentAttemptStatus.WAITING
+                        || attempt.getStatus() == PaymentAttemptStatus.CREATED
+                        || attempt.getStatus() == PaymentAttemptStatus.NEED_REVIEW)
+                .ifPresent(attempt -> {
+                    attempt.setStatus(status);
+                    if (status == PaymentAttemptStatus.SUCCEEDED) {
+                        attempt.setCompletedAt(now);
+                    }
+                    paymentAttemptRepository.save(attempt);
+                });
+    }
+
+    private OrderPaymentMethodResponse toOrderPaymentMethodResponse(Payment payment) {
+        return OrderPaymentMethodResponse.builder()
+                .paymentId(payment.getId())
+                .paymentCode(payment.getPaymentCode())
+                .orderId(payment.getOrderId())
+                .amountRequired(payment.getAmountRequired())
+                .amountPaid(payment.getAmountPaid())
+                .status(payment.getStatus().name())
+                .method(payment.getMethod() == null ? null : payment.getMethod().name())
+                .methodLabel(payment.getMethod() == null ? null : toPaymentMethodLabel(payment.getMethod()))
                 .build();
     }
 

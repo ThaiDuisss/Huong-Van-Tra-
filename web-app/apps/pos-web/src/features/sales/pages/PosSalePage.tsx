@@ -376,19 +376,26 @@ function isBankTransferNotificationForPayment(
     return Boolean(
         (sameOrderId || sameOrderCode) &&
         [
+            "ORDER_PAYMENT_SUCCEEDED",
+            "ORDER_PAYMENT_NEED_REVIEW",
             "ORDER_COMPLETED",
             "ORDER_PAYMENT_FAILED",
             "ORDER_CANCELLED",
-            "ORDER_COMPLETED",
             "ORDER_STATUS_CHANGED"
         ].includes(notification.type)
     );
+}
+
+/** Máy chủ giữ đơn chờ kiểm tra tay (tiền lệch / về muộn): chưa thành công, cũng chưa thất bại. */
+function isPaymentNeedReviewNotification(notification: NotificationResponse) {
+    return notification.type === "ORDER_PAYMENT_NEED_REVIEW";
 }
 
 function notificationToPaymentStatus(
     notification: NotificationResponse
 ): PaymentStatusValue {
     if (
+        notification.type === "ORDER_PAYMENT_SUCCEEDED" ||
         notification.type === "ORDER_COMPLETED"
     ) {
         return "RECEIVED";
@@ -799,15 +806,6 @@ export function PosSalePage() {
         return usage;
     }
 
-    const applyCouponUsage = useCallback(async (usage: CouponUsageResponse | null) => {
-        if (!usage) {
-            return;
-        }
-
-        await posPromotionApi.applyCouponUsage(usage.id);
-        setReservedCouponUsage(null);
-    }, []);
-
     const releaseCouponUsage = useCallback(async (
         usage: CouponUsageResponse | null = reservedCouponUsage,
         action: "release" | "cancel" | "expire" = "release"
@@ -1004,19 +1002,10 @@ export function PosSalePage() {
             return;
         }
 
-        if (
-            paymentMethod === "BANK_TRANSFER" &&
-            bankTransferStatus === "RECEIVED"
-        ) {
-            await confirmBankTransferReceived();
-            return;
-        }
-
         if (paymentMethod === "BANK_TRANSFER") {
-            if (bankTransferStatus !== "RECEIVED") {
-                setCheckoutError("Vui lòng xác nhận đã nhận chuyển khoản.");
-                return;
-            }
+            // Chuyển khoản hoàn tất khi máy chủ xác nhận tiền về (thông báo SePay hoặc kiểm tra lại).
+            await refreshBankTransferStatus();
+            return;
         }
 
         setCheckoutLoading(true);
@@ -1042,7 +1031,8 @@ export function PosSalePage() {
                 allowBackorder: backorderEstimate !== null,
                 depositAmount: depositActive ? depositAmount : undefined
             });
-            await applyCouponUsage(couponUsage);
+            // Mã giảm giá được máy chủ đánh dấu đã dùng sau khi thanh toán; POS không gọi thêm.
+            setReservedCouponUsage(null);
 
             const paidOrderId =
                 draftOrder?.id ?? checkout.payment?.orderId ?? null;
@@ -1076,8 +1066,58 @@ export function PosSalePage() {
         }
     }
 
-    async function confirmBankTransferReceived() {
-        if (checkoutLoading) {
+    /**
+     * Máy chủ đã xác nhận tiền về (qua thông báo SePay hoặc khi POS hỏi lại). POS không tự đánh dấu
+     * "đã nhận tiền": chỉ máy chủ mới chuyển đơn sang đã thanh toán.
+     */
+    const applyBankTransferPaid = useCallback((orderCode: string, serverMessage?: string) => {
+        setBankTransferStatus("RECEIVED");
+        setReservedCouponUsage(null);
+        const waitingStock = bankTransferBackorderRef.current;
+        const successMessage = waitingStock
+            ? getBackorderSuccessMessage(orderCode, waitingStock.expectedAvailableAt, 0)
+            : serverMessage || `Thanh toán chuyển khoản thành công đơn ${orderCode}.`;
+        setCheckoutSuccess(successMessage);
+        setCheckoutError("");
+
+        if (!waitingStock) {
+            setReceiptOrderId(bankTransferPayment?.orderId ?? draftOrder?.id ?? null);
+        }
+
+        window.setTimeout(() => {
+            resetCurrentSale();
+            handledBankNotificationIdRef.current = null;
+            setCheckoutSuccess(successMessage);
+        }, 1500);
+    }, [bankTransferPayment?.orderId, draftOrder?.id, resetCurrentSale]);
+
+    /**
+     * Phiên chuyển khoản kết thúc không có tiền (QR hết hạn / thu ngân huỷ): máy chủ đã trả đơn về nháp,
+     * POS đồng bộ lại để chọn phương thức khác với cùng giỏ hàng.
+     */
+    const applyBankTransferSessionEnded = useCallback((
+        nextStatus: PaymentStatusValue,
+        message: string,
+        order: PosOrderDto | null
+    ) => {
+        setBankTransferStatus(nextStatus);
+        setBankTransferPayment(null);
+        setBankTransferEventMessage(message);
+        setCheckoutError(message);
+        setCheckoutSuccess("");
+
+        if (order) {
+            setDraftOrder(order);
+        } else {
+            setDraftOrder((current) => (current ? { ...current, status: "DRAFT" } : current));
+        }
+    }, []);
+
+    /** Hỏi máy chủ trạng thái thật của đơn thay vì tin vào thao tác tay của thu ngân. */
+    async function refreshBankTransferStatus() {
+        const orderId = bankTransferPayment?.orderId ?? draftOrder?.id;
+
+        if (!orderId || checkoutLoading) {
             return;
         }
 
@@ -1085,32 +1125,63 @@ export function PosSalePage() {
         setCheckoutError("");
 
         try {
-            await applyCouponUsage(reservedCouponUsage);
-            setBankTransferStatus("RECEIVED");
-            const waitingStock = bankTransferBackorderRef.current;
-            const successMessage = waitingStock
-                ? getBackorderSuccessMessage(
-                    draftOrder?.orderCode ?? "",
-                    waitingStock.expectedAvailableAt,
-                    0
-                )
-                : "Thanh toán chuyển khoản thành công.";
-            setCheckoutSuccess(successMessage);
+            const order = await posOrderApi.getOrder(orderId);
 
-            if (!waitingStock) {
-                setReceiptOrderId(
-                    bankTransferPayment?.orderId ?? draftOrder?.id ?? null
-                );
+            if (order.paymentStatus === "PAID") {
+                applyBankTransferPaid(order.orderCode);
+                return;
             }
 
-            window.setTimeout(() => {
-                resetCurrentSale();
-                setCheckoutSuccess(successMessage);
-            }, 1500);
+            if (order.paymentStatus === "NEED_REVIEW") {
+                const message =
+                    "Tiền đã về nhưng lệch số tiền hoặc về sau khi QR hết hạn. Đơn được giữ lại, chờ quản lý đối soát.";
+                setBankTransferEventMessage(message);
+                setCheckoutError(message);
+                return;
+            }
+
+            if (order.status === "DRAFT") {
+                applyBankTransferSessionEnded(
+                    "EXPIRED",
+                    "Phiên chuyển khoản đã kết thúc. Vui lòng chọn lại phương thức thanh toán.",
+                    order
+                );
+                return;
+            }
+
+            setBankTransferEventMessage("Chưa nhận được xác nhận từ ngân hàng. Vui lòng chờ hoặc kiểm tra lại sau.");
         } catch (error) {
             logApiError(error);
             setCheckoutError(getErrorMessage(error));
-            setCheckoutSuccess("");
+        } finally {
+            setCheckoutLoading(false);
+        }
+    }
+
+    /** Thu ngân huỷ phiên chuyển khoản: máy chủ đóng QR, đơn về nháp, chọn lại phương thức. */
+    async function cancelBankTransferPayment() {
+        const orderId = bankTransferPayment?.orderId ?? draftOrder?.id;
+
+        void releaseCouponUsage(reservedCouponUsage, "cancel");
+
+        if (!orderId || !bankTransferPayment) {
+            setBankTransferStatus("CANCELLED");
+            setBankTransferPayment(null);
+            return;
+        }
+
+        setCheckoutLoading(true);
+
+        try {
+            const order = await posOrderApi.cancelPosPayment(orderId);
+            applyBankTransferSessionEnded(
+                "CANCELLED",
+                "Đã huỷ thanh toán chuyển khoản. Giỏ hàng được giữ nguyên, chọn lại phương thức thanh toán.",
+                order
+            );
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(getErrorMessage(error));
         } finally {
             setCheckoutLoading(false);
         }
@@ -1533,7 +1604,8 @@ export function PosSalePage() {
             allowBackorder || backorderVariantIdsRef.current.has(variantId);
 
         if (!online) {
-            if (product.sellableQuantity <= 0 && !waitAccepted) {
+            // Mất mạng không ước tính được ngày có hàng nên không nhận đơn chờ hàng, kể cả mặt hàng đã từng đồng ý chờ.
+            if (product.sellableQuantity <= 0) {
                 setCheckoutError(
                     `${product.name} đã hết hàng theo dữ liệu đã tải; không đặt chờ hàng được khi mất mạng.`
                 );
@@ -2461,12 +2533,17 @@ export function PosSalePage() {
         }
 
         handledBankNotificationIdRef.current = matchedNotification.id;
-        const nextStatus = notificationToPaymentStatus(matchedNotification);
-        let resetTimeoutId: number | undefined;
 
         const applyNotificationTimeoutId = window.setTimeout(() => {
-            setBankTransferStatus(nextStatus);
-            setBankTransferEventMessage(matchedNotification.message);
+            if (isPaymentNeedReviewNotification(matchedNotification)) {
+                // Giữ QR và mã giảm giá: quản lý đối soát xong sẽ xác nhận trên máy chủ.
+                setBankTransferEventMessage(matchedNotification.message);
+                setCheckoutError(matchedNotification.message);
+                setCheckoutSuccess("");
+                return;
+            }
+
+            const nextStatus = notificationToPaymentStatus(matchedNotification);
 
             if (nextStatus !== "RECEIVED") {
                 void releaseCouponUsage(
@@ -2477,50 +2554,40 @@ export function PosSalePage() {
                             ? "expire"
                             : "release"
                 );
-                setCheckoutError(
-                    matchedNotification.message ||
-                    "Thanh toán chuyển khoản chưa hoàn tất."
-                );
-                setCheckoutSuccess("");
+                // Máy chủ đã trả đơn về nháp; lấy lại trạng thái để chọn phương thức khác.
+                const orderId = bankTransferPayment.orderId ?? draftOrder?.id;
+                const message =
+                    matchedNotification.message || "Thanh toán chuyển khoản chưa hoàn tất.";
+                if (orderId) {
+                    posOrderApi
+                        .getOrder(orderId)
+                        .then((order) => applyBankTransferSessionEnded(nextStatus, message, order))
+                        .catch(() => applyBankTransferSessionEnded(nextStatus, message, null));
+                } else {
+                    applyBankTransferSessionEnded(nextStatus, message, null);
+                }
                 return;
             }
 
-            void applyCouponUsage(reservedCouponUsage).catch(logApiError);
-
-            const waitingStock = bankTransferBackorderRef.current;
-            setCheckoutSuccess(
-                waitingStock
-                    ? getBackorderSuccessMessage(
-                        bankTransferPayment?.orderCode ?? "",
-                        waitingStock.expectedAvailableAt,
-                        0
-                    )
-                    : matchedNotification.message ||
-                    "Thanh toán chuyển khoản thành công."
+            applyBankTransferPaid(
+                bankTransferPayment.orderCode ?? draftOrder?.orderCode ?? "",
+                matchedNotification.message
             );
-            setCheckoutError("");
-
-            resetTimeoutId = window.setTimeout(() => {
-                resetCurrentSale();
-                handledBankNotificationIdRef.current = null;
-            }, 1500);
         }, 0);
 
         return () => {
             window.clearTimeout(applyNotificationTimeoutId);
-
-            if (resetTimeoutId !== undefined) {
-                window.clearTimeout(resetTimeoutId);
-            }
         };
     }, [
-        applyCouponUsage,
+        applyBankTransferPaid,
+        applyBankTransferSessionEnded,
         bankTransferPayment,
+        draftOrder?.id,
+        draftOrder?.orderCode,
         notifications,
         paymentMethod,
         releaseCouponUsage,
-        reservedCouponUsage,
-        resetCurrentSale
+        reservedCouponUsage
     ]);
 
     return (
@@ -2601,18 +2668,11 @@ export function PosSalePage() {
                         onCustomerChange={selectCustomer}
                         onCustomerClear={clearCustomer}
                         onBankTransferCancel={() => {
-                            setBankTransferStatus("CANCELLED");
-                            void releaseCouponUsage(
-                                reservedCouponUsage,
-                                "cancel"
-                            );
+                            void cancelBankTransferPayment();
                         }}
-                        onBankTransferConfirm={() => {
-                            void confirmBankTransferReceived();
+                        onBankTransferRefresh={() => {
+                            void refreshBankTransferStatus();
                         }}
-                        onBankTransferRefresh={() =>
-                            setBankTransferStatus("WAITING")
-                        }
                         onBankTransferStart={() => {
                             void prepareBankTransferPayment();
                         }}

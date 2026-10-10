@@ -129,6 +129,13 @@ public class OrderController {
         return orderService.cancelDraftOrder(orderId);
     }
 
+    @Operation(summary = "huy phien thanh toan chuyen khoan dang cho, don quay ve nhap de chon lai phuong thuc")
+    @UserAction(value = "ORDER_POS_PAYMENT_CANCEL", entityType = "Order", entityId = "#orderId")
+    @PostMapping("/pos/" + UUID_PATH + "/payment/cancel")
+    public OrderResponse cancelPosPayment(@PathVariable UUID orderId) {
+        return orderService.cancelPosPayment(orderId);
+    }
+
     @Operation(summary = "thanh toan hoa don nhap POS da ton tai")
     @UserAction(value = "ORDER_DRAFT_CHECKOUT", entityType = "Order", entityId = "#orderId")
     @PostMapping("/pos/" + UUID_PATH + "/checkout")

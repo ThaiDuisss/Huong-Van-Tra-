@@ -38,5 +38,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     List<Order> findAllWithItemsByIdIn(@Param("orderIds") List<UUID> orderIds);
 
     boolean existsByOrderCode(String orderCode);
+
+    /** Đơn đã thanh toán nhưng trừ kho thất bại (không phải đơn chờ hàng): scheduler thử lại. */
+    @Query("""
+            select o from Order o
+            where o.status = org.hvtra.orderservice.domain.enums.OrderStatus.PAYMENT_CONFIRMED
+              and o.paymentStatus = org.hvtra.orderservice.domain.enums.PaymentStatus.PAID
+              and o.inventoryProcessingStatus = org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus.FAILED
+              and o.backorder = false and o.isDeleted = false
+            order by o.createdAt asc
+            """)
+    List<Order> findPaidOrdersWithFailedInventory();
     List<Order> findByStatusAndExpiresAtBeforeAndIsDeletedFalse(OrderStatus status, Instant expiresAt);
 }

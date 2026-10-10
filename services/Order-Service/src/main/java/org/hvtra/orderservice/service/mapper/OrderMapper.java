@@ -299,6 +299,7 @@ public class OrderMapper {
             case REFUNDED -> "Đã hoàn tiền";
             case PARTIALLY_REFUNDED -> "Hoàn tiền một phần";
             case PARTIALLY_PAID -> "Đã đặt cọc";
+            case NEED_REVIEW -> "Chờ kiểm tra thanh toán";
         };
     }
 

@@ -282,11 +282,21 @@ public class OrderServiceImpl implements OrderService {
             return toResponse(savedOrder);
         }
 
-        PaymentResponse payment = checkoutPayment(
-                savedOrder,
-                paymentMethod,
-                request.getPaidAmount()
-        );
+        boolean depositRequested = request.getDepositAmount() != null
+                && request.getDepositAmount().compareTo(BigDecimal.ZERO) > 0;
+        PaymentResponse payment = Boolean.TRUE.equals(request.getAllowBackorder()) || depositRequested
+                ? orderCheckoutPaymentProcessor.checkoutBackorderPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount(),
+                        getUserId(),
+                        request.getDepositAmount()
+                )
+                : checkoutPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount()
+                );
 
         return toResponse(savedOrder, payment);
     }
@@ -647,6 +657,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
         return orderPaymentService.markOrderPaid(orderId, request);
+    }
+
+    @Override
+    public OrderResponse cancelPosPayment(UUID orderId) {
+        return orderPaymentService.cancelPosPayment(orderId);
     }
 
     @Override
@@ -1986,6 +2001,7 @@ public class OrderServiceImpl implements OrderService {
             case REFUNDED -> "Đã hoàn tiền";
             case PARTIALLY_REFUNDED -> "Hoàn tiền một phần";
             case PARTIALLY_PAID -> "Đã đặt cọc";
+            case NEED_REVIEW -> "Chờ kiểm tra thanh toán";
         };
     }
 

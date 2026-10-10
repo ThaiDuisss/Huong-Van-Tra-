@@ -8,5 +8,7 @@ public enum PaymentStatus {
     REFUNDED,
     PARTIALLY_REFUNDED,
     /** Đơn đặt trước mới thu tiền cọc. */
-    PARTIALLY_PAID
+    PARTIALLY_PAID,
+    /** Tiền chuyển khoản về nhưng lệch số tiền hoặc về sau khi QR hết hạn: giữ đơn, chờ kiểm tra tay. */
+    NEED_REVIEW
 }

@@ -94,9 +94,10 @@ notification:
     events:
       topics:
         payment-succeeded: notification.order.payment-succeeded
-        payment-failed: order.event.ORDER_PAYMENT_FAILED
+        payment-failed: notification.order.payment-failed
+        payment-need-review: notification.order.payment-need-review
         confirmed: order.event.ORDER_CONFIRMED
-        cancelled: order.event.ORDER_CANCELLED
+        cancelled: notification.order.cancelled
         status-changed: order.event.ORDER_STATUS_CHANGED
         completed: order.completed
   return:

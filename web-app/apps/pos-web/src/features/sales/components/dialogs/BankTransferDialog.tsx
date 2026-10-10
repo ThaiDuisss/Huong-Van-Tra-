@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  Bell,
   AlertTriangle,
   CheckCircle2,
   Copy,
@@ -25,7 +24,7 @@ interface BankTransferDialogProps {
   error?: string;
   onClose(): void;
   onCancel(): void;
-  onConfirmReceived(): void;
+  /** Hỏi máy chủ tiền đã về chưa; POS không tự đánh dấu đã nhận tiền. */
   onRefreshStatus(): void;
 }
 
@@ -36,6 +35,16 @@ const bankInformation = {
   accountNumber: "0345102087",
   branch: "CN Ba Đình"
 };
+
+function formatExpiry(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
 
 function createSepayQrUrl(amount: number, referenceCode: string) {
   const params = new URLSearchParams({
@@ -58,7 +67,6 @@ export function BankTransferDialog({
   error = "",
   onClose,
   onCancel,
-  onConfirmReceived,
   onRefreshStatus
 }: BankTransferDialogProps) {
   const received = status === "RECEIVED";
@@ -239,42 +247,33 @@ export function BankTransferDialog({
             </strong>
           </div>
 
+          {payment?.expiresAt && !terminal ? (
+            <p className="text-center text-[11px] font-semibold text-[#5f6b7a]">
+              Mã QR có hiệu lực đến {formatExpiry(payment.expiresAt)}. Quá hạn, hệ thống tự đóng
+              phiên và cho chọn lại phương thức.
+            </p>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onRefreshStatus}
-            disabled={loading || terminal}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d8eadc] text-[12px] font-bold text-[#159734] hover:bg-[#f4faf5]"
-          >
-            <RefreshCw size={15} aria-hidden="true" />
-            Làm mới trạng thái
-          </button>
-          <button
-            type="button"
-            onClick={onConfirmReceived}
-            disabled={loading || terminal}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#d8eadc] text-[12px] font-bold text-[#159734] hover:bg-[#f4faf5]"
-          >
-            <Bell size={15} aria-hidden="true" />
-            Xác nhận tiền về
-          </button>
           <button
             type="button"
             onClick={() => {
               onCancel();
               onClose();
             }}
-            className="h-10 rounded-lg border border-[#edf0f4] text-[12px] font-bold text-[#5f6b7a] hover:bg-[#f4f6f8]"
+            disabled={loading || received}
+            className="h-10 rounded-lg border border-[#edf0f4] text-[12px] font-bold text-[#5f6b7a] hover:bg-[#f4f6f8] disabled:opacity-50"
           >
             Hủy thanh toán
           </button>
           <button
             type="button"
-            onClick={onConfirmReceived}
+            onClick={onRefreshStatus}
             disabled={loading || terminal}
-            className="h-10 rounded-lg bg-[#159734] text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(21,151,52,0.22)]"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#159734] text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(21,151,52,0.22)] disabled:opacity-60"
           >
-            Đã nhận đủ tiền
+            <RefreshCw size={15} aria-hidden="true" />
+            Kiểm tra tiền về
           </button>
           </div>
         </div>
