@@ -47,11 +47,11 @@ describe("network monitor", () => {
         monitor.stop();
     });
 
-    it("reportNetworkError chuyển offline ngay, reportSuccess đưa về online", async () => {
-        vi.stubGlobal(
-            "fetch",
-            vi.fn().mockRejectedValue(new TypeError("Failed to fetch"))
-        );
+    it("reportNetworkError chuyển offline ngay; reportSuccess chỉ online sau khi ping xác nhận", async () => {
+        const fetchMock = vi
+            .fn()
+            .mockRejectedValue(new TypeError("Failed to fetch"));
+        vi.stubGlobal("fetch", fetchMock);
         const monitor = createNetworkMonitor({ healthUrl: "http://x/h" });
 
         monitor.reportNetworkError();
@@ -60,7 +60,15 @@ describe("network monitor", () => {
         // Chờ lượt ping kèm theo kết thúc để không rò promise.
         await monitor.check();
 
+        // Request thành công nhưng health vẫn lỗi (vd. service worker trả cache):
+        // vẫn phải offline.
         monitor.reportSuccess();
+        await monitor.check();
+        expect(monitor.getSnapshot().online).toBe(false);
+
+        fetchMock.mockResolvedValue(new Response("", { status: 200 }));
+        monitor.reportSuccess();
+        await monitor.check();
         expect(monitor.getSnapshot().online).toBe(true);
         monitor.stop();
     });

@@ -47,6 +47,7 @@ import {
     type PosCheckoutPaymentResult
 } from "../services/posCheckout.service";
 import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
+import { useProductSearch } from "../hooks/useProductSearch";
 import { posProductApi } from "../services/posProduct.api";
 import {
     loadPersistedSale,
@@ -423,11 +424,6 @@ export function PosSalePage() {
     // (giữ lại sau khi mất mạng, reload hay tắt nhầm tab).
     const [persistedSale] = useState(() => loadPersistedSale(saleOwnerId));
     const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<
-        SaleProductPreview[]
-    >([]);
-    const [searchLoading, setSearchLoading] = useState(false);
-    const [searchError, setSearchError] = useState("");
     const [customTeaOpen, setCustomTeaOpen] = useState(false);
     const [shelfShortage, setShelfShortage] = useState<ShelfShortage | null>(null);
     const [shelfShortageSubmitting, setShelfShortageSubmitting] = useState(false);
@@ -451,11 +447,20 @@ export function PosSalePage() {
     // tự cập nhật phiếu đã có thay vì hỏi lại.
     const replenishmentModeRef = useRef<Record<string, boolean>>({});
     const [customTeaSearchQuery, setCustomTeaSearchQuery] = useState("");
-    const [customTeaSearchResults, setCustomTeaSearchResults] = useState<
-        SaleProductPreview[]
-    >([]);
-    const [customTeaSearchLoading, setCustomTeaSearchLoading] = useState(false);
-    const [customTeaSearchError, setCustomTeaSearchError] = useState("");
+    // Tìm mặt hàng qua TanStack Query: debounce, cache theo từ khoá, giữ kết
+    // quả cũ khi mất mạng.
+    const productSearch = useProductSearch(searchQuery);
+    const customTeaSearch = useProductSearch(customTeaSearchQuery, customTeaOpen);
+    const searchResults = productSearch.products;
+    const searchLoading = productSearch.loading;
+    const searchError = productSearch.error
+        ? getErrorMessage(productSearch.error)
+        : "";
+    const customTeaSearchResults = customTeaSearch.products;
+    const customTeaSearchLoading = customTeaSearch.loading;
+    const customTeaSearchError = customTeaSearch.error
+        ? getErrorMessage(customTeaSearch.error)
+        : "";
     const [customTeaSubmitLoading, setCustomTeaSubmitLoading] = useState(false);
     const [addingProductId, setAddingProductId] = useState<string | null>(
         null
@@ -555,86 +560,6 @@ export function PosSalePage() {
         },
         []
     );
-
-    useEffect(() => {
-        const normalizedQuery = searchQuery.trim();
-
-        if (!normalizedQuery) {
-            return;
-        }
-
-        let active = true;
-        const timeoutId = window.setTimeout(() => {
-            setSearchLoading(true);
-            setSearchError("");
-
-            void posProductApi
-                .search(normalizedQuery)
-                .then((products) => {
-                    if (active) {
-                        setSearchResults(products);
-                    }
-                })
-                .catch((error: unknown) => {
-                    logApiError(error);
-
-                    if (active) {
-                        setSearchResults([]);
-                        setSearchError(getErrorMessage(error));
-                    }
-                })
-                .finally(() => {
-                    if (active) {
-                        setSearchLoading(false);
-                    }
-                });
-        }, 300);
-
-        return () => {
-            active = false;
-            window.clearTimeout(timeoutId);
-        };
-    }, [searchQuery]);
-
-    useEffect(() => {
-        const normalizedQuery = customTeaSearchQuery.trim();
-
-        if (!customTeaOpen || !normalizedQuery) {
-            return undefined;
-        }
-
-        let active = true;
-        const timeoutId = window.setTimeout(() => {
-            setCustomTeaSearchLoading(true);
-            setCustomTeaSearchError("");
-
-            void posProductApi
-                .search(normalizedQuery)
-                .then((products) => {
-                    if (active) {
-                        setCustomTeaSearchResults(products);
-                    }
-                })
-                .catch((error: unknown) => {
-                    logApiError(error);
-
-                    if (active) {
-                        setCustomTeaSearchResults([]);
-                        setCustomTeaSearchError(getErrorMessage(error));
-                    }
-                })
-                .finally(() => {
-                    if (active) {
-                        setCustomTeaSearchLoading(false);
-                    }
-                });
-        }, 300);
-
-        return () => {
-            active = false;
-            window.clearTimeout(timeoutId);
-        };
-    }, [customTeaOpen, customTeaSearchQuery]);
 
     const cartItems = useMemo(
         () => Object.values(cartItemsById),
@@ -915,9 +840,6 @@ export function PosSalePage() {
         setBankTransferEventMessage("");
         setCustomTeaOpen(false);
         setCustomTeaSearchQuery("");
-        setCustomTeaSearchResults([]);
-        setCustomTeaSearchError("");
-        setCustomTeaSearchLoading(false);
         handledBankNotificationIdRef.current = null;
         clearCustomer();
     }, [clearCustomer]);
@@ -1492,41 +1414,19 @@ export function PosSalePage() {
 
     function changeSearchQuery(value: string) {
         setSearchQuery(value);
-
-        if (!value.trim()) {
-            setSearchResults([]);
-            setSearchError("");
-            setSearchLoading(false);
-        } else {
-            setSearchLoading(true);
-        }
     }
 
     function clearSearch() {
         setSearchQuery("");
-        setSearchResults([]);
-        setSearchError("");
-        setSearchLoading(false);
     }
 
     function changeCustomTeaSearchQuery(value: string) {
         setCustomTeaSearchQuery(value);
-
-        if (!value.trim()) {
-            setCustomTeaSearchResults([]);
-            setCustomTeaSearchError("");
-            setCustomTeaSearchLoading(false);
-        } else {
-            setCustomTeaSearchLoading(true);
-        }
     }
 
     function closeCustomTeaDialog() {
         setCustomTeaOpen(false);
         setCustomTeaSearchQuery("");
-        setCustomTeaSearchResults([]);
-        setCustomTeaSearchError("");
-        setCustomTeaSearchLoading(false);
     }
 
     async function updateCartItemQuantity(
@@ -1784,9 +1684,6 @@ export function PosSalePage() {
             setBankTransferEventMessage("");
             setCustomTeaOpen(false);
             setCustomTeaSearchQuery("");
-            setCustomTeaSearchResults([]);
-            setCustomTeaSearchError("");
-            setCustomTeaSearchLoading(false);
             patchCurrentDeliveryState(initialDeliveryState);
         } catch (error) {
             logApiError(error);

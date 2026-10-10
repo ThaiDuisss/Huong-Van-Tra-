@@ -233,14 +233,14 @@ export function createNetworkMonitor(
             void ping();
         },
 
-        /** Một request thật vừa thành công: chắc chắn đang có kết nối. */
+        /**
+         * Một request vừa thành công trong lúc đang offline. Không tin ngay:
+         * service worker có thể vừa trả bản cache của danh mục. Ping health
+         * (không bao giờ bị cache) để xác nhận rồi mới chuyển online.
+         */
         reportSuccess(): void {
             if (!status.online) {
-                setStatus({
-                    online: true,
-                    lastOnlineAt: Date.now()
-                });
-                schedule();
+                void ping();
             }
         },
 

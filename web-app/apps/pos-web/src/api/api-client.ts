@@ -44,6 +44,16 @@ export const apiClient = createApiClient({
 
     onUnauthorized() {
         console.warn("Phiên đăng nhập đã hết hạn hoặc bị từ chối");
+
+        /*
+         * Đang mất mạng thì không chuyển hướng sang Keycloak: trang đăng nhập
+         * cũng không tải được và thu ngân mất luôn màn POS. Giữ nguyên, khi
+         * mạng về request kế tiếp sẽ refresh token hoặc đăng nhập lại.
+         */
+        if (!networkMonitor.getSnapshot().online) {
+            return undefined;
+        }
+
         return tokenProvider.login?.();
     }
 });
