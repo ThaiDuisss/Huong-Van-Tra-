@@ -78,7 +78,9 @@ public class OrderDraftServiceImpl implements OrderDraftService {
                 ? BigDecimal.ZERO
                 : orderAmountCalculator.defaultZero(item.getQuantity());
         BigDecimal targetQuantity = oldQuantity.add(addQuantity);
-        validateSellableQuantity(order, item, variant.variantId(), targetQuantity);
+        if (!Boolean.TRUE.equals(request.getAllowBackorder())) {
+            validateSellableQuantity(order, item, variant.variantId(), targetQuantity);
+        }
 
         if (item == null) {
             item = orderItemMapper.toDraftOrderItem(
@@ -117,7 +119,9 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         }
 
         var variant = productSnapshotResolver.resolvePosView(item.getProductVariantId());
-        validateSellableQuantity(order, item, variant.variantId(), targetQuantity);
+        if (!Boolean.TRUE.equals(request.getAllowBackorder())) {
+            validateSellableQuantity(order, item, variant.variantId(), targetQuantity);
+        }
         item.setQuantity(targetQuantity);
         orderAmountCalculator.recalculateLine(item);
         orderAmountCalculator.recalculateOrderTotals(order);
@@ -170,12 +174,22 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         ));
         Order savedOrder = orderRepository.save(order);
 
-        PaymentResponse payment = orderCheckoutPaymentProcessor.checkoutPayment(
-                savedOrder,
-                paymentMethod,
-                request.getPaidAmount(),
-                request.getChangedBy()
-        );
+        boolean depositRequested = request.getDepositAmount() != null
+                && request.getDepositAmount().compareTo(BigDecimal.ZERO) > 0;
+        PaymentResponse payment = Boolean.TRUE.equals(request.getAllowBackorder()) || depositRequested
+                ? orderCheckoutPaymentProcessor.checkoutBackorderPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount(),
+                        request.getChangedBy(),
+                        request.getDepositAmount()
+                )
+                : orderCheckoutPaymentProcessor.checkoutPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount(),
+                        request.getChangedBy()
+                );
 
         Order checkoutOrder = orderRepository.save(savedOrder);
         return orderResponseAssembler.toResponse(checkoutOrder, payment);

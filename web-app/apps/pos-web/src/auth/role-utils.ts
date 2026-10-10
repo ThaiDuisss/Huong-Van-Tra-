@@ -70,6 +70,33 @@ export const MARKETING_ROLES: AppRole[] = [
     "MANAGER"
 ];
 
+/** Mã giảm giá (voucher): SUPER_ADMIN quản lý cùng nhóm marketing. */
+export const VOUCHER_ROLES: AppRole[] = [
+    ROLES.SUPER_ADMIN,
+    ...MARKETING_ROLES
+];
+
+export const CUSTOMER_ROLES: AppRole[] = [
+    ROLES.SUPER_ADMIN,
+    "ADMIN",
+    "MANAGER"
+];
+
+export const PRICE_LIST_ROLES: AppRole[] = [
+    ROLES.SUPER_ADMIN,
+    "ADMIN",
+    "MANAGER"
+];
+
+/** Báo cáo thống kê bán hàng: nhân viên bán tốt nhất, sản phẩm bán chạy. */
+export const STATISTIC_REPORT_ROLES: AppRole[] = [
+    ROLES.SUPER_ADMIN,
+    "ADMIN"
+];
+
+/** Quản lý tài khoản nhân viên (tạo, sửa, khóa, đặt lại mật khẩu): ADMIN. SUPER_ADMIN giữ lại cho tài khoản gốc. */
+export const ACCOUNT_ROLES: AppRole[] = [ROLES.SUPER_ADMIN, "ADMIN"];
+
 export const REPORT_ROLES: AppRole[] = [
     "ADMIN",
     "MANAGER",

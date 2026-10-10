@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { HvtLogo } from "../../shared/HvtLogo";
 import { routePaths } from "../../../routes/path";
 import { PosNotificationButton } from "../../../features/notification/components/PosNotificationButton";
+import { OfflineSyncButton } from "../../../features/sales/components/offline/OfflineSyncButton";
 import { useAuth } from "../../../auth/auth-context";
 import {
   filterPosNavigationByRoles,
@@ -168,11 +169,14 @@ export function PosSidebar() {
         </button>
 
         <ul
-          className="grid grid-cols-3 gap-2 border-t border-[#edf0f4] pt-5"
+          className="grid grid-cols-4 gap-2 border-t border-[#edf0f4] pt-5"
           aria-label="Tiện ích"
         >
           <li>
             <PosNotificationButton />
+          </li>
+          <li>
+            <OfflineSyncButton />
           </li>
           {utilityItems.map((item) => {
             const Icon = item.icon;

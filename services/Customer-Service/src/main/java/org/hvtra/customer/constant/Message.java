@@ -17,6 +17,19 @@ public final class Message {
 
     public static final String LOYALTY_TRANSACTION_POINTS_REQUIRED = "Số điểm giao dịch phải khác 0";
 
+    public static final String CUSTOMER_IMPORT_EMPTY = "Danh sách khách hàng cần nhập đang trống";
+    public static final String CUSTOMER_IMPORT_TOO_MANY_ROWS = "Mỗi lần chỉ được nhập tối đa %d khách hàng";
+    public static final String CUSTOMER_IMPORT_EMPTY_ROW = "Dòng không có dữ liệu";
+    public static final String CUSTOMER_IMPORT_PHONE_INVALID = "Số điện thoại không đúng định dạng (8-15 chữ số, có thể bắt đầu bằng +)";
+    public static final String CUSTOMER_IMPORT_EMAIL_INVALID = "Email không đúng định dạng";
+    public static final String CUSTOMER_IMPORT_DOB_INVALID = "Ngày sinh không đúng định dạng (yyyy-MM-dd hoặc dd/MM/yyyy)";
+    public static final String CUSTOMER_IMPORT_DOB_FUTURE = "Ngày sinh không được lớn hơn ngày hiện tại";
+    public static final String CUSTOMER_IMPORT_TYPE_INVALID = "Loại khách hàng không hợp lệ (Cá nhân hoặc Doanh nghiệp)";
+    public static final String CUSTOMER_IMPORT_DUPLICATE_IN_FILE = "%s trùng với dòng %d trong file";
+    public static final String CUSTOMER_IMPORT_ROW_VALID = "Hợp lệ";
+    public static final String CUSTOMER_IMPORT_ROW_IMPORTED = "Đã nhập";
+    public static final String CUSTOMER_IMPORT_ROW_FAILED = "Không thể tạo khách hàng, vui lòng thử lại";
+
     private Message() {
     }
 }

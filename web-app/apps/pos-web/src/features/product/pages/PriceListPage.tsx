@@ -1,4 +1,5 @@
-import { useCallback } from "react";
+import { History } from "lucide-react";
+import { useCallback, useState } from "react";
 
 import {
     CatalogStatusBadge,
@@ -7,6 +8,7 @@ import {
     CatalogResourceManagement,
     TableCell
 } from "../components/CatalogResourceManagement";
+import { PriceChangeHistoryDialog } from "../components/PriceChangeHistoryDialog";
 import { usePagedApiResource } from "../hooks/useApiResource";
 import { useCatalogPageState } from "../hooks/useCatalogPageState";
 import { priceListApi } from "../services/priceList.api";
@@ -38,6 +40,7 @@ export function PriceListPage() {
     );
     const resource = usePagedApiResource(loadPriceLists);
     const priceLists = resource.data?.content ?? [];
+    const [historyOf, setHistoryOf] = useState<PriceList | null>(null);
 
     async function submit(
         values: FormValues,
@@ -86,6 +89,7 @@ export function PriceListPage() {
     }
 
     return (
+        <>
         <CatalogResourceManagement
             title="Bảng giá"
             description="Quản lý chính sách giá bán theo chi nhánh và thời gian hiệu lực."
@@ -119,6 +123,19 @@ export function PriceListPage() {
                 effectiveTo: toDateInput(item.effectiveTo),
                 status: item.status
             })}
+            renderExtraRowActions={(item, closeMenu) => (
+                <button
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-[#172317] hover:bg-[#f0fbef] hover:text-[#159734] font-medium transition-colors cursor-pointer"
+                    onClick={() => {
+                        closeMenu();
+                        setHistoryOf(item);
+                    }}
+                    type="button"
+                >
+                    <History size={14} aria-hidden="true" />
+                    Lịch sử thay đổi giá
+                </button>
+            )}
             columns={[
                 { key: "name", label: "Tên bảng giá" },
                 { key: "branch", label: "Chi nhánh" },
@@ -229,5 +246,12 @@ export function PriceListPage() {
                 }
             ]}
         />
+        {historyOf ? (
+            <PriceChangeHistoryDialog
+                priceList={historyOf}
+                onClose={() => setHistoryOf(null)}
+            />
+        ) : null}
+        </>
     );
 }

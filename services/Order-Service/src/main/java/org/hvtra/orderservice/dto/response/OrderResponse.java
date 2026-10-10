@@ -44,6 +44,13 @@ public class OrderResponse {
     private BigDecimal changeAmount;
     private Instant expiresAt;
 
+    private boolean backorder;
+    /** Đơn bán offline đã đồng bộ; clientOrderId là khoá idempotency POS gửi lên. */
+    private boolean offlineSale;
+    private UUID clientOrderId;
+    private Instant expectedAvailableAt;
+    private BigDecimal depositAmount;
+
     private List<OrderItemResponse> items;
 
     private String customerName;

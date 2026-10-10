@@ -25,23 +25,29 @@ import {
   Truck,
   Upload,
   User,
+  UserCog,
   WalletCards,
   Warehouse,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import {
+  ACCOUNT_ROLES,
   ACTION_LOG_ROLES,
   BACKOFFICE_ROLES,
+  CUSTOMER_ROLES,
   INVENTORY_OPERATION_ROLES,
   INVENTORY_ROLES,
   MANUFACTURING_ROLES,
   MARKETING_ROLES,
   ORDER_ROLES,
+  PRICE_LIST_ROLES,
   PRODUCT_ROLES,
   REPORT_ROLES,
   SELLABLE_CONFIG_ROLES,
   SETTINGS_ROLES,
+  STATISTIC_REPORT_ROLES,
+  VOUCHER_ROLES,
   type AppRole,
   hasAnyRole,
 } from "../../../auth/role-utils";
@@ -110,7 +116,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     key: "catalog",
     label: "Hàng hóa",
     icon: Package,
-    roles: PRODUCT_ROLES,
+    roles: [...PRODUCT_ROLES, ...PRICE_LIST_ROLES],
     children: [
       {
         key: "catalog-products",
@@ -139,6 +145,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         to: routePaths.units,
         icon: Ruler,
         roles: ["ADMIN", "MANAGER"],
+      },
+      {
+        key: "catalog-price-lists",
+        label: "Bảng giá",
+        to: routePaths.priceLists,
+        icon: WalletCards,
+        roles: PRICE_LIST_ROLES,
       },
     ],
   },
@@ -349,14 +362,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     key: "customers",
     label: "Khách hàng",
     icon: User,
-    roles: ["ADMIN", "MANAGER"],
+    roles: CUSTOMER_ROLES,
     children: [
       {
         key: "customers-list",
         label: "Danh sách khách hàng",
         to: routePaths.customers,
         icon: User,
-        roles: ["ADMIN", "MANAGER"],
+        roles: CUSTOMER_ROLES,
       },
       {
         key: "customers-tiers",
@@ -371,7 +384,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     key: "marketing",
     label: "Marketing",
     icon: Plane,
-    roles: MARKETING_ROLES,
+    roles: VOUCHER_ROLES,
     children: [
       {
         key: "marketing-events",
@@ -392,14 +405,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Mã giảm giá",
         to: routePaths.discountCodes,
         icon: BadgePercent,
-        roles: MARKETING_ROLES,
+        roles: VOUCHER_ROLES,
       },
       {
         key: "marketing-history",
         label: "Lịch sử giảm giá",
         to: routePaths.discountHistory,
         icon: History,
-        roles: MARKETING_ROLES,
+        roles: VOUCHER_ROLES,
       },
     ],
   },
@@ -407,8 +420,22 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     key: "reports",
     label: "Báo cáo",
     icon: BarChart3,
-    roles: REPORT_ROLES,
+    roles: [...REPORT_ROLES, ...STATISTIC_REPORT_ROLES],
     children: [
+      {
+        key: "report-top-sales-staff",
+        label: "Nhân viên bán hàng tốt nhất",
+        to: routePaths.reportTopSalesStaff,
+        icon: User,
+        roles: STATISTIC_REPORT_ROLES,
+      },
+      {
+        key: "report-top-selling-products",
+        label: "Sản phẩm bán chạy",
+        to: routePaths.reportTopSellingProducts,
+        icon: Package,
+        roles: STATISTIC_REPORT_ROLES,
+      },
       {
         key: "report-inventory-value",
         label: "Giá trị tồn kho",
@@ -438,6 +465,13 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         roles: REPORT_ROLES,
       },
     ],
+  },
+  {
+    key: "accounts",
+    label: "Tài khoản",
+    icon: UserCog,
+    to: routePaths.systemAccounts,
+    roles: ACCOUNT_ROLES,
   },
   {
     key: "action-logs",

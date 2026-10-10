@@ -40,9 +40,22 @@ export type {
     ApiClient,
     ApiClientOptions,
     ApiResponse,
+    RequestErrorContext,
     RequestOptions,
     ResponseType
 } from "./core/types";
+
+export {
+    DEFAULT_RETRY_POLICY,
+    getRetryDelayMs,
+    resolveRetryPolicy,
+    shouldRetry
+} from "./core/retry";
+
+export type {
+    RetryOption,
+    RetryPolicy
+} from "./core/retry";
 
 export type {
     QueryParams,

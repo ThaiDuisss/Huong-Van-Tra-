@@ -215,6 +215,14 @@ export function customerTierBadgeStyle(color: string | null) {
     return { backgroundColor: `${safeColor}18`, color: safeColor };
 }
 
+export function nextCustomerStatus(status: CustomerStatus): CustomerStatus {
+    return status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+}
+
+export function customerStatusActionLabel(status: CustomerStatus) {
+    return status === "ACTIVE" ? "Ngừng hoạt động" : "Kích hoạt lại";
+}
+
 export function customerErrorMessage(error: unknown) {
     return error instanceof Error
         ? error.message

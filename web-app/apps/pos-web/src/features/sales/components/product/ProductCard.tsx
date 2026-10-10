@@ -58,9 +58,6 @@ export function ProductCard({
             <div className="flex items-center gap-2">
               <QuantityControl
                 value={quantity}
-                disabledIncrement={
-                  quantity >= product.sellableQuantity
-                }
                 onIncrement={() => onIncrement(product.id)}
                 onDecrement={() => onDecrement(product.id)}
               />

@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@hvt/api-client";
 
+import { useNetworkStatus } from "../../../app/network/useNetworkStatus";
 import { useAuth } from "../../../auth/auth-context";
 import { PosShell } from "../../../components/layout/Pos/PosShell";
 import { useNotifications } from "../../notification/context/useNotifications";
 import type { NotificationResponse } from "../../notification/types/notification.types";
+import { BackorderCheckoutNotice } from "../components/checkout/BackorderCheckoutNotice";
 import { CheckoutPanel } from "../components/checkout/CheckoutPanel";
 import { DeliveryCheckoutPanel } from "../components/delivery/DeliveryCheckoutPanel";
+import {
+    BackorderDialog,
+    type BackorderOffer
+} from "../components/dialogs/BackorderDialog";
 import { CustomTeaRequestDialog } from "../components/dialogs/CustomTeaRequestDialog";
+import { ReceiptDialog } from "../components/dialogs/ReceiptDialog";
 import {
     ShelfShortageDialog,
     type ShelfShortage
@@ -26,13 +33,32 @@ import {
     selectPreferredDeliveryOption,
     selectSuggestedAddress
 } from "../services/delivery.utils";
+import {
+    formatAvailabilityDate,
+    isOutOfStockError,
+    posBackorderApi,
+    type AvailabilityEstimate
+} from "../services/posBackorder.api";
+import { formatCurrency } from "../services/money";
 import { posCustomerApi } from "../services/posCustomer.api";
 import {
+    buildLocalPosSale,
+    getLocalPosSaleValidationMessage,
+    getPosAmountDue,
     completePosCheckout,
     type PosCheckoutPaymentResult
 } from "../services/posCheckout.service";
 import { posOrderApi, type PosOrderDto } from "../services/posOrder.api";
+import { getOfflineOrderDb } from "../offline/offline-order-db";
+import { enqueueOfflineOrder } from "../offline/offline-order-queue";
+import { getOfflineOrderSync } from "../offline/offline-order-sync.instance";
+import type { SalesOrderDetail } from "../../order/types/sales-history.types";
+import { useProductSearch } from "../hooks/useProductSearch";
 import { posProductApi } from "../services/posProduct.api";
+import {
+    loadPersistedSale,
+    savePersistedSale
+} from "../store/sale-persistence";
 import {
     calculateNetSubtotal,
     calculateSaleTotals
@@ -130,6 +156,16 @@ const initialDeliveryState: DeliveryCheckoutState = {
 };
 
 const initialCartItems: Record<string, SaleCartItem> = {};
+
+/** Thao tác đang chờ khách quyết định có đặt trước mặt hàng thiếu hay không. */
+type BackorderAction =
+    | { kind: "add"; product: SaleProductPreview }
+    | { kind: "update"; productId: string; quantity: number };
+
+interface PendingBackorderOffer extends BackorderOffer {
+    variantId: string;
+    action: BackorderAction;
+}
 
 function getErrorMessage(error: unknown) {
     if (error instanceof ApiError) {
@@ -370,18 +406,45 @@ function notificationToPaymentStatus(
     return "FAILED";
 }
 
+function getBackorderSuccessMessage(
+    orderCode: string,
+    expectedAvailableAt: string | null,
+    debtAmount: number
+) {
+    const payment =
+        debtAmount > 0
+            ? `Đã thu cọc, còn lại ${formatCurrency(debtAmount)} thu khi giao hàng.`
+            : "Đã thu đủ tiền.";
+
+    return `Đã ghi nhận đơn chờ hàng${orderCode ? ` ${orderCode}` : ""}. Dự kiến có hàng ${formatAvailabilityDate(expectedAvailableAt)}. ${payment} Giao hàng tại mục Đơn chờ hàng.`;
+}
+
 export function PosSalePage() {
-    const { userId } = useAuth();
+    const { userId, keycloakSubject, displayName } = useAuth();
+    const { online } = useNetworkStatus();
+    // Khoá chủ sở hữu giỏ: dùng subject Keycloak vì có ngay từ lúc mount và
+    // không đổi trong phiên; userId từ identity-service có thể tải xong sau
+    // (nếu dùng nó, lần render đầu sẽ coi snapshot là của người khác và xoá).
+    const saleOwnerId = keycloakSubject ?? userId ?? null;
+    // Đọc một lần khi mount: đơn đang bán của chính thu ngân này trên máy này
+    // (giữ lại sau khi mất mạng, reload hay tắt nhầm tab).
+    const [persistedSale] = useState(() => loadPersistedSale(saleOwnerId));
     const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<
-        SaleProductPreview[]
-    >([]);
-    const [searchLoading, setSearchLoading] = useState(false);
-    const [searchError, setSearchError] = useState("");
     const [customTeaOpen, setCustomTeaOpen] = useState(false);
     const [shelfShortage, setShelfShortage] = useState<ShelfShortage | null>(null);
     const [shelfShortageSubmitting, setShelfShortageSubmitting] = useState(false);
     const [shelfShortageError, setShelfShortageError] = useState("");
+    const [backorderOffer, setBackorderOffer] = useState<PendingBackorderOffer | null>(null);
+    const [backorderSubmitting, setBackorderSubmitting] = useState(false);
+    const [backorderError, setBackorderError] = useState("");
+    /** Ước tính ngày có hàng của cả đơn; khác null nghĩa là đơn đang có mặt hàng khách đồng ý chờ. */
+    const [backorderEstimate, setBackorderEstimate] = useState<AvailabilityEstimate | null>(null);
+    const [depositEnabled, setDepositEnabled] = useState(false);
+    const [depositAmount, setDepositAmount] = useState(0);
+    /** Mặt hàng khách đã đồng ý chờ trong đơn hiện tại: các lần đổi số lượng sau không hỏi lại. */
+    const backorderVariantIdsRef = useRef<Set<string>>(new Set());
+    /** Đơn chuyển khoản đang chờ tiền là đơn chờ hàng: lưu ngày dự kiến để báo sau khi nhận tiền. */
+    const bankTransferBackorderRef = useRef<{ expectedAvailableAt: string | null } | null>(null);
     // Tồn kệ / kho của các mặt hàng đã thêm vào giỏ, để so khi tăng số lượng.
     const stockByVariantIdRef = useRef<Record<string, SaleProductPreview>>({});
     // Số thiếu đã có phiếu nhập kệ cho từng mặt hàng trong đơn hiện tại, tránh hỏi lại cùng một số.
@@ -390,38 +453,55 @@ export function PosSalePage() {
     // tự cập nhật phiếu đã có thay vì hỏi lại.
     const replenishmentModeRef = useRef<Record<string, boolean>>({});
     const [customTeaSearchQuery, setCustomTeaSearchQuery] = useState("");
-    const [customTeaSearchResults, setCustomTeaSearchResults] = useState<
-        SaleProductPreview[]
-    >([]);
-    const [customTeaSearchLoading, setCustomTeaSearchLoading] = useState(false);
-    const [customTeaSearchError, setCustomTeaSearchError] = useState("");
+    // Tìm mặt hàng qua TanStack Query: debounce, cache theo từ khoá, giữ kết
+    // quả cũ khi mất mạng.
+    const productSearch = useProductSearch(searchQuery);
+    const customTeaSearch = useProductSearch(customTeaSearchQuery, customTeaOpen);
+    const searchResults = productSearch.products;
+    const searchLoading = productSearch.loading;
+    const searchError = productSearch.error
+        ? getErrorMessage(productSearch.error)
+        : "";
+    const customTeaSearchResults = customTeaSearch.products;
+    const customTeaSearchLoading = customTeaSearch.loading;
+    const customTeaSearchError = customTeaSearch.error
+        ? getErrorMessage(customTeaSearch.error)
+        : "";
     const [customTeaSubmitLoading, setCustomTeaSubmitLoading] = useState(false);
     const [addingProductId, setAddingProductId] = useState<string | null>(
         null
     );
     const [cartItemsById, setCartItemsById] = useState<
         Record<string, SaleCartItem>
-    >(initialCartItems);
-    const [draftOrder, setDraftOrder] = useState<PosOrderDto | null>(null);
+    >(persistedSale?.cartItemsById ?? initialCartItems);
+    const [draftOrder, setDraftOrder] = useState<PosOrderDto | null>(
+        persistedSale?.draftOrder ?? null
+    );
 
     // Đơn mới thì bắt đầu theo dõi phiếu nhập kệ lại từ đầu.
     useEffect(() => {
         replenishedMissingRef.current = {};
         replenishmentModeRef.current = {};
     }, [draftOrder?.id]);
-    const [note, setNote] = useState("");
+    const [note, setNote] = useState(persistedSale?.note ?? "");
     const [orderType, setOrderType] =
-        useState<SaleOrderType>("QUICK_SALE");
+        useState<SaleOrderType>(persistedSale?.orderType ?? "QUICK_SALE");
     const [selectedDiscountId, setSelectedDiscountId] =
-        useState("none");
+        useState(persistedSale?.selectedDiscountId ?? "none");
     const [promotionDiscounts, setPromotionDiscounts] = useState<
         SaleDiscountOption[]
     >([]);
     const [reservedCouponUsage, setReservedCouponUsage] =
         useState<CouponUsageResponse | null>(null);
     const [manualOrderDiscount, setManualOrderDiscount] =
-        useState<SaleManualDiscount | null>(null);
-    const [cashReceived, setCashReceived] = useState(0);
+        useState<SaleManualDiscount | null>(
+            persistedSale?.manualOrderDiscount ?? null
+        );
+    const [cashReceived, setCashReceived] = useState(
+        persistedSale?.cashReceived ?? 0
+    );
+    // Luôn về tiền mặt khi khôi phục: phiên chuyển khoản (QR, mã tham chiếu)
+    // không dựng lại được, dù snapshot có lưu paymentMethod để đối soát.
     const [paymentMethod, setPaymentMethod] =
         useState<SalePaymentMethod>("CASH");
     const [bankTransferStatus, setBankTransferStatus] =
@@ -434,7 +514,7 @@ export function PosSalePage() {
     const [customersError, setCustomersError] = useState("");
     const [selectedCustomersByInvoice, setSelectedCustomersByInvoice] =
         useState<Record<string, SaleCustomer | null>>({
-            [currentInvoiceId]: null
+            [currentInvoiceId]: persistedSale?.selectedCustomer ?? null
         });
     const [deliveryStateByInvoice, setDeliveryStateByInvoice] =
         useState<Record<string, DeliveryCheckoutState>>({
@@ -442,7 +522,18 @@ export function PosSalePage() {
         });
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [checkoutError, setCheckoutError] = useState("");
-    const [checkoutSuccess, setCheckoutSuccess] = useState("");
+    const [checkoutSuccess, setCheckoutSuccess] = useState(
+        persistedSale
+            ? `Đã khôi phục đơn đang bán${
+                  persistedSale.draftOrder?.orderCode
+                      ? ` ${persistedSale.draftOrder.orderCode}`
+                      : ""
+              } (${Object.keys(persistedSale.cartItemsById).length} mặt hàng).`
+            : ""
+    );
+    const [receiptOrderId, setReceiptOrderId] = useState<string | null>(null);
+    /** Hoá đơn mã tạm của đơn vừa lưu khi mất mạng. */
+    const [offlineReceipt, setOfflineReceipt] = useState<SalesOrderDetail | null>(null);
     const [bankTransferEventMessage, setBankTransferEventMessage] =
         useState("");
     const { notifications } = useNotifications();
@@ -478,93 +569,45 @@ export function PosSalePage() {
         []
     );
 
-    useEffect(() => {
-        const normalizedQuery = searchQuery.trim();
-
-        if (!normalizedQuery) {
-            return;
-        }
-
-        let active = true;
-        const timeoutId = window.setTimeout(() => {
-            setSearchLoading(true);
-            setSearchError("");
-
-            void posProductApi
-                .search(normalizedQuery)
-                .then((products) => {
-                    if (active) {
-                        setSearchResults(products);
-                    }
-                })
-                .catch((error: unknown) => {
-                    logApiError(error);
-
-                    if (active) {
-                        setSearchResults([]);
-                        setSearchError(getErrorMessage(error));
-                    }
-                })
-                .finally(() => {
-                    if (active) {
-                        setSearchLoading(false);
-                    }
-                });
-        }, 300);
-
-        return () => {
-            active = false;
-            window.clearTimeout(timeoutId);
-        };
-    }, [searchQuery]);
-
-    useEffect(() => {
-        const normalizedQuery = customTeaSearchQuery.trim();
-
-        if (!customTeaOpen || !normalizedQuery) {
-            return undefined;
-        }
-
-        let active = true;
-        const timeoutId = window.setTimeout(() => {
-            setCustomTeaSearchLoading(true);
-            setCustomTeaSearchError("");
-
-            void posProductApi
-                .search(normalizedQuery)
-                .then((products) => {
-                    if (active) {
-                        setCustomTeaSearchResults(products);
-                    }
-                })
-                .catch((error: unknown) => {
-                    logApiError(error);
-
-                    if (active) {
-                        setCustomTeaSearchResults([]);
-                        setCustomTeaSearchError(getErrorMessage(error));
-                    }
-                })
-                .finally(() => {
-                    if (active) {
-                        setCustomTeaSearchLoading(false);
-                    }
-                });
-        }, 300);
-
-        return () => {
-            active = false;
-            window.clearTimeout(timeoutId);
-        };
-    }, [customTeaOpen, customTeaSearchQuery]);
-
     const cartItems = useMemo(
         () => Object.values(cartItemsById),
         [cartItemsById]
     );
+    /**
+     * Giỏ có dòng chưa nằm trong đơn nháp trên máy chủ (thêm/sửa khi mất mạng).
+     * Khi đó thanh toán đi đường "một phát" kèm clientOrderId thay vì checkout đơn nháp.
+     */
+    const hasLocalLines = cartItems.some((item) => !item.itemId);
     const selectedCustomer =
         selectedCustomersByInvoice[currentInvoiceId] ?? null;
     const selectedCustomerId = selectedCustomer?.id ?? null;
+
+    // Lưu đơn đang bán để mất mạng / reload không mất giỏ. Giỏ rỗng = xoá.
+    useEffect(() => {
+        savePersistedSale({
+            userId: saleOwnerId,
+            draftOrder,
+            cartItemsById,
+            note,
+            orderType,
+            paymentMethod,
+            cashReceived,
+            selectedDiscountId,
+            manualOrderDiscount,
+            selectedCustomer
+        });
+    }, [
+        cartItemsById,
+        cashReceived,
+        draftOrder,
+        manualOrderDiscount,
+        note,
+        orderType,
+        paymentMethod,
+        saleOwnerId,
+        selectedCustomer,
+        selectedDiscountId
+    ]);
     const discounts = useMemo(
         () => [noDiscount, ...promotionDiscounts],
         [promotionDiscounts]
@@ -588,7 +631,17 @@ export function PosSalePage() {
         [cartItems, manualOrderDiscount, selectedDiscount]
     );
     const totals: SaleTotals = baseTotals;
-    const changeAmount = Math.max(0, cashReceived - totals.total);
+    const depositActive =
+        backorderEstimate !== null && depositEnabled && paymentMethod === "CASH";
+    const amountDue = getPosAmountDue({
+        paymentMethod,
+        totals,
+        allowBackorder: backorderEstimate !== null,
+        depositAmount: depositActive ? depositAmount : 0
+    });
+    const depositInvalid =
+        depositActive && (depositAmount <= 0 || depositAmount >= totals.total);
+    const changeAmount = Math.max(0, cashReceived - amountDue);
 
     useEffect(() => {
         if (cartItems.length === 0 || discountableSubtotal <= 0) {
@@ -783,6 +836,12 @@ export function PosSalePage() {
     const resetCurrentSale = useCallback(() => {
         setCartItemsById({});
         setDraftOrder(null);
+        setBackorderOffer(null);
+        setBackorderEstimate(null);
+        setDepositEnabled(false);
+        setDepositAmount(0);
+        backorderVariantIdsRef.current = new Set();
+        bankTransferBackorderRef.current = null;
         setNote("");
         setSelectedDiscountId("none");
         setReservedCouponUsage(null);
@@ -794,9 +853,6 @@ export function PosSalePage() {
         setBankTransferEventMessage("");
         setCustomTeaOpen(false);
         setCustomTeaSearchQuery("");
-        setCustomTeaSearchResults([]);
-        setCustomTeaSearchError("");
-        setCustomTeaSearchLoading(false);
         handledBankNotificationIdRef.current = null;
         clearCustomer();
     }, [clearCustomer]);
@@ -833,8 +889,12 @@ export function PosSalePage() {
                 selectedDiscount,
                 manualOrderDiscount,
                 couponUsageId: couponUsage?.id,
-                selectedCustomerId
+                selectedCustomerId,
+                allowBackorder: backorderEstimate !== null
             });
+            bankTransferBackorderRef.current = checkout.backorder
+                ? { expectedAvailableAt: checkout.expectedAvailableAt }
+                : null;
 
             if (!checkout.payment?.qrUrl) {
                 await releaseCouponUsage(couponUsage);
@@ -852,7 +912,98 @@ export function PosSalePage() {
         }
     }
 
+    /**
+     * Bán với giỏ cục bộ: mất mạng thì lưu vào hàng chờ IndexedDB và in hoá đơn mã tạm;
+     * có mạng (giỏ có dòng thêm khi offline) thì gửi một phát lên máy chủ. Cả hai đều
+     * mang clientOrderId nên gửi lại không tạo đơn trùng.
+     */
+    async function completeLocalSale() {
+        const validationMessage = getLocalPosSaleValidationMessage({
+            cartItems,
+            orderType,
+            paymentMethod,
+            cashReceived,
+            totals,
+            selectedDiscount,
+            offline: !online
+        });
+
+        if (validationMessage) {
+            setCheckoutError(validationMessage);
+            return;
+        }
+
+        setCheckoutLoading(true);
+        setCheckoutError("");
+        setCheckoutSuccess("");
+
+        const record = buildLocalPosSale({
+            cartItems,
+            orderType,
+            paymentMethod,
+            cashReceived,
+            totals,
+            originalSubtotal: baseTotals.subtotal,
+            selectedDiscount,
+            manualOrderDiscount,
+            selectedCustomer,
+            cashierId: getUuid(userId) ?? null,
+            cashierName: displayName ?? null,
+            ownerId: saleOwnerId,
+            branchId: currentBranchId,
+            staleDraftOrderId:
+                draftOrder?.id && draftOrder.status === "DRAFT" ? draftOrder.id : null,
+            offline: !online
+        });
+
+        try {
+            if (online) {
+                try {
+                    const order = await posOrderApi.checkoutOffline(record.request);
+
+                    if (record.staleDraftOrderId) {
+                        void posOrderApi
+                            .cancelDraftOrder(record.staleDraftOrderId)
+                            .catch(logApiError);
+                    }
+
+                    resetCurrentSale();
+                    setCheckoutSuccess(`Thanh toán thành công đơn ${order.orderCode}.`);
+                    setReceiptOrderId(order.id);
+                    return;
+                } catch (error) {
+                    if (!(error instanceof ApiError && error.isNetworkError)) {
+                        throw error;
+                    }
+                    // Mạng rớt đúng lúc gửi: chuyển sang lưu offline. Máy chủ có thể đã
+                    // nhận đơn, nhưng replay cùng clientOrderId chỉ trả về đơn đó.
+                }
+            }
+
+            await enqueueOfflineOrder(getOfflineOrderDb(), {
+                ...record,
+                request: { ...record.request, offlineSale: true }
+            });
+            void getOfflineOrderSync().notifyEnqueued();
+            resetCurrentSale();
+            setCheckoutSuccess(
+                `Đã lưu đơn ${record.tempCode} trên máy (${formatCurrency(record.totalAmount)}). Sẽ tự đồng bộ lên máy chủ khi có mạng.`
+            );
+            setOfflineReceipt(record.receipt);
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(getErrorMessage(error));
+        } finally {
+            setCheckoutLoading(false);
+        }
+    }
+
     async function completePayment() {
+        if (!online || hasLocalLines) {
+            await completeLocalSale();
+            return;
+        }
+
         if (
             paymentMethod === "BANK_TRANSFER" &&
             bankTransferStatus === "RECEIVED"
@@ -887,17 +1038,35 @@ export function PosSalePage() {
                 selectedDiscount,
                 manualOrderDiscount,
                 couponUsageId: couponUsage?.id,
-                selectedCustomerId
+                selectedCustomerId,
+                allowBackorder: backorderEstimate !== null,
+                depositAmount: depositActive ? depositAmount : undefined
             });
             await applyCouponUsage(couponUsage);
 
+            const paidOrderId =
+                draftOrder?.id ?? checkout.payment?.orderId ?? null;
+
             resetCurrentSale();
+
+            if (checkout.backorder) {
+                // Đơn chờ hàng chưa giao nên chưa in hóa đơn; in khi giao ở màn hình Đơn chờ hàng.
+                setCheckoutSuccess(
+                    getBackorderSuccessMessage(
+                        checkout.orderCode,
+                        checkout.expectedAvailableAt,
+                        checkout.debtAmount
+                    )
+                );
+                return;
+            }
 
             setCheckoutSuccess(
                 checkout.orderCode
                     ? `Thanh toán thành công đơn ${checkout.orderCode}.`
                     : "Thanh toán thành công."
             );
+            setReceiptOrderId(paidOrderId);
         } catch (error) {
             await releaseCouponUsage(couponUsage);
             logApiError(error);
@@ -918,11 +1087,25 @@ export function PosSalePage() {
         try {
             await applyCouponUsage(reservedCouponUsage);
             setBankTransferStatus("RECEIVED");
-            setCheckoutSuccess("Thanh toán chuyển khoản thành công.");
+            const waitingStock = bankTransferBackorderRef.current;
+            const successMessage = waitingStock
+                ? getBackorderSuccessMessage(
+                    draftOrder?.orderCode ?? "",
+                    waitingStock.expectedAvailableAt,
+                    0
+                )
+                : "Thanh toán chuyển khoản thành công.";
+            setCheckoutSuccess(successMessage);
+
+            if (!waitingStock) {
+                setReceiptOrderId(
+                    bankTransferPayment?.orderId ?? draftOrder?.id ?? null
+                );
+            }
 
             window.setTimeout(() => {
                 resetCurrentSale();
-                setCheckoutSuccess("Thanh toán chuyển khoản thành công.");
+                setCheckoutSuccess(successMessage);
             }, 1500);
         } catch (error) {
             logApiError(error);
@@ -1127,7 +1310,214 @@ export function PosSalePage() {
         }
     }
 
-    async function addProduct(product: SaleProductPreview) {
+    /** Tổng số đang đặt của một mặt hàng trong giỏ (một mặt hàng có thể nằm ở nhiều dòng khác ghi chú). */
+    function getCartQuantity(variantId: string, excludeProductId?: string) {
+        return Object.values(cartItemsById)
+            .filter(
+                (item) =>
+                    (item.productVariantId ?? item.productId) === variantId &&
+                    item.productId !== excludeProductId
+            )
+            .reduce((sum, item) => sum + item.quantity, 0);
+    }
+
+    /**
+     * Mặt hàng không đủ để bán ngay: hỏi kho ngày dự kiến có hàng (đang sản xuất, đủ nguyên liệu, chờ phiếu
+     * nhập hay phải nhập mới) rồi để khách quyết định có đặt trước hay không.
+     */
+    async function offerBackorder(
+        action: BackorderAction,
+        variantId: string,
+        name: string,
+        sku: string,
+        requestedQuantity: number
+    ) {
+        try {
+            const estimate = await posBackorderApi.estimate({
+                branchId: currentBranchId,
+                orderId: draftOrder?.id ?? null,
+                lines: [{ productVariantId: variantId, quantity: requestedQuantity }]
+            });
+            const line = estimate.lines.find(
+                (item) => item.productVariantId === variantId
+            );
+
+            if (!line || line.scenario === "AVAILABLE") {
+                setCheckoutError("Tồn kho vừa thay đổi. Vui lòng thử lại.");
+                return;
+            }
+
+            setCheckoutError("");
+            setBackorderError("");
+            setBackorderOffer({ variantId, name, sku, estimate: line, action });
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(
+                `Không ước tính được ngày có hàng: ${getErrorMessage(error)}`
+            );
+        }
+    }
+
+    /** Cập nhật ngày dự kiến có hàng của cả đơn sau mỗi lần giỏ thay đổi. */
+    async function refreshBackorderEstimate(order: PosOrderDto) {
+        if (backorderVariantIdsRef.current.size === 0) {
+            return;
+        }
+
+        const quantityByVariant = new Map<string, number>();
+
+        for (const item of order.items ?? []) {
+            quantityByVariant.set(
+                item.productVariantId,
+                (quantityByVariant.get(item.productVariantId) ?? 0) + Number(item.quantity)
+            );
+        }
+
+        const clearBackorder = () => {
+            backorderVariantIdsRef.current = new Set();
+            setBackorderEstimate(null);
+            setDepositEnabled(false);
+            setDepositAmount(0);
+        };
+
+        if (quantityByVariant.size === 0) {
+            clearBackorder();
+            return;
+        }
+
+        try {
+            const estimate = await posBackorderApi.estimate({
+                branchId: currentBranchId,
+                orderId: order.id,
+                lines: Array.from(quantityByVariant, ([productVariantId, quantity]) => ({
+                    productVariantId,
+                    quantity
+                }))
+            });
+
+            if (!estimate.backorder) {
+                clearBackorder();
+                return;
+            }
+
+            setBackorderEstimate(estimate);
+        } catch (error) {
+            logApiError(error);
+        }
+    }
+
+    function clearBankTransferAndMessages() {
+        setBankTransferPayment(null);
+        setBankTransferStatus("WAITING");
+        setBankTransferEventMessage("");
+        setCheckoutError("");
+        setCheckoutSuccess("");
+    }
+
+    /**
+     * Thêm vào giỏ cục bộ (mất mạng): không gọi API đơn nháp. Dòng cùng mặt hàng và
+     * cùng ghi chú thì cộng số lượng; dòng vốn là của đơn nháp thì bỏ liên kết (itemId).
+     */
+    function upsertLocalCartItem(
+        product: SaleProductPreview,
+        quantity: number,
+        note?: string
+    ) {
+        const variantId = product.productVariantId ?? product.id;
+        const normalizedNote = note?.trim() || undefined;
+
+        setCartItemsById((currentItemsById) => {
+            const existingKey = Object.keys(currentItemsById).find((key) => {
+                const item = currentItemsById[key];
+
+                return (
+                    (item.productVariantId ?? item.productId) === variantId &&
+                    (item.note?.trim() || undefined) === normalizedNote
+                );
+            });
+
+            if (existingKey) {
+                const existing = currentItemsById[existingKey];
+
+                return {
+                    ...currentItemsById,
+                    [existingKey]: {
+                        ...existing,
+                        itemId: undefined,
+                        quantity: existing.quantity + quantity
+                    }
+                };
+            }
+
+            const key = `local:${variantId}:${normalizedNote ?? ""}`;
+
+            return {
+                ...currentItemsById,
+                [key]: {
+                    productId: key,
+                    productVariantId: variantId,
+                    inventoryLocationId: product.inventoryLocationId ?? null,
+                    name: product.name,
+                    sku: product.sku,
+                    variant: product.variant,
+                    quantity,
+                    unitPrice: product.price,
+                    availableQuantity: product.availableQuantity,
+                    sellableQuantity: product.sellableQuantity,
+                    manualDiscount: null,
+                    note: normalizedNote
+                }
+            };
+        });
+        stockByVariantIdRef.current[variantId] = product;
+        clearBankTransferAndMessages();
+    }
+
+    function updateLocalCartItemQuantity(productId: string, quantity: number) {
+        setCartItemsById((currentItemsById) => {
+            const item = currentItemsById[productId];
+
+            if (!item) {
+                return currentItemsById;
+            }
+
+            if (quantity <= 0) {
+                return Object.fromEntries(
+                    Object.entries(currentItemsById).filter(([key]) => key !== productId)
+                );
+            }
+
+            return {
+                ...currentItemsById,
+                [productId]: { ...item, itemId: undefined, quantity }
+            };
+        });
+        clearBankTransferAndMessages();
+
+        return true;
+    }
+
+    function changeLocalCartItemNote(productId: string, nextNote: string) {
+        setCartItemsById((currentItemsById) => {
+            const item = currentItemsById[productId];
+
+            if (!item) {
+                return currentItemsById;
+            }
+
+            return {
+                ...currentItemsById,
+                [productId]: {
+                    ...item,
+                    itemId: undefined,
+                    note: nextNote.trim() || undefined
+                }
+            };
+        });
+        clearBankTransferAndMessages();
+    }
+
+    async function addProduct(product: SaleProductPreview, allowBackorder = false) {
         const variantId = product.productVariantId ?? product.id;
 
         if (addingProductId) {
@@ -1139,10 +1529,31 @@ export function PosSalePage() {
             return false;
         }
 
-        if (
-            product.sellableQuantity <= 0
-        ) {
-            setCheckoutError("Sản phẩm đã hết hàng");
+        const waitAccepted =
+            allowBackorder || backorderVariantIdsRef.current.has(variantId);
+
+        if (!online) {
+            if (product.sellableQuantity <= 0 && !waitAccepted) {
+                setCheckoutError(
+                    `${product.name} đã hết hàng theo dữ liệu đã tải; không đặt chờ hàng được khi mất mạng.`
+                );
+                return false;
+            }
+
+            upsertLocalCartItem(product, 1);
+            return true;
+        }
+
+        if (product.sellableQuantity <= 0 && !waitAccepted) {
+            setAddingProductId(product.id);
+            await offerBackorder(
+                { kind: "add", product },
+                variantId,
+                product.name,
+                product.sku,
+                getCartQuantity(variantId) + 1
+            );
+            setAddingProductId(null);
             return false;
         }
 
@@ -1155,15 +1566,34 @@ export function PosSalePage() {
                 customerId: selectedCustomerId,
                 orderType,
                 productVariantId: variantId,
-                inventoryLocationId: product.inventoryLocationId
+                inventoryLocationId: product.inventoryLocationId,
+                allowBackorder: waitAccepted
             });
             applyDraftOrder(order);
             setCheckoutError("");
             setCheckoutSuccess("");
             stockByVariantIdRef.current[variantId] = product;
-            void checkShelfShortage(order, variantId);
+
+            if (waitAccepted) {
+                backorderVariantIdsRef.current.add(variantId);
+            } else {
+                void checkShelfShortage(order, variantId);
+            }
+
+            void refreshBackorderEstimate(order);
             return true;
         } catch (error) {
+            if (!waitAccepted && isOutOfStockError(error)) {
+                await offerBackorder(
+                    { kind: "add", product },
+                    variantId,
+                    product.name,
+                    product.sku,
+                    getCartQuantity(variantId) + 1
+                );
+                return false;
+            }
+
             logApiError(error);
             setCheckoutError(
                 `Không thể thêm sản phẩm: ${getErrorMessage(error)}`
@@ -1171,6 +1601,33 @@ export function PosSalePage() {
             return false;
         } finally {
             setAddingProductId(null);
+        }
+    }
+
+    async function acceptBackorder() {
+        if (!backorderOffer || backorderSubmitting) {
+            return;
+        }
+
+        setBackorderSubmitting(true);
+        setBackorderError("");
+
+        const { action } = backorderOffer;
+        const added =
+            action.kind === "add"
+                ? await addProduct(action.product, true)
+                : await updateCartItemQuantity(action.productId, action.quantity, true);
+
+        setBackorderSubmitting(false);
+
+        if (added) {
+            setBackorderOffer(null);
+
+            if (action.kind === "add") {
+                clearSearch();
+            }
+        } else {
+            setBackorderError("Chưa thêm được mặt hàng đặt trước. Vui lòng thử lại.");
         }
     }
 
@@ -1184,50 +1641,40 @@ export function PosSalePage() {
 
     function changeSearchQuery(value: string) {
         setSearchQuery(value);
-
-        if (!value.trim()) {
-            setSearchResults([]);
-            setSearchError("");
-            setSearchLoading(false);
-        } else {
-            setSearchLoading(true);
-        }
     }
 
     function clearSearch() {
         setSearchQuery("");
-        setSearchResults([]);
-        setSearchError("");
-        setSearchLoading(false);
     }
 
     function changeCustomTeaSearchQuery(value: string) {
         setCustomTeaSearchQuery(value);
-
-        if (!value.trim()) {
-            setCustomTeaSearchResults([]);
-            setCustomTeaSearchError("");
-            setCustomTeaSearchLoading(false);
-        } else {
-            setCustomTeaSearchLoading(true);
-        }
     }
 
     function closeCustomTeaDialog() {
         setCustomTeaOpen(false);
         setCustomTeaSearchQuery("");
-        setCustomTeaSearchResults([]);
-        setCustomTeaSearchError("");
-        setCustomTeaSearchLoading(false);
     }
 
-    async function updateCartItemQuantity(productId: string, quantity: number) {
+    async function updateCartItemQuantity(
+        productId: string,
+        quantity: number,
+        allowBackorder = false
+    ) {
         const currentItem = cartItemsById[productId];
 
-        if (!draftOrder?.id || !currentItem?.itemId) {
-            setCheckoutError("Hóa đơn nháp chưa sẵn sàng.");
-            return;
+        if (!currentItem) {
+            return false;
         }
+
+        // Mất mạng, hoặc dòng chưa có trên đơn nháp: sửa cục bộ, gửi cả giỏ khi thanh toán.
+        if (!online || !draftOrder?.id || !currentItem.itemId) {
+            return updateLocalCartItemQuantity(productId, quantity);
+        }
+
+        const variantId = currentItem.productVariantId ?? currentItem.productId;
+        const waitAccepted =
+            allowBackorder || backorderVariantIdsRef.current.has(variantId);
 
         try {
             const order =
@@ -1239,18 +1686,36 @@ export function PosSalePage() {
                     : await posOrderApi.updateDraftItemQuantity(
                         draftOrder.id,
                         currentItem.itemId,
-                        quantity
+                        quantity,
+                        waitAccepted
                     );
             applyDraftOrder(order);
             setCheckoutError("");
             setCheckoutSuccess("");
 
-            if (currentItem.productVariantId) {
+            if (waitAccepted && quantity > 0) {
+                backorderVariantIdsRef.current.add(variantId);
+            } else if (currentItem.productVariantId) {
                 void checkShelfShortage(order, currentItem.productVariantId);
             }
+
+            void refreshBackorderEstimate(order);
+            return true;
         } catch (error) {
+            if (!waitAccepted && quantity > 0 && isOutOfStockError(error)) {
+                await offerBackorder(
+                    { kind: "update", productId, quantity },
+                    variantId,
+                    currentItem.name,
+                    currentItem.sku,
+                    getCartQuantity(variantId, productId) + quantity
+                );
+                return false;
+            }
+
             logApiError(error);
             setCheckoutError(getErrorMessage(error));
+            return false;
         }
     }
 
@@ -1308,8 +1773,12 @@ export function PosSalePage() {
         const currentItem = cartItemsById[productId];
         const productVariantId = currentItem?.productVariantId;
 
-        if (!draftOrder?.id || !currentItem?.itemId || !productVariantId) {
-            setCheckoutError("Hóa đơn nháp chưa sẵn sàng.");
+        if (!currentItem) {
+            return;
+        }
+
+        if (!online || !draftOrder?.id || !currentItem.itemId || !productVariantId) {
+            changeLocalCartItemNote(productId, nextNote);
             return;
         }
 
@@ -1361,6 +1830,12 @@ export function PosSalePage() {
             return;
         }
 
+        if (!online) {
+            upsertLocalCartItem(input.product, input.quantity, input.note);
+            closeCustomTeaDialog();
+            return;
+        }
+
         setCustomTeaSubmitLoading(true);
 
         try {
@@ -1395,6 +1870,20 @@ export function PosSalePage() {
     }
 
     function changePaymentMethod(method: SalePaymentMethod) {
+        if (!online && (method === "BANK_TRANSFER" || method === "COMBINED")) {
+            setCheckoutError(
+                "Mất kết nối máy chủ: chưa thể thanh toán chuyển khoản. Vui lòng thu tiền mặt hoặc chờ có mạng."
+            );
+            return;
+        }
+
+        if (hasLocalLines && (method === "BANK_TRANSFER" || method === "COMBINED")) {
+            setCheckoutError(
+                "Giỏ có mặt hàng thêm khi mất mạng nên chỉ thu tiền mặt. Muốn chuyển khoản, hãy đóng hoá đơn và tạo lại."
+            );
+            return;
+        }
+
         setPaymentMethod(method);
 
         if (method === "BANK_TRANSFER") {
@@ -1412,11 +1901,28 @@ export function PosSalePage() {
         try {
             await releaseCouponUsage(reservedCouponUsage, "cancel");
 
-            if (draftOrder?.id && draftOrder.status === "DRAFT") {
-                await posOrderApi.cancelDraftOrder(draftOrder.id);
+            // Mất mạng thì chỉ dọn cục bộ; đơn nháp trên máy chủ tự hết hạn.
+            if (online && draftOrder?.id && draftOrder.status === "DRAFT") {
+                try {
+                    await posOrderApi.cancelDraftOrder(draftOrder.id);
+                } catch (error) {
+                    // Đơn nháp khôi phục từ máy có thể đã bị huỷ/thanh toán trên
+                    // máy chủ: vẫn dọn giỏ cục bộ. Chỉ giữ lại khi mất mạng.
+                    if (error instanceof ApiError && error.isNetworkError) {
+                        throw error;
+                    }
+
+                    logApiError(error);
+                }
             }
             setDraftOrder(null);
             setCartItemsById({});
+            setBackorderOffer(null);
+            setBackorderEstimate(null);
+            setDepositEnabled(false);
+            setDepositAmount(0);
+            backorderVariantIdsRef.current = new Set();
+            bankTransferBackorderRef.current = null;
             setNote("");
             setCashReceived(0);
             setSelectedDiscountId("none");
@@ -1427,9 +1933,6 @@ export function PosSalePage() {
             setBankTransferEventMessage("");
             setCustomTeaOpen(false);
             setCustomTeaSearchQuery("");
-            setCustomTeaSearchResults([]);
-            setCustomTeaSearchError("");
-            setCustomTeaSearchLoading(false);
             patchCurrentDeliveryState(initialDeliveryState);
         } catch (error) {
             logApiError(error);
@@ -1984,9 +2487,16 @@ export function PosSalePage() {
 
             void applyCouponUsage(reservedCouponUsage).catch(logApiError);
 
+            const waitingStock = bankTransferBackorderRef.current;
             setCheckoutSuccess(
-                matchedNotification.message ||
-                "Thanh toán chuyển khoản thành công."
+                waitingStock
+                    ? getBackorderSuccessMessage(
+                        bankTransferPayment?.orderCode ?? "",
+                        waitingStock.expectedAvailableAt,
+                        0
+                    )
+                    : matchedNotification.message ||
+                    "Thanh toán chuyển khoản thành công."
             );
             setCheckoutError("");
 
@@ -2062,6 +2572,22 @@ export function PosSalePage() {
                         customersLoading={customersLoading}
                         customersError={customersError}
                         selectedCustomer={selectedCustomer}
+                        amountDue={amountDue}
+                        paymentBlocked={depositInvalid}
+                        offline={!online}
+                        backorderNotice={
+                            backorderEstimate ? (
+                                <BackorderCheckoutNotice
+                                    estimate={backorderEstimate}
+                                    total={totals.total}
+                                    depositAllowed={paymentMethod === "CASH"}
+                                    depositEnabled={depositActive}
+                                    depositAmount={depositAmount}
+                                    onDepositEnabledChange={setDepositEnabled}
+                                    onDepositAmountChange={setDepositAmount}
+                                />
+                            ) : null
+                        }
                         onCashReceivedChange={setCashReceived}
                         onDiscountChange={changeSelectedDiscount}
                         onManualOrderDiscountChange={(discount) => {
@@ -2135,6 +2661,31 @@ export function PosSalePage() {
                     onDismiss={() => setShelfShortage(null)}
                 />
             ) : null}
+            {backorderOffer ? (
+                <BackorderDialog
+                    offer={backorderOffer}
+                    submitting={backorderSubmitting}
+                    error={backorderError}
+                    onAccept={() => {
+                        void acceptBackorder();
+                    }}
+                    onDecline={() => setBackorderOffer(null)}
+                />
+            ) : null}
+            <ReceiptDialog
+                orderId={receiptOrderId}
+                localOrder={offlineReceipt}
+                title={offlineReceipt ? "Đã lưu đơn bán offline" : undefined}
+                hint={
+                    offlineReceipt
+                        ? "Mã tạm. Đơn sẽ tự đồng bộ lên máy chủ và nhận mã chính thức khi có mạng."
+                        : undefined
+                }
+                onClose={() => {
+                    setReceiptOrderId(null);
+                    setOfflineReceipt(null);
+                }}
+            />
             {customTeaOpen ? (
                 <CustomTeaRequestDialog
                     open={customTeaOpen}

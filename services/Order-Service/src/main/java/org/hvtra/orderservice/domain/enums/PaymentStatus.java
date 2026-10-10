@@ -6,5 +6,7 @@ public enum PaymentStatus {
     PAID,
     FAILED,
     REFUNDED,
-    PARTIALLY_REFUNDED
+    PARTIALLY_REFUNDED,
+    /** Đơn đặt trước mới thu tiền cọc. */
+    PARTIALLY_PAID
 }

@@ -23,6 +23,10 @@ export interface CheckoutPosOrderInput extends CreatePosOrderInput {
     paidAmount: number;
     receivedAmount?: number;
     changeAmount?: number;
+    /** Khách đồng ý chờ hàng: đơn thiếu hàng được ghi nhận là đơn chờ hàng. */
+    allowBackorder?: boolean;
+    /** Đơn chờ hàng trả tiền mặt: chỉ thu tiền cọc, phần còn lại thu khi giao. */
+    depositAmount?: number;
 }
 
 interface PosOrderItemRequest {
@@ -42,6 +46,37 @@ export interface PosDiscountRequest {
     note?: string;
 }
 
+export interface OfflinePosCheckoutItemBody {
+    productVariantId: string;
+    quantity: number;
+    note?: string;
+    /** Giá đã chốt với khách tại quầy; máy chủ dùng khi offlineSale = true. */
+    unitPriceSnapshot: number;
+    itemDiscounts: PosDiscountRequest[];
+}
+
+/**
+ * Body của POST /orders/pos/offline-checkout: cả giỏ hàng trong một request,
+ * clientOrderId là khoá idempotency nên gửi lại bao nhiêu lần cũng chỉ ra một đơn.
+ */
+export interface OfflinePosCheckoutRequestBody {
+    clientOrderId: string;
+    /** ISO, giờ bán thật tại quầy. */
+    soldAt: string;
+    /** true = bán khi mất mạng (giữ giá đã in); false = giỏ cục bộ nhưng đang online. */
+    offlineSale: boolean;
+    branchId?: string;
+    cashierId?: string;
+    cashierNameSnapshot?: string;
+    customerId?: string;
+    orderType: string;
+    orderDiscounts: PosDiscountRequest[];
+    shippingFee: 0;
+    paidAmount: number;
+    paymentMethod: string;
+    items: OfflinePosCheckoutItemBody[];
+}
+
 interface CreatePosOrderRequestBody {
     orderId?: string;
     customerId?: string;
@@ -51,6 +86,8 @@ interface CreatePosOrderRequestBody {
     paidAmount?: number;
     paymentMethod?: string;
     paymentCode?: string;
+    allowBackorder?: boolean;
+    depositAmount?: number;
     items: PosOrderItemRequest[];
 }
 
@@ -64,10 +101,12 @@ interface AddDraftOrderItemRequestBody {
     discountAmount: number;
     inventoryLocationId?: string;
     note?: string;
+    allowBackorder?: boolean;
 }
 
 interface UpdateDraftOrderItemQuantityRequestBody {
     quantity: number;
+    allowBackorder?: boolean;
 }
 
 export interface PosCheckoutPaymentResponse {
@@ -106,6 +145,11 @@ export interface PosOrderDto {
     finalAmount?: number;
     paidAmount?: number;
     debtAmount?: number;
+    /** Đơn chờ hàng: đã thu tiền (đủ hoặc cọc), giao sau khi có hàng. */
+    backorder?: boolean;
+    expectedAvailableAt?: string | null;
+    depositAmount?: number;
+    inventoryProcessingStatus?: string;
     items?: PosOrderItemDto[];
 }
 
@@ -204,6 +248,7 @@ export const posOrderApi = {
         inventoryLocationId?: string | null;
         quantity?: number;
         note?: string;
+        allowBackorder?: boolean;
     }) {
         if (!uuidPattern.test(input.productVariantId)) {
             throw new Error("Không xác định được productVariantId dạng UUID.");
@@ -223,15 +268,21 @@ export const posOrderApi = {
                 quantity: input.quantity ?? 1,
                 discountAmount: 0,
                 inventoryLocationId: input.inventoryLocationId ?? undefined,
-                note: input.note?.trim() || undefined
+                note: input.note?.trim() || undefined,
+                allowBackorder: input.allowBackorder || undefined
             }
         );
     },
 
-    updateDraftItemQuantity(orderId: string, itemId: string, quantity: number) {
+    updateDraftItemQuantity(
+        orderId: string,
+        itemId: string,
+        quantity: number,
+        allowBackorder = false
+    ) {
         return apiClient.put<PosOrderDto, UpdateDraftOrderItemQuantityRequestBody>(
             `/orders/pos/draft/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}`,
-            { quantity }
+            { quantity, allowBackorder: allowBackorder || undefined }
         );
     },
 
@@ -248,6 +299,22 @@ export const posOrderApi = {
         );
     },
 
+    /**
+     * Đồng bộ đơn bán offline (hoặc giỏ cục bộ). Không retry tự động ở lớp HTTP:
+     * bộ đồng bộ offline tự quyết định thử lại, và replay cùng clientOrderId là an toàn.
+     */
+    checkoutOffline(body: OfflinePosCheckoutRequestBody) {
+        return apiClient.post<PosOrderDto, OfflinePosCheckoutRequestBody>(
+            "/orders/pos/offline-checkout",
+            body,
+            {
+                headers: { "Idempotency-Key": body.clientOrderId },
+                timeoutMs: 60_000,
+                retry: false
+            }
+        );
+    },
+
     checkout(input: CheckoutPosOrderInput) {
         return apiClient.post<
             PosCheckoutResponse,
@@ -260,6 +327,8 @@ export const posOrderApi = {
             shippingFee: 0,
             paidAmount: input.paidAmount,
             paymentMethod: paymentMethodMap[input.paymentMethod],
+            allowBackorder: input.allowBackorder || undefined,
+            depositAmount: input.depositAmount,
             items: input.items.map((item) => ({
                 productVariantId: getProductVariantId(item),
                 quantity: item.quantity,

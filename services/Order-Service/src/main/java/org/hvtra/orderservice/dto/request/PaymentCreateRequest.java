@@ -39,6 +39,11 @@ public class PaymentCreateRequest {
      */
     private BigDecimal receivedAmount;
 
+    /**
+     * Chỉ dùng cho CASH: lần này chỉ thu tiền cọc của đơn đặt trước.
+     */
+    private BigDecimal depositAmount;
+
     private Boolean deliveryRequired;
     private UUID deliveryId;
 }

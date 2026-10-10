@@ -7,6 +7,10 @@ import type { SalePaymentMethod } from "../../types/sale.types";
 
 interface PaymentMethodGridProps {
   value: SalePaymentMethod;
+  /** Phương thức tạm không dùng được (vd. chuyển khoản khi mất mạng). */
+  disabledMethods?: readonly SalePaymentMethod[];
+  /** Lý do hiện trên tooltip của nút bị khoá. */
+  disabledReason?: string;
   onChange(value: SalePaymentMethod): void;
 }
 
@@ -30,6 +34,8 @@ const paymentMethods = [
 
 export function PaymentMethodGrid({
   value,
+  disabledMethods = [],
+  disabledReason,
   onChange
 }: PaymentMethodGridProps) {
   return (
@@ -38,13 +44,17 @@ export function PaymentMethodGrid({
         {paymentMethods.map((method) => {
           const Icon = method.icon;
           const active = method.value === value;
+          const disabled = disabledMethods.includes(method.value);
 
           return (
             <button
               key={method.value}
               type="button"
+              disabled={disabled}
+              title={disabled ? disabledReason : undefined}
+              aria-disabled={disabled || undefined}
               onClick={() => onChange(method.value)}
-              className={`grid h-[58px] place-items-center rounded-lg border px-1 text-[12px] font-semibold ${
+              className={`grid h-[58px] place-items-center rounded-lg border px-1 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
                 method.value === "COMBINED" ? "col-span-2" : ""
               } ${
                 active

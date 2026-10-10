@@ -1,6 +1,7 @@
 package org.hvtra.orderservice.service.support;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
@@ -33,6 +34,7 @@ public class OrderCheckoutPaymentProcessor {
     private final OrderStatusHistoryWriter orderStatusHistoryWriter;
     private final OrderResponseAssembler orderResponseAssembler;
     private final OrderPaymentEventService orderPaymentEventService;
+    private final OrderBackorderSupport orderBackorderSupport;
 
     public PaymentResponse checkoutPayment(
             Order order,
@@ -40,8 +42,58 @@ public class OrderCheckoutPaymentProcessor {
             BigDecimal receivedAmount,
             UUID changedBy
     ) {
+        return checkoutPayment(order, paymentMethod, receivedAmount, changedBy, null);
+    }
+
+    /**
+     * Thanh toán khi khách đồng ý chờ hàng: hỏi Inventory xem đơn có thiếu hàng không. Thiếu thì ghi nhận là
+     * đơn chờ hàng kèm ngày dự kiến có hàng (thu đủ hoặc thu cọc); đủ thì bán như đơn thường.
+     *
+     * @param requestedDeposit tiền cọc khách muốn trả trước, null hoặc 0 = thu đủ
+     */
+    public PaymentResponse checkoutBackorderPayment(
+            Order order,
+            String paymentMethod,
+            BigDecimal receivedAmount,
+            UUID changedBy,
+            BigDecimal requestedDeposit
+    ) {
+        InventoryClient.AvailabilityEstimateResponse estimate = orderBackorderSupport.estimate(order);
+        boolean backorder = estimate != null && estimate.backorder();
+        order.setBackorder(backorder);
+        order.setExpectedAvailableAt(backorder ? estimate.estimatedAvailableAt() : null);
+        order.setDepositAmount(BigDecimal.ZERO);
+
+        boolean depositRequested = requestedDeposit != null && requestedDeposit.compareTo(BigDecimal.ZERO) > 0;
+        if (!depositRequested) {
+            return checkoutPayment(order, paymentMethod, receivedAmount, changedBy, null);
+        }
+        if (!backorder) {
+            throw new InvalidPaymentAmountException(
+                    "Chỉ đơn chờ hàng mới được đặt cọc. Đơn này đủ hàng, vui lòng thu đủ tiền");
+        }
+        if (requestedDeposit.compareTo(order.getFinalAmount()) >= 0) {
+            return checkoutPayment(order, paymentMethod, receivedAmount, changedBy, null);
+        }
+        return checkoutPayment(order, paymentMethod, receivedAmount, changedBy, requestedDeposit);
+    }
+
+    /**
+     * @param depositAmount đơn chờ hàng trả tiền mặt: chỉ thu tiền cọc, phần còn lại thu khi giao hàng (null = thu đủ)
+     */
+    public PaymentResponse checkoutPayment(
+            Order order,
+            String paymentMethod,
+            BigDecimal receivedAmount,
+            UUID changedBy,
+            BigDecimal depositAmount
+    ) {
         PaymentMethod method = toSupportedPaymentMethod(paymentMethod);
-        orderValidator.validateCashPaymentAmount(order, method, receivedAmount);
+        if (depositAmount == null) {
+            orderValidator.validateCashPaymentAmount(order, method, receivedAmount);
+        } else {
+            validateDeposit(order, method, receivedAmount, depositAmount);
+        }
 
         UUID sagaId = orderPaymentSagaService.startPaymentSaga(order, method.name());
 
@@ -56,6 +108,7 @@ public class OrderCheckoutPaymentProcessor {
         paymentRequest.setDeliveryFee(order.getShippingFee());
         paymentRequest.setFinalAmount(order.getFinalAmount());
         paymentRequest.setReceivedAmount(method == PaymentMethod.CASH ? receivedAmount : null);
+        paymentRequest.setDepositAmount(depositAmount);
         paymentRequest.setDeliveryRequired(order.isFulfillmentRequired());
 
         PaymentResponse payment = paymentClient.checkout(paymentRequest);
@@ -72,6 +125,16 @@ public class OrderCheckoutPaymentProcessor {
 
         order.setPaymentMethod(paymentMethod);
         order.setPaymentCode(firstNonBlank(payment.getPaymentCode(), order.getPaymentCode()));
+
+        if ("PARTIALLY_PAID".equals(paymentStatus)) {
+            applyDepositResult(order, payment, oldStatus, changedBy, sagaId);
+            return;
+        }
+
+        if ("PAID".equals(paymentStatus) && orderBackorderSupport.isAwaitingStock(order)) {
+            applyPaidBackorderResult(order, payment, oldStatus, changedBy, sagaId);
+            return;
+        }
 
         if ("PAID".equals(paymentStatus)) {
             order.setPaymentStatus(PaymentStatus.PAID);
@@ -137,6 +200,71 @@ public class OrderCheckoutPaymentProcessor {
                 changedBy
         );
         orderPaymentSagaService.failPaymentSaga(order, eventFromPaymentResponse(order, payment, sagaId), error);
+    }
+
+    /** Đơn chờ hàng đã thu đủ tiền: chưa trừ tồn, chưa hoàn tất đơn; Inventory được yêu cầu chuẩn bị hàng. */
+    private void applyPaidBackorderResult(
+            Order order, PaymentResponse payment, OrderStatus oldStatus, UUID changedBy, UUID sagaId) {
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
+        order.setPaidAmount(order.getFinalAmount());
+        order.setDebtAmount(BigDecimal.ZERO);
+        orderBackorderSupport.enterWaitingStock(order);
+
+        orderStatusHistoryWriter.write(
+                order,
+                oldStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
+                "Đã thu đủ tiền bằng " + order.getPaymentMethod() + ", mã thanh toán: " + order.getPaymentCode()
+                        + ". Đơn chờ hàng, giao sau khi có hàng",
+                changedBy
+        );
+        PaymentOrderEventPayload paidEvent = eventFromPaymentResponse(order, payment, sagaId);
+        orderPaymentSagaService.completePaymentSaga(order, paidEvent, order.getPaymentCode());
+        orderOutboxPublisher.publishOrderPaymentSucceededNotification(
+                order,
+                paidEvent,
+                oldStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
+                sagaId.toString()
+        );
+    }
+
+    /** Đơn chờ hàng mới thu tiền cọc: phần còn lại thu khi giao hàng. */
+    private void applyDepositResult(
+            Order order, PaymentResponse payment, OrderStatus oldStatus, UUID changedBy, UUID sagaId) {
+        if (!orderBackorderSupport.isAwaitingStock(order)) {
+            throw new InvalidPaymentAmountException("Chỉ đơn chờ hàng mới được đặt cọc");
+        }
+        BigDecimal deposit = payment.getAmountPaid() == null ? BigDecimal.ZERO : payment.getAmountPaid();
+        order.setPaymentStatus(PaymentStatus.PARTIALLY_PAID);
+        order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
+        order.setPaidAmount(deposit);
+        order.setDepositAmount(deposit);
+        order.setDebtAmount(order.getFinalAmount().subtract(deposit).max(BigDecimal.ZERO));
+        orderBackorderSupport.enterWaitingStock(order);
+
+        orderStatusHistoryWriter.write(
+                order,
+                oldStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
+                "Đã thu tiền cọc " + deposit.toPlainString() + " bằng " + order.getPaymentMethod()
+                        + ", mã thanh toán: " + order.getPaymentCode() + ". Đơn chờ hàng, thu phần còn lại khi giao",
+                changedBy
+        );
+        orderPaymentSagaService.markPaymentRequested(order, sagaId, payment);
+    }
+
+    private void validateDeposit(Order order, PaymentMethod method, BigDecimal receivedAmount, BigDecimal depositAmount) {
+        if (method != PaymentMethod.CASH) {
+            throw new InvalidPaymentAmountException("Đặt cọc hiện chỉ hỗ trợ thanh toán tiền mặt");
+        }
+        if (depositAmount.compareTo(BigDecimal.ZERO) <= 0 || depositAmount.compareTo(order.getFinalAmount()) >= 0) {
+            throw new InvalidPaymentAmountException("Số tiền đặt cọc phải lớn hơn 0 và nhỏ hơn thành tiền của đơn hàng");
+        }
+        if (receivedAmount == null || receivedAmount.compareTo(depositAmount) < 0) {
+            throw new InvalidPaymentAmountException("Số tiền khách đưa nhỏ hơn số tiền đặt cọc");
+        }
     }
 
     private PaymentOrderEventPayload eventFromPaymentResponse(Order order, PaymentResponse payment, UUID sagaId) {

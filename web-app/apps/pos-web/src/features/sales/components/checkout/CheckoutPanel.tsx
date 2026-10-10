@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { AddDebtAction } from "./AddDebtAction";
 import { CashReceivedInput } from "./CashReceivedInput";
@@ -22,6 +22,12 @@ import type {
     SaleTotals
 } from "../../types/sale.types";
 
+/** Các phương thức cần máy chủ xác nhận giao dịch, không dùng được khi offline. */
+const OFFLINE_DISABLED_METHODS: readonly SalePaymentMethod[] = [
+    "BANK_TRANSFER",
+    "COMBINED"
+];
+
 interface CheckoutPanelProps {
     discounts: SaleDiscountOption[];
     selectedDiscountId: string;
@@ -42,6 +48,17 @@ interface CheckoutPanelProps {
     customersLoading: boolean;
     customersError: string;
     selectedCustomer: SaleCustomer | null;
+    /** Số tiền phải thu ở lần này (tiền cọc của đơn chờ hàng). Mặc định là tổng tiền. */
+    amountDue?: number;
+    /** Thông báo đơn chờ hàng kèm lựa chọn thu đủ / đặt cọc. */
+    backorderNotice?: ReactNode;
+    /** Đơn chờ hàng đang chọn đặt cọc nhưng số tiền cọc chưa hợp lệ. */
+    paymentBlocked?: boolean;
+    /**
+     * Mất kết nối máy chủ: khoá chuyển khoản/QR (cần webhook ngân hàng). Tiền mặt
+     * vẫn hoàn tất được: đơn lưu trên máy, in hoá đơn mã tạm, đồng bộ sau.
+     */
+    offline?: boolean;
     onDiscountChange(discountId: string): void;
     onManualOrderDiscountChange(value: SaleManualDiscount | null): void;
     onCashReceivedChange(value: number): void;
@@ -76,6 +93,10 @@ export function CheckoutPanel({
     customersLoading,
     customersError,
     selectedCustomer,
+    amountDue,
+    backorderNotice,
+    paymentBlocked = false,
+    offline = false,
     onDiscountChange,
     onManualOrderDiscountChange,
     onCashReceivedChange,
@@ -93,11 +114,14 @@ export function CheckoutPanel({
     const [combinedPaymentOpen, setCombinedPaymentOpen] = useState(false);
     const isBankTransfer = paymentMethod === "BANK_TRANSFER";
     const isCombinedPayment = paymentMethod === "COMBINED";
+    const cashDue = amountDue ?? totals.total;
     const canCompletePayment =
         totals.total > 0 &&
         orderType === "QUICK_SALE" &&
-        (paymentMethod !== "CASH" || cashReceived >= totals.total) &&
+        (paymentMethod !== "CASH" || cashReceived >= cashDue) &&
         !isBankTransfer &&
+        !paymentBlocked &&
+        (!offline || paymentMethod === "CASH") &&
         !checkoutLoading;
 
     useEffect(() => {
@@ -139,6 +163,8 @@ export function CheckoutPanel({
                 />
             </div>
 
+            {backorderNotice}
+
             {paymentMethod === "CASH" ? (
                 <>
                     <CashReceivedInput
@@ -148,15 +174,31 @@ export function CheckoutPanel({
                     />
 
                     <QuickCashButtons
-                        total={totals.total}
+                        total={cashDue}
                         onSelect={onCashReceivedChange}
                     />
                 </>
             ) : null}
 
+            {offline ? (
+                <p
+                    role="status"
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
+                >
+                    Mất kết nối máy chủ. Thu tiền mặt vẫn được: đơn lưu trên máy này,
+                    in hoá đơn mã tạm và tự đồng bộ khi có mạng. Chuyển khoản tạm khoá.
+                </p>
+            ) : null}
+
             <PaymentMethodGrid
                 value={paymentMethod}
+                disabledMethods={offline ? OFFLINE_DISABLED_METHODS : undefined}
+                disabledReason="Cần kết nối mạng để nhận xác nhận từ ngân hàng"
                 onChange={(value) => {
+                    if (offline && OFFLINE_DISABLED_METHODS.includes(value)) {
+                        return;
+                    }
+
                     const alreadySelected = value === paymentMethod;
                     onPaymentMethodChange(value);
 
@@ -231,6 +273,7 @@ export function CheckoutPanel({
                 <CompletePaymentButton
                     total={totals.total}
                     disabled={!canCompletePayment}
+                    label={offline ? "Lưu đơn & in hoá đơn tạm" : undefined}
                     loading={checkoutLoading}
                     onClick={onCompletePayment}
                 />

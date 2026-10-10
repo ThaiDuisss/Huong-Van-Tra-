@@ -31,6 +31,7 @@ export interface CouponResponse {
     claimedAt?: string;
     usageLimit?: number;
     usedCount?: number;
+    perCustomerLimit?: number;
     expiresAt?: string;
     status: CouponStatusValue;
     snapshotPromotionName?: string;
@@ -71,6 +72,17 @@ export interface CouponUsageQuery {
     page?: number;
     size?: number;
     couponId?: string;
+}
+
+export interface CouponSaveRequest {
+    promotionId?: string;
+    scope: CouponScopeValue;
+    customerId?: string;
+    code: string;
+    issueReason?: string;
+    usageLimit?: number;
+    perCustomerLimit?: number;
+    expiresAt?: string;
 }
 
 export type CouponPageResponse = PageResponse<CouponResponse>;

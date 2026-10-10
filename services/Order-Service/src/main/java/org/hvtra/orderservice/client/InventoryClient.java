@@ -79,6 +79,41 @@ public interface InventoryClient {
     @PostMapping("/internal/inventory/sales/fulfill")
     FulfillSaleResponse fulfillSale(@RequestBody FulfillSaleRequest request);
 
+    /** Ước tính ngày có hàng cho phần khách đặt vượt quá tồn. Chỉ đọc. */
+    @PostMapping("/internal/inventory/availability/estimate")
+    AvailabilityEstimateResponse estimateAvailability(@RequestBody AvailabilityEstimateRequest request);
+
+    /**
+     * Đơn đã thu tiền nhưng chưa có hàng: Inventory tạo lệnh sản xuất theo đơn (đủ nguyên liệu) hoặc lệnh nháp
+     * kèm cảnh báo nhập nguyên liệu (thiếu nguyên liệu). Gọi lại cho cùng đơn không tạo lệnh thứ hai.
+     */
+    @PostMapping("/internal/inventory/availability/backorders/prepare")
+    AvailabilityEstimateResponse prepareBackorder(@RequestBody AvailabilityEstimateRequest request);
+
+    record AvailabilityEstimateRequest(UUID branchId, UUID orderId, String orderCode,
+                                       List<AvailabilityEstimateLine> lines) {}
+
+    record AvailabilityEstimateLine(UUID productVariantId, BigDecimal quantity) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record AvailabilityEstimateResponse(boolean backorder, Instant estimatedAvailableAt,
+                                        List<AvailabilityLineEstimate> lines) {}
+
+    /** scenario: AVAILABLE, IN_PRODUCTION, PRODUCE_FROM_STOCK_MATERIALS, WAIT_MATERIAL_RECEIPT, WAIT_MATERIAL_PURCHASE, NOT_PRODUCIBLE. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record AvailabilityLineEstimate(
+            UUID productVariantId,
+            String itemName,
+            BigDecimal requestedQuantity,
+            BigDecimal missingQuantity,
+            String scenario,
+            Instant estimatedAvailableAt,
+            Integer estimatedWaitDays,
+            String productionOrderCode,
+            boolean depositRecommended,
+            String message
+    ) {}
+
     @PostMapping("/internal/inventory/production-alerts")
     void createProductionRequiredAlert(@RequestBody ProductionRequiredAlertRequest request);
 

@@ -167,6 +167,9 @@ public class OrderMapper {
                 .debtAmount(order.getDebtAmount())
                 .changeAmount(changeAmount)
                 .expiresAt(order.getExpiresAt())
+                .backorder(order.isBackorder())
+                .expectedAvailableAt(order.getExpectedAvailableAt())
+                .depositAmount(order.getDepositAmount())
                 .items(order.getItems().stream().map(orderItemMapper::toResponse).toList())
                 .customerName(order.getCustomerNameSnapshot())
                 .customerPhone(order.getCustomerPhoneSnapshot())
@@ -187,7 +190,11 @@ public class OrderMapper {
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
                 .createdByName(order.getCashierNameSnapshot())
                 .createdAt(createdAt)
-                .soldAt(createdAt)
+                .soldAt(order.getSoldAt() != null
+                        ? orderDateTimeHelper.toLocalDateTime(order.getSoldAt())
+                        : createdAt)
+                .offlineSale(order.isOfflineSale())
+                .clientOrderId(order.getClientOrderId())
                 .updatedBy(toAuditString(auditValue(order, "getUpdatedBy")))
                 .updatedAt(orderDateTimeHelper.toLocalDateTime(auditValue(order, "getUpdatedAt")))
                 .build();
@@ -291,6 +298,7 @@ public class OrderMapper {
             case FAILED -> "Thanh toán thất bại";
             case REFUNDED -> "Đã hoàn tiền";
             case PARTIALLY_REFUNDED -> "Hoàn tiền một phần";
+            case PARTIALLY_PAID -> "Đã đặt cọc";
         };
     }
 

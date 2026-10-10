@@ -1,0 +1,64 @@
+package org.hvtra.identityservice.account.config;
+
+import lombok.Getter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+/**
+ * Cấu hình gọi Keycloak Admin REST API bằng service account (client-credentials).
+ * Giá trị secret chỉ đọc từ biến môi trường, không bao giờ được log ra.
+ */
+@Getter
+@Component
+public class KeycloakAdminProperties {
+
+    private final String url;
+    private final String realm;
+    private final String clientId;
+    private final String clientSecret;
+
+    public KeycloakAdminProperties(
+            @Value("${idp.url:}") String url,
+            @Value("${idp.realm:hvt}") String realm,
+            @Value("${idp.admin-client-id:}") String clientId,
+            @Value("${idp.admin-client-secret:}") String clientSecret
+    ) {
+        this.url = trimTrailingSlash(url);
+        this.realm = realm;
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+    }
+
+    public boolean isConfigured() {
+        return StringUtils.hasText(url)
+                && StringUtils.hasText(realm)
+                && StringUtils.hasText(clientId)
+                && StringUtils.hasText(clientSecret);
+    }
+
+    public String tokenUrl() {
+        return url + "/realms/{realm}/protocol/openid-connect/token";
+    }
+
+    public String adminUrl(String path) {
+        return url + "/admin/realms/{realm}" + path;
+    }
+
+    private static String trimTrailingSlash(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    /** Không in secret khi object bị log. */
+    @Override
+    public String toString() {
+        return "KeycloakAdminProperties{url=" + url + ", realm=" + realm + ", clientId=" + clientId + "}";
+    }
+}
