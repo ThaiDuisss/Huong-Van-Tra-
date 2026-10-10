@@ -154,6 +154,7 @@ export interface DisposalLine {
 
 export interface DisposalRequest {
     id: string;
+    sourceType?: string;
     code: string;
     sourceInspectionId?: string;
     inspectionCode?: string;

@@ -16,11 +16,11 @@ import org.hvtra.commonservice.common_importing.dto.response.ImportPreviewRespon
 import org.hvtra.commonservice.common_importing.dto.response.ValidationErrorResponse;
 import org.hvtra.commonservice.common_importing.entity.ImportBatch;
 import org.hvtra.commonservice.common_importing.entity.ImportBatchItem;
-import org.hvtra.commonservice.common_importing.entity.ImportBatchSequence;
+import org.hvtra.commonservice.common_core.entity.BusinessSequence;
 import org.hvtra.commonservice.common_importing.handler.ImportTypeHandler;
 import org.hvtra.commonservice.common_importing.handler.ParsedImportRow;
 import org.hvtra.commonservice.common_importing.repository.ImportBatchRepository;
-import org.hvtra.commonservice.common_importing.repository.ImportBatchSequenceRepository;
+import org.hvtra.commonservice.common_core.repository.BusinessSequenceRepository;
 import org.hvtra.commonservice.common_importing.service.ImportBatchService;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.client.FileClient;
@@ -56,14 +56,14 @@ public class ImportBatchServiceImpl implements ImportBatchService {
     private static final Set<String> ELEVATED_ROLES = Set.of("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
 
     private final ImportBatchRepository repository;
-    private final ImportBatchSequenceRepository sequenceRepository;
+    private final BusinessSequenceRepository sequenceRepository;
     private final ObjectMapper objectMapper;
     private final Map<ImportType, ImportTypeHandler> handlers;
     private final FileClient fileClient;
 
     public ImportBatchServiceImpl(
             ImportBatchRepository repository,
-            ImportBatchSequenceRepository sequenceRepository,
+            BusinessSequenceRepository sequenceRepository,
             ObjectMapper objectMapper,
             List<ImportTypeHandler> handlerList,
             FileClient fileClient) {
@@ -399,13 +399,9 @@ public class ImportBatchServiceImpl implements ImportBatchService {
     }
 
     private String generateBatchCode() {
-        ImportBatchSequence seq = sequenceRepository.findBySequenceKeyWithLock(SEQUENCE_KEY)
-                .orElseGet(() -> {
-                    ImportBatchSequence newSeq = new ImportBatchSequence();
-                    newSeq.setSequenceKey(SEQUENCE_KEY);
-                    newSeq.setCurrentValue(0L);
-                    return sequenceRepository.saveAndFlush(newSeq);
-                });
+        sequenceRepository.insertIfAbsent(SEQUENCE_KEY);
+        BusinessSequence seq = sequenceRepository.findBySequenceKeyWithLock(SEQUENCE_KEY)
+                .orElseThrow(() -> new IllegalStateException("Không khởi tạo được bộ đếm: " + SEQUENCE_KEY));
         long nextVal = seq.getCurrentValue() + 1;
         seq.setCurrentValue(nextVal);
         sequenceRepository.saveAndFlush(seq);

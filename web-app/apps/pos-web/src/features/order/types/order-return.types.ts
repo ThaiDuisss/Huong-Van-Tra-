@@ -16,7 +16,10 @@ export type ReturnCondition =
     | "SPOILED"
     | "USED";
 
-export type CustomerReturnQcResult = "RESTOCK" | "DAMAGED" | "QUARANTINE" | "WRITE_OFF";
+export type CustomerReturnDisposition = "RESTOCK" | "DAMAGED" | "WRITE_OFF";
+
+// Response-only legacy value: existing inspection and command history remains readable.
+export type CustomerReturnQcResult = CustomerReturnDisposition | "QUARANTINE";
 
 export type CustomerReturnQcStatus =
     | "PENDING"
@@ -299,7 +302,7 @@ export type OrderReturnInventoryCommandStatus =
 export interface SubmitReturnInventoryDispositionLinePayload {
     returnItemId: string;
     quantity: number;
-    result: CustomerReturnQcResult;
+    result: CustomerReturnDisposition;
     destinationLocationId?: string | null;
     note?: string | null;
 }

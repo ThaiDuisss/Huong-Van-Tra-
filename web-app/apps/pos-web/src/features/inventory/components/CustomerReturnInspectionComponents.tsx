@@ -14,14 +14,14 @@ import { ListFilterBar } from "./CustomerReturnListUi";
 const inspectionStatusLabels: Record<CustomerReturnInspectionStatus, string> = {
     CANCELLED: "Đã hủy",
     CREATED: "Chờ xử lý",
-    PROCESSING: "Chờ duyệt tiêu hủy",
+    PROCESSING: "Chưa hoàn tất xử lý",
     POSTED: "Đã xử lý"
 };
 
 const inspectionStatusTabs = [
     { key: "ALL", label: "Tất cả" },
     { key: "CREATED", label: "Chờ xử lý" },
-    { key: "PROCESSING", label: "Chờ duyệt tiêu hủy" },
+    { key: "PROCESSING", label: "Chưa hoàn tất xử lý" },
     { key: "POSTED", label: "Đã xử lý" },
     { key: "CANCELLED", label: "Đã hủy" }
 ];

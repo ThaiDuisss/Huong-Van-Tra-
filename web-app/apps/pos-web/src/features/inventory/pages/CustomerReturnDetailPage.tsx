@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, ShieldAlert } from "lucide-react";
+import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../auth/role-utils";
 
 import { InspectionStatusBadge } from "../components/CustomerReturnInspectionComponents";
 import { customerReturnApi } from "../services/customerReturn.api";
@@ -12,7 +13,7 @@ import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-f
 const resultLabels: Record<CustomerReturnQcResult, string> = {
     RESTOCK: "Nhập lại kho",
     DAMAGED: "Hàng hỏng",
-    QUARANTINE: "Cách ly",
+    QUARANTINE: "Cách ly (lịch sử)",
     WRITE_OFF: "Tiêu hủy"
 };
 
@@ -25,6 +26,8 @@ const conditionLabels: Record<string, string> = {
 };
 
 export function CustomerReturnDetailPage() {
+    const { hasAnyRole } = useAuthorization();
+    const canPost = hasAnyRole(CUSTOMER_RETURN_QC_ROLES);
     const { returnId: inspectionId } = useParams();
     const [detail, setDetail] = useState<CustomerReturnInspection | null>(null);
     const [locations, setLocations] = useState<InventoryLocationResponse[]>([]);
@@ -95,13 +98,14 @@ export function CustomerReturnDetailPage() {
             return locations.filter((loc) => loc.type === "DAMAGED");
         }
         if (result === "QUARANTINE") {
+            // Only existing legacy inspections can have this result.
             return locations.filter((loc) => loc.type === "QUARANTINE");
         }
         return [];
     }
 
     async function handlePostInspection() {
-        if (!detail || detail.status !== "CREATED") return;
+        if (!detail || !canPost || !["CREATED", "PROCESSING"].includes(detail.status)) return;
         setSubmitting(true);
         setError("");
         setSuccessMessage("");
@@ -116,7 +120,7 @@ export function CustomerReturnDetailPage() {
             const updated = await customerReturnApi.postInspection(detail.id, { lines: lineOverrides });
             setDetail(updated);
             setSuccessMessage(updated.status === "PROCESSING"
-                ? "Đã hạch toán các dòng đủ điều kiện. Dòng tiêu hủy đang chờ phê duyệt và chưa được ghi nhận hoàn tất vật lý."
+                ? "Phiếu còn dòng chưa hoàn tất xử lý."
                 : "Xác nhận xử lý thành công. Hàng trả đã được hạch toán theo kết quả kiểm định.");
         } catch (postError) {
             setError(postError instanceof Error ? postError.message : "Không thể xử lý phiếu kiểm định.");
@@ -144,7 +148,7 @@ export function CustomerReturnDetailPage() {
                         </p>
                     ) : null}
                 </div>
-                {detail?.status === "CREATED" ? (
+                {canPost && detail && ["CREATED", "PROCESSING"].includes(detail.status) ? (
                     <button
                         className="h-10 rounded-lg bg-[#159734] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#12822c] disabled:opacity-60"
                         disabled={submitting}
@@ -242,7 +246,7 @@ export function CustomerReturnDetailPage() {
                                             <td className="border-t border-[#edf0f4]">
                                                 {line.result === "WRITE_OFF" ? (
                                                     <span className="text-xs font-semibold text-[#697684]">Không áp dụng</span>
-                                                ) : detail.status === "CREATED" && eligibleLocations.length > 0 ? (
+                                                ) : canPost && !line.posted && ["CREATED", "PROCESSING"].includes(detail.status) && eligibleLocations.length > 0 ? (
                                                     <select
                                                         className="h-8 rounded border border-pos-border px-2 text-xs font-bold text-[#172317]"
                                                         onChange={(e) => handleLocationChange(line.id, e.target.value)}
@@ -262,19 +266,7 @@ export function CustomerReturnDetailPage() {
                                                 )}
                                             </td>
                                             <td className="border-t border-[#edf0f4]">
-                                                {line.disposalStatus === "PENDING_APPROVAL" && line.disposalRequestId ? (
-                                                    <div className="grid gap-1">
-                                                        <span className="inline-flex w-fit rounded bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
-                                                            Chờ duyệt tiêu hủy
-                                                        </span>
-                                                        <Link
-                                                            className="text-xs font-black text-[#159734] hover:underline"
-                                                            to={`/management/inventory/disposals/${line.disposalRequestId}`}
-                                                        >
-                                                            {line.disposalRequestCode ?? "Xem yêu cầu tiêu hủy"}
-                                                        </Link>
-                                                    </div>
-                                                ) : line.posted ? (
+                                                {line.posted ? (
                                                     <div className="grid gap-1">
                                                         <span className="inline-flex w-fit items-center gap-1 rounded bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">
                                                             <CheckCircle2 size={13} /> Đã xử lý
@@ -311,7 +303,7 @@ export function CustomerReturnDetailPage() {
                     ) : null}
                     {detail.status === "PROCESSING" ? (
                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-                            Các dòng nhập lại kho/hàng hỏng/cách ly đã được xử lý. Phiếu chỉ hoàn tất sau khi yêu cầu tiêu hủy được phê duyệt; hiện chưa gửi xác nhận hoàn tất về Order-Service.
+                            Phiếu còn dòng chưa xử lý. QC hoặc quản lý có thể xác nhận xử lý để hoàn tất. Hệ thống gửi xác nhận cho đơn hàng khi tất cả các dòng đã hoàn tất.
                         </div>
                     ) : null}
                 </>

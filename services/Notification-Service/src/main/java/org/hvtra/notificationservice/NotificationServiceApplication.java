@@ -4,12 +4,22 @@ import org.hvtra.commonservice.common_core.config.FeignConfig;
 import org.hvtra.commonservice.common_core.config.SwaggerConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(scanBasePackages = {
 		"org.hvtra.notificationservice",
 		"org.hvtra.commonservice.common_core"
+})
+@EnableJpaRepositories(basePackages = {
+		"org.hvtra.notificationservice",
+		"org.hvtra.commonservice.common_core.repository"
+})
+@EntityScan(basePackages = {
+		"org.hvtra.notificationservice",
+		"org.hvtra.commonservice.common_core.entity"
 })
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)

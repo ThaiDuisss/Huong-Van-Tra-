@@ -34,7 +34,7 @@ import org.hvtra.iventoryservice.production.service.ProductionOrderService;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
 import org.hvtra.iventoryservice.shared.exception.OutOfStockException;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
-import org.hvtra.iventoryservice.shared.sequence.BusinessSequenceService;
+import org.hvtra.commonservice.common_core.service.BusinessSequenceService;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.data.domain.Pageable;

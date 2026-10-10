@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.dto.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -26,6 +27,7 @@ public class SubmitReturnInventoryDispositionLineRequest {
     private BigDecimal quantity;
 
     @NotNull
+    @Schema(implementation = String.class, allowableValues = {"RESTOCK", "DAMAGED", "WRITE_OFF"})
     private ReturnInventoryDispositionResult result;
 
     private UUID destinationLocationId;

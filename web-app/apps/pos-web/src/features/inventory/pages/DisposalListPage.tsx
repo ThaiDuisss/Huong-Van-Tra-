@@ -19,12 +19,13 @@ import type {
     DisposalStatusCounts
 } from "../types/quality.types";
 import styles from "./CustomerReturnListPage.module.css";
+import { isCustomerReturnDisposal } from "../utils/inventory-labels";
 
 const PAGE_SIZE = 10;
 const STATUS_TABS: CustomerReturnStatusTab[] = [
     { key: "ALL", label: "Tất cả" },
-    { key: "PENDING_APPROVAL", label: "Chờ duyệt" },
-    { key: "APPROVED", label: "Đã duyệt" }
+    { key: "PENDING_APPROVAL", label: "Chờ xử lý" },
+    { key: "APPROVED", label: "Đã xử lý" }
 ];
 
 export function DisposalListPage() {
@@ -91,7 +92,7 @@ export function DisposalListPage() {
     }, [keyword, reloadKey]);
 
     async function approveRequest() {
-        if (!confirmRequest || submitting || !canApprove) return;
+        if (!confirmRequest || isCustomerReturnDisposal(confirmRequest) || submitting || !canApprove) return;
         setSubmitting(true);
         setApprovalError("");
         try {
@@ -115,8 +116,8 @@ export function DisposalListPage() {
             <div className={styles.content}>
                 <header className={orderStyles.header}>
                     <div className={orderStyles.title}>
-                        <h1>Phê duyệt tiêu hủy hàng trả</h1>
-                        <p>Theo dõi và phê duyệt các yêu cầu tiêu hủy hàng trả.</p>
+                        <h1>Yêu cầu tiêu hủy</h1>
+                        <p>Theo dõi yêu cầu và lịch sử xử lý tiêu hủy.</p>
                     </div>
                 </header>
 
@@ -172,6 +173,7 @@ export function DisposalListPage() {
                                     canApprove={canApprove}
                                     disposals={result.content}
                                     onApprove={(request) => {
+                                        if (isCustomerReturnDisposal(request)) return;
                                         setApprovalError("");
                                         setConfirmRequest(request);
                                     }}
@@ -192,7 +194,7 @@ export function DisposalListPage() {
                 </section>
             </div>
 
-            {confirmRequest ? (
+            {confirmRequest && !isCustomerReturnDisposal(confirmRequest) ? (
                 <ConfirmDialog
                     confirmLabel="Xác nhận phê duyệt"
                     description={`Bạn xác nhận phê duyệt yêu cầu tiêu hủy ${confirmRequest.code}?`}

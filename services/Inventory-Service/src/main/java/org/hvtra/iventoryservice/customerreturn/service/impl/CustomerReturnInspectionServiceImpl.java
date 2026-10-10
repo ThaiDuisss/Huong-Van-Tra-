@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
@@ -63,6 +64,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -114,6 +116,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     public CustomerReturnInspectionResponse createInspection(
             UUID returnId,
             CreateCustomerReturnInspectionRequest request) {
+        requireQcRole();
         return createInspection(returnId, null, request);
     }
 
@@ -170,7 +173,6 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         }
 
         CustomerReturnInspection saved = inspectionRepository.saveAndFlush(inspection);
-        ensurePendingDisposal(saved);
         return toResponse(saved);
     }
 
@@ -183,6 +185,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     @Override
     @Transactional
     public CustomerReturnInspectionResponse postInspection(UUID inspectionId, PostCustomerReturnInspectionRequest request) {
+        requireQcRole();
         CustomerReturnInspection inspectionSnapshot = inspectionRepository
                 .findByIdAndIsDeletedFalse(inspectionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer return inspection", inspectionId));
@@ -239,6 +242,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         }
 
         Map<UUID, BigDecimal> postedQuantities = postedQuantities(lockedInspections);
+        List<CustomerReturnInspectionLine> writeOffLines = new ArrayList<>();
         for (CustomerReturnInspectionLine line : inspection.getLines()) {
             if (Boolean.TRUE.equals(line.getPosted())) {
                 continue;
@@ -247,8 +251,18 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             if (returnItem == null) {
                 throw new BadRequestException("Return item no longer exists in Order-Service: " + line.getReturnItemId());
             }
+            validatePositive(line.getQuantity(), "quantity");
             validateWithinReturnedQuantity(returnItem, postedQuantities.get(returnItem.id()), line.getQuantity());
             if (line.getResult() == CustomerReturnQcResult.WRITE_OFF) {
+                InventoryItem item = line.getInventoryItem();
+                if (item == null || Boolean.TRUE.equals(item.getIsDeleted())
+                        || item.getStatus() != InventoryStatus.ACTIVE
+                        || item.getItemType() != InventoryItemType.PRODUCT_VARIANT
+                        || !Objects.equals(item.getReferenceId(), returnItem.productVariantId())) {
+                    throw new BadRequestException("WRITE_OFF requires an active mapped inventory item");
+                }
+                writeOffLines.add(line);
+                postedQuantities.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
                 continue;
             }
             postLine(inspection, line);
@@ -256,7 +270,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             postedQuantities.merge(line.getReturnItemId(), line.getQuantity(), BigDecimal::add);
         }
 
-        ensurePendingDisposal(inspection);
+        postWriteOffLines(inspection, writeOffLines);
         boolean allLinesPosted = inspection.getLines().stream()
                 .allMatch(line -> Boolean.TRUE.equals(line.getPosted()));
         inspection.setStatus(allLinesPosted
@@ -294,42 +308,57 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         acknowledgePostedInspection(inspection);
     }
 
-    private Optional<DisposalRequest> ensurePendingDisposal(CustomerReturnInspection inspection) {
-        List<CustomerReturnInspectionLine> writeOffLines = inspection.getLines().stream()
-                .filter(line -> line.getResult() == CustomerReturnQcResult.WRITE_OFF)
-                .filter(line -> !Boolean.TRUE.equals(line.getPosted()))
-                .toList();
+    private void postWriteOffLines(
+            CustomerReturnInspection inspection,
+            List<CustomerReturnInspectionLine> writeOffLines) {
         if (writeOffLines.isEmpty()) {
-            return Optional.empty();
+            return;
         }
 
-        Optional<DisposalRequest> existing = disposalRequestRepository
-                .findBySourceInspectionId(inspection.getId());
-        if (existing.isPresent()) {
-            DisposalRequest request = existing.get();
-            for (CustomerReturnInspectionLine line : writeOffLines) {
-                if (line.getDisposalRequest() == null) {
-                    request.addLine(line);
-                }
-            }
-            inspectionRepository.saveAndFlush(inspection);
-            return Optional.of(request);
+        // The inspection lock is acquired before the disposal lock, matching legacy approval.
+        DisposalRequest legacyRequest = disposalRequestRepository.findBySourceInspectionId(inspection.getId())
+                .map(request -> disposalRequestRepository.findDetailByIdForUpdate(request.getId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Disposal request", request.getId())))
+                .orElse(null);
+        if (legacyRequest != null && (!"CUSTOMER_RETURN_INSPECTION".equals(legacyRequest.getSourceType())
+                || legacyRequest.getStatus() != DisposalRequestStatus.PENDING_APPROVAL)) {
+            throw new BadRequestException("Disposal record is inconsistent with unposted return lines; reconciliation is required");
         }
 
-        DisposalRequest request = new DisposalRequest();
-        request.setRequestCode(generateDisposalCode());
-        request.setSourceType("CUSTOMER_RETURN_INSPECTION");
-        request.setSourceInspection(inspection);
-        request.setReturnId(inspection.getReturnId());
-        request.setReturnCode(inspection.getReturnCode());
-        request.setBranchId(inspection.getBranchId());
-        request.setStatus(DisposalRequestStatus.PENDING_APPROVAL);
-        request.setNote(inspection.getNote());
-        // saveAndFlush may return a managed copy; link lines only to that instance.
-        request = disposalRequestRepository.saveAndFlush(request);
-        writeOffLines.forEach(request::addLine);
-        inspectionRepository.saveAndFlush(inspection);
-        return Optional.of(request);
+        InventoryTransaction transaction = createTransaction(
+                InventoryTransactionType.WRITE_OFF, inspection.getBranchId(), inspection.getReturnId());
+        if (legacyRequest != null) {
+            transaction.setReferenceId(legacyRequest.getId().toString());
+        }
+        for (CustomerReturnInspectionLine line : writeOffLines) {
+            transaction.addLine(createTransactionLine(
+                    line.getInventoryItem(), null, line.getQuantity().negate(), BigDecimal.ZERO, BigDecimal.ZERO));
+        }
+        InventoryTransaction saved = transactionRepository.saveAndFlush(transaction);
+        writeOffLines.forEach(line -> {
+            line.setPosted(true);
+            line.setTransactionId(saved.getId());
+        });
+
+        if (legacyRequest != null) {
+            // Close the old audit record only on explicit QC posting. No bulk history rewrite.
+            legacyRequest.setStatus(DisposalRequestStatus.APPROVED);
+            legacyRequest.setApprovedBy(UUID.fromString(SecurityUtils.currentUserId()));
+            legacyRequest.setApprovedAt(Instant.now());
+            legacyRequest.setTransactionId(saved.getId());
+            disposalRequestRepository.saveAndFlush(legacyRequest);
+        }
+    }
+
+    private void requireQcRole() {
+        Set<String> allowed = Set.of("QC", "QC_STAFF", "MANAGER", "ADMIN", "SUPER_ADMIN",
+                "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        boolean authorized = SecurityUtils.currentRoles().stream()
+                .map(role -> role.trim().toUpperCase(Locale.ROOT).replaceFirst("^ROLE_", ""))
+                .anyMatch(allowed::contains);
+        if (!authorized) {
+            throw new AccessDeniedException("Customer return disposition requires QC or manager role");
+        }
     }
 
     private void acknowledgePostedInspection(CustomerReturnInspection inspection) {
@@ -535,6 +564,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         BigDecimal afterOnHand = beforeOnHand.add(line.getQuantity());
         balance.setQuantityOnHand(afterOnHand);
 
+        // QUARANTINE is legacy-only: existing inspections can finish without rewriting their disposition.
         if (line.getResult() == CustomerReturnQcResult.QUARANTINE || line.getResult() == CustomerReturnQcResult.DAMAGED) {
             balance.setQuantityBlocked(nullSafe(balance.getQuantityBlocked()).add(line.getQuantity()));
         }
@@ -715,6 +745,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         if (result == CustomerReturnQcResult.RESTOCK && !InventoryLocationSaleability.isSaleable(location)) {
             throw new BadRequestException("RESTOCK destination must be an active saleable location");
         }
+        // Preserve destination validation when posting a stored legacy inspection.
         if (result == CustomerReturnQcResult.QUARANTINE && location.getType() != InventoryLocationType.QUARANTINE) {
             throw new BadRequestException("QUARANTINE destination must be a QUARANTINE location");
         }
@@ -729,10 +760,16 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
             CustomerReturnQcResult result,
             String lineNote,
             String inspectionNote) {
+        if (result == null) {
+            throw new BadRequestException("Customer return disposition result is required");
+        }
+        if (!result.isAllowedForNewReturn()) {
+            throw new BadRequestException("QUARANTINE is no longer supported for new customer returns; use DAMAGED");
+        }
         if (result == CustomerReturnQcResult.WRITE_OFF) {
             return;
         }
-        if (result == CustomerReturnQcResult.QUARANTINE || result == CustomerReturnQcResult.DAMAGED) {
+        if (result == CustomerReturnQcResult.DAMAGED) {
             return;
         }
         if (condition == OrderReturnCondition.SEALED) {
@@ -1027,15 +1064,6 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
         String prefix = type == InventoryTransactionType.WRITE_OFF ? "WOFF" : "CRR";
         return prefix + "-" + LocalDate.now().format(CODE_DATE)
                 + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-    }
-
-    private String generateDisposalCode() {
-        String code;
-        do {
-            code = "DSP-" + LocalDate.now().format(CODE_DATE)
-                    + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
-        } while (disposalRequestRepository.existsByRequestCode(code));
-        return code;
     }
 
     @Override

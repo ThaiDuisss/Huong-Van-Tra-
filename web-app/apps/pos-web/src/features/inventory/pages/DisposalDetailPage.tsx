@@ -8,6 +8,7 @@ import { DisposalStatusBadge } from "../components/QualityComponents";
 import { qualityApi } from "../services/quality.api";
 import type { DisposalRequest } from "../types/quality.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
+import { isCustomerReturnDisposal } from "../utils/inventory-labels";
 
 export function DisposalDetailPage() {
     const { disposalId } = useParams();
@@ -58,11 +59,12 @@ export function DisposalDetailPage() {
         () => disposal?.lines.reduce((sum, line) => sum + line.quantity, 0) ?? 0,
         [disposal]
     );
+    const isCustomerReturn = isCustomerReturnDisposal(disposal);
 
     if (!disposalId) return <Navigate replace to="/management/inventory/disposals" />;
 
     async function approve() {
-        if (!disposal || disposal.status !== "PENDING_APPROVAL" || submitting || !canApprove) return;
+        if (!disposal || isCustomerReturn || disposal.status !== "PENDING_APPROVAL" || submitting || !canApprove) return;
         setSubmitting(true);
         setError("");
         setSuccess("");
@@ -107,11 +109,11 @@ export function DisposalDetailPage() {
                             <Info label="Mã yêu cầu" value={disposal.code} />
                             <div className="grid gap-1 rounded-lg bg-[#f7f8fb] px-3 py-2">
                                 <span className="text-xs font-black text-[#697684]">Trạng thái</span>
-                                <div><DisposalStatusBadge status={disposal.status} /></div>
+                                <div><DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /></div>
                             </div>
                             <Info label="Ngày tạo" value={formatVietnamDateTime(disposal.requestedAt)} />
                             {disposal.approvedAt ? (
-                                <Info label="Ngày duyệt" value={formatVietnamDateTime(disposal.approvedAt)} />
+                                <Info label={isCustomerReturn ? "Ngày xử lý" : "Ngày duyệt"} value={formatVietnamDateTime(disposal.approvedAt)} />
                             ) : null}
                         </div>
                         {disposal.note ? <Info label="Ghi chú" value={disposal.note} /> : null}
@@ -166,9 +168,17 @@ export function DisposalDetailPage() {
                     </section>
 
                     <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
-                        <h2 className="text-sm font-black uppercase text-[#315f3c]">Phê duyệt</h2>
-                        <div><DisposalStatusBadge status={disposal.status} /></div>
-                        {disposal.status === "PENDING_APPROVAL" && canApprove ? (
+                        <h2 className="text-sm font-black uppercase text-[#315f3c]">{isCustomerReturn ? "Xử lý hàng trả" : "Phê duyệt"}</h2>
+                        <div><DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /></div>
+                        {isCustomerReturn && disposal.status === "PENDING_APPROVAL" ? (
+                            <Link
+                                className="text-sm font-black text-[#159734] hover:underline"
+                                to={`/management/inventory/customer-returns/${disposal.sourceInspectionId}`}
+                            >
+                                Mở phiếu kiểm định để QC hoặc quản lý xác nhận xử lý
+                            </Link>
+                        ) : null}
+                        {disposal.status === "PENDING_APPROVAL" && canApprove && !isCustomerReturn ? (
                             <button
                                 className="w-fit rounded-lg bg-[#159734] px-4 py-2 text-sm font-black text-white disabled:opacity-60"
                                 disabled={submitting}
@@ -181,21 +191,21 @@ export function DisposalDetailPage() {
                                 Phê duyệt
                             </button>
                         ) : null}
-                        {disposal.status === "PENDING_APPROVAL" && !canApprove ? (
+                        {disposal.status === "PENDING_APPROVAL" && !canApprove && !isCustomerReturn ? (
                             <p className="text-sm font-semibold text-amber-900">
                                 Yêu cầu đang chờ quản lý chi nhánh hoặc quản lý kho phê duyệt.
                             </p>
                         ) : null}
                         {disposal.approvedAt ? (
                             <p className="text-sm text-[#536078]">
-                                Đã duyệt lúc {formatVietnamDateTime(disposal.approvedAt)}.
+                                {isCustomerReturn ? "Đã tiêu hủy lúc" : "Đã duyệt lúc"} {formatVietnamDateTime(disposal.approvedAt)}.
                             </p>
                         ) : null}
                     </section>
                 </>
             ) : null}
 
-            {confirmOpen && disposal ? (
+            {confirmOpen && disposal && !isCustomerReturn ? (
                 <ConfirmDialog
                     confirmLabel="Xác nhận phê duyệt"
                     description={`Bạn xác nhận phê duyệt yêu cầu tiêu hủy ${disposal.code}?`}

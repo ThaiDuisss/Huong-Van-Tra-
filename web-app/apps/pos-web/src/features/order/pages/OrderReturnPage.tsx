@@ -12,6 +12,7 @@ import { ApiError } from "@hvt/api-client";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../auth/role-utils";
 
 import { TimeSidebar } from "../../../components/shared/TimeSidebar";
 import {
@@ -156,7 +157,7 @@ function getReturnLineMeta(
 const QC_DISPOSITION_DISPLAY_LABELS: Record<CustomerReturnQcResult, string> = {
     RESTOCK: "Đạt chất lượng",
     DAMAGED: "Hàng hỏng",
-    QUARANTINE: "Cách ly",
+    QUARANTINE: "Cách ly (lịch sử)",
     WRITE_OFF: "Tiêu hủy"
 };
 
@@ -826,6 +827,8 @@ function ReturnDetailModal({
     returnItem: OrderReturnListRow;
 }) {
     const canTransition = returnItem.status === "CREATED";
+    const { hasAnyRole } = useAuthorization();
+    const canExecuteQc = hasAnyRole(CUSTOMER_RETURN_QC_ROLES);
     const [qcSummary, setQcSummary] =
         useState<CustomerReturnQcSummaryResponse | null>(null);
     const [refundDetail, setRefundDetail] =
@@ -996,6 +999,10 @@ function ReturnDetailModal({
     }, [qcReloadKey, returnItem.id, shouldLoadQcSummary]);
 
     const handleOpenInspection = () => {
+        if (!canExecuteQc) {
+            onToast("Chỉ QC hoặc quản lý được thực hiện kiểm định hàng trả.");
+            return;
+        }
         if (returnItem.status !== "RECEIVED") {
             onToast("Phiếu hoàn chưa ở trạng thái đã nhận hàng.");
             return;
@@ -1007,7 +1014,7 @@ function ReturnDetailModal({
         }
 
         if (isDispositionPending) {
-            onToast("Lệnh xử lý kho trước đó đang chờ tạo hoặc duyệt phiếu kiểm định.");
+            onToast("Lệnh xử lý kho trước đó đang chờ tạo hoặc xác nhận xử lý phiếu kiểm định.");
             return;
         }
 
@@ -1175,7 +1182,7 @@ function ReturnDetailModal({
                                         </p>
                                     ) : null}
                                 </div>
-                                {returnItem.status === "RECEIVED" &&
+                                {canExecuteQc && returnItem.status === "RECEIVED" &&
                                 qcSummary &&
                                 !isQcCompleted &&
                                 !isDispositionPending &&
