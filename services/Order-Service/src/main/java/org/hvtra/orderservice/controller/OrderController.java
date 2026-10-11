@@ -16,6 +16,8 @@ import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
 import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.request.CheckOrderReturnEligibilityRequest;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityResponse;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
@@ -211,6 +213,15 @@ public class OrderController {
             @Valid @RequestBody MarkOrderPaidRequest request
     ) {
         return orderService.markOrderPaid(orderId, request);
+    }
+
+    @Operation(summary = "kiem tra dieu kien va chinh sach hoan hang truoc khi tao phieu")
+    @PostMapping("/" + UUID_PATH + "/returns/eligibility")
+    public OrderReturnEligibilityResponse checkReturnEligibility(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody CheckOrderReturnEligibilityRequest request
+    ) {
+        return orderReturnService.checkReturnEligibility(orderId, request);
     }
 
     @Operation(summary = "tao yeu cau hoan hang cho don hang")

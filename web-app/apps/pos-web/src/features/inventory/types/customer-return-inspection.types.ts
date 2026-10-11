@@ -1,3 +1,8 @@
+import type { ReturnCondition } from "../../order/types/order-return.types";
+import type { InventoryLocationType } from "./inventory.types";
+
+export type CustomerReturnActualCondition = ReturnCondition;
+
 export type CustomerReturnInspectionStatus = "CREATED" | "PROCESSING" | "POSTED" | "CANCELLED";
 
 export type CustomerReturnQcResult = "RESTOCK" | "DAMAGED" | "QUARANTINE" | "WRITE_OFF";
@@ -22,7 +27,22 @@ export interface CustomerReturnInspectionLine {
     disposalRequestCode?: string;
     disposalStatus?: "PENDING_APPROVAL" | "APPROVED";
     condition?: string;
+    declaredCondition?: ReturnCondition | null;
+    actualCondition?: CustomerReturnActualCondition | null;
     returnReason?: string;
+}
+
+export interface CustomerReturnQcDraft {
+    actualCondition: CustomerReturnActualCondition | "";
+    result: CustomerReturnQcResult;
+    destinationLocationId: string;
+    note: string;
+}
+
+export interface CustomerReturnQcLocation {
+    id: string;
+    name: string;
+    type: InventoryLocationType;
 }
 
 export interface CustomerReturnInspection {

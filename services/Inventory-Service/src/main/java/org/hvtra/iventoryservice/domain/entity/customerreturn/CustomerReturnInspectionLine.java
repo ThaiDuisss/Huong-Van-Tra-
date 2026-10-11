@@ -16,6 +16,7 @@ import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.disposal.DisposalRequest;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
+import org.hvtra.iventoryservice.domain.enums.CustomerReturnActualCondition;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -53,6 +54,10 @@ public class CustomerReturnInspectionLine extends BaseEntity {
 
     @Column(nullable = false, precision = 18, scale = 2)
     private BigDecimal quantity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "actual_condition", length = 50)
+    private CustomerReturnActualCondition actualCondition;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)

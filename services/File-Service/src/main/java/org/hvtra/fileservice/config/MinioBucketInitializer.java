@@ -6,10 +6,12 @@ import io.minio.MinioClient;
 import io.minio.SetBucketPolicyArgs;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "file.storage", name = "initialize-buckets", havingValue = "true", matchIfMissing = true)
 public class MinioBucketInitializer {
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;

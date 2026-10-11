@@ -13,6 +13,7 @@ import {
   TopSalesStaffReportPage,
   TopSellingProductsReportPage,
 } from "../features/report";
+import { AiReportsPage } from "../features/ai/pages/AiReportsPage";
 import { CustomerListPage } from "../features/customer/pages/CustomerListPage";
 import { CustomerTierManagementPage } from "../features/customer/pages/CustomerTierManagementPage";
 import { DashboardOverviewPage } from "../features/dashboard/pages/DashboardOverviewPage";
@@ -100,6 +101,7 @@ import { ProtectedRoute } from "../auth/ProtectedRoute";
 import {
   ACCOUNT_ROLES,
   ACTION_LOG_ROLES,
+  AI_REPORT_ROLES,
   BACKOFFICE_ROLES,
   CUSTOMER_ROLES,
   INVENTORY_OPERATION_ROLES,
@@ -224,6 +226,17 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       />
+
+      {/* Separate shell branch keeps the existing backoffice gate intact. */}
+      <Route
+        element={
+          <ProtectedRoute roles={AI_REPORT_ROLES}>
+            <SystemShell />
+          </ProtectedRoute>
+        }
+      >
+        <Route path={routePaths.aiReports} element={<AiReportsPage />} />
+      </Route>
 
       <Route
         path={routePaths.system}

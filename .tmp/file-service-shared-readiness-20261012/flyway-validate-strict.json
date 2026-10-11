@@ -1,0 +1,34 @@
+{
+  "processExitCode": 0,
+  "allErrorMessages": "Detected resolved migration not applied to database: 20261010221221.\nTo fix this error, either run migrate, or set -ignoreMigrationPatterns='*:pending'.\nDetected resolved migration not applied to database: 20261011203800.\nTo fix this error, either run migrate, or set -ignoreMigrationPatterns='*:pending'.",
+  "database": "file_db",
+  "errorDetails": {
+    "errorCode": "VALIDATE_ERROR",
+    "errorMessage": "Migrations have failed validation"
+  },
+  "flywayVersion": "13.7.0",
+  "invalidMigrations": [
+    {
+      "description": "unique ai report original binding",
+      "errorDetails": {
+        "errorCode": "RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
+        "errorMessage": "Detected resolved migration not applied to database: 20261010221221.\nTo fix this error, either run migrate, or set -ignoreMigrationPatterns='*:pending'."
+      },
+      "filepath": "E:\\HVTra-integration\\20261012-002258\\worktree\\services\\File-Service\\src\\main\\resources\\migration\\V20261010221221__unique_ai_report_original_binding.sql",
+      "version": "20261010221221"
+    },
+    {
+      "description": "restore file references foreign key",
+      "errorDetails": {
+        "errorCode": "RESOLVED_VERSIONED_MIGRATION_NOT_APPLIED",
+        "errorMessage": "Detected resolved migration not applied to database: 20261011203800.\nTo fix this error, either run migrate, or set -ignoreMigrationPatterns='*:pending'."
+      },
+      "filepath": "E:\\HVTra-integration\\20261012-002258\\worktree\\services\\File-Service\\src\\main\\resources\\migration\\V20261011203800__restore_file_references_foreign_key.sql",
+      "version": "20261011203800"
+    }
+  ],
+  "operation": "validate",
+  "validateCount": 0,
+  "validationSuccessful": false,
+  "warnings": []
+}

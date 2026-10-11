@@ -23,12 +23,13 @@ import org.hvtra.orderservice.domain.enums.OrderReturnHistoryAction;
 import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
-import org.hvtra.orderservice.domain.enums.ReturnCondition;
 import org.hvtra.orderservice.domain.enums.ReturnInventoryDispositionResult;
-import org.hvtra.orderservice.domain.enums.ReturnReason;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.request.CheckOrderReturnEligibilityRequest;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityResponse;
+import org.hvtra.orderservice.service.support.OrderReturnCreationEligibilityResolver;
 import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionLineRequest;
 import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.response.OrderRefundDetailResponse;
@@ -51,7 +52,6 @@ import org.hvtra.orderservice.repository.OrderReturnHistoryRepository;
 import org.hvtra.orderservice.repository.OrderReturnInventoryCommandRepository;
 import org.hvtra.orderservice.repository.OrderReturnItemRepository;
 import org.hvtra.orderservice.repository.OrderReturnRepository;
-import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.service.OrderReturnRefundTransactionService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
@@ -75,7 +75,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -86,7 +85,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -105,8 +103,6 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
     private static final List<ReturnStatus> ACTIVE_RETURN_STATUSES =
             List.of(ReturnStatus.CREATED, ReturnStatus.RECEIVED, ReturnStatus.COMPLETED);
-    private static final Duration DEFAULT_CHANGE_OF_MIND_WINDOW = Duration.ofDays(7);
-    private static final Duration DEFAULT_QUALITY_WINDOW = Duration.ofDays(14);
     private static final String DOWNSTREAM_STATUS_UNAVAILABLE = "UNAVAILABLE";
     private static final String DOWNSTREAM_METHOD_UNKNOWN = "UNKNOWN";
 
@@ -163,7 +159,6 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     private final OrderReturnItemRepository orderReturnItemRepository;
     private final OrderReturnInventoryCommandRepository orderReturnInventoryCommandRepository;
     private final OrderReturnHistoryRepository orderReturnHistoryRepository;
-    private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderReturnMapper orderReturnMapper;
     private final InventoryClient inventoryClient;
@@ -177,6 +172,34 @@ public class OrderReturnServiceImpl implements OrderReturnService {
     private final OrderReturnDisplayStatusResolver displayStatusResolver;
     private final OrderReturnRefundEligibilityResolver refundEligibilityResolver;
     private final OrderReturnPhysicalCompletionHandler physicalCompletionHandler;
+    private final OrderReturnCreationEligibilityResolver creationEligibilityResolver;
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderReturnEligibilityResponse checkReturnEligibility(UUID orderId, CheckOrderReturnEligibilityRequest request) {
+        Order order = orderRepository.findByIdAndIsDeletedFalseWithItems(orderId).orElse(null);
+        CreateOrderReturnRequest draft = CreateOrderReturnRequest.builder()
+                .items(request == null ? null : request.items())
+                .build();
+        Map<UUID, OrderItem> items = order == null ? Map.of() : order.getItems().stream()
+                .filter(item -> Boolean.FALSE.equals(item.getIsDeleted()))
+                .collect(Collectors.toMap(OrderItem::getId, Function.identity()));
+        return creationEligibilityResolver.resolve(order, draft, items, returnedQuantities(items, draft));
+    }
+
+    private Map<UUID, BigDecimal> returnedQuantities(Map<UUID, OrderItem> items, CreateOrderReturnRequest request) {
+        if (request == null || request.getItems() == null) {
+            return Map.of();
+        }
+        return request.getItems().stream()
+                .filter(Objects::nonNull)
+                .map(CreateOrderReturnItemRequest::getOrderItemId)
+                .filter(Objects::nonNull)
+                .filter(items::containsKey)
+                .distinct()
+                .collect(Collectors.toMap(Function.identity(), id -> defaultZero(
+                        orderReturnItemRepository.sumReturnedQuantity(id, ACTIVE_RETURN_STATUSES))));
+    }
 
     @Override
     @Transactional
@@ -184,10 +207,11 @@ public class OrderReturnServiceImpl implements OrderReturnService {
         Order order = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderId));
 
-        validateOrderEligibility(order);
-        validateRequest(request);
+        creationEligibilityResolver.requireValidOrderAndRequest(order, request);
 
         Map<UUID, OrderItem> orderItems = lockRequestedOrderItems(orderId, request);
+        creationEligibilityResolver.requireEligible(creationEligibilityResolver.resolve(
+                order, request, orderItems, returnedQuantities(orderItems, request)));
 
         OrderReturn orderReturn = OrderReturn.builder()
                 .returnCode(generateUniqueReturnCode())
@@ -197,15 +221,8 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .note(normalizeBlank(request.getNote()))
                 .build();
 
-        Instant completedAt = resolveCompletedAt(order);
         for (CreateOrderReturnItemRequest itemRequest : request.getItems()) {
             OrderItem orderItem = orderItems.get(itemRequest.getOrderItemId());
-            if (orderItem == null) {
-                throw new InvalidOrderReturnException("Order item does not belong to order");
-            }
-
-            validateItemRules(itemRequest, completedAt);
-            validateReturnQuantity(orderItem, itemRequest.getQuantity());
 
             orderReturn.addItem(OrderReturnItem.builder()
                     .orderItem(orderItem)
@@ -241,12 +258,6 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .findReturnableItemsForUpdate(orderId, requestedOrderItemIds)
                 .stream()
                 .collect(Collectors.toMap(OrderItem::getId, Function.identity()));
-
-        for (CreateOrderReturnItemRequest itemRequest : request.getItems()) {
-            if (!lockedItems.containsKey(itemRequest.getOrderItemId())) {
-                throw new InvalidOrderReturnException("Order item does not belong to order");
-            }
-        }
 
         return lockedItems;
     }
@@ -1849,98 +1860,6 @@ public class OrderReturnServiceImpl implements OrderReturnService {
                 .comparingInt(OrderReturnServiceImpl::getRefundPriority)
                 .thenComparing(createdComparator)
                 .thenComparing(idComparator);
-    }
-
-    private void validateOrderEligibility(Order order) {
-        if (OrderStatus.COMPLETED != order.getStatus()) {
-            throw new InvalidOrderReturnException("Order is not completed");
-        }
-        if (OrderReturnStatus.FULLY_RETURNED == order.getReturnStatus()) {
-            throw new InvalidOrderReturnException("Order has already been fully returned");
-        }
-        if (PaymentStatus.PAID != order.getPaymentStatus()
-                && PaymentStatus.PARTIALLY_REFUNDED != order.getPaymentStatus()) {
-            throw new InvalidOrderReturnException("Order payment status is not eligible for return");
-        }
-    }
-
-    private void validateRequest(CreateOrderReturnRequest request) {
-        if (request == null || request.getItems() == null || request.getItems().isEmpty()) {
-            throw new InvalidOrderReturnException("Return items are required");
-        }
-
-        HashSet<UUID> orderItemIds = new HashSet<>();
-        for (CreateOrderReturnItemRequest item : request.getItems()) {
-            if (item.getOrderItemId() == null) {
-                throw new InvalidOrderReturnException("Order item is required");
-            }
-            if (!orderItemIds.add(item.getOrderItemId())) {
-                throw new InvalidOrderReturnException("Duplicate order item in return request");
-            }
-        }
-    }
-
-    private void validateItemRules(CreateOrderReturnItemRequest itemRequest, Instant completedAt) {
-        requirePositiveQuantity(itemRequest.getQuantity());
-        if (itemRequest.getReason() == null) {
-            throw new InvalidOrderReturnException("Return reason is required");
-        }
-        if (itemRequest.getCondition() == null) {
-            throw new InvalidOrderReturnException("Return condition is required");
-        }
-        if (ReturnReason.OTHER == itemRequest.getReason() && isBlank(itemRequest.getNote())) {
-            throw new InvalidOrderReturnException("Note is required when reason is OTHER");
-        }
-        if (ReturnReason.CHANGE_OF_MIND == itemRequest.getReason()
-                && ReturnCondition.SEALED != itemRequest.getCondition()) {
-            throw new InvalidOrderReturnException("Change-of-mind return requires sealed product");
-        }
-        // TEMPORARILY DISABLED:
-        // Return requests currently have no maximum age.
-        // Re-enable this call when the business restores the return-window policy.
-        //
-        // validateReturnWindow(itemRequest.getReason(), completedAt);
-    }
-
-    private void validateReturnQuantity(OrderItem orderItem, BigDecimal requestedQuantity) {
-        BigDecimal purchasedQuantity = requirePositiveQuantity(orderItem.getQuantity());
-        BigDecimal returnedQuantity = defaultZero(orderReturnItemRepository.sumReturnedQuantity(
-                orderItem.getId(),
-                ACTIVE_RETURN_STATUSES
-        ));
-        BigDecimal remainingQuantity = purchasedQuantity.subtract(returnedQuantity);
-
-        if (remainingQuantity.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new InvalidOrderReturnException("No remaining quantity available for return");
-        }
-        if (requestedQuantity.compareTo(remainingQuantity) > 0) {
-            throw new InvalidOrderReturnException("Return quantity exceeds remaining returnable quantity");
-        }
-    }
-
-    private void validateReturnWindow(ReturnReason reason, Instant completedAt) {
-        // TEMPORARILY DISABLED:
-        // Return requests currently have no maximum age.
-        // Re-enable when the return-window policy is restored.
-        //
-        // Instant baseline = completedAt == null ? Instant.now() : completedAt;
-        // Duration window = ReturnReason.CHANGE_OF_MIND == reason
-        //         ? DEFAULT_CHANGE_OF_MIND_WINDOW
-        //         : DEFAULT_QUALITY_WINDOW;
-        //
-        // if (baseline.plus(window).isBefore(Instant.now())) {
-        //     throw new InvalidOrderReturnException("Return window has expired");
-        // }
-    }
-
-    private Instant resolveCompletedAt(Order order) {
-        return orderStatusHistoryRepository
-                .findFirstByOrderIdAndToStatusAndIsDeletedFalseOrderByChangedAtDesc(
-                        order.getId(),
-                        OrderStatus.COMPLETED
-                )
-                .map(history -> history.getChangedAt() == null ? null : history.getChangedAt())
-                .orElseGet(() -> order.getUpdatedAt() == null ? order.getCreatedAt() : order.getUpdatedAt());
     }
 
     private BigDecimal requirePositiveQuantity(BigDecimal quantity) {

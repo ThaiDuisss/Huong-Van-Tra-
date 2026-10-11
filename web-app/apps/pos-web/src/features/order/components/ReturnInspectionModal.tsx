@@ -18,13 +18,11 @@ import type {
     CustomerReturnQcSummaryResponse,
     OrderReturnListRow,
     OrderReturnResponse,
-    ReturnCondition,
     SubmitReturnInventoryDispositionPayload,
     ReturnReason
 } from "../types/order-return.types";
 import {
     formatReturnQuantity,
-    getAllowedCustomerReturnQcResults,
     getReturnCode,
     getReturnConditionLabel,
     getReturnErrorMessage,
@@ -46,7 +44,7 @@ interface ReturnInspectionModalProps {
 interface QcDraftLine {
     selected: boolean;
     quantity: string;
-    result: CustomerReturnDisposition;
+    result: CustomerReturnDisposition | "";
     destinationLocationId: string;
     note: string;
 }
@@ -58,7 +56,7 @@ const QC_RESULT_OPTIONS: {
 }[] = [
     {
         result: "RESTOCK",
-        title: "Đạt chất lượng",
+        title: "Nhập lại kho",
         desc: "Có thể nhập lại kho và tiếp tục bán"
     },
     {
@@ -90,10 +88,6 @@ function getLocationOptionLabel(location: InventoryLocationResponse) {
     }
 
     return name || code || "Vị trí kho";
-}
-
-function getDefaultQcResult(condition?: ReturnCondition | null): CustomerReturnDisposition {
-    return condition === "SEALED" ? "RESTOCK" : "DAMAGED";
 }
 
 export function ReturnInspectionModal({
@@ -164,7 +158,7 @@ export function ReturnInspectionModal({
     }, [activeLocations, damagedLocations]);
 
     const getValidLocations = useCallback(
-        (result: CustomerReturnDisposition) => {
+        (result: CustomerReturnDisposition | "") => {
             if (result === "RESTOCK") {
                 return restockLocations;
             }
@@ -261,21 +255,11 @@ export function ReturnInspectionModal({
                     ];
                 }
 
-                const defaultResult = getDefaultQcResult(line.condition);
-                const validLocs = defaultResult === "RESTOCK"
-                    ? restockLocations
-                    : defaultResult === "DAMAGED"
-                        ? normalizedDamagedLocations
-                        : [];
-
-                // Smart auto-select location if exactly 1 valid location
-                const autoLocationId = validLocs.length === 1 ? String(validLocs[0].id) : "";
-
                 const initialLine: QcDraftLine = {
                     selected: isSingleItem,
                     quantity: String(remainingQty || 1),
-                    result: defaultResult,
-                    destinationLocationId: autoLocationId,
+                    result: "",
+                    destinationLocationId: "",
                     note: ""
                 };
 
@@ -396,9 +380,8 @@ export function ReturnInspectionModal({
                 return false;
             }
 
-            const allowedResults = getAllowedCustomerReturnQcResults(line.condition);
-            if (!allowedResults.includes(draft.result)) {
-                setFormError(`Sản phẩm "${name}" với tình trạng "${getReturnConditionLabel(line.condition)}" không được chọn kết quả "${draft.result}".`);
+            if (!draft.result) {
+                setFormError(`Vui lòng chọn phân loại xử lý dự kiến cho "${name}".`);
                 return false;
             }
 
@@ -454,7 +437,7 @@ export function ReturnInspectionModal({
             return {
                 returnItemId: line.returnItemId,
                 quantity: Number(draft.quantity),
-                result: draft.result,
+                result: draft.result as CustomerReturnDisposition,
                 destinationLocationId: draft.result === "WRITE_OFF" ? null : draft.destinationLocationId || null,
                 note: combinedNote
             };
@@ -482,7 +465,7 @@ export function ReturnInspectionModal({
                     setStep(1);
                     onRefresh?.();
                 } else {
-                    onToast("Đã tạo lệnh kiểm định. Vào Kho > Hàng khách trả để xác nhận xử lý tồn kho.");
+                    onToast("Đã tạo phiếu kiểm định. Vào Kho > Hàng khách trả để nhập tình trạng thực tế và xác nhận xử lý.");
                     onSuccess();
                     onClose();
                 }
@@ -640,14 +623,13 @@ export function ReturnInspectionModal({
                                 const draft = qcDraftLines[line.returnItemId] ?? {
                                     selected: true,
                                     quantity: "1",
-                                    result: "RESTOCK",
+                                    result: "",
                                     destinationLocationId: "",
                                     note: ""
                                 };
 
                                 const isSelected = isSingleRemainingItem || draft.selected;
                                 const remainingQty = toReturnNumber(line.remainingQcQuantity);
-                                const allowedResults = getAllowedCustomerReturnQcResults(line.condition);
                                 const validLocations = getValidLocations(draft.result);
                                 const snapshot = findReturnItemSnapshot(line.returnItemId);
 
@@ -693,7 +675,7 @@ export function ReturnInspectionModal({
                                                 </dd>
                                             </div>
                                             <div className={styles.metaRow}>
-                                                <dt>Tình trạng:</dt>
+                                                <dt>Tình trạng khai báo:</dt>
                                                 <dd>
                                                     {getReturnConditionLabel(line.condition) || "--"}
                                                 </dd>
@@ -735,11 +717,10 @@ export function ReturnInspectionModal({
                                                 {/* 2. Kết quả kiểm tra (Radio Cards) */}
                                                 <div className={styles.fieldGroup}>
                                                     <label className={styles.fieldLabel}>
-                                                        <span>Kết quả kiểm tra</span>
+                                                        <span>Phân loại xử lý dự kiến</span>
                                                     </label>
                                                     <div className={styles.resultCardsGrid}>
                                                         {QC_RESULT_OPTIONS.map((opt) => {
-                                                            const isAllowed = allowedResults.includes(opt.result);
                                                             const isActive = draft.result === opt.result;
 
                                                             return (
@@ -747,7 +728,6 @@ export function ReturnInspectionModal({
                                                                     className={`${styles.resultCard} ${
                                                                         isActive ? styles.resultCardActive : ""
                                                                     }`}
-                                                                    disabled={!isAllowed}
                                                                     key={opt.result}
                                                                     onClick={() =>
                                                                         updateDraftLine(line.returnItemId, {
@@ -915,7 +895,7 @@ export function ReturnInspectionModal({
                         <div className={styles.reviewWrap}>
                             <div className={styles.reviewIntro}>
                                 <span>
-                                    Vui lòng kiểm tra lại kết quả trước khi gửi lệnh cập nhật kho.
+                                    QC nhập tình trạng thực tế và xác nhận phân loại xử lý tại phiếu kiểm định trước khi cập nhật kho.
                                 </span>
                             </div>
 
@@ -932,7 +912,7 @@ export function ReturnInspectionModal({
                                         ? "Tiêu hủy (không nhập kho)"
                                         : loc
                                             ? getLocationOptionLabel(loc)
-                                            : draft.destinationLocationId || "--";
+                                            : "Chưa xác định";
 
                                     return (
                                         <div
@@ -956,7 +936,7 @@ export function ReturnInspectionModal({
 
                                                 <div className={styles.reviewField}>
                                                     <span className={styles.reviewLabel}>
-                                                        Kết quả kiểm tra
+                                                        Phân loại xử lý dự kiến
                                                     </span>
                                                     <span className={styles.reviewValue}>
                                                         {resultOpt?.title || draft.result}

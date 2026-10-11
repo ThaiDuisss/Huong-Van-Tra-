@@ -21,6 +21,7 @@ import {
   Settings,
   ShoppingCart,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
   Truck,
   Upload,
@@ -34,6 +35,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   ACCOUNT_ROLES,
   ACTION_LOG_ROLES,
+  AI_REPORT_ROLES,
   BACKOFFICE_ROLES,
   CUSTOMER_ROLES,
   INVENTORY_OPERATION_ROLES,
@@ -417,6 +419,21 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     ],
   },
   {
+    key: "ai",
+    label: "AI",
+    icon: Sparkles,
+    roles: AI_REPORT_ROLES,
+    children: [
+      {
+        key: "ai-reports",
+        label: "Báo cáo AI",
+        to: routePaths.aiReports,
+        icon: FileText,
+        roles: AI_REPORT_ROLES,
+      },
+    ],
+  },
+  {
     key: "reports",
     label: "Báo cáo",
     icon: BarChart3,
@@ -512,6 +529,17 @@ export function filterNavigationByRoles(
       };
     })
     .filter((item) => !item.children || item.children.length > 0);
+}
+
+/** Reflect both the shell gate and each menu's roles for this workspace. */
+export function filterSystemNavigationByRoles(
+  userRoles: readonly string[] | undefined,
+): SystemNavigationItem[] {
+  const items = hasAnyRole(userRoles, BACKOFFICE_ROLES)
+    ? systemNavigationItems
+    : systemNavigationItems.filter((item) => item.key === "ai");
+
+  return filterNavigationByRoles(items, userRoles);
 }
 
 export function getFirstNavigationPath(item: SystemNavigationItem): string | undefined {

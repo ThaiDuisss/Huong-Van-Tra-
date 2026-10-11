@@ -212,9 +212,12 @@ export function getCustomerReturnQcResultLabel(
 }
 
 export function getAllowedCustomerReturnQcResults(
-    condition?: ReturnCondition | null
+    actualCondition?: ReturnCondition | null
 ) {
-    if (condition === "SEALED") {
+    if (!actualCondition) {
+        return [];
+    }
+    if (actualCondition === "SEALED") {
         return CUSTOMER_RETURN_QC_RESULTS;
     }
 
@@ -276,12 +279,19 @@ export function getReturnErrorMessage(error: unknown, fallbackMessage?: string) 
             ? error.message
             : defaultMsg;
 
-    if (
-        message.includes("Order is not eligible for return") ||
-        message.includes("Order is not completed") ||
-        message.includes("Order payment status is not eligible for return") ||
-        message.includes("Order has already been fully returned")
-    ) {
+    if (message.includes("Order not found")) {
+        return "Không tìm thấy đơn hàng. Vui lòng chọn lại đơn hàng.";
+    }
+    if (message.includes("Order is not completed")) {
+        return "Đơn hàng chưa hoàn thành.";
+    }
+    if (message.includes("Order payment status is not eligible for return")) {
+        return "Thanh toán phải ở trạng thái đã thanh toán hoặc đã hoàn tiền một phần.";
+    }
+    if (message.includes("Order has already been fully returned")) {
+        return "Đơn hàng đã được hoàn toàn bộ.";
+    }
+    if (message.includes("Order is not eligible for return")) {
         return "Đơn hàng không đủ điều kiện hoàn.";
     }
 
@@ -411,8 +421,16 @@ export function getReturnErrorMessage(error: unknown, fallbackMessage?: string) 
         return "Vui lòng chọn vị trí đích.";
     }
 
-    if (message.includes("RESTOCK is not allowed for return condition")) {
-        return "Tình trạng hàng này không được nhập lại tồn bán được.";
+    if (message.includes("RESTOCK is not allowed for QC actual condition")) {
+        return "Không được nhập lại kho với tình trạng thực tế này. QC phải xác nhận hàng còn nguyên seal.";
+    }
+
+    if (message.includes("QC actual condition is required")) {
+        return "Vui lòng chọn tình trạng thực tế trước khi xác nhận kiểm định.";
+    }
+
+    if (message.includes("Posted inspection lines cannot be changed")) {
+        return "Không thể sửa kết quả kiểm định của dòng đã hạch toán.";
     }
 
     if (message.includes("DAMAGED for SEALED return item requires a reason note")) {

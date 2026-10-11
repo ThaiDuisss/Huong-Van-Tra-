@@ -6,11 +6,13 @@ import {
   FileText,
   PackageSearch,
   ShoppingBag,
+  Sparkles,
   User
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import {
+  AI_REPORT_ROLES,
   POS_WORKSPACE_ROLES,
   type AppRole,
   hasAnyRole
@@ -80,6 +82,21 @@ export const posNavigationItems: PosNavigationItem[] = [
     icon: User,
     to: routePaths.customers,
     roles: POS_WORKSPACE_ROLES
+  },
+  {
+    key: "ai",
+    label: "AI",
+    icon: Sparkles,
+    roles: AI_REPORT_ROLES,
+    children: [
+      {
+        key: "ai-reports",
+        label: "Báo cáo AI",
+        icon: FileText,
+        to: routePaths.aiReports,
+        roles: AI_REPORT_ROLES
+      }
+    ]
   }
 ];
 

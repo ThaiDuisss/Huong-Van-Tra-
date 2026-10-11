@@ -1,197 +1,70 @@
-from dataclasses import dataclass
 import logging
 
-import numpy as np
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.customer_interaction import CustomerInteraction
-from app.models.interaction_event import InteractionEvent, InteractionEventType
-from app.models.product import Product
-from app.schemas.recommendation import (
-    RecommendationItem,
-    RecommendationResponse,
+from app.recommendation.v1_artifact import V1ArtifactStore
+from app.recommendation.v1_model import (
+    CONTRACT_VERSION, MODEL_TYPE, V1ModelError, catalog_fingerprint, hybrid_scores,
 )
-from app.training.model_artifact import ModelArtifactError, ModelArtifactStore
+from app.repositories.v1_recommendation_repository import CustomerPurchaseHistory, V1RecommendationRepository
+from app.schemas.recommendation import RecommendationItem, RecommendationResponse
 
 
 logger = logging.getLogger(__name__)
-ACTIVE_PRODUCT_STATUS = "ACTIVE"
-
-
-@dataclass(frozen=True, slots=True)
-class ProductView:
-    product_id: str
-    product_code: str
-    name: str
+MIN_HYBRID_PURCHASE_ORDERS = 5
 
 
 class RecommendationService:
-    def __init__(self, artifact_store: ModelArtifactStore) -> None:
+    def __init__(self, artifact_store: V1ArtifactStore,
+                 repository: V1RecommendationRepository | None = None) -> None:
         self.artifact_store = artifact_store
+        self.repository = repository or V1RecommendationRepository()
 
-    def recommend(
-        self,
-        db: Session,
-        customer_id: str,
-        limit: int,
-    ) -> RecommendationResponse:
+    def recommend(self, db: Session, customer_id: str, limit: int,
+                  exclude_purchased: bool = True) -> RecommendationResponse:
+        history = self.repository.customer_history(db, customer_id)
+        purchased = set(history.product_counts) if exclude_purchased else set()
+        if history.missing_order_events:
+            logger.warning("Ignored %d PURCHASE events without real order IDs for routing",
+                           history.missing_order_events)
+        if history.distinct_order_count < MIN_HYBRID_PURCHASE_ORDERS:
+            return self._popularity(db, customer_id, limit, purchased, history, exclude_purchased)
+
+        # Catalog queries stay outside model error handling: never swallow DB errors.
+        products = self.repository.active_catalog(db)
         try:
             artifact = self.artifact_store.load()
-        except ModelArtifactError as exc:
-            logger.warning("Using recommendation fallback: %s", exc)
-            return self._fallback(
-                db,
-                customer_id=customer_id,
-                limit=limit,
-                reason="MODEL_NOT_AVAILABLE",
-            )
-
-        user_index = artifact.user_id_map.get(customer_id)
-        if user_index is None:
-            return self._fallback(
-                db,
-                customer_id=customer_id,
-                limit=limit,
-                reason="CUSTOMER_NOT_IN_MODEL",
-            )
-
-        products = self._load_active_products(db)
-        purchased_product_ids = self._load_purchased_product_ids(db, customer_id)
-        reverse_item_map = {
-            internal_id: product_id
-            for product_id, internal_id in artifact.item_id_map.items()
-        }
-        candidate_internal_ids = np.array(
-            [
-                internal_id
-                for internal_id in range(len(reverse_item_map))
-                if reverse_item_map[internal_id] in products
-                and reverse_item_map[internal_id] not in purchased_product_ids
-            ],
-            dtype=np.int32,
-        )
-
-        if candidate_internal_ids.size == 0:
-            return RecommendationResponse(
-                customer_id=customer_id,
-                source="MODEL",
-                model_type=artifact.model_type,
-                model_contract_version=artifact.contract_version,
-                trained_at=artifact.trained_at,
-                items=[],
-            )
-
-        scores = artifact.model.predict(
-            np.full(candidate_internal_ids.shape, user_index, dtype=np.int32),
-            candidate_internal_ids,
-            item_features=artifact.item_features,
-            num_threads=1,
-        )
-        ranked = sorted(
-            zip(candidate_internal_ids.tolist(), scores.tolist()),
-            key=lambda pair: (-pair[1], reverse_item_map[pair[0]]),
-        )[:limit]
-        items = [
-            self._to_response_item(
-                rank=rank,
-                product=products[reverse_item_map[internal_id]],
-                score=score,
-            )
-            for rank, (internal_id, score) in enumerate(ranked, start=1)
-        ]
+            if artifact.catalog_sha256 != catalog_fingerprint(products):
+                raise V1ModelError("Current catalog differs from artifact; refresh V1 snapshot")
+            candidates = tuple(p.product_id for p in products if p.product_id not in purchased)
+            content, cf = artifact.components(history.product_counts)
+            scores, both_flat = hybrid_scores(content, cf, candidates)
+            if candidates and both_flat:
+                return self._popularity(db, customer_id, limit, purchased, history,
+                                        exclude_purchased, "BOTH_COMPONENTS_FLAT")
+        except V1ModelError as exc:
+            logger.warning("Using V1 Popularity fallback: %s", exc)
+            return self._popularity(db, customer_id, limit, purchased, history,
+                                    exclude_purchased, "V1_MODEL_NOT_AVAILABLE")
+        views = {p.product_id: p for p in products}
+        ranked = sorted(scores, key=lambda p: (-scores[p], p))[:limit]
         return RecommendationResponse(
-            customer_id=customer_id,
-            source="MODEL",
-            model_type=artifact.model_type,
-            model_contract_version=artifact.contract_version,
-            trained_at=artifact.trained_at,
-            items=items,
+            customer_id=customer_id, source="HYBRID", model_type=MODEL_TYPE,
+            model_contract_version=CONTRACT_VERSION, trained_at=artifact.created_at,
+            purchase_order_count=history.distinct_order_count, exclude_purchased=exclude_purchased,
+            items=[RecommendationItem(rank=rank, product_id=p, product_code=views[p].product_code,
+                                      name=views[p].name, score=scores[p])
+                   for rank, p in enumerate(ranked, 1)],
         )
 
-    def _fallback(
-        self,
-        db: Session,
-        customer_id: str,
-        limit: int,
-        reason: str,
-    ) -> RecommendationResponse:
-        purchased_product_ids = self._load_purchased_product_ids(db, customer_id)
-        popularity = func.coalesce(
-            func.sum(CustomerInteraction.total_purchase_count),
-            0,
-        ).label("popularity")
-        stmt = (
-            select(Product.id, Product.product_code, Product.name, popularity)
-            .outerjoin(
-                CustomerInteraction,
-                CustomerInteraction.product_id == Product.id,
-            )
-            .where(
-                Product.status == ACTIVE_PRODUCT_STATUS,
-                Product.is_deleted.is_(False),
-                Product.id.not_in(purchased_product_ids),
-            )
-            .group_by(Product.id, Product.product_code, Product.name)
-            .order_by(popularity.desc(), Product.id.asc())
-            .limit(limit)
-        )
-        items = [
-            self._to_response_item(
-                rank=rank,
-                product=ProductView(
-                    product_id=row.id,
-                    product_code=row.product_code,
-                    name=row.name,
-                ),
-                score=float(row.popularity),
-            )
-            for rank, row in enumerate(db.execute(stmt), start=1)
-        ]
+    def _popularity(self, db: Session, customer_id: str, limit: int, purchased: set[str],
+                    history: CustomerPurchaseHistory, exclude_purchased: bool,
+                    reason: str | None = None) -> RecommendationResponse:
+        rows = self.repository.popularity(db, purchased, limit)
         return RecommendationResponse(
-            customer_id=customer_id,
-            source="FALLBACK",
-            fallback_reason=reason,
-            items=items,
-        )
-
-    @staticmethod
-    def _load_active_products(db: Session) -> dict[str, ProductView]:
-        stmt = (
-            select(Product.id, Product.product_code, Product.name)
-            .where(
-                Product.status == ACTIVE_PRODUCT_STATUS,
-                Product.is_deleted.is_(False),
-            )
-            .order_by(Product.id.asc())
-        )
-        return {
-            row.id: ProductView(
-                product_id=row.id,
-                product_code=row.product_code,
-                name=row.name,
-            )
-            for row in db.execute(stmt)
-        }
-
-    @staticmethod
-    def _load_purchased_product_ids(db: Session, customer_id: str) -> set[str]:
-        stmt = select(InteractionEvent.product_id).where(
-            InteractionEvent.customer_id == customer_id,
-            InteractionEvent.event_type == InteractionEventType.PURCHASE.value,
-        )
-        return set(db.scalars(stmt))
-
-    @staticmethod
-    def _to_response_item(
-        rank: int,
-        product: ProductView,
-        score: float,
-    ) -> RecommendationItem:
-        return RecommendationItem(
-            rank=rank,
-            product_id=product.product_id,
-            product_code=product.product_code,
-            name=product.name,
-            score=score,
+            customer_id=customer_id, source="FALLBACK" if reason else "POPULARITY",
+            fallback_reason=reason, model_type="popularity", model_contract_version=CONTRACT_VERSION,
+            purchase_order_count=history.distinct_order_count, exclude_purchased=exclude_purchased,
+            items=[RecommendationItem(rank=rank, product_id=p, product_code=code, name=name, score=float(score))
+                   for rank, (p, code, name, score) in enumerate(rows, 1)],
         )
