@@ -16,6 +16,7 @@ import java.util.UUID;
 
 public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecificationExecutor<Order> {
     Optional<Order> findByIdAndIsDeletedFalse(UUID id);
+    Optional<Order> findByClientOrderIdAndIsDeletedFalse(UUID clientOrderId);
 
     @Query("""
             select distinct orders

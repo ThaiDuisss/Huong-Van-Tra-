@@ -59,10 +59,12 @@ export type CustomerHeaderFilterState = {
 
 interface HeaderProps {
     onCreate: () => void;
+    onImport: () => void;
 }
 
 export function CustomerPageHeader({
-    onCreate
+    onCreate,
+    onImport
 }: HeaderProps) {
     return (
         <section
@@ -80,8 +82,8 @@ export function CustomerPageHeader({
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2.5">
                 <button
                     className={CUSTOMER_SECONDARY_ACTION_CLASS}
-                    disabled
-                    title="Chưa có API nhập dữ liệu"
+                    onClick={onImport}
+                    title="Nhập danh sách khách hàng từ file Excel"
                     type="button"
                 >
                     <FileInput size={17} aria-hidden="true" />

@@ -1,4 +1,4 @@
-import { History, RefreshCw, Search, TicketPercent } from "lucide-react";
+import { History, Pencil, Plus, RefreshCw, Search, TicketPercent } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -8,9 +8,14 @@ import {
     MarketingToast,
     type MarketingNotice
 } from "../components/MarketingFeedback";
+import { CouponFormModal } from "../components/discount-codes/CouponFormModal";
 import styles from "../components/discount-programs/DiscountProgramPage.module.css";
 import { couponApi } from "../services/coupon.api";
-import type { CouponPageResponse } from "../types/coupon.types";
+import type {
+    CouponPageResponse,
+    CouponResponse,
+    CouponStatusValue
+} from "../types/coupon.types";
 import { formatDiscountDateTimeCompact } from "../utils/discount-programs";
 import { routePaths } from "../../../routes/path";
 
@@ -28,6 +33,21 @@ const couponScopeLabels: Record<string, string> = {
     PUBLIC: "Công khai",
     PERSONAL: "Cá nhân"
 };
+
+/** Trạng thái có thể chuyển tới; mã đã hủy hoặc đã lưu trữ thì không đổi được nữa. */
+const CHANGEABLE_STATUSES: CouponStatusValue[] = [
+    "ACTIVE",
+    "PAUSED",
+    "EXPIRED",
+    "CANCELLED",
+    "ARCHIVED"
+];
+const LOCKED_STATUSES = new Set<CouponStatusValue>(["CANCELLED", "ARCHIVED"]);
+
+interface PendingStatusChange {
+    coupon: CouponResponse;
+    status: CouponStatusValue;
+}
 
 const statusClassNames: Record<string, string> = {
     DRAFT: styles.statusInactive,
@@ -52,6 +72,10 @@ export function CouponListPage() {
     const [refreshKey, setRefreshKey] = useState(0);
     const [notice, setNotice] = useState<MarketingNotice | null>(null);
     const notifyAfterLoadRef = useRef(false);
+    const [formOpen, setFormOpen] = useState(false);
+    const [editingCoupon, setEditingCoupon] = useState<CouponResponse | null>(null);
+    const [pendingStatus, setPendingStatus] = useState<PendingStatusChange | null>(null);
+    const [changingStatus, setChangingStatus] = useState(false);
 
     const loadCoupons = useCallback(async () => {
         try {
@@ -126,6 +150,60 @@ export function CouponListPage() {
         setRefreshKey((current) => current + 1);
     }
 
+    function openCreateForm() {
+        setEditingCoupon(null);
+        setFormOpen(true);
+    }
+
+    function openEditForm(coupon: CouponResponse) {
+        setEditingCoupon(coupon);
+        setFormOpen(true);
+    }
+
+    function handleSaved(coupon: CouponResponse, mode: "create" | "update") {
+        setNotice({
+            type: "success",
+            message:
+                mode === "create"
+                    ? `Đã thêm mã giảm giá ${coupon.code}.`
+                    : `Đã cập nhật mã giảm giá ${coupon.code}.`
+        });
+        setRefreshKey((current) => current + 1);
+    }
+
+    async function confirmStatusChange() {
+        if (!pendingStatus) {
+            return;
+        }
+
+        try {
+            setChangingStatus(true);
+            await couponApi.updateStatus(
+                pendingStatus.coupon.id,
+                pendingStatus.status
+            );
+            setNotice({
+                type: "success",
+                message: `Đã chuyển mã ${pendingStatus.coupon.code} sang trạng thái ${
+                    couponStatusLabels[pendingStatus.status]
+                }.`
+            });
+            setPendingStatus(null);
+            setRefreshKey((current) => current + 1);
+        } catch (err) {
+            console.error("Không thể đổi trạng thái coupon", err);
+            setNotice({
+                type: "error",
+                message:
+                    err instanceof Error && err.message
+                        ? err.message
+                        : "Không thể đổi trạng thái mã giảm giá."
+            });
+        } finally {
+            setChangingStatus(false);
+        }
+    }
+
     function updatePageSize(nextPageSize: number) {
         setPageSize(nextPageSize);
         setPage(1);
@@ -167,6 +245,14 @@ export function CouponListPage() {
                     >
                         <RefreshCw size={17} aria-hidden="true" />
                         Tải lại
+                    </button>
+                    <button
+                        className={styles.primaryButton}
+                        type="button"
+                        onClick={openCreateForm}
+                    >
+                        <Plus size={17} aria-hidden="true" />
+                        Thêm mã giảm giá
                     </button>
                 </div>
             </header>
@@ -241,6 +327,37 @@ export function CouponListPage() {
                                         />
                                     </td>
                                     <td className={styles.actionCell}>
+                                        <button
+                                            className={styles.secondaryButton}
+                                            type="button"
+                                            disabled={coupon.status === "CANCELLED"}
+                                            onClick={() => openEditForm(coupon)}
+                                        >
+                                            <Pencil size={16} aria-hidden="true" />
+                                            Sửa
+                                        </button>
+                                        <select
+                                            className={styles.secondaryButton}
+                                            aria-label={`Đổi trạng thái mã ${coupon.code}`}
+                                            value=""
+                                            disabled={LOCKED_STATUSES.has(coupon.status)}
+                                            onChange={(event) => {
+                                                const status = event.currentTarget
+                                                    .value as CouponStatusValue;
+                                                if (status) {
+                                                    setPendingStatus({ coupon, status });
+                                                }
+                                            }}
+                                        >
+                                            <option value="">Đổi trạng thái</option>
+                                            {CHANGEABLE_STATUSES.filter(
+                                                (status) => status !== coupon.status
+                                            ).map((status) => (
+                                                <option key={status} value={status}>
+                                                    {couponStatusLabels[status]}
+                                                </option>
+                                            ))}
+                                        </select>
                                         <Link
                                             className={styles.secondaryButton}
                                             to={`${routePaths.discountHistory}?couponId=${encodeURIComponent(
@@ -272,6 +389,60 @@ export function CouponListPage() {
                     onPageSizeChange={updatePageSize}
                 />
             </section>
+
+            {formOpen ? (
+                <CouponFormModal
+                    key={editingCoupon?.id ?? "create"}
+                    open
+                    coupon={editingCoupon}
+                    defaultPromotionId={promotionId}
+                    onClose={() => setFormOpen(false)}
+                    onSaved={handleSaved}
+                />
+            ) : null}
+
+            {pendingStatus ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+                    <section
+                        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-label="Xác nhận đổi trạng thái"
+                    >
+                        <h2 className="text-lg font-bold text-[#17213a]">
+                            Đổi trạng thái mã giảm giá
+                        </h2>
+                        <p className="mt-2 text-sm font-medium text-[#475467]">
+                            Chuyển mã <strong>{pendingStatus.coupon.code}</strong> từ{" "}
+                            <strong>
+                                {formatEnum(pendingStatus.coupon.status, couponStatusLabels)}
+                            </strong>{" "}
+                            sang <strong>{couponStatusLabels[pendingStatus.status]}</strong>?
+                            {LOCKED_STATUSES.has(pendingStatus.status)
+                                ? " Sau khi chuyển sẽ không đổi lại được."
+                                : ""}
+                        </p>
+                        <footer className="mt-5 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                className={styles.secondaryButton}
+                                disabled={changingStatus}
+                                onClick={() => setPendingStatus(null)}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.primaryButton}
+                                disabled={changingStatus}
+                                onClick={() => void confirmStatusChange()}
+                            >
+                                {changingStatus ? "Đang lưu..." : "Xác nhận"}
+                            </button>
+                        </footer>
+                    </section>
+                </div>
+            ) : null}
 
             <MarketingToast
                 notice={notice}

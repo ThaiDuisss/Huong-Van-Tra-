@@ -1,5 +1,6 @@
 package org.hvtra.customer.service;
 
+import org.hvtra.customer.dto.request.ChangeCustomerStatusRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.response.CustomerResponse;
@@ -19,6 +20,8 @@ public interface CustomerService {
     CustomerResponse update(UUID id, CustomerRequest request);
 
     CustomerResponse updatePurchase(UUID orderId);
+
+    CustomerResponse changeStatus(UUID id, ChangeCustomerStatusRequest request);
 
     void delete(UUID id);
 }

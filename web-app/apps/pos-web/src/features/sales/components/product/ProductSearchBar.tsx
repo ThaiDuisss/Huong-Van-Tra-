@@ -128,7 +128,7 @@ export function ProductSearchBar({
 
                   {product.sellableQuantity <= 0 ? (
                     <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
-                      Hết hàng
+                      Hết hàng · có thể đặt trước
                     </span>
                   ) : (
                     <div className="grid justify-items-end gap-1">
@@ -147,9 +147,11 @@ export function ProductSearchBar({
                     </strong>
                     <button
                       type="button"
-                      disabled={
-                        addingProductId === product.id ||
+                      disabled={addingProductId === product.id}
+                      title={
                         product.sellableQuantity <= 0
+                          ? "Hết hàng: xem ngày dự kiến có hàng và đặt trước"
+                          : undefined
                       }
                       onClick={(event) => {
                         event.stopPropagation();

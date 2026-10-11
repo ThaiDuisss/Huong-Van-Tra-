@@ -16,6 +16,7 @@ import org.hvtra.orderservice.service.OrderCustomerService;
 import org.hvtra.orderservice.service.OrderPaymentEventService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
+import org.hvtra.orderservice.service.support.OrderBackorderSupport;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
 import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
 import org.hvtra.orderservice.service.validator.OrderValidator;
@@ -46,6 +47,7 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
     private final OrderResponseAssembler orderResponseAssembler;
     private final CatalogClient catalogClient;
     private final InventoryClient inventoryClient;
+    private final OrderBackorderSupport orderBackorderSupport;
 
     @Override
     @Transactional
@@ -121,6 +123,11 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
         BigDecimal amountPaid = orderAmountCalculator.defaultZero(event.getAmountPaid());
         orderValidator.validatePaymentAmount(order, amountPaid);
 
+        if (orderBackorderSupport.isAwaitingStock(order)) {
+            handleBackorderPaymentSucceeded(order, event);
+            return;
+        }
+
         OrderStatus oldStatus = order.getStatus();
         order.setPaymentStatus(PaymentStatus.PAID);
         OrderStatus paidStatus = isImmediateConsume(order) ? OrderStatus.COMPLETED : OrderStatus.PAYMENT_CONFIRMED;
@@ -161,6 +168,39 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
                 event,
                 oldStatus,
                 paidStatus,
+                sagaId.toString()
+        );
+    }
+
+    /** Đơn chờ hàng trả bằng chuyển khoản: đã nhận đủ tiền nhưng chưa trừ tồn, chưa hoàn tất đơn. */
+    private void handleBackorderPaymentSucceeded(Order order, PaymentOrderEventPayload event) {
+        OrderStatus oldStatus = order.getStatus();
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
+        order.setPaymentMethod(firstNonBlank(
+                orderResponseAssembler.normalizePaymentMethod(event.getPaymentMethod()),
+                order.getPaymentMethod()
+        ));
+        order.setPaymentCode(firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
+        order.setPaidAmount(order.getFinalAmount());
+        order.setDebtAmount(BigDecimal.ZERO);
+        orderBackorderSupport.enterWaitingStock(order);
+
+        Order savedOrder = orderRepository.save(order);
+        orderStatusHistoryWriter.write(
+                savedOrder,
+                oldStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
+                "Thanh toán chuyển khoản thành công, mã thanh toán: " + savedOrder.getPaymentCode()
+                        + ". Đơn chờ hàng, giao sau khi có hàng",
+                null
+        );
+        UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, paymentCausationId(event));
+        orderOutboxPublisher.publishOrderPaymentSucceededNotification(
+                savedOrder,
+                event,
+                oldStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
                 sagaId.toString()
         );
     }

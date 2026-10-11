@@ -53,6 +53,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -344,6 +345,60 @@ class OrderDraftServiceImplTest {
 
         assertEquals("Số lượng bán vượt quá số lượng có thể bán", exception.getMessage());
         verifyNoInteractions(inventoryReservationService, orderItemMapper, orderResponseAssembler);
+    }
+
+    @Test
+    void addDraftItemAllowsQuantityAboveInventoryWhenCustomerAcceptsToWait() {
+        UUID orderId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        AddDraftOrderItemRequest request = new AddDraftOrderItemRequest();
+        request.setOrderId(orderId);
+        request.setProductVariantId(variantId);
+        request.setQuantity(new BigDecimal("3"));
+        request.setAllowBackorder(true);
+        Order order = draftOrder(orderId);
+        OrderItem item = draftItem(UUID.randomUUID(), variantId);
+        OrderResponse expected = OrderResponse.builder().id(orderId).build();
+        when(orderDateTimeHelper.nextDraftExpiresAt()).thenReturn(Instant.parse("2026-07-25T01:25:00Z"));
+        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(productSnapshotResolver.resolvePosView(variantId)).thenReturn(variant(variantId, BigDecimal.TEN));
+        when(orderValidator.requirePositiveQuantity(new BigDecimal("3"))).thenReturn(new BigDecimal("3"));
+        when(orderItemMapper.toDraftOrderItem(any(), any(), any(), any(), any(), any())).thenReturn(item);
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderResponseAssembler.toResponse(order)).thenReturn(expected);
+
+        OrderResponse actual = service.addDraftItem(request);
+
+        assertSame(expected, actual);
+        verify(inventoryClient, never()).getStocksByVariantIds(any());
+        assertEquals(1, order.getItems().size());
+    }
+
+    @Test
+    void checkoutWithAllowBackorderDelegatesBackorderDecisionToPaymentProcessor() {
+        UUID orderId = UUID.randomUUID();
+        UUID changedBy = UUID.randomUUID();
+        CheckoutDraftOrderRequest request = new CheckoutDraftOrderRequest();
+        request.setPaymentMethod("cash");
+        request.setPaidAmount(new BigDecimal("50000"));
+        request.setChangedBy(changedBy);
+        request.setAllowBackorder(true);
+        request.setDepositAmount(new BigDecimal("30000"));
+        Order order = draftOrder(orderId);
+        order.addItem(draftItem(UUID.randomUUID(), UUID.randomUUID()));
+        PaymentResponse payment = PaymentResponse.builder().status("PARTIALLY_PAID").method("CASH").build();
+        OrderResponse expected = OrderResponse.builder().id(orderId).build();
+        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(orderResponseAssembler.normalizePaymentMethod("cash")).thenReturn("CASH");
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderCheckoutPaymentProcessor.checkoutBackorderPayment(
+                order, "CASH", request.getPaidAmount(), changedBy, new BigDecimal("30000"))).thenReturn(payment);
+        when(orderResponseAssembler.toResponse(order, payment)).thenReturn(expected);
+
+        OrderResponse actual = service.checkoutDraftOrder(orderId, request);
+
+        assertSame(expected, actual);
+        verify(orderCheckoutPaymentProcessor, never()).checkoutPayment(any(), any(), any(), any());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.service.support;
 
+import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
@@ -63,6 +64,9 @@ class OrderCheckoutPaymentProcessorTest {
     @Mock
     private OrderPaymentEventService orderPaymentEventService;
 
+    @Mock
+    private OrderBackorderSupport orderBackorderSupport;
+
     private OrderCheckoutPaymentProcessor processor;
 
     @BeforeEach
@@ -75,7 +79,8 @@ class OrderCheckoutPaymentProcessorTest {
                 orderOutboxPublisher,
                 orderStatusHistoryWriter,
                 orderResponseAssembler,
-                orderPaymentEventService
+                orderPaymentEventService,
+                orderBackorderSupport
         );
     }
 
@@ -219,6 +224,134 @@ class OrderCheckoutPaymentProcessorTest {
 
         assertEquals("Payment-Service chưa hỗ trợ phương thức thanh toán: CARD", exception.getMessage());
         verifyNoInteractions(orderValidator, orderPaymentSagaService, paymentClient);
+    }
+
+    @Test
+    void paidBackorderWaitsForStockInsteadOfCompleting() {
+        UUID orderId = UUID.randomUUID();
+        UUID sagaId = UUID.randomUUID();
+        Order order = order(orderId, UUID.randomUUID());
+        order.setBackorder(true);
+        PaymentResponse payment = PaymentResponse.builder()
+                .paymentCode("PAY-001").status("PAID").method("CASH")
+                .amountRequired(order.getFinalAmount()).amountPaid(order.getFinalAmount()).build();
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, PaymentMethod.CASH.name())).thenReturn(sagaId);
+        when(paymentClient.checkout(any(PaymentCreateRequest.class))).thenReturn(payment);
+        when(orderBackorderSupport.isAwaitingStock(order)).thenReturn(true);
+
+        processor.checkoutPayment(order, "CASH", new BigDecimal("80000.00"), null);
+
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals(0, order.getDebtAmount().signum());
+        verify(orderBackorderSupport).enterWaitingStock(order);
+        verify(orderPaymentSagaService).completePaymentSaga(any(Order.class), any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq("PAY-001"));
+        verifyNoInteractions(orderPaymentEventService, orderCustomerService);
+        verify(orderOutboxPublisher, org.mockito.Mockito.never())
+                .publishPaymentCompletedOrchestration(any(), any(), any());
+    }
+
+    @Test
+    void depositOnBackorderKeepsRemainingAsDebt() {
+        UUID orderId = UUID.randomUUID();
+        UUID sagaId = UUID.randomUUID();
+        Order order = order(orderId, null);
+        order.setBackorder(true);
+        PaymentResponse payment = PaymentResponse.builder()
+                .paymentCode("PAY-002").status("PARTIALLY_PAID").method("CASH")
+                .amountRequired(order.getFinalAmount()).amountPaid(new BigDecimal("30000")).build();
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, PaymentMethod.CASH.name())).thenReturn(sagaId);
+        when(paymentClient.checkout(any(PaymentCreateRequest.class))).thenReturn(payment);
+        when(orderBackorderSupport.isAwaitingStock(order)).thenReturn(true);
+
+        processor.checkoutPayment(order, "CASH", new BigDecimal("50000"), null, new BigDecimal("30000"));
+
+        ArgumentCaptor<PaymentCreateRequest> captor = ArgumentCaptor.forClass(PaymentCreateRequest.class);
+        verify(paymentClient).checkout(captor.capture());
+        assertEquals(new BigDecimal("30000"), captor.getValue().getDepositAmount());
+        assertEquals(PaymentStatus.PARTIALLY_PAID, order.getPaymentStatus());
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals(new BigDecimal("30000"), order.getPaidAmount());
+        assertEquals(new BigDecimal("30000"), order.getDepositAmount());
+        assertEquals(new BigDecimal("50000.00"), order.getDebtAmount());
+        verify(orderBackorderSupport).enterWaitingStock(order);
+        verify(orderPaymentSagaService).markPaymentRequested(order, sagaId, payment);
+        verifyNoInteractions(orderPaymentEventService, orderCustomerService, orderOutboxPublisher);
+    }
+
+    @Test
+    void backorderCheckoutMarksOrderWithExpectedDateFromInventory() {
+        UUID sagaId = UUID.randomUUID();
+        java.time.Instant eta = java.time.Instant.parse("2026-10-08T03:00:00Z");
+        Order order = order(UUID.randomUUID(), null);
+        PaymentResponse payment = PaymentResponse.builder()
+                .paymentCode("PAY-003").status("PARTIALLY_PAID").method("CASH")
+                .amountPaid(new BigDecimal("30000")).build();
+        when(orderBackorderSupport.estimate(order)).thenReturn(
+                new InventoryClient.AvailabilityEstimateResponse(true, eta, java.util.List.of()));
+        when(orderBackorderSupport.isAwaitingStock(order)).thenReturn(true);
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, PaymentMethod.CASH.name())).thenReturn(sagaId);
+        when(paymentClient.checkout(any(PaymentCreateRequest.class))).thenReturn(payment);
+
+        processor.checkoutBackorderPayment(order, "CASH", new BigDecimal("30000"), null, new BigDecimal("30000"));
+
+        assertEquals(true, order.isBackorder());
+        assertEquals(eta, order.getExpectedAvailableAt());
+        assertEquals(PaymentStatus.PARTIALLY_PAID, order.getPaymentStatus());
+    }
+
+    @Test
+    void backorderCheckoutWithEnoughStockSellsAsNormalOrder() {
+        UUID sagaId = UUID.randomUUID();
+        Order order = order(UUID.randomUUID(), null);
+        PaymentResponse payment = PaymentResponse.builder()
+                .paymentCode("PAY-004").status("PAID").method("CASH").build();
+        when(orderBackorderSupport.estimate(order)).thenReturn(
+                new InventoryClient.AvailabilityEstimateResponse(false, null, java.util.List.of()));
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+        when(orderPaymentSagaService.startPaymentSaga(order, PaymentMethod.CASH.name())).thenReturn(sagaId);
+        when(paymentClient.checkout(any(PaymentCreateRequest.class))).thenReturn(payment);
+
+        processor.checkoutBackorderPayment(order, "CASH", new BigDecimal("80000.00"), null, null);
+
+        assertEquals(false, order.isBackorder());
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        verify(orderPaymentEventService).processPaidOrderInventory(
+                org.mockito.Mockito.eq(order), any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq(true));
+    }
+
+    @Test
+    void depositRejectedWhenOrderHasEnoughStock() {
+        Order order = order(UUID.randomUUID(), null);
+        when(orderBackorderSupport.estimate(order)).thenReturn(
+                new InventoryClient.AvailabilityEstimateResponse(false, null, java.util.List.of()));
+
+        assertThrows(InvalidPaymentAmountException.class, () -> processor.checkoutBackorderPayment(
+                order, "CASH", new BigDecimal("30000"), null, new BigDecimal("30000")));
+        verifyNoInteractions(paymentClient);
+    }
+
+    @Test
+    void depositRejectedWhenCustomerGivesLessThanDeposit() {
+        Order order = order(UUID.randomUUID(), null);
+        when(orderResponseAssembler.normalizePaymentMethod("CASH")).thenReturn("CASH");
+
+        assertThrows(InvalidPaymentAmountException.class,
+                () -> processor.checkoutPayment(order, "CASH", new BigDecimal("20000"), null, new BigDecimal("30000")));
+        verifyNoInteractions(paymentClient);
+    }
+
+    @Test
+    void depositRejectedForBankTransfer() {
+        Order order = order(UUID.randomUUID(), null);
+        when(orderResponseAssembler.normalizePaymentMethod("BANK_TRANSFER")).thenReturn("BANK_TRANSFER");
+
+        assertThrows(InvalidPaymentAmountException.class,
+                () -> processor.checkoutPayment(order, "BANK_TRANSFER", null, null, new BigDecimal("30000")));
+        verifyNoInteractions(paymentClient);
     }
 
     private Order order(UUID orderId, UUID customerId) {

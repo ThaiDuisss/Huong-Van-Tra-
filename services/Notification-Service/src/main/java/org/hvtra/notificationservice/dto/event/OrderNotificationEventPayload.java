@@ -5,7 +5,9 @@ import lombok.Data;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.common_core.kafka.event.CommonEventPayload;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -32,4 +34,17 @@ public class OrderNotificationEventPayload implements CommonEventPayload {
     String correlationId;
     String causationId;
     Instant occurredAt;
+
+    // Thông tin hóa đơn, chỉ có trong event ORDER_COMPLETED.
+    String customerName;
+    String customerEmail;
+    String customerPhone;
+    String cashierName;
+    String branchName;
+    String paymentMethod;
+    BigDecimal originalAmount;
+    BigDecimal discountAmount;
+    BigDecimal finalAmount;
+    BigDecimal paidAmount;
+    List<OrderEventItemPayload> items;
 }

@@ -22,7 +22,7 @@ import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentLineRequest
 import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentResponse;
 import org.hvtra.iventoryservice.replenishment.service.ShelfReplenishmentServiceImpl;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
-import org.hvtra.iventoryservice.shared.sequence.BusinessSequenceService;
+import org.hvtra.commonservice.common_core.service.BusinessSequenceService;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

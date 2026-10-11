@@ -4,6 +4,7 @@ import {
   Clock3,
   FileClock,
   FileText,
+  PackageSearch,
   ShoppingBag,
   Sparkles,
   User
@@ -51,6 +52,13 @@ export const posNavigationItems: PosNavigationItem[] = [
         key: "shift-orders",
         label: "Đơn trong ca",
         icon: FileText,
+        roles: POS_WORKSPACE_ROLES
+      },
+      {
+        key: "backorders",
+        label: "Đơn chờ hàng",
+        icon: PackageSearch,
+        to: routePaths.posBackorders,
         roles: POS_WORKSPACE_ROLES
       },
       {

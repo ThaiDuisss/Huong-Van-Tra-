@@ -196,7 +196,13 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("Đơn hàng này đã được thanh toán");
         }
 
-        BigDecimal changeAmount = receivedAmount.subtract(amountRequired);
+        // Đơn đặt trước: lần đầu thu cọc (PARTIALLY_PAID), lần sau thu nốt phần còn lại (PAID).
+        BigDecimal alreadyPaid = cashAlreadyPaid(existingPayment);
+        BigDecimal collectedNow = cashAmountDue(request, existingPayment);
+        BigDecimal totalPaid = alreadyPaid.add(collectedNow);
+        boolean fullyPaid = totalPaid.compareTo(amountRequired) >= 0;
+
+        BigDecimal changeAmount = receivedAmount.subtract(collectedNow);
         LocalDateTime now = LocalDateTime.now();
 
         Payment payment = existingPayment == null
@@ -206,13 +212,13 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setPaymentCode(resolvePaymentCode(payment, PaymentMethod.CASH));
         payment.setMethod(PaymentMethod.CASH);
         payment.setProvider(PaymentProvider.INTERNAL);
-        payment.setStatus(PaymentStatus.PAID);
+        payment.setStatus(fullyPaid ? PaymentStatus.PAID : PaymentStatus.PARTIALLY_PAID);
         payment.setAmountRequired(amountRequired);
-        payment.setAmountPaid(amountRequired);
+        payment.setAmountPaid(fullyPaid ? amountRequired : totalPaid);
         payment.setAmountRefunded(defaultZero(payment.getAmountRefunded()));
         payment.setCurrency(CURRENCY_VND);
         payment.setExpiresAt(null);
-        payment.setCompletedAt(now);
+        payment.setCompletedAt(fullyPaid ? now : null);
         payment.setCancelledAt(null);
         payment.setFailureReason(null);
         payment.setReviewReason(null);
@@ -225,7 +231,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .method(PaymentMethod.CASH)
                 .provider(PaymentProvider.INTERNAL)
                 .status(PaymentTransactionStatus.MATCHED)
-                .amount(amountRequired)
+                .amount(collectedNow)
                 .currency(CURRENCY_VND)
                 .paidAt(now)
                 .build();
@@ -247,6 +253,28 @@ public class PaymentServiceImpl implements PaymentService {
                 .methodLabel(toPaymentMethodLabel(savedPayment.getMethod()))
                 .provider(savedPayment.getProvider().name())
                 .build();
+    }
+
+    /** Số tiền mặt đã thu ở lần đặt cọc trước (0 nếu chưa thu). */
+    private BigDecimal cashAlreadyPaid(Payment existingPayment) {
+        if (existingPayment == null || existingPayment.getStatus() != PaymentStatus.PARTIALLY_PAID) {
+            return BigDecimal.ZERO;
+        }
+        return normalizeMoney(existingPayment.getAmountPaid());
+    }
+
+    /**
+     * Số tiền mặt phải thu ở lần checkout này: tiền cọc nếu request có depositAmount hợp lệ, phần còn lại nếu
+     * đơn đã đặt cọc, ngược lại là toàn bộ finalAmount.
+     */
+    private BigDecimal cashAmountDue(CheckoutRequest request, Payment existingPayment) {
+        BigDecimal amountRequired = normalizeMoney(request.getFinalAmount());
+        BigDecimal remaining = amountRequired.subtract(cashAlreadyPaid(existingPayment)).max(BigDecimal.ZERO);
+        BigDecimal deposit = request.getDepositAmount() == null ? null : normalizeMoney(request.getDepositAmount());
+        if (deposit != null && deposit.compareTo(BigDecimal.ZERO) > 0 && deposit.compareTo(remaining) < 0) {
+            return deposit;
+        }
+        return remaining;
     }
 
     /**
@@ -433,9 +461,20 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new IllegalArgumentException("Số tiền nhận bắt buộc khi thanh toán tiền mặt");
             }
 
-            if (request.getReceivedAmount().compareTo(request.getFinalAmount()) < 0) {
+            if (request.getDepositAmount() != null
+                    && request.getDepositAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Số tiền đặt cọc không hợp lệ");
+            }
+
+            BigDecimal amountDue = cashAmountDue(
+                    request, paymentRepository.findByOrderId(request.getOrderId()).orElse(null));
+            if (normalizeMoney(request.getReceivedAmount()).compareTo(amountDue) < 0) {
                 throw new IllegalArgumentException("Số tiền nhận không đủ");
             }
+        } else if (request.getDepositAmount() != null) {
+            throw new IllegalArgumentException("Đặt cọc hiện chỉ hỗ trợ thanh toán tiền mặt");
+        } else if (paymentRepository.existsByOrderIdAndStatus(request.getOrderId(), PaymentStatus.PARTIALLY_PAID)) {
+            throw new IllegalArgumentException("Đơn đã đặt cọc, phần còn lại hiện chỉ thu được bằng tiền mặt");
         }
 
         if (paymentRepository.existsByOrderIdAndStatus(

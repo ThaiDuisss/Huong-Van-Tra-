@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
+import { registerServiceWorker } from "./app/pwa/register-service-worker";
 import { initKeycloak } from "./auth/keycloak";
 import { AuthProvider } from "./auth/AuthProvider";
 
@@ -37,4 +38,5 @@ async function bootstrap(): Promise<void> {
   }
 }
 
+registerServiceWorker();
 void bootstrap();

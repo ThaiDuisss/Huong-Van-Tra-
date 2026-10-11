@@ -51,4 +51,14 @@ public class InventoryItem extends BaseEntity {
 
     @Column(name = "expiry_tracking_enabled", nullable = false)
     private Boolean expiryTrackingEnabled = false;
+
+    /**
+     * Thời gian trung bình để có mặt hàng này, tính bằng giây: thành phẩm là thời gian sản xuất, nguyên liệu là
+     * thời gian nhập hàng. Được tính lại khi lệnh sản xuất hoàn tất / phiếu nhập ghi sổ. Null = chưa có lịch sử.
+     */
+    @Column(name = "avg_supply_lead_seconds")
+    private Long avgSupplyLeadSeconds;
+
+    @Column(name = "supply_lead_samples", nullable = false)
+    private Integer supplyLeadSamples = 0;
 }

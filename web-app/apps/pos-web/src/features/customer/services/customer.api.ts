@@ -1,7 +1,10 @@
 import { apiClient } from "../../../api/api-client";
 import type {
+    ChangeCustomerStatusRequest,
     ChangeTierStatusRequest,
     CreateCustomerRequest,
+    CustomerImportRequest,
+    CustomerImportResponse,
     CustomerQuery,
     CustomerPurchaseTransactionResponse,
     CustomerResponse,
@@ -33,6 +36,18 @@ export const customerApi = {
     update(id: string, input: CreateCustomerRequest) {
         return apiClient.put<CustomerResponse, CreateCustomerRequest>(
             `/customer/${encodeURIComponent(id)}`,
+            input
+        );
+    },
+    changeStatus(id: string, input: ChangeCustomerStatusRequest) {
+        return apiClient.patch<CustomerResponse, ChangeCustomerStatusRequest>(
+            `/customer/${encodeURIComponent(id)}/status`,
+            input
+        );
+    },
+    importCustomers(input: CustomerImportRequest) {
+        return apiClient.post<CustomerImportResponse, CustomerImportRequest>(
+            "/customer/import",
             input
         );
     },

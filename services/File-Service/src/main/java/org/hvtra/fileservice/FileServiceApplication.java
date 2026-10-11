@@ -19,7 +19,15 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
                 "org.hvtra.commonservice.common_core"
         }
 )
-@EnableFeignClients(defaultConfiguration = FeignConfig.class)
+@EnableJpaRepositories(basePackages = {
+        "org.hvtra.fileservice",
+        "org.hvtra.commonservice.common_core.repository"
+})
+@EntityScan(basePackages = {
+        "org.hvtra.fileservice",
+        "org.hvtra.commonservice.common_core.entity"
+})
+@EnableFeignClients(basePackages = "org.hvtra", defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
 @EntityScan(basePackageClasses = {FileMetadata.class, BusinessSequence.class})
 @EnableJpaRepositories(basePackageClasses = {FileMetadataRepository.class, BusinessSequenceRepository.class})

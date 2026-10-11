@@ -3,6 +3,8 @@ import type {
     CouponPageResponse,
     CouponQuery,
     CouponResponse,
+    CouponSaveRequest,
+    CouponStatusValue,
     CouponUsagePageResponse,
     CouponUsageQuery,
     CouponUsageResponse
@@ -43,6 +45,27 @@ export const couponApi = {
 
     detail(couponId: string) {
         return apiClient.get<CouponResponse>(couponPath(couponId));
+    },
+
+    create(request: CouponSaveRequest) {
+        return apiClient.post<CouponResponse, CouponSaveRequest>(
+            `${COUPON_API_BASE}/coupons`,
+            request
+        );
+    },
+
+    update(couponId: string, request: CouponSaveRequest) {
+        return apiClient.put<CouponResponse, CouponSaveRequest>(
+            couponPath(couponId),
+            request
+        );
+    },
+
+    updateStatus(couponId: string, status: CouponStatusValue) {
+        return apiClient.patch<CouponResponse, { status: CouponStatusValue }>(
+            `${couponPath(couponId)}/status`,
+            { status }
+        );
     },
 
     usages(query: CouponUsageQuery = {}) {

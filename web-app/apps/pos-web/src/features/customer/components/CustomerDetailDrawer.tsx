@@ -8,6 +8,7 @@ import {
     RefreshCw,
     Search,
     ShieldCheck,
+    ShieldOff,
     SlidersHorizontal,
     ShoppingCart,
     Trash2,
@@ -41,7 +42,10 @@ import type {
     PageResponse,
     TierProgressResponse
 } from "../types/customer.types";
-import { customerErrorMessage } from "../utils/customer-list.utils";
+import {
+    customerErrorMessage,
+    customerStatusActionLabel
+} from "../utils/customer-list.utils";
 
 type DetailTab = "progress" | "history" | "transactions";
 
@@ -53,6 +57,7 @@ interface Props {
     onClose: () => void;
     onDelete: (customer: CustomerResponse) => void;
     onEdit: (customer: CustomerResponse) => void;
+    onStatusChange: (customer: CustomerResponse) => void;
 }
 
 const DETAIL_TABS: Array<{
@@ -72,7 +77,8 @@ export function CustomerDetailDrawer({
     open,
     onClose,
     onDelete,
-    onEdit
+    onEdit,
+    onStatusChange
 }: Props) {
     const [activeTab, setActiveTab] = useState<DetailTab>("progress");
     const [profileCollapsed, setProfileCollapsed] = useState(false);
@@ -227,14 +233,17 @@ export function CustomerDetailDrawer({
                                         }}
                                     />
                                     <MenuAction
-                                        icon={ShieldCheck}
-                                        label={customer.status === "SUSPENDED" ? "Mở khóa khách hàng" : "Khóa khách hàng"}
-                                        onClick={() => setActionMenuOpen(false)}
+                                        icon={customer.status === "ACTIVE" ? ShieldOff : ShieldCheck}
+                                        label={customerStatusActionLabel(customer.status)}
+                                        onClick={() => {
+                                            setActionMenuOpen(false);
+                                            runAction(onStatusChange);
+                                        }}
                                     />
                                     <MenuAction
                                         danger
                                         icon={Trash2}
-                                        label={hasTransactions ? "Ngừng kích hoạt" : "Xóa khách hàng"}
+                                        label="Xóa khách hàng"
                                         onClick={() => runAction(onDelete)}
                                     />
                                 </div>
@@ -324,11 +333,23 @@ export function CustomerDetailDrawer({
                         <button
                             className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#efc9c2] bg-white px-4 text-sm font-black text-[#c4422e] hover:bg-[#fff5f3]"
                             onClick={() => runAction(onDelete)}
-                            title={hasTransactions ? "Khách đã có giao dịch, dùng luồng xác nhận ngừng kích hoạt." : undefined}
                             type="button"
                         >
                             <Trash2 size={16} aria-hidden="true" />
-                            {hasTransactions ? "Ngừng kích hoạt" : "Xóa khách hàng"}
+                            Xóa khách hàng
+                        </button>
+                        <button
+                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#dce5e1] bg-white px-4 text-sm font-black text-[#536171] hover:bg-[#f4f8f5]"
+                            onClick={() => runAction(onStatusChange)}
+                            title={hasTransactions && customer.status === "ACTIVE"
+                                ? "Khách đã có giao dịch, nên ngừng hoạt động thay vì xóa."
+                                : undefined}
+                            type="button"
+                        >
+                            {customer.status === "ACTIVE"
+                                ? <ShieldOff size={16} aria-hidden="true" />
+                                : <ShieldCheck size={16} aria-hidden="true" />}
+                            <span className="max-sm:hidden">{customerStatusActionLabel(customer.status)}</span>
                         </button>
                         <div className="ml-auto flex shrink-0 gap-2">
                             <button

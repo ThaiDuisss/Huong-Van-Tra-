@@ -6,5 +6,7 @@ public enum OrderInventoryProcessingStatus {
     RESERVED,
     CONSUMED,
     FAILED,
-    RELEASED
+    RELEASED,
+    /** Đơn chờ hàng: đã thu tiền nhưng chưa trừ tồn vì chưa có hàng giao. */
+    WAITING_STOCK
 }

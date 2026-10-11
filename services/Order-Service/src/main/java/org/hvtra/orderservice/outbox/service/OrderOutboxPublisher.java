@@ -457,6 +457,13 @@ public class OrderOutboxPublisher {
 
         if (OrderEventType.ORDER_COMPLETED.equals(eventType)) {
             payload.put("items", orderItems(order));
+            // Thông tin hiển thị trên hóa đơn gửi email cho khách (Notification-Service).
+            payload.put("originalAmount", order.getOriginalAmount());
+            payload.put("customerName", order.getCustomerNameSnapshot());
+            payload.put("customerEmail", order.getCustomerEmailSnapshot());
+            payload.put("customerPhone", order.getCustomerPhoneSnapshot());
+            payload.put("cashierName", order.getCashierNameSnapshot());
+            payload.put("branchName", order.getBranchNameSnapshot());
         }
 
         return payload;
