@@ -1,0 +1,288 @@
+{
+  "result": "PASS",
+  "environment": {
+    "container": "hvtra-file-mysql84-test-20261011-9e9f23b4",
+    "containerId": "c8c1b2f74a2da6f68245cb47282e6bd3f8a15b693ed4f0c7dfeed6d9bfd93e9c",
+    "volume": "hvtra-file-mysql84-test-20261011-9e9f23b4-data",
+    "host": "127.0.0.1",
+    "port": 60172,
+    "databasePrefix": "fs_",
+    "image": "mysql:8.4",
+    "preexistingContainers": [],
+    "preexistingVolumes": []
+  },
+  "containerStatus": "running",
+  "mounts": [
+    {
+      "Type": "volume",
+      "Name": "hvtra-file-mysql84-test-20261011-9e9f23b4-data",
+      "Source": "/var/lib/docker/volumes/hvtra-file-mysql84-test-20261011-9e9f23b4-data/_data",
+      "Destination": "/var/lib/mysql",
+      "Driver": "local",
+      "Mode": "z",
+      "RW": true,
+      "Propagation": ""
+    }
+  ],
+  "ports": {
+    "3306/tcp": [
+      {
+        "HostIp": "127.0.0.1",
+        "HostPort": "60172"
+      }
+    ]
+  },
+  "imageDigest": [
+    "mysql@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242"
+  ],
+  "historicalAndAiSourceUnchanged": true,
+  "sourceIntegrity": {
+    "V1__init_schema.sql": {
+      "checksum": 1563888655,
+      "sha256": "beef238332625c269b4fdd8088727eadd687faf356a9fa7eaf530f95d5e5fcf9"
+    },
+    "V20261010221221__unique_ai_report_original_binding.sql": {
+      "checksum": -996233198,
+      "sha256": "9a7c0c8c5b6fa68a7a42789b1fff831f4a852aa0c9362032eb9f5fb465827631"
+    },
+    "V20261011203800__restore_file_references_foreign_key.sql": {
+      "checksum": 1229623600,
+      "sha256": "c29cf4a4f07d85c4ff23f65932dec678ad24fa48d57005e66892d754e33a4faf"
+    },
+    "V2__create_file_references_if_missing.sql": {
+      "checksum": 1876724228,
+      "sha256": "c835ca31dd4b43f88ad1aef488e06e56f9c285d7c242040bd779c41f2b55ed01"
+    },
+    "V3__fix_audit_column_types.sql": {
+      "checksum": -1382391432,
+      "sha256": "7855f547c54314025cc7ac3da81f6fc490a7547ff91a345e6d04a78595f4d1c6"
+    },
+    "V4__update_files_table_schema.sql": {
+      "checksum": 1408072548,
+      "sha256": "90e127e3cb55a4f44c6fcdb9d4c78eb054d506246b896648092796997c320931"
+    },
+    "V5__delete_column_refType.sql": {
+      "checksum": -93814498,
+      "sha256": "2c38689e5a81a6b2412445c43ca814f04ad9b36e7b03647454a57035eaa1a443"
+    },
+    "V6__create_business_sequences.sql": {
+      "checksum": -478525518,
+      "sha256": "3a158eba8385819faf2ad208247b38d26f38635dc786afa0a0be11d0cbb5490b"
+    }
+  },
+  "testEnvIgnoredAndUntracked": true,
+  "javaTests": [
+    {
+      "name": "org.hvtra.fileservice.config.HistoricalMigrationIntegrityTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "org.hvtra.fileservice.config.MinioBucketInitializerTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "org.hvtra.fileservice.controller.InternalAiReportFileControllerTest",
+      "tests": "10",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "org.hvtra.fileservice.migration.FkRecoveryPlanTest",
+      "tests": "17",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "org.hvtra.fileservice.service.AiReportDocumentValidatorTest",
+      "tests": "12",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "org.hvtra.fileservice.service.AiReportFileAccessServiceTest",
+      "tests": "15",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    }
+  ],
+  "testSchemas": [
+    [
+      "fs_ai_semantics"
+    ],
+    [
+      "fs_canonical"
+    ],
+    [
+      "fs_composite"
+    ],
+    [
+      "fs_delete_cascade"
+    ],
+    [
+      "fs_final_actions"
+    ],
+    [
+      "fs_final_canonical"
+    ],
+    [
+      "fs_final_fresh"
+    ],
+    [
+      "fs_final_missing"
+    ],
+    [
+      "fs_final_name_collision"
+    ],
+    [
+      "fs_final_orphan"
+    ],
+    [
+      "fs_final_renamed"
+    ],
+    [
+      "fs_fresh"
+    ],
+    [
+      "fs_index_missing"
+    ],
+    [
+      "fs_missing"
+    ],
+    [
+      "fs_name_collision"
+    ],
+    [
+      "fs_orphan"
+    ],
+    [
+      "fs_renamed"
+    ],
+    [
+      "fs_runtime_1172"
+    ],
+    [
+      "fs_update_cascade"
+    ],
+    [
+      "fs_wrong_parent"
+    ],
+    [
+      "information_schema"
+    ],
+    [
+      "mysql"
+    ],
+    [
+      "performance_schema"
+    ],
+    [
+      "sys"
+    ]
+  ],
+  "fullFreshHistory": [
+    [
+      "1",
+      "V1__init_schema.sql",
+      1563888655,
+      1
+    ],
+    [
+      "2",
+      "V2__create_file_references_if_missing.sql",
+      1876724228,
+      1
+    ],
+    [
+      "3",
+      "V3__fix_audit_column_types.sql",
+      -1382391432,
+      1
+    ],
+    [
+      "4",
+      "V4__update_files_table_schema.sql",
+      1408072548,
+      1
+    ],
+    [
+      "5",
+      "V5__delete_column_refType.sql",
+      -93814498,
+      1
+    ],
+    [
+      "6",
+      "V6__create_business_sequences.sql",
+      -478525518,
+      1
+    ],
+    [
+      "20261010221221",
+      "V20261010221221__unique_ai_report_original_binding.sql",
+      -996233198,
+      1
+    ],
+    [
+      "20261011203800",
+      "V20261011203800__restore_file_references_foreign_key.sql",
+      1229623600,
+      1
+    ]
+  ],
+  "fullFreshKeys": [
+    [
+      "fk_file_references_file",
+      "file_references",
+      "file_id",
+      "fs_final_fresh",
+      "files",
+      "id",
+      "NO ACTION",
+      "NO ACTION",
+      1
+    ]
+  ],
+  "fullFreshTables": {
+    "files": [
+      [
+        "files",
+        "CREATE TABLE `files` (\n  `id` binary(16) NOT NULL,\n  `bucket` varchar(100) NOT NULL,\n  `object_key` varchar(500) NOT NULL,\n  `public_url` varchar(1000) DEFAULT NULL,\n  `original_filename` varchar(255) NOT NULL,\n  `content_type` varchar(100) NOT NULL,\n  `extension` varchar(20) DEFAULT NULL,\n  `size_bytes` bigint NOT NULL DEFAULT '0',\n  `purpose` varchar(50) NOT NULL,\n  `etag` varchar(100) DEFAULT NULL,\n  `version_id` varchar(100) DEFAULT NULL,\n  `owner_id` binary(16) DEFAULT NULL,\n  `owner_type` varchar(50) DEFAULT NULL,\n  `ref_id` binary(16) DEFAULT NULL,\n  `visibility` varchar(30) NOT NULL,\n  `status` varchar(30) NOT NULL DEFAULT 'PENDING',\n  `created_by` binary(16) DEFAULT NULL,\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `completed_at` datetime DEFAULT NULL,\n  `updated_by` binary(16) DEFAULT NULL,\n  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,\n  `deleted_by` binary(16) DEFAULT NULL,\n  `deleted_at` datetime DEFAULT NULL,\n  `version` bigint NOT NULL DEFAULT '0',\n  `is_deleted` tinyint(1) NOT NULL DEFAULT '0',\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `object_key` (`object_key`),\n  KEY `idx_files_status` (`status`),\n  KEY `idx_files_owner` (`owner_id`),\n  KEY `idx_files_ref` (`ref_id`),\n  KEY `idx_files_visibility` (`visibility`),\n  KEY `idx_files_purpose` (`purpose`),\n  KEY `idx_files_object_key` (`object_key`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
+      ]
+    ],
+    "file_references": [
+      [
+        "file_references",
+        "CREATE TABLE `file_references` (\n  `id` binary(16) NOT NULL,\n  `file_id` binary(16) NOT NULL,\n  `ref_type` varchar(50) NOT NULL,\n  `ref_id` binary(16) NOT NULL,\n  `usage_type` varchar(50) NOT NULL,\n  `created_by` binary(16) DEFAULT NULL,\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_by` binary(16) DEFAULT NULL,\n  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,\n  `version` bigint NOT NULL DEFAULT '0',\n  `is_deleted` tinyint(1) NOT NULL DEFAULT '0',\n  `ai_report_ref_id` binary(16) GENERATED ALWAYS AS ((case when ((`ref_type` = _utf8mb4'AI_REPORT') and (`usage_type` = _utf8mb4'ORIGINAL') and (`is_deleted` = false)) then `ref_id` else NULL end)) STORED,\n  `ai_report_file_id` binary(16) GENERATED ALWAYS AS ((case when ((`ref_type` = _utf8mb4'AI_REPORT') and (`usage_type` = _utf8mb4'ORIGINAL') and (`is_deleted` = false)) then `file_id` else NULL end)) STORED,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uk_file_ref` (`file_id`,`ref_type`,`ref_id`,`usage_type`),\n  UNIQUE KEY `uq_ai_report_original_report` (`ai_report_ref_id`),\n  UNIQUE KEY `uq_ai_report_original_file` (`ai_report_file_id`),\n  KEY `idx_ref` (`ref_type`,`ref_id`),\n  KEY `idx_file_references_file_id` (`file_id`),\n  CONSTRAINT `fk_file_references_file` FOREIGN KEY (`file_id`) REFERENCES `files` (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
+      ]
+    ],
+    "business_sequences": [
+      [
+        "business_sequences",
+        "CREATE TABLE `business_sequences` (\n  `sequence_key` varchar(50) NOT NULL,\n  `current_value` bigint NOT NULL,\n  PRIMARY KEY (`sequence_key`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
+      ]
+    ]
+  },
+  "newFkMissingSchemaKeys": [
+    [
+      "fk_file_references_file",
+      "file_references",
+      "file_id",
+      "fs_final_missing",
+      "files",
+      "id",
+      "RESTRICT",
+      "RESTRICT",
+      1
+    ]
+  ]
+}

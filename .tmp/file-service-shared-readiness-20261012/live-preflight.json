@@ -1,0 +1,972 @@
+{
+  "auditedAtUtc": "2026-10-11T18:39:13.890614+00:00",
+  "target": {
+    "host": "100.93.252.63",
+    "port": 3306,
+    "database": "file_db"
+  },
+  "sourceIntegrity": {
+    "V1__init_schema.sql": {
+      "checksum": 1563888655,
+      "sha256": "beef238332625c269b4fdd8088727eadd687faf356a9fa7eaf530f95d5e5fcf9"
+    },
+    "V20261010221221__unique_ai_report_original_binding.sql": {
+      "checksum": -996233198,
+      "sha256": "9a7c0c8c5b6fa68a7a42789b1fff831f4a852aa0c9362032eb9f5fb465827631"
+    },
+    "V20261011203800__restore_file_references_foreign_key.sql": {
+      "checksum": 1229623600,
+      "sha256": "c29cf4a4f07d85c4ff23f65932dec678ad24fa48d57005e66892d754e33a4faf"
+    },
+    "V2__create_file_references_if_missing.sql": {
+      "checksum": 1876724228,
+      "sha256": "c835ca31dd4b43f88ad1aef488e06e56f9c285d7c242040bd779c41f2b55ed01"
+    },
+    "V3__fix_audit_column_types.sql": {
+      "checksum": -1382391432,
+      "sha256": "7855f547c54314025cc7ac3da81f6fc490a7547ff91a345e6d04a78595f4d1c6"
+    },
+    "V4__update_files_table_schema.sql": {
+      "checksum": 1408072548,
+      "sha256": "90e127e3cb55a4f44c6fcdb9d4c78eb054d506246b896648092796997c320931"
+    },
+    "V5__delete_column_refType.sql": {
+      "checksum": -93814498,
+      "sha256": "2c38689e5a81a6b2412445c43ca814f04ad9b36e7b03647454a57035eaa1a443"
+    },
+    "V6__create_business_sequences.sql": {
+      "checksum": -478525518,
+      "sha256": "3a158eba8385819faf2ad208247b38d26f38635dc786afa0a0be11d0cbb5490b"
+    }
+  },
+  "isolatedSourceBytesMatch": true,
+  "identity": {
+    "database_name": "file_db",
+    "mysql_version": "8.4.11",
+    "server_hostname": "51dada3adecb",
+    "audit_session_read_only": 1,
+    "foreign_key_checks": 1,
+    "sql_mode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+    "lock_wait_timeout": 31536000,
+    "innodb_lock_wait_timeout": 50,
+    "server_read_only": 0,
+    "server_super_read_only": 0
+  },
+  "privileges": {
+    "grantsWithoutPrincipal": [
+      {
+        "privileges": [
+          "USAGE"
+        ],
+        "scope": "*.*",
+        "grantOption": false
+      },
+      {
+        "privileges": [
+          "ALL PRIVILEGES"
+        ],
+        "scope": "`file_db`.*",
+        "grantOption": false
+      }
+    ],
+    "activeRoles": false,
+    "requiredDirectSchemaPrivileges": {
+      "SELECT": "GRANTED",
+      "ALTER": "GRANTED",
+      "REFERENCES": "GRANTED",
+      "CREATE ROUTINE": "GRANTED",
+      "EXECUTE": "GRANTED",
+      "ALTER ROUTINE": "GRANTED",
+      "CREATE": "GRANTED",
+      "INSERT": "GRANTED",
+      "INDEX": "GRANTED"
+    },
+    "tableSpecificPrivileges": {},
+    "processPrivilegeDeclared": false,
+    "writePrivilegesExecutionTested": false
+  },
+  "beforeRows": {
+    "files": {
+      "count": 15,
+      "sha256": "e5560968617906006600f1f6642a04b33fbf52c2fc39e4102b1a79355d9b72c4"
+    },
+    "file_references": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "business_sequences": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "flyway_schema_history": {
+      "count": 6,
+      "sha256": "0644de736762875dc94d907c66562e3352a2ef5c349a6bb211df55dbc8adceae"
+    }
+  },
+  "history": [
+    {
+      "version": "1",
+      "description": "init schema",
+      "script": "V1__init_schema.sql",
+      "checksum": 1563888655,
+      "success": 1
+    },
+    {
+      "version": "2",
+      "description": "create file references if missing",
+      "script": "V2__create_file_references_if_missing.sql",
+      "checksum": 1876724228,
+      "success": 1
+    },
+    {
+      "version": "3",
+      "description": "fix audit column types",
+      "script": "V3__fix_audit_column_types.sql",
+      "checksum": -1382391432,
+      "success": 1
+    },
+    {
+      "version": "4",
+      "description": "update files table schema",
+      "script": "V4__update_files_table_schema.sql",
+      "checksum": 1408072548,
+      "success": 1
+    },
+    {
+      "version": "5",
+      "description": "delete column refType",
+      "script": "V5__delete_column_refType.sql",
+      "checksum": -93814498,
+      "success": 1
+    },
+    {
+      "version": "6",
+      "description": "create business sequences",
+      "script": "V6__create_business_sequences.sql",
+      "checksum": -478525518,
+      "success": 1
+    }
+  ],
+  "tables": [
+    {
+      "TABLE_NAME": "business_sequences",
+      "TABLE_TYPE": "BASE TABLE",
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_unicode_ci",
+      "ROW_FORMAT": "Dynamic",
+      "TABLE_ROWS": 0,
+      "DATA_LENGTH": 16384,
+      "INDEX_LENGTH": 0,
+      "DATA_FREE": 0
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "TABLE_TYPE": "BASE TABLE",
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci",
+      "ROW_FORMAT": "Dynamic",
+      "TABLE_ROWS": 0,
+      "DATA_LENGTH": 16384,
+      "INDEX_LENGTH": 49152,
+      "DATA_FREE": 0
+    },
+    {
+      "TABLE_NAME": "files",
+      "TABLE_TYPE": "BASE TABLE",
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci",
+      "ROW_FORMAT": "Dynamic",
+      "TABLE_ROWS": 15,
+      "DATA_LENGTH": 16384,
+      "INDEX_LENGTH": 114688,
+      "DATA_FREE": 0
+    },
+    {
+      "TABLE_NAME": "flyway_schema_history",
+      "TABLE_TYPE": "BASE TABLE",
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_unicode_ci",
+      "ROW_FORMAT": "Dynamic",
+      "TABLE_ROWS": 5,
+      "DATA_LENGTH": 16384,
+      "INDEX_LENGTH": 16384,
+      "DATA_FREE": 0
+    }
+  ],
+  "columns": [
+    {
+      "TABLE_NAME": "business_sequences",
+      "COLUMN_NAME": "sequence_key",
+      "ORDINAL_POSITION": 1,
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_unicode_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "business_sequences",
+      "COLUMN_NAME": "current_value",
+      "ORDINAL_POSITION": 2,
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "id",
+      "ORDINAL_POSITION": 1,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "file_id",
+      "ORDINAL_POSITION": 2,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "ref_type",
+      "ORDINAL_POSITION": 3,
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "ref_id",
+      "ORDINAL_POSITION": 4,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "usage_type",
+      "ORDINAL_POSITION": 5,
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "created_by",
+      "ORDINAL_POSITION": 6,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "created_at",
+      "ORDINAL_POSITION": 7,
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "updated_by",
+      "ORDINAL_POSITION": 8,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "updated_at",
+      "ORDINAL_POSITION": 9,
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "on update CURRENT_TIMESTAMP",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "version",
+      "ORDINAL_POSITION": 10,
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "COLUMN_NAME": "is_deleted",
+      "ORDINAL_POSITION": 11,
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "id",
+      "ORDINAL_POSITION": 1,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "bucket",
+      "ORDINAL_POSITION": 2,
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "object_key",
+      "ORDINAL_POSITION": 3,
+      "COLUMN_TYPE": "varchar(500)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "public_url",
+      "ORDINAL_POSITION": 4,
+      "COLUMN_TYPE": "varchar(1000)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "original_filename",
+      "ORDINAL_POSITION": 5,
+      "COLUMN_TYPE": "varchar(255)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "content_type",
+      "ORDINAL_POSITION": 6,
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "extension",
+      "ORDINAL_POSITION": 7,
+      "COLUMN_TYPE": "varchar(20)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "size_bytes",
+      "ORDINAL_POSITION": 8,
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "purpose",
+      "ORDINAL_POSITION": 9,
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "etag",
+      "ORDINAL_POSITION": 10,
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "version_id",
+      "ORDINAL_POSITION": 11,
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "owner_id",
+      "ORDINAL_POSITION": 12,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "owner_type",
+      "ORDINAL_POSITION": 13,
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "ref_id",
+      "ORDINAL_POSITION": 14,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "visibility",
+      "ORDINAL_POSITION": 15,
+      "COLUMN_TYPE": "varchar(30)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "status",
+      "ORDINAL_POSITION": 16,
+      "COLUMN_TYPE": "varchar(30)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "PENDING",
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": "utf8mb4",
+      "COLLATION_NAME": "utf8mb4_0900_ai_ci",
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "created_by",
+      "ORDINAL_POSITION": 17,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "created_at",
+      "ORDINAL_POSITION": 18,
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "completed_at",
+      "ORDINAL_POSITION": 19,
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "updated_by",
+      "ORDINAL_POSITION": 20,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "updated_at",
+      "ORDINAL_POSITION": 21,
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "on update CURRENT_TIMESTAMP",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "deleted_by",
+      "ORDINAL_POSITION": 22,
+      "COLUMN_TYPE": "binary(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "deleted_at",
+      "ORDINAL_POSITION": 23,
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "version",
+      "ORDINAL_POSITION": 24,
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    },
+    {
+      "TABLE_NAME": "files",
+      "COLUMN_NAME": "is_deleted",
+      "ORDINAL_POSITION": 25,
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": "",
+      "CHARACTER_SET_NAME": null,
+      "COLLATION_NAME": null,
+      "GENERATION_EXPRESSION": ""
+    }
+  ],
+  "indexes": [
+    {
+      "TABLE_NAME": "business_sequences",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "sequence_key",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "INDEX_NAME": "idx_file_references_file_id",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "file_id",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "INDEX_NAME": "idx_ref",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "ref_type",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "INDEX_NAME": "idx_ref",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 2,
+      "COLUMN_NAME": "ref_id",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "INDEX_NAME": "uk_file_ref",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "file_id",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "INDEX_NAME": "uk_file_ref",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 2,
+      "COLUMN_NAME": "ref_type",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "INDEX_NAME": "uk_file_ref",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 3,
+      "COLUMN_NAME": "ref_id",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "file_references",
+      "INDEX_NAME": "uk_file_ref",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 4,
+      "COLUMN_NAME": "usage_type",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "files",
+      "INDEX_NAME": "idx_files_object_key",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "object_key",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "files",
+      "INDEX_NAME": "idx_files_owner",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "owner_id",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "files",
+      "INDEX_NAME": "idx_files_purpose",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "purpose",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "files",
+      "INDEX_NAME": "idx_files_ref",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "ref_id",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "files",
+      "INDEX_NAME": "idx_files_status",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "status",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "files",
+      "INDEX_NAME": "idx_files_visibility",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "visibility",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "files",
+      "INDEX_NAME": "object_key",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "object_key",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    },
+    {
+      "TABLE_NAME": "files",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id",
+      "SUB_PART": null,
+      "IS_VISIBLE": "YES",
+      "INDEX_TYPE": "BTREE"
+    }
+  ],
+  "foreignKeys": [],
+  "partitionedTables": [],
+  "showCreate": {
+    "files": [
+      {
+        "Table": "files",
+        "Create Table": "CREATE TABLE `files` (\n  `id` binary(16) NOT NULL,\n  `bucket` varchar(100) NOT NULL,\n  `object_key` varchar(500) NOT NULL,\n  `public_url` varchar(1000) DEFAULT NULL,\n  `original_filename` varchar(255) NOT NULL,\n  `content_type` varchar(100) NOT NULL,\n  `extension` varchar(20) DEFAULT NULL,\n  `size_bytes` bigint NOT NULL DEFAULT '0',\n  `purpose` varchar(50) NOT NULL,\n  `etag` varchar(100) DEFAULT NULL,\n  `version_id` varchar(100) DEFAULT NULL,\n  `owner_id` binary(16) DEFAULT NULL,\n  `owner_type` varchar(50) DEFAULT NULL,\n  `ref_id` binary(16) DEFAULT NULL,\n  `visibility` varchar(30) NOT NULL,\n  `status` varchar(30) NOT NULL DEFAULT 'PENDING',\n  `created_by` binary(16) DEFAULT NULL,\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `completed_at` datetime DEFAULT NULL,\n  `updated_by` binary(16) DEFAULT NULL,\n  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,\n  `deleted_by` binary(16) DEFAULT NULL,\n  `deleted_at` datetime DEFAULT NULL,\n  `version` bigint NOT NULL DEFAULT '0',\n  `is_deleted` tinyint(1) NOT NULL DEFAULT '0',\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `object_key` (`object_key`),\n  KEY `idx_files_status` (`status`),\n  KEY `idx_files_owner` (`owner_id`),\n  KEY `idx_files_ref` (`ref_id`),\n  KEY `idx_files_visibility` (`visibility`),\n  KEY `idx_files_purpose` (`purpose`),\n  KEY `idx_files_object_key` (`object_key`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
+      }
+    ],
+    "file_references": [
+      {
+        "Table": "file_references",
+        "Create Table": "CREATE TABLE `file_references` (\n  `id` binary(16) NOT NULL,\n  `file_id` binary(16) NOT NULL,\n  `ref_type` varchar(50) NOT NULL,\n  `ref_id` binary(16) NOT NULL,\n  `usage_type` varchar(50) NOT NULL,\n  `created_by` binary(16) DEFAULT NULL,\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_by` binary(16) DEFAULT NULL,\n  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,\n  `version` bigint NOT NULL DEFAULT '0',\n  `is_deleted` tinyint(1) NOT NULL DEFAULT '0',\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uk_file_ref` (`file_id`,`ref_type`,`ref_id`,`usage_type`),\n  KEY `idx_ref` (`ref_type`,`ref_id`),\n  KEY `idx_file_references_file_id` (`file_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
+      }
+    ],
+    "business_sequences": [
+      {
+        "Table": "business_sequences",
+        "Create Table": "CREATE TABLE `business_sequences` (\n  `sequence_key` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `current_value` bigint NOT NULL,\n  PRIMARY KEY (`sequence_key`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+      }
+    ],
+    "flyway_schema_history": [
+      {
+        "Table": "flyway_schema_history",
+        "Create Table": "CREATE TABLE `flyway_schema_history` (\n  `installed_rank` int NOT NULL,\n  `version` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `description` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `script` varchar(1000) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `checksum` int DEFAULT NULL,\n  `installed_by` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,\n  `installed_on` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `execution_time` int NOT NULL,\n  `success` tinyint(1) NOT NULL,\n  PRIMARY KEY (`installed_rank`),\n  KEY `flyway_schema_history_s_idx` (`success`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+      }
+    ]
+  },
+  "aiCounts": {
+    "total_references": 0,
+    "active_ai_original": "0",
+    "deleted_ai_original": "0",
+    "null_inputs": "0",
+    "invalid_binary_lengths": "0"
+  },
+  "duplicateFiles": 0,
+  "duplicateReports": 0,
+  "orphans": 0,
+  "columnCollisions": [],
+  "indexCollisions": [],
+  "constraintNameCollisions": [],
+  "helperCollision": [],
+  "monitoringBefore": {
+    "innodbTransactions": {
+      "status": "UNVERIFIED",
+      "mysqlErrorCode": 1227
+    },
+    "visibleFileDbSessions": {
+      "status": "READABLE",
+      "rows": []
+    },
+    "fileDbMetadataLocks": {
+      "status": "UNVERIFIED",
+      "mysqlErrorCode": 1142
+    },
+    "fileDbWriteCounters": {
+      "status": "UNVERIFIED",
+      "mysqlErrorCode": 1142
+    },
+    "instrumentation": {
+      "status": "UNVERIFIED",
+      "mysqlErrorCode": 1142
+    }
+  },
+  "backupRelatedServerInfo": {
+    "status": "READABLE",
+    "rows": [
+      {
+        "Variable_name": "automatic_sp_privileges",
+        "Value": "ON"
+      },
+      {
+        "Variable_name": "binlog_expire_logs_seconds",
+        "Value": "2592000"
+      },
+      {
+        "Variable_name": "log_bin",
+        "Value": "ON"
+      },
+      {
+        "Variable_name": "partial_revokes",
+        "Value": "OFF"
+      },
+      {
+        "Variable_name": "performance_schema",
+        "Value": "ON"
+      }
+    ]
+  },
+  "afterRows": {
+    "files": {
+      "count": 15,
+      "sha256": "e5560968617906006600f1f6642a04b33fbf52c2fc39e4102b1a79355d9b72c4"
+    },
+    "file_references": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "business_sequences": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "flyway_schema_history": {
+      "count": 6,
+      "sha256": "0644de736762875dc94d907c66562e3352a2ef5c349a6bb211df55dbc8adceae"
+    }
+  },
+  "monitoringAfter": {
+    "innodbTransactions": {
+      "status": "UNVERIFIED",
+      "mysqlErrorCode": 1227
+    },
+    "visibleFileDbSessions": {
+      "status": "READABLE",
+      "rows": []
+    },
+    "fileDbMetadataLocks": {
+      "status": "UNVERIFIED",
+      "mysqlErrorCode": 1142
+    },
+    "fileDbWriteCounters": {
+      "status": "UNVERIFIED",
+      "mysqlErrorCode": 1142
+    },
+    "instrumentation": {
+      "status": "UNVERIFIED",
+      "mysqlErrorCode": 1142
+    }
+  },
+  "fingerprintsUnchanged": true,
+  "flywayPending": [
+    {
+      "version": "20261010221221",
+      "script": "V20261010221221__unique_ai_report_original_binding.sql",
+      "checksum": -996233198
+    },
+    {
+      "version": "20261011203800",
+      "script": "V20261011203800__restore_file_references_foreign_key.sql",
+      "checksum": 1229623600
+    }
+  ],
+  "pendingOnlyValidation": "PASS",
+  "strictValidation": "EXPECTED_FAIL_ONLY_TWO_PENDING",
+  "envBytesUnchanged": true,
+  "sourceBytesUnchanged": true
+}
