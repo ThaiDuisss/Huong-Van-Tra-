@@ -8,3 +8,5 @@ confluent-kafka>=2.15.0,<3.0.0
 # V1 serving has no LightFM dependency. Legacy research has a separate requirements file.
 numpy>=1.26,<3.0
 scipy>=1.12,<2.0
+redis>=5.0,<8.0
+openpyxl>=3.1.5,<4.0

@@ -70,6 +70,8 @@ class PurchaseEventAdapter:
         customer_id = str(customer_id_raw).strip() if customer_id_raw and str(customer_id_raw).strip() else None
 
         event_time = self._parse_occurred_at(payload.get("occurredAt"))
+        if event_time.tzinfo is None:
+            raise PurchaseEventValidationError("occurredAt must include a timezone")
 
         raw_items = payload.get("items")
         if not isinstance(raw_items, list) or len(raw_items) == 0:
@@ -108,7 +110,7 @@ class PurchaseEventAdapter:
             except (InvalidOperation, ValueError) as e:
                 raise PurchaseEventValidationError(f"Item at index {idx} has invalid quantity '{quantity_raw}'") from e
 
-            if quantity <= 0:
+            if not quantity.is_finite() or quantity <= 0:
                 raise PurchaseEventValidationError(f"Item at index {idx} has non-positive quantity '{quantity}'")
 
             unit_price_raw = item.get("unitPrice")

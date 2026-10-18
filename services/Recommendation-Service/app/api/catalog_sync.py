@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.clients.catalog_client import CatalogClient
 from app.database.session import get_db
+from app.core.recommendation_auth import authorize_catalog_sync
 from app.repositories.category_repository import CategoryRepository
 from app.repositories.ingredient_repository import IngredientRepository
 from app.repositories.product_ingredient_repository import ProductIngredientRepository
@@ -17,7 +18,7 @@ router = APIRouter(
 )
 
 
-@router.post("/sync", response_model=CatalogSyncResponse)
+@router.post("/sync", response_model=CatalogSyncResponse, dependencies=[Depends(authorize_catalog_sync)])
 def sync_catalog(
     db: Session = Depends(get_db),
 ) -> dict:

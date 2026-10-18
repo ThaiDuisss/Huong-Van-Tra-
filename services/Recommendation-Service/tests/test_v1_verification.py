@@ -33,7 +33,12 @@ class VerificationTests(unittest.TestCase):
         snapshot, splits, products = self.inputs()
         snapshot = replace(snapshot, purchases=tuple(e for e in snapshot.purchases if int(e.event_id.split('-')[1]) < 5))
         full, routed = evaluate_tfidf(snapshot, chronological_split(snapshot.purchases), products)
-        self.assertEqual(routed["sources"], {"POPULARITY": 2})
+        # Each eligible customer has four TRAIN orders; the approved online
+        # threshold is two, independently of benchmark eligibility (five total).
+        self.assertEqual(routed["sources"], {"HYBRID": 2})
+        self.assertEqual(routed["aggregate"], full["aggregate"])
+        self.assertEqual([(r["customer_id"], r["top5"]) for r in routed["customers"]],
+                         [(r["customer_id"], r["top5"]) for r in full["customers"]])
         self.assertEqual(full["aggregate"]["evaluated_customers"], 2)
 
     def test_runtime_catalog_mismatch_stops_verification(self):

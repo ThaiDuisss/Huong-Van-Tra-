@@ -1,7 +1,9 @@
 from datetime import timedelta
 import asyncio
+import contextlib
 import hashlib
 import hmac
+import io
 from types import SimpleNamespace
 from uuid import uuid4
 import unittest
@@ -275,6 +277,105 @@ class AiReportApiTests(unittest.TestCase):
         self.assertIsNone(self.db.scalar(select(AiReport)))
         self.assertEqual(self.create().json()["id"], intent.id)
 
+    def test_get_metadata_and_unauthorized_or_deleted_lookup(self):
+        report = self.create().json()
+        path = BASE + "/" + report["id"]
+        self.assertEqual(self.client.get(path, headers=signed(user=B)).json(), report)
+        self.assertEqual(self.client.get(path).status_code, 401)
+        self.assertEqual(self.client.get(path, headers=signed(roles="CUSTOMER")).status_code, 403)
+        self.db.get(AiReport, report["id"]).is_deleted = True
+        self.db.commit()
+        self.assertEqual(self.client.get(path, headers=signed()).status_code, 404)
+
+    def test_reconciliation_restores_missing_binding_and_local_state_repeatedly(self):
+        report = self.create().json()
+        intent = self.db.scalar(select(AiReportImport))
+        self.files.bindings.clear()
+        intent.status, intent.last_error = "PENDING", "HTTP_502"
+        self.db.commit()
+        for _ in range(2):
+            recovered = self.service.reconcile(self.db, intent)
+            self.assertEqual(recovered.id, report["id"])
+            self.assertEqual(intent.status, "COMPLETE")
+            self.assertIsNone(intent.last_error)
+        self.assertEqual(self.files.bindings, {FILE: report["id"]})
+        self.assertEqual(len(self.db.scalars(select(AiReport)).all()), 1)
+
+    def test_reconciliation_outage_preserves_completed_report_and_retry(self):
+        report = self.create().json()
+        intent = self.db.scalar(select(AiReportImport))
+        self.files.bindings.clear()
+        self.files.fail_bind = True
+        with self.assertRaises(HTTPException) as raised:
+            self.service.reconcile(self.db, intent)
+        self.assertEqual(raised.exception.status_code, 502)
+        self.assertEqual(intent.status, "COMPLETE")
+        self.assertIsNotNone(self.db.get(AiReport, report["id"]))
+        self.files.fail_bind = False
+        self.service.reconcile(self.db, intent)
+        self.assertEqual(self.files.bindings[FILE], report["id"])
+
+    def test_reconciliation_never_revives_deleted_or_replaces_original(self):
+        report = self.create().json()
+        intent = self.db.scalar(select(AiReportImport))
+        entity = self.db.get(AiReport, report["id"])
+        entity.is_deleted = True
+        self.db.commit()
+        with self.assertRaises(HTTPException):
+            self.service.reconcile(self.db, intent)
+        entity.is_deleted = False
+        self.db.commit()
+        self.files.bindings[FILE] = str(uuid4())
+        with self.assertRaises(HTTPException) as raised:
+            self.service.reconcile(self.db, intent)
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertNotEqual(self.files.bindings[FILE], entity.id)
+
+    def test_reconciliation_recovers_binding_success_local_commit_failure(self):
+        original_commit = self.db.commit
+        commits = 0
+        def commit():
+            nonlocal commits
+            commits += 1
+            if commits == 2:
+                raise RuntimeError("failure")
+            original_commit()
+        with patch.object(self.db, "commit", side_effect=commit):
+            with self.assertRaises(RuntimeError):
+                self.create()
+        intent = self.db.scalar(select(AiReportImport))
+        self.assertEqual(self.service.reconcile(self.db, intent).id, intent.id)
+        self.assertEqual(len(self.db.scalars(select(AiReport)).all()), 1)
+
+    def test_cli_repair_requires_explicit_retry_before_database_access(self):
+        from app.ai_report_reconciliation import main
+        with patch("sys.argv", ["reconcile", "--repair-bindings"]), \
+            patch("app.ai_report_reconciliation.SessionLocal") as session_factory, \
+            contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                main()
+            self.assertEqual(raised.exception.code, 2)
+            session_factory.assert_not_called()
+
+    def test_cli_completed_binding_repair_is_opt_in(self):
+        from app.ai_report_reconciliation import main
+        self.create()
+        intent = self.db.scalar(select(AiReportImport))
+        intent.updated_at = now() - timedelta(minutes=10)
+        self.db.commit()
+        with patch("app.ai_report_reconciliation.SessionLocal") as factory, \
+            patch("app.ai_report_reconciliation.AiReportService", return_value=self.service), \
+            contextlib.redirect_stdout(io.StringIO()) as output:
+            factory.return_value.__enter__.return_value = self.db
+            with patch("sys.argv", ["reconcile", "--retry"]):
+                main()
+            self.assertEqual(output.getvalue(), "")
+            self.files.bindings.clear()
+            with patch("sys.argv", ["reconcile", "--retry", "--repair-bindings"]):
+                main()
+            self.assertEqual(self.files.bindings[FILE], intent.id)
+            self.assertIn('"result": "COMPLETE"', output.getvalue())
+
 
 class FileClientTests(unittest.TestCase):
     def setUp(self):
@@ -282,7 +383,7 @@ class FileClientTests(unittest.TestCase):
             ai_report_storage_origins="http://storage.test")
         self.report = SimpleNamespace(id=str(uuid4()), file_id=FILE, file_type="PDF")
         self.access = {"url": "http://storage.test/bucket/key?signature=test", "fileName": '../Báo cáo\r\n.pdf',
-            "sizeBytes": 15, "etag": "original-etag"}
+            "sizeBytes": 15, "etag": "original-etag", "expiresInSeconds": 300, "contentType": "application/pdf"}
         self.settings_patch = patch("app.clients.file_client.get_settings", return_value=self.settings)
         self.settings_patch.start()
 
@@ -346,6 +447,35 @@ class FileClientTests(unittest.TestCase):
         with self.assertRaises(ClientDisconnect):
             asyncio.run(response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send))
         self.assertTrue(clients[0].is_closed)
+
+    def test_unexpected_binding_status_never_claims_success(self):
+        for status, content in [(200, b''), (202, b'{}'), (302, b'{}')]:
+            with self.subTest(status=status), patch("app.clients.file_client.generate_internal_auth_headers", return_value={}), \
+                patch("app.clients.file_client.httpx.Client") as mocked:
+                mocked.return_value.__enter__.return_value.request.return_value = httpx.Response(status, content=content)
+                with self.assertRaises(HTTPException) as raised:
+                    FileClient().bind(self.report.id, FILE, A)
+                self.assertEqual(raised.exception.status_code, 502)
+
+    def test_invalid_download_contract_rejected_before_storage_io(self):
+        for change in [{"etag": None}, {"etag": 'bad"etag'}, {"sizeBytes": 0}, {"expiresInSeconds": 301},
+            {"expiresInSeconds": 0}, {"contentType": "text/html"}, {"url": None}, {"fileName": ""}]:
+            with self.subTest(change=change), patch.object(FileClient, "_request", return_value=dict(self.access, **change)), \
+                patch("app.clients.file_client.httpx.Client") as mocked:
+                with self.assertRaises(HTTPException) as raised:
+                    FileClient().download(self.report)
+                self.assertEqual(raised.exception.status_code, 502)
+                mocked.assert_not_called()
+
+    def test_expired_missing_or_changed_storage_capability_is_safe_failure(self):
+        real_client = httpx.Client
+        for status in [403, 404, 412]:
+            with self.subTest(status=status), patch.object(FileClient, "_request", return_value=self.access), \
+                patch("app.clients.file_client.httpx.Client", side_effect=lambda **kwargs: real_client(
+                    transport=httpx.MockTransport(lambda request: httpx.Response(status)), **kwargs)):
+                with self.assertRaises(HTTPException) as raised:
+                    FileClient().download(self.report)
+                self.assertEqual(raised.exception.status_code, 502)
 
 
 if __name__ == "__main__":

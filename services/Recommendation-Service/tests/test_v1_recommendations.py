@@ -71,12 +71,13 @@ class ServiceTests(unittest.TestCase):
 
     def test_zero_orders_popularity(self): self.assert_route(0, "POPULARITY")
     def test_one_order_popularity(self): self.assert_route(1, "POPULARITY")
-    def test_four_orders_popularity(self): self.assert_route(4, "POPULARITY")
+    def test_two_orders_hybrid(self): self.assert_route(2, "HYBRID")
+    def test_four_orders_hybrid(self): self.assert_route(4, "HYBRID")
     def test_five_orders_hybrid(self): self.assert_route(5, "HYBRID")
     def test_six_orders_hybrid(self): self.assert_route(6, "HYBRID")
 
     def test_exclude_true_filters_before_top_k_and_false_allows_repurchase(self):
-        self.repository.customer_history.return_value = CustomerPurchaseHistory(5, {"a": 3})
+        self.repository.customer_history.return_value = CustomerPurchaseHistory(2, {"a": 3})
         included = self.service.recommend(None, "u", 6, False)
         excluded = self.service.recommend(None, "u", 5, True)
         self.assertIn("a", [p.product_id for p in included.items])
@@ -91,11 +92,41 @@ class ServiceTests(unittest.TestCase):
         self.repository.popularity.assert_called_with(None, set(), 5)
 
     def test_missing_artifact_fallback(self):
-        self.repository.customer_history.return_value = CustomerPurchaseHistory(5, {"a": 3})
+        self.repository.customer_history.return_value = CustomerPurchaseHistory(2, {"a": 3})
         self.store.load.side_effect = V1ModelError("missing")
         result = self.service.recommend(None, "u", 5, False)
         self.assertEqual((result.source, result.fallback_reason), ("FALLBACK", "V1_MODEL_NOT_AVAILABLE"))
         self.assertEqual(result.model_type, "popularity")
+
+    def test_two_orders_missing_corrupt_incompatible_artifact_safe_fallback(self):
+        self.repository.customer_history.return_value = CustomerPurchaseHistory(2, {"a": 3})
+        with TemporaryDirectory() as folder:
+            for state in ("missing", "corrupt", "incompatible"):
+                with self.subTest(state=state):
+                    path = Path(folder) / (state + ".npz")
+                    if state == "corrupt":
+                        path.write_bytes(b"corrupt fixture")
+                    elif state == "incompatible":
+                        V1ArtifactStore(path).save(artifact())
+                        with np.load(path, allow_pickle=False) as values:
+                            data = {key: values[key].copy() for key in values.files}
+                        metadata = json.loads(data["metadata"].item())
+                        metadata["format_version"] = 99
+                        data["metadata"] = np.asarray(json.dumps(metadata))
+                        np.savez_compressed(path, **data)
+                    service = RecommendationService(V1ArtifactStore(path), self.repository)
+                    result = service.recommend(None, "u", 5, True)
+                    self.assertEqual((result.source, result.fallback_reason),
+                                     ("FALLBACK", "V1_MODEL_NOT_AVAILABLE"))
+                    self.assertEqual(result.purchase_order_count, 2)
+                    self.repository.popularity.assert_called_with(None, {"a"}, 5)
+
+    def test_two_orders_repeated_recommendations_are_identical(self):
+        self.repository.customer_history.return_value = CustomerPurchaseHistory(2, {"a": 3})
+        first = self.service.recommend(None, "u", 5)
+        second = self.service.recommend(None, "u", 5)
+        self.assertEqual(first.source, "HYBRID")
+        self.assertEqual(first.model_dump(), second.model_dump())
 
     def test_both_flat_fallback(self):
         self.repository.customer_history.return_value = CustomerPurchaseHistory(5, {"outside-catalog": 3})
@@ -322,6 +353,22 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(RecommendationService(store).recommend(self.db, "u", 3).source, "POPULARITY")
         store.load.assert_not_called()
 
+    def test_two_real_orders_route_hybrid_despite_duplicate_lines_returns_and_missing_ids(self):
+        self.add_events([("one", "a", "PURCHASE"), ("one", "a", "PURCHASE"),
+                         ("two", "c", "PURCHASE"), ("three", "a", "RETURN"),
+                         (None, "b", "PURCHASE"), (" ", "d", "PURCHASE")])
+        history = self.repository.customer_history(self.db, "u")
+        self.assertEqual((history.distinct_order_count, history.missing_order_events), (2, 2))
+        products = self.repository.active_catalog(self.db)
+        store = MagicMock(spec=V1ArtifactStore)
+        store.load.return_value = build_artifact(products, self.repository.build_purchase_counts(self.db))
+        # Include purchases for this eligibility check: the two unseen fixture
+        # products otherwise have identical content/zero CF, a valid flat fallback.
+        result = RecommendationService(store).recommend(self.db, "u", 5, False)
+        self.assertEqual(result.source, "HYBRID")
+        self.assertEqual(result.purchase_order_count, 2)
+        store.load.assert_called_once()
+
     def test_return_and_null_blank_order_ids_never_inflate_routing(self):
         self.add_events([("one", "a", "PURCHASE"), ("two", "a", "RETURN"),
                          (None, "b", "PURCHASE"), (" ", "c", "PURCHASE")])
@@ -383,8 +430,18 @@ class ApiAndLifecycleTests(unittest.TestCase):
         self.repository.customer_history.return_value = CustomerPurchaseHistory(0, {})
         self.repository.popularity.return_value = [("a", "A", "Lotus tea", 5)]
         self.service = RecommendationService(MagicMock(spec=V1ArtifactStore), self.repository)
-        app.dependency_overrides[self.api.get_db] = lambda: None
+        from app.models.business_report import RecommendationSnapshot
+        from sqlalchemy.pool import StaticPool
+        engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+        RecommendationSnapshot.__table__.create(engine)
+        db = Session(engine)
+        self.addCleanup(engine.dispose); self.addCleanup(db.close)
+        self.db = db
+        app.dependency_overrides[self.api.get_db] = lambda: db
         app.dependency_overrides[self.api.get_recommendation_service] = lambda: self.service
+        # Legacy API contract tests isolate identity; security is exercised with
+        # real signed contexts in test_recommendation_modes_security.py.
+        app.dependency_overrides[self.api.authorize_customer] = lambda: "u"
         self.client = TestClient(app)
         self.addCleanup(self.client.close)
 
@@ -397,11 +454,30 @@ class ApiAndLifecycleTests(unittest.TestCase):
         self.assertEqual(data["items"][0]["productId"], "a")
         self.assertEqual(data["modelContractVersion"], CONTRACT_VERSION)
 
+    def test_two_order_hybrid_api_contract_and_exclusion(self):
+        self.repository.customer_history.return_value = CustomerPurchaseHistory(2, {"a": 3})
+        self.repository.active_catalog.return_value = catalog()
+        self.service.artifact_store.load.return_value = artifact()
+        response = self.client.get("/recommendations/u?limit=5")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(set(data), {"customerId", "source", "fallbackReason", "modelType",
+            "modelContractVersion", "trainedAt", "items", "purchaseOrderCount", "excludePurchased", "mode",
+            "recommendationEventId", "generatedAt"})
+        self.assertEqual((data["source"], data["modelType"], data["purchaseOrderCount"]),
+                         ("HYBRID", "personalized_hybrid", 2))
+        self.assertEqual(data["modelContractVersion"], CONTRACT_VERSION)
+        self.assertIsNone(data["fallbackReason"])
+        self.assertTrue(data["excludePurchased"])
+        self.assertNotIn("a", [item["productId"] for item in data["items"]])
+        self.assertEqual(len(data["items"]), 5)
+        self.assertEqual(set(data["items"][0]), {"rank", "productId", "productCode", "name", "score"})
+
     def test_api_false_and_limit_clamp(self):
         response = self.client.get("/recommendations/u?limit=999&exclude_purchased=false")
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["excludePurchased"])
-        self.repository.popularity.assert_called_with(None, set(), 50)
+        self.repository.popularity.assert_called_with(self.db, set(), 5)
 
     def test_api_invalid_limit_or_flag(self):
         for query in ("limit=0", "exclude_purchased=invalid"):
