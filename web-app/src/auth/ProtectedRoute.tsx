@@ -3,7 +3,7 @@ import { LogIn, ShieldAlert } from "lucide-react";
 
 import { HvtLogo } from "../components/shared/HvtLogo";
 import { useAuth } from "./auth-context";
-import { getDefaultRouteForRoles, hasAnyRole } from "./role-utils";
+import { getDefaultRouteForRoles, hasAnyRole, ROLES } from "./role-utils";
 
 type ProtectedRouteProps = {
     children: ReactNode;
@@ -100,14 +100,17 @@ export function ProtectedRoute({ children, roles = [], permissions = [] }: Prote
     }
 
     if (roles.length > 0 || permissions.length > 0) {
+        const superAdmin = hasAnyRole(auth.roles, [ROLES.SUPER_ADMIN]) || auth.hasRealmRole("SUPER_ADMIN");
+        // Danh sách permission rỗng = chưa bootstrap: dùng role như cũ.
         const permissionDecision =
-            permissions.length > 0 && Array.isArray(auth.permissions)
+            permissions.length > 0 && Array.isArray(auth.permissions) && auth.permissions.length > 0
                 ? permissions.some((permission) => auth.permissions?.includes(permission))
                 : undefined;
         const hasRequiredRole =
-            permissionDecision ??
-            (hasAnyRole(auth.roles, roles) ||
-                roles.some((role) => auth.hasRealmRole(role)));
+            superAdmin ||
+            (permissionDecision ??
+                (hasAnyRole(auth.roles, roles) ||
+                    roles.some((role) => auth.hasRealmRole(role))));
 
         if (!hasRequiredRole) {
             return (

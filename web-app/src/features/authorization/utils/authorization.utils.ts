@@ -86,6 +86,23 @@ export function groupPermissionsByModule(permissions: readonly PermissionRespons
  * Quyết định hiển thị một thao tác: đã có danh sách permission thì permission quyết định;
  * chưa có (backend cũ) thì dùng vai trò như trước.
  */
+const SUPER_ADMIN_ROLES = ["SUPER_ADMIN", "SUPERADMIN"];
+
+function normalizeRoles(roles: readonly string[] | undefined) {
+  return (roles ?? []).map((role) => role.replace(/^ROLE_/i, "").toUpperCase());
+}
+
+export function isSuperAdmin(roles: readonly string[] | undefined) {
+  const normalized = normalizeRoles(roles);
+  return SUPER_ADMIN_ROLES.some((role) => normalized.includes(role));
+}
+
+/**
+ * Quyết định hiển thị một thao tác (giống quy tắc backend):
+ * - SUPER_ADMIN luôn được phép (tài khoản gốc, dùng để khởi tạo).
+ * - Có danh sách permission khác rỗng → permission quyết định.
+ * - Chưa tải được (undefined) hoặc rỗng (chưa bootstrap) → dùng vai trò như trước.
+ */
 export function canUse(
   input: {
     permissions: readonly string[] | undefined;
@@ -94,10 +111,11 @@ export function canUse(
   required: readonly string[],
   fallbackRoles: readonly string[],
 ): boolean {
-  if (Array.isArray(input.permissions)) {
+  if (isSuperAdmin(input.roles)) return true;
+  if (Array.isArray(input.permissions) && input.permissions.length > 0) {
     return required.some((permission) => input.permissions?.includes(permission));
   }
-  const roles = (input.roles ?? []).map((role) => role.replace(/^ROLE_/i, "").toUpperCase());
+  const roles = normalizeRoles(input.roles);
   return fallbackRoles.some((role) => roles.includes(role.toUpperCase()));
 }
 

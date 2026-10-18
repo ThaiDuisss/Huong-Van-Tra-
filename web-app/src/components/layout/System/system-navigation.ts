@@ -43,6 +43,7 @@ import {
   INVENTORY_ROLES,
   MANUFACTURING_ROLES,
   MARKETING_ROLES,
+  ROLES,
   ORDER_ROLES,
   PRICE_LIST_ROLES,
   PRODUCT_ROLES,
@@ -533,7 +534,11 @@ function isItemVisible(
   userRoles: readonly string[] | undefined,
   userPermissions: readonly string[] | undefined,
 ): boolean {
-  if (item.permissions && item.permissions.length > 0 && Array.isArray(userPermissions)) {
+  // SUPER_ADMIN luôn thấy; danh sách permission rỗng = chưa bootstrap → xét role như cũ.
+  if (hasAnyRole(userRoles, [ROLES.SUPER_ADMIN])) {
+    return true;
+  }
+  if (item.permissions && item.permissions.length > 0 && Array.isArray(userPermissions) && userPermissions.length > 0) {
     return item.permissions.some((permission) => userPermissions.includes(permission));
   }
   return hasAnyRole(userRoles, item.roles);
