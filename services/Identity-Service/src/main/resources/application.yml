@@ -51,6 +51,9 @@ idp:
   # Service account (client-credentials) dùng để gọi Keycloak Admin REST API cho màn quản lý tài khoản.
   # Client này cần bật "Service accounts roles" và được gán realm-management: manage-users, view-users, view-realm.
   admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:}
+  # Client chứa client role dùng làm permission (order:create, ...). Phải trùng security.permission-client-id của gateway.
+  # Service account cần thêm realm-management: view-clients, manage-clients, view-realm, manage-realm.
+  permission-client-id: ${KEYCLOAK_PERMISSION_CLIENT_ID:hvtra-pos}
   admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
 
 

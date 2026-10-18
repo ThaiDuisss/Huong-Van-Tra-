@@ -29,6 +29,7 @@ import {
   UserCog,
   WalletCards,
   Warehouse,
+  ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -61,6 +62,11 @@ export interface SystemNavigationItem {
   icon: LucideIcon;
   to?: string;
   roles?: AppRole[];
+  /**
+   * Permission (bất kỳ cái nào) để hiện mục này. Khi người dùng đã có danh sách permission thì permission
+   * quyết định; chưa có (backend cũ) thì chỉ xét `roles`.
+   */
+  permissions?: string[];
   children?: SystemNavigationItem[];
 }
 
@@ -509,18 +515,40 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     label: "Cài đặt",
     icon: Settings,
     roles: SETTINGS_ROLES,
+    children: [
+      {
+        key: "authorization",
+        label: "Phân quyền",
+        icon: ShieldCheck,
+        to: routePaths.systemAuthorization,
+        roles: SETTINGS_ROLES,
+        permissions: ["permission:manage", "role:manage", "user:manage"],
+      },
+    ],
   },
 ];
+
+function isItemVisible(
+  item: SystemNavigationItem,
+  userRoles: readonly string[] | undefined,
+  userPermissions: readonly string[] | undefined,
+): boolean {
+  if (item.permissions && item.permissions.length > 0 && Array.isArray(userPermissions)) {
+    return item.permissions.some((permission) => userPermissions.includes(permission));
+  }
+  return hasAnyRole(userRoles, item.roles);
+}
 
 export function filterNavigationByRoles(
   items: readonly SystemNavigationItem[],
   userRoles: readonly string[] | undefined,
+  userPermissions?: readonly string[],
 ): SystemNavigationItem[] {
   return items
-    .filter((item) => hasAnyRole(userRoles, item.roles))
+    .filter((item) => isItemVisible(item, userRoles, userPermissions))
     .map((item) => {
       const children = item.children
-        ? filterNavigationByRoles(item.children, userRoles)
+        ? filterNavigationByRoles(item.children, userRoles, userPermissions)
         : undefined;
 
       return {
@@ -534,12 +562,13 @@ export function filterNavigationByRoles(
 /** Reflect both the shell gate and each menu's roles for this workspace. */
 export function filterSystemNavigationByRoles(
   userRoles: readonly string[] | undefined,
+  userPermissions?: readonly string[],
 ): SystemNavigationItem[] {
   const items = hasAnyRole(userRoles, BACKOFFICE_ROLES)
     ? systemNavigationItems
     : systemNavigationItems.filter((item) => item.key === "ai");
 
-  return filterNavigationByRoles(items, userRoles);
+  return filterNavigationByRoles(items, userRoles, userPermissions);
 }
 
 export function getFirstNavigationPath(item: SystemNavigationItem): string | undefined {

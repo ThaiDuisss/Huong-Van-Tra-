@@ -8,6 +8,11 @@ import { getDefaultRouteForRoles, hasAnyRole } from "./role-utils";
 type ProtectedRouteProps = {
     children: ReactNode;
     roles?: string[];
+    /**
+     * Permission yêu cầu (bất kỳ cái nào). Khi backend đã trả danh sách permission thì permission quyết định;
+     * chưa tải được thì dùng `roles` như trước để không khóa màn hình trên môi trường cũ.
+     */
+    permissions?: string[];
 };
 
 type AuthStatePageProps = {
@@ -69,7 +74,7 @@ function AuthStatePage({
     );
 }
 
-export function ProtectedRoute({ children, roles = [] }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, roles = [], permissions = [] }: ProtectedRouteProps) {
     const auth = useAuth();
 
     if (!auth.initialized) {
@@ -94,10 +99,15 @@ export function ProtectedRoute({ children, roles = [] }: ProtectedRouteProps) {
         );
     }
 
-    if (roles.length > 0) {
+    if (roles.length > 0 || permissions.length > 0) {
+        const permissionDecision =
+            permissions.length > 0 && Array.isArray(auth.permissions)
+                ? permissions.some((permission) => auth.permissions?.includes(permission))
+                : undefined;
         const hasRequiredRole =
-            hasAnyRole(auth.roles, roles) ||
-            roles.some((role) => auth.hasRealmRole(role));
+            permissionDecision ??
+            (hasAnyRole(auth.roles, roles) ||
+                roles.some((role) => auth.hasRealmRole(role)));
 
         if (!hasRequiredRole) {
             return (

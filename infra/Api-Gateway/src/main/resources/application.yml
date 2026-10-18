@@ -166,3 +166,5 @@ springdoc:
 security:
   internal:
       header-secret: ${INTERNAL_HEADER_SECRET:kEV4x5IAXOxEnoEqPptGSYqS6Ujqly27dBhfjYp2pNc=}
+  # Client Keycloak chứa client role dùng làm permission (xem services/Identity-Service/PERMISSIONS.md).
+  permission-client-id: ${KEYCLOAK_PERMISSION_CLIENT_ID:hvtra-pos}
