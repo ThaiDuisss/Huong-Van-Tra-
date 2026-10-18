@@ -8,6 +8,7 @@ public final class OrderEventType {
     public static final String ORDER_COMPLETED = "ORDER_COMPLETED";
     public static final String ORDER_PAYMENT_SUCCEEDED = "ORDER_PAYMENT_SUCCEEDED";
     public static final String ORDER_PAYMENT_FAILED = "ORDER_PAYMENT_FAILED";
+    public static final String ORDER_PAYMENT_NEED_REVIEW = "ORDER_PAYMENT_NEED_REVIEW";
     public static final String ORDER_CANCELLED = "ORDER_CANCELLED";
     public static final String RETURN_CREATED = "RETURN_CREATED";
     public static final String RETURN_RECEIVED = "RETURN_RECEIVED";

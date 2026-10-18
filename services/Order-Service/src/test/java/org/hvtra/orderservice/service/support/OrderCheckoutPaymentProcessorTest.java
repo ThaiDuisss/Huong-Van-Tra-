@@ -109,11 +109,12 @@ class OrderCheckoutPaymentProcessorTest {
         PaymentResponse result = processor.checkoutPayment(order, "CASH", new BigDecimal("100000.00"), changedBy);
 
         assertSame(payment, result);
+        // Processor chỉ ghi nhận bước "Paid"; trừ kho + hoàn tất đơn do finalizePaidOrder đảm nhiệm.
         assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
-        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
         assertEquals("PAY-001", order.getPaymentCode());
+        assertEquals(order.getFinalAmount(), order.getPaidAmount());
         assertEquals(BigDecimal.ZERO, order.getDebtAmount());
-        verify(orderPaymentEventService).processPaidOrderInventory(org.mockito.Mockito.eq(order), any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq(true));
         ArgumentCaptor<PaymentCreateRequest> requestCaptor = ArgumentCaptor.forClass(PaymentCreateRequest.class);
         InOrder inOrder = inOrder(
                 orderValidator,
@@ -121,8 +122,7 @@ class OrderCheckoutPaymentProcessorTest {
                 paymentClient,
                 orderResponseAssembler,
                 orderStatusHistoryWriter,
-                orderCustomerService,
-                orderOutboxPublisher
+                orderPaymentEventService
         );
         inOrder.verify(orderResponseAssembler).normalizePaymentMethod("CASH");
         inOrder.verify(orderValidator).validateCashPaymentAmount(order, PaymentMethod.CASH, new BigDecimal("100000.00"));
@@ -133,21 +133,18 @@ class OrderCheckoutPaymentProcessorTest {
         inOrder.verify(orderStatusHistoryWriter).write(
                 order,
                 OrderStatus.PENDING_PAYMENT,
-                OrderStatus.COMPLETED,
-                "Thanh toán POS trực tiếp bằng CASH, mã thanh toán: PAY-001",
+                OrderStatus.PAYMENT_CONFIRMED,
+                "Đã thanh toán bằng CASH, mã thanh toán: PAY-001",
                 changedBy
         );
-        inOrder.verify(orderPaymentSagaService).completePaymentSaga(any(Order.class), any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq("PAY-001"));
-        inOrder.verify(orderPaymentSagaService).markResourceConfirmationRequested(order, sagaId);
-        inOrder.verify(orderCustomerService).updateCustomerPurchase(orderId);
-        inOrder.verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(order, "PAY-001", sagaId.toString());
-        inOrder.verify(orderOutboxPublisher).publishOrderPaymentSucceededNotification(
+        inOrder.verify(orderPaymentEventService).finalizePaidOrder(
                 org.mockito.Mockito.eq(order),
                 any(PaymentOrderEventPayload.class),
                 org.mockito.Mockito.eq(OrderStatus.PENDING_PAYMENT),
-                org.mockito.Mockito.eq(OrderStatus.COMPLETED),
-                org.mockito.Mockito.eq(sagaId.toString())
+                org.mockito.Mockito.eq(changedBy),
+                org.mockito.Mockito.eq("PAY-001")
         );
+        verifyNoInteractions(orderCustomerService, orderOutboxPublisher);
         PaymentCreateRequest paymentRequest = requestCaptor.getValue();
         assertEquals(orderId, paymentRequest.getOrderId());
         assertEquals(sagaId, paymentRequest.getSagaId());
@@ -174,8 +171,9 @@ class OrderCheckoutPaymentProcessorTest {
         processor.checkoutPayment(order, "CASH", order.getFinalAmount(), null);
 
         assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
-        verify(orderPaymentEventService).processPaidOrderInventory(org.mockito.Mockito.eq(order),
-                any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq(false));
+        verify(orderPaymentEventService).finalizePaidOrder(org.mockito.Mockito.eq(order),
+                any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq(OrderStatus.PENDING_PAYMENT),
+                org.mockito.Mockito.isNull(), org.mockito.Mockito.eq("PAY-DELIVERY"));
     }
 
     @Test
@@ -278,7 +276,13 @@ class OrderCheckoutPaymentProcessorTest {
         assertEquals(new BigDecimal("50000.00"), order.getDebtAmount());
         verify(orderBackorderSupport).enterWaitingStock(order);
         verify(orderPaymentSagaService).markPaymentRequested(order, sagaId, payment);
-        verifyNoInteractions(orderPaymentEventService, orderCustomerService, orderOutboxPublisher);
+        verifyNoInteractions(orderPaymentEventService, orderCustomerService);
+        // Thu cọc vẫn báo POS và đánh dấu mã giảm giá đã dùng; không phát ORDER_COMPLETED.
+        verify(orderOutboxPublisher).publishCouponUsageCommit(order, "PAY-002", sagaId.toString());
+        verify(orderOutboxPublisher).publishOrderPaymentSucceededNotification(
+                org.mockito.Mockito.eq(order), any(PaymentOrderEventPayload.class),
+                any(), org.mockito.Mockito.eq(OrderStatus.PAYMENT_CONFIRMED), org.mockito.Mockito.eq(sagaId.toString()));
+        verify(orderOutboxPublisher, org.mockito.Mockito.never()).publishPaymentCompletedOrchestration(any(), any(), any());
     }
 
     @Test
@@ -318,9 +322,10 @@ class OrderCheckoutPaymentProcessorTest {
         processor.checkoutBackorderPayment(order, "CASH", new BigDecimal("80000.00"), null, null);
 
         assertEquals(false, order.isBackorder());
-        assertEquals(OrderStatus.COMPLETED, order.getStatus());
-        verify(orderPaymentEventService).processPaidOrderInventory(
-                org.mockito.Mockito.eq(order), any(PaymentOrderEventPayload.class), org.mockito.Mockito.eq(true));
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        verify(orderPaymentEventService).finalizePaidOrder(
+                org.mockito.Mockito.eq(order), any(PaymentOrderEventPayload.class), any(), any(), any());
     }
 
     @Test

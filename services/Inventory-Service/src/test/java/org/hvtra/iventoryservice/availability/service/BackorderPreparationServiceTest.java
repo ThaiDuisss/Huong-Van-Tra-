@@ -88,6 +88,7 @@ class BackorderPreparationServiceTest {
         createdEntity = new ProductionOrder();
         createdEntity.setId(createdId);
         when(productionOrderService.create(any())).thenReturn(response(createdId, "LSX-NEW"));
+        when(productionOrderService.createDraft(any())).thenReturn(response(createdId, "LSX-NEW"));
         when(productionOrderRepository.findById(createdId)).thenReturn(Optional.of(createdEntity));
         when(estimateService.toResponse(any())).thenAnswer(invocation -> {
             List<LinePlan> plans = invocation.getArgument(0);
@@ -127,7 +128,8 @@ class BackorderPreparationServiceTest {
 
         service.prepare(request());
 
-        verify(productionOrderService).create(any());
+        verify(productionOrderService).createDraft(any());
+        verify(productionOrderService, never()).create(any());
         verify(productionOrderService, never()).submit(any());
         ArgumentCaptor<InventoryReplenishmentAlert> alert = ArgumentCaptor.forClass(InventoryReplenishmentAlert.class);
         verify(alertRepository).save(alert.capture());
@@ -147,7 +149,7 @@ class BackorderPreparationServiceTest {
 
         service.prepare(request());
 
-        verify(productionOrderService).create(any());
+        verify(productionOrderService).createDraft(any());
         verify(alertRepository, never()).save(any());
     }
 

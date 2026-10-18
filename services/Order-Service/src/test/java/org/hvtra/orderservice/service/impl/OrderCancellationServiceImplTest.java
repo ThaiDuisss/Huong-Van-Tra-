@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.service.impl;
 
+import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -48,6 +49,9 @@ class OrderCancellationServiceImplTest {
     @Mock
     private OrderResponseAssembler orderResponseAssembler;
 
+    @Mock
+    private PaymentClient paymentClient;
+
     private OrderCancellationServiceImpl service;
 
     @BeforeEach
@@ -56,7 +60,8 @@ class OrderCancellationServiceImplTest {
                 orderRepository,
                 orderValidator,
                 orderStatusHistoryWriter,
-                orderResponseAssembler
+                orderResponseAssembler,
+                paymentClient
         );
     }
 
@@ -75,6 +80,9 @@ class OrderCancellationServiceImplTest {
 
         assertSame(expected, actual);
         assertEquals(OrderStatus.CANCELLED, order.getStatus());
+        // Đang chờ chuyển khoản: đóng phiên bên Payment-Service để tiền về muộn không tự hoàn tất đơn đã huỷ.
+        assertEquals(PaymentStatus.FAILED, order.getPaymentStatus());
+        org.mockito.Mockito.verify(paymentClient).cancelPendingPayment(orderId);
         InOrder inOrder = inOrder(orderRepository, orderValidator, orderStatusHistoryWriter, orderResponseAssembler);
         inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
         inOrder.verify(orderValidator).validateCancellation(order);

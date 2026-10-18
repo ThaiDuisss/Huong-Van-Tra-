@@ -137,38 +137,20 @@ public class OrderCheckoutPaymentProcessor {
         }
 
         if ("PAID".equals(paymentStatus)) {
+            // Bước "Paid" trước, trừ kho và "Completed" sau (finalizePaidOrder), mỗi bước một dòng lịch sử.
             order.setPaymentStatus(PaymentStatus.PAID);
-            OrderStatus paidOrderStatus = order.isFulfillmentRequired()
-                    ? OrderStatus.PAYMENT_CONFIRMED : OrderStatus.COMPLETED;
-            order.setStatus(paidOrderStatus);
+            order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
             order.setPaidAmount(order.getFinalAmount());
             order.setDebtAmount(BigDecimal.ZERO);
-            orderPaymentEventService.processPaidOrderInventory(
-                    order, eventFromPaymentResponse(order, payment, sagaId), !order.isFulfillmentRequired());
-            if (order.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.FAILED) {
-                order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
-                return;
-            }
-
             orderStatusHistoryWriter.write(
                     order,
                     oldStatus,
-                    paidOrderStatus,
-                    "Thanh toán POS trực tiếp bằng " + paymentMethod + ", mã thanh toán: " + order.getPaymentCode(),
+                    OrderStatus.PAYMENT_CONFIRMED,
+                    "Đã thanh toán bằng " + paymentMethod + ", mã thanh toán: " + order.getPaymentCode(),
                     changedBy
             );
             PaymentOrderEventPayload paidEvent = eventFromPaymentResponse(order, payment, sagaId);
-            orderPaymentSagaService.completePaymentSaga(order, paidEvent, order.getPaymentCode());
-            orderPaymentSagaService.markResourceConfirmationRequested(order, sagaId);
-            orderCustomerService.updateCustomerPurchase(order.getId());
-            orderOutboxPublisher.publishPaymentCompletedOrchestration(order, order.getPaymentCode(), sagaId.toString());
-            orderOutboxPublisher.publishOrderPaymentSucceededNotification(
-                    order,
-                    paidEvent,
-                    oldStatus,
-                    paidOrderStatus,
-                    sagaId.toString()
-            );
+            orderPaymentEventService.finalizePaidOrder(order, paidEvent, oldStatus, changedBy, order.getPaymentCode());
             return;
         }
 
@@ -221,6 +203,7 @@ public class OrderCheckoutPaymentProcessor {
         );
         PaymentOrderEventPayload paidEvent = eventFromPaymentResponse(order, payment, sagaId);
         orderPaymentSagaService.completePaymentSaga(order, paidEvent, order.getPaymentCode());
+        orderOutboxPublisher.publishCouponUsageCommit(order, order.getPaymentCode(), sagaId.toString());
         orderOutboxPublisher.publishOrderPaymentSucceededNotification(
                 order,
                 paidEvent,
@@ -253,6 +236,14 @@ public class OrderCheckoutPaymentProcessor {
                 changedBy
         );
         orderPaymentSagaService.markPaymentRequested(order, sagaId, payment);
+        orderOutboxPublisher.publishCouponUsageCommit(order, order.getPaymentCode(), sagaId.toString());
+        orderOutboxPublisher.publishOrderPaymentSucceededNotification(
+                order,
+                eventFromPaymentResponse(order, payment, sagaId),
+                oldStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
+                sagaId.toString()
+        );
     }
 
     private void validateDeposit(Order order, PaymentMethod method, BigDecimal receivedAmount, BigDecimal depositAmount) {

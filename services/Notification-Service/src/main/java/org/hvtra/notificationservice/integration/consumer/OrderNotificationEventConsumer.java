@@ -18,7 +18,8 @@ public class OrderNotificationEventConsumer {
     @KafkaListener(
             topics = {
                     "${notification.order.events.topics.payment-succeeded:order.event.ORDER_PAYMENT_SUCCEEDED}",
-                    "${notification.order.events.topics.payment-failed:order.event.ORDER_PAYMENT_FAILED}",
+                    "${notification.order.events.topics.payment-failed:notification.order.payment-failed}",
+                    "${notification.order.events.topics.payment-need-review:notification.order.payment-need-review}",
                     "${notification.order.events.topics.confirmed:order.event.ORDER_CONFIRMED}",
                     "${notification.order.events.topics.cancelled:order.event.ORDER_CANCELLED}",
                     "${notification.order.events.topics.status-changed:order.event.ORDER_STATUS_CHANGED}",

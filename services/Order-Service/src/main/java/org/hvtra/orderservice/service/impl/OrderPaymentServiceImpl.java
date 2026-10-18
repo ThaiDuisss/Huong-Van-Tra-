@@ -1,6 +1,10 @@
 package org.hvtra.orderservice.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.hvtra.orderservice.exception.OrderAlreadyPaidException;
+import org.hvtra.orderservice.exception.InvalidOrderStatusException;
+import org.hvtra.orderservice.client.PaymentClient;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -26,6 +30,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderPaymentServiceImpl implements OrderPaymentService {
 
     private final OrderRepository orderRepository;
@@ -37,6 +42,7 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
     private final OrderStatusHistoryWriter orderStatusHistoryWriter;
     private final OrderResponseAssembler orderResponseAssembler;
     private final OrderPaymentEventService orderPaymentEventService;
+    private final PaymentClient paymentClient;
 
     @Override
     @Transactional
@@ -45,37 +51,55 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
         BigDecimal paidAmount = orderAmountCalculator.defaultZero(request.getPaidAmount());
         orderValidator.validateMarkPaid(order, paidAmount);
 
+        boolean reviewed = order.getPaymentStatus() == PaymentStatus.NEED_REVIEW;
         OrderStatus oldStatus = order.getStatus();
         order.setPaymentStatus(PaymentStatus.PAID);
-        OrderStatus paidStatus = order.isFulfillmentRequired()
-                ? OrderStatus.PAYMENT_CONFIRMED : OrderStatus.COMPLETED;
-        order.setStatus(paidStatus);
+        order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
         order.setPaidAmount(order.getFinalAmount());
         order.setDebtAmount(BigDecimal.ZERO);
-        orderPaymentEventService.processPaidOrderInventory(order, null, !order.isFulfillmentRequired());
-        if (order.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.FAILED) {
-            order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
-            return orderResponseAssembler.toResponse(orderRepository.save(order));
-        }
-
+        order.setExpiresAt(null);
         Order savedOrder = orderRepository.save(order);
         orderStatusHistoryWriter.write(
                 savedOrder,
                 oldStatus,
-                paidStatus,
-                "Thanh toán thành công, mã thanh toán: " + request.getPaymentCode(),
+                OrderStatus.PAYMENT_CONFIRMED,
+                (reviewed ? "Đã đối soát và xác nhận thanh toán, mã thanh toán: " : "Thanh toán thành công, mã thanh toán: ")
+                        + request.getPaymentCode(),
                 request.getChangedBy()
         );
 
-        UUID sagaId = orderPaymentSagaService.completeManualPaymentSaga(savedOrder, request.getPaymentCode());
-        orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
-        orderCustomerService.updateCustomerPurchase(savedOrder.getId());
-        orderOutboxPublisher.publishPaymentCompletedOrchestration(
-                savedOrder,
-                request.getPaymentCode(),
-                sagaId.toString()
-        );
+        // Payment-Service cũng phải ghi PAID để giao dịch không nằm mãi ở NEED_REVIEW; lỗi không chặn đơn.
+        try {
+            paymentClient.confirmManualPayment(savedOrder.getId(),
+                    new PaymentClient.ManualPaymentConfirmRequest(request.getPaymentCode(), "Xác nhận thủ công"));
+        } catch (RuntimeException exception) {
+            log.warn("Không cập nhật được Payment-Service khi xác nhận tay đơn {}: {}",
+                    savedOrder.getOrderCode(), exception.getMessage());
+        }
 
+        orderPaymentEventService.finalizePaidOrder(
+                savedOrder, null, oldStatus, request.getChangedBy(), request.getPaymentCode());
+        return orderResponseAssembler.toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse cancelPosPayment(UUID orderId) {
+        Order order = getExistingOrder(orderId);
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            throw new OrderAlreadyPaidException("Đơn hàng đã được thanh toán, không huỷ phiên thanh toán được");
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT
+                || order.getPaymentStatus() != PaymentStatus.WAITING_PAYMENT) {
+            throw new InvalidOrderStatusException("Đơn không có phiên thanh toán đang chờ để huỷ");
+        }
+
+        // Đóng attempt bên Payment-Service trước: tiền về sau đó sẽ bị gắn cờ kiểm tra thay vì tự hoàn tất đơn.
+        paymentClient.cancelPendingPayment(order.getId());
+
+        Order savedOrder = orderPaymentEventService.returnOrderToDraft(
+                order, "Thu ngân huỷ thanh toán chuyển khoản, chọn lại phương thức");
+        orderPaymentSagaService.failPaymentSaga(savedOrder, null, "Thu ngân huỷ phiên thanh toán");
         return orderResponseAssembler.toResponse(savedOrder);
     }
 

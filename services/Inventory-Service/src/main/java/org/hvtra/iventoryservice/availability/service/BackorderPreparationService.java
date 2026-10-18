@@ -124,8 +124,19 @@ public class BackorderPreparationService {
         String orderLabel = request.orderCode() == null || request.orderCode().isBlank()
                 ? request.orderId().toString()
                 : request.orderCode();
-        ProductionOrderResponse created = productionOrderService.create(new CreateProductionOrderRequest(
-                estimate.productVariantId(), plannedQuantity, warehouse.getId(), "Sản xuất theo đơn " + orderLabel));
+        boolean materialsReady = scenario == AvailabilityScenario.PRODUCE_FROM_STOCK_MATERIALS;
+        CreateProductionOrderRequest createRequest = new CreateProductionOrderRequest(
+                estimate.productVariantId(), plannedQuantity, warehouse.getId(), "Sản xuất theo đơn " + orderLabel);
+
+        if (!materialsReady) {
+            // Thiếu nguyên liệu: mở cảnh báo nhập nguyên liệu trước, rồi lập lệnh nháp (không kiểm tra tồn
+            // nguyên liệu) để kho duyệt khi nguyên liệu về. Trước đây create() ném OutOfStock nên đơn chờ hàng
+            // không có lệnh sản xuất lẫn cảnh báo.
+            openMaterialAlerts(plan, warehouse);
+        }
+        ProductionOrderResponse created = materialsReady
+                ? productionOrderService.create(createRequest)
+                : productionOrderService.createDraft(createRequest);
 
         ProductionOrder order = productionOrderRepository.findById(created.id())
                 .orElseThrow(() -> new BadRequestException("Production order not found after creation"));
@@ -133,10 +144,8 @@ public class BackorderPreparationService {
         order.setSourceOrderCode(request.orderCode());
         productionOrderRepository.save(order);
 
-        if (scenario == AvailabilityScenario.PRODUCE_FROM_STOCK_MATERIALS) {
+        if (materialsReady) {
             productionOrderService.submit(created.id());
-        } else {
-            openMaterialAlerts(plan, warehouse);
         }
         return created.orderCode();
     }

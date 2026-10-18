@@ -232,7 +232,8 @@ class OrderControllerExportTest {
                 LocalDate.of(2026, 9, 30),
                 "createdAt,desc",
                 1,
-                20
+                20,
+                false
         )).thenReturn(expected);
 
         Page<OrderReturnSummaryResponse> actual = controller.getReturns(
@@ -255,7 +256,8 @@ class OrderControllerExportTest {
                 LocalDate.of(2026, 9, 30),
                 "createdAt,desc",
                 1,
-                20
+                20,
+                false
         );
     }
 
