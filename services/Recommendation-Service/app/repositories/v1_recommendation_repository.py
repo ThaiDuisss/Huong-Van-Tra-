@@ -66,13 +66,16 @@ class V1RecommendationRepository:
         return tuple(CatalogProduct(p, code, name, category,
                                     tuple(sorted(ingredients[p]))) for p, code, name, category in products)
 
-    def popularity(self, db: Session, purchased: set[str], limit: int):
+    def popularity(self, db: Session, purchased: set[str], limit: int,
+                   eligible_ids: set[str] | None = None):
         popularity = func.coalesce(func.sum(CustomerInteraction.total_purchase_count), 0).label("popularity")
         statement = select(Product.id, Product.product_code, Product.name, popularity).outerjoin(
             CustomerInteraction, CustomerInteraction.product_id == Product.id,
         ).where(Product.status == "ACTIVE", Product.is_deleted.is_(False))
         if purchased:
             statement = statement.where(Product.id.not_in(purchased))
+        if eligible_ids is not None:
+            statement = statement.where(Product.id.in_(eligible_ids))
         return list(db.execute(statement.group_by(Product.id, Product.product_code, Product.name)
                                .order_by(popularity.desc(), Product.id.asc()).limit(limit)))
 

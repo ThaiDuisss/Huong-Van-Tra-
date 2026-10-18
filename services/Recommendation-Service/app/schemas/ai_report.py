@@ -57,3 +57,13 @@ class TrustedReportFile(BaseModel):
     status: str
     visibility: str
     deleted: bool
+
+
+class TrustedReportDownload(BaseModel):
+    """File-Service's private, short-lived original-file capability."""
+    url: str = Field(min_length=1)
+    expiresInSeconds: int = Field(gt=0, le=300)
+    fileName: str = Field(min_length=1, max_length=255)
+    contentType: str
+    sizeBytes: int = Field(gt=0, le=10 * 1024 * 1024)
+    etag: str = Field(min_length=1, max_length=255, pattern=r'^[^\r\n"\\]+$')

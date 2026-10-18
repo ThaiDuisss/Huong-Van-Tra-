@@ -108,3 +108,30 @@ class AiReportService:
         report.updated_by, report.updated_at = user_id, now()
         db.commit()
         return report
+
+    def reconcile(self, db: Session, intent: AiReportImport):
+        """Operator-only recovery of an existing intent and its exact original binding.
+
+        Never invent an identity, replace an original, or revive a deleted report.
+        Remote binding is idempotent; it may survive a failed local commit.
+        """
+        report = self.repo.by_file(db, intent.file_id)
+        if report is None:
+            return self.create(db, AiReportCreate(name=intent.name, version=intent.version,
+                fileId=intent.file_id), intent.created_by)[0]
+        if report.is_deleted or report.id != intent.id or report.created_by != intent.created_by:
+            raise HTTPException(409, "Import and report identities differ")
+        try:
+            metadata = self.files.metadata(report.file_id, report.created_by)
+            if (str(metadata.fileId), str(metadata.ownerId), metadata.fileType, metadata.contentType) != (
+                report.file_id, report.created_by, report.file_type, FILE_MIMES.get(report.file_type)):
+                raise HTTPException(409, "Original file metadata differs from report")
+            if metadata.deleted or metadata.status != "ACTIVE" or metadata.visibility != "PRIVATE":
+                raise HTTPException(409, "Original file is unavailable")
+            self.files.bind(report.id, report.file_id, report.created_by)
+            intent.status, intent.last_error, intent.updated_at = "COMPLETE", None, now()
+            db.commit()
+            return report
+        except Exception:
+            db.rollback()
+            raise

@@ -104,7 +104,7 @@ class PurchaseKafkaConsumer:
         # 4. Process all interactions in a single scoped DB transaction
         db: Session = self.session_factory()
         try:
-            events = self.interaction_service.process_batch(db, interactions)
+            events = self.interaction_service.process_batch(db, interactions, completed_order=payload)
         except Exception as exc:
             db.rollback()
             logger.error(

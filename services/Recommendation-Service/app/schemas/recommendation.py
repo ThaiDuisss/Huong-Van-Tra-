@@ -1,7 +1,13 @@
 from datetime import datetime
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class RecommendationMode(str, Enum):
+    DISCOVERY = "DISCOVERY"
+    REPEAT = "REPEAT"
 
 
 class RecommendationItem(BaseModel):
@@ -32,3 +38,6 @@ class RecommendationResponse(BaseModel):
     items: list[RecommendationItem]
     purchase_order_count: int | None = Field(default=None, serialization_alias="purchaseOrderCount")
     exclude_purchased: bool = Field(default=True, serialization_alias="excludePurchased")
+    mode: RecommendationMode | None = None
+    recommendation_event_id: str | None = Field(default=None, serialization_alias="recommendationEventId")
+    generated_at: datetime | None = Field(default=None, serialization_alias="generatedAt")
