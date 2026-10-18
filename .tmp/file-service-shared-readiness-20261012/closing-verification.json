@@ -1,0 +1,9 @@
+{
+  "unchangedSinceAudit": true,
+  "counts": {
+    "files": 15,
+    "file_references": 0,
+    "business_sequences": 0,
+    "flyway_schema_history": 6
+  }
+}

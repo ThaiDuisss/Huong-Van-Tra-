@@ -2,6 +2,8 @@ import { apiClient } from "../../../api/api-client";
 import type { OrderPageResponse } from "../types/order.types";
 import type {
     CreateOrderReturnPayload,
+    CheckOrderReturnEligibilityPayload,
+    OrderReturnEligibilityResponse,
     CustomerReturnQcSummaryResponse,
     OrderRefundDetailResponse,
     OrderRefundQueryParams,
@@ -82,6 +84,13 @@ export function getOrderReturnStatusCounts(
         {
             query: compactQuery(params)
         }
+    );
+}
+
+export function checkOrderReturnEligibility(orderId: string, payload: CheckOrderReturnEligibilityPayload) {
+    return apiClient.post<OrderReturnEligibilityResponse, CheckOrderReturnEligibilityPayload>(
+        `/orders/${encodeURIComponent(orderId)}/returns/eligibility`,
+        payload
     );
 }
 

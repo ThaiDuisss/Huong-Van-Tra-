@@ -10,10 +10,9 @@ import { Link, useLocation } from "react-router-dom";
 
 import { useAuth } from "../../../auth/auth-context";
 import {
-    filterNavigationByRoles,
+    filterSystemNavigationByRoles,
     findNavigationTrail,
     getFirstNavigationPath,
-    systemNavigationItems
 } from "./system-navigation";
 
 interface BreadcrumbResult {
@@ -126,7 +125,7 @@ function resolveSubRouteLabel(pathname: string) {
 }
 
 function resolveBreadcrumb(pathname: string, roles: readonly string[] | undefined): BreadcrumbResult {
-    const visibleNavigationItems = filterNavigationByRoles(systemNavigationItems, roles);
+    const visibleNavigationItems = filterSystemNavigationByRoles(roles);
     const trail = findNavigationTrail(visibleNavigationItems, pathname);
 
     if (!trail) {

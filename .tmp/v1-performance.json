@@ -1,0 +1,15 @@
+{
+  "source": "synthetic in-memory fixture, no DB writes; not live HTTP latency",
+  "products": 64,
+  "fixture_customers": 980,
+  "features": 94,
+  "cf_shape": [
+    64,
+    64
+  ],
+  "npz_bytes": 7560,
+  "build_ms": 13.5126000004675,
+  "cold_load_ms": 12.456999999812979,
+  "warm_load_and_score_median_ms": 0.11000000040439772,
+  "warm_iterations": 1000
+}

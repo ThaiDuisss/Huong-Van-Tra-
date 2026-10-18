@@ -1,0 +1,12 @@
+{
+  "processExitCode": 0,
+  "allErrorMessages": "",
+  "database": "file_db",
+  "errorDetails": null,
+  "flywayVersion": "13.7.0",
+  "invalidMigrations": [],
+  "operation": "validate",
+  "validateCount": 8,
+  "validationSuccessful": true,
+  "warnings": []
+}

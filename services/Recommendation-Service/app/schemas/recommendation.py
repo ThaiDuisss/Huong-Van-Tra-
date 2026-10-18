@@ -18,7 +18,7 @@ class RecommendationResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     customer_id: str = Field(serialization_alias="customerId")
-    source: Literal["MODEL", "FALLBACK"]
+    source: Literal["MODEL", "POPULARITY", "HYBRID", "FALLBACK"]
     fallback_reason: str | None = Field(
         default=None,
         serialization_alias="fallbackReason",
@@ -30,3 +30,5 @@ class RecommendationResponse(BaseModel):
     )
     trained_at: datetime | None = Field(default=None, serialization_alias="trainedAt")
     items: list[RecommendationItem]
+    purchase_order_count: int | None = Field(default=None, serialization_alias="purchaseOrderCount")
+    exclude_purchased: bool = Field(default=True, serialization_alias="excludePurchased")

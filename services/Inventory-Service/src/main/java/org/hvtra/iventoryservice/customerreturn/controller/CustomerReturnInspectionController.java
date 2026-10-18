@@ -56,7 +56,7 @@ public class CustomerReturnInspectionController {
     @PostMapping("/customer-return-inspections/{inspectionId}/post")
     public ResponseEntity<CustomerReturnInspectionResponse> postInspection(
             @PathVariable UUID inspectionId,
-            @RequestBody(required = false) PostCustomerReturnInspectionRequest request
+            @Valid @RequestBody(required = false) PostCustomerReturnInspectionRequest request
     ) {
         return ResponseEntity.ok(service.postInspection(inspectionId, request));
     }

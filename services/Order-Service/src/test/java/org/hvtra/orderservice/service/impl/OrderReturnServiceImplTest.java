@@ -7,7 +7,6 @@ import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
-import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
 import org.hvtra.orderservice.domain.enums.OrderReturnHistoryAction;
 import org.hvtra.orderservice.domain.enums.OrderReturnInventoryCommandStatus;
 import org.hvtra.orderservice.domain.enums.OrderReturnStatus;
@@ -19,6 +18,7 @@ import org.hvtra.orderservice.domain.enums.ReturnReason;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnItemRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.request.CheckOrderReturnEligibilityRequest;
 import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionLineRequest;
 import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.response.OrderReturnRefundResponse;
@@ -31,19 +31,18 @@ import org.hvtra.orderservice.repository.OrderReturnHistoryRepository;
 import org.hvtra.orderservice.repository.OrderReturnInventoryCommandRepository;
 import org.hvtra.orderservice.repository.OrderReturnItemRepository;
 import org.hvtra.orderservice.repository.OrderReturnRepository;
-import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.service.OrderReturnRefundTransactionService;
 import org.hvtra.orderservice.service.helper.OrderCodeGenerator;
 import org.hvtra.orderservice.service.helper.ReturnRefundCalculator;
 import org.hvtra.orderservice.service.mapper.OrderReturnMapper;
 import org.hvtra.orderservice.service.support.OrderReturnDisplayStatusResolver;
+import org.hvtra.orderservice.service.support.OrderReturnCreationEligibilityResolver;
 import org.hvtra.orderservice.service.support.OrderReturnHistoryWriter;
 import org.hvtra.orderservice.service.support.OrderReturnPhysicalCompletionHandler;
 import org.hvtra.orderservice.service.support.OrderReturnPhysicalProgressResolver;
 import org.hvtra.orderservice.service.support.OrderReturnRefundEligibilityResolver;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -109,9 +108,6 @@ class OrderReturnServiceImplTest {
     private OrderReturnHistoryRepository orderReturnHistoryRepository;
 
     @Mock
-    private OrderStatusHistoryRepository orderStatusHistoryRepository;
-
-    @Mock
     private OrderCodeGenerator orderCodeGenerator;
 
     @Mock
@@ -151,7 +147,6 @@ class OrderReturnServiceImplTest {
                 orderReturnItemRepository,
                 orderReturnInventoryCommandRepository,
                 orderReturnHistoryRepository,
-                orderStatusHistoryRepository,
                 orderCodeGenerator,
                 new OrderReturnMapper(),
                 inventoryClient,
@@ -176,7 +171,8 @@ class OrderReturnServiceImplTest {
                         ),
                         orderReturnHistoryWriter,
                         orderOutboxPublisher
-                )
+                ),
+                new OrderReturnCreationEligibilityResolver()
         );
         orderId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();
@@ -218,6 +214,37 @@ class OrderReturnServiceImplTest {
                 null
         );
         verify(orderOutboxPublisher).publishReturnCreatedNotification(captor.getValue(), null);
+        verifyNoInteractions(inventoryClient, orderReturnInventoryCommandRepository);
+    }
+
+    @Test
+    void eligibilityPreviewUsesCurrentRemainingQuantityWithoutWritingOrLocking() {
+        when(orderRepository.findByIdAndIsDeletedFalseWithItems(orderId)).thenReturn(Optional.of(order));
+        stubReturnedQuantity(BigDecimal.ONE);
+        var draft = request(orderItemId, "2", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null);
+
+        var preview = service.checkReturnEligibility(orderId, new CheckOrderReturnEligibilityRequest(draft.getItems()));
+
+        assertTrue(preview.eligible());
+        assertEquals(0, preview.items().getFirst().remainingQuantity().compareTo(new BigDecimal("2")));
+        verifyNoInteractions(orderItemRepository, orderReturnRepository, orderCodeGenerator, orderOutboxPublisher,
+                inventoryClient, orderReturnInventoryCommandRepository);
+    }
+
+    @Test
+    void earlierEligiblePreviewCannotBypassFreshLockedCreateValidation() {
+        stubEligibleOrder(BigDecimal.ZERO);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItems(orderId)).thenReturn(Optional.of(order));
+        var draft = request(orderItemId, "1", ReturnReason.QUALITY_ISSUE, ReturnCondition.OPENED, null);
+        assertTrue(service.checkReturnEligibility(orderId, new CheckOrderReturnEligibilityRequest(draft.getItems())).eligible());
+        when(orderReturnItemRepository.sumReturnedQuantity(eq(orderItemId), any())).thenReturn(new BigDecimal("3"));
+
+        var failure = assertThrows(InvalidOrderReturnException.class, () -> service.createReturn(orderId, draft));
+
+        assertEquals("No remaining quantity available for return", failure.getMessage());
+        verify(orderRepository).findByIdAndIsDeletedFalseWithItemsForUpdate(orderId);
+        verify(orderItemRepository).findReturnableItemsForUpdate(eq(orderId), any());
+        verify(orderReturnRepository, never()).save(any());
     }
 
     @Test
@@ -505,20 +532,13 @@ class OrderReturnServiceImplTest {
     }
 
     @Test
-    @Disabled("Return window validation is temporarily disabled per business policy")
-    void createReturnRejectsExpiredReturnWindow() {
-        stubEligibleOrderOnly();
-        stubCompletedAt(Instant.now().minusSeconds(15 * 24 * 60 * 60));
-
-        InvalidOrderReturnException exception = assertThrows(
-                InvalidOrderReturnException.class,
-                () -> service.createReturn(
-                        orderId,
-                        request(orderItemId, "1.000", ReturnReason.CHANGE_OF_MIND, ReturnCondition.SEALED, null)
-                )
-        );
-
-        assertEquals("Return window has expired", exception.getMessage());
+    void createReturnAllowsOldOrdersWithoutSevenDayWindow() {
+        stubEligibleOrder(BigDecimal.ZERO, Instant.parse("2020-01-01T00:00:00Z"));
+        when(orderCodeGenerator.generateReturnCode()).thenReturn("RET-OLD-ORDER");
+        when(orderReturnRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var created = service.createReturn(orderId,
+                request(orderItemId, "1.000", ReturnReason.CHANGE_OF_MIND, ReturnCondition.SEALED, null));
+        assertEquals(ReturnStatus.CREATED, created.getStatus());
     }
 
     @Test
@@ -1219,7 +1239,6 @@ class OrderReturnServiceImplTest {
         verifyNoInteractions(
                 orderRepository,
                 orderReturnItemRepository,
-                orderStatusHistoryRepository,
                 orderCodeGenerator
         );
     }
@@ -1241,15 +1260,7 @@ class OrderReturnServiceImplTest {
     }
 
     private void stubCompletedAt(Instant completedAt) {
-        OrderStatusHistory history = OrderStatusHistory.builder()
-                .order(order)
-                .toStatus(OrderStatus.COMPLETED)
-                .changedAt(completedAt)
-                .build();
-        when(orderStatusHistoryRepository.findFirstByOrderIdAndToStatusAndIsDeletedFalseOrderByChangedAtDesc(
-                orderId,
-                OrderStatus.COMPLETED
-        )).thenReturn(Optional.of(history));
+        order.setUpdatedAt(completedAt);
     }
 
     private void stubReturnedQuantity(BigDecimal returnedQuantity) {

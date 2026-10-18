@@ -24,8 +24,13 @@ class Settings(BaseSettings):
     catalog_service_url: str = "http://localhost:8081"
     internal_header_secret: str = "dev-internal-header-secret"
     internal_service_name: str = "recommendation-service"
+    file_service_url: str = "http://localhost:8101"
+    # Exact origins only; signed storage URLs are never supplied by the caller.
+    ai_report_storage_origins: str = "http://localhost:9000"
+    ai_report_file_timeout_seconds: float = 30.0
 
-    model_artifact_path: str = "artifacts/lightfm_model.pkl"
+    model_artifact_path: str = "artifacts/lightfm_model.pkl"  # Legacy research training only.
+    v1_artifact_path: str = "artifacts/v1_hybrid_model.npz"
     recommendation_default_limit: int = 10
     recommendation_max_limit: int = 50
 

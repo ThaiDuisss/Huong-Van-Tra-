@@ -5,12 +5,18 @@ import type {
     CustomerReturnInspectionListQuery,
     CustomerReturnInspectionListResult
 } from "../types/customer-return-inspection.types";
+import type { CustomerReturnActualCondition, CustomerReturnQcResult, CustomerReturnQcLocation } from "../types/customer-return-inspection.types";
+import type { InventoryLocationType } from "../types/inventory.types";
+import { inventoryLocationApi } from "./inventoryLocation.api";
 
 export interface PostCustomerReturnInspectionRequest {
     lines?: Array<{
         lineId?: string;
         returnItemId?: string;
         destinationLocationId?: string;
+        actualCondition?: CustomerReturnActualCondition;
+        result?: CustomerReturnQcResult;
+        note?: string;
     }>;
 }
 
@@ -45,3 +51,20 @@ export const customerReturnApi = {
         );
     }
 };
+
+export async function loadCustomerReturnQcLocations(): Promise<CustomerReturnQcLocation[]> {
+    const types: InventoryLocationType[] = ["WAREHOUSE", "STORAGE", "SHELF", "DAMAGED", "QUARANTINE"];
+    const byType = await Promise.all(types.map(async (type) => {
+        const locations: CustomerReturnQcLocation[] = [];
+        let page = 0;
+        let totalPages: number;
+        do {
+            const response = await inventoryLocationApi.lookupLocations("", page, 100, { type, status: "ACTIVE" });
+            locations.push(...response.content.map((location) => ({ ...location, type })));
+            totalPages = response.totalPages;
+            page += 1;
+        } while (page < totalPages);
+        return locations;
+    }));
+    return byType.flat();
+}

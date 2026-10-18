@@ -1,6 +1,8 @@
 package org.hvtra.orderservice.service;
 
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.request.CheckOrderReturnEligibilityRequest;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityResponse;
 import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.response.OrderRefundDetailResponse;
 import org.hvtra.orderservice.dto.response.OrderRefundStatsResponse;
@@ -22,6 +24,8 @@ import java.util.Map;
 import java.util.UUID;
 
 public interface OrderReturnService {
+    OrderReturnEligibilityResponse checkReturnEligibility(UUID orderId, CheckOrderReturnEligibilityRequest request);
+
     OrderReturnResponse createReturn(UUID orderId, CreateOrderReturnRequest request);
 
     OrderReturnResponse receiveReturn(UUID returnId);

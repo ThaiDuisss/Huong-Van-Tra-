@@ -8,6 +8,7 @@ export const routePaths = {
   posCustomerReturnDetail: "/pos/customer-returns/:returnId",
   salesHistory: "/sales-history",
   system: "/system",
+  aiReports: "/system/ai/reports",
   systemDashboard: "/system/dashboard",
   systemDashboardOverview: "/system/dashboard/overview",
   systemDashboardPos: "/system/dashboard/pos",
