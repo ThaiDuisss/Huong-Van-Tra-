@@ -111,6 +111,7 @@ class OrderStatisticReportControllerTest {
 
         assertEquals(
                 List.of(
+                        "/sales-dashboard",
                         "/top-sales-staff",
                         "/top-sales-staff/export",
                         "/top-selling-products",

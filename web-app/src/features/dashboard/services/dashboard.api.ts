@@ -1,5 +1,7 @@
 import { ApiError } from "@/lib/api-client";
 
+import { apiClient } from "../../../api/api-client";
+
 import { formatLocalDate } from "../../../components/shared/TimeHierarchyFilter.utils";
 import { inventoryBalanceApi } from "../../inventory/services/inventoryBalance.api";
 import { inventoryDashboardApi } from "../../inventory/services/inventoryDashboard.api";
@@ -8,12 +10,13 @@ import { inventoryReportApi } from "../../inventory/services/inventoryReport.api
 import { inventoryTransactionApi } from "../../inventory/services/inventoryTransaction.api";
 import { qualityApi } from "../../inventory/services/quality.api";
 import { stockAlertApi } from "../../inventory/services/stockAlert.api";
-import { stockDocumentApi } from "../../inventory/services/stockDocument.api";
 import type { QualityBatchQuery, QualityBatchSummary } from "../../inventory/types/quality.types";
 import type { StockAlertListQuery } from "../../inventory/types/stock-alert.types";
-import type { StockDocumentListQuery } from "../../inventory/types/stock-document.types";
+import type { PageResponse } from "../../inventory/types/inventory.types";
 import { getOrderStats } from "../../order/services/order.api";
+import { getSalesDashboard } from "../../order/services/sales-dashboard.api";
 import { getTodaySales, getTodaySalesSummary } from "../../order/services/sales-history.api";
+import type { SalesDashboardResponse } from "../../order/types/sales-dashboard.types";
 import {
   mockInventoryBalances,
   mockInventoryOverviewSummary,
@@ -30,8 +33,10 @@ import type {
   DashboardAlertSnapshot,
   DashboardInventorySnapshot,
   DashboardPart,
+  DashboardPendingDocument,
   DashboardProductionSnapshot,
   DashboardProductionWastage,
+  DashboardSalesAnalytics,
   DashboardSalesSnapshot,
   DashboardTimeRange,
 } from "../types/dashboard.types";
@@ -66,25 +71,6 @@ const stockAlertQuery: StockAlertListQuery = {
   size: 20,
   skuOrCategory: "",
   status: "OPEN",
-  type: "ALL",
-};
-
-const pendingDocumentQuery: StockDocumentListQuery = {
-  createdById: "ALL",
-  createdFrom: "",
-  createdTo: "",
-  destinationLocationId: "ALL",
-  direction: "ALL",
-  documentCode: "",
-  hasBatch: "ALL",
-  locationId: "ALL",
-  page: 0,
-  postedFrom: "",
-  postedTo: "",
-  referenceCode: "",
-  size: 20,
-  sourceLocationId: "ALL",
-  status: "SUBMITTED",
   type: "ALL",
 };
 
@@ -146,12 +132,97 @@ export function toDateRange(range: DashboardTimeRange) {
   };
 }
 
+function toNumber(value: number | string | null | undefined) {
+  const parsed = typeof value === "string" ? Number(value) : (value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+const paymentMethodLabels: Record<string, string> = {
+  BANK_TRANSFER: "Chuyển khoản",
+  CASH: "Tiền mặt",
+  DEBT: "Ghi nợ",
+};
+
+/** Chuyển response backend sang cấu trúc widget; nguồn REAL. */
+export function toSalesAnalytics(response: SalesDashboardResponse): DashboardSalesAnalytics {
+  return {
+    orderTrend: response.hourlyTrend.map((point) => ({
+      label: point.label,
+      source: "REAL",
+      value: point.orderCount,
+    })),
+    paymentBreakdown: response.paymentBreakdown.map((row) => {
+      const method = row.method || "UNKNOWN";
+      return {
+        label: paymentMethodLabels[method] ?? (row.method || "Chưa ghi nhận"),
+        method,
+        revenue: toNumber(row.revenue),
+        status: "REAL",
+        transactionCount: row.orderCount,
+      };
+    }),
+    revenueTrend: response.hourlyTrend.map((point) => ({
+      label: point.label,
+      secondaryValue: point.orderCount,
+      source: "REAL",
+      value: toNumber(point.revenue),
+    })),
+    staffPerformance: response.topStaff.map((staff) => ({
+      cancelRefundRate:
+        staff.orderCount > 0 ? Math.round((staff.refundedOrderCount / staff.orderCount) * 1000) / 10 : 0,
+      id: staff.cashierId ?? `no-cashier-${staff.rank}`,
+      orderCount: staff.orderCount,
+      revenue: toNumber(staff.revenue),
+      source: "REAL",
+      staffName: staff.cashierName || "Chưa gán thu ngân",
+    })),
+    storePerformance: response.storePerformance.map((store, index) => ({
+      averageOrderValue: toNumber(store.averageOrderValue),
+      id: store.branchId ?? `no-branch-${index}`,
+      orderCount: store.orderCount,
+      revenue: toNumber(store.revenue),
+      source: "REAL",
+      storeName: store.branchName || "Chưa gán chi nhánh",
+    })),
+    topSkus: response.topProducts.map((product) => ({
+      category: product.variantName || "",
+      id: product.productVariantId,
+      quantity: toNumber(product.quantitySold),
+      revenue: toNumber(product.revenue),
+      skuCode: product.sku ?? "",
+      skuName: product.productName || product.sku || "Sản phẩm",
+      source: "REAL",
+    })),
+  };
+}
+
+const mockSalesAnalytics: DashboardSalesAnalytics = {
+  orderTrend,
+  paymentBreakdown,
+  revenueTrend,
+  staffPerformance,
+  storePerformance,
+  topSkus: topSkusByRevenue,
+};
+
+const pendingDocumentTypeLabel = "Phiếu nhập kho";
+
+/** Các trường dùng từ `GET /inventory/documents` (InventoryDocumentListItemResponse). */
+interface PendingDocumentBackendRow {
+  id: string;
+  documentCode: string;
+  locationName?: string | null;
+  supplierName?: string | null;
+  createdAt?: string | null;
+}
+
 export const dashboardApi = {
   async getSalesSnapshot(timeRange: DashboardTimeRange): Promise<DashboardSalesSnapshot> {
     const dateRange = toDateRange(timeRange);
-    const [todaySummary, stats, recentOrders] = await Promise.all([
+    const [todaySummary, stats, analytics, recentOrders] = await Promise.all([
       part(() => getTodaySalesSummary()),
       part(() => getOrderStats(dateRange)),
+      part(async () => toSalesAnalytics(await getSalesDashboard(dateRange))),
       part(async () => {
         const page = await getTodaySales({
           filters: { paymentMethod: "ALL", status: "ALL" },
@@ -165,16 +236,8 @@ export const dashboardApi = {
 
     return {
       ...dateRange,
-      demo: isDashboardMockEnabled
-        ? {
-            orderTrend,
-            paymentBreakdown,
-            revenueTrend,
-            staffPerformance,
-            storePerformance,
-            topSkus: topSkusByRevenue,
-          }
-        : null,
+      analytics:
+        analytics.data === null && isDashboardMockEnabled ? { data: mockSalesAnalytics } : analytics,
       recentOrders,
       stats,
       timeRange,
@@ -270,7 +333,10 @@ export const dashboardApi = {
 
   async getAlertSnapshot(): Promise<DashboardAlertSnapshot> {
     const [stockAlerts, expiringBatches, pendingDocuments, expiringReservationsRes] = await Promise.all([
-      part(async () => (await stockAlertApi.listStockAlerts(stockAlertQuery)).content),
+      // Stock alert chưa có backend: chỉ hiển thị khi bật mock dashboard.
+      isDashboardMockEnabled
+        ? part(async () => (await stockAlertApi.listStockAlerts(stockAlertQuery)).content)
+        : Promise.resolve<DashboardPart<never[]>>({ data: null }),
       part(async () => {
         try {
           const realBatches = await inventoryDashboardApi.getExpiringBatches(undefined, undefined, 30, 10);
@@ -313,7 +379,20 @@ export const dashboardApi = {
           return [];
         }
       }),
-      part(async () => (await stockDocumentApi.listStockDocuments(pendingDocumentQuery)).content),
+      part(async (): Promise<DashboardPendingDocument[]> => {
+        const page = await apiClient.get<PageResponse<PendingDocumentBackendRow>>("/inventory/documents", {
+          query: { page: 0, size: DASHBOARD_LIST_SIZE * 2, status: "PENDING_APPROVAL" },
+        });
+
+        return page.content.map((document) => ({
+          code: document.documentCode,
+          createdAt: document.createdAt ?? null,
+          id: document.id,
+          locationName: document.locationName ?? null,
+          supplierName: document.supplierName ?? null,
+          typeLabel: pendingDocumentTypeLabel,
+        }));
+      }),
       part(async () => (await import("../../../api/api-client").then((m) => m.apiClient.get<any[]>("/inventory/reservations/expiring-soon")))),
     ]);
 

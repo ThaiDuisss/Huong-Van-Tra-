@@ -118,6 +118,7 @@ public interface InventoryDocumentRepository extends JpaRepository<InventoryDocu
                  FROM inventory_document_lines l
                  WHERE l.document_id = d.id) AS totalReceivedQuantity,
                 d.received_at AS receivedAt,
+                d.created_at AS createdAt,
                 BIN_TO_UUID(d.created_by) AS createdBy
             FROM inventory_documents d
             LEFT JOIN inventory_locations loc ON loc.id = d.location_id

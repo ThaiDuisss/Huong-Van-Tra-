@@ -11,6 +11,10 @@ import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.Pro
 import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.ProductSalesTotals;
 import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.StaffOrderMetrics;
 import org.hvtra.orderservice.service.OrderStatisticReportService;
+import org.hvtra.orderservice.dto.response.SalesDashboardResponse;
+import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.BranchSalesMetrics;
+import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.OrderTimelineEntry;
+import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.PaymentMethodMetrics;
 import org.hvtra.orderservice.service.helper.OrderDateTimeHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,8 +23,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -163,6 +170,98 @@ public class OrderStatisticReportServiceImpl implements OrderStatisticReportServ
                 .totalOrders(totals.orderCount())
                 .rows(rows)
                 .build();
+    }
+
+    @Override
+    public SalesDashboardResponse getSalesDashboard(LocalDate fromDate, LocalDate toDate) {
+        validateDateRange(fromDate, toDate);
+        LocalDate effectiveTo = toDate == null ? orderDateTimeHelper.today() : toDate;
+        LocalDate effectiveFrom = fromDate == null ? effectiveTo : fromDate;
+        if (ChronoUnit.DAYS.between(effectiveFrom, effectiveTo) >= DASHBOARD_MAX_DAYS) {
+            throw new BusinessException(
+                    "DATE_RANGE_TOO_WIDE",
+                    "Dashboard chỉ hỗ trợ tối đa " + DASHBOARD_MAX_DAYS + " ngày"
+            );
+        }
+        Instant fromCreatedAt = startOfDay(effectiveFrom);
+        Instant toCreatedBefore = startOfDay(effectiveTo.plusDays(1));
+
+        List<OrderTimelineEntry> timeline =
+                reportQueryRepository.findPaidOrderTimeline(fromCreatedAt, toCreatedBefore);
+        List<PaymentMethodMetrics> payments =
+                reportQueryRepository.findPaymentBreakdown(fromCreatedAt, toCreatedBefore);
+        List<BranchSalesMetrics> branches =
+                reportQueryRepository.findStorePerformance(fromCreatedAt, toCreatedBefore);
+
+        long totalOrders = timeline.size();
+        BigDecimal totalRevenue = timeline.stream()
+                .map(entry -> defaultZero(entry.amount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new SalesDashboardResponse(
+                effectiveFrom,
+                effectiveTo,
+                totalOrders,
+                totalRevenue,
+                hourlyTrend(timeline),
+                payments.stream()
+                        .map(row -> new SalesDashboardResponse.PaymentBreakdownRow(
+                                trim(row.paymentMethod()),
+                                row.orderCount(),
+                                defaultZero(row.revenue())
+                        ))
+                        .sorted(Comparator.comparing(SalesDashboardResponse.PaymentBreakdownRow::revenue).reversed())
+                        .toList(),
+                branches.stream()
+                        .map(row -> new SalesDashboardResponse.StorePerformanceRow(
+                                row.branchId(),
+                                trim(row.branchName()),
+                                row.orderCount(),
+                                defaultZero(row.revenue()),
+                                average(row.revenue(), row.orderCount())
+                        ))
+                        .sorted(Comparator.comparing(SalesDashboardResponse.StorePerformanceRow::revenue).reversed())
+                        .toList(),
+                getTopSellingProducts(effectiveFrom, effectiveTo, SORT_REVENUE, DASHBOARD_TOP_LIMIT).getRows(),
+                getTopSalesStaff(effectiveFrom, effectiveTo, SORT_REVENUE, DASHBOARD_TOP_LIMIT).getRows()
+        );
+    }
+
+    /**
+     * Gộp đơn theo giờ trong ngày (múi giờ hệ thống). Trả về dải giờ liên tục từ giờ bán sớm nhất
+     * tới muộn nhất, các giờ không có đơn điền 0 để biểu đồ không bị đứt; không có đơn thì rỗng.
+     */
+    private List<SalesDashboardResponse.HourlyPoint> hourlyTrend(List<OrderTimelineEntry> timeline) {
+        Map<Integer, long[]> counts = new LinkedHashMap<>();
+        Map<Integer, BigDecimal> revenues = new LinkedHashMap<>();
+        for (OrderTimelineEntry entry : timeline) {
+            if (entry.soldAt() == null) {
+                continue;
+            }
+            LocalDateTime local = orderDateTimeHelper.toLocalDateTime(entry.soldAt());
+            if (local == null) {
+                continue;
+            }
+            int hour = local.getHour();
+            counts.computeIfAbsent(hour, key -> new long[1])[0]++;
+            revenues.merge(hour, defaultZero(entry.amount()), BigDecimal::add);
+        }
+        if (counts.isEmpty()) {
+            return List.of();
+        }
+        int firstHour = counts.keySet().stream().mapToInt(Integer::intValue).min().orElse(0);
+        int lastHour = counts.keySet().stream().mapToInt(Integer::intValue).max().orElse(23);
+        List<SalesDashboardResponse.HourlyPoint> points = new ArrayList<>();
+        for (int hour = firstHour; hour <= lastHour; hour++) {
+            long[] count = counts.get(hour);
+            points.add(new SalesDashboardResponse.HourlyPoint(
+                    hour,
+                    String.format("%02d:00", hour),
+                    count == null ? 0 : count[0],
+                    revenues.getOrDefault(hour, BigDecimal.ZERO)
+            ));
+        }
+        return points;
     }
 
     private BigDecimal itemsSold(Map<UUID, BigDecimal> itemsSoldByCashier, UUID cashierId) {
