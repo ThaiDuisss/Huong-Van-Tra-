@@ -6,8 +6,11 @@ import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReserva
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReserveMaterialOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.response.InventoryReservationResponse;
+import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
+import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface InventoryReservationService {
     InventoryReservationResponse apply(ApplyInventoryReservationRequest request);
@@ -16,6 +19,13 @@ public interface InventoryReservationService {
     List<InventoryReservationResponse> confirmOrder(ConfirmInventoryReservationOrderRequest request);
     List<InventoryReservationResponse> reserveMaterials(ReserveMaterialOrderRequest request);
     List<InventoryReservationResponse> consumeMaterials(ReleaseInventoryReservationOrderRequest request);
+
+    /**
+     * Trừ nguyên liệu đã giữ chỗ theo khóa {@code reservationKey} và ghi giao dịch theo loại/chứng từ do nơi gọi
+     * chỉ định (vd đóng trà theo yêu cầu: CUSTOM_BUNDLE_ISSUE) thay vì SALE_OUT theo đơn.
+     */
+    List<InventoryReservationResponse> consumeMaterials(UUID reservationKey, InventoryTransactionType type,
+            InventoryReferenceType referenceType, String referenceId, String transactionCode);
     List<InventoryReservationResponse> releaseMaterials(ReleaseInventoryReservationOrderRequest request);
 
     /**
