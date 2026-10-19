@@ -62,3 +62,6 @@ CLAUDE.md
 /graphify-out
 /services/Recommendation-Service/AI_REPORTS.md
 /.tmp/ai-reports-runtime-verification/verification-report.md
+
+.meeting/
+.external/
