@@ -25,6 +25,7 @@ import org.hvtra.catalog.entity.SellableAdjustment;
 import org.hvtra.catalog.entity.Unit;
 import org.hvtra.catalog.enums.InventoryItemType;
 import org.hvtra.catalog.enums.Status;
+import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.ProductMapper;
 import org.hvtra.catalog.repository.IngredientRepository;
@@ -67,6 +68,8 @@ import org.hvtra.catalog.enums.InventoryPolicy;
 @Service
 @Transactional(readOnly = true)
 public class ProductVariantServiceImpl implements ProductVariantService {
+
+    private static final String CUSTOM_BUNDLE_SKU = "CUSTOM-BUNDLE";
 
     private final ProductVariantRepository repository;
     private final ProductRepository productRepository;
@@ -121,6 +124,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             }
 
             var predicates = new ArrayList<Predicate>();
+            predicates.add(cb.isFalse(root.get("customBundle")));
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -153,6 +157,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Override
     public ProductResponse.VariantResponse findById(UUID id) {
         return mapper.toVariantResponse(get(id));
+    }
+
+    @Override
+    public ProductResponse.VariantResponse findCustomBundleVariant() {
+        return repository.findFirstByCustomBundleTrueAndIsDeletedFalse()
+                .map(mapper::toVariantResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", CUSTOM_BUNDLE_SKU));
     }
 
     @Transactional
@@ -221,6 +232,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Transactional
     public ProductResponse.VariantResponse update(UUID id, ProductVariantRequest request) {
         ProductVariant variant = get(id);
+        requireNotCustomBundle(variant);
         apply(variant, request);
         ProductVariant savedVariant = repository.save(variant);
 
@@ -233,6 +245,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Transactional
     public ProductResponse.VariantResponse updateStatus(UUID id, Status status) {
         ProductVariant variant = get(id);
+        requireNotCustomBundle(variant);
         variant.setStatus(status);
         ProductVariant savedVariant = repository.save(variant);
         syncInventoryItem(savedVariant);
@@ -247,6 +260,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     public ProductResponse.VariantResponse updateSellableConfig(UUID id, SellableConfigRequest request) {
         ProductVariant variant = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductVariant", id));
+        requireNotCustomBundle(variant);
         variant.setSellableQuantity(request.sellableQuantity());
         variant.setProductionThreshold(request.productionThreshold());
         variant.setProductionBatchQuantity(request.productionBatchQuantity());
@@ -266,6 +280,10 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             return adjustmentResponse(before, request, prior);
         }
         BigDecimal oldSellableQuantity = safeQuantity(before.getSellableQuantity());
+        if (before.isCustomBundle()) {
+            // Bundle trừ tồn theo nguyên liệu thành phần, không theo sellable quantity của variant.
+            return toSellableAdjustmentResponse(before, request, quantity, oldSellableQuantity, oldSellableQuantity, false);
+        }
         int updated = repository.decrementSellableIfEnough(id, quantity);
         if (updated == 0) {
             throw new IllegalArgumentException("Insufficient sellable quantity for product variant " + id);
@@ -296,6 +314,10 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             return adjustmentResponse(before, request, prior);
         }
         BigDecimal oldSellableQuantity = safeQuantity(before.getSellableQuantity());
+        if (before.isCustomBundle()) {
+            // Bundle trừ tồn theo nguyên liệu thành phần, không theo sellable quantity của variant.
+            return toSellableAdjustmentResponse(before, request, quantity, oldSellableQuantity, oldSellableQuantity, false);
+        }
         int updated = repository.restoreSellable(id, quantity);
         if (updated == 0) {
             throw new ResourceNotFoundException("ProductVariant", id);
@@ -361,6 +383,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             );
         } catch (Exception e) {
             log.error("Failed to sync inventory item for variant id: {}", variant.getId(), e);
+        }
+    }
+
+    /** Variant hệ thống "Trà đóng theo yêu cầu" do migration tạo; không cho sửa/xoá qua API quản lý. */
+    private void requireNotCustomBundle(ProductVariant variant) {
+        if (variant.isCustomBundle()) {
+            throw new BadRequestException("Mặt hàng hệ thống \"Trà đóng theo yêu cầu\" không được chỉnh sửa hoặc xoá");
         }
     }
 
@@ -871,6 +900,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
             predicates.add(cb.equal(root.get("status"), Status.ACTIVE));
+            predicates.add(cb.isFalse(root.get("customBundle")));
 
             if (search != null && !search.trim().isEmpty()) {
                 String searchPattern = "%" + search.trim().toLowerCase() + "%";
@@ -913,6 +943,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         if (variant.getIsDeleted()) {
             throw new ResourceNotFoundException("ProductVariant", id);
         }
+        requireNotCustomBundle(variant);
         variant.setIsDeleted(true);
         repository.save(variant);
     }

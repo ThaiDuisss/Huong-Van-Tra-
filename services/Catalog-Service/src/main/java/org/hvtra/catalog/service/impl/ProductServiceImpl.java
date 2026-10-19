@@ -54,6 +54,9 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class ProductServiceImpl implements ProductService {
 
+    /** Sản phẩm hệ thống "Trà đóng theo yêu cầu" (migration V261019100000). */
+    private static final String CUSTOM_BUNDLE_PRODUCT_CODE = "CUSTOM-BUNDLE";
+
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final CategoryRepository categoryRepository;
@@ -87,6 +90,7 @@ public class ProductServiceImpl implements ProductService {
 
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.equal(root.get("isDeleted"), false));
+            predicates.add(cb.notEqual(root.get("productCode"), CUSTOM_BUNDLE_PRODUCT_CODE));
             if (name != null && !name.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
             }
@@ -198,6 +202,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductResponse update(UUID id, ProductRequest request) {
         Product product = getProduct(id);
+        requireNotCustomBundle(product);
         
         String code = request.productCode();
         if (code != null && !code.isBlank()) {
@@ -221,6 +226,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductResponse updateStatus(UUID id, Status status) {
         Product product = getProduct(id);
+        requireNotCustomBundle(product);
         product.setStatus(status);
         return mapper.toResponse(productRepository.save(product));
     }
@@ -233,6 +239,12 @@ public class ProductServiceImpl implements ProductService {
         product.setDescription(request.description());
         product.setImageUrl(request.imageUrl());
         product.setStatus(request.status());
+    }
+
+    private void requireNotCustomBundle(Product product) {
+        if (CUSTOM_BUNDLE_PRODUCT_CODE.equals(product.getProductCode())) {
+            throw new BadRequestException("Sản phẩm hệ thống \"Trà đóng theo yêu cầu\" không được chỉnh sửa hoặc xoá");
+        }
     }
 
     private Product getProduct(UUID id) {
@@ -491,6 +503,7 @@ public class ProductServiceImpl implements ProductService {
         if (product.getIsDeleted()) {
             throw new ResourceNotFoundException("Product", id);
         }
+        requireNotCustomBundle(product);
         product.setIsDeleted(true);
         productRepository.save(product);
     }

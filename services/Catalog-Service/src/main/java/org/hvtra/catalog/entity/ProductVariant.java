@@ -65,6 +65,13 @@ public class ProductVariant extends BaseEntity {
     @Column(nullable = false, length = 50)
     private Status status = Status.ACTIVE;
 
+    /**
+     * Variant hệ thống "Trà đóng theo yêu cầu": dòng bundle trong đơn bán, giá và nguyên liệu nằm ở
+     * thành phần của dòng đơn. Không hiện trong danh sách bán, không quản lý sellable quantity.
+     */
+    @Column(name = "custom_bundle", nullable = false)
+    private boolean customBundle = false;
+
     @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Barcode> barcodes = new ArrayList<>();
 
