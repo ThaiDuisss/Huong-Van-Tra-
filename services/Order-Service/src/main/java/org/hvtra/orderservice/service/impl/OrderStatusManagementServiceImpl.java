@@ -13,6 +13,7 @@ import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderStatusManagementService;
+import org.hvtra.orderservice.service.support.OrderBackorderSupport;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
 import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ public class OrderStatusManagementServiceImpl implements OrderStatusManagementSe
     private final OrderResponseAssembler orderResponseAssembler;
     private final CatalogClient catalogClient;
     private final InventoryClient inventoryClient;
+    private final OrderBackorderSupport orderBackorderSupport;
 
     @Override
     @Transactional
@@ -53,6 +55,15 @@ public class OrderStatusManagementServiceImpl implements OrderStatusManagementSe
                 && order.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.WAITING_STOCK) {
             throw new InvalidOrderStatusException(
                     "Đơn đang chờ hàng. Vui lòng dùng chức năng giao hàng ở màn hình Đơn chờ hàng để hoàn tất đơn.");
+        }
+
+        if (orderBackorderSupport.hasBundle(order)) {
+            if (request.getStatus() == OrderStatus.COMPLETED) {
+                orderBackorderSupport.refreshBundles(order);
+                orderBackorderSupport.requireBundlesPacked(order);
+            } else if (request.getStatus() == OrderStatus.CANCELLED) {
+                orderBackorderSupport.cancelBundlePacking(order, request.getNote());
+            }
         }
 
         if (order.isFulfillmentRequired() && order.getPaymentStatus() == PaymentStatus.PAID) {
@@ -94,7 +105,9 @@ public class OrderStatusManagementServiceImpl implements OrderStatusManagementSe
 
     private void restoreSellable(Order order) {
         Map<UUID, BigDecimal> quantities = new LinkedHashMap<>();
-        order.getItems().forEach(item -> quantities.merge(item.getProductVariantId(), item.getQuantity(), BigDecimal::add));
+        order.getItems().stream()
+                .filter(item -> !item.isCustomBundle())
+                .forEach(item -> quantities.merge(item.getProductVariantId(), item.getQuantity(), BigDecimal::add));
         quantities.forEach((variantId, quantity) -> catalogClient.restoreSellableQuantity(variantId,
                 new CatalogClient.SellableQuantityAdjustmentRequest(quantity, null, "ORDER_CANCEL",
                         "ORDER_CANCEL:" + order.getId())));

@@ -2,9 +2,14 @@ package org.hvtra.orderservice.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
+import org.hvtra.orderservice.domain.enums.BundlePackingStatus;
+import org.hvtra.orderservice.domain.enums.OrderItemType;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -52,4 +57,48 @@ public class OrderItem extends BaseEntity {
 
     @Column(name = "note", length = 1000)
     private String note;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "item_type", nullable = false, length = 30)
+    @Builder.Default
+    private OrderItemType itemType = OrderItemType.PRODUCT;
+
+    /** Chỉ dùng cho dòng CUSTOM_BUNDLE: trạng thái yêu cầu đóng gói bên Inventory. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "packing_status", length = 30)
+    private BundlePackingStatus packingStatus;
+
+    @Column(name = "packing_reference_id", columnDefinition = "BINARY(16)")
+    private UUID packingReferenceId;
+
+    @Column(name = "packing_code", length = 100)
+    private String packingCode;
+
+    @BatchSize(size = 50)
+    @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("createdAt asc")
+    @Builder.Default
+    private List<OrderItemComponent> components = new ArrayList<>();
+
+    public boolean isCustomBundle() {
+        return itemType == OrderItemType.CUSTOM_BUNDLE;
+    }
+
+    @PrePersist
+    void defaultItemType() {
+        if (itemType == null) {
+            itemType = OrderItemType.PRODUCT;
+        }
+    }
+
+    public void replaceComponents(List<OrderItemComponent> newComponents) {
+        if (components == null) {
+            components = new ArrayList<>();
+        }
+        components.clear();
+        newComponents.forEach(component -> {
+            component.setOrderItem(this);
+            components.add(component);
+        });
+    }
 }
