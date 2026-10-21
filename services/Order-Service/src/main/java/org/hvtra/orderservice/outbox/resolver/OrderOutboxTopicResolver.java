@@ -13,6 +13,7 @@ public class OrderOutboxTopicResolver implements OutboxTopicResolver {
             case OrderEventType.ORDER_COMPLETED -> "order.completed";
             case OrderEventType.ORDER_PAYMENT_SUCCEEDED -> "notification.order.payment-succeeded";
             case OrderEventType.ORDER_PAYMENT_FAILED -> "notification.order.payment-failed";
+            case OrderEventType.ORDER_PAYMENT_NEED_REVIEW -> "notification.order.payment-need-review";
             case OrderEventType.ORDER_CANCELLED -> "notification.order.cancelled";
             case OrderEventType.RETURN_CREATED -> "notification.return.created";
             case OrderEventType.RETURN_RECEIVED -> "notification.return.received";

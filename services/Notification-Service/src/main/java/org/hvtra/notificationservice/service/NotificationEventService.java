@@ -10,6 +10,7 @@ import org.hvtra.notificationservice.dto.event.OrderNotificationEventPayload;
 import org.hvtra.notificationservice.dto.response.NotificationResponse;
 import org.hvtra.notificationservice.integration.consumer.OrderNotificationEventMetadataResolver;
 import org.hvtra.notificationservice.integration.consumer.OrderNotificationEventPayloadParser;
+import org.hvtra.notificationservice.invoice.InvoiceEmailService;
 import org.hvtra.notificationservice.repository.NotificationInboxRepository;
 import org.hvtra.notificationservice.repository.NotificationRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ public class NotificationEventService {
     private final OrderNotificationEventPayloadParser payloadParser;
     private final OrderNotificationEventMetadataResolver metadataResolver;
     private final NotificationSseService notificationSseService;
+    private final InvoiceEmailService invoiceEmailService;
 
     @Value("${kafka-consumer-config.group-id:Notification-Service-order-events}")
     private String consumerGroup;
@@ -62,6 +64,7 @@ public class NotificationEventService {
 
             Notification notification = createNotificationIfAbsent(record, event, eventId);
             sendAfterCommit(notification);
+            invoiceEmailService.sendAfterCommit(event);
             markProcessed(inbox);
         } catch (RuntimeException ex) {
             log.error(
@@ -244,6 +247,7 @@ public class NotificationEventService {
         return "ORDER_COMPLETED".equals(eventType)
                 || "ORDER_PAYMENT_SUCCEEDED".equals(eventType)
                 || "ORDER_PAYMENT_FAILED".equals(eventType)
+                || "ORDER_PAYMENT_NEED_REVIEW".equals(eventType)
                 || "ORDER_CONFIRMED".equals(eventType)
                 || "ORDER_CANCELLED".equals(eventType)
                 || "ORDER_STATUS_CHANGED".equals(eventType)
@@ -263,9 +267,10 @@ public class NotificationEventService {
 
     private String defaultTitle(OrderNotificationEventPayload event) {
         return switch (event.getEventType()) {
-            case "ORDER_PAYMENT_SUCCEEDED", "ORDER_CONFIRMED" -> "Order confirmed";
-            case "ORDER_PAYMENT_FAILED" -> "Payment failed";
-            case "ORDER_CANCELLED" -> "Order cancelled";
+            case "ORDER_PAYMENT_SUCCEEDED", "ORDER_CONFIRMED" -> "Thanh toán thành công";
+            case "ORDER_PAYMENT_FAILED" -> "Thanh toán chưa hoàn tất";
+            case "ORDER_PAYMENT_NEED_REVIEW" -> "Thanh toán cần kiểm tra";
+            case "ORDER_CANCELLED" -> "Đơn đã huỷ";
             case "ORDER_STATUS_CHANGED" -> "Order status changed";
             case "RETURN_CREATED" -> "Phiếu hoàn hàng đã được tạo";
             case "RETURN_RECEIVED" -> "Đã nhận hàng trả";
@@ -280,9 +285,10 @@ public class NotificationEventService {
         String orderCode = firstNonBlank(event.getOrderCode(), event.getOrderId());
         String returnCode = firstNonBlank(event.getReturnCode(), event.getReturnId());
         return switch (event.getEventType()) {
-            case "ORDER_PAYMENT_SUCCEEDED", "ORDER_CONFIRMED" -> "Order " + orderCode + " has been confirmed.";
-            case "ORDER_PAYMENT_FAILED" -> "Order " + orderCode + " payment failed.";
-            case "ORDER_CANCELLED" -> "Order " + orderCode + " was cancelled.";
+            case "ORDER_PAYMENT_SUCCEEDED", "ORDER_CONFIRMED" -> "Đơn " + orderCode + " đã nhận thanh toán.";
+            case "ORDER_PAYMENT_FAILED" -> "Đơn " + orderCode + " chưa thanh toán được.";
+            case "ORDER_PAYMENT_NEED_REVIEW" -> "Giao dịch của đơn " + orderCode + " cần kiểm tra thủ công.";
+            case "ORDER_CANCELLED" -> "Đơn " + orderCode + " đã bị huỷ.";
             case "ORDER_STATUS_CHANGED" -> "Order " + orderCode + " status changed to " + event.getNewStatus() + ".";
             case "RETURN_CREATED" -> "Phiếu hoàn hàng " + returnCode + " đã được tạo.";
             case "RETURN_RECEIVED" -> "Cửa hàng đã nhận hàng trả của phiếu " + returnCode + ".";

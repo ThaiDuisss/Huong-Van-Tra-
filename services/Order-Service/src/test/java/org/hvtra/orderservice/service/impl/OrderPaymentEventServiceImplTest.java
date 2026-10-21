@@ -16,6 +16,8 @@ import org.hvtra.orderservice.service.OrderCustomerService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.OrderService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
+import org.hvtra.orderservice.service.helper.OrderDateTimeHelper;
+import org.hvtra.orderservice.service.support.OrderBackorderSupport;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
 import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
 import org.hvtra.orderservice.service.validator.OrderValidator;
@@ -86,6 +88,12 @@ class OrderPaymentEventServiceImplTest {
     @Mock
     private InventoryClient inventoryClient;
 
+    @Mock
+    private OrderBackorderSupport orderBackorderSupport;
+
+    @Mock
+    private OrderDateTimeHelper orderDateTimeHelper;
+
     private OrderPaymentEventServiceImpl service;
 
     @BeforeEach
@@ -100,7 +108,9 @@ class OrderPaymentEventServiceImplTest {
                 orderStatusHistoryWriter,
                 orderResponseAssembler,
                 catalogClient,
-                inventoryClient
+                inventoryClient,
+                orderBackorderSupport,
+                orderDateTimeHelper
         );
     }
 
@@ -109,6 +119,7 @@ class OrderPaymentEventServiceImplTest {
         UUID orderId = UUID.randomUUID();
         UUID sagaId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setCustomerId(UUID.randomUUID());
         order.setPaymentMethod("CASH");
         order.setPaymentCode("OLD-CODE");
         PaymentOrderEventPayload event = event("payment.succeeded", orderId);
@@ -142,11 +153,19 @@ class OrderPaymentEventServiceImplTest {
         inOrder.verify(orderValidator).validatePaymentAmount(order, event.getAmountPaid());
         inOrder.verify(orderResponseAssembler).normalizePaymentMethod("BANK");
         inOrder.verify(orderRepository).save(order);
+        // Bước "Paid" rồi mới trừ kho và "Completed": hai dòng lịch sử.
         inOrder.verify(orderStatusHistoryWriter).write(
                 order,
                 OrderStatus.PENDING_PAYMENT,
-                OrderStatus.COMPLETED,
+                OrderStatus.PAYMENT_CONFIRMED,
                 "Thanh toán chuyển khoản thành công, mã thanh toán: PAY-001",
+                null
+        );
+        inOrder.verify(orderStatusHistoryWriter).write(
+                order,
+                OrderStatus.PAYMENT_CONFIRMED,
+                OrderStatus.COMPLETED,
+                "Đã trừ tồn kho, hoàn tất đơn",
                 null
         );
         inOrder.verify(orderPaymentSagaService).completePaymentSaga(order, event, event.getEventId());
@@ -165,7 +184,40 @@ class OrderPaymentEventServiceImplTest {
                 sagaId.toString()
         );
         verify(serviceSpy).handlePaymentEvent(event);
-        verify(orderRepository).save(order);
+        verify(orderRepository, org.mockito.Mockito.times(2)).save(order);
+    }
+
+    @Test
+    void paidEventWithoutCustomerSkipsLoyaltyUpdate() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        PaymentOrderEventPayload event = event("payment.succeeded", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(UUID.randomUUID());
+
+        service.handlePaymentEvent(event);
+
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        verifyNoInteractions(orderCustomerService);
+    }
+
+    @Test
+    void lateTransferForCancelledOrderIsHeldForReviewInsteadOfCompleting() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.CANCELLED, PaymentStatus.FAILED);
+        PaymentOrderEventPayload event = event("payment.succeeded", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+
+        service.handlePaymentEvent(event);
+
+        assertEquals(OrderStatus.CANCELLED, order.getStatus());
+        assertEquals(PaymentStatus.NEED_REVIEW, order.getPaymentStatus());
+        verify(orderOutboxPublisher).publishOrderPaymentNeedReviewNotification(
+                eq(order), eq(event), eq(OrderStatus.CANCELLED), eq(OrderStatus.CANCELLED), eq("saga-001"), any());
+        verifyNoInteractions(inventoryClient, orderCustomerService);
+        verify(orderOutboxPublisher, never()).publishPaymentCompletedOrchestration(any(), any(), any());
     }
 
     @Test
@@ -564,6 +616,7 @@ class OrderPaymentEventServiceImplTest {
     void duplicatePaidEventRetriesWhenInventoryStatusFailed() {
         UUID orderId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.PAID);
+        order.setCustomerId(UUID.randomUUID());
         order.setInventoryProcessingStatus(OrderInventoryProcessingStatus.FAILED);
         PaymentOrderEventPayload event = event("PAYMENT_SUCCEEDED", orderId);
         when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
@@ -673,22 +726,20 @@ class OrderPaymentEventServiceImplTest {
 
         service.handlePaymentEvent(event);
 
-        assertEquals(OrderStatus.EXPIRED, order.getStatus());
-        verify(orderStatusHistoryWriter).write(
-                order,
-                OrderStatus.PENDING_PAYMENT,
-                OrderStatus.EXPIRED,
-                "Thanh toán hết hạn",
-                null
-        );
-        verify(orderPaymentSagaService).failPaymentSaga(order, event, "Thanh toán hết hạn");
+        // QR hết hạn: đơn quay về nháp để chọn lại phương thức, không mất giỏ.
+        String reason = "Mã QR chuyển khoản đã hết hạn sau 15 phút, vui lòng chọn lại phương thức thanh toán";
+        assertEquals(OrderStatus.DRAFT, order.getStatus());
+        assertEquals(PaymentStatus.UNPAID, order.getPaymentStatus());
+        verify(orderDateTimeHelper).nextDraftExpiresAt();
+        verify(orderStatusHistoryWriter).write(order, OrderStatus.PENDING_PAYMENT, OrderStatus.DRAFT, reason, null);
+        verify(orderPaymentSagaService).failPaymentSaga(order, event, reason);
         verify(orderOutboxPublisher).publishOrderPaymentFailedNotification(
                 order,
                 event,
                 OrderStatus.PENDING_PAYMENT,
-                OrderStatus.EXPIRED,
+                OrderStatus.DRAFT,
                 event.getSagaId(),
-                "Thanh toán hết hạn"
+                reason
         );
         verify(orderOutboxPublisher, never()).publishOrderCancelledNotification(
                 any(), any(), any(), any(), any(), any()
@@ -705,24 +756,20 @@ class OrderPaymentEventServiceImplTest {
 
         service.handlePaymentEvent(event);
 
-        assertEquals(OrderStatus.CANCELLED, order.getStatus());
-        verify(orderStatusHistoryWriter).write(
-                order,
-                OrderStatus.PENDING_PAYMENT,
-                OrderStatus.CANCELLED,
-                "Thanh toán đã bị hủy",
-                null
-        );
-        verify(orderPaymentSagaService).failPaymentSaga(order, event, "Thanh toán đã bị hủy");
-        verify(orderOutboxPublisher).publishOrderCancelledNotification(
+        // Thu ngân huỷ phiên chuyển khoản: đơn về nháp, không huỷ đơn.
+        String reason = "Thanh toán chuyển khoản đã bị huỷ, vui lòng chọn lại phương thức thanh toán";
+        assertEquals(OrderStatus.DRAFT, order.getStatus());
+        verify(orderStatusHistoryWriter).write(order, OrderStatus.PENDING_PAYMENT, OrderStatus.DRAFT, reason, null);
+        verify(orderPaymentSagaService).failPaymentSaga(order, event, reason);
+        verify(orderOutboxPublisher).publishOrderPaymentFailedNotification(
                 order,
                 event,
                 OrderStatus.PENDING_PAYMENT,
-                OrderStatus.CANCELLED,
+                OrderStatus.DRAFT,
                 event.getSagaId(),
-                "Thanh toán đã bị hủy"
+                reason
         );
-        verify(orderOutboxPublisher, never()).publishOrderPaymentFailedNotification(
+        verify(orderOutboxPublisher, never()).publishOrderCancelledNotification(
                 any(), any(), any(), any(), any(), any()
         );
     }
@@ -730,23 +777,24 @@ class OrderPaymentEventServiceImplTest {
     @Test
     void needReviewEventKeepsSaveHistorySagaAndNoExternalCompletionFlow() {
         UUID orderId = UUID.randomUUID();
-        Order order = order(orderId, OrderStatus.PAYMENT_FAILED, PaymentStatus.FAILED);
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
         PaymentOrderEventPayload event = event("PAYMENT_NEED_REVIEW", orderId);
         when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
         when(orderRepository.save(order)).thenReturn(order);
 
         service.handlePaymentEvent(event);
 
+        // Giữ đơn, gắn cờ kiểm tra tay, báo cho POS; không hoàn tất, không huỷ.
         assertEquals(OrderStatus.PENDING_PAYMENT, order.getStatus());
-        assertEquals(PaymentStatus.WAITING_PAYMENT, order.getPaymentStatus());
+        assertEquals(PaymentStatus.NEED_REVIEW, order.getPaymentStatus());
         assertEquals(BigDecimal.ZERO, order.getPaidAmount());
         assertEquals(new BigDecimal("100.00"), order.getDebtAmount());
-        InOrder inOrder = inOrder(orderRepository, orderStatusHistoryWriter, orderPaymentSagaService);
+        InOrder inOrder = inOrder(orderRepository, orderStatusHistoryWriter, orderPaymentSagaService, orderOutboxPublisher);
         inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
         inOrder.verify(orderRepository).save(order);
         inOrder.verify(orderStatusHistoryWriter).write(
                 order,
-                OrderStatus.PAYMENT_FAILED,
+                OrderStatus.PENDING_PAYMENT,
                 OrderStatus.PENDING_PAYMENT,
                 "Thanh toán cần kiểm tra thủ công",
                 null
@@ -756,11 +804,14 @@ class OrderPaymentEventServiceImplTest {
                 event,
                 "Thanh toán cần kiểm tra thủ công"
         );
-        verifyNoInteractions(orderCustomerService, orderOutboxPublisher);
+        inOrder.verify(orderOutboxPublisher).publishOrderPaymentNeedReviewNotification(
+                order, event, OrderStatus.PENDING_PAYMENT, OrderStatus.PENDING_PAYMENT, "saga-001",
+                "Thanh toán cần kiểm tra thủ công");
+        verifyNoInteractions(orderCustomerService, inventoryClient);
     }
 
     @Test
-    void needReviewEventAlreadyPendingKeepsExistingHistoryNoOp() {
+    void needReviewEventWithReasonKeepsReasonInHistoryAndSaga() {
         UUID orderId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
         PaymentOrderEventPayload event = event("PAYMENT_NEED_REVIEW", orderId);
@@ -770,7 +821,7 @@ class OrderPaymentEventServiceImplTest {
 
         service.handlePaymentEvent(event);
 
-        verifyNoInteractions(orderStatusHistoryWriter);
+        verify(orderStatusHistoryWriter).write(order, OrderStatus.PENDING_PAYMENT, OrderStatus.PENDING_PAYMENT, "Manual review", null);
         verify(orderPaymentSagaService).markPaymentNeedReview(order, event, "Manual review");
     }
 
@@ -835,6 +886,29 @@ class OrderPaymentEventServiceImplTest {
             assertFalse(OrderService.class.isAssignableFrom(field.getType()));
             assertFalse(OrderServiceImpl.class.isAssignableFrom(field.getType()));
         }
+    }
+
+    @Test
+    void bankTransferPaymentOfBackorderWaitsForStock() {
+        UUID orderId = UUID.randomUUID();
+        UUID sagaId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        order.setBackorder(true);
+        PaymentOrderEventPayload event = event("payment.succeeded", orderId);
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderBackorderSupport.isAwaitingStock(order)).thenReturn(true);
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderPaymentSagaService.completePaymentSaga(order, event, event.getEventId())).thenReturn(sagaId);
+
+        service.handlePaymentSucceeded(event);
+
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
+        assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
+        assertEquals(0, order.getDebtAmount().signum());
+        verify(orderBackorderSupport).enterWaitingStock(order);
+        verify(inventoryClient, org.mockito.Mockito.never()).fulfillSale(any());
+        verify(orderCustomerService, org.mockito.Mockito.never()).updateCustomerPurchase(any());
+        verify(orderOutboxPublisher, org.mockito.Mockito.never()).publishPaymentCompletedOrchestration(any(), any(), any());
     }
 
     private Order order(UUID orderId, OrderStatus status, PaymentStatus paymentStatus) {

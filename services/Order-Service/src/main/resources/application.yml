@@ -162,7 +162,7 @@ order:
   payment:
     events:
       topics:
-        failed: payment.event.PAYMENT_FAILED
+        failed: payment.failed
         waiting: payment.waiting-payment
         succeeded: payment.succeeded
         expired: payment.expired

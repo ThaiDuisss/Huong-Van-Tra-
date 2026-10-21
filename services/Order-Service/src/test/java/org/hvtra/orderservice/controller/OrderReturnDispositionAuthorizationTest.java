@@ -12,6 +12,7 @@ import org.hvtra.orderservice.service.OrderExportService;
 import org.hvtra.orderservice.service.OrderReturnReportService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
+import org.hvtra.orderservice.service.PosOfflineCheckoutService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +47,7 @@ class OrderReturnDispositionAuthorizationTest {
     @Mock private OrderExportService orderExportService;
     @Mock private OrderReturnService orderReturnService;
     @Mock private OrderReturnReportService reportService;
+    @Mock private PosOfflineCheckoutService posOfflineCheckoutService;
 
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -55,7 +57,7 @@ class OrderReturnDispositionAuthorizationTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(
-                new OrderController(orderService, orderExportService, orderReturnService, reportService))
+                new OrderController(orderService, posOfflineCheckoutService, orderExportService, orderReturnService, reportService))
                 .setControllerAdvice(new OrderGlobalExceptionHandler())
                 .build();
         returnId = UUID.randomUUID();

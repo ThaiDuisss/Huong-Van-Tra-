@@ -29,6 +29,7 @@ public class CreateOrderReturnItemRequest {
     private ReturnReason reason;
 
     @NotNull
+    // Declared by the return creator; this is not a QC observation.
     private ReturnCondition condition;
 
     private String note;

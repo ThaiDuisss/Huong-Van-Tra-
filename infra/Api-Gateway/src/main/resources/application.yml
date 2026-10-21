@@ -63,6 +63,11 @@ spring:
             predicates:
               - Path=/api/reports/**
 
+          - id: ai-report-service
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - Path=/api/recommendation/ai-reports,/api/recommendation/ai-reports/**
+
           - id: employee-service
             uri: lb://employee-service
             predicates:

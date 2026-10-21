@@ -16,6 +16,8 @@ import org.hvtra.orderservice.dto.request.AddDraftOrderItemRequest;
 import org.hvtra.orderservice.dto.request.CheckoutDraftOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderRequest;
 import org.hvtra.orderservice.dto.request.CreateOrderReturnRequest;
+import org.hvtra.orderservice.dto.request.CheckOrderReturnEligibilityRequest;
+import org.hvtra.orderservice.dto.response.OrderReturnEligibilityResponse;
 import org.hvtra.orderservice.dto.request.MarkOrderPaidRequest;
 import org.hvtra.orderservice.dto.request.SubmitReturnInventoryDispositionRequest;
 import org.hvtra.orderservice.dto.request.UpdateDraftOrderItemQuantityRequest;
@@ -43,6 +45,7 @@ import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.service.OrderReturnReportService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
+import org.hvtra.orderservice.service.PosOfflineCheckoutService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -71,6 +74,7 @@ public class OrderController {
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     private final OrderService orderService;
+    private final PosOfflineCheckoutService posOfflineCheckoutService;
     private final OrderExportService orderExportService;
     private final OrderReturnService orderReturnService;
     private final OrderReturnReportService orderReturnReportService;
@@ -85,6 +89,13 @@ public class OrderController {
             );
         }
         return orderService.createOrder(request);
+    }
+
+    @Operation(summary = "dong bo don da ban offline tai POS (idempotent theo clientOrderId)")
+    @UserAction(value = "ORDER_OFFLINE_CHECKOUT", entityType = "Order", entityId = "#result.id")
+    @PostMapping("/pos/offline-checkout")
+    public OrderResponse checkoutOfflineOrder(@Valid @RequestBody CreateOrderRequest request) {
+        return posOfflineCheckoutService.checkout(request);
     }
 
     @Operation(summary = "them san pham vao hoa don nhap POS")
@@ -118,6 +129,13 @@ public class OrderController {
     @PostMapping("/pos/draft/" + UUID_PATH + "/cancel")
     public OrderResponse cancelDraftOrder(@PathVariable UUID orderId) {
         return orderService.cancelDraftOrder(orderId);
+    }
+
+    @Operation(summary = "huy phien thanh toan chuyen khoan dang cho, don quay ve nhap de chon lai phuong thuc")
+    @UserAction(value = "ORDER_POS_PAYMENT_CANCEL", entityType = "Order", entityId = "#orderId")
+    @PostMapping("/pos/" + UUID_PATH + "/payment/cancel")
+    public OrderResponse cancelPosPayment(@PathVariable UUID orderId) {
+        return orderService.cancelPosPayment(orderId);
     }
 
     @Operation(summary = "thanh toan hoa don nhap POS da ton tai")
@@ -202,6 +220,15 @@ public class OrderController {
             @Valid @RequestBody MarkOrderPaidRequest request
     ) {
         return orderService.markOrderPaid(orderId, request);
+    }
+
+    @Operation(summary = "kiem tra dieu kien va chinh sach hoan hang truoc khi tao phieu")
+    @PostMapping("/" + UUID_PATH + "/returns/eligibility")
+    public OrderReturnEligibilityResponse checkReturnEligibility(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody CheckOrderReturnEligibilityRequest request
+    ) {
+        return orderReturnService.checkReturnEligibility(orderId, request);
     }
 
     @Operation(summary = "tao yeu cau hoan hang cho don hang")

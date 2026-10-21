@@ -3,6 +3,7 @@ package org.hvtra.paymentservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
+import org.hvtra.paymentservice.dto.request.ManualPaymentConfirmRequest;
 import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
 import org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest;
 import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
@@ -39,6 +40,21 @@ public class PaymentController {
     @Operation(summary = "Lấy phương thức thanh toán mới nhất của đơn hàng")
     public OrderPaymentMethodResponse getPaymentByOrderId(@PathVariable("orderId") UUID orderId) {
         return paymentService.getPaymentByOrderId(orderId);
+    }
+
+    @PostMapping("/orders/{orderId}/cancel")
+    @Operation(summary = "Huỷ phiên chuyển khoản đang chờ tiền (thu ngân chọn lại phương thức)")
+    public OrderPaymentMethodResponse cancelPendingPayment(@PathVariable("orderId") UUID orderId) {
+        return paymentService.cancelPendingPayment(orderId);
+    }
+
+    @PostMapping("/orders/{orderId}/confirm-manual")
+    @Operation(summary = "Đối soát tay: ghi PAID cho giao dịch cần kiểm tra")
+    public OrderPaymentMethodResponse confirmManualPayment(
+            @PathVariable("orderId") UUID orderId,
+            @RequestBody(required = false) ManualPaymentConfirmRequest request
+    ) {
+        return paymentService.confirmManualPayment(orderId, request);
     }
 
     @PostMapping("/orders/{orderId}/refunds")

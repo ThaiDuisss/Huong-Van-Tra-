@@ -20,6 +20,7 @@ import org.hvtra.fileservice.model.response.CompleteUploadResponse;
 import org.hvtra.fileservice.model.response.DownloadUrlResponse;
 import org.hvtra.fileservice.model.response.InitUploadResponse;
 import org.hvtra.fileservice.repository.FileMetadataRepository;
+import org.hvtra.fileservice.repository.FileReferenceRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
@@ -34,9 +35,14 @@ public class FileService {
     private final MinioProperties minioProperties;
     private final FileBucketResolver bucketResolver;
     private final FileMetadataRepository fileRepository;
+    private final FileReferenceRepository referenceRepository;
 
     public InitUploadResponse initUpload(InitUploadRequest request, UUID currentUserId) {
         validateUploadRequest(request);
+        if (request.purpose() == FilePurpose.USER_DOCUMENT
+                && request.ownerId() != null && !currentUserId.equals(request.ownerId())) {
+            throw new AppException(7003, "Document owner must be the authenticated user");
+        }
 
         UUID fileId = UUID.randomUUID();
 
@@ -114,10 +120,14 @@ public class FileService {
             throw new AppException(7001, "Reference id is required");
         }
 
-        FileMetadata file = fileRepository.findById(attach.fieldId())
+        FileMetadata file = fileRepository.findForUpdate(attach.fieldId())
                 .orElseThrow(() -> new AppException(7000, "File not found"));
 
         checkOwnerOrPermission(file, currentUserId);
+
+        if (!referenceRepository.findByFile_IdAndIsDeletedFalse(file.getId()).isEmpty()) {
+            throw new AppException(7003, "Typed business attachment cannot be changed by generic attach");
+        }
 
         if (file.getStatus() != FileStatus.ACTIVE) {
             throw new AppException(7009, "File is not available");

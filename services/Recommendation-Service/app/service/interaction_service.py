@@ -188,6 +188,7 @@ class InteractionService:
         self,
         db: Session,
         interactions: list[CanonicalInteraction],
+        completed_order: dict | None = None,
     ) -> list[InteractionEvent]:
         """
         Processes multiple CanonicalInteractions in a single atomic local DB transaction boundary.
@@ -200,6 +201,9 @@ class InteractionService:
             for interaction in interactions:
                 event = self._process_one(db, interaction)
                 events.append(event)
+            if completed_order is not None:
+                from app.service.report_purchase_service import record_completed_order
+                record_completed_order(db, completed_order, events)
             db.commit()
             for event in events:
                 db.refresh(event)
@@ -224,6 +228,9 @@ class InteractionService:
             for interaction in interactions:
                 event = self._process_one(db, interaction)
                 events.append(event)
+            if completed_order is not None:
+                from app.service.report_purchase_service import record_completed_order
+                record_completed_order(db, completed_order, events)
             db.commit()
             for event in events:
                 db.refresh(event)

@@ -42,16 +42,31 @@ public class OrderOutboxPublisher {
         publishPaymentCompletedOrchestration(order, paymentEventId, null);
     }
 
+    /**
+     * Sau khi thanh toán xong và tồn kho đã xử lý. ORDER_COMPLETED (email hoá đơn, Customer-Service) chỉ phát
+     * khi đơn thật sự hoàn tất; đơn giao hàng còn PAYMENT_CONFIRMED thì phát khi chuyển COMPLETED.
+     */
     public void publishPaymentCompletedOrchestration(Order order, String paymentEventId, String sagaId) {
-        publish(order, OrderEventType.ORDER_COMPLETED, paymentEventId, "order-completed", sagaId);
+        if (order.getStatus() == OrderStatus.COMPLETED) {
+            publishOrderCompleted(order, paymentEventId, sagaId);
+        }
         publish(order, OrderEventType.INVENTORY_RESERVATION_CONFIRM_REQUESTED, paymentEventId, "inventory-confirm", sagaId);
 
         if (order.getCustomerId() != null) {
             publish(order, OrderEventType.CUSTOMER_PURCHASE_UPDATE_REQUESTED, paymentEventId, "customer-purchase-update", sagaId);
         }
 
+        publishCouponUsageCommit(order, paymentEventId, sagaId);
+    }
+
+    public void publishOrderCompleted(Order order, String causationId, String sagaId) {
+        publish(order, OrderEventType.ORDER_COMPLETED, causationId, "order-completed", sagaId);
+    }
+
+    /** Đánh dấu mã giảm giá đã dùng (Promotion-Service). Idempotent theo đơn: gọi lại không phát thêm. */
+    public void publishCouponUsageCommit(Order order, String causationId, String sagaId) {
         if (!couponUsageIds(order).isEmpty()) {
-            publish(order, OrderEventType.PROMOTION_USAGE_COMMIT_REQUESTED, paymentEventId, "promotion-commit", sagaId);
+            publish(order, OrderEventType.PROMOTION_USAGE_COMMIT_REQUESTED, causationId, "promotion-commit", sagaId);
         }
     }
 
@@ -92,6 +107,28 @@ public class OrderOutboxPublisher {
                 newStatus,
                 "Payment failed",
                 firstNonBlank(reason, "Order " + order.getOrderCode() + " payment failed."),
+                sagaId
+        );
+    }
+
+    /** Tiền về lệch số tiền hoặc về muộn: giữ đơn, báo thu ngân/quản lý kiểm tra tay. */
+    public void publishOrderPaymentNeedReviewNotification(
+            Order order,
+            PaymentOrderEventPayload paymentEvent,
+            OrderStatus oldStatus,
+            OrderStatus newStatus,
+            String sagaId,
+            String reason
+    ) {
+        publishPaymentNotification(
+                order,
+                paymentEvent,
+                OrderEventType.ORDER_PAYMENT_NEED_REVIEW,
+                "payment-need-review",
+                oldStatus,
+                newStatus,
+                "Thanh toán cần kiểm tra",
+                firstNonBlank(reason, "Giao dịch của đơn " + order.getOrderCode() + " cần kiểm tra thủ công."),
                 sagaId
         );
     }
@@ -457,6 +494,13 @@ public class OrderOutboxPublisher {
 
         if (OrderEventType.ORDER_COMPLETED.equals(eventType)) {
             payload.put("items", orderItems(order));
+            // Thông tin hiển thị trên hóa đơn gửi email cho khách (Notification-Service).
+            payload.put("originalAmount", order.getOriginalAmount());
+            payload.put("customerName", order.getCustomerNameSnapshot());
+            payload.put("customerEmail", order.getCustomerEmailSnapshot());
+            payload.put("customerPhone", order.getCustomerPhoneSnapshot());
+            payload.put("cashierName", order.getCashierNameSnapshot());
+            payload.put("branchName", order.getBranchNameSnapshot());
         }
 
         return payload;

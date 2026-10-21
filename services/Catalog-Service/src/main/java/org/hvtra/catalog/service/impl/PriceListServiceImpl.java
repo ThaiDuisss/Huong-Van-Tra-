@@ -13,6 +13,7 @@ import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.PriceListMapper;
 import org.hvtra.catalog.repository.PriceListRepository;
 import org.hvtra.catalog.repository.ProductVariantRepository;
+import org.hvtra.catalog.service.PriceChangeHistoryService;
 import org.hvtra.catalog.service.PriceListService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -35,14 +37,17 @@ public class PriceListServiceImpl implements PriceListService {
     private final PriceListRepository repository;
     private final ProductVariantRepository variantRepository;
     private final PriceListMapper mapper;
+    private final PriceChangeHistoryService priceChangeHistoryService;
 
     public PriceListServiceImpl(
             PriceListRepository repository,
             ProductVariantRepository variantRepository,
-            PriceListMapper mapper) {
+            PriceListMapper mapper,
+            PriceChangeHistoryService priceChangeHistoryService) {
         this.repository = repository;
         this.variantRepository = variantRepository;
         this.mapper = mapper;
+        this.priceChangeHistoryService = priceChangeHistoryService;
     }
 
     @Override
@@ -85,7 +90,9 @@ public class PriceListServiceImpl implements PriceListService {
         validate(request);
         PriceList priceList = new PriceList();
         apply(priceList, request);
-        return mapper.toResponse(repository.save(priceList));
+        PriceList saved = repository.save(priceList);
+        priceChangeHistoryService.recordItemChanges(saved, List.of());
+        return mapper.toResponse(saved);
     }
 
     @Override
@@ -93,16 +100,25 @@ public class PriceListServiceImpl implements PriceListService {
     public PriceListResponse update(UUID id, PriceListRequest request) {
         validate(request);
         PriceList priceList = get(id);
+        // Chụp giá + trạng thái cũ trước khi apply() thay toàn bộ items, để ghi lịch sử thay đổi giá.
+        var pricesBefore = priceChangeHistoryService.snapshot(priceList);
+        Status statusBefore = priceList.getStatus();
         apply(priceList, request);
-        return mapper.toResponse(repository.save(priceList));
+        PriceList saved = repository.save(priceList);
+        priceChangeHistoryService.recordItemChanges(saved, pricesBefore);
+        priceChangeHistoryService.recordStatusChange(saved, statusBefore);
+        return mapper.toResponse(saved);
     }
 
     @Override
     @Transactional
     public PriceListResponse updateStatus(UUID id, Status status) {
         PriceList priceList = get(id);
+        Status statusBefore = priceList.getStatus();
         priceList.setStatus(status);
-        return mapper.toResponse(repository.save(priceList));
+        PriceList saved = repository.save(priceList);
+        priceChangeHistoryService.recordStatusChange(saved, statusBefore);
+        return mapper.toResponse(saved);
     }
 
     private void apply(PriceList priceList, PriceListRequest request) {
@@ -111,8 +127,20 @@ public class PriceListServiceImpl implements PriceListService {
         priceList.setEffectiveFrom(request.effectiveFrom());
         priceList.setEffectiveTo(request.effectiveTo());
         priceList.setStatus(request.status());
-        priceList.getItems().clear();
+        // Cập nhật tại chỗ thay vì clear() rồi thêm lại: Hibernate INSERT trước khi DELETE orphan nên
+        // thêm lại cùng Mặt hàng sẽ vi phạm unique (price_list_id, product_variant_id).
+        Set<UUID> requestedVariantIds = request.items().stream()
+                .map(PriceListRequest.ItemRequest::productVariantId)
+                .collect(Collectors.toSet());
+        priceList.getItems().removeIf(item -> !requestedVariantIds.contains(item.getProductVariant().getId()));
+        Map<UUID, PriceListItem> existingItems = priceList.getItems().stream()
+                .collect(Collectors.toMap(item -> item.getProductVariant().getId(), Function.identity()));
         for (PriceListRequest.ItemRequest itemRequest : request.items()) {
+            PriceListItem existing = existingItems.get(itemRequest.productVariantId());
+            if (existing != null) {
+                existing.setSellingPrice(itemRequest.sellingPrice());
+                continue;
+            }
             ProductVariant variant = variantRepository.findById(itemRequest.productVariantId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Product variant", itemRequest.productVariantId()));

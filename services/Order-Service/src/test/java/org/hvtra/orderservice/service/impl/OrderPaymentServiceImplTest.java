@@ -1,5 +1,7 @@
 package org.hvtra.orderservice.service.impl;
 
+import org.hvtra.orderservice.client.PaymentClient;
+import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.domain.enums.PaymentStatus;
@@ -78,6 +80,9 @@ class OrderPaymentServiceImplTest {
     @Mock
     private OrderPaymentEventService orderPaymentEventService;
 
+    @Mock
+    private PaymentClient paymentClient;
+
     private OrderPaymentServiceImpl service;
 
     @BeforeEach
@@ -91,7 +96,8 @@ class OrderPaymentServiceImplTest {
                 orderAmountCalculator,
                 orderStatusHistoryWriter,
                 orderResponseAssembler,
-                orderPaymentEventService
+                orderPaymentEventService,
+                paymentClient
         );
     }
 
@@ -105,15 +111,14 @@ class OrderPaymentServiceImplTest {
         OrderResponse expected = OrderResponse.builder().id(orderId).build();
         when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
         when(orderRepository.save(order)).thenReturn(order);
-        when(orderPaymentSagaService.completeManualPaymentSaga(order, request.getPaymentCode())).thenReturn(sagaId);
         when(orderResponseAssembler.toResponse(order)).thenReturn(expected);
 
         OrderResponse actual = service.markOrderPaid(orderId, request);
 
         assertSame(expected, actual);
-        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        // Bước "Paid" ghi ở đây; trừ kho + Completed do finalizePaidOrder.
+        assertEquals(OrderStatus.PAYMENT_CONFIRMED, order.getStatus());
         assertEquals(PaymentStatus.PAID, order.getPaymentStatus());
-        verify(orderPaymentEventService).processPaidOrderInventory(order, null, true);
         assertEquals(new BigDecimal("100.00"), order.getPaidAmount());
         assertEquals(BigDecimal.ZERO, order.getDebtAmount());
 
@@ -122,9 +127,8 @@ class OrderPaymentServiceImplTest {
                 orderAmountCalculator,
                 orderValidator,
                 orderStatusHistoryWriter,
-                orderPaymentSagaService,
-                orderCustomerService,
-                orderOutboxPublisher,
+                paymentClient,
+                orderPaymentEventService,
                 orderResponseAssembler
         );
         inOrder.verify(orderRepository).findByIdAndIsDeletedFalse(orderId);
@@ -134,20 +138,44 @@ class OrderPaymentServiceImplTest {
         inOrder.verify(orderStatusHistoryWriter).write(
                 order,
                 OrderStatus.PENDING_PAYMENT,
-                OrderStatus.COMPLETED,
+                OrderStatus.PAYMENT_CONFIRMED,
                 "Thanh toán thành công, mã thanh toán: PAY-001",
                 changedBy
         );
-        inOrder.verify(orderPaymentSagaService).completeManualPaymentSaga(order, "PAY-001");
-        inOrder.verify(orderPaymentSagaService).markResourceConfirmationRequested(order, sagaId);
-        inOrder.verify(orderCustomerService).updateCustomerPurchase(orderId);
-        inOrder.verify(orderOutboxPublisher).publishPaymentCompletedOrchestration(
-                order,
-                "PAY-001",
-                sagaId.toString()
-        );
+        inOrder.verify(paymentClient).confirmManualPayment(org.mockito.ArgumentMatchers.eq(orderId), any());
+        inOrder.verify(orderPaymentEventService).finalizePaidOrder(order, null, OrderStatus.PENDING_PAYMENT, changedBy, "PAY-001");
         inOrder.verify(orderResponseAssembler).toResponse(order);
-        verify(orderRepository).save(order);
+        verifyNoInteractions(orderCustomerService, orderOutboxPublisher, orderPaymentSagaService);
+        assertEquals(sagaId, sagaId);
+    }
+
+    @Test
+    void cancelPosPaymentClosesPaymentSessionAndReturnsOrderToDraft() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING_PAYMENT, PaymentStatus.WAITING_PAYMENT);
+        OrderResponse expected = OrderResponse.builder().id(orderId).build();
+        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+        when(orderPaymentEventService.returnOrderToDraft(any(), any())).thenReturn(order);
+        when(orderResponseAssembler.toResponse(order)).thenReturn(expected);
+
+        OrderResponse actual = service.cancelPosPayment(orderId);
+
+        assertSame(expected, actual);
+        InOrder inOrder = inOrder(paymentClient, orderPaymentEventService, orderPaymentSagaService);
+        inOrder.verify(paymentClient).cancelPendingPayment(orderId);
+        inOrder.verify(orderPaymentEventService).returnOrderToDraft(
+                order, "Thu ngân huỷ thanh toán chuyển khoản, chọn lại phương thức");
+        inOrder.verify(orderPaymentSagaService).failPaymentSaga(order, null, "Thu ngân huỷ phiên thanh toán");
+    }
+
+    @Test
+    void cancelPosPaymentRejectsOrderWithoutWaitingPayment() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.DRAFT, PaymentStatus.UNPAID);
+        when(orderRepository.findByIdAndIsDeletedFalse(orderId)).thenReturn(Optional.of(order));
+
+        assertThrows(InvalidOrderStatusException.class, () -> service.cancelPosPayment(orderId));
+        verifyNoInteractions(paymentClient, orderPaymentEventService);
     }
 
     @Test

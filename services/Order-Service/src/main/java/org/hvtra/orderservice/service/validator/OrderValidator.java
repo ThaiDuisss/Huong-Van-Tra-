@@ -64,6 +64,11 @@ public class OrderValidator {
                     "Đơn hàng đã thanh toán hoặc đã hoàn thành, không thể hủy trực tiếp. Vui lòng dùng luồng hoàn tiền/hoàn hàng."
             );
         }
+        if (PaymentStatus.PARTIALLY_PAID == order.getPaymentStatus()) {
+            throw new InvalidOrderStatusException(
+                    "Đơn đã thu tiền cọc, không thể hủy trực tiếp. Vui lòng hoàn cọc cho khách trước khi hủy."
+            );
+        }
         if (OrderStatus.CANCELLED == order.getStatus()) {
             throw new InvalidOrderStatusException("Đơn hàng đã được hủy trước đó");
         }

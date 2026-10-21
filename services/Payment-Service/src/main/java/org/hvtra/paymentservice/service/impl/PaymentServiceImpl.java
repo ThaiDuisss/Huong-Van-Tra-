@@ -12,6 +12,8 @@ import org.hvtra.paymentservice.domain.enums.PaymentProvider;
 import org.hvtra.paymentservice.domain.enums.PaymentStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionStatus;
 import org.hvtra.paymentservice.domain.enums.PaymentTransactionType;
+import org.hvtra.paymentservice.dto.request.ManualPaymentConfirmRequest;
+import org.hvtra.paymentservice.outbox.service.PaymentOutboxPublisher;
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
 import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
 import org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest;
@@ -51,6 +53,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final SepayQrCodeGenerator sepayQrCodeGenerator;
     private final SepayProperties sepayProperties;
+    private final PaymentOutboxPublisher paymentOutboxPublisher;
 
     @Override
     @Transactional
@@ -196,7 +199,13 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("Đơn hàng này đã được thanh toán");
         }
 
-        BigDecimal changeAmount = receivedAmount.subtract(amountRequired);
+        // Đơn đặt trước: lần đầu thu cọc (PARTIALLY_PAID), lần sau thu nốt phần còn lại (PAID).
+        BigDecimal alreadyPaid = cashAlreadyPaid(existingPayment);
+        BigDecimal collectedNow = cashAmountDue(request, existingPayment);
+        BigDecimal totalPaid = alreadyPaid.add(collectedNow);
+        boolean fullyPaid = totalPaid.compareTo(amountRequired) >= 0;
+
+        BigDecimal changeAmount = receivedAmount.subtract(collectedNow);
         LocalDateTime now = LocalDateTime.now();
 
         Payment payment = existingPayment == null
@@ -206,13 +215,13 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setPaymentCode(resolvePaymentCode(payment, PaymentMethod.CASH));
         payment.setMethod(PaymentMethod.CASH);
         payment.setProvider(PaymentProvider.INTERNAL);
-        payment.setStatus(PaymentStatus.PAID);
+        payment.setStatus(fullyPaid ? PaymentStatus.PAID : PaymentStatus.PARTIALLY_PAID);
         payment.setAmountRequired(amountRequired);
-        payment.setAmountPaid(amountRequired);
+        payment.setAmountPaid(fullyPaid ? amountRequired : totalPaid);
         payment.setAmountRefunded(defaultZero(payment.getAmountRefunded()));
         payment.setCurrency(CURRENCY_VND);
         payment.setExpiresAt(null);
-        payment.setCompletedAt(now);
+        payment.setCompletedAt(fullyPaid ? now : null);
         payment.setCancelledAt(null);
         payment.setFailureReason(null);
         payment.setReviewReason(null);
@@ -225,7 +234,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .method(PaymentMethod.CASH)
                 .provider(PaymentProvider.INTERNAL)
                 .status(PaymentTransactionStatus.MATCHED)
-                .amount(amountRequired)
+                .amount(collectedNow)
                 .currency(CURRENCY_VND)
                 .paidAt(now)
                 .build();
@@ -247,6 +256,28 @@ public class PaymentServiceImpl implements PaymentService {
                 .methodLabel(toPaymentMethodLabel(savedPayment.getMethod()))
                 .provider(savedPayment.getProvider().name())
                 .build();
+    }
+
+    /** Số tiền mặt đã thu ở lần đặt cọc trước (0 nếu chưa thu). */
+    private BigDecimal cashAlreadyPaid(Payment existingPayment) {
+        if (existingPayment == null || existingPayment.getStatus() != PaymentStatus.PARTIALLY_PAID) {
+            return BigDecimal.ZERO;
+        }
+        return normalizeMoney(existingPayment.getAmountPaid());
+    }
+
+    /**
+     * Số tiền mặt phải thu ở lần checkout này: tiền cọc nếu request có depositAmount hợp lệ, phần còn lại nếu
+     * đơn đã đặt cọc, ngược lại là toàn bộ finalAmount.
+     */
+    private BigDecimal cashAmountDue(CheckoutRequest request, Payment existingPayment) {
+        BigDecimal amountRequired = normalizeMoney(request.getFinalAmount());
+        BigDecimal remaining = amountRequired.subtract(cashAlreadyPaid(existingPayment)).max(BigDecimal.ZERO);
+        BigDecimal deposit = request.getDepositAmount() == null ? null : normalizeMoney(request.getDepositAmount());
+        if (deposit != null && deposit.compareTo(BigDecimal.ZERO) > 0 && deposit.compareTo(remaining) < 0) {
+            return deposit;
+        }
+        return remaining;
     }
 
     /**
@@ -402,6 +433,91 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public OrderPaymentMethodResponse cancelPendingPayment(UUID orderId) {
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment not found"));
+        if (payment.getStatus() == PaymentStatus.PAID || payment.getStatus() == PaymentStatus.PARTIALLY_PAID) {
+            throw new IllegalArgumentException("Đơn hàng đã có tiền, không huỷ phiên thanh toán được");
+        }
+        if (payment.getStatus() == PaymentStatus.WAITING_PAYMENT || payment.getStatus() == PaymentStatus.PENDING) {
+            LocalDateTime now = LocalDateTime.now();
+            payment.setStatus(PaymentStatus.CANCELLED);
+            payment.setCancelledAt(now);
+            payment.setFailureReason("Thu ngân huỷ phiên thanh toán");
+            closeOpenAttempt(payment, PaymentAttemptStatus.CANCELLED, now);
+            payment = paymentRepository.save(payment);
+        }
+        return toOrderPaymentMethodResponse(payment);
+    }
+
+    @Override
+    @Transactional
+    public OrderPaymentMethodResponse confirmManualPayment(UUID orderId, ManualPaymentConfirmRequest request) {
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment not found"));
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return toOrderPaymentMethodResponse(payment);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setAmountPaid(normalizeMoney(payment.getAmountRequired()));
+        payment.setCompletedAt(now);
+        payment.setCancelledAt(null);
+        payment.setFailureReason(null);
+        payment.setReviewReason(request == null || request.getNote() == null
+                ? "Xác nhận thủ công" : "Xác nhận thủ công: " + request.getNote());
+        closeOpenAttempt(payment, PaymentAttemptStatus.SUCCEEDED, now);
+        return toOrderPaymentMethodResponse(paymentRepository.save(payment));
+    }
+
+    @Override
+    @Transactional
+    public int expireOverduePayments() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Payment> overdue = paymentRepository.findByStatusAndMethodAndExpiresAtBefore(
+                PaymentStatus.WAITING_PAYMENT, PaymentMethod.BANK_TRANSFER, now);
+        int expired = 0;
+        for (Payment payment : overdue) {
+            payment.setStatus(PaymentStatus.EXPIRED);
+            payment.setFailureReason("Quá " + sepayProperties.getPaymentTimeoutMinutes() + " phút chưa nhận được tiền");
+            closeOpenAttempt(payment, PaymentAttemptStatus.EXPIRED, now);
+            Payment saved = paymentRepository.save(payment);
+            paymentOutboxPublisher.publishExpired(saved);
+            expired++;
+        }
+        return expired;
+    }
+
+    /** Attempt mới nhất còn WAITING của payment được đóng cùng trạng thái với payment. */
+    private void closeOpenAttempt(Payment payment, PaymentAttemptStatus status, LocalDateTime now) {
+        paymentAttemptRepository.findTopByPaymentIdOrderByAttemptNoDesc(payment.getId())
+                .filter(attempt -> attempt.getStatus() == PaymentAttemptStatus.WAITING
+                        || attempt.getStatus() == PaymentAttemptStatus.CREATED
+                        || attempt.getStatus() == PaymentAttemptStatus.NEED_REVIEW)
+                .ifPresent(attempt -> {
+                    attempt.setStatus(status);
+                    if (status == PaymentAttemptStatus.SUCCEEDED) {
+                        attempt.setCompletedAt(now);
+                    }
+                    paymentAttemptRepository.save(attempt);
+                });
+    }
+
+    private OrderPaymentMethodResponse toOrderPaymentMethodResponse(Payment payment) {
+        return OrderPaymentMethodResponse.builder()
+                .paymentId(payment.getId())
+                .paymentCode(payment.getPaymentCode())
+                .orderId(payment.getOrderId())
+                .amountRequired(payment.getAmountRequired())
+                .amountPaid(payment.getAmountPaid())
+                .status(payment.getStatus().name())
+                .method(payment.getMethod() == null ? null : payment.getMethod().name())
+                .methodLabel(payment.getMethod() == null ? null : toPaymentMethodLabel(payment.getMethod()))
+                .build();
+    }
+
     private void validatePaymentCheckoutRequest(CheckoutRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Request không được để trống");
@@ -433,9 +549,20 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new IllegalArgumentException("Số tiền nhận bắt buộc khi thanh toán tiền mặt");
             }
 
-            if (request.getReceivedAmount().compareTo(request.getFinalAmount()) < 0) {
+            if (request.getDepositAmount() != null
+                    && request.getDepositAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Số tiền đặt cọc không hợp lệ");
+            }
+
+            BigDecimal amountDue = cashAmountDue(
+                    request, paymentRepository.findByOrderId(request.getOrderId()).orElse(null));
+            if (normalizeMoney(request.getReceivedAmount()).compareTo(amountDue) < 0) {
                 throw new IllegalArgumentException("Số tiền nhận không đủ");
             }
+        } else if (request.getDepositAmount() != null) {
+            throw new IllegalArgumentException("Đặt cọc hiện chỉ hỗ trợ thanh toán tiền mặt");
+        } else if (paymentRepository.existsByOrderIdAndStatus(request.getOrderId(), PaymentStatus.PARTIALLY_PAID)) {
+            throw new IllegalArgumentException("Đơn đã đặt cọc, phần còn lại hiện chỉ thu được bằng tiền mặt");
         }
 
         if (paymentRepository.existsByOrderIdAndStatus(

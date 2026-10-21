@@ -11,6 +11,7 @@ import org.hvtra.orderservice.service.OrderExportService;
 import org.hvtra.orderservice.service.OrderReturnReportService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
+import org.hvtra.orderservice.service.PosOfflineCheckoutService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,12 +55,16 @@ class OrderControllerExportTest {
     @Mock
     private OrderReturnReportService orderReturnReportService;
 
+    @Mock
+    private PosOfflineCheckoutService posOfflineCheckoutService;
+
     private OrderController controller;
 
     @BeforeEach
     void setUp() {
         controller = new OrderController(
                 orderService,
+                posOfflineCheckoutService,
                 orderExportService,
                 orderReturnService,
                 orderReturnReportService
@@ -227,7 +232,8 @@ class OrderControllerExportTest {
                 LocalDate.of(2026, 9, 30),
                 "createdAt,desc",
                 1,
-                20
+                20,
+                false
         )).thenReturn(expected);
 
         Page<OrderReturnSummaryResponse> actual = controller.getReturns(
@@ -250,7 +256,8 @@ class OrderControllerExportTest {
                 LocalDate.of(2026, 9, 30),
                 "createdAt,desc",
                 1,
-                20
+                20,
+                false
         );
     }
 

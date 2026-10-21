@@ -156,7 +156,13 @@ public class SepayWebhookService {
             return SepayWebhookResponse.of(true);
         }
 
-        if (paidAmount.compareTo(expectedAmount) == 0) {
+        // Tiền về sau khi QR hết hạn hoặc thu ngân đã huỷ phiên: không tự ghi PAID, giữ lại để đối soát tay.
+        boolean sessionClosed = payment.getStatus() == PaymentStatus.EXPIRED
+                || payment.getStatus() == PaymentStatus.CANCELLED
+                || attempt.getStatus() == PaymentAttemptStatus.EXPIRED
+                || attempt.getStatus() == PaymentAttemptStatus.CANCELLED;
+
+        if (paidAmount.compareTo(expectedAmount) == 0 && !sessionClosed) {
             markPaymentSucceeded(payment, attempt, transaction, paidAmount, paidAt);
             webhookEvent.markProcessed(payment.getId());
 
@@ -169,10 +175,14 @@ public class SepayWebhookService {
             return SepayWebhookResponse.of(true);
         }
 
-        String reason = "Số tiền chuyển khoản không khớp. Expected="
-                + expectedAmount
-                + ", actual="
-                + paidAmount;
+        String reason = sessionClosed
+                ? "Tiền về sau khi phiên thanh toán đã " + (payment.getStatus() == PaymentStatus.CANCELLED
+                        || attempt.getStatus() == PaymentAttemptStatus.CANCELLED ? "huỷ" : "hết hạn 15 phút")
+                        + ". Số tiền=" + paidAmount
+                : "Số tiền chuyển khoản không khớp. Expected="
+                        + expectedAmount
+                        + ", actual="
+                        + paidAmount;
 
         markPaymentNeedReview(payment, attempt, transaction, paidAmount, reason);
         webhookEvent.markNeedReview(reason, payment.getId());
@@ -186,24 +196,28 @@ public class SepayWebhookService {
         return SepayWebhookResponse.of(true);
     }
 
+    /**
+     * Chỉ chấp nhận webhook mang đúng API key đã cấu hình ở SePay ({@code payment.sepay.secret}).
+     * Chưa cấu hình secret thì bỏ qua (môi trường dev) nhưng ghi cảnh báo.
+     */
     private void verifyAuthorization(String authorization) {
-//        log.info("Verifying authorization header: {}", authorization);
-//        String secret = properties.getSecret();
-//
-//        if (!StringUtils.hasText(secret)) {
-//            return;
-//        }
-//
-//        String expectedApiKeyHeader = "Apikey " + secret;
-//        String expectedBearerHeader = "Bearer " + secret;
-//
-//        if (!expectedApiKeyHeader.equals(authorization)
-//                && !expectedBearerHeader.equals(authorization)) {
-//            throw new ResponseStatusException(
-//                    HttpStatus.UNAUTHORIZED,
-//                    "Invalid SePay webhook authorization"
-//            );
-//        }
+        String secret = properties.getSecret();
+
+        if (!StringUtils.hasText(secret)) {
+            log.warn("payment.sepay.secret chưa cấu hình: webhook SePay không được xác thực");
+            return;
+        }
+
+        String expectedApiKeyHeader = "Apikey " + secret;
+        String expectedBearerHeader = "Bearer " + secret;
+
+        if (!expectedApiKeyHeader.equals(authorization)
+                && !expectedBearerHeader.equals(authorization)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid SePay webhook authorization"
+            );
+        }
     }
 
     private SepayWebhookRequest parseRequest(String rawBody) {

@@ -1,68 +1,33 @@
-# Project rules
+# Quy tắc cho agent / người mới
 
-## Scope
+## Phạm vi
 
-Only work on:
+- Đây là một app duy nhất (React + TypeScript + Vite + Tailwind v4 + CSS Modules), không có workspace con.
+- Code dùng chung nằm trong `src/lib` và `src/components`; không tạo package riêng.
 
-- apps/pos-web
-- package/ui when a component is truly reusable
+## Kiến trúc
 
-Do not modify:
+- Page đặt trong `src/features/<module>/pages`, component riêng của module trong `src/features/<module>/components`.
+- Gọi API trong `src/features/<module>/services/*.api.ts` qua `apiClient` (`src/api/api-client.ts`), không fetch trực tiếp trong component.
+- Đường dẫn khai báo trong `src/routes/path.ts`, mount trong `src/app/AppRouter.tsx`.
+- Dùng alias `@/` thay cho `../../..` khi import từ `src/lib`.
+- Khi nối API thật cho một màn còn mock, xóa luôn file mock tương ứng trong `features/<module>/mocks`.
 
-- apps/customer-web
+## POS
 
-## Stack
+- Desktop-first, tối thiểu 1280px, trang phải lấp đầy viewport.
+- Phím tắt không được bắt khi đang gõ trong input.
 
-- React
-- TypeScript
-- Vite
-- pnpm workspace
-- Keycloak
-- CSS Modules
-- Tailwind CSS
+## Xác thực
 
-## Architecture
+- Chỉ có một instance Keycloak (`src/auth/keycloak.ts`). Không tự lưu token vào localStorage, không tự viết refresh token.
 
-- Pages belong in features/*/pages
-- Feature-specific components belong in features/*
-- Generic reusable UI belongs in package/ui
-- Do not put the entire page in App.tsx
-- Do not call fetch directly inside presentational components
-- Do not duplicate shared types
+## Trước khi hoàn thành
 
-## Figma implementation
+```bash
+corepack pnpm build
+corepack pnpm lint
+corepack pnpm test
+```
 
-- Read one Figma screen at a time
-- Use the exact provided node ID
-- Use Figma as visual reference, not as application architecture
-- Convert generated Tailwind reference code to CSS Modules
-- Download Figma assets into the repository
-- Do not keep temporary Figma asset URLs in production code
-- Preserve aspect ratios
-- Build reusable components for repeated patterns
-- Avoid absolute positioning except for overlays or decorative assets
-
-## POS behavior
-
-- Desktop-first
-- The page must fill the viewport
-- Sidebar is fixed-width
-- Product area is flexible
-- Checkout panel has a stable width
-- Support screen widths from 1280px upward
-- Add graceful behavior below 1280px
-- Keyboard shortcuts must not fire while typing in an input
-
-## Authentication
-
-- Use the existing @hvt/auth package
-- Do not instantiate multiple Keycloak clients
-- Do not store access tokens manually in localStorage
-- Do not implement custom refresh-token logic outside the auth package
-
-## Quality gates
-
-Before completing a task, run:
-
-pnpm --filter pos-web build
-pnpm --filter pos-web lint
+Lint hiện còn lỗi cũ (`no-explicit-any`, `set-state-in-effect`) trong code feature; không thêm lỗi mới.

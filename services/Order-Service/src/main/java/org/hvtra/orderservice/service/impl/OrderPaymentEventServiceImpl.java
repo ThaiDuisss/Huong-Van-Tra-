@@ -16,6 +16,8 @@ import org.hvtra.orderservice.service.OrderCustomerService;
 import org.hvtra.orderservice.service.OrderPaymentEventService;
 import org.hvtra.orderservice.service.OrderPaymentSagaService;
 import org.hvtra.orderservice.service.helper.OrderAmountCalculator;
+import org.hvtra.orderservice.service.helper.OrderDateTimeHelper;
+import org.hvtra.orderservice.service.support.OrderBackorderSupport;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
 import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
 import org.hvtra.orderservice.service.validator.OrderValidator;
@@ -46,6 +48,8 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
     private final OrderResponseAssembler orderResponseAssembler;
     private final CatalogClient catalogClient;
     private final InventoryClient inventoryClient;
+    private final OrderBackorderSupport orderBackorderSupport;
+    private final OrderDateTimeHelper orderDateTimeHelper;
 
     @Override
     @Transactional
@@ -66,15 +70,14 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
                     OrderStatus.PAYMENT_FAILED,
                     "Thanh toán thất bại"
             );
-            case "PAYMENT_EXPIRED" -> handlePaymentFailedEvent(
+            // QR hết hạn / thu ngân huỷ: đơn quay về nháp để chọn lại phương thức thanh toán (không mất giỏ).
+            case "PAYMENT_EXPIRED" -> handlePaymentSessionEnded(
                     event,
-                    OrderStatus.EXPIRED,
-                    "Thanh toán hết hạn"
+                    "Mã QR chuyển khoản đã hết hạn sau 15 phút, vui lòng chọn lại phương thức thanh toán"
             );
-            case "PAYMENT_CANCELLED" -> handlePaymentFailedEvent(
+            case "PAYMENT_CANCELLED" -> handlePaymentSessionEnded(
                     event,
-                    OrderStatus.CANCELLED,
-                    "Thanh toán đã bị hủy"
+                    "Thanh toán chuyển khoản đã bị huỷ, vui lòng chọn lại phương thức thanh toán"
             );
             case "PAYMENT_NEED_REVIEW" -> handlePaymentNeedReviewEvent(event);
             case "PAYMENT_WAITING", "PAYMENT_WAITING_PAYMENT" -> handlePaymentWaitingEvent(event);
@@ -94,37 +97,33 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
 
         if (PaymentStatus.PAID == order.getPaymentStatus()) {
             if (isInventoryProcessingRetryable(order)) {
-                OrderStatus oldStatus = order.getStatus();
-                processPaidOrderInventory(order, event, isImmediateConsume(order));
-                if (order.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.FAILED) {
-                    order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
-                    orderRepository.save(order);
-                    return;
-                }
-                OrderStatus newStatus = isImmediateConsume(order) ? OrderStatus.COMPLETED : OrderStatus.PAYMENT_CONFIRMED;
-                order.setStatus(newStatus);
-                Order savedOrder = orderRepository.save(order);
-                orderStatusHistoryWriter.write(savedOrder, oldStatus, newStatus,
-                        "Thanh toán đã xác nhận, xử lý tồn kho hoàn tất", null);
-                UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, paymentCausationId(event));
-                orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
-                orderCustomerService.updateCustomerPurchase(savedOrder.getId());
-                orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, paymentCausationId(event), sagaId.toString());
-                orderOutboxPublisher.publishOrderPaymentSucceededNotification(savedOrder, event, oldStatus,
-                        newStatus, sagaId.toString());
+                finalizePaidOrder(order, event, order.getStatus(), null, paymentCausationId(event));
             } else {
                 orderPaymentSagaService.completePaymentSaga(order, event, paymentCausationId(event));
             }
             return;
         }
 
+        // Tiền về cho đơn đã huỷ / hết hạn: không tự hoàn tất, giữ lại để kiểm tra tay và hoàn tiền nếu cần.
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.EXPIRED) {
+            markNeedReview(order, event, "Tiền chuyển khoản về sau khi đơn đã "
+                    + (order.getStatus() == OrderStatus.CANCELLED ? "huỷ" : "hết hạn")
+                    + ", mã thanh toán: " + firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
+            return;
+        }
+
         BigDecimal amountPaid = orderAmountCalculator.defaultZero(event.getAmountPaid());
         orderValidator.validatePaymentAmount(order, amountPaid);
 
+        if (orderBackorderSupport.isAwaitingStock(order)) {
+            handleBackorderPaymentSucceeded(order, event);
+            return;
+        }
+
+        // Bước "Paid": ghi nhận đã thanh toán trước, trừ kho và hoàn tất đơn ở finalizePaidOrder.
         OrderStatus oldStatus = order.getStatus();
         order.setPaymentStatus(PaymentStatus.PAID);
-        OrderStatus paidStatus = isImmediateConsume(order) ? OrderStatus.COMPLETED : OrderStatus.PAYMENT_CONFIRMED;
-        order.setStatus(paidStatus);
+        order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
         order.setPaymentMethod(firstNonBlank(
                 orderResponseAssembler.normalizePaymentMethod(event.getPaymentMethod()),
                 order.getPaymentMethod()
@@ -132,35 +131,117 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
         order.setPaymentCode(firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
         order.setPaidAmount(order.getFinalAmount());
         order.setDebtAmount(BigDecimal.ZERO);
-        processPaidOrderInventory(order, event, isImmediateConsume(order));
-
         Order savedOrder = orderRepository.save(order);
-        if (savedOrder.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.FAILED) {
-            savedOrder.setStatus(OrderStatus.PAYMENT_CONFIRMED);
-            orderRepository.save(savedOrder);
-            return;
-        }
         orderStatusHistoryWriter.write(
                 savedOrder,
                 oldStatus,
-                paidStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
                 "Thanh toán chuyển khoản thành công, mã thanh toán: " + savedOrder.getPaymentCode(),
                 null
         );
 
-        UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, paymentCausationId(event));
+        finalizePaidOrder(savedOrder, event, oldStatus, null, paymentCausationId(event));
+    }
+
+    @Override
+    public boolean finalizePaidOrder(
+            Order order,
+            PaymentOrderEventPayload event,
+            OrderStatus statusBeforePayment,
+            UUID changedBy,
+            String causationId
+    ) {
+        boolean immediateConsume = isImmediateConsume(order);
+        processPaidOrderInventory(order, event, immediateConsume);
+
+        if (order.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.FAILED) {
+            order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
+            Order savedOrder = orderRepository.save(order);
+            log.warn("Đơn {} đã thanh toán nhưng chưa trừ được tồn kho: {}", savedOrder.getOrderCode(),
+                    savedOrder.getInventoryFailureReason());
+            // Thu ngân vẫn cần biết tiền đã vào; đơn hoàn tất sau khi scheduler trừ kho được.
+            orderOutboxPublisher.publishOrderPaymentSucceededNotification(
+                    savedOrder, event, statusBeforePayment, OrderStatus.PAYMENT_CONFIRMED,
+                    event == null ? null : event.getSagaId());
+            return false;
+        }
+
+        OrderStatus newStatus = immediateConsume ? OrderStatus.COMPLETED : OrderStatus.PAYMENT_CONFIRMED;
+        order.setStatus(newStatus);
+        Order savedOrder = orderRepository.save(order);
+        if (newStatus == OrderStatus.COMPLETED) {
+            orderStatusHistoryWriter.write(
+                    savedOrder,
+                    OrderStatus.PAYMENT_CONFIRMED,
+                    OrderStatus.COMPLETED,
+                    "Đã trừ tồn kho, hoàn tất đơn",
+                    changedBy
+            );
+        }
+
+        UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, causationId);
         orderPaymentSagaService.markResourceConfirmationRequested(savedOrder, sagaId);
-        orderCustomerService.updateCustomerPurchase(savedOrder.getId());
-        orderOutboxPublisher.publishPaymentCompletedOrchestration(
+        if (savedOrder.getCustomerId() != null) {
+            orderCustomerService.updateCustomerPurchase(savedOrder.getId());
+        }
+        orderOutboxPublisher.publishPaymentCompletedOrchestration(savedOrder, causationId, sagaId.toString());
+        orderOutboxPublisher.publishOrderPaymentSucceededNotification(
+                savedOrder, event, statusBeforePayment, newStatus, sagaId.toString());
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public int retryFailedInventory() {
+        List<Order> orders = orderRepository.findPaidOrdersWithFailedInventory();
+        int completed = 0;
+        for (Order candidate : orders) {
+            try {
+                Order order = orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(candidate.getId())
+                        .orElse(null);
+                if (order == null || !isInventoryProcessingRetryable(order)) {
+                    continue;
+                }
+                if (finalizePaidOrder(order, null, OrderStatus.PENDING_PAYMENT, null, "inventory-retry")) {
+                    completed++;
+                }
+            } catch (RuntimeException exception) {
+                log.warn("Thử lại trừ kho cho đơn {} thất bại: {}", candidate.getOrderCode(), exception.getMessage());
+            }
+        }
+        return completed;
+    }
+
+    /** Đơn chờ hàng trả bằng chuyển khoản: đã nhận đủ tiền nhưng chưa trừ tồn, chưa hoàn tất đơn. */
+    private void handleBackorderPaymentSucceeded(Order order, PaymentOrderEventPayload event) {
+        OrderStatus oldStatus = order.getStatus();
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setStatus(OrderStatus.PAYMENT_CONFIRMED);
+        order.setPaymentMethod(firstNonBlank(
+                orderResponseAssembler.normalizePaymentMethod(event.getPaymentMethod()),
+                order.getPaymentMethod()
+        ));
+        order.setPaymentCode(firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
+        order.setPaidAmount(order.getFinalAmount());
+        order.setDebtAmount(BigDecimal.ZERO);
+        orderBackorderSupport.enterWaitingStock(order);
+
+        Order savedOrder = orderRepository.save(order);
+        orderStatusHistoryWriter.write(
                 savedOrder,
-                paymentCausationId(event),
-                sagaId.toString()
+                oldStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
+                "Thanh toán chuyển khoản thành công, mã thanh toán: " + savedOrder.getPaymentCode()
+                        + ". Đơn chờ hàng, giao sau khi có hàng",
+                null
         );
+        UUID sagaId = orderPaymentSagaService.completePaymentSaga(savedOrder, event, paymentCausationId(event));
+        orderOutboxPublisher.publishCouponUsageCommit(savedOrder, paymentCausationId(event), sagaId.toString());
         orderOutboxPublisher.publishOrderPaymentSucceededNotification(
                 savedOrder,
                 event,
                 oldStatus,
-                paidStatus,
+                OrderStatus.PAYMENT_CONFIRMED,
                 sagaId.toString()
         );
     }
@@ -222,23 +303,62 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
             return;
         }
 
+        markNeedReview(order, event, firstNonBlank(event.getFailureReason(), "Thanh toán cần kiểm tra thủ công"));
+    }
+
+    /**
+     * Giữ đơn (không hoàn tất, không huỷ) và gắn cờ NEED_REVIEW: số tiền lệch hoặc tiền về sau khi QR hết hạn.
+     * Quản lý kiểm tra rồi xác nhận bằng mark-paid, hoặc huỷ đơn và hoàn tiền.
+     */
+    private void markNeedReview(Order order, PaymentOrderEventPayload event, String reason) {
         OrderStatus oldStatus = order.getStatus();
-        order.setPaymentStatus(PaymentStatus.WAITING_PAYMENT);
-        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        order.setPaymentStatus(PaymentStatus.NEED_REVIEW);
         order.setPaymentMethod(firstNonBlank(
                 orderResponseAssembler.normalizePaymentMethod(event.getPaymentMethod()),
                 order.getPaymentMethod()
         ));
         order.setPaymentCode(firstNonBlank(event.getPaymentCode(), order.getPaymentCode()));
-        order.setPaidAmount(BigDecimal.ZERO);
-        order.setDebtAmount(order.getFinalAmount());
+        order.setExpiresAt(null);
 
         Order savedOrder = orderRepository.save(order);
-        String reason = firstNonBlank(event.getFailureReason(), "Thanh toán cần kiểm tra thủ công");
-        if (oldStatus != OrderStatus.PENDING_PAYMENT) {
-            orderStatusHistoryWriter.write(savedOrder, oldStatus, OrderStatus.PENDING_PAYMENT, reason, null);
-        }
+        orderStatusHistoryWriter.write(savedOrder, oldStatus, savedOrder.getStatus(), reason, null);
         orderPaymentSagaService.markPaymentNeedReview(savedOrder, event, reason);
+        orderOutboxPublisher.publishOrderPaymentNeedReviewNotification(
+                savedOrder, event, oldStatus, savedOrder.getStatus(), event.getSagaId(), reason);
+    }
+
+    /**
+     * Phiên thanh toán chuyển khoản kết thúc mà chưa có tiền (hết hạn hoặc thu ngân huỷ): đơn quay về DRAFT với
+     * hạn nháp mới để thu ngân chọn lại phương thức; không huỷ đơn, không mất giỏ hàng.
+     */
+    private void handlePaymentSessionEnded(PaymentOrderEventPayload event, String reason) {
+        UUID orderId = UUID.fromString(event.getOrderId());
+        Order order = getExistingOrder(orderId);
+
+        if (PaymentStatus.PAID == order.getPaymentStatus()
+                || PaymentStatus.NEED_REVIEW == order.getPaymentStatus()
+                || order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            return;
+        }
+
+        Order savedOrder = returnOrderToDraft(order, reason);
+        orderPaymentSagaService.failPaymentSaga(savedOrder, event, reason);
+        orderOutboxPublisher.publishOrderPaymentFailedNotification(
+                savedOrder, event, OrderStatus.PENDING_PAYMENT, OrderStatus.DRAFT, event.getSagaId(), reason);
+    }
+
+    @Override
+    public Order returnOrderToDraft(Order order, String reason) {
+        OrderStatus oldStatus = order.getStatus();
+        order.setStatus(OrderStatus.DRAFT);
+        order.setPaymentStatus(PaymentStatus.UNPAID);
+        order.setPaymentMethod(null);
+        order.setPaidAmount(BigDecimal.ZERO);
+        order.setDebtAmount(order.getFinalAmount());
+        order.setExpiresAt(orderDateTimeHelper.nextDraftExpiresAt());
+        Order savedOrder = orderRepository.save(order);
+        orderStatusHistoryWriter.write(savedOrder, oldStatus, OrderStatus.DRAFT, reason, null);
+        return savedOrder;
     }
 
     private void handlePaymentWaitingEvent(PaymentOrderEventPayload event) {

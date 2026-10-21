@@ -5,6 +5,7 @@ import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionLineRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.request.CreateCustomerReturnInspectionRequest;
+import org.hvtra.iventoryservice.customerreturn.dto.request.PostCustomerReturnInspectionRequest;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnInspectionResponse;
 import org.hvtra.iventoryservice.customerreturn.dto.response.CustomerReturnQcSummaryResponse;
 import org.hvtra.iventoryservice.customerreturn.repository.CustomerReturnInspectionRepository;
@@ -21,6 +22,7 @@ import org.hvtra.iventoryservice.domain.entity.customerreturn.CustomerReturnInsp
 import org.hvtra.iventoryservice.domain.entity.disposal.DisposalRequest;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnInspectionStatus;
+import org.hvtra.iventoryservice.domain.enums.CustomerReturnActualCondition;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcResult;
 import org.hvtra.iventoryservice.domain.enums.CustomerReturnQcStatus;
 import org.hvtra.iventoryservice.domain.enums.DisposalRequestStatus;
@@ -48,6 +50,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -268,17 +271,13 @@ class CustomerReturnInspectionServiceImplTest {
     }
 
     @Test
-    void createInspectionRejectsOpenedRestock() {
-        stubReceivedReturn(OrderReturnCondition.OPENED, "3.00");
-
-        assertThatThrownBy(() -> service.createInspection(returnId, request(
-                returnItemId,
-                "1.00",
-                CustomerReturnQcResult.RESTOCK,
-                shelf.getId(),
-                null)))
+    void createInspectionRejectsOpenedActualRestockEvenWhenDeclaredSealed() {
+        stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
+        assertThatThrownBy(() -> service.createInspection(returnId, actualRequest(
+                CustomerReturnActualCondition.OPENED, CustomerReturnQcResult.RESTOCK, shelf.getId())))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("RESTOCK is not allowed");
+                .hasMessageContaining("RESTOCK is not allowed for QC actual condition OPENED");
+        verify(inspectionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -880,6 +879,179 @@ class CustomerReturnInspectionServiceImplTest {
         assertThat(response.lines().getFirst().status()).isEqualTo(CustomerReturnQcStatus.COMPLETED);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "SEALED,SEALED,RESTOCK", "SEALED,OPENED,WRITE_OFF",
+            "SEALED,DAMAGED,DAMAGED", "OPENED,SEALED,RESTOCK",
+            "SEALED,SEALED,DAMAGED", "SEALED,SEALED,WRITE_OFF"
+    })
+    void inspectionUsesActualConditionAndPreservesOriginalDeclaration(
+            OrderReturnCondition declared, CustomerReturnActualCondition actual, CustomerReturnQcResult result) {
+        OrderReturnResponse original = orderReturn(OrderReturnStatus.RECEIVED, declared, "3.00");
+        OrderReturnItemResponse declaredLine = original.items().getFirst();
+        String reason = declared == OrderReturnCondition.SEALED ? "CHANGE_OF_MIND" : "DEFECTIVE";
+        when(orderReturnClient.getReturnById(returnId)).thenReturn(new OrderReturnResponse(
+                original.id(), original.returnCode(), original.orderId(), original.orderCode(), original.branchId(),
+                original.status(), original.note(), original.createdAt(), original.updatedAt(),
+                List.of(new OrderReturnItemResponse(declaredLine.id(), declaredLine.orderItemId(), declaredLine.productVariantId(),
+                        declaredLine.quantity(), reason, declared, null, declaredLine.skuSnapshot(), declaredLine.productNameSnapshot(), declaredLine.variantNameSnapshot()))));
+        stubActiveItem();
+        InventoryLocation destination = result == CustomerReturnQcResult.RESTOCK ? shelf
+                : result == CustomerReturnQcResult.DAMAGED ? damaged : null;
+        if (destination != null) when(locationRepository.findById(destination.getId())).thenReturn(Optional.of(destination));
+        CustomerReturnInspectionResponse response = service.createInspection(returnId,
+                actualRequest(actual, result, destination == null ? null : destination.getId()));
+        assertThat(response.lines().getFirst().declaredCondition()).isEqualTo(declared.name());
+        assertThat(response.lines().getFirst().condition()).isEqualTo(declared.name());
+        assertThat(response.lines().getFirst().actualCondition()).isEqualTo(actual);
+        assertThat(response.lines().getFirst().result()).isEqualTo(result);
+        assertThat(original.items().getFirst().condition()).isEqualTo(declared);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CustomerReturnActualCondition.class, names = {"OPENED", "USED", "DAMAGED", "SPOILED"})
+    void everyNonSealedActualConditionRejectsRestock(CustomerReturnActualCondition actual) {
+        stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
+        assertThatThrownBy(() -> service.createInspection(returnId, actualRequest(actual, CustomerReturnQcResult.RESTOCK, shelf.getId())))
+                .hasMessageContaining("RESTOCK is not allowed for QC actual condition " + actual);
+        verifyNoInteractions(balanceRepository, transactionRepository);
+    }
+
+    @Test
+    void directQcCreationRequiresActualCondition() {
+        stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
+        assertThatThrownBy(() -> service.createInspection(returnId, actualRequest(null, CustomerReturnQcResult.WRITE_OFF, null)))
+                .hasMessageContaining("QC actual condition is required");
+        verify(inspectionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void orderCommandCanOpenDraftWithoutActualConditionButCannotPostIt() {
+        stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
+        stubActiveItem();
+        CustomerReturnInspectionResponse response = service.createInspection(returnId, UUID.randomUUID(),
+                actualRequest(null, CustomerReturnQcResult.WRITE_OFF, null));
+        ArgumentCaptor<CustomerReturnInspection> saved = ArgumentCaptor.forClass(CustomerReturnInspection.class);
+        verify(inspectionRepository).saveAndFlush(saved.capture());
+        CustomerReturnInspection draft = saved.getValue();
+        assertThat(response.lines().getFirst().actualCondition()).isNull();
+        stubWriteOffPost(draft);
+        assertThatThrownBy(() -> service.postInspection(draft.getId())).hasMessageContaining("QC actual condition is required");
+        verifyNoInteractions(balanceRepository, transactionRepository, inventoryOutboxPublisher);
+    }
+
+    @Test
+    void postRevalidatesActualConditionRatherThanTrustingSavedRestockResult() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.RESTOCK, shelf, "1.00");
+        inspection.getLines().getFirst().setActualCondition(CustomerReturnActualCondition.OPENED);
+        stubWriteOffPost(inspection);
+        assertThatThrownBy(() -> service.postInspection(inspection.getId()))
+                .hasMessageContaining("RESTOCK is not allowed for QC actual condition OPENED");
+        verifyNoInteractions(balanceRepository, transactionRepository, inventoryOutboxPublisher);
+    }
+
+    @Test
+    void qcCanCorrectDraftConditionResultDestinationAndNoteBeforePostingAndAck() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.RESTOCK, shelf, "1.00");
+        CustomerReturnInspectionLine line = inspection.getLines().getFirst();
+        line.setActualCondition(null);
+        stubWriteOffPost(inspection);
+        InventoryInbox inbox = attachInbox(inspection);
+        PostCustomerReturnInspectionRequest correction = new PostCustomerReturnInspectionRequest(List.of(
+                new PostCustomerReturnInspectionRequest.LineOverride(line.getId(), returnItemId, null,
+                        CustomerReturnActualCondition.OPENED, CustomerReturnQcResult.WRITE_OFF, "Seal opened during inspection")));
+        CustomerReturnInspectionResponse response = service.postInspection(inspection.getId(), correction);
+        assertThat(response.lines().getFirst().declaredCondition()).isEqualTo("SEALED");
+        assertThat(response.lines().getFirst().actualCondition()).isEqualTo(CustomerReturnActualCondition.OPENED);
+        assertThat(line.getResult()).isEqualTo(CustomerReturnQcResult.WRITE_OFF);
+        assertThat(line.getDestinationLocation()).isNull();
+        assertThat(line.getNote()).isEqualTo("Seal opened during inspection");
+        assertThat(line.getPosted()).isTrue();
+        assertThat(inbox.getStatus()).isEqualTo(InboxStatus.PROCESSED);
+        verify(inventoryOutboxPublisher).publishReturnInventoryDispositionProcessed(
+                inbox.getCommandId(), returnId.toString(), inspection.getId().toString(), inbox.getSagaId(), inbox.getCorrelationId());
+        verifyNoInteractions(balanceRepository);
+    }
+
+    @Test
+    void qcCanRestockActuallySealedGoodsEvenWhenDeclaredOpened() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.DAMAGED, damaged, "1.00");
+        CustomerReturnInspectionLine line = inspection.getLines().getFirst();
+        stubWriteOffPost(inspection);
+        when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(OrderReturnStatus.RECEIVED, OrderReturnCondition.OPENED, "3.00"));
+        when(locationRepository.findById(shelf.getId())).thenReturn(Optional.of(shelf));
+        when(batchRepository.findFirstByInventoryItemId(item.getId())).thenReturn(Optional.of(batch));
+        InventoryBalance balance = balance("5", "0", "0", shelf);
+        when(balanceRepository.findForUpdateByBatchId(batch.getId(), shelf.getId())).thenReturn(Optional.of(balance));
+        CustomerReturnInspectionResponse response = service.postInspection(inspection.getId(), new PostCustomerReturnInspectionRequest(List.of(
+                new PostCustomerReturnInspectionRequest.LineOverride(line.getId(), returnItemId, shelf.getId(),
+                        CustomerReturnActualCondition.SEALED, CustomerReturnQcResult.RESTOCK, "Actually sealed"))));
+        assertThat(response.lines().getFirst().declaredCondition()).isEqualTo("OPENED");
+        assertThat(response.lines().getFirst().actualCondition()).isEqualTo(CustomerReturnActualCondition.SEALED);
+        assertThat(balance.getQuantityOnHand()).isEqualByComparingTo("6");
+        assertThat(line.getResult()).isEqualTo(CustomerReturnQcResult.RESTOCK);
+    }
+
+    @Test
+    void postRejectsInvalidCorrectionBeforeAnyMovement() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.RESTOCK, shelf, "1.00");
+        stubWriteOffPost(inspection);
+        CustomerReturnInspectionLine line = inspection.getLines().getFirst();
+        assertThatThrownBy(() -> service.postInspection(inspection.getId(), new PostCustomerReturnInspectionRequest(List.of(
+                new PostCustomerReturnInspectionRequest.LineOverride(line.getId(), returnItemId, shelf.getId(),
+                        CustomerReturnActualCondition.USED, CustomerReturnQcResult.RESTOCK, null)))))
+                .hasMessageContaining("RESTOCK is not allowed for QC actual condition USED");
+        verifyNoInteractions(balanceRepository, transactionRepository, inventoryOutboxPublisher);
+    }
+
+    @Test
+    void postedHistoricalInspectionRemainsImmutableWithoutBackfilledActualCondition() {
+        CustomerReturnInspection inspection = postedInspection("1.00");
+        CustomerReturnInspectionLine line = inspection.getLines().getFirst();
+        line.setActualCondition(null);
+        when(inspectionRepository.findByIdAndIsDeletedFalse(inspection.getId())).thenReturn(Optional.of(inspection));
+        service.postInspection(inspection.getId(), new PostCustomerReturnInspectionRequest(List.of(
+                new PostCustomerReturnInspectionRequest.LineOverride(line.getId(), returnItemId, null,
+                        CustomerReturnActualCondition.SEALED, CustomerReturnQcResult.RESTOCK, "Changed"))));
+        assertThat(line.getActualCondition()).isNull();
+        assertThat(line.getResult()).isEqualTo(CustomerReturnQcResult.WRITE_OFF);
+        assertThat(line.getNote()).isNull();
+        verifyNoInteractions(balanceRepository, transactionRepository);
+        verify(inspectionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void postedLineInsideProcessingInspectionCannotBeEdited() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
+        inspection.setStatus(CustomerReturnInspectionStatus.PROCESSING);
+        CustomerReturnInspectionLine line = inspection.getLines().getFirst();
+        line.setPosted(true);
+        stubWriteOffPost(inspection);
+        assertThatThrownBy(() -> service.postInspection(inspection.getId(), new PostCustomerReturnInspectionRequest(List.of(
+                new PostCustomerReturnInspectionRequest.LineOverride(line.getId(), returnItemId, null,
+                        CustomerReturnActualCondition.OPENED, CustomerReturnQcResult.WRITE_OFF, "Changed")))))
+                .hasMessageContaining("Posted inspection lines cannot be changed");
+        verifyNoInteractions(balanceRepository, transactionRepository);
+    }
+
+    @Test
+    void correctionsCannotIntroduceNewQuarantine() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.DAMAGED, damaged, "1.00");
+        stubWriteOffPost(inspection);
+        CustomerReturnInspectionLine line = inspection.getLines().getFirst();
+        assertThatThrownBy(() -> service.postInspection(inspection.getId(), new PostCustomerReturnInspectionRequest(List.of(
+                new PostCustomerReturnInspectionRequest.LineOverride(line.getId(), returnItemId, quarantine.getId(),
+                        CustomerReturnActualCondition.SEALED, CustomerReturnQcResult.QUARANTINE, null)))))
+                .hasMessageContaining("QUARANTINE is no longer supported");
+        verifyNoInteractions(balanceRepository, transactionRepository);
+    }
+
+    private CreateCustomerReturnInspectionRequest actualRequest(
+            CustomerReturnActualCondition actual, CustomerReturnQcResult result, UUID destination) {
+        return new CreateCustomerReturnInspectionRequest(null, List.of(new CreateCustomerReturnInspectionLineRequest(
+                returnItemId, BigDecimal.ONE, result, destination, "QC observation", actual)));
+    }
+
     private void stubReceivedReturn(OrderReturnCondition condition, String quantity) {
         when(orderReturnClient.getReturnById(returnId)).thenReturn(orderReturn(
                 OrderReturnStatus.RECEIVED,
@@ -925,7 +1097,8 @@ class CustomerReturnInspectionServiceImplTest {
                 new BigDecimal(quantity),
                 result,
                 destinationLocationId,
-                note);
+                note,
+                CustomerReturnActualCondition.SEALED);
     }
 
     private CustomerReturnInspection inspection(
@@ -950,6 +1123,7 @@ class CustomerReturnInspectionServiceImplTest {
         line.setInventoryItem(item);
         line.setQuantity(new BigDecimal(quantity));
         line.setResult(result);
+        line.setActualCondition(CustomerReturnActualCondition.SEALED);
         line.setDestinationLocation(destination);
         line.setPosted(false);
         inspection.addLine(line);

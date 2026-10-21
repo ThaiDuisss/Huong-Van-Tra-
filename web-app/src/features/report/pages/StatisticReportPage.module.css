@@ -1,0 +1,297 @@
+.page {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+    min-width: 0;
+    min-height: calc(100vh - 72px);
+    background: #f7f8fb;
+    padding: 24px;
+}
+
+.header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.title h1 {
+    margin: 0;
+    color: #172317;
+    font-size: 26px;
+    font-weight: 900;
+}
+
+.title p {
+    margin: 4px 0 0;
+    color: #697684;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.tabs {
+    display: inline-flex;
+    gap: 4px;
+    border: 1px solid #dbe5df;
+    border-radius: 10px;
+    background: #fff;
+    padding: 4px;
+}
+
+.tab {
+    height: 36px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    padding: 0 14px;
+    color: #536078;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.tabActive {
+    background: #159734;
+    color: #fff;
+}
+
+.filterPanel,
+.tableCard {
+    border: 1px solid #e8eef0;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgb(23 35 23 / 7%);
+}
+
+.filterPanel {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px;
+}
+
+.field,
+.inlineField {
+    display: grid;
+    gap: 6px;
+    color: #536078;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.field {
+    min-width: 170px;
+}
+
+.field input,
+.field select,
+.inlineField select {
+    height: 42px;
+    border: 1px solid #dbe5df;
+    border-radius: 8px;
+    background: #fff;
+    padding: 0 12px;
+    color: #172317;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.presets {
+    display: flex;
+    gap: 8px;
+}
+
+.presets button {
+    height: 42px;
+    border: 1px solid #dbe5df;
+    border-radius: 8px;
+    background: #fff;
+    padding: 0 14px;
+    color: #172317;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.presets button:hover {
+    background: #f4f7f5;
+}
+
+.summaryGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.metricCard {
+    display: grid;
+    gap: 8px;
+    border: 1px solid #e8eef0;
+    border-radius: 8px;
+    background: #fff;
+    padding: 14px;
+    box-shadow: 0 10px 28px rgb(23 35 23 / 7%);
+}
+
+.metricCard span {
+    color: #697684;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.metricCard strong {
+    color: #172317;
+    font-size: 22px;
+    font-weight: 900;
+}
+
+.tableCard {
+    overflow: hidden;
+}
+
+.tableHeader {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.tableHeader h2 {
+    margin: 0 0 4px;
+    color: #172317;
+    font-size: 16px;
+    font-weight: 900;
+}
+
+.tableTools {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.tableWrap {
+    overflow-x: auto;
+}
+
+.reportTable {
+    width: 100%;
+    min-width: 860px;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+
+.reportTable th {
+    background: #eaf7ec;
+    color: #172317;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.reportTable th,
+.reportTable td {
+    border-top: 1px solid #edf0f4;
+    padding: 12px;
+    vertical-align: middle;
+}
+
+.reportTable tbody tr:hover {
+    background: #f8fbf8;
+}
+
+.reportTable .numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.reportTable .rankColumn {
+    width: 64px;
+    text-align: center;
+}
+
+.rank {
+    display: inline-grid;
+    place-items: center;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #eef2f4;
+    color: #536078;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.rankTop {
+    background: #159734;
+    color: #fff;
+}
+
+.barValue {
+    display: grid;
+    gap: 6px;
+    min-width: 160px;
+}
+
+.bar {
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #edf2f4;
+}
+
+.bar span {
+    display: block;
+    height: 100%;
+    margin-left: auto;
+    border-radius: inherit;
+    background: #159734;
+}
+
+.muted {
+    color: #697684;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.emptyCell {
+    padding: 28px;
+    color: #697684;
+    text-align: center;
+    font-weight: 800;
+}
+
+.errorBox {
+    margin: 0;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    background: #fff1f2;
+    padding: 12px;
+    color: #b91c1c;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.tableCard .errorBox {
+    margin: 12px 14px;
+}
+
+@media (max-width: 720px) {
+    .page {
+        padding: 16px;
+    }
+
+    .field {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
+
+    .tableTools {
+        width: 100%;
+        justify-content: space-between;
+    }
+}

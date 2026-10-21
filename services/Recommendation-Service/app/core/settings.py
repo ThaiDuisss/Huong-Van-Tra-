@@ -1,4 +1,6 @@
-from pydantic import SecretStr
+from typing import Literal
+
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
@@ -22,10 +24,25 @@ class Settings(BaseSettings):
     mysql_echo_sql: bool = False
 
     catalog_service_url: str = "http://localhost:8081"
-    internal_header_secret: str = "dev-internal-header-secret"
+    internal_header_secret: str = Field(default="", repr=False)
+    app_environment: Literal["production", "development", "test"] = "production"
+    internal_replay_backend: Literal["redis", "memory"] = "redis"
+    internal_replay_redis_url: SecretStr | None = None
+    internal_context_max_skew_seconds: int = Field(default=60, ge=1, le=300)
+    recommendation_internal_callers: str = ""
+    recommendation_staff_roles: str = ""  # Explicit operator authorization required.
+    catalog_sync_internal_callers: str = "catalog-Service"
     internal_service_name: str = "recommendation-service"
+    file_service_url: str = "http://localhost:8101"
+    # Exact origins only; signed storage URLs are never supplied by the caller.
+    ai_report_storage_origins: str = "http://localhost:9000"
+    ai_report_file_timeout_seconds: float = 30.0
+    ai_report_evaluation_days: int = Field(default=7, ge=1, le=90)
+    ai_report_max_period_days: int = Field(default=366, ge=1, le=366)
+    ai_report_max_evidence_rows: int = Field(default=20000, ge=1, le=100000)
 
-    model_artifact_path: str = "artifacts/lightfm_model.pkl"
+    model_artifact_path: str = "artifacts/lightfm_model.pkl"  # Legacy research training only.
+    v1_artifact_path: str = "artifacts/v1_hybrid_model.npz"
     recommendation_default_limit: int = 10
     recommendation_max_limit: int = 50
 

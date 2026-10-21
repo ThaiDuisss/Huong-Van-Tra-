@@ -11,4 +11,6 @@ public class UpdateDraftOrderItemQuantityRequest {
     @NotNull
     @PositiveOrZero
     private BigDecimal quantity;
+    /** Khách đồng ý chờ hàng: cho đặt vượt số lượng có thể bán. */
+    private Boolean allowBackorder;
 }

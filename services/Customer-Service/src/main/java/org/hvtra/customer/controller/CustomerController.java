@@ -10,10 +10,14 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
+import org.hvtra.customer.dto.request.ChangeCustomerStatusRequest;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
+import org.hvtra.customer.dto.request.CustomerImportRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
+import org.hvtra.customer.dto.response.CustomerImportResponse;
 import org.hvtra.customer.dto.response.CustomerResponse;
 import org.hvtra.customer.dto.response.PageResponse;
+import org.hvtra.customer.service.CustomerImportService;
 import org.hvtra.customer.service.CustomerService;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +37,7 @@ import java.util.UUID;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final CustomerImportService customerImportService;
 
     @GetMapping
     @Operation(
@@ -74,6 +79,27 @@ public class CustomerController {
             @Valid @RequestBody CustomerRequest request
     ) {
         return customerService.update(id, request);
+    }
+
+    @UserAction(value = "CUSTOMER_STATUS_UPDATE", entityType = "Customer", entityId = "#id", detail = "#request.status")
+    @PatchMapping(ApiPath.CUSTOMER_STATUS)
+    @Operation(summary = "Đổi trạng thái khách hàng (kích hoạt / ngừng hoạt động / tạm khóa)")
+    public CustomerResponse changeStatus(
+            @PathVariable(ApiParam.ID) @Parameter(description = "ID khách hàng") UUID id,
+            @Valid @RequestBody ChangeCustomerStatusRequest request
+    ) {
+        return customerService.changeStatus(id, request);
+    }
+
+    @UserAction(value = "CUSTOMER_IMPORT", entityType = "Customer")
+    @PostMapping(ApiPath.CUSTOMER_IMPORT)
+    @Operation(
+            summary = "Nhập danh sách khách hàng",
+            description = "Kiểm tra từng dòng theo cùng quy tắc với tạo khách hàng. dryRun = true chỉ kiểm tra, không lưu. "
+                    + "Dòng hợp lệ được tạo, dòng lỗi bị bỏ qua và trả về kèm lý do. Tối đa 500 dòng mỗi lần."
+    )
+    public CustomerImportResponse importCustomers(@Valid @RequestBody CustomerImportRequest request) {
+        return customerImportService.importCustomers(request);
     }
 
     @PutMapping(ApiPath.PURCHASE_UPDATE)

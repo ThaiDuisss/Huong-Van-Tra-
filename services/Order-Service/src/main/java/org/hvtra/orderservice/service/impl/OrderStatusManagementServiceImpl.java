@@ -9,6 +9,7 @@ import org.hvtra.orderservice.domain.enums.PaymentStatus;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
 import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderResponse;
+import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.repository.OrderRepository;
 import org.hvtra.orderservice.service.OrderStatusManagementService;
@@ -46,6 +47,12 @@ public class OrderStatusManagementServiceImpl implements OrderStatusManagementSe
 
         if (oldStatus == request.getStatus()) {
             return orderResponseAssembler.toResponse(order);
+        }
+
+        if (order.isBackorder()
+                && order.getInventoryProcessingStatus() == OrderInventoryProcessingStatus.WAITING_STOCK) {
+            throw new InvalidOrderStatusException(
+                    "Đơn đang chờ hàng. Vui lòng dùng chức năng giao hàng ở màn hình Đơn chờ hàng để hoàn tất đơn.");
         }
 
         if (order.isFulfillmentRequired() && order.getPaymentStatus() == PaymentStatus.PAID) {

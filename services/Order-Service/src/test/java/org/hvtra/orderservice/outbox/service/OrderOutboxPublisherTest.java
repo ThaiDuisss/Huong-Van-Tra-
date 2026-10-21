@@ -62,6 +62,10 @@ class OrderOutboxPublisherTest {
         Order order = Order.builder()
                 .orderCode("ORD-1001")
                 .customerId(customerId)
+                .customerNameSnapshot("Nguyễn Văn A")
+                .customerEmailSnapshot("khach@example.com")
+                .customerPhoneSnapshot("0900000001")
+                .cashierNameSnapshot("Thu ngân 1")
                 .status(OrderStatus.COMPLETED)
                 .paymentStatus(PaymentStatus.PAID)
                 .originalAmount(new BigDecimal("250000.00"))
@@ -122,6 +126,12 @@ class OrderOutboxPublisherTest {
         assertEquals("COMPLETED", payload.get("orderStatus"));
         assertEquals("PAID", payload.get("paymentStatus"));
         assertNotNull(payload.get("occurredAt"));
+        // Thông tin dùng cho hóa đơn gửi email
+        assertEquals("Nguyễn Văn A", payload.get("customerName"));
+        assertEquals("khach@example.com", payload.get("customerEmail"));
+        assertEquals("0900000001", payload.get("customerPhone"));
+        assertEquals("Thu ngân 1", payload.get("cashierName"));
+        assertEquals(new BigDecimal("250000.00"), payload.get("originalAmount"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) payload.get("items");

@@ -118,9 +118,15 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
+        boolean offlineSale = Boolean.TRUE.equals(request.getOfflineSale());
+
         Order order = Order.builder()
                 .orderCode(generateOrderCode())
                 .tenantId(request.getTenantId())
+                .branchId(request.getBranchId())
+                .clientOrderId(request.getClientOrderId())
+                .offlineSale(offlineSale)
+                .soldAt(offlineSale ? request.getSoldAt() : null)
                 .terminalId(request.getTerminalId())
                 .shiftId(request.getShiftId())
                 .customerId(request.getCustomerId())
@@ -187,8 +193,13 @@ public class OrderServiceImpl implements OrderService {
                 );
             }
 
-            BigDecimal actualUnitPrice = variant.sellingPrice()
+            BigDecimal catalogUnitPrice = variant.sellingPrice()
                     .setScale(2, RoundingMode.HALF_UP);
+            // Đơn offline giữ đúng giá đã in cho khách tại quầy, kể cả khi catalog đã đổi giá.
+            BigDecimal actualUnitPrice =
+                    offlineSale && itemRequest.getUnitPriceSnapshot() != null
+                            ? itemRequest.getUnitPriceSnapshot().setScale(2, RoundingMode.HALF_UP)
+                            : catalogUnitPrice;
 
             if (actualUnitPrice.compareTo(BigDecimal.ZERO) < 0) {
                 throw new IllegalArgumentException(
@@ -215,7 +226,7 @@ public class OrderServiceImpl implements OrderService {
                     .productNameSnapshot(variant.productName())
                     .variantNameSnapshot(variant.variantName())
                     .quantity(quantity)
-                    .originalUnitPrice(actualUnitPrice)
+                    .originalUnitPrice(catalogUnitPrice)
                     .actualUnitPrice(actualUnitPrice)
                     .discountAmount(itemDiscount)
                     .lineTotal(lineTotal)
@@ -271,11 +282,21 @@ public class OrderServiceImpl implements OrderService {
             return toResponse(savedOrder);
         }
 
-        PaymentResponse payment = checkoutPayment(
-                savedOrder,
-                paymentMethod,
-                request.getPaidAmount()
-        );
+        boolean depositRequested = request.getDepositAmount() != null
+                && request.getDepositAmount().compareTo(BigDecimal.ZERO) > 0;
+        PaymentResponse payment = Boolean.TRUE.equals(request.getAllowBackorder()) || depositRequested
+                ? orderCheckoutPaymentProcessor.checkoutBackorderPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount(),
+                        getUserId(),
+                        request.getDepositAmount()
+                )
+                : checkoutPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount()
+                );
 
         return toResponse(savedOrder, payment);
     }
@@ -316,11 +337,22 @@ public class OrderServiceImpl implements OrderService {
                 request.getCashierId()
         );
 
-        PaymentResponse payment = checkoutPayment(
-                savedOrder,
-                paymentMethod,
-                request.getPaidAmount()
-        );
+        boolean depositRequested = request.getDepositAmount() != null
+                && request.getDepositAmount().compareTo(BigDecimal.ZERO) > 0;
+        PaymentResponse payment = orderCheckoutPaymentProcessor != null
+                && (Boolean.TRUE.equals(request.getAllowBackorder()) || depositRequested)
+                ? orderCheckoutPaymentProcessor.checkoutBackorderPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount(),
+                        getUserId(),
+                        request.getDepositAmount()
+                )
+                : checkoutPayment(
+                        savedOrder,
+                        paymentMethod,
+                        request.getPaidAmount()
+                );
 
         return toResponse(savedOrder, payment);
     }
@@ -625,6 +657,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request) {
         return orderPaymentService.markOrderPaid(orderId, request);
+    }
+
+    @Override
+    public OrderResponse cancelPosPayment(UUID orderId) {
+        return orderPaymentService.cancelPosPayment(orderId);
     }
 
     @Override
@@ -1691,6 +1728,12 @@ public class OrderServiceImpl implements OrderService {
                 .debtAmount(order.getDebtAmount())
                 .changeAmount(changeAmount)
                 .expiresAt(order.getExpiresAt())
+                .backorder(order.isBackorder())
+                .expectedAvailableAt(order.getExpectedAvailableAt())
+                .depositAmount(order.getDepositAmount())
+                .offlineSale(order.isOfflineSale())
+                .clientOrderId(order.getClientOrderId())
+                .inventoryProcessingStatus(order.getInventoryProcessingStatus())
                 .items(order.getItems().stream().map(this::toItemResponse).toList())
                 .customerName(order.getCustomerNameSnapshot())
                 .customerPhone(order.getCustomerPhoneSnapshot())
@@ -1711,7 +1754,7 @@ public class OrderServiceImpl implements OrderService {
                 .createdBy(toAuditString(auditValue(order, "getCreatedBy")))
                 .createdByName(order.getCashierNameSnapshot())
                 .createdAt(createdAt)
-                .soldAt(createdAt)
+                .soldAt(order.getSoldAt() != null ? toLocalDateTime(order.getSoldAt()) : createdAt)
                 .updatedBy(toAuditString(auditValue(order, "getUpdatedBy")))
                 .updatedAt(toLocalDateTime(auditValue(order, "getUpdatedAt")))
                 .statusHistories(toStatusHistoryResponses(order.getId()))
@@ -1957,6 +2000,8 @@ public class OrderServiceImpl implements OrderService {
             case FAILED -> "Thanh toán thất bại";
             case REFUNDED -> "Đã hoàn tiền";
             case PARTIALLY_REFUNDED -> "Hoàn tiền một phần";
+            case PARTIALLY_PAID -> "Đã đặt cọc";
+            case NEED_REVIEW -> "Chờ kiểm tra thanh toán";
         };
     }
 

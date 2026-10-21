@@ -44,10 +44,14 @@ eureka:
     fetch-registry: true
 
 idp:
-  url: ${KEYCLOAK_URL}
+  url: ${KEYCLOAK_URL:}
   client-id: ${KEYCLOAK_CLIENT_ID}
   clientSecret: ${KEYCLOAK_CLIENT_SECRET}
   realm: hvt
+  # Service account (client-credentials) dùng để gọi Keycloak Admin REST API cho màn quản lý tài khoản.
+  # Client này cần bật "Service accounts roles" và được gán realm-management: manage-users, view-users, view-realm.
+  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:}
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
 
 
 # ===== Action log (nhận từ Kafka topic action.log, lưu bảng action_log) =====

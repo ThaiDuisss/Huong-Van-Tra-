@@ -6,6 +6,7 @@ import org.hvtra.paymentservice.config.SepayProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Import;
 
@@ -16,6 +17,7 @@ import org.springframework.context.annotation.Import;
 @EnableFeignClients(defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
 @EnableConfigurationProperties(SepayProperties.class)
+@EnableScheduling
 public class PaymentServiceApplication {
 
     public static void main(String[] args) {

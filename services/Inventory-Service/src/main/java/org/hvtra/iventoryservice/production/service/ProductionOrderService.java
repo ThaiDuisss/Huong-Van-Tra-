@@ -17,6 +17,12 @@ public interface ProductionOrderService {
 
     ProductionOrderResponse create(CreateProductionOrderRequest request);
 
+    /**
+     * Lệnh sản xuất nháp cho đơn chờ hàng khi nguyên liệu chưa đủ: không kiểm tra tồn nguyên liệu lúc tạo,
+     * kho duyệt sau khi nhập nguyên liệu về.
+     */
+    ProductionOrderResponse createDraft(CreateProductionOrderRequest request);
+
     ProductionOrderResponse submit(UUID id);
 
     ProductionOrderResponse approve(UUID id);

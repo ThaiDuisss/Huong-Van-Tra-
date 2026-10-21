@@ -50,7 +50,7 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
                 .cast(Authentication.class)
                 .flatMap( authenticator ->  {
                     if(!(authenticator instanceof JwtAuthenticationToken jwtAuthenticationToken)) {
-                        return chain.filter(removeInternalHeaders(exchange));
+                        return chain.filter(removeInternalHeaders(exchange)).thenReturn(Boolean.TRUE);
                     }
                     Jwt jwt = jwtAuthenticationToken.getToken();
                     String userId = value(jwt.getSubject());
@@ -107,9 +107,12 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
 
                             .build();
 
-                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                    return chain.filter(exchange.mutate().request(mutatedRequest).build()).thenReturn(Boolean.TRUE);
                 })
-                .switchIfEmpty(chain.filter(removeInternalHeaders(exchange)));
+                // Mono<Void> completes empty even after forwarding. Keep a marker
+                // so only an absent principal reaches the lazy fallback.
+                .switchIfEmpty(Mono.defer(() -> chain.filter(removeInternalHeaders(exchange)).thenReturn(Boolean.TRUE)))
+                .then();
 
     }
 

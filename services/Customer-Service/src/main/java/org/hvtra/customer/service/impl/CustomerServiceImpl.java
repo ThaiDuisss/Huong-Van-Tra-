@@ -3,6 +3,7 @@ package org.hvtra.customer.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
+import org.hvtra.customer.dto.request.ChangeCustomerStatusRequest;
 import org.hvtra.customer.dto.request.CustomerFilterRequest;
 import org.hvtra.customer.dto.request.CustomerRequest;
 import org.hvtra.customer.dto.request.LoyaltyAccountRequest;
@@ -76,10 +77,6 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public CustomerResponse create(CustomerRequest request) {
-        if (customerRepository.existsByPhone(request.phone())){
-            throw new RuntimeException();
-        }
-
         CustomerRequest normalizedRequest = normalizeCreateRequest(request);
         ensureUniqueFields(normalizedRequest, null);
         Customer customer = new Customer();
@@ -115,6 +112,10 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse updatePurchase(UUID orderId) {
         OrderClient.OrderResponse res = orderGateway.getOrderById(orderId);
 
+        if (res.customerId() == null || res.finalAmount() == null || res.finalAmount().compareTo(BigDecimal.ZERO) < 0) {
+            throw invalidRequest("Thông tin đơn hàng không hợp lệ");
+        }
+
         OrderCompletedEvent event = new OrderCompletedEvent(
                 orderId,
                 res.orderCode(),
@@ -123,11 +124,8 @@ public class CustomerServiceImpl implements CustomerService {
                 res.soldAt()
         );
 
+        // recordPurchase đã cộng tổng chi tiêu, số đơn, ngày mua gần nhất và xét hạng; idempotent theo orderId.
         loyaltyTierService.recordPurchase(event);
-
-        if (res.customerId() == null || res.finalAmount() == null || res.finalAmount().compareTo(BigDecimal.ZERO) < 0) {
-            throw invalidRequest("Thông tin đơn hàng không hợp lệ");
-        }
 
         Customer cus = customerRepository.findByIdAndIsDeletedFalse(res.customerId())
                 .orElseThrow(() -> notFound(Message.CUSTOMER_NOT_FOUND));
@@ -159,26 +157,17 @@ public class CustomerServiceImpl implements CustomerService {
             );
         }
 
+        // Không cộng lại totalSpent / totalOrderCount ở đây: recordPurchase đã làm, cộng thêm là nhân đôi doanh số.
         Customer customer = findCustomer(res.customerId());
-        BigDecimal currentTotalSpent = defaultMoney(customer.getTotalSpent());
-        BigDecimal newTotalSpent = currentTotalSpent.add(res.finalAmount());
+        return customerMapper.toResponse(customer);
+    }
 
-        customer.setLastPurchaseDate(java.time.LocalDateTime.now());
-        customer.setTotalSpent(newTotalSpent);
-        customer.setTotalOrderCount(Math.max((customer.getTotalOrderCount() == null ? 0 : customer.getTotalOrderCount()) + 1, 0));
-        /*
-         * Tạm thời không dùng luồng nâng hạng cũ trong updatePurchase.
-         * Khi Kafka/loyalty tier event flow được bật lại ổn định, việc xét hạng
-         * nên đi qua LoyaltyTierService.recordPurchase(...) để ghi metric,
-         * transaction và tier assignment nhất quán.
-         */
-//        customerTierRepository
-//                .findFirstByMinSpendingLessThanEqualAndStatusAndIsDeletedFalseOrderByMinSpendingDesc(
-//                        newTotalSpent,
-//                        CustomerTierStatus.ACTIVE
-//                )
-//                .ifPresent(customer::setTier);
-
+    // Đổi trạng thái khách hàng (kích hoạt / ngừng hoạt động / tạm khóa) mà không xóa dữ liệu.
+    @Override
+    @Transactional
+    public CustomerResponse changeStatus(UUID id, ChangeCustomerStatusRequest request) {
+        Customer customer = findCustomer(id);
+        customer.setStatus(request.status());
         return customerMapper.toResponse(customerRepository.save(customer));
     }
 
@@ -260,7 +249,7 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
-    // Giữ lại mã và trạng thái hiện tại khi dữ liệu cập nhật không cung cấp giá trị mới.
+    // Giữ lại mã, trạng thái và số liệu mua hàng hiện tại khi dữ liệu cập nhật không cung cấp giá trị mới.
     private CustomerRequest normalizeUpdateRequest(CustomerRequest request, Customer customer) {
         return new CustomerRequest(
                 hasText(request.customerCode()) ? request.customerCode() : customer.getCustomerCode(),
@@ -271,9 +260,9 @@ public class CustomerServiceImpl implements CustomerService {
                 request.customerType() != null ? request.customerType() : customer.getCustomerType(),
                 request.tierId(),
                 request.creditLimit(),
-                request.lastPurchaseDate(),
-                request.totalSpent(),
-                request.totalOrderCount(),
+                request.lastPurchaseDate() != null ? request.lastPurchaseDate() : customer.getLastPurchaseDate(),
+                request.totalSpent() != null ? request.totalSpent() : customer.getTotalSpent(),
+                request.totalOrderCount() != null ? request.totalOrderCount() : customer.getTotalOrderCount(),
                 request.status() != null ? request.status() : customer.getStatus()
         );
     }
