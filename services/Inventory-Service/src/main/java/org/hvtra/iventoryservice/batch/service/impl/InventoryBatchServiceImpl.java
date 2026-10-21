@@ -1,6 +1,8 @@
 package org.hvtra.iventoryservice.batch.service.impl;
 
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.batch.service.InventoryBatchService;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
@@ -21,6 +23,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class InventoryBatchServiceImpl implements InventoryBatchService {
 
     private final InventoryBatchRepository batchRepository;
@@ -33,22 +36,22 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
             var predicates = new java.util.ArrayList<>();
             predicates.add(cb.equal(root.get("inventoryItem").get("id"), itemId));
             predicates.add(cb.equal(root.get("location").get("id"), locationId));
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            return cb.and(predicates.toArray(new Predicate[0]));
         };
 
         var balances = balanceRepository.findAll(spec);
         final String unitSymbol = getUnitSymbolFromBalance(balances);
 
         return balances.stream()
-            .map(balance -> mapToResponse(balance, unitSymbol))
-            .sorted((a, b) -> {
-                // FEFO sort: null expiry dates last, then by expiry date ascending
-                if (a.expiryDate() == null && b.expiryDate() == null) return 0;
-                if (a.expiryDate() == null) return 1;
-                if (b.expiryDate() == null) return -1;
-                return a.expiryDate().compareTo(b.expiryDate());
-            })
-            .toList();
+                .map(balance -> mapToResponse(balance, unitSymbol))
+                .sorted((a, b) -> {
+                    // FEFO sort: null expiry dates last, then by expiry date ascending
+                    if (a.expiryDate() == null && b.expiryDate() == null) return 0;
+                    if (a.expiryDate() == null) return 1;
+                    if (b.expiryDate() == null) return -1;
+                    return a.expiryDate().compareTo(b.expiryDate());
+                })
+                .toList();
     }
 
     @Override
@@ -61,8 +64,8 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
         };
 
         var balance = balanceRepository.findAll(spec).stream()
-            .findFirst()
-            .orElseThrow(() -> new ResourceNotFoundException("InventoryBalance", batchId));
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("InventoryBalance", batchId));
 
         final String unitSymbol = getUnitSymbolFromBalance(List.of(balance));
         return mapToResponse(balance, unitSymbol);
@@ -73,9 +76,12 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
             var item = balances.get(0).getInventoryItem();
             if (item.getUnitId() != null) {
                 try {
-                    return catalogClient.getUnit(item.getUnitId()).symbol();
+                    return catalogClient.getUnitsBatch(List.of(item.getUnitId())).stream()
+                            .findFirst()
+                            .map(CatalogClient.UnitResponse::symbol)
+                            .orElse(null);
                 } catch (Exception e) {
-                    // If unit fetch fails, continue without unitSymbol
+                    log.error("Exception occurred while processing request", e);
                 }
             }
         }
@@ -95,18 +101,18 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
         }
 
         return new WarehouseBatchResponse(
-            batch.getId(),
-            batch.getBatchCode(),
-            batch.getSupplierBatchCode(),
-            batch.getManufactureDate(),
-            batch.getExpiryDate(),
-            batch.getStatus().name(),
-            unitSymbol,
-            quantityOnHand,
-            quantityReserved,
-            quantityBlocked,
-            available,
-            daysUntilExpiry
+                batch.getId(),
+                batch.getBatchCode(),
+                batch.getSupplierBatchCode(),
+                batch.getManufactureDate(),
+                batch.getExpiryDate(),
+                batch.getStatus().name(),
+                unitSymbol,
+                quantityOnHand,
+                quantityReserved,
+                quantityBlocked,
+                available,
+                daysUntilExpiry
         );
     }
 }

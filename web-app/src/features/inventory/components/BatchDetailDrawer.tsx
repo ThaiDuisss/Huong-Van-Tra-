@@ -44,20 +44,48 @@ export function BatchDetailDrawer({
         loadBatches();
     }, [open, itemId, locationId]);
 
+    useEffect(() => {
+        if (!open) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") onClose();
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [open, onClose]);
+
     return (
         <>
+            {/* Backdrop - Click outside to close */}
+            <div
+                aria-label="Đóng chi tiết lô hàng"
+                className={`fixed inset-0 bg-black/40 backdrop-blur-xs z-40 transition-opacity duration-300 ${
+                    open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                }`}
+                onClick={onClose}
+                role="button"
+                tabIndex={-1}
+            />
+
             {/* Drawer - Slide in từ phải */}
             <div
-                className={`fixed right-0 top-0 bottom-0 w-[65vw] max-w-[65%] bg-white border-l border-gray-200 shadow-lg flex flex-col transition-all duration-300 transform z-50 overflow-y-auto ${
-                    open ? "translate-x-0" : "translate-x-full"
+                className={`fixed right-0 top-0 bottom-0 w-[65vw] max-w-[65%] bg-white border-l border-gray-200 shadow-2xl flex flex-col transition-all duration-300 transform z-50 overflow-y-auto ${
+                    open ? "translate-x-0" : "translate-x-full pointer-events-none"
                 }`}
             >
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <div>
-                        <h2 className="text-lg font-bold text-gray-900">Chi tiết lô hàng</h2>
-                        <p className="text-sm text-gray-600">
-                            {itemName} • {locationName}
+                        <h2 className="text-xl font-bold text-gray-900">
+                            Chi tiết lô hàng
+                        </h2>
+
+                        <p className="text-base font-semibold text-gray-700 mt-1">
+                            {locationName}
+                        </p>
+
+                        <p className="text-sm text-gray-500 mt-0.5">
+                            {itemName}
                         </p>
                     </div>
                     <button

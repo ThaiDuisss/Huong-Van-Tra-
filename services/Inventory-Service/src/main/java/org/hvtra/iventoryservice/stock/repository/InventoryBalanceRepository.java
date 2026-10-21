@@ -28,11 +28,11 @@ public interface InventoryBalanceRepository
         extends JpaRepository<InventoryBalance, UUID>, JpaSpecificationExecutor<InventoryBalance> {
 
     @Override
-    @EntityGraph(attributePaths = {"inventoryItem", "location"})
+    @EntityGraph(attributePaths = {"inventoryItem", "location", "inventoryBatch"})
     List<InventoryBalance> findAll(Specification<InventoryBalance> spec);
 
     @Override
-    @EntityGraph(attributePaths = {"inventoryItem", "location"})
+    @EntityGraph(attributePaths = {"inventoryItem", "location", "inventoryBatch"})
     Page<InventoryBalance> findAll(Specification<InventoryBalance> spec, Pageable pageable);
 
     @Query("""

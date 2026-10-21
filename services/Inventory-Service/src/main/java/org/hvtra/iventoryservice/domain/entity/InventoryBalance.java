@@ -14,6 +14,7 @@ import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Entity
 @Table(
@@ -53,11 +54,22 @@ public class InventoryBalance extends BaseEntity {
     @Column(name = "quantity_blocked", nullable = false, precision = 18, scale = 2)
     private BigDecimal quantityBlocked = BigDecimal.ZERO;
 
+    /**
+     * Single source of truth for sellable availability: onHand − reserved − blocked − expired.
+     * A balance is tied to exactly one batch, so once that batch's expiry date has passed, its
+     * entire onHand quantity is unsellable.
+     */
     public BigDecimal getAvailableQuantity() {
         BigDecimal onHand = quantityOnHand != null ? quantityOnHand : BigDecimal.ZERO;
         BigDecimal reserved = quantityReserved != null ? quantityReserved : BigDecimal.ZERO;
         BigDecimal blocked = quantityBlocked != null ? quantityBlocked : BigDecimal.ZERO;
-        BigDecimal available = onHand.subtract(reserved).subtract(blocked);
+        BigDecimal expired = isExpired() ? onHand : BigDecimal.ZERO;
+        BigDecimal available = onHand.subtract(reserved).subtract(blocked).subtract(expired);
         return available.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : available;
+    }
+
+    private boolean isExpired() {
+        LocalDate expiryDate = inventoryBatch != null ? inventoryBatch.getExpiryDate() : null;
+        return expiryDate != null && expiryDate.isBefore(LocalDate.now());
     }
 }
