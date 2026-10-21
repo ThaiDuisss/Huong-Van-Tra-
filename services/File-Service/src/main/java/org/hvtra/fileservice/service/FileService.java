@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.common_core.exception.AppException;
 import org.hvtra.fileservice.config.FileBucketResolver;
 import org.hvtra.fileservice.config.MinioProperties;
+import org.hvtra.fileservice.exception.UploadCompletionException;
 import org.hvtra.fileservice.model.entity.FileMetadata;
 import org.hvtra.fileservice.model.enums.FilePurpose;
 import org.hvtra.fileservice.model.enums.FileStatus;
@@ -129,7 +130,7 @@ public class FileService {
             throw new AppException(7003, "Typed business attachment cannot be changed by generic attach");
         }
 
-        if (file.getStatus() != FileStatus.ACTIVE) {
+        if (Boolean.TRUE.equals(file.getIsDeleted()) || file.getStatus() != FileStatus.ACTIVE) {
             throw new AppException(7009, "File is not available");
         }
 
@@ -151,11 +152,16 @@ public class FileService {
     }
 
 
+    @Transactional(dontRollbackOn = UploadCompletionException.class)
     public CompleteUploadResponse completeUpload(UUID fileId, UUID currentUserId) {
-        FileMetadata file = fileRepository.findById(fileId)
+        FileMetadata file = fileRepository.findForUpdate(fileId)
                 .orElseThrow(() -> new AppException(7000, "File not found"));
 
         checkOwnerOrPermission(file, currentUserId);
+
+        if (Boolean.TRUE.equals(file.getIsDeleted())) {
+            throw new AppException(7009, "File is not available");
+        }
 
         if (file.getStatus() == FileStatus.ACTIVE) {
             return new CompleteUploadResponse(
@@ -180,7 +186,7 @@ public class FileService {
             if (stat.size() != file.getSizeBytes()) {
                 file.setStatus(FileStatus.FAILED);
                 fileRepository.save(file);
-                throw new AppException(7010, "Uploaded file size does not match");
+                throw new UploadCompletionException(7010, "Uploaded file size does not match");
             }
 
             file.setEtag(stat.etag());
@@ -193,10 +199,12 @@ public class FileService {
                     file.getPublicUrl()
             );
 
+        } catch (UploadCompletionException e) {
+            throw e;
         } catch (Exception e) {
             file.setStatus(FileStatus.FAILED);
             fileRepository.save(file);
-            throw new AppException(8002, "Cannot complete upload");
+            throw new UploadCompletionException(8002, "Cannot complete upload");
         }
     }
 

@@ -50,6 +50,7 @@ public class GatewaySecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
 
                 .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers("/internal/**", "/api/recommendation/internal/**").denyAll()
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers(PERMIT_ALL_PATHS).permitAll()
                         .anyExchange().authenticated()

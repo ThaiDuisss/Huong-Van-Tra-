@@ -5,14 +5,14 @@ import {
   InventoryEmptyState,
   InventoryErrorState,
 } from "../../inventory/components/InventoryManagementComponents";
-import type { AiReport } from "../types/ai-report.types";
+import type { AiReport, AiReportPage } from "../types/ai-report.types";
 import { AI_REPORT_PENDING_MESSAGE } from "../utils/ai-report.validation";
 
 export type AiReportListState =
   | { status: "pending-backend" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; reports: AiReport[] };
+  | { status: "ready"; reports: AiReport[]; page: AiReportPage };
 
 const dateFormatter = new Intl.DateTimeFormat("vi-VN", {
   dateStyle: "short",
@@ -95,12 +95,14 @@ export function AiReportTable({
                 </td>
                 <td className="max-w-[400px] break-words px-4 py-4 font-bold text-[#172317]">
                   {report.name}
+                  <p className="mt-1 text-xs font-normal text-[#697684]">{report.fileName} · {report.fileType}</p>
                 </td>
                 <td className="break-words px-4 py-4 font-semibold text-[#536078]">
                   {report.version}
                 </td>
                 <td className="px-4 py-4 text-[#697684]">
                   <time dateTime={report.updatedAt}>{formatDate(report.updatedAt)}</time>
+                  <p className="mt-1 text-xs text-[#697684]">Tạo: <time dateTime={report.createdAt}>{formatDate(report.createdAt)}</time></p>
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-[#159734]">
@@ -128,14 +130,14 @@ export function AiReportTable({
                     </button>
                     <span title={!fileActionsAvailable ? AI_REPORT_PENDING_MESSAGE : undefined}>
                       <button
-                        aria-label={`Xuất báo cáo ${report.name}`}
+                        aria-label={`Tải bản gốc báo cáo ${report.name}`}
                         className="inline-flex items-center gap-1 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={!fileActionsAvailable || busy}
                         onClick={() => onExport(report)}
                         type="button"
                       >
                         <Download aria-hidden="true" size={14} />
-                        Xuất
+                        Tải bản gốc
                       </button>
                     </span>
                   </div>

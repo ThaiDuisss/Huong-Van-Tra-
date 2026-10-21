@@ -5,6 +5,7 @@ import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.Http.Method;
 import io.minio.MinioClient;
 import io.minio.StatObjectArgs;
+import io.minio.errors.ErrorResponseException;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.fileservice.config.MinioProperties;
 import org.hvtra.fileservice.model.entity.FileMetadata;
@@ -57,7 +58,10 @@ public class AiReportFileAccessService {
                     && reportId.equals(file.getRefId())) return;
             throw error(HttpStatus.CONFLICT, "File already referenced");
         }
-        if (file.getRefId() != null) throw error(HttpStatus.CONFLICT, "File already attached");
+        // A lost typed reference can be recovered for the same durable report ID.
+        // A different legacy/generic attachment must never be moved by recovery.
+        if (file.getRefId() != null && !reportId.equals(file.getRefId()))
+            throw error(HttpStatus.CONFLICT, "File already attached");
         if (references.existsByRefTypeAndRefIdAndUsageTypeAndIsDeletedFalseAndFile_IdNot(
                 "AI_REPORT", reportId, "ORIGINAL", fileId)) throw error(HttpStatus.CONFLICT, "Report already has an original file");
         validateObject(file, type(file));
@@ -76,9 +80,18 @@ public class AiReportFileAccessService {
     }
 
     public AiReportDownloadResponse download(UUID reportId, UUID fileId) {
+        return downloadUsage(reportId, fileId, "ORIGINAL");
+    }
+
+    public AiReportDownloadResponse downloadGenerated(UUID reportId, UUID fileId) {
+        return downloadUsage(reportId, fileId, "GENERATED");
+    }
+
+    private AiReportDownloadResponse downloadUsage(UUID reportId, UUID fileId, String usage) {
         FileMetadata file = active(fileId);
         List<FileReferences> bindings = references.findByFile_IdAndIsDeletedFalse(fileId);
-        if (bindings.size() != 1 || !matches(bindings.getFirst(), reportId)
+        if (bindings.size() != 1 || !"AI_REPORT".equals(bindings.getFirst().getRefType())
+                || !usage.equals(bindings.getFirst().getUsageType()) || !reportId.equals(bindings.getFirst().getRefId())
                 || !reportId.equals(file.getRefId())) throw error(HttpStatus.FORBIDDEN, "Report binding mismatch");
         String type = type(file);
         validateObject(file, type);
@@ -141,6 +154,12 @@ public class AiReportFileAccessService {
             }
         } catch (ResponseStatusException error) {
             throw error;
+        } catch (ErrorResponseException exception) {
+            if ("NoSuchKey".equals(exception.errorResponse().code())
+                    || "NoSuchObject".equals(exception.errorResponse().code())) {
+                throw error(HttpStatus.NOT_FOUND, "Original file object not found");
+            }
+            throw error(HttpStatus.BAD_GATEWAY, "Cannot validate original file");
         } catch (Exception exception) {
             throw error(HttpStatus.BAD_GATEWAY, "Cannot validate original file");
         }

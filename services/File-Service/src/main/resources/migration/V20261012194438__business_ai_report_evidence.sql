@@ -1,0 +1,4 @@
+CREATE TABLE generated_report_files (
+ report_id BINARY(16) PRIMARY KEY, owner_id BINARY(16) NOT NULL,
+ sha256 VARCHAR(64) NOT NULL, file_name VARCHAR(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
