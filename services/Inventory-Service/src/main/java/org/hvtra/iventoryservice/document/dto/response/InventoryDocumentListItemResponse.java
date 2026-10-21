@@ -17,6 +17,7 @@ public record InventoryDocumentListItemResponse(
         String locationName,
         BigDecimal totalReceivedQuantity,
         Instant receivedAt,
-        UUID createdBy
+        UUID createdBy,
+        Instant createdAt
 ) {
 }

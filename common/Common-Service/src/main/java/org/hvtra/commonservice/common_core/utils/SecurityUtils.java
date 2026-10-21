@@ -63,6 +63,38 @@ public final class SecurityUtils {
                 );
     }
 
+    /** Permission hiệu lực (client role Keycloak, vd. order:create) có trong authorities. */
+    public static boolean hasPermission(String permission) {
+        if (permission == null || permission.isBlank()) {
+            return false;
+        }
+        return authentication().getAuthorities()
+                .stream()
+                .anyMatch(authority -> authority.getAuthority().equals(permission));
+    }
+
+    /**
+     * Bắt buộc có permission. Nếu gateway chưa relay permission (triển khai cũ hoặc Keycloak chưa cấu hình
+     * client role) thì chấp nhận một trong {@code fallbackRoles} để không khóa chức năng đang chạy; khi
+     * gateway đã relay (kể cả danh sách rỗng) thì chỉ permission mới được tính.
+     */
+    public static void requirePermission(String permission, String... fallbackRoles) {
+        if (hasPermission(permission)) {
+            return;
+        }
+        Object principal = authentication().getPrincipal();
+        boolean permissionsKnown = principal instanceof InternalUserPrincipal internalUser
+                && internalUser.permissionsKnown();
+        if (!permissionsKnown && fallbackRoles != null) {
+            for (String role : fallbackRoles) {
+                if (hasRole(role)) {
+                    return;
+                }
+            }
+        }
+        throw new AccessDeniedException("Thiếu quyền " + permission);
+    }
+
     public static boolean isAdmin() {
         return hasRole("ADMIN");
     }

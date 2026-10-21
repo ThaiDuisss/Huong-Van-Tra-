@@ -216,7 +216,7 @@ export function OverviewTab({
     });
   }
 
-  const demo = salesData?.demo ?? null;
+  const demo = salesData?.analytics.data ?? null;
   const trendPoints = demo ? (metric === "revenue" ? demo.revenueTrend : demo.orderTrend) : [];
   const quickWidgets: ReactNode[] = [];
 
@@ -334,7 +334,7 @@ export function OverviewTab({
                 />
               ) : undefined
             }
-            badge={salesData ? <SourceBadge source={demo ? "DEMO" : "GAP"} /> : undefined}
+            badge={salesData ? <SourceBadge source={demo ? "REAL" : "GAP"} /> : undefined}
             description="Theo giờ trong ngày"
             icon={<TrendingUp size={15} />}
             title="Xu hướng bán hàng"

@@ -8,6 +8,7 @@ import { ProductionOrderDetailPage as ManufacturingProductionOrderDetailPage } f
 import { RawMaterialListPage } from "../features/manufacturing/pages/RawMaterialListPage";
 import { SupplierListPage } from "../features/manufacturing/pages/SupplierListPage";
 import { AccountListPage } from "../features/account/pages/AccountListPage";
+import { AuthorizationPage } from "../features/authorization/pages/AuthorizationPage";
 import { ActionLogPage } from "../features/action-log/pages/ActionLogPage";
 import {
   TopSalesStaffReportPage,
@@ -114,6 +115,7 @@ import {
   PRODUCT_ROLES,
   REPORT_ROLES,
   SELLABLE_CONFIG_ROLES,
+  SETTINGS_ROLES,
   STATISTIC_REPORT_ROLES,
   VOUCHER_ROLES,
   getDefaultRouteForRoles,
@@ -254,6 +256,17 @@ export function AppRouter() {
         <Route element={<RoleGate roles={ACCOUNT_ROLES} />}>
           <Route path="accounts" element={<AccountListPage />} />
         </Route>
+        <Route
+          path="authorization"
+          element={
+            <ProtectedRoute
+              roles={SETTINGS_ROLES}
+              permissions={["permission:manage", "role:manage", "user:manage"]}
+            >
+              <AuthorizationPage />
+            </ProtectedRoute>
+          }
+        />
         <Route element={<RoleGate roles={SELLABLE_CONFIG_ROLES} />}>
           <Route path="sellable-config" element={<SellableConfigPage />} />
         </Route>

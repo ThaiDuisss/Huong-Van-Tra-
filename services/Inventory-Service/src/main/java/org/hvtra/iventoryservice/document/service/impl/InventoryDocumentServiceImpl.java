@@ -148,7 +148,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                             row.getLocationName(),
                             nvl(row.getTotalReceivedQuantity()),
                             row.getReceivedAt(),
-                            parseUuid(row.getCreatedBy())
+                            parseUuid(row.getCreatedBy()),
+                            row.getCreatedAt()
                     );
                 })
                 .toList();

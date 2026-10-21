@@ -71,7 +71,10 @@ class OrderStatisticReportQueryRepositoryTest {
                             OrderStatisticReportQueryRepository.topSellingProductsJpql(hasFrom, hasTo, true),
                             OrderStatisticReportQueryRepository.topSellingProductsJpql(hasFrom, hasTo, false),
                             OrderStatisticReportQueryRepository.productSalesTotalsJpql(hasFrom, hasTo),
-                            OrderStatisticReportQueryRepository.returnedQuantitiesJpql(hasFrom, hasTo)
+                            OrderStatisticReportQueryRepository.returnedQuantitiesJpql(hasFrom, hasTo),
+                            OrderStatisticReportQueryRepository.paymentBreakdownJpql(hasFrom, hasTo),
+                            OrderStatisticReportQueryRepository.storePerformanceJpql(hasFrom, hasTo),
+                            OrderStatisticReportQueryRepository.orderTimelineJpql(hasFrom, hasTo)
                     )) {
                         assertDoesNotThrow(() -> entityManager.createQuery(jpql), jpql);
                     }

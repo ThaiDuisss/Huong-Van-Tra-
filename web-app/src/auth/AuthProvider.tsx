@@ -7,6 +7,7 @@ import {
 import { AuthContext, type AuthContextValue } from "./auth-context";
 import { identityApi, type CurrentUser } from "./identity-api";
 import { keycloak } from "./keycloak";
+import { permissionApi } from "./permissions";
 import { getQueuedAccessToken } from "./token-provider";
 
 const USER_CACHE_KEY = "hvt.pos.currentUser";
@@ -218,6 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<CurrentUser | undefined>(() =>
         keycloak.authenticated ? readUserCache() : undefined
     );
+    // Permission tải một lần cho mỗi phiên (không gọi lại mỗi lần render); undefined = chưa biết.
+    const [permissions, setPermissions] = useState<string[] | undefined>(undefined);
+    const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+    const [permissionsVersion, setPermissionsVersion] = useState(0);
     const tokenRoles = keycloak.realmAccess?.roles;
     // JWT "sub" — đúng giá trị Gateway gửi sang backend (X-User-ID) và được lưu vào createdBy/updatedBy
     const keycloakSubject = authenticated ? keycloak.subject ?? user?.keycloakSubject : undefined;
@@ -239,6 +244,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setAuthenticated(false);
             setToken(undefined);
             setUser(undefined);
+            setPermissions(undefined);
+            setPermissionsLoaded(false);
             clearUserCache();
         };
 
@@ -296,6 +303,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
     }, [authenticated, token]);
 
+    useEffect(() => {
+        if (!authenticated) {
+            return undefined;
+        }
+
+        let active = true;
+
+        permissionApi
+            .myPermissions()
+            .then((response) => {
+                if (active) {
+                    setPermissions(response.permissions ?? []);
+                    setPermissionsLoaded(true);
+                }
+            })
+            .catch((error) => {
+                // Backend cũ hoặc Keycloak lỗi: giữ undefined để màn hình vẫn phân quyền theo role như trước.
+                console.warn("Không tải được danh sách quyền, dùng vai trò", error);
+                if (active) {
+                    setPermissions(undefined);
+                    setPermissionsLoaded(true);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [authenticated, permissionsVersion]);
+
     const value = useMemo<AuthContextValue>(
         () => ({
             initialized,
@@ -313,6 +349,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             shiftName: getUserShiftName(user),
             roles: user?.roles ?? tokenRoles,
             roleLabel: getUserRoleLabel(user),
+            permissions: authenticated ? permissions : undefined,
+            permissionsLoaded: authenticated && permissionsLoaded,
 
             login: () => {
                 keycloak.login({
@@ -339,8 +377,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             hasResourceRole: (role: string, resource?: string) => {
                 return keycloak.hasResourceRole(role, resource);
             },
+
+            hasPermission: (permission: string) => {
+                return authenticated && Array.isArray(permissions) && permissions.includes(permission);
+            },
+
+            async refreshPermissions() {
+                // Token cũ vẫn mang client role cũ: buộc Keycloak cấp token mới (minValidity -1) rồi tải lại.
+                try {
+                    await keycloak.updateToken(-1);
+                } catch (error) {
+                    console.warn("Không làm mới được token sau khi đổi quyền", error);
+                }
+                setPermissionsVersion((version) => version + 1);
+            },
         }),
-        [initialized, authenticated, tokenRoles, user, keycloakSubject]
+        [initialized, authenticated, tokenRoles, user, keycloakSubject, permissions, permissionsLoaded]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

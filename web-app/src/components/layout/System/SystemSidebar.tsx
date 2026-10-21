@@ -145,10 +145,10 @@ function SidebarItem({
 export function SystemSidebar() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { avatarUrl, displayName, roleLabel, roles, username } = useAuth();
+    const { avatarUrl, displayName, permissions, roleLabel, roles, username } = useAuth();
     const visibleNavigationItems = useMemo(
-        () => filterSystemNavigationByRoles(roles),
-        [roles]
+        () => filterSystemNavigationByRoles(roles, permissions),
+        [permissions, roles]
     );
     const activeKeys = useMemo(
         () => getActiveKeys(visibleNavigationItems, location.pathname),

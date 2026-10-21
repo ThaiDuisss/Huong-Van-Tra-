@@ -19,7 +19,9 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Set;
@@ -52,6 +54,8 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
         String correlationId = value(request.getHeader(HeaderConstants.HEADER_CORRELATION_ID));
         String signature = value(request.getHeader(HeaderConstants.HEADER_SIGNATURE));
         String authorization = value(request.getHeader(HeaderConstants.HEADER_AUTHOR));
+        String permissionsRaw = request.getHeader(HeaderConstants.HEADER_USER_PERMISSIONS);
+        String permissionsSignature = value(request.getHeader(HeaderConstants.HEADER_PERMISSIONS_SIGNATURE));
 
         if (isPublicPath(request)) {
             filterChain.doFilter(request, response);
@@ -109,22 +113,47 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid internal authentication signature");
             return;
         }
+        // Permission do gateway relay (header có thể vắng với gateway cũ). Có header thì bắt buộc chữ ký riêng hợp lệ.
+        Set<String> permissions = null;
+        if (permissionsRaw != null) {
+            String expectedPermissionsSignature = signPermissions(userId, permissionsRaw, correlationId);
+            if (!constantTimeEquals(expectedPermissionsSignature, permissionsSignature)) {
+                log.warn(
+                        "Internal auth rejected: service={}, reason=permissions_signature_mismatch, method={}, path={}, requestId={}",
+                        applicationName,
+                        request.getMethod(),
+                        request.getRequestURI(),
+                        hasRequestId ? correlationId : "missing"
+                );
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid internal permissions signature");
+                return;
+            }
+            permissions = Arrays.stream(permissionsRaw.split(","))
+                    .map(String::trim)
+                    .filter(permission -> !permission.isBlank())
+                    .collect(Collectors.toUnmodifiableSet());
+        }
         Set<String> roles = Arrays.stream(rolesRaw.split(","))
                 .map(String::trim)
                 .filter(role -> !role.isBlank())
                 .collect(Collectors.toSet());
 
-        var authorities = roles.stream()
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>(roles.stream()
                 .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
                 .map(SimpleGrantedAuthority::new)
-                .toList();
+                .toList());
+        if (permissions != null) {
+            // Permission giữ nguyên tên (order:create) để phân biệt với ROLE_*.
+            permissions.forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
+        }
 
         InternalUserPrincipal principal = new InternalUserPrincipal(
                 userId,
                 "",
                 "",
                 roles,
-                correlationId);
+                correlationId,
+                permissions);
 
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 principal,
@@ -198,6 +227,21 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
             return HexFormat.of().formatHex(digest);
         } catch (Exception ex) {
             throw new IllegalStateException("Cannot sign internal user context", ex);
+        }
+    }
+
+    /** Chữ ký riêng cho header permission: userId, permissions, correlationId (không gồm roles/authorization). */
+    private String signPermissions(String userId, String permissions, String correlationId) {
+        try {
+            String raw = String.join("\n", "permissions", userId, permissions, correlationId);
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(
+                    headerSecret.getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"));
+            byte[] digest = mac.doFinal(raw.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Cannot sign internal permissions context", ex);
         }
     }
 

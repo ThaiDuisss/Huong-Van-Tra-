@@ -1,11 +1,15 @@
 package org.hvtra.orderservice.service.impl;
 
 import org.hvtra.commonservice.common_core.exception.BusinessException;
+import org.hvtra.orderservice.dto.response.SalesDashboardResponse;
 import org.hvtra.orderservice.dto.response.TopSalesStaffReportResponse;
 import org.hvtra.orderservice.dto.response.TopSalesStaffResponse;
 import org.hvtra.orderservice.dto.response.TopSellingProductReportResponse;
 import org.hvtra.orderservice.dto.response.TopSellingProductResponse;
 import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository;
+import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.BranchSalesMetrics;
+import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.OrderTimelineEntry;
+import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.PaymentMethodMetrics;
 import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.ProductSalesMetrics;
 import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.ProductSalesTotals;
 import org.hvtra.orderservice.repository.OrderStatisticReportQueryRepository.StaffOrderMetrics;
@@ -20,6 +24,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -215,5 +221,69 @@ class OrderStatisticReportServiceImplTest {
     private void stubDateRange() {
         when(orderDateTimeHelper.startOfDay(FROM_DATE)).thenReturn(FROM_INSTANT);
         when(orderDateTimeHelper.startOfDay(TO_DATE.plusDays(1))).thenReturn(TO_INSTANT);
+    }
+
+    @Test
+    void salesDashboardBucketsOrdersByHourAndSortsBreakdownsByRevenue() {
+        stubDateRange();
+        when(orderDateTimeHelper.toLocalDateTime(any())).thenAnswer(invocation ->
+                LocalDateTime.ofInstant((Instant) invocation.getArgument(0), ZoneOffset.ofHours(7)));
+        when(reportQueryRepository.findPaidOrderTimeline(FROM_INSTANT, TO_INSTANT)).thenReturn(List.of(
+                new OrderTimelineEntry(Instant.parse("2026-09-10T01:10:00Z"), new BigDecimal("100000")),
+                new OrderTimelineEntry(Instant.parse("2026-09-11T01:50:00Z"), new BigDecimal("200000")),
+                new OrderTimelineEntry(Instant.parse("2026-09-12T03:05:00Z"), new BigDecimal("500000"))
+        ));
+        when(reportQueryRepository.findPaymentBreakdown(FROM_INSTANT, TO_INSTANT)).thenReturn(List.of(
+                new PaymentMethodMetrics("CASH", 2, new BigDecimal("300000")),
+                new PaymentMethodMetrics("BANK_TRANSFER", 1, new BigDecimal("500000"))
+        ));
+        UUID branch = UUID.fromString("00000000-0000-0000-0000-000000000009");
+        when(reportQueryRepository.findStorePerformance(FROM_INSTANT, TO_INSTANT)).thenReturn(List.of(
+                new BranchSalesMetrics(branch, " Cửa hàng Cầu Giấy ", 3, new BigDecimal("800000"))
+        ));
+        when(reportQueryRepository.findTopSellingProducts(FROM_INSTANT, TO_INSTANT, true, 5)).thenReturn(List.of());
+        when(reportQueryRepository.findStaffOrderMetrics(FROM_INSTANT, TO_INSTANT)).thenReturn(List.of());
+
+        SalesDashboardResponse dashboard = service.getSalesDashboard(FROM_DATE, TO_DATE);
+
+        assertEquals(3, dashboard.totalOrders());
+        assertEquals(new BigDecimal("800000"), dashboard.totalRevenue());
+        // 08h (2 đơn), 09h (0, điền vào cho liền dải), 10h (1 đơn) theo múi giờ +7
+        assertEquals(List.of("08:00", "09:00", "10:00"),
+                dashboard.hourlyTrend().stream().map(SalesDashboardResponse.HourlyPoint::label).toList());
+        assertEquals(2, dashboard.hourlyTrend().get(0).orderCount());
+        assertEquals(new BigDecimal("300000"), dashboard.hourlyTrend().get(0).revenue());
+        assertEquals(0, dashboard.hourlyTrend().get(1).orderCount());
+        assertEquals(new BigDecimal("500000"), dashboard.hourlyTrend().get(2).revenue());
+        assertEquals("BANK_TRANSFER", dashboard.paymentBreakdown().get(0).method());
+        assertEquals("Cửa hàng Cầu Giấy", dashboard.storePerformance().get(0).branchName());
+        assertEquals(new BigDecimal("266666.67"), dashboard.storePerformance().get(0).averageOrderValue());
+        assertTrue(dashboard.topProducts().isEmpty());
+        assertTrue(dashboard.topStaff().isEmpty());
+    }
+
+    @Test
+    void salesDashboardRejectsRangeWiderThanLimit() {
+        assertThrows(BusinessException.class,
+                () -> service.getSalesDashboard(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 2)));
+    }
+
+    @Test
+    void salesDashboardDefaultsMissingDatesToToday() {
+        when(orderDateTimeHelper.today()).thenReturn(TO_DATE);
+        when(orderDateTimeHelper.startOfDay(TO_DATE)).thenReturn(FROM_INSTANT);
+        when(orderDateTimeHelper.startOfDay(TO_DATE.plusDays(1))).thenReturn(TO_INSTANT);
+        when(reportQueryRepository.findPaidOrderTimeline(FROM_INSTANT, TO_INSTANT)).thenReturn(List.of());
+        when(reportQueryRepository.findPaymentBreakdown(FROM_INSTANT, TO_INSTANT)).thenReturn(List.of());
+        when(reportQueryRepository.findStorePerformance(FROM_INSTANT, TO_INSTANT)).thenReturn(List.of());
+        when(reportQueryRepository.findTopSellingProducts(FROM_INSTANT, TO_INSTANT, true, 5)).thenReturn(List.of());
+        when(reportQueryRepository.findStaffOrderMetrics(FROM_INSTANT, TO_INSTANT)).thenReturn(List.of());
+
+        SalesDashboardResponse dashboard = service.getSalesDashboard(null, null);
+
+        assertEquals(TO_DATE, dashboard.fromDate());
+        assertEquals(TO_DATE, dashboard.toDate());
+        assertTrue(dashboard.hourlyTrend().isEmpty());
+        assertEquals(0, dashboard.totalOrders());
     }
 }

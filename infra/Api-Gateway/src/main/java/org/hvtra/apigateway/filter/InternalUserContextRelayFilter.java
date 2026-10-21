@@ -20,6 +20,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Collection;
+import java.util.Map;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
@@ -33,6 +35,10 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
 
     @Value("${spring.application.name:Api-Gateway}")
     private String applicationName;
+
+    /** Client Keycloak chứa các client role dùng làm permission (mặc định trùng audience hvtra-pos). */
+    @Value("${security.permission-client-id:hvtra-pos}")
+    private String permissionClientId;
 
     @PostConstruct
     void logInternalAuthConfiguration() {
@@ -80,6 +86,8 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
                             correlationId,
                             authorization
                     );
+                    String permissions = extractPermissions(jwt);
+                    String permissionsSignature = signPermissions(userId, permissions, correlationId);
                     log.debug(
                             "Internal auth relay: requestId={}, method={}, path={}, hasAuthorization={}, "
                                     + "principalPresent=true, authorities={}",
@@ -97,6 +105,8 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
                                 headers.remove(GatewayConstants.HEADER_USER_ROLES);
                                 headers.remove(GatewayConstants.HEADER_SIGNATURE);
                                 headers.remove(GatewayConstants.HEADER_CORRELATION_ID);
+                                headers.remove(GatewayConstants.HEADER_USER_PERMISSIONS);
+                                headers.remove(GatewayConstants.HEADER_PERMISSIONS_SIGNATURE);
                             })
 
                             // Gateway tự set header tin cậy
@@ -104,6 +114,12 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
                             .header(GatewayConstants.HEADER_USER_ROLES, roles)
                             .header(GatewayConstants.HEADER_CORRELATION_ID, correlationId)
                             .header(GatewayConstants.HEADER_SIGNATURE, signature)
+
+                            // Luôn gửi (kể cả rỗng) để service biết permission đã được relay và áp dụng nghiêm.
+
+                            .header(GatewayConstants.HEADER_USER_PERMISSIONS, permissions)
+
+                            .header(GatewayConstants.HEADER_PERMISSIONS_SIGNATURE, permissionsSignature)
 
                             .build();
 
@@ -144,6 +160,48 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
         }
     }
 
+    /**
+     * Permission = client role của {@code permissionClientId} trong claim {@code resource_access}.
+     * Keycloak đã gộp cả role kế thừa qua composite realm role nên đây là danh sách hiệu lực.
+     */
+    String extractPermissions(Jwt jwt) {
+        Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
+        if (resourceAccess == null) {
+            return "";
+        }
+        Object client = resourceAccess.get(permissionClientId);
+        if (!(client instanceof Map<?, ?> clientMap)) {
+            return "";
+        }
+        Object rolesValue = clientMap.get("roles");
+        if (!(rolesValue instanceof Collection<?> permissionRoles)) {
+            return "";
+        }
+        return permissionRoles.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(String::trim)
+                .filter(permission -> !permission.isEmpty() && !permission.contains(","))
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining(","));
+    }
+
+    private String signPermissions(String userId, String permissions, String correlationId) {
+        try {
+            String raw = String.join("\n", "permissions", userId, permissions, correlationId);
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(
+                    headerSecret.getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"
+            ));
+            byte[] digest = mac.doFinal(raw.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Cannot sign internal permissions context", ex);
+        }
+    }
+
     private ServerWebExchange removeInternalHeaders(ServerWebExchange exchange) {
         ServerHttpRequest mutatedRequest = exchange.getRequest()
                 .mutate()
@@ -151,6 +209,8 @@ public class InternalUserContextRelayFilter implements GlobalFilter, Ordered {
                     headers.remove(GatewayConstants.HEADER_USER_ID);
                     headers.remove(GatewayConstants.HEADER_USER_ROLES);
                     headers.remove(GatewayConstants.HEADER_SIGNATURE);
+                    headers.remove(GatewayConstants.HEADER_USER_PERMISSIONS);
+                    headers.remove(GatewayConstants.HEADER_PERMISSIONS_SIGNATURE);
                 })
                 .build();
 
