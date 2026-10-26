@@ -89,6 +89,7 @@ export interface GoodsReceiptLine {
     conversionPreview: string;
     supplierLot: string;
     internalBatchCode: string;
+    itemType?: string;
     manufacturedAt: string;
     expiryDate: string;
     countryOfOrigin?: string;

@@ -112,7 +112,8 @@ public class InventoryBatchServiceImpl implements InventoryBatchService {
                 quantityReserved,
                 quantityBlocked,
                 available,
-                daysUntilExpiry
+                daysUntilExpiry,
+                balance.getInventoryItem().getItemType()
         );
     }
 }

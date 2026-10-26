@@ -1,5 +1,7 @@
 package org.hvtra.iventoryservice.stock.dto.response;
 
+import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -16,5 +18,6 @@ public record WarehouseBatchResponse(
     BigDecimal quantityReserved,
     BigDecimal quantityBlocked,
     BigDecimal availableQuantity,
-    Long daysUntilExpiry
+    Long daysUntilExpiry,
+    InventoryItemType itemType
 ) {}

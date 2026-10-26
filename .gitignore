@@ -65,3 +65,5 @@ CLAUDE.md
 
 .meeting/
 .external/
+**/logs/
+**/.codegraph

@@ -21,6 +21,7 @@ public interface InventoryDocumentLineRepository extends JpaRepository<Inventory
                 BIN_TO_UUID(l.inventory_item_id) AS inventoryItemId,
                 i.reference_code AS itemSku,
                 i.name AS itemName,
+                i.item_type AS itemType,
                 BIN_TO_UUID(l.unit_id) AS unitId,
                 l.ordered_quantity AS orderedQuantity,
                 l.received_quantity AS receivedQuantity,
