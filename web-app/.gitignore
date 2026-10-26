@@ -28,3 +28,17 @@ Thumbs.db
 
 # Ảnh tải tạm khi dev
 local-images/
+
+# Turborepo cache
+.turbo/
+
+# Build outputs & cache của Next.js / React / Vite
+.next/
+build/
+.cache/
+
+# Node modules & Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
