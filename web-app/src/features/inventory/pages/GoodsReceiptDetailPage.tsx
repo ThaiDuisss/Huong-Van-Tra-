@@ -47,6 +47,7 @@ interface QcDraftLine {
     supplierLot: string;
     manufactureDate: string;
     expiryDate: string;
+    isIngredient: boolean;
     note?: string;
 }
 
@@ -219,6 +220,7 @@ export function GoodsReceiptDetailPage() {
                 supplierLot: l.supplierLot ?? "",
                 manufactureDate: l.manufacturedAt ? l.manufacturedAt.split("T")[0] : "",
                 expiryDate: l.expiryDate ? l.expiryDate.split("T")[0] : "",
+                isIngredient: l.itemType === "INGREDIENT",
                 note: l.qc?.inspectionNote ?? ""
             }))
         );
@@ -251,10 +253,13 @@ export function GoodsReceiptDetailPage() {
                 showToast(`Dòng #${i + 1} (${line.materialName}): Tổng SL Đạt + Lỗi phải bằng Thực nhận (${line.receivedQuantity}).`, false);
                 return;
             }
-            if (line.acceptedQuantity > 0 && (!line.manufactureDate || !line.expiryDate)) {
+            if (line.acceptedQuantity > 0 && (!line.manufactureDate || (!line.isIngredient && !line.expiryDate))) {
                 const targetPage = Math.floor(i / qcPageSize) + 1;
                 setQcPage(targetPage);
-                showToast(`Dòng #${i + 1} (${line.materialName}): Vui lòng nhập đầy đủ Ngày sản xuất & Hạn sử dụng.`, false);
+                const message = line.isIngredient
+                    ? "Vui lòng nhập Ngày sản xuất."
+                    : "Vui lòng nhập đầy đủ Ngày sản xuất & Hạn sử dụng.";
+                showToast(`Dòng #${i + 1} (${line.materialName}): ${message}`, false);
                 return;
             }
         }
@@ -267,7 +272,7 @@ export function GoodsReceiptDetailPage() {
                     batches: l.acceptedQuantity > 0
                         ? [
                             {
-                                expiryDate: l.expiryDate,
+                                expiryDate: l.isIngredient ? undefined : l.expiryDate,
                                 manufactureDate: l.manufactureDate,
                                 quantity: l.acceptedQuantity,
                                 supplierLot: l.supplierLot

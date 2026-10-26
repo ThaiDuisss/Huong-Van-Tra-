@@ -137,6 +137,7 @@ function ProductVariantFormWrapper({
             setFormError("Vui lòng chọn Sản phẩm.");
             return false;
         }
+        console.log("formQuantity", formQuantity);
         if (!formQuantity || formQuantity <= 0) {
             setFormError("Vui lòng nhập Định lượng lớn hơn 0.");
             return false;
