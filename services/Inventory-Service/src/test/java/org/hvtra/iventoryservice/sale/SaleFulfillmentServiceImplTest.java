@@ -263,7 +263,7 @@ class SaleFulfillmentServiceImplTest {
     private ShelfReplenishmentResponse slip(String code, UUID shelfId) {
         return new ShelfReplenishmentResponse(UUID.randomUUID(), code, InventoryDocumentStatus.POSTED, null,
                 warehouse.getId(), "Kho", shelfId, "Kệ", orderId.toString(), null, BigDecimal.ONE, 1,
-                null, null, null, null, null, true, true, null, null, List.of());
+                null, null, null, null, null, true, true, null, null, List.of(), null, null, null);
     }
 
     private InventoryItem item(UUID referenceId, InventoryItemType type, String name, Integer reorderPoint) {

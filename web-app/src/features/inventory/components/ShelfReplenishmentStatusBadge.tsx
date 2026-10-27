@@ -5,6 +5,7 @@ const statusClass: Record<ShelfReplenishmentStatus, string> = {
     DRAFT: "bg-neutral-100 text-neutral-600",
     PENDING_APPROVAL: "bg-amber-50 text-amber-700",
     POSTED: "bg-[#eaf7ec] text-[#07883a]",
+    REJECTED: "bg-orange-50 text-orange-700",
     CANCELLED: "bg-red-50 text-red-700"
 };
 

@@ -24,6 +24,12 @@ public enum ErrorCode {
     RECEIPT_EXCESS_RESOLUTION_REQUIRED(10007, "Dòng %d (%s) giao thừa: vui lòng chọn cách xử lý phần thừa", HttpStatus.BAD_REQUEST),
     RECEIPT_SHORTAGE_RESOLUTION_REQUIRED(10008, "Dòng %d (%s) giao thiếu: vui lòng chọn cách xử lý phần thiếu", HttpStatus.BAD_REQUEST),
 
+    // ===== Phiếu nhập kệ (chuyển kho lên kệ) =====
+    SHELF_REPLENISHMENT_NOT_PENDING(10201, "Chỉ duyệt hoặc từ chối được phiếu nhập kệ đang chờ duyệt", HttpStatus.BAD_REQUEST),
+    SHELF_REPLENISHMENT_SELF_APPROVAL(10202, "Người tạo phiếu không được tự duyệt hoặc từ chối phiếu nhập kệ của mình", HttpStatus.FORBIDDEN),
+    SHELF_REPLENISHMENT_NOT_CANCELLABLE(10203, "Chỉ hủy được phiếu nhập kệ đang nháp hoặc chờ duyệt", HttpStatus.BAD_REQUEST),
+    SHELF_REPLENISHMENT_CANCEL_FORBIDDEN(10204, "Chỉ người tạo phiếu hoặc ADMIN mới được hủy phiếu nhập kệ", HttpStatus.FORBIDDEN),
+
     // ===== Danh mục kho =====
     INVENTORY_LOCATION_NOT_FOUND(10101, "Kho nhận không tồn tại", HttpStatus.NOT_FOUND),
     INVENTORY_ITEM_NOT_FOUND(10102, "Nguyên liệu không tồn tại trong kho", HttpStatus.NOT_FOUND);

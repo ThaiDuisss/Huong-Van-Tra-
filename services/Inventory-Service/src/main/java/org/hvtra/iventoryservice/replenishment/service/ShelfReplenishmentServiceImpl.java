@@ -3,6 +3,7 @@ package org.hvtra.iventoryservice.replenishment.service;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
+import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.hvtra.iventoryservice.replenishment.repository.ShelfReplenishmentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -24,21 +25,21 @@ import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
 import org.hvtra.iventoryservice.replenishment.dto.CreateShelfReplenishmentRequest;
+import org.hvtra.iventoryservice.replenishment.dto.RejectShelfReplenishmentRequest;
 import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentLineRequest;
 import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentLineResponse;
 import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentResponse;
 import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentSummaryResponse;
 import org.hvtra.iventoryservice.replenishment.dto.UpdateShelfReplenishmentRequest;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
+import org.hvtra.iventoryservice.shared.exception.ErrorCode;
 import org.hvtra.iventoryservice.shared.exception.ResourceNotFoundException;
 import org.hvtra.iventoryservice.shared.pagination.PageResponse;
 import org.hvtra.commonservice.common_core.service.BusinessSequenceService;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,16 +65,6 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             List.of(InventoryDocumentStatus.DRAFT, InventoryDocumentStatus.PENDING_APPROVAL);
     /** reasonCode của phiếu do POS xuất kho ngay khi bán; manager duyệt sau. */
     static final String AUTO_ISSUE_REASON = "POS_AUTO_ISSUE";
-
-    /** So khớp không phân biệt hoa/thường vì gateway giữ nguyên tên role của Keycloak. */
-    private static final Set<String> REQUEST_ROLES = Set.of(
-            "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_SUPERADMIN", "ROLE_BRANCH_MANAGER", "ROLE_INVENTORY_MANAGER",
-            "ROLE_INVENTORY_STAFF", "ROLE_WAREHOUSE_STAFF", "ROLE_POS_STAFF");
-    private static final Set<String> WAREHOUSE_ROLES = Set.of(
-            "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_SUPERADMIN", "ROLE_BRANCH_MANAGER", "ROLE_INVENTORY_MANAGER",
-            "ROLE_INVENTORY_STAFF", "ROLE_WAREHOUSE_STAFF");
-    private static final Set<String> REVIEW_ROLES = Set.of(
-            "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_SUPERADMIN", "ROLE_BRANCH_MANAGER", "ROLE_INVENTORY_MANAGER");
 
     private final ShelfReplenishmentRepository replenishmentRepository;
     private final InventoryLocationRepository locationRepository;
@@ -132,6 +123,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
                 replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.PENDING_APPROVAL),
                 replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.POSTED),
                 replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.CANCELLED),
+                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.REJECTED),
                 replenishmentRepository.countByStatusAndApprovedAtIsNullAndIsDeletedFalse(InventoryDocumentStatus.POSTED));
     }
 
@@ -148,7 +140,6 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     @Override
     @Transactional
     public ShelfReplenishmentResponse create(CreateShelfReplenishmentRequest request) {
-        requireAnyRole(REQUEST_ROLES);
         Map<UUID, ShelfReplenishmentLineRequest> linesByVariant = mergeLines(request.lines());
         Map<UUID, InventoryItem> itemByVariant = resolveItems(linesByVariant.keySet());
 
@@ -181,7 +172,6 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     @Override
     @Transactional
     public ShelfReplenishmentResponse update(UUID id, UpdateShelfReplenishmentRequest request) {
-        requireAnyRole(REQUEST_ROLES);
         ShelfReplenishment document = getDocument(id);
         if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
             throw new BadRequestException("Chỉ sửa được phiếu nhập kệ đang ở trạng thái nháp");
@@ -210,7 +200,6 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     @Override
     @Transactional
     public ShelfReplenishmentResponse submit(UUID id) {
-        requireAnyRole(REQUEST_ROLES);
         ShelfReplenishment document = getDocument(id);
         if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
             throw new BadRequestException("Chỉ gửi được phiếu nhập kệ đang ở trạng thái nháp");
@@ -223,31 +212,48 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     }
 
     /**
-     * Kho xác nhận đã đưa hàng lên kệ: trừ tồn kho theo FEFO (batch hết hạn sớm nhất trước) và cộng đúng batch đó
-     * vào kệ. Thiếu hàng ở bất kỳ dòng nào thì cả phiếu không được ghi (rollback).
+     * Duyệt phiếu (SC-05): người duyệt phải khác người tạo; kiểm tra kho đủ hàng rồi trừ kho theo FEFO (batch hết
+     * hạn sớm nhất trước) và cộng đúng batch đó vào kệ, ghi giao dịch kho. Thiếu hàng ở bất kỳ dòng nào thì cả phiếu
+     * không được ghi (rollback), phiếu vẫn chờ duyệt.
      */
     @Override
     @Transactional
-    public ShelfReplenishmentResponse post(UUID id) {
-        requireAnyRole(WAREHOUSE_ROLES);
-        ShelfReplenishment document = getDocument(id);
-        if (document.getStatus() == InventoryDocumentStatus.POSTED) {
-            return toResponse(document, true);
-        }
-        if (!OPEN_STATUSES.contains(document.getStatus())) {
-            throw new BadRequestException("Phiếu nhập kệ đã hủy, không thể xác nhận");
-        }
+    public ShelfReplenishmentResponse approve(UUID id) {
+        ShelfReplenishment document = getPendingForDecision(id);
         issue(document);
-        // Kho tự xác nhận thì coi như đã được duyệt bởi chính người xác nhận.
         document.setApprovedBy(currentUserId());
         document.setApprovedAt(Instant.now());
         return toResponse(replenishmentRepository.save(document), true);
     }
 
+    /** Từ chối phiếu (SC-05 EX-04): lưu lý do, tồn kho không đổi. */
+    @Override
+    @Transactional
+    public ShelfReplenishmentResponse reject(UUID id, RejectShelfReplenishmentRequest request) {
+        ShelfReplenishment document = getPendingForDecision(id);
+        document.setStatus(InventoryDocumentStatus.REJECTED);
+        document.setRejectedBy(currentUserId());
+        document.setRejectedAt(Instant.now());
+        document.setRejectionReason(request.reason().trim());
+        return toResponse(replenishmentRepository.save(document), true);
+    }
+
+    /** Phiếu đang chờ duyệt và người thao tác không phải người tạo (SC-05 EX-02). */
+    private ShelfReplenishment getPendingForDecision(UUID id) {
+        ShelfReplenishment document = getDocument(id);
+        if (document.getStatus() != InventoryDocumentStatus.PENDING_APPROVAL) {
+            throw ErrorCode.SHELF_REPLENISHMENT_NOT_PENDING.exception();
+        }
+        UUID currentUserId = currentUserId();
+        if (currentUserId != null && currentUserId.equals(document.getCreatedBy())) {
+            throw ErrorCode.SHELF_REPLENISHMENT_SELF_APPROVAL.exception();
+        }
+        return document;
+    }
+
     @Override
     @Transactional
     public ShelfReplenishmentResponse review(UUID id) {
-        requireAnyRole(REVIEW_ROLES);
         ShelfReplenishment document = getDocument(id);
         if (document.getStatus() != InventoryDocumentStatus.POSTED) {
             throw new BadRequestException("Chỉ duyệt được phiếu đã xuất hàng lên kệ");
@@ -342,13 +348,18 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     @Override
     @Transactional
     public ShelfReplenishmentResponse cancel(UUID id, String note) {
-        requireAnyRole(REQUEST_ROLES);
         ShelfReplenishment document = getDocument(id);
         if (document.getStatus() == InventoryDocumentStatus.CANCELLED) {
             return toResponse(document, true);
         }
-        if (document.getStatus() == InventoryDocumentStatus.POSTED) {
-            throw new BadRequestException("Phiếu đã chuyển hàng lên kệ, không thể hủy");
+        if (!OPEN_STATUSES.contains(document.getStatus())) {
+            throw ErrorCode.SHELF_REPLENISHMENT_NOT_CANCELLABLE.exception();
+        }
+        // SC-05 EX-05: người tạo hoặc Admin mới được hủy phiếu chưa duyệt
+        UUID currentUserId = currentUserId();
+        boolean isCreator = currentUserId != null && currentUserId.equals(document.getCreatedBy());
+        if (!isCreator && !SecurityUtils.isAdmin()) {
+            throw ErrorCode.SHELF_REPLENISHMENT_CANCEL_FORBIDDEN.exception();
         }
         document.setStatus(InventoryDocumentStatus.CANCELLED);
         if (note != null && !note.isBlank()) {
@@ -627,7 +638,10 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
                 document.getStatus() == InventoryDocumentStatus.POSTED && document.getApprovedAt() == null,
                 document.getApprovedBy(),
                 document.getApprovedAt(),
-                lineResponses);
+                lineResponses,
+                document.getRejectedBy(),
+                document.getRejectedAt(),
+                document.getRejectionReason());
     }
 
     // ---------------------------------------------------------------- helpers
@@ -635,21 +649,6 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     private ShelfReplenishment getDocument(UUID id) {
         return replenishmentRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ShelfReplenishment", id));
-    }
-
-    private void requireAnyRole(Set<String> allowedRoles) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            boolean allowed = authentication.getAuthorities().stream()
-                    .map(GrantedAuthority::getAuthority)
-                    .anyMatch(authority -> allowedRoles.contains(authority.toUpperCase()));
-            if (allowed) {
-                return;
-            }
-            log.warn("Shelf replenishment access denied. user={} authorities={}",
-                    authentication.getName(), authentication.getAuthorities());
-        }
-        throw new AccessDeniedException("Bạn không có quyền thực hiện thao tác này trên phiếu nhập kệ");
     }
 
     private UUID currentUserId() {

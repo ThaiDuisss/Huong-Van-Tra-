@@ -1351,7 +1351,7 @@ export function PosSalePage() {
         setCheckoutError("");
         setCheckoutSuccess(
             submit
-                ? `Phiếu nhập kệ ${slip.documentCode}: cần đưa ${shortage.missingQuantity} ${shortage.name} lên kệ, đã gửi kho.`
+                ? `Phiếu nhập kệ ${slip.documentCode}: cần đưa ${shortage.missingQuantity} ${shortage.name} lên kệ, đã gửi chờ Quản lý duyệt.`
                 : `Đã lưu nháp phiếu nhập kệ ${slip.documentCode} (thiếu ${shortage.missingQuantity} ${shortage.name}).`
         );
     }

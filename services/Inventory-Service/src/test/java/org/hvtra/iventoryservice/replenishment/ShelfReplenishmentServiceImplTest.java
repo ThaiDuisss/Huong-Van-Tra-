@@ -22,6 +22,7 @@ import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentLineRequest
 import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentResponse;
 import org.hvtra.iventoryservice.replenishment.service.ShelfReplenishmentServiceImpl;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
+import org.hvtra.commonservice.common_core.exception.AppException;
 import org.hvtra.commonservice.common_core.service.BusinessSequenceService;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -34,7 +35,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -127,14 +127,10 @@ class ShelfReplenishmentServiceImplTest {
     }
 
     @Test
-    void create_allowsPosStaffButRejectsUnrelatedRole() {
+    void create_allowsPosStaff() {
         authenticateWith("ROLE_pos_staff");
         assertThat(service.create(request(true, null, "1")).status())
                 .isEqualTo(InventoryDocumentStatus.PENDING_APPROVAL);
-
-        authenticateWith("ROLE_ACCOUNTANT");
-        assertThatThrownBy(() -> service.create(request(true, null, "1")))
-                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
@@ -154,7 +150,7 @@ class ShelfReplenishmentServiceImplTest {
     }
 
     @Test
-    void post_movesStockFefoFromWarehouseToShelfKeepingBatches() {
+    void approve_movesStockFefoFromWarehouseToShelfKeepingBatches() {
         ShelfReplenishment document = document(InventoryDocumentStatus.PENDING_APPROVAL, "8");
         when(replenishmentRepository.findByIdAndIsDeletedFalse(document.getId())).thenReturn(Optional.of(document));
         InventoryBalance firstBatch = balance(warehouse, "5");
@@ -168,7 +164,7 @@ class ShelfReplenishmentServiceImplTest {
         when(balanceRepository.findForUpdateByBatchId(secondBatch.getInventoryBatch().getId(), shelf.getId()))
                 .thenReturn(Optional.empty());
 
-        ShelfReplenishmentResponse response = service.post(document.getId());
+        ShelfReplenishmentResponse response = service.approve(document.getId());
 
         assertThat(response.status()).isEqualTo(InventoryDocumentStatus.POSTED);
         assertThat(firstBatch.getQuantityOnHand()).isEqualByComparingTo("0");
@@ -195,14 +191,14 @@ class ShelfReplenishmentServiceImplTest {
     }
 
     @Test
-    void post_rejectsWhenWarehouseIsShortAndMovesNothing() {
+    void approve_rejectsWhenWarehouseIsShortAndMovesNothing() {
         ShelfReplenishment document = document(InventoryDocumentStatus.PENDING_APPROVAL, "8");
         when(replenishmentRepository.findByIdAndIsDeletedFalse(document.getId())).thenReturn(Optional.of(document));
         InventoryBalance onlyBatch = balance(warehouse, "5");
         when(balanceRepository.findFefoAvailableForUpdate(eq(item.getId()), eq(warehouse.getId()), any(), any()))
                 .thenReturn(List.of(onlyBatch));
 
-        assertThatThrownBy(() -> service.post(document.getId()))
+        assertThatThrownBy(() -> service.approve(document.getId()))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("không đủ hàng");
 
@@ -212,15 +208,12 @@ class ShelfReplenishmentServiceImplTest {
     }
 
     @Test
-    void post_isIdempotentAndRestrictedToWarehouseRoles() {
+    void approve_rejectsSlipThatIsNoLongerPending() {
         ShelfReplenishment posted = document(InventoryDocumentStatus.POSTED, "8");
         when(replenishmentRepository.findByIdAndIsDeletedFalse(posted.getId())).thenReturn(Optional.of(posted));
 
-        assertThat(service.post(posted.getId()).status()).isEqualTo(InventoryDocumentStatus.POSTED);
+        assertThatThrownBy(() -> service.approve(posted.getId())).isInstanceOf(AppException.class);
         verify(transactionRepository, never()).save(any());
-
-        authenticateWith("ROLE_POS_STAFF");
-        assertThatThrownBy(() -> service.post(posted.getId())).isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
@@ -229,18 +222,18 @@ class ShelfReplenishmentServiceImplTest {
         when(replenishmentRepository.findByIdAndIsDeletedFalse(posted.getId())).thenReturn(Optional.of(posted));
 
         assertThatThrownBy(() -> service.cancel(posted.getId(), "nhầm"))
-                .isInstanceOf(BadRequestException.class);
+                .isInstanceOf(AppException.class);
     }
 
     @Test
-    void post_byWarehouseStaffCountsAsReviewed() {
+    void approve_countsAsReviewed() {
         ShelfReplenishment document = document(InventoryDocumentStatus.PENDING_APPROVAL, "5");
         when(replenishmentRepository.findByIdAndIsDeletedFalse(document.getId())).thenReturn(Optional.of(document));
         when(balanceRepository.findFefoAvailableForUpdate(any(), any(), any(), any()))
                 .thenReturn(List.of(balance(warehouse, "10")));
         when(balanceRepository.findForUpdateByBatchId(any(), any())).thenReturn(Optional.empty());
 
-        ShelfReplenishmentResponse response = service.post(document.getId());
+        ShelfReplenishmentResponse response = service.approve(document.getId());
 
         assertThat(response.status()).isEqualTo(InventoryDocumentStatus.POSTED);
         assertThat(response.pendingReview()).isFalse();
@@ -296,13 +289,10 @@ class ShelfReplenishmentServiceImplTest {
     }
 
     @Test
-    void review_marksAutoIssuedSlipAsReviewedAndIsRestrictedToManagers() {
+    void review_marksAutoIssuedSlipAsReviewed() {
         ShelfReplenishment document = document(InventoryDocumentStatus.POSTED, "5");
         document.setReasonCode("POS_AUTO_ISSUE");
         when(replenishmentRepository.findByIdAndIsDeletedFalse(document.getId())).thenReturn(Optional.of(document));
-
-        authenticateWith("ROLE_INVENTORY_STAFF");
-        assertThatThrownBy(() -> service.review(document.getId())).isInstanceOf(AccessDeniedException.class);
 
         authenticateWith("ROLE_INVENTORY_MANAGER");
         ShelfReplenishmentResponse response = service.review(document.getId());

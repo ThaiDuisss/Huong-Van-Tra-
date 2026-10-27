@@ -13,6 +13,8 @@ public class InventorySecurityConfig extends BaseSecurityConfig {
 
     /** Role được duyệt phiếu kho — khớp với isAdmin()/isManager() ở FE. */
     private static final String[] APPROVER_ROLES = {"ADMIN", "MANAGER"};
+    /** Role được lập yêu cầu chuyển kho lên kệ (thủ kho, và nhân viên bán tạo từ POS khi kệ thiếu hàng). */
+    private static final String[] SHELF_REQUEST_ROLES = {"ADMIN", "MANAGER", "INVENTORY_STAFF", "SALE_STAFF"};
 
     @Bean
     protected SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -29,5 +31,20 @@ public class InventorySecurityConfig extends BaseSecurityConfig {
                         "/api/inventory/goods-receipts/*/post",
                         "/api/inventory/goods-receipts/*/cancel")
                 .hasAnyRole(APPROVER_ROLES);
+
+        // Phiếu nhập kệ (SC-05) — duyệt / từ chối / duyệt lại phiếu POS xuất ngay: chỉ ADMIN và MANAGER.
+        // Người duyệt khác người tạo và hủy chỉ bởi người tạo / Admin: kiểm tra theo dữ liệu phiếu trong service.
+        auth.requestMatchers(HttpMethod.POST,
+                        "/api/inventory/shelf-replenishments/*/approve",
+                        "/api/inventory/shelf-replenishments/*/reject",
+                        "/api/inventory/shelf-replenishments/*/review")
+                .hasAnyRole(APPROVER_ROLES);
+        auth.requestMatchers(HttpMethod.POST,
+                        "/api/inventory/shelf-replenishments",
+                        "/api/inventory/shelf-replenishments/*/submit",
+                        "/api/inventory/shelf-replenishments/*/cancel")
+                .hasAnyRole(SHELF_REQUEST_ROLES);
+        auth.requestMatchers(HttpMethod.PUT, "/api/inventory/shelf-replenishments/*")
+                .hasAnyRole(SHELF_REQUEST_ROLES);
     }
 }
