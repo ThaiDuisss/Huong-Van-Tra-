@@ -187,7 +187,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
       },
       {
         key: "manufacturing-custom-bundles",
-        label: "Custom Tea Bundle",
+        label: "Đóng trà theo yêu cầu",
         to: routePaths.customBundles,
         icon: Boxes,
         roles: MANUFACTURING_ROLES,

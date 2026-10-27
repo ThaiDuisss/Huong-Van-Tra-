@@ -26,6 +26,7 @@ import { OrderReturnDetailPage } from "../features/order/pages/OrderReturnDetail
 import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
 import { ReturnRefundReportPage } from "../features/order/pages/ReturnRefundReportPage";
 import { BackorderOrdersPage } from "../features/order/pages/BackorderOrdersPage";
+import { CustomBundleHandoverPage } from "../features/order/pages/CustomBundleHandoverPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
@@ -45,8 +46,6 @@ import { DisposalListPage } from "../features/inventory/pages/DisposalListPage";
 import { QualityBatchDetailPage } from "../features/inventory/pages/QualityBatchDetailPage";
 import { QualityDashboardPage } from "../features/inventory/pages/QualityDashboardPage";
 import { ReorderPolicyPage } from "../features/inventory/pages/ReorderPolicyPage";
-import { PosCustomBundleCreatePage } from "../features/inventory/pages/PosCustomBundleCreatePage";
-import { PosCustomBundleDetailPage } from "../features/inventory/pages/PosCustomBundleDetailPage";
 import { PosCustomerReturnCreatePage } from "../features/inventory/pages/PosCustomerReturnCreatePage";
 import { PosCustomerReturnDetailPage } from "../features/inventory/pages/PosCustomerReturnDetailPage";
 import { StockDocumentDetailPage } from "../features/inventory/pages/StockDocumentDetailPage";
@@ -173,18 +172,12 @@ export function AppRouter() {
         }
       />
       <Route
-        path={routePaths.posCustomBundleCreate}
+        path={routePaths.posCustomBundles}
         element={
           <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-            <PosCustomBundleCreatePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path={routePaths.posCustomBundleDetail}
-        element={
-          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-            <PosCustomBundleDetailPage />
+            <PosShell>
+              <CustomBundleHandoverPage />
+            </PosShell>
           </ProtectedRoute>
         }
       />

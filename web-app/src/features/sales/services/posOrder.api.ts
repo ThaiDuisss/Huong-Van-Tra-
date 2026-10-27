@@ -166,6 +166,21 @@ export interface PosOrderItemDto {
     unitPrice?: number;
     lineTotal?: number;
     note?: string | null;
+    /** CUSTOM_BUNDLE: trà đóng theo yêu cầu, số lượng luôn 1, nguyên liệu ở components. */
+    itemType?: "PRODUCT" | "CUSTOM_BUNDLE";
+    packingStatus?: "WAITING_MATERIAL" | "AWAITING_PACKING" | "PACKED" | "CANCELLED" | null;
+    packingCode?: string | null;
+    components?: PosOrderItemComponentDto[];
+}
+
+export interface PosOrderItemComponentDto {
+    ingredientId: string;
+    ingredientCode?: string | null;
+    ingredientName: string;
+    unit?: string | null;
+    quantity: number;
+    unitPrice?: number;
+    lineTotal?: number;
 }
 
 export interface PosCheckoutResponse extends PosOrderDto {

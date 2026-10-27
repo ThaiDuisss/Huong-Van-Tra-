@@ -62,7 +62,7 @@ const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
     },
     "/management/inventory/custom-bundles/": {
         parentTo: "/management/inventory/custom-bundles",
-        label: "Chi tiết Custom Tea Bundle"
+        label: "Chi tiết đóng trà theo yêu cầu"
     },
     "/management/inventory/transfers/new": {
         parentTo: "/management/inventory/transfers",
