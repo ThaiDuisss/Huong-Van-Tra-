@@ -228,7 +228,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
 
         Map<UUID, String> userNameMap = fetchUserNames(distinctUuids(java.util.stream.Stream.of(
                 header.getCreatedBy(), header.getApprovedBy(), header.getRejectedBy(),
-                header.getReceivedBy(), header.getQcBy(), header.getPostedBy())));
+                header.getReceivedBy(), header.getQcBy(), header.getPostedBy(),
+                header.getExceptionApprovedBy())));
 
         return toDocumentResponse(header, lineRows, allocationsByLine, supplierName, userNameMap);
     }
@@ -340,7 +341,12 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                     accepted,
                     rejected,
                     line.getNote(),
-                    allocations
+                    allocations,
+                    line.getExcessResolution() != null ? ReceiptExcessResolution.valueOf(line.getExcessResolution()) : null,
+                    line.getShortageResolution() != null ? ReceiptShortageResolution.valueOf(line.getShortageResolution()) : null,
+                    nvl(line.getReturnedQuantity()),
+                    line.getPostedQuantity(),
+                    line.getResolutionNote()
             ));
         }
 
@@ -385,7 +391,11 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                 totalOrdered,
                 totalReceived,
                 totalAccepted,
-                totalRejected
+                totalRejected,
+                parseUuid(header.getExceptionApprovedBy()),
+                userNameOf(userNameMap, header.getExceptionApprovedBy()),
+                header.getExceptionApprovedAt(),
+                header.getExceptionApprovalNote()
         );
     }
 
@@ -463,7 +473,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         }
         Map<UUID, String> userNameMap = fetchUserNames(java.util.stream.Stream.of(
                         document.getCreatedBy(), document.getApprovedBy(), document.getRejectedBy(),
-                        document.getReceivedBy(), document.getQcBy(), document.getPostedBy())
+                        document.getReceivedBy(), document.getQcBy(), document.getPostedBy(),
+                        document.getExceptionApprovedBy())
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList());
@@ -837,12 +848,26 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
 
     @Override
     @Transactional
-    public InventoryDocumentResponse post(UUID id) {
+    public InventoryDocumentResponse post(UUID id, ResolveReceiptExceptionRequest request) {
         InventoryDocument document = getDocument(id);
 
         if (document.getStatus() != InventoryDocumentStatus.PENDING_EXCEPTION_APPROVAL) {
-            throw new BadRequestException("Only PENDING_EXCEPTION_APPROVAL documents can be posted");
+            throw ErrorCode.INVENTORY_DOCUMENT_NOT_PENDING_EXCEPTION.exception();
         }
+
+        Map<UUID, ResolveReceiptExceptionRequest.LineResolution> resolutionsByLine = new HashMap<>();
+        if (request != null && request.lines() != null) {
+            request.lines().forEach(resolution -> resolutionsByLine.put(resolution.lineId(), resolution));
+        }
+
+        for (InventoryDocumentLine line : document.getLines()) {
+            applyExceptionResolution(line, resolutionsByLine.get(line.getId()));
+        }
+
+        String approvalNote = request != null ? request.approvalNote() : null;
+        document.setExceptionApprovedBy(getCurrentUserId());
+        document.setExceptionApprovedAt(Instant.now());
+        document.setExceptionApprovalNote(approvalNote != null && !approvalNote.isBlank() ? approvalNote.trim() : null);
 
         performPost(document);
         document.setStatus(InventoryDocumentStatus.POSTED);
@@ -850,6 +875,74 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         InventoryDocument posted = documentRepository.save(document);
         supplyLeadTimeService.onReceiptPosted(posted);
         return toEnrichedResponse(posted);
+    }
+
+    /**
+     * Chốt số ghi sổ của 1 dòng theo cách xử lý ngoại lệ được chọn. Phần không đạt QC (rejected) không bao giờ
+     * vào kho (hủy); phần đạt QC mà không nhập (thừa bị từ chối / từ chối cả dòng) ghi vào returnedQuantity.
+     */
+    private void applyExceptionResolution(InventoryDocumentLine line, ResolveReceiptExceptionRequest.LineResolution resolution) {
+        BigDecimal ordered = nvl(line.getOrderedQuantity());
+        BigDecimal received = nvl(line.getReceivedQuantity());
+        BigDecimal accepted = nvl(line.getAcceptedQuantity());
+        String itemName = line.getInventoryItem().getName() != null
+                ? line.getInventoryItem().getName()
+                : line.getInventoryItem().getReferenceCode();
+
+        BigDecimal posted = accepted;
+        line.setExcessResolution(null);
+        line.setShortageResolution(null);
+
+        if (received.compareTo(ordered) > 0) {
+            if (resolution == null || resolution.excessResolution() == null) {
+                throw ErrorCode.RECEIPT_EXCESS_RESOLUTION_REQUIRED.exception(line.getLineNo(), itemName);
+            }
+            line.setExcessResolution(resolution.excessResolution());
+            if (resolution.excessResolution() == ReceiptExcessResolution.ACCEPT_ORDERED_ONLY) {
+                posted = accepted.min(ordered);
+            }
+        } else if (received.compareTo(ordered) < 0) {
+            if (resolution == null || resolution.shortageResolution() == null) {
+                throw ErrorCode.RECEIPT_SHORTAGE_RESOLUTION_REQUIRED.exception(line.getLineNo(), itemName);
+            }
+            line.setShortageResolution(resolution.shortageResolution());
+            if (resolution.shortageResolution() == ReceiptShortageResolution.REJECT_LINE) {
+                posted = BigDecimal.ZERO;
+            }
+        }
+
+        line.setPostedQuantity(posted);
+        line.setReturnedQuantity(accepted.subtract(posted));
+        line.setResolutionNote(resolution != null && resolution.note() != null && !resolution.note().isBlank()
+                ? resolution.note().trim()
+                : null);
+        trimBatchAllocations(line, posted);
+    }
+
+    /** Giảm phân bổ lô cho khớp số ghi sổ; lô không còn số lượng thì bỏ phân bổ (hàng đó không vào kho). */
+    private void trimBatchAllocations(InventoryDocumentLine line, BigDecimal posted) {
+        BigDecimal toRemove = line.getBatchAllocations().stream()
+                .map(InventoryDocumentBatchAllocation::getQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .subtract(posted);
+        if (toRemove.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        List<InventoryDocumentBatchAllocation> allocations = line.getBatchAllocations().stream()
+                .sorted(Comparator.comparing((InventoryDocumentBatchAllocation a) -> a.getInventoryBatch().getBatchCode()).reversed())
+                .toList();
+        for (InventoryDocumentBatchAllocation allocation : allocations) {
+            if (toRemove.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal reduce = allocation.getQuantity().min(toRemove);
+            allocation.setQuantity(allocation.getQuantity().subtract(reduce));
+            toRemove = toRemove.subtract(reduce);
+            if (allocation.getQuantity().compareTo(BigDecimal.ZERO) == 0) {
+                line.getBatchAllocations().remove(allocation);
+            }
+        }
     }
 
     @Override
@@ -902,8 +995,11 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
         transaction.setInventoryDocument(document);
 
         for (InventoryDocumentLine docLine : document.getLines()) {
-            BigDecimal accepted = docLine.getAcceptedQuantity();
-            if (accepted == null || accepted.compareTo(BigDecimal.ZERO) <= 0) {
+            if (docLine.getPostedQuantity() == null) {
+                docLine.setPostedQuantity(nvl(docLine.getAcceptedQuantity()));
+            }
+            BigDecimal postedQuantity = docLine.getPostedQuantity();
+            if (postedQuantity.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
 
@@ -958,14 +1054,14 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                         });
 
                 BigDecimal before = balance.getQuantityOnHand();
-                BigDecimal after = before.add(accepted);
+                BigDecimal after = before.add(postedQuantity);
                 balance.setQuantityOnHand(after);
                 balanceRepository.save(balance);
 
                 InventoryTransactionLine transLine = new InventoryTransactionLine();
                 transLine.setInventoryItem(item);
                 transLine.setLocation(location);
-                transLine.setQuantity(accepted);
+                transLine.setQuantity(postedQuantity);
                 transLine.setBeforeQuantity(before);
                 transLine.setAfterQuantity(after);
 

@@ -95,7 +95,11 @@ public class InventoryDocumentMapper {
                 totalOrdered,
                 totalReceived,
                 totalAccepted,
-                totalRejected
+                totalRejected,
+                document.getExceptionApprovedBy(),
+                nameOf(userNames, document.getExceptionApprovedBy()),
+                document.getExceptionApprovedAt(),
+                document.getExceptionApprovalNote()
         );
     }
 
@@ -133,7 +137,12 @@ public class InventoryDocumentMapper {
                 line.getAcceptedQuantity(),
                 line.getRejectedQuantity(),
                 line.getNote(),
-                allocations
+                allocations,
+                line.getExcessResolution(),
+                line.getShortageResolution(),
+                line.getReturnedQuantity(),
+                line.getPostedQuantity(),
+                line.getResolutionNote()
         );
     }
 

@@ -49,6 +49,10 @@ public record InventoryDocumentResponse(
         java.math.BigDecimal totalOrderedQuantity,
         java.math.BigDecimal totalReceivedQuantity,
         java.math.BigDecimal totalAcceptedQuantity,
-        java.math.BigDecimal totalRejectedQuantity
+        java.math.BigDecimal totalRejectedQuantity,
+        UUID exceptionApprovedBy,
+        String exceptionApprovedByName,
+        Instant exceptionApprovedAt,
+        String exceptionApprovalNote
 ) {
 }

@@ -73,6 +73,33 @@ export interface GoodsReceiptDetail extends GoodsReceiptSummary {
     evidence: GoodsReceiptEvidence[];
     auditEvents: InventoryAuditEvent[];
     movementSummary?: GoodsReceiptMovementSummary;
+    referenceType?: string;
+    referenceId?: string;
+    postedAt?: string;
+    postedByName?: string;
+    exceptionApprovedByName?: string;
+    exceptionApprovedAt?: string;
+    exceptionApprovalNote?: string;
+}
+
+/** Cách xử lý dòng giao thừa: nhận hết / chỉ nhận số đặt (trả phần thừa). */
+export type ReceiptExcessResolution = "ACCEPT_ALL" | "ACCEPT_ORDERED_ONLY";
+
+/** Cách xử lý dòng giao thiếu: nhận số hiện có & đóng dòng / từ chối cả dòng. */
+export type ReceiptShortageResolution = "ACCEPT_PARTIAL_CLOSE" | "REJECT_LINE";
+
+export interface GoodsReceiptLineResolutionInput {
+    lineId: string;
+    excessResolution?: ReceiptExcessResolution;
+    shortageResolution?: ReceiptShortageResolution;
+    note?: string;
+}
+
+export interface GoodsReceiptPostInput {
+    receiptId: string;
+    lines: GoodsReceiptLineResolutionInput[];
+    /** Ghi chú duyệt ngoại lệ cho cả phiếu. */
+    approvalNote?: string;
 }
 
 export interface GoodsReceiptLine {
@@ -98,6 +125,13 @@ export interface GoodsReceiptLine {
     qc: GoodsReceiptQcLine;
     cost: GoodsReceiptCostLine;
     batchStatus: GoodsReceiptBatchStatus;
+    excessResolution?: ReceiptExcessResolution;
+    shortageResolution?: ReceiptShortageResolution;
+    /** Số đạt QC nhưng trả lại NCC (thừa bị từ chối / từ chối cả dòng). */
+    returnedQuantity: number;
+    /** Số thực ghi sổ nhập kho; undefined khi chưa ghi sổ. */
+    postedQuantity?: number;
+    resolutionNote?: string;
 }
 
 export interface GoodsReceiptQcLine {
@@ -344,7 +378,7 @@ export interface GoodsReceiptApi {
         input: GoodsReceiptCostInput
     ): Promise<GoodsReceiptDetail>;
     postGoodsReceipt(
-        input: GoodsReceiptActionInput
+        input: GoodsReceiptPostInput
     ): Promise<GoodsReceiptDetail>;
     cancelGoodsReceipt(
         input: GoodsReceiptActionInput

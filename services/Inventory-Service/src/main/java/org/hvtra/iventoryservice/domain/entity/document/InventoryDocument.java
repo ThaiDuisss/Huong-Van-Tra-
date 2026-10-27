@@ -119,6 +119,16 @@ public class InventoryDocument extends BaseEntity {
     @Column(name = "posted_at")
     private Instant postedAt;
 
+    /** Người duyệt ngoại lệ (thừa / thiếu / hỏng) trước khi ghi sổ. */
+    @Column(name = "exception_approved_by", columnDefinition = "BINARY(16)")
+    private UUID exceptionApprovedBy;
+
+    @Column(name = "exception_approved_at")
+    private Instant exceptionApprovedAt;
+
+    @Column(name = "exception_approval_note", columnDefinition = "TEXT")
+    private String exceptionApprovalNote;
+
     @OneToMany(mappedBy = "document", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InventoryDocumentLine> lines = new ArrayList<>();
 

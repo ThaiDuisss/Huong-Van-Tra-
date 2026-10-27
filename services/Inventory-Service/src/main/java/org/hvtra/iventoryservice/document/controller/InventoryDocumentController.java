@@ -131,8 +131,11 @@ public class InventoryDocumentController {
 
     @UserAction(value = "PURCHASE_RECEIPT_POST", entityType = "InventoryDocument", entityId = "#id")
     @PostMapping("/{id}/post")
-    public ResponseEntity<InventoryDocumentResponse> post(@PathVariable UUID id) {
-        return ResponseEntity.ok(service.post(id));
+    public ResponseEntity<InventoryDocumentResponse> post(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) ResolveReceiptExceptionRequest request
+    ) {
+        return ResponseEntity.ok(service.post(id, request));
     }
 
     @UserAction(value = "PURCHASE_RECEIPT_CANCEL", entityType = "InventoryDocument", entityId = "#id", detail = "#note")

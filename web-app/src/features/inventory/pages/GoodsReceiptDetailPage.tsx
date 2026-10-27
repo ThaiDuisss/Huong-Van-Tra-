@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { Pencil, Printer } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
@@ -18,12 +18,16 @@ import {
     GoodsReceiptStatusBadge,
     QcBadge
 } from "../components/GoodsReceiptComponents";
+import { GoodsReceiptExceptionResolutionModal } from "../components/GoodsReceiptExceptionResolutionModal";
 import { GoodsReceiptInspectionModal } from "../components/GoodsReceiptInspectionModal";
 import { goodsReceiptApi } from "../services/goodsReceipt.api";
 import type {
     GoodsReceiptDetail,
+    GoodsReceiptLineResolutionInput,
     GoodsReceiptQcInput
 } from "../types/goods-receipt.types";
+import { hasLineException } from "../utils/goodsReceiptException";
+import { printExceptionReport } from "../utils/goodsReceiptExceptionReport";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
 type ReceiptTab = "lines" | "overview" | "cost" | "documents" | "evidence" | "audit";
@@ -308,16 +312,18 @@ export function GoodsReceiptDetailPage() {
     }
 
     // 9. Post (QC_COMPLETED -> POSTED)
-    async function postReceipt() {
+    async function postReceipt(lines: GoodsReceiptLineResolutionInput[], approvalNote?: string) {
         if (!receipt) return;
         try {
             setMutationLoading(true);
             const updated = await goodsReceiptApi.postGoodsReceipt({
+                approvalNote,
+                lines,
                 receiptId: receipt.id
             });
             setReceipt(updated);
             setPostOpen(false);
-            showToast("Đã nhập kho nhập kho thành công.", true);
+            showToast("Đã duyệt ngoại lệ & ghi sổ nhập kho thành công.", true);
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Ghi sổ nhập kho thất bại.", false);
         } finally {
@@ -428,10 +434,38 @@ export function GoodsReceiptDetailPage() {
                                 Ghi chú: {receipt.note}
                             </p>
                         ) : null}
+                        {receipt.exceptionApprovedAt ? (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                                <div>
+                                    <span className="font-black">Duyệt ngoại lệ:</span>{" "}
+                                    {receipt.exceptionApprovedByName || "Không rõ người duyệt"} ·{" "}
+                                    {formatVietnamDateTime(receipt.exceptionApprovedAt)}
+                                </div>
+                                {receipt.exceptionApprovalNote ? (
+                                    <div className="italic">Ghi chú: {receipt.exceptionApprovalNote}</div>
+                                ) : null}
+                            </div>
+                        ) : null}
                     </div>
 
                     {/* VÙNG NÚT HÀNH ĐỘNG THEO TỪNG BƯỚC VÒNG ĐỜI */}
                     <div className="flex flex-wrap items-center gap-2">
+                        {receipt.status === "POSTED" && receipt.lines.some(hasLineException) ? (
+                            <button
+                                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#d8eadc] bg-white px-4 text-sm font-black text-[#159734] hover:bg-[#f4faf5]"
+                                onClick={() => {
+                                    try {
+                                        printExceptionReport(receipt);
+                                    } catch (printError) {
+                                        showToast(printError instanceof Error ? printError.message : "Không thể in biên bản.", false);
+                                    }
+                                }}
+                                type="button"
+                            >
+                                <Printer size={15} aria-hidden="true" />
+                                In biên bản ngoại lệ
+                            </button>
+                        ) : null}
                         {/* Chỉnh sửa: phiếu DRAFT/REJECTED, chỉ ADMIN hoặc người tạo (createdBy = Keycloak subject) */}
                         {(receipt.status === "DRAFT" || receipt.status === "REJECTED")
                             && (isAdmin() || (Boolean(keycloakSubject) && receipt.createdBy.id === keycloakSubject)) ? (
@@ -498,7 +532,7 @@ export function GoodsReceiptDetailPage() {
                             </button>
                         ) : null}
 
-                        {receipt.status === "PENDING_EXCEPTION_APPROVAL" && (isManager()) ? (
+                        {receipt.status === "PENDING_EXCEPTION_APPROVAL" && (isManager() || isAdmin()) ? (
                             <button
                                 className="inline-flex h-10 items-center rounded-lg bg-[#d97706] px-4 text-sm font-black text-white hover:bg-[#b45309] shadow-sm disabled:opacity-50"
                                 disabled={mutationLoading}
@@ -621,52 +655,16 @@ export function GoodsReceiptDetailPage() {
             />
 
             {/* ============================================================ */}
-            {/* 3. MODAL GHI SỔ NHẬP KHO (PENDING_EXCEPTION_APPROVAL/POSTED) */}
+            {/* 3. MODAL DUYỆT NGOẠI LỆ & GHI SỔ (PENDING_EXCEPTION_APPROVAL) */}
             {/* ============================================================ */}
-            <Dialog open={postOpen} onOpenChange={setPostOpen}>
-                <DialogContent className="max-w-[500px]">
-                    <DialogHeader>
-                        <DialogTitle>Giai đoạn 5: Ghi sổ nhập kho (Post Receipt)</DialogTitle>
-                        <DialogDescription>
-                            Xác nhận ghi sổ phiếu nhập kho. Tồn kho khả dụng (Available Balance) sẽ tăng đúng bằng số lượng đạt QC.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="px-6 py-4 grid gap-3">
-                        <div className="rounded-lg bg-[#f4faf5] border border-[#d8eadc] p-3 text-sm">
-                            <p className="font-bold text-[#315f3c]">Tóm tắt cập nhật tồn kho:</p>
-                            <ul className="mt-2 grid gap-1 text-xs font-semibold text-[#536078]">
-                                {receipt.lines.map((l) => (
-                                    <li key={l.id} className="flex justify-between">
-                                        <span>{l.materialName}:</span>
-                                        <strong className="text-[#159734]">+{formatVietnamNumber(l.qc.passedQuantity)} {l.unit}</strong>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                        <p className="text-xs text-[#697684]">
-                            Sau khi ghi sổ, chứng từ sẽ được khóa (Read-only) và không thể chỉnh sửa.
-                        </p>
-                    </div>
-                    <DialogFooter>
-                        <button
-                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
-                            disabled={mutationLoading}
-                            onClick={() => setPostOpen(false)}
-                            type="button"
-                        >
-                            Hủy
-                        </button>
-                        <button
-                            className="h-10 rounded-lg bg-[#159734] px-5 text-sm font-black text-white hover:bg-[#12802c] disabled:opacity-60"
-                            disabled={mutationLoading}
-                            onClick={() => void postReceipt()}
-                            type="button"
-                        >
-                            {mutationLoading ? "Đang ghi sổ..." : "Xác nhận ghi sổ nhập kho"}
-                        </button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {postOpen ? (
+                <GoodsReceiptExceptionResolutionModal
+                    loading={mutationLoading}
+                    onClose={() => setPostOpen(false)}
+                    onSubmit={postReceipt}
+                    receipt={receipt}
+                />
+            ) : null}
 
             {/* ============================================================ */}
             {/* 4. MODAL TỪ CHỐI DUYỆT (REJECT) */}

@@ -12,10 +12,13 @@ import type {
     GoodsReceiptListQuery,
     GoodsReceiptListResult,
     GoodsReceiptOptions,
+    GoodsReceiptPostInput,
     GoodsReceiptQcInput,
     GoodsReceiptStatus,
     GoodsReceiptSummary,
-    QcResult
+    QcResult,
+    ReceiptExcessResolution,
+    ReceiptShortageResolution
 } from "../types/goods-receipt.types";
 import type { InventoryAuditEvent } from "../types/stock-document.types";
 import type { PageResponse } from "../types/inventory.types";
@@ -36,6 +39,11 @@ interface InventoryDocumentLineBackendResponse {
     acceptedQuantity: number;
     rejectedQuantity: number;
     note?: string;
+    excessResolution?: ReceiptExcessResolution;
+    shortageResolution?: ReceiptShortageResolution;
+    returnedQuantity?: number;
+    postedQuantity?: number;
+    resolutionNote?: string;
     batchAllocations?: Array<{
         id: string;
         inventoryBatchId: string;
@@ -89,6 +97,10 @@ interface InventoryDocumentBackendResponse {
     totalReceivedQuantity: number;
     totalAcceptedQuantity: number;
     totalRejectedQuantity: number;
+    exceptionApprovedBy?: string;
+    exceptionApprovedByName?: string;
+    exceptionApprovedAt?: string;
+    exceptionApprovalNote?: string;
 }
 
 interface InventoryItemLookupBackendResponse {
@@ -273,7 +285,12 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             storageCondition: "Nơi khô ráo",
             supplierLot: batchAlloc?.supplierLot || "",
             surplusQuantity: line.excessQuantity || 0,
-            unit: line.unitName || "kg"
+            unit: line.unitName || "kg",
+            excessResolution: line.excessResolution,
+            shortageResolution: line.shortageResolution,
+            returnedQuantity: line.returnedQuantity || 0,
+            postedQuantity: line.postedQuantity ?? undefined,
+            resolutionNote: line.resolutionNote
         };
     });
 
@@ -345,6 +362,22 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             type: "QC"
         });
     }
+    if (doc.exceptionApprovedAt) {
+        auditEvents.push({
+            actor: {
+                id: doc.exceptionApprovedBy || "manager",
+                name: doc.exceptionApprovedByName || "Quản lý kho",
+                role: "MANAGER"
+            },
+            happenedAt: doc.exceptionApprovedAt,
+            id: `approve-exception-${doc.id}`,
+            note: doc.exceptionApprovalNote
+                ? `Duyệt ngoại lệ: ${doc.exceptionApprovalNote}`
+                : "Duyệt ngoại lệ (thừa / thiếu / hỏng)",
+            roleSnapshot: "MANAGER",
+            type: "APPROVE"
+        });
+    }
     if (doc.postedAt) {
         auditEvents.push({
             actor: doc.postedBy
@@ -368,7 +401,14 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
         note: doc.note,
         outsidePo: false,
         purchaseOrderCode: doc.referenceId || "",
-        vehiclePlate: ""
+        vehiclePlate: "",
+        referenceType: doc.referenceType,
+        referenceId: doc.referenceId,
+        postedAt: doc.postedAt,
+        postedByName: doc.postedByName,
+        exceptionApprovedByName: doc.exceptionApprovedByName,
+        exceptionApprovedAt: doc.exceptionApprovedAt,
+        exceptionApprovalNote: doc.exceptionApprovalNote
     };
 }
 
@@ -705,9 +745,10 @@ export const goodsReceiptApi: GoodsReceiptApi = {
         return mapDocToDetail(res);
     },
 
-    async postGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
+    async postGoodsReceipt(input: GoodsReceiptPostInput): Promise<GoodsReceiptDetail> {
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(input.receiptId)}/post`
+            `/inventory/documents/${encodeURIComponent(input.receiptId)}/post`,
+            { approvalNote: input.approvalNote, lines: input.lines }
         );
         return mapDocToDetail(res);
     },

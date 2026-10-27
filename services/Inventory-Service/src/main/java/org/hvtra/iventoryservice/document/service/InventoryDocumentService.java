@@ -59,7 +59,7 @@ public interface InventoryDocumentService {
 
     InventoryDocumentResponse completeInspection(UUID id, CompleteInspectionRequest request);
 
-    InventoryDocumentResponse post(UUID id);
+    InventoryDocumentResponse post(UUID id, ResolveReceiptExceptionRequest request);
 
     InventoryDocumentResponse cancel(UUID id, String note);
 

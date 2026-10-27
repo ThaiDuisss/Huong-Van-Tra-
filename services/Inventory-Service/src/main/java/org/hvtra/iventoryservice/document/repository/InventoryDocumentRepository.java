@@ -83,7 +83,10 @@ public interface InventoryDocumentRepository extends JpaRepository<InventoryDocu
                 BIN_TO_UUID(d.qc_by) AS qcBy,
                 d.qc_at AS qcAt,
                 BIN_TO_UUID(d.posted_by) AS postedBy,
-                d.posted_at AS postedAt
+                d.posted_at AS postedAt,
+                BIN_TO_UUID(d.exception_approved_by) AS exceptionApprovedBy,
+                d.exception_approved_at AS exceptionApprovedAt,
+                d.exception_approval_note AS exceptionApprovalNote
             FROM inventory_documents d
             LEFT JOIN inventory_locations loc ON loc.id = d.location_id
             """;

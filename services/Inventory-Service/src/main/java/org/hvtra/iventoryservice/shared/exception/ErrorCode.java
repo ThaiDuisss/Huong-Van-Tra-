@@ -20,6 +20,9 @@ public enum ErrorCode {
     INVENTORY_DOCUMENT_EDIT_FORBIDDEN(10003, "Chỉ ADMIN hoặc người tạo phiếu mới được chỉnh sửa phiếu nhập kho này", HttpStatus.FORBIDDEN),
     INVENTORY_DOCUMENT_NOT_DELETABLE(10004, "Chỉ có thể xóa phiếu nhập kho ở trạng thái Bản nháp", HttpStatus.BAD_REQUEST),
     INVENTORY_DOCUMENT_DELETE_FORBIDDEN(10005, "Chỉ ADMIN hoặc người tạo phiếu mới được xóa phiếu nhập kho này", HttpStatus.FORBIDDEN),
+    INVENTORY_DOCUMENT_NOT_PENDING_EXCEPTION(10006, "Chỉ phiếu đang Chờ duyệt ngoại lệ mới được duyệt ngoại lệ và ghi sổ", HttpStatus.BAD_REQUEST),
+    RECEIPT_EXCESS_RESOLUTION_REQUIRED(10007, "Dòng %d (%s) giao thừa: vui lòng chọn cách xử lý phần thừa", HttpStatus.BAD_REQUEST),
+    RECEIPT_SHORTAGE_RESOLUTION_REQUIRED(10008, "Dòng %d (%s) giao thiếu: vui lòng chọn cách xử lý phần thiếu", HttpStatus.BAD_REQUEST),
 
     // ===== Danh mục kho =====
     INVENTORY_LOCATION_NOT_FOUND(10101, "Kho nhận không tồn tại", HttpStatus.NOT_FOUND),
@@ -37,6 +40,11 @@ public enum ErrorCode {
 
     public AppException exception() {
         return new AppException(code, message);
+    }
+
+    /** Dùng cho message có tham số (%s, %d...), ví dụ số dòng / tên nguyên liệu. */
+    public AppException exception(Object... args) {
+        return new AppException(code, String.format(message, args));
     }
 
     public static Optional<ErrorCode> fromCode(int code) {

@@ -1,6 +1,8 @@
 package org.hvtra.iventoryservice.document.dto.response;
 
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+import org.hvtra.iventoryservice.domain.enums.ReceiptExcessResolution;
+import org.hvtra.iventoryservice.domain.enums.ReceiptShortageResolution;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -22,6 +24,11 @@ public record InventoryDocumentLineResponse(
         BigDecimal acceptedQuantity,
         BigDecimal rejectedQuantity,
         String note,
-        List<InventoryDocumentBatchAllocationResponse> batchAllocations
+        List<InventoryDocumentBatchAllocationResponse> batchAllocations,
+        ReceiptExcessResolution excessResolution,
+        ReceiptShortageResolution shortageResolution,
+        BigDecimal returnedQuantity,
+        BigDecimal postedQuantity,
+        String resolutionNote
 ) {
 }

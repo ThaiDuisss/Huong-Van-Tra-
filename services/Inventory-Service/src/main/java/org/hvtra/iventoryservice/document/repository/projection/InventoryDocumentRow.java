@@ -31,4 +31,7 @@ public interface InventoryDocumentRow {
     Instant getQcAt();
     String getPostedBy();
     Instant getPostedAt();
+    String getExceptionApprovedBy();
+    Instant getExceptionApprovedAt();
+    String getExceptionApprovalNote();
 }
