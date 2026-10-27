@@ -5,8 +5,9 @@ import org.hvtra.iventoryservice.availability.repository.AvailabilityQueryReposi
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
+import org.hvtra.iventoryservice.domain.entity.document.GoodsReceipt;
+import org.hvtra.iventoryservice.domain.entity.document.ShelfReplenishment;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrder;
-import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,11 +81,7 @@ class SupplyLeadTimeServiceTest {
 
     @Test
     void otherDocumentTypesAreIgnored() {
-        InventoryDocument transfer = receipt(Duration.ofDays(1), new InventoryItem());
-        transfer.setDocumentType(InventoryDocumentType.values()[InventoryDocumentType.values().length - 1]);
-        if (transfer.getDocumentType() == InventoryDocumentType.PURCHASE_RECEIPT) {
-            return;
-        }
+        InventoryDocument transfer = withLines(new ShelfReplenishment(), Duration.ofDays(1), new InventoryItem());
 
         service.onReceiptPosted(transfer);
 
@@ -111,8 +108,10 @@ class SupplyLeadTimeServiceTest {
     }
 
     private InventoryDocument receipt(Duration took, InventoryItem... items) {
-        InventoryDocument document = new InventoryDocument();
-        document.setDocumentType(InventoryDocumentType.PURCHASE_RECEIPT);
+        return withLines(new GoodsReceipt(), took, items);
+    }
+
+    private InventoryDocument withLines(InventoryDocument document, Duration took, InventoryItem... items) {
         document.setCreatedAt(START);
         document.setPostedAt(START.plus(took));
         for (InventoryItem item : items) {

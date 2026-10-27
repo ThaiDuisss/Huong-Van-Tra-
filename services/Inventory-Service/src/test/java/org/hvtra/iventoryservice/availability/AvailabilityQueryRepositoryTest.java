@@ -5,9 +5,9 @@ import org.hvtra.iventoryservice.availability.repository.AvailabilityQueryReposi
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
+import org.hvtra.iventoryservice.domain.entity.document.GoodsReceipt;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrder;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
-import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
@@ -117,7 +117,9 @@ class AvailabilityQueryRepositoryTest {
 
         String migration = java.nio.file.Files.readString(java.nio.file.Path.of(
                 "src/main/resources/db/migration/V261004100000__add_supply_lead_time_to_inventory_items.sql"));
-        String withoutComments = migration.replaceAll("(?m)^--.*$", "");
+        // Migration chạy khi phiếu nhập còn tên PURCHASE_RECEIPT; dữ liệu test dùng tên hiện tại GOODS_RECEIPT
+        String withoutComments = migration.replaceAll("(?m)^--.*$", "")
+                .replace("'PURCHASE_RECEIPT'", "'GOODS_RECEIPT'");
         for (String statement : withoutComments.split(";")) {
             if (statement.trim().toUpperCase().startsWith("UPDATE") && !statement.contains("production_orders")) {
                 entityManager.createNativeQuery(statement).executeUpdate();
@@ -177,9 +179,8 @@ class AvailabilityQueryRepositoryTest {
 
     private void receipt(String code, InventoryDocumentStatus status, Instant postedAt, InventoryItem item,
                          String orderedQuantity) {
-        InventoryDocument document = new InventoryDocument();
+        InventoryDocument document = new GoodsReceipt();
         document.setDocumentCode(code);
-        document.setDocumentType(InventoryDocumentType.PURCHASE_RECEIPT);
         document.setStatus(status);
         document.setPostedAt(postedAt);
         entityManager.persist(document);
