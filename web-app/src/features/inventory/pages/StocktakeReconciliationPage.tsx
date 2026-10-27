@@ -9,8 +9,9 @@ import { useStocktakeActionDialog } from "../components/useStocktakeActionDialog
 import { stocktakeApi } from "../services/stocktake.api";
 import type { StocktakeDetail } from "../types/stocktake.types";
 import { formatVietnamNumber } from "../utils/inventory-format";
+import { ROLES } from "../../../auth/roles";
 
-const managerRoles = ["ADMIN", "MANAGER", "MANAGER"];
+const managerRoles = [ROLES.SUPER_ADMIN, ROLES.MANAGER];
 
 export function StocktakeReconciliationPage() {
   const { stocktakeId } = useParams();

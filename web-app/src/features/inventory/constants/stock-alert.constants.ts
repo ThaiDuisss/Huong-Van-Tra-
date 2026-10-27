@@ -1,3 +1,4 @@
+import { ROLE_LABELS } from "../../../auth/roles";
 import type {
     StockAlertSeverity,
     StockAlertStatus,
@@ -37,14 +38,8 @@ export const suggestedActionLabels: Record<SuggestedActionType, string> = {
     TRANSFER: "Tạo yêu cầu chuyển kho"
 };
 
-export const stockAlertRoleLabels: Record<string, string> = {
-    ACCOUNTANT: "Kế toán",
-    ADMIN: "Quản trị viên",
-    MANAGER: "Quản lý chi nhánh",
-    DIRECTOR: "Giám đốc",
-    INVENTORY_STAFF: "Nhân viên kho",
-    SALES_STAFF: "Nhân viên bán hàng"
-};
+/** Nhãn vai trò dùng chung của hệ thống. */
+export const stockAlertRoleLabels: Record<string, string> = ROLE_LABELS;
 
 export const stockAlertTypes = Object.keys(stockAlertTypeLabels) as StockAlertType[];
 export const stockAlertStatuses = Object.keys(stockAlertStatusLabels) as StockAlertStatus[];

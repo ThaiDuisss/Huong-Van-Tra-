@@ -1,4 +1,5 @@
 import type { PageResponse } from "./inventory.types";
+import type { RoleKey } from "../../../auth/roles";
 
 export type StockDocumentType =
     | "GOODS_RECEIPT"
@@ -25,14 +26,8 @@ export type StockDocumentStatus =
 
 export type StockDocumentDirection = "ALL" | "IN" | "OUT";
 
-export type StockDocumentRole =
-    | "ADMIN"
-    | "INVENTORY_STAFF"
-    | "MANAGER"
-    | "ACCOUNTANT"
-    | "DIRECTOR"
-    | "QC_STAFF"
-    | "SALES_STAFF";
+/** Vai trò người thao tác — dùng role chuẩn của hệ thống. */
+export type StockDocumentRole = RoleKey;
 
 export type StockDocumentAction =
     | "SUBMIT"

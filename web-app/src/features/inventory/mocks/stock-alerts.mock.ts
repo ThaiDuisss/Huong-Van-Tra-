@@ -15,12 +15,11 @@ import {
 } from "./inventory-master-data.mock";
 
 export const stockAlertUsers: Record<AppRole, UserSnapshot> = {
-    ACCOUNTANT: inventoryMasterUsers.accountant,
-    ADMIN: inventoryMasterUsers.admin,
+    SUPER_ADMIN: inventoryMasterUsers.admin,
     MANAGER: inventoryMasterUsers.manager,
-    DIRECTOR: inventoryMasterUsers.director,
     INVENTORY_STAFF: inventoryMasterUsers.warehouse,
-    SALES_STAFF: inventoryMasterUsers.sales
+    SALE_STAFF: inventoryMasterUsers.sales,
+    QC: inventoryMasterUsers.qc
 };
 
 export const alertLocations: InventoryLocationSummary[] = [

@@ -64,7 +64,7 @@ function getDeleteErrorMessage(error: unknown): string {
 export function GoodsReceiptListPage() {
     const { query, resetQuery, setQuery } = useGoodsReceiptQueryState();
     const navigate = useNavigate();
-    const { isAdmin, keycloakSubject } = useAuthorization();
+    const { isSuperAdmin, keycloakSubject } = useAuthorization();
     const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptListItem | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState("");
@@ -146,7 +146,7 @@ export function GoodsReceiptListPage() {
     // createdBy lưu Keycloak subject (JWT sub) nên so sánh với keycloakSubject, không phải user.id
     const currentUserSubject = keycloakSubject;
     const isAdminOrCreator = (item: GoodsReceiptListItem) =>
-        isAdmin() || (Boolean(currentUserSubject) && item.createdById === currentUserSubject);
+        isSuperAdmin() || (Boolean(currentUserSubject) && item.createdById === currentUserSubject);
     const canEditReceipt = (item: GoodsReceiptListItem) =>
         (item.status === "DRAFT" || item.status === "REJECTED") && isAdminOrCreator(item);
     const canDeleteReceipt = (item: GoodsReceiptListItem) =>

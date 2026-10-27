@@ -43,7 +43,7 @@ export function ShelfReplenishmentDetailPage() {
     const [reloadKey, setReloadKey] = useState(0);
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
-    const { isAdmin, isManager, keycloakSubject } = useAuthorization();
+    const { isSuperAdmin, isManager, keycloakSubject } = useAuthorization();
 
     const reload = useCallback(() => setReloadKey((current) => current + 1), []);
 
@@ -67,9 +67,9 @@ export function ShelfReplenishmentDetailPage() {
 
     // SC-05: Quản lý / Admin duyệt hoặc từ chối nhưng không phải người tạo; người tạo hoặc Admin được hủy.
     const isCreator = Boolean(slip?.createdBy && keycloakSubject && slip.createdBy === keycloakSubject);
-    const isApproverRole = isManager() || isAdmin();
+    const isApproverRole = isManager() || isSuperAdmin();
     const canDecide = isApproverRole && !isCreator;
-    const canCancel = isCreator || isAdmin();
+    const canCancel = isCreator || isSuperAdmin();
 
     const successText: Record<SlipAction, string> = {
         submit: "Đã gửi phiếu chờ duyệt.",
@@ -84,8 +84,14 @@ export function ShelfReplenishmentDetailPage() {
         setActionError("");
         setNotice("");
         try {
-            setSlip(await call());
-            setNotice(successText[action]);
+            const updated = await call();
+            setSlip(updated);
+            // Quản lý / Admin tự gửi phiếu thì backend duyệt luôn nếu kho đủ hàng
+            setNotice(
+                action === "submit" && updated.status === "POSTED"
+                    ? "Phiếu đã được duyệt tự động, hàng đã chuyển từ kho lên kệ."
+                    : successText[action]
+            );
             return true;
         } catch (error) {
             setActionError(errorMessage(error, "Không thực hiện được thao tác."));
@@ -239,9 +245,7 @@ export function ShelfReplenishmentDetailPage() {
 
             {slip?.status === "PENDING_APPROVAL" && !canDecide ? (
                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-                    {isCreator && isApproverRole
-                        ? "Bạn là người tạo phiếu nên không thể tự duyệt hoặc từ chối. Cần một Quản lý / Admin khác duyệt."
-                        : "Phiếu đang chờ Quản lý / Admin duyệt."}
+                    "Phiếu đang chờ Quản lý duyệt "
                 </p>
             ) : null}
 

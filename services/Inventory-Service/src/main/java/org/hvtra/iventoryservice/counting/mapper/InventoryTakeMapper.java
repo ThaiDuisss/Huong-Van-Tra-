@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.counting.mapper;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.iventoryservice.counting.dto.response.InventoryTakeLineResponse;
 import org.hvtra.iventoryservice.counting.dto.response.InventoryTakeResponse;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
@@ -93,8 +94,6 @@ public class InventoryTakeMapper {
         if (!Boolean.TRUE.equals(count.getBlindCount()) || count.getStatus() != InventoryCountStatus.COUNTING) {
             return false;
         }
-        return !(SecurityUtils.hasRole("ADMIN")
-                || SecurityUtils.hasRole("BRANCH_MANAGER")
-                || SecurityUtils.hasRole("INVENTORY_MANAGER"));
+        return !SecurityUtils.hasAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
     }
 }

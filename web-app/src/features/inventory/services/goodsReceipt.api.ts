@@ -351,12 +351,12 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             actor: {
                 id: doc.qcBy || "qc",
                 name: doc.qcByName || "Nhân viên QC",
-                role: "QC_STAFF"
+                role: "QC"
             },
             happenedAt: doc.qcAt,
             id: `qc-${doc.id}`,
             note: "Kiểm tra chất lượng QC hoàn tất",
-            roleSnapshot: "QC_STAFF",
+            roleSnapshot: "QC",
             type: "QC"
         });
     }

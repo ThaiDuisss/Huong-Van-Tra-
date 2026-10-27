@@ -43,7 +43,7 @@ class AccountServiceTest {
 
     // Realm cố ý dùng tên role "lệch chuẩn" để kiểm tra việc chuẩn hóa: chữ thường, alias, không gạch dưới.
     private static final KeycloakRole SUPER_ADMIN = new KeycloakRole("r-super", "superadmin");
-    private static final KeycloakRole ADMIN = new KeycloakRole("r-admin", "ADMIN");
+    private static final KeycloakRole QC = new KeycloakRole("r-qc", "QC");
     private static final KeycloakRole MANAGER = new KeycloakRole("r-manager", "manager");
     private static final KeycloakRole SALE_STAFF = new KeycloakRole("r-sale", "SALE_STAFF");
     private static final KeycloakRole WAREHOUSE = new KeycloakRole("r-warehouse", "WAREHOUSE_STAFF");
@@ -69,10 +69,10 @@ class AccountServiceTest {
         binh = user("u-binh", "binh.le", "binh@hvt.vn", "Bình", "Lê", true);
 
         when(keycloak.listRealmRoles())
-                .thenReturn(List.of(SUPER_ADMIN, ADMIN, MANAGER, SALE_STAFF, WAREHOUSE, CUSTOMER, DEFAULT));
+                .thenReturn(List.of(SUPER_ADMIN, QC, MANAGER, SALE_STAFF, WAREHOUSE, CUSTOMER, DEFAULT));
         when(keycloak.listUsersInRole(anyString())).thenReturn(List.of());
         when(keycloak.listUsersInRole("superadmin")).thenReturn(List.of(root));
-        when(keycloak.listUsersInRole("ADMIN")).thenReturn(List.of(lan));
+        when(keycloak.listUsersInRole("QC")).thenReturn(List.of(lan));
         when(keycloak.listUsersInRole("SALE_STAFF")).thenReturn(List.of(lan, minh));
         when(keycloak.listUsersInRole("WAREHOUSE_STAFF")).thenReturn(List.of(binh));
 
@@ -80,7 +80,7 @@ class AccountServiceTest {
         when(keycloak.getUser("u-lan")).thenReturn(lan);
         when(keycloak.getUser("u-minh")).thenReturn(minh);
         when(keycloak.getUserRealmRoles("u-root")).thenReturn(List.of(SUPER_ADMIN, DEFAULT));
-        when(keycloak.getUserRealmRoles("u-lan")).thenReturn(List.of(ADMIN, SALE_STAFF, DEFAULT));
+        when(keycloak.getUserRealmRoles("u-lan")).thenReturn(List.of(QC, SALE_STAFF, DEFAULT));
         when(keycloak.getUserRealmRoles("u-minh")).thenReturn(List.of(SALE_STAFF, DEFAULT));
     }
 
@@ -96,7 +96,7 @@ class AccountServiceTest {
         assertThat(page.totalPages()).isEqualTo(1);
 
         AccountResponse lanAccount = page.content().get(1);
-        assertThat(lanAccount.roles()).containsExactly("ADMIN", "SALE_STAFF");
+        assertThat(lanAccount.roles()).containsExactly("SALE_STAFF", "QC");
         assertThat(lanAccount.fullName()).isEqualTo("Nguyễn Thị Lan");
         assertThat(lanAccount.editable()).isTrue();
 
@@ -166,7 +166,7 @@ class AccountServiceTest {
     @Test
     void assignableRoles_onlyListsStaffRolesExistingInRealm() {
         assertThat(service.assignableRoles())
-                .containsExactly("ADMIN", "MANAGER", "INVENTORY_STAFF", "SALE_STAFF");
+                .containsExactly("MANAGER", "INVENTORY_STAFF", "SALE_STAFF", "QC");
     }
 
     // ===== chi tiết =====
@@ -176,7 +176,7 @@ class AccountServiceTest {
         AccountResponse account = service.get("u-lan");
 
         assertThat(account.username()).isEqualTo("lan.nguyen");
-        assertThat(account.roles()).containsExactly("ADMIN", "SALE_STAFF");
+        assertThat(account.roles()).containsExactly("SALE_STAFF", "QC");
         assertThat(account.enabled()).isTrue();
     }
 
@@ -227,7 +227,7 @@ class AccountServiceTest {
     void create_rejectsSuperAdminAndCustomerRoles_withoutCallingKeycloak() {
         for (String forbidden : List.of("SUPER_ADMIN", "superadmin", "ROLE_SUPER_ADMIN", "CUSTOMER", "UNKNOWN")) {
             assertThatThrownBy(() -> service.create(new CreateAccountRequest(
-                    "x.user", "x@hvt.vn", "X", "Y", "Init@12345", List.of("ADMIN", forbidden))))
+                    "x.user", "x@hvt.vn", "X", "Y", "Init@12345", List.of("QC", forbidden))))
                     .isInstanceOf(BusinessException.class)
                     .extracting(ex -> ((BusinessException) ex).getCode())
                     .isEqualTo("ACCOUNT_ROLE_NOT_ALLOWED");
@@ -237,8 +237,11 @@ class AccountServiceTest {
 
     @Test
     void create_failsBeforeCreatingUser_whenRoleMissingInRealm() {
+        // QC là role hợp lệ nhưng realm trong ca này chưa tạo
+        when(keycloak.listRealmRoles())
+                .thenReturn(List.of(SUPER_ADMIN, MANAGER, SALE_STAFF, WAREHOUSE, CUSTOMER, DEFAULT));
         assertThatThrownBy(() -> service.create(new CreateAccountRequest(
-                "x.user", "x@hvt.vn", "X", "Y", "Init@12345", List.of("ACCOUNTANT"))))
+                "x.user", "x@hvt.vn", "X", "Y", "Init@12345", List.of("QC"))))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getCode())
                 .isEqualTo("ACCOUNT_ROLE_NOT_FOUND");
@@ -252,7 +255,7 @@ class AccountServiceTest {
                 .thenThrow(new KeycloakAdminException(409, "User exists with same email"));
 
         assertThatThrownBy(() -> service.create(new CreateAccountRequest(
-                "x.user", "lan@hvt.vn", "X", "Y", "Init@12345", List.of("ADMIN"))))
+                "x.user", "lan@hvt.vn", "X", "Y", "Init@12345", List.of("QC"))))
                 .isInstanceOfSatisfying(BusinessException.class, ex -> {
                     assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(ex.getCode()).isEqualTo("ACCOUNT_ALREADY_EXISTS");
@@ -267,7 +270,7 @@ class AccountServiceTest {
                 .when(keycloak).addUserRealmRoles(eq("u-new"), anyList());
 
         assertThatThrownBy(() -> service.create(new CreateAccountRequest(
-                "x.user", "x@hvt.vn", "X", "Y", "Init@12345", List.of("ADMIN"))))
+                "x.user", "x@hvt.vn", "X", "Y", "Init@12345", List.of("QC"))))
                 .isInstanceOfSatisfying(BusinessException.class,
                         ex -> assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
 
@@ -277,7 +280,7 @@ class AccountServiceTest {
     @Test
     void createRequest_toStringDoesNotLeakPassword() {
         CreateAccountRequest request = new CreateAccountRequest(
-                "x.user", "x@hvt.vn", "X", "Y", "Init@12345", List.of("ADMIN"));
+                "x.user", "x@hvt.vn", "X", "Y", "Init@12345", List.of("QC"));
 
         assertThat(request.toString()).doesNotContain("Init@12345");
         assertThat(KeycloakUser.Credential.temporaryPassword("Init@12345").toString()).doesNotContain("Init@12345");
@@ -290,7 +293,7 @@ class AccountServiceTest {
         lan.putOther("attributes", java.util.Map.of("phone", List.of("0901")));
 
         AccountResponse updated = service.update("u-lan", new UpdateAccountRequest(
-                "Lan.New@hvt.vn", "Lan", "Nguyễn", List.of("ADMIN", "MANAGER")));
+                "Lan.New@hvt.vn", "Lan", "Nguyễn", List.of("QC", "MANAGER")));
 
         ArgumentCaptor<KeycloakUser> userCaptor = ArgumentCaptor.forClass(KeycloakUser.class);
         verify(keycloak).updateUser(eq("u-lan"), userCaptor.capture());
@@ -302,15 +305,15 @@ class AccountServiceTest {
         assertThat(sent.getOther()).containsKey("attributes");
 
         verify(keycloak).addUserRealmRoles("u-lan", List.of(MANAGER));
-        // ADMIN giữ nguyên, SALE_STAFF bị gỡ, default-roles không bị đụng tới
+        // QC giữ nguyên, SALE_STAFF bị gỡ, default-roles không bị đụng tới
         verify(keycloak).removeUserRealmRoles("u-lan", List.of(SALE_STAFF));
-        assertThat(updated.roles()).containsExactly("ADMIN", "MANAGER");
+        assertThat(updated.roles()).containsExactly("MANAGER", "QC");
     }
 
     @Test
     void update_rejectsSuperAdminAccount() {
         assertThatThrownBy(() -> service.update("u-root", new UpdateAccountRequest(
-                "root@hvt.vn", "Admin", "Super", List.of("ADMIN"))))
+                "root@hvt.vn", "Admin", "Super", List.of("QC"))))
                 .isInstanceOfSatisfying(BusinessException.class, ex -> {
                     assertThat(ex.getCode()).isEqualTo("ACCOUNT_PROTECTED");
                     assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);

@@ -43,7 +43,7 @@ public abstract class BaseSecurityConfig {
     }
 
     /**
-     * Phân quyền theo URL tập trung của từng service (vd. {@code .hasAnyRole("ADMIN", "MANAGER")}), khai báo trước
+     * Phân quyền theo URL tập trung của từng service (vd. {@code .hasAnyRole(Role.names(Role.SUPER_ADMIN, Role.MANAGER))}), khai báo trước
      * luật mặc định {@code anyRequest().permitAll()}. Mặc định không thêm luật nào.
      */
     protected void authorizeRequests(

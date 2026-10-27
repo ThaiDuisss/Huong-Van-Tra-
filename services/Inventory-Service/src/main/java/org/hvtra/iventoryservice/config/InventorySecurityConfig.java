@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.config;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.commonservice.common_core.config.BaseSecurityConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,10 +12,11 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class InventorySecurityConfig extends BaseSecurityConfig {
 
-    /** Role được duyệt phiếu kho — khớp với isAdmin()/isManager() ở FE. */
-    private static final String[] APPROVER_ROLES = {"ADMIN", "MANAGER"};
+    /** Role được duyệt phiếu kho — khớp với isSuperAdmin()/isManager() ở FE. */
+    private static final String[] APPROVER_ROLES = Role.names(Role.SUPER_ADMIN, Role.MANAGER);
     /** Role được lập yêu cầu chuyển kho lên kệ (thủ kho, và nhân viên bán tạo từ POS khi kệ thiếu hàng). */
-    private static final String[] SHELF_REQUEST_ROLES = {"ADMIN", "MANAGER", "INVENTORY_STAFF", "SALE_STAFF"};
+    private static final String[] SHELF_REQUEST_ROLES =
+            Role.names(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF, Role.SALE_STAFF);
 
     @Bean
     protected SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {

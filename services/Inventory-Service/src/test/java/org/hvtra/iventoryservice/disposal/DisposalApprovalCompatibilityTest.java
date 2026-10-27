@@ -56,7 +56,7 @@ class DisposalApprovalCompatibilityTest {
     @BeforeEach
     void setUp() {
         actorId = UUID.randomUUID();
-        authenticate("ADMIN");
+        authenticate("SUPER_ADMIN");
         service = new DisposalRequestServiceImpl(
                 requestRepository, inspectionRepository, transactionRepository, inspectionService);
         inspection = new CustomerReturnInspection();
@@ -84,7 +84,7 @@ class DisposalApprovalCompatibilityTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"})
+    @ValueSource(strings = {"SUPER_ADMIN", "MANAGER"})
     void existingApprovalRolesAndMovementRemainCompatible(String role) {
         authenticate(role);
         stubLocks();

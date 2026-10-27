@@ -15,6 +15,7 @@ import { Pagination } from "../../manufacturing/components/shared/Pagination";
 import { fileApi } from "../../../api/file.api";
 import { importBatchApi as defaultImportBatchApi, type ImportBatchApi } from "../services/importBatch.api";
 import type { ImportBatch, ImportBatchItem, ImportBatchStatus, ImportPreviewResponse, ImportType } from "../types/import-batch.types";
+import { ROLES } from "../../../auth/roles";
 
 const STATUS_LABEL: Record<ImportBatchStatus | "PREVIEW", { label: string; className: string }> = {
     PREVIEW: { label: "Bản xem trước (chưa lưu)", className: "bg-amber-50 text-amber-700 border border-amber-200" },
@@ -72,7 +73,7 @@ export function ImportBatchPanel({
     api = defaultImportBatchApi
 }: ImportBatchPanelProps) {
     const { hasAnyRole } = useAuthorization();
-    const canApprove = hasAnyRole(["ADMIN", "MANAGER"]);
+    const canApprove = hasAnyRole([ROLES.SUPER_ADMIN, ROLES.MANAGER]);
 
     // State khi đã lưu hoặc đang xem theo batchId
     const [batch, setBatch] = useState<ImportBatch | null>(null);

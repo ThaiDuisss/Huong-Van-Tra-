@@ -12,7 +12,7 @@ import org.hvtra.identityservice.account.dto.AccountResponse;
 import org.hvtra.identityservice.account.dto.AccountSearchRequest;
 import org.hvtra.identityservice.account.dto.CreateAccountRequest;
 import org.hvtra.identityservice.account.dto.UpdateAccountRequest;
-import org.hvtra.identityservice.account.model.StaffRole;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.identityservice.actionlog.dto.PageResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -35,7 +35,7 @@ import java.util.function.Supplier;
  * Quản lý tài khoản nhân viên. Keycloak là nguồn dữ liệu gốc: mọi thao tác đi qua Keycloak Admin API,
  * không ghi vào bảng app_users (snapshot ở đó tự đồng bộ khi người dùng đăng nhập).
  * <p>
- * "Tài khoản nhân viên" = user Keycloak có ít nhất một realm role thuộc {@link StaffRole} (hoặc SUPER_ADMIN,
+ * "Tài khoản nhân viên" = user Keycloak có ít nhất một realm role thuộc {@link Role} (hoặc SUPER_ADMIN,
  * chỉ để xem). Tài khoản khách hàng không bao giờ lộ ra qua service này.
  */
 @Slf4j
@@ -45,14 +45,14 @@ public class AccountService {
 
     private static final int MAX_PAGE_SIZE = 100;
 
-    /** Thứ tự hiển thị vai trò: SUPER_ADMIN trước, sau đó theo thứ tự khai báo của StaffRole. */
+    /** Thứ tự hiển thị vai trò: SUPER_ADMIN trước, sau đó theo thứ tự khai báo của Role. */
     private static final List<String> ROLE_ORDER = buildRoleOrder();
     private static final Comparator<String> ROLE_COMPARATOR = Comparator.comparingInt(ROLE_ORDER::indexOf);
 
     private final KeycloakAdminClient keycloak;
 
     public PageResponse<AccountResponse> search(AccountSearchRequest request) {
-        StaffRole roleFilter = parseRoleFilter(request.getRole());
+        Role roleFilter = parseRoleFilter(request.getRole());
         String keyword = normalize(request.getKeyword());
         Boolean enabledFilter = request.getEnabled();
         int size = Math.min(Math.max(request.getSize(), 1), MAX_PAGE_SIZE);
@@ -79,7 +79,7 @@ public class AccountService {
     /** Các vai trò có thể gán, chỉ gồm những vai trò thật sự tồn tại trong realm. */
     public List<String> assignableRoles() {
         Map<String, List<KeycloakRole>> index = withKeycloak(this::realmRoleIndex);
-        return StaffRole.names().stream()
+        return Role.assignable().stream().map(Role::name).toList().stream()
                 .filter(index::containsKey)
                 .toList();
     }
@@ -94,7 +94,7 @@ public class AccountService {
     }
 
     public AccountResponse create(CreateAccountRequest request) {
-        Set<StaffRole> roles = parseAssignableRoles(request.roles());
+        Set<Role> roles = parseAssignableRoles(request.roles());
 
         return withKeycloak(() -> {
             Map<String, List<KeycloakRole>> index = realmRoleIndex();
@@ -125,7 +125,7 @@ public class AccountService {
     }
 
     public AccountResponse update(String id, UpdateAccountRequest request) {
-        Set<StaffRole> desired = parseAssignableRoles(request.roles());
+        Set<Role> desired = parseAssignableRoles(request.roles());
 
         return withKeycloak(() -> {
             KeycloakUser user = keycloak.getUser(id);
@@ -142,8 +142,8 @@ public class AccountService {
                     .toList();
             // Chỉ gỡ các role nhân viên; role khác của user (default-roles, CUSTOMER, ...) giữ nguyên.
             List<KeycloakRole> toRemove = currentRealmRoles.stream()
-                    .filter(role -> StaffRole.from(role.name()).isPresent())
-                    .filter(role -> !desiredNames.contains(StaffRole.canonicalName(role.name())))
+                    .filter(role -> Role.fromName(role.name()).filter(Role::isAssignable).isPresent())
+                    .filter(role -> !desiredNames.contains(Role.canonicalName(role.name())))
                     .toList();
 
             user.setEmail(request.email().trim().toLowerCase(Locale.ROOT));
@@ -219,7 +219,7 @@ public class AccountService {
     private Map<String, List<KeycloakRole>> realmRoleIndex() {
         Map<String, List<KeycloakRole>> index = new LinkedHashMap<>();
         for (KeycloakRole role : keycloak.listRealmRoles()) {
-            String canonical = StaffRole.canonicalName(role.name());
+            String canonical = Role.canonicalName(role.name());
             if (ROLE_ORDER.contains(canonical)) {
                 index.computeIfAbsent(canonical, key -> new ArrayList<>()).add(role);
             }
@@ -227,8 +227,8 @@ public class AccountService {
         return index;
     }
 
-    /** Realm role dùng để gán cho một StaffRole: ưu tiên role trùng tên chuẩn, nếu không lấy alias đầu tiên. */
-    private KeycloakRole realmRoleFor(Map<String, List<KeycloakRole>> index, StaffRole role) {
+    /** Realm role dùng để gán cho một Role: ưu tiên role trùng tên chuẩn, nếu không lấy alias đầu tiên. */
+    private KeycloakRole realmRoleFor(Map<String, List<KeycloakRole>> index, Role role) {
         List<KeycloakRole> candidates = index.getOrDefault(role.name(), List.of());
         if (candidates.isEmpty()) {
             throw new BusinessException("ACCOUNT_ROLE_NOT_FOUND",
@@ -243,7 +243,7 @@ public class AccountService {
     private Set<String> canonicalRoles(List<KeycloakRole> realmRoles) {
         Set<String> roles = new TreeSet<>(ROLE_COMPARATOR);
         for (KeycloakRole role : realmRoles) {
-            String canonical = StaffRole.canonicalName(role.name());
+            String canonical = Role.canonicalName(role.name());
             if (ROLE_ORDER.contains(canonical)) {
                 roles.add(canonical);
             }
@@ -251,28 +251,28 @@ public class AccountService {
         return roles;
     }
 
-    private Set<StaffRole> parseAssignableRoles(List<String> rawRoles) {
+    private Set<Role> parseAssignableRoles(List<String> rawRoles) {
         if (rawRoles == null || rawRoles.isEmpty()) {
             throw new BusinessException("ACCOUNT_ROLE_REQUIRED", "Phải chọn ít nhất một vai trò");
         }
-        Set<StaffRole> roles = EnumSet.noneOf(StaffRole.class);
+        Set<Role> roles = EnumSet.noneOf(Role.class);
         for (String raw : rawRoles) {
-            roles.add(StaffRole.from(raw).orElseThrow(() -> new BusinessException(
+            roles.add(Role.fromName(raw).filter(Role::isAssignable).orElseThrow(() -> new BusinessException(
                     "ACCOUNT_ROLE_NOT_ALLOWED",
                     "Vai trò không hợp lệ hoặc không được phép gán: " + raw)));
         }
         return roles;
     }
 
-    private StaffRole parseRoleFilter(String rawRole) {
+    private Role parseRoleFilter(String rawRole) {
         if (!StringUtils.hasText(rawRole)) {
             return null;
         }
-        return StaffRole.from(rawRole).orElseThrow(() -> new BusinessException(
+        return Role.fromName(rawRole).filter(Role::isAssignable).orElseThrow(() -> new BusinessException(
                 "ACCOUNT_ROLE_NOT_ALLOWED", "Vai trò lọc không hợp lệ: " + rawRole));
     }
 
-    private Set<String> roleNames(Set<StaffRole> roles) {
+    private Set<String> roleNames(Set<Role> roles) {
         Set<String> names = new TreeSet<>(ROLE_COMPARATOR);
         roles.forEach(role -> names.add(role.name()));
         return names;
@@ -287,7 +287,7 @@ public class AccountService {
 
     private void requireManageable(Set<String> roles) {
         requireStaffAccount(roles);
-        if (roles.contains(StaffRole.SUPER_ADMIN)) {
+        if (roles.contains(Role.SUPER_ADMIN.name())) {
             throw new BusinessException("ACCOUNT_PROTECTED",
                     "Không thể chỉnh sửa, khóa hoặc đặt lại mật khẩu tài khoản SUPER_ADMIN", HttpStatus.FORBIDDEN);
         }
@@ -332,7 +332,7 @@ public class AccountService {
                 Boolean.TRUE.equals(user.getEmailVerified()),
                 List.copyOf(roles),
                 user.getCreatedTimestamp() == null ? null : Instant.ofEpochMilli(user.getCreatedTimestamp()),
-                !roles.contains(StaffRole.SUPER_ADMIN)
+                !roles.contains(Role.SUPER_ADMIN.name())
         );
     }
 
@@ -384,8 +384,8 @@ public class AccountService {
 
     private static List<String> buildRoleOrder() {
         List<String> order = new ArrayList<>();
-        order.add(StaffRole.SUPER_ADMIN);
-        order.addAll(StaffRole.names());
+        order.add(Role.SUPER_ADMIN.name());
+        order.addAll(Role.assignable().stream().map(Role::name).toList());
         return List.copyOf(order);
     }
 

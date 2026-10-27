@@ -18,9 +18,10 @@ import { adjustmentStatusLabels } from "../constants/stocktake.constants";
 import { stocktakeApi } from "../services/stocktake.api";
 import type { StocktakeDetail } from "../types/stocktake.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
+import { ROLES } from "../../../auth/roles";
 
-const operationRoles = ["ADMIN", "MANAGER", "INVENTORY_STAFF", "MANAGER"];
-const approvalRoles = ["ADMIN", "MANAGER", "MANAGER"];
+const operationRoles = [ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF];
+const approvalRoles = [ROLES.SUPER_ADMIN, ROLES.MANAGER];
 
 export function StocktakeAdjustmentPage() {
   const { stocktakeId } = useParams();

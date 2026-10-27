@@ -2,6 +2,7 @@ package org.hvtra.commonservice.common_core.config;
 
 import jakarta.servlet.FilterChain;
 import org.hvtra.commonservice.common_core.domain.constants.HeaderConstants;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -77,7 +78,7 @@ class InternalHeaderAuthenticationFilterPermissionsTest {
         assertFalse(SecurityUtils.hasPermission("order:cancel"));
         // Đã relay permission nên role fallback không còn được tính
         assertThrows(AccessDeniedException.class,
-                () -> SecurityUtils.requirePermission("order:cancel", "SALE_STAFF"));
+                () -> SecurityUtils.requirePermission("order:cancel", Role.SALE_STAFF));
     }
 
     @Test
@@ -105,9 +106,9 @@ class InternalHeaderAuthenticationFilterPermissionsTest {
         InternalUserPrincipal principal =
                 (InternalUserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         assertFalse(principal.permissionsKnown());
-        SecurityUtils.requirePermission("order:create", "SALE_STAFF");
+        SecurityUtils.requirePermission("order:create", Role.SALE_STAFF);
         assertThrows(AccessDeniedException.class,
-                () -> SecurityUtils.requirePermission("order:create", "ADMIN"));
+                () -> SecurityUtils.requirePermission("order:create", Role.SUPER_ADMIN));
     }
 
     @Test
@@ -125,7 +126,7 @@ class InternalHeaderAuthenticationFilterPermissionsTest {
         assertTrue(principal.permissionsKnown());
         assertTrue(principal.permissions().isEmpty());
         assertThrows(AccessDeniedException.class,
-                () -> SecurityUtils.requirePermission("permission:manage", "ADMIN"));
+                () -> SecurityUtils.requirePermission("permission:manage", Role.SUPER_ADMIN));
     }
 
     private InternalHeaderAuthenticationFilter filter() {

@@ -1,5 +1,6 @@
 package org.hvtra.identityservice.account.controller;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,10 +32,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Set;
 
 /**
- * Quản lý tài khoản nhân viên (Keycloak): tạo, sửa, khóa và đặt lại mật khẩu. Dành cho ADMIN (và SUPER_ADMIN).
+ * Quản lý tài khoản nhân viên (Keycloak): tạo, sửa, khóa và đặt lại mật khẩu. Dành cho SUPER_ADMIN.
  * Ví dụ: GET /api/identity/accounts?keyword=lan&role=SALE_STAFF&enabled=true&page=0&size=20
  */
 @Slf4j
@@ -43,8 +43,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AccountController {
 
-    /** So khớp không phân biệt hoa/thường vì gateway giữ nguyên tên role của Keycloak (vd. "superadmin"). */
-    private static final Set<String> ALLOWED_ROLES = Set.of("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_SUPERADMIN");
 
     private final AccountService accountService;
 
@@ -112,7 +110,7 @@ public class AccountController {
         if (authentication != null && authentication.isAuthenticated()) {
             boolean allowed = authentication.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
-                    .anyMatch(authority -> ALLOWED_ROLES.contains(authority.toUpperCase()));
+                    .anyMatch(Role.SUPER_ADMIN.authority()::equals);
             if (allowed) {
                 return;
             }
