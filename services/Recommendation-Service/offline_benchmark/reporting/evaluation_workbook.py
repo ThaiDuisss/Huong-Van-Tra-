@@ -15,18 +15,21 @@ from app.service.business_report_excel import (
 SHEETS = ["TỔNG QUAN BÁO CÁO", "CHI TIẾT THEO KHÁCH HÀNG", "THỐNG KÊ SẢN PHẨM", "ĐỐI CHIẾU KẾT QUẢ GỢI Ý"]
 HEADERS = [
     ["STT", "Sản phẩm", "Lượt AI gợi ý", "Số lượng sản phẩm bán", "Lượt gợi ý trùng mua"],
-    ["Mã KH", "Ngày gợi ý", "AI đề xuất", "Sản phẩm khách mua", "Sản phẩm trùng"],
+    ["Mã KH", "Ngày gợi ý", "AI đề xuất", "Sản phẩm khách mua", "Sản phẩm trùng", "Tỷ lệ gợi ý trùng mua (%)"],
     ["STT", "Sản phẩm", "Số khách được gợi ý", "Lượt gợi ý", "Số đơn có mua", "Lượt gợi ý trùng mua", "Tỷ lệ trùng mua (%)", "Số lượng sản phẩm bán"],
     ["Mã gợi ý", "Mã KH", "Số món gợi ý", "Số món khách mua", "Số món trùng", "Tỷ lệ trùng mua (%)"],
 ]
-WIDTHS = (OPERATIONAL_WIDTHS[0], [13, 18, 47, 47, 42],
+WIDTHS = (OPERATIONAL_WIDTHS[0], [13, 18, 42, 42, 38, 24],
           [7, 38, 17, 16, 18, 18, 19, 20], [14, 13, 18, 21, 18, 24])
 MARKER = "DỮ LIỆU KIỂM THỬ"
-PRESENTATION_SCHEMA = "sale-pos-ai-report-v1"
+PRESENTATION_SCHEMA = "sale-pos-ai-report-v2"
 PERCENT_FORMAT = "0.00%"
 UNKNOWN = "—"
-SOURCE_NOTE = ("Báo cáo sử dụng dữ liệu mua hàng lịch sử để đánh giá mức độ phù hợp của sản phẩm AI đề xuất. "
-               "Kết quả chưa phản ánh doanh số phát sinh trực tiếp từ gợi ý AI.")
+SOURCE_NOTE = ("Báo cáo sử dụng lịch sử mua hàng để kiểm tra mức độ phù hợp của sản phẩm AI đề xuất. "
+               "Tỷ lệ trùng mua không phải tỷ lệ doanh số phát sinh do AI.")
+CALCULATION_NOTE = "Tỷ lệ trùng mua = Số sản phẩm gợi ý trùng với sản phẩm khách mua / Tổng số sản phẩm được gợi ý."
+LIMITATION_NOTE = ("Dữ liệu kiểm thử; chưa có bằng chứng khách đã xem đề xuất. "
+                   "— ở số lượng bán: chưa xác minh đơn vị; — ở ngày gợi ý: chưa có thời điểm thực.")
 STATUSES = {"OFFLINE_MATCHED": "Có sản phẩm trùng", "OFFLINE_NO_OVERLAP": "Không có sản phẩm trùng",
             "NO_CANDIDATES": "Không có gợi ý", "EMPTY_GROUND_TRUTH": "Chưa có dữ liệu đối chiếu",
             "INPUT_NOT_VERIFIED": "Chưa đủ dữ liệu xác minh"}
@@ -37,6 +40,15 @@ def match_rate(matched, recommended):
     if not 0 <= matched <= recommended:
         raise ValueError("Matched count must be between zero and recommended count")
     return matched / recommended if recommended else None
+
+
+def opportunity_match_value(row):
+    """One display value per stable opportunity, shared by both customer-facing tables."""
+    if not row.prediction.items:
+        return "Không có gợi ý"
+    if not row.ground_truth:
+        return "Chưa có dữ liệu đối chiếu"
+    return match_rate(len(row.hits), len(row.prediction.items))
 
 
 def display_identifiers(result):
@@ -84,6 +96,7 @@ def create_workbook(result, products, split_manifest, executed_at, period, sourc
     name = lambda p: views[p].name if p in views else "Sản phẩm ngoài danh mục hiện tại"
     ordered_products = sorted(stats, key=lambda p: (name(p), p))
     aliases = {a["opportunity_reference"]: a for a in display_identifiers(result)}
+    rates = {r.prediction.opportunity_ref: opportunity_match_value(r) for r in result.rows}
     wb = Workbook()
     wb.remove(wb.active)
     wb.properties.creator = "Hương Vân Trà"
@@ -112,15 +125,7 @@ def create_workbook(result, products, split_manifest, executed_at, period, sourc
     write_table(overview, HEADERS[0], product_rows, "Overview", WIDTHS[0], header=9,
                 totals=[None, "Tổng", metrics["total_recommendation_items"], UNKNOWN,
                         metrics["total_matched_opportunity_product_pairs"]])
-    add_methodology(overview, [
-        SOURCE_NOTE,
-        "Tỷ lệ trùng mua cho biết trong số sản phẩm AI gợi ý, bao nhiêu sản phẩm xuất hiện trong dữ liệu mua hàng kiểm thử.",
-        "Mỗi sản phẩm trùng được tính một lần cho mỗi lần gợi ý, dù xuất hiện trong nhiều đơn. Tỷ lệ tổng thể tính trên tổng lượt gợi ý.",
-        "Số đơn có mua đếm riêng theo sản phẩm; không dùng số đơn để tính tỷ lệ trùng. Giữ thứ tự tên sản phẩm, không xếp hạng từ mẫu nhỏ.",
-        "Số lượng sản phẩm bán: — nghĩa là chưa xác minh đơn vị bán; không phải 0. Không quy đổi trà đóng gói hoặc hộp quà thành ly.",
-        "Ngày gợi ý: — vì không có thời điểm khách thực sự nhận gợi ý. Mã KH và mã gợi ý chỉ dùng để đọc, đối chiếu trong file này.",
-        *period_notes,
-    ])
+    add_methodology(overview, [SOURCE_NOTE, CALCULATION_NOTE, LIMITATION_NOTE])
     details, comparisons = [], []
     for row in result.rows:
         p = row.prediction
@@ -129,13 +134,13 @@ def create_workbook(result, products, split_manifest, executed_at, period, sourc
         suggested = "\n".join(name(i.product_id) for i in p.items) or "Không có gợi ý"
         truth = "\n".join(name(i) for i in row.ground_truth) or "Chưa có dữ liệu đối chiếu"
         matches = "\n".join(name(i) for i in row.hits) or status
-        details.append([alias["customer_display"], UNKNOWN, suggested, truth, matches])
-        rate = match_rate(len(row.hits), len(p.items)) if row.ground_truth else None
+        rate = rates[p.opportunity_ref]
+        details.append([alias["customer_display"], UNKNOWN, suggested, truth, matches, rate])
         comparisons.append([alias["opportunity_display"], alias["customer_display"], len(p.items),
-                            len(row.ground_truth), len(row.hits) if row.ground_truth else None,
-                            rate if rate is not None else ("Không có gợi ý" if not p.items else "Chưa có dữ liệu đối chiếu")])
+                            len(row.ground_truth), len(row.hits) if row.ground_truth else None, rate])
     physical = write_table(wb.worksheets[1], HEADERS[1], details, "Customers", WIDTHS[1], repeat_columns=(0, 1))
     for row, positions in zip(result.rows, physical):
+        _percentage(wb.worksheets[1].cell(positions[0], 6))
         alias = aliases[row.prediction.opportunity_ref]
         for position in positions:
             wb.worksheets[1].cell(position, 1).comment = Comment("Mã gợi ý: " + alias["opportunity_display"], "Hương Vân Trà")
@@ -203,16 +208,27 @@ def verify_workbook(content, result, marker=MARKER):
             raise ValueError("Workbook percentage differs from matched/recommended")
     percentage(wb.worksheets[0]["B7"], match_rate(m["total_matched_opportunity_product_pairs"], m["total_recommendation_items"]), UNKNOWN)
     aliases = display_identifiers(result)
+    by_ref = {r.prediction.opportunity_ref: r for r in result.rows}
+    alias_by_ref = {a["opportunity_reference"]: a for a in aliases}
+    ref_by_suggestion = {a["opportunity_display"]: a["opportunity_reference"] for a in aliases}
+    ref_by_customer = {a["customer_display"]: a["opportunity_reference"] for a in aliases}
     compared = _table_rows(wb.worksheets[3], "Matches")
-    if len(compared) != len(result.rows):
+    if len(compared) != len(by_ref) or len(by_ref) != len(result.rows) or set(by_ref) != set(alias_by_ref):
         raise ValueError("Workbook opportunity counts differ")
-    for n, (saved, row, alias) in enumerate(zip(compared, result.rows, aliases), 4):
+    comparison_cells = {}
+    for physical_row, saved in enumerate(compared, 4):
+        ref = ref_by_suggestion.get(saved[0])
+        if ref not in by_ref or ref in comparison_cells:
+            raise ValueError("Workbook opportunity identity differs")
+        row, alias = by_ref[ref], alias_by_ref[ref]
         p = row.prediction
         if list(saved[:5]) != [alias["opportunity_display"], alias["customer_display"], len(p.items),
                                len(row.ground_truth), len(row.hits) if row.ground_truth else None]:
             raise ValueError("Workbook opportunity identity or matching differs")
-        percentage(wb.worksheets[3].cell(n, 6), match_rate(len(row.hits), len(p.items)) if row.ground_truth else None,
-                   "Không có gợi ý" if not p.items else "Chưa có dữ liệu đối chiếu")
+        cell = wb.worksheets[3].cell(physical_row, 6)
+        expected = opportunity_match_value(row)
+        percentage(cell, expected if isinstance(expected, (int, float)) else None, expected)
+        comparison_cells[ref] = cell
     stats = product_statistics(result)
     products = [r for r in _table_rows(wb.worksheets[2], "Products") if r[0] is not None]
     if (sum(r[3] for r in products) != m["total_recommendation_items"]
@@ -220,10 +236,24 @@ def verify_workbook(content, result, marker=MARKER):
             or sum(r[4] for r in products) != sum(len(v["orders"]) for v in stats.values())
             or any(r[7] != UNKNOWN for r in products)):
         raise ValueError("Workbook product statistics differ")
-    expected_customers = {a["customer_display"] for a in aliases}
     customer_rows = _table_rows(wb.worksheets[1], "Customers")
-    if {r[0] for r in customer_rows} != expected_customers or any(r[1] != UNKNOWN for r in customer_rows):
-        raise ValueError("Workbook display identifiers or recommendation dates differ")
+    customer_cells = defaultdict(list)
+    for physical_row, saved in enumerate(customer_rows, 4):
+        ref = ref_by_customer.get(saved[0])
+        if ref not in by_ref or saved[1] != UNKNOWN:
+            raise ValueError("Workbook display identifiers or recommendation dates differ")
+        customer_cells[ref].append(wb.worksheets[1].cell(physical_row, 6))
+    if set(customer_cells) != set(by_ref):
+        raise ValueError("Workbook customer cohort differs")
+    for ref, cells in customer_cells.items():
+        # Continuations may move under sorting; associate by protected alias identity, not row position.
+        primary = [c for c in cells if c.value is not None]
+        if len(primary) != 1:
+            raise ValueError("Workbook customer percentage must occur once per opportunity")
+        expected = opportunity_match_value(by_ref[ref])
+        percentage(primary[0], expected if isinstance(expected, (int, float)) else None, expected)
+        if primary[0].value != comparison_cells[ref].value:
+            raise ValueError("Customer and comparison percentages differ for the same opportunity")
     for ws in wb:
         if any(c.data_type == "f" for row in ws for c in row):
             raise ValueError("Workbook must contain literal values, not injected formulas")
@@ -233,5 +263,6 @@ def verify_workbook(content, result, marker=MARKER):
             percentage(cells[6], match_rate(cells[5].value, cells[3].value), "Chưa được gợi ý")
     return {"sheet_names": wb.sheetnames, "opportunities": len(result.rows),
             "kpi_reconciliation": "PASS", "product_statistics_reconciliation": "PASS",
-            "percentage_reconciliation": "PASS", "display_identifiers": "PASS",
+            "percentage_reconciliation": "PASS", "customer_percentage_reconciliation": "PASS",
+            "customer_percentages_checked": len(by_ref), "display_identifiers": "PASS",
             "offline_identification": "PASS", "quantity": "NOT_VERIFIED; displayed —", "formula_injection": "PASS"}

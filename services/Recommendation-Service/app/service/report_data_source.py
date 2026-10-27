@@ -57,6 +57,8 @@ def build_offline(cfg, pinned, from_date, to_date, generated_at, max_rows):
                 "policy": pinned["period_policy"], "orders_selected": selected.orders_selected,
                 "events_selected": selected.events_selected, "orders_outside": selected.orders_outside,
                 "orders_spanning_boundary": selected.orders_spanning_boundary},
+                "methodology_notes": notes, "source_timezone": "NOT_VERIFIED",
+                "customer_exposure": "NOT_VERIFIED",
                 "period_prediction_sha256": result.frozen.sha256, "metrics": result.metrics,
                 "workbook_verification": checks,
                 "presentation": {"schema": PRESENTATION_SCHEMA, "display_identifiers": display_identifiers(result),
