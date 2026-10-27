@@ -29,6 +29,7 @@ interface QcDraftLine {
     supplierLot: string;
     manufactureDate: string;
     expiryDate: string;
+    isIngredient: boolean;
     note?: string;
 }
 
@@ -110,7 +111,12 @@ export function GoodsReceiptInspectionModal({
         if (line.acceptedQuantity + line.rejectedQuantity !== line.receivedQuantity) {
             return `Tổng SL Đạt + Lỗi (${line.acceptedQuantity + line.rejectedQuantity}) phải bằng Thực nhận (${line.receivedQuantity})`;
         }
-        if (line.acceptedQuantity > 0 && (!line.manufactureDate || !line.expiryDate)) {
+        if (line.acceptedQuantity > 0 && !line.manufactureDate) {
+            return line.isIngredient
+                ? "Vui lòng nhập Ngày sản xuất"
+                : "Vui lòng nhập đầy đủ Ngày sản xuất & Hạn sử dụng";
+        }
+        if (line.acceptedQuantity > 0 && !line.isIngredient && !line.expiryDate) {
             return "Vui lòng nhập đầy đủ Ngày sản xuất & Hạn sử dụng";
         }
         return null;
@@ -326,6 +332,7 @@ export function GoodsReceiptInspectionModal({
                                                         }}
                                                     />
                                                 </div>
+                                                {!line.isIngredient && (
                                                 <div className="flex-1 min-w-[130px]">
                                                     <label className="text-xs font-bold text-[#315f3c]">Hạn sử dụng (EXP) *:</label>
                                                     <input
@@ -342,6 +349,7 @@ export function GoodsReceiptInspectionModal({
                                                         }}
                                                     />
                                                 </div>
+                                                )}
                                             </div>
                                         </div>
                                     );

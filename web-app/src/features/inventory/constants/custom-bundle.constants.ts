@@ -1,41 +1,25 @@
-import type { BundlePaymentStatus, BundleReservationStatus,  CustomBundleStatus } from "../types/custom-bundle.types";
+import type { CustomBundlePackingStatus } from "../types/custom-bundle.types";
 
-export const customBundleStatusLabels: Record<CustomBundleStatus, string> = {
-    AWAITING_PAYMENT: "Chờ thanh toán",
-    AWAITING_RESERVATION: "Chờ giữ nguyên liệu",
-    CANCELLED: "Đã hủy",
-    DRAFT: "Nháp",
-    FAILED: "Lỗi",
+export const customBundlePackingStatusLabels: Record<CustomBundlePackingStatus, string> = {
+    WAITING_MATERIAL: "Chờ nguyên liệu",
+    AWAITING_PACKING: "Chờ đóng gói",
     PACKED: "Đã đóng gói",
-    PACKING: "Đang đóng gói",
-    PAID: "Đã thanh toán",
-    RESERVATION_FAILED: "Giữ nguyên liệu thất bại",
-    RESERVED: "Đã giữ nguyên liệu"
+    CANCELLED: "Đã huỷ"
 };
 
-export const bundlePaymentStatusLabels: Record<BundlePaymentStatus, string> = {
-    FAILED: "Thanh toán thất bại",
-    PENDING: "Chờ thanh toán",
-    REFUND_REQUIRED: "Cần hoàn tiền",
-    SUCCESS: "Đã thanh toán"
+export const customBundlePackingStatusTones: Record<CustomBundlePackingStatus, string> = {
+    WAITING_MATERIAL: "bg-amber-50 text-amber-800",
+    AWAITING_PACKING: "bg-sky-50 text-sky-800",
+    PACKED: "bg-[#eaf7ec] text-[#159734]",
+    CANCELLED: "bg-neutral-100 text-neutral-600"
 };
 
-export const bundleReservationLabels: Record<BundleReservationStatus, string> = {
-    COMMITTED: "Đã commit",
-    EXPIRED: "Hết hạn",
-    FAILED: "Thất bại",
-    NONE: "Chưa giữ",
-    RELEASED: "Đã release",
-    RESERVED: "Đã giữ"
-};
+/** Thứ tự tab ở hàng đợi đóng gói của kho. */
+export const customBundlePackingTabs: CustomBundlePackingStatus[] = [
+    "AWAITING_PACKING",
+    "WAITING_MATERIAL",
+    "PACKED",
+    "CANCELLED"
+];
 
-export const customBundleRoleLabels: Record<string, string> = {
-    ACCOUNTANT: "Kế toán",
-    ADMIN: "Quản trị viên",
-    MANAGER: "Quản lý chi nhánh",
-    INVENTORY_STAFF: "Nhân viên kho",
-    QC_STAFF: "Nhân viên QC",
-    SALES_STAFF: "Nhân viên bán hàng"
-};
-
-export const maxBundleWeight = 1000;
+export const customBundlePackagingTypes = ["Hộp giấy kraft", "Túi zip bạc", "Hộp thiếc"];

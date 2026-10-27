@@ -5,20 +5,19 @@ import org.hvtra.iventoryservice.counting.dto.request.CreateAdjustmentRequest;
 import org.hvtra.iventoryservice.counting.dto.response.AdjustmentResponse;
 import org.hvtra.iventoryservice.counting.mapper.AdjustmentMapper;
 import org.hvtra.iventoryservice.counting.repository.InventoryCountRepository;
-import org.hvtra.iventoryservice.document.repository.InventoryDocumentRepository;
+import org.hvtra.iventoryservice.counting.repository.InventoryAdjustmentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCount;
 import org.hvtra.iventoryservice.domain.entity.counting.InventoryCountLine;
-import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
+import org.hvtra.iventoryservice.domain.entity.document.InventoryAdjustment;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentBatchAllocation;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
-import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
@@ -50,7 +49,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
 
     private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
-    private final InventoryDocumentRepository documentRepository;
+    private final InventoryAdjustmentRepository adjustmentRepository;
     private final InventoryCountRepository countRepository;
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryItemRepository itemRepository;
@@ -59,14 +58,14 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     private final AdjustmentMapper mapper;
 
     public InventoryAdjustmentServiceImpl(
-            InventoryDocumentRepository documentRepository,
+            InventoryAdjustmentRepository adjustmentRepository,
             InventoryCountRepository countRepository,
             InventoryBalanceRepository balanceRepository,
             InventoryItemRepository itemRepository,
             InventoryLocationRepository locationRepository,
             InventoryTransactionRepository transactionRepository,
             AdjustmentMapper mapper) {
-        this.documentRepository = documentRepository;
+        this.adjustmentRepository = adjustmentRepository;
         this.countRepository = countRepository;
         this.balanceRepository = balanceRepository;
         this.itemRepository = itemRepository;
@@ -78,13 +77,9 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     @Override
     public PageResponse<AdjustmentResponse> findAll(
             UUID branchId, InventoryDocumentStatus status, String keyword, Pageable pageable) {
-        Specification<InventoryDocument> spec = (root, query, cb) -> {
+        Specification<InventoryAdjustment> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             predicates.add(cb.isFalse(root.get("isDeleted")));
-            predicates.add(cb.or(
-                    cb.equal(root.get("documentType"), InventoryDocumentType.ADJUSTMENT_IN),
-                    cb.equal(root.get("documentType"), InventoryDocumentType.ADJUSTMENT_OUT)
-            ));
             if (branchId != null) predicates.add(cb.equal(root.get("branchId"), branchId));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             if (keyword != null && !keyword.isBlank()) {
@@ -95,12 +90,12 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         return PageResponse.from(
-                documentRepository.findAll(spec, pageable).map(mapper::toResponse));
+                adjustmentRepository.findAll(spec, pageable).map(mapper::toResponse));
     }
 
     @Override
     public AdjustmentResponse findById(UUID id) {
-        InventoryDocument document = findDocumentOrThrow(id);
+        InventoryAdjustment document = findDocumentOrThrow(id);
         return mapper.toResponse(document);
     }
 
@@ -108,11 +103,10 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     @Transactional
     public AdjustmentResponse create(CreateAdjustmentRequest request) {
         requireAnyRole("ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER");
-        InventoryDocument document = new InventoryDocument();
-        document.setDocumentCode(generateDocumentCode());
-        document.setBranchId(request.branchId());
-        document.setReasonCode(request.reasonCode());
-        document.setNote(request.note());
+        // Loại phiếu (tăng / giảm) phụ thuộc tổng điều chỉnh nên gom dòng trước, tạo phiếu sau
+        List<InventoryDocumentLine> lines = new ArrayList<>();
+        InventoryReferenceType referenceType;
+        String referenceId = null;
 
         AtomicInteger lineNo = new AtomicInteger(1);
         InventoryCount sourceCount = null;
@@ -144,11 +138,11 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
                     allocation.setQuantity(countLine.getVarianceQuantity());
                     docLine.addBatchAllocation(allocation);
                 }
-                document.addLine(docLine);
+                lines.add(docLine);
             }
 
-            document.setReferenceType(InventoryReferenceType.STOCK_COUNT);
-            document.setReferenceId(count.getId().toString());
+            referenceType = InventoryReferenceType.STOCK_COUNT;
+            referenceId = count.getId().toString();
 
             sourceCount = count;
         } else {
@@ -179,21 +173,26 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
                 docLine.setUnitId(item.getUnitId());
                 docLine.setOrderedQuantity(lineRequest.adjustmentQuantity());
                 docLine.setNote(lineRequest.note());
-                document.addLine(docLine);
+                lines.add(docLine);
             }
 
-            document.setReferenceType(InventoryReferenceType.MANUAL);
+            referenceType = InventoryReferenceType.MANUAL;
         }
 
         // Determine document type based on net adjustment direction
-        BigDecimal netQuantity = document.getLines().stream()
+        BigDecimal netQuantity = lines.stream()
                 .map(InventoryDocumentLine::getOrderedQuantity)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        document.setDocumentType(netQuantity.compareTo(BigDecimal.ZERO) >= 0
-                ? InventoryDocumentType.ADJUSTMENT_IN
-                : InventoryDocumentType.ADJUSTMENT_OUT);
+        InventoryAdjustment document = InventoryAdjustment.forNetQuantity(netQuantity);
+        document.setDocumentCode(generateDocumentCode());
+        document.setBranchId(request.branchId());
+        document.setReasonCode(request.reasonCode());
+        document.setNote(request.note());
+        document.setReferenceType(referenceType);
+        document.setReferenceId(referenceId);
+        lines.forEach(document::addLine);
 
-        InventoryDocument savedDocument = documentRepository.save(document);
+        InventoryAdjustment savedDocument = adjustmentRepository.save(document);
         if (sourceCount != null) {
             sourceCount.linkAdjustmentDocument(savedDocument);
             countRepository.save(sourceCount);
@@ -205,19 +204,19 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     @Transactional
     public AdjustmentResponse approve(UUID id) {
         requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
-        InventoryDocument document = findDocumentOrThrow(id);
+        InventoryAdjustment document = findDocumentOrThrow(id);
 
         // Delegate to entity
         document.approve(currentUserId());
 
-        return mapper.toResponse(documentRepository.save(document));
+        return mapper.toResponse(adjustmentRepository.save(document));
     }
 
     @Override
     @Transactional
     public AdjustmentResponse post(UUID id) {
         requireAnyRole("ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER");
-        InventoryDocument document = findDocumentOrThrow(id);
+        InventoryAdjustment document = findDocumentOrThrow(id);
 
         // Delegate validation to entity
         document.validateCanPost();
@@ -225,7 +224,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
         // Orchestration: update balances and create transaction
         InventoryTransaction transaction = new InventoryTransaction();
         transaction.setTransactionCode(generateTransactionCode());
-        transaction.setType(document.getDocumentType() == InventoryDocumentType.ADJUSTMENT_IN
+        transaction.setType(document.isIncrease()
                 ? InventoryTransactionType.ADJUSTMENT_IN
                 : InventoryTransactionType.ADJUSTMENT_OUT);
         transaction.setBranchId(document.getBranchId());
@@ -300,14 +299,14 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
             countRepository.save(count);
         }
 
-        return mapper.toResponse(documentRepository.save(document));
+        return mapper.toResponse(adjustmentRepository.save(document));
     }
 
     @Override
     @Transactional
     public AdjustmentResponse reject(UUID id) {
         requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
-        InventoryDocument document = findDocumentOrThrow(id);
+        InventoryAdjustment document = findDocumentOrThrow(id);
 
         // Delegate to entity
         document.reject();
@@ -321,13 +320,13 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
             countRepository.save(count);
         }
 
-        return mapper.toResponse(documentRepository.save(document));
+        return mapper.toResponse(adjustmentRepository.save(document));
     }
 
     // ====== Private Helpers ======
 
-    private InventoryDocument findDocumentOrThrow(UUID id) {
-        return documentRepository.findByIdAndIsDeletedFalse(id)
+    private InventoryAdjustment findDocumentOrThrow(UUID id) {
+        return adjustmentRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory adjustment", id));
     }
 

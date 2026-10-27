@@ -16,6 +16,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@Repository
 public interface InventoryBalanceRepository
         extends JpaRepository<InventoryBalance, UUID>, JpaSpecificationExecutor<InventoryBalance> {
 
@@ -176,6 +178,30 @@ public interface InventoryBalanceRepository
             """)
     List<InventoryBalance> findFefoAvailableForUpdate(
             @Param("inventoryItemId") UUID inventoryItemId,
+            @Param("locationId") UUID locationId,
+            @Param("locationStatus") InventoryStatus locationStatus,
+            @Param("today") LocalDate today);
+
+    /**
+     * Tồn khả dụng của từng mặt hàng tại 1 vị trí, cùng điều kiện với {@link #findFefoAvailableForUpdate}
+     * (batch AVAILABLE, chưa hết hạn) nhưng không khóa: dùng để kiểm tra trước khi giữ chỗ.
+     */
+    @Query("""
+            select b.inventoryItem.id,
+                   coalesce(sum(b.quantityOnHand - b.quantityReserved - b.quantityBlocked), 0)
+            from InventoryBalance b
+            join b.inventoryBatch batch
+            join b.location location
+            where b.inventoryItem.id in :itemIds
+              and location.id = :locationId
+              and location.status = :locationStatus
+              and batch.status = org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus.AVAILABLE
+              and (batch.expiryDate is null or batch.expiryDate >= :today)
+              and (b.quantityOnHand - b.quantityReserved - b.quantityBlocked) > 0
+            group by b.inventoryItem.id
+            """)
+    List<Object[]> sumFefoAvailableByItemsAtLocation(
+            @Param("itemIds") Collection<UUID> itemIds,
             @Param("locationId") UUID locationId,
             @Param("locationStatus") InventoryStatus locationStatus,
             @Param("today") LocalDate today);

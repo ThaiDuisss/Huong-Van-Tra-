@@ -207,7 +207,7 @@ const mockSalesAnalytics: DashboardSalesAnalytics = {
 
 const pendingDocumentTypeLabel = "Phiếu nhập kho";
 
-/** Các trường dùng từ `GET /inventory/documents` (InventoryDocumentListItemResponse). */
+/** Các trường dùng từ `GET /inventory/goods-receipts` (GoodsReceiptListItemResponse). */
 interface PendingDocumentBackendRow {
   id: string;
   documentCode: string;
@@ -380,7 +380,7 @@ export const dashboardApi = {
         }
       }),
       part(async (): Promise<DashboardPendingDocument[]> => {
-        const page = await apiClient.get<PageResponse<PendingDocumentBackendRow>>("/inventory/documents", {
+        const page = await apiClient.get<PageResponse<PendingDocumentBackendRow>>("/inventory/goods-receipts", {
           query: { page: 0, size: DASHBOARD_LIST_SIZE * 2, status: "PENDING_APPROVAL" },
         });
 

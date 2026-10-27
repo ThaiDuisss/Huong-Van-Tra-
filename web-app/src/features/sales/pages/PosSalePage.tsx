@@ -13,7 +13,7 @@ import {
     BackorderDialog,
     type BackorderOffer
 } from "../components/dialogs/BackorderDialog";
-import { CustomTeaRequestDialog } from "../components/dialogs/CustomTeaRequestDialog";
+import { CustomBundleDialog } from "../components/dialogs/CustomBundleDialog";
 import { ReceiptDialog } from "../components/dialogs/ReceiptDialog";
 import {
     ShelfShortageDialog,
@@ -39,6 +39,7 @@ import {
     posBackorderApi,
     type AvailabilityEstimate
 } from "../services/posBackorder.api";
+import { posCustomBundleApi } from "../services/posCustomBundle.api";
 import { formatCurrency } from "../services/money";
 import { posCustomerApi } from "../services/posCustomer.api";
 import {
@@ -353,7 +354,21 @@ function orderToCartItemsById(
                     inventoryLocationId: null,
                     manualDiscount:
                         currentItem?.manualDiscount ?? null,
-                    note
+                    note,
+                    bundle:
+                        item.itemType === "CUSTOM_BUNDLE"
+                            ? {
+                                  components: (item.components ?? []).map((component) => ({
+                                      ingredientId: component.ingredientId,
+                                      ingredientName: component.ingredientName,
+                                      unit: component.unit,
+                                      quantity: toNumber(component.quantity),
+                                      lineTotal: toNumber(component.lineTotal)
+                                  })),
+                                  packingStatus: item.packingStatus,
+                                  packingCode: item.packingCode
+                              }
+                            : null
                 }
             ];
         })
@@ -437,7 +452,8 @@ export function PosSalePage() {
     // (giữ lại sau khi mất mạng, reload hay tắt nhầm tab).
     const [persistedSale] = useState(() => loadPersistedSale(saleOwnerId));
     const [searchQuery, setSearchQuery] = useState("");
-    const [customTeaOpen, setCustomTeaOpen] = useState(false);
+    const [customBundleOpen, setCustomBundleOpen] = useState(false);
+    const [customBundleSubmitting, setCustomBundleSubmitting] = useState(false);
     const [shelfShortage, setShelfShortage] = useState<ShelfShortage | null>(null);
     const [shelfShortageSubmitting, setShelfShortageSubmitting] = useState(false);
     const [shelfShortageError, setShelfShortageError] = useState("");
@@ -459,22 +475,14 @@ export function PosSalePage() {
     // Phương án nhân viên đã chọn cho mặt hàng (true = gửi kho ngay, false = lưu nháp), để lần tăng số lượng sau
     // tự cập nhật phiếu đã có thay vì hỏi lại.
     const replenishmentModeRef = useRef<Record<string, boolean>>({});
-    const [customTeaSearchQuery, setCustomTeaSearchQuery] = useState("");
     // Tìm mặt hàng qua TanStack Query: debounce, cache theo từ khoá, giữ kết
     // quả cũ khi mất mạng.
     const productSearch = useProductSearch(searchQuery);
-    const customTeaSearch = useProductSearch(customTeaSearchQuery, customTeaOpen);
     const searchResults = productSearch.products;
     const searchLoading = productSearch.loading;
     const searchError = productSearch.error
         ? getErrorMessage(productSearch.error)
         : "";
-    const customTeaSearchResults = customTeaSearch.products;
-    const customTeaSearchLoading = customTeaSearch.loading;
-    const customTeaSearchError = customTeaSearch.error
-        ? getErrorMessage(customTeaSearch.error)
-        : "";
-    const [customTeaSubmitLoading, setCustomTeaSubmitLoading] = useState(false);
     const [addingProductId, setAddingProductId] = useState<string | null>(
         null
     );
@@ -849,8 +857,7 @@ export function PosSalePage() {
         setBankTransferStatus("WAITING");
         setBankTransferPayment(null);
         setBankTransferEventMessage("");
-        setCustomTeaOpen(false);
-        setCustomTeaSearchQuery("");
+        setCustomBundleOpen(false);
         handledBankNotificationIdRef.current = null;
         clearCustomer();
     }, [clearCustomer]);
@@ -1036,6 +1043,7 @@ export function PosSalePage() {
 
             const paidOrderId =
                 draftOrder?.id ?? checkout.payment?.orderId ?? null;
+            const bundlePending = cartItems.some((item) => Boolean(item.bundle));
 
             resetCurrentSale();
 
@@ -1052,9 +1060,12 @@ export function PosSalePage() {
             }
 
             setCheckoutSuccess(
-                checkout.orderCode
+                (checkout.orderCode
                     ? `Thanh toán thành công đơn ${checkout.orderCode}.`
-                    : "Thanh toán thành công."
+                    : "Thanh toán thành công.") +
+                    (bundlePending
+                        ? " Trà đóng theo yêu cầu đang chờ kho đóng gói, giao ở màn Bundle chờ giao."
+                        : "")
             );
             setReceiptOrderId(paidOrderId);
         } catch (error) {
@@ -1351,7 +1362,7 @@ export function PosSalePage() {
         setCheckoutError("");
         setCheckoutSuccess(
             submit
-                ? `Phiếu nhập kệ ${slip.documentCode}: cần đưa ${shortage.missingQuantity} ${shortage.name} lên kệ, đã gửi kho.`
+                ? `Phiếu nhập kệ ${slip.documentCode}: cần đưa ${shortage.missingQuantity} ${shortage.name} lên kệ, đã gửi chờ Quản lý duyệt.`
                 : `Đã lưu nháp phiếu nhập kệ ${slip.documentCode} (thiếu ${shortage.missingQuantity} ${shortage.name}).`
         );
     }
@@ -1431,13 +1442,24 @@ export function PosSalePage() {
 
     /** Cập nhật ngày dự kiến có hàng của cả đơn sau mỗi lần giỏ thay đổi. */
     async function refreshBackorderEstimate(order: PosOrderDto) {
-        if (backorderVariantIdsRef.current.size === 0) {
+        // Trà đóng theo yêu cầu: tồn tính theo nguyên liệu, không theo variant hệ thống của dòng bundle.
+        const bundleItems = (order.items ?? []).filter((item) => item.itemType === "CUSTOM_BUNDLE");
+
+        if (backorderVariantIdsRef.current.size === 0 && bundleItems.length === 0) {
+            if (backorderEstimate !== null) {
+                setBackorderEstimate(null);
+                setDepositEnabled(false);
+                setDepositAmount(0);
+            }
             return;
         }
 
         const quantityByVariant = new Map<string, number>();
 
         for (const item of order.items ?? []) {
+            if (item.itemType === "CUSTOM_BUNDLE") {
+                continue;
+            }
             quantityByVariant.set(
                 item.productVariantId,
                 (quantityByVariant.get(item.productVariantId) ?? 0) + Number(item.quantity)
@@ -1451,29 +1473,110 @@ export function PosSalePage() {
             setDepositAmount(0);
         };
 
-        if (quantityByVariant.size === 0) {
+        if (quantityByVariant.size === 0 && bundleItems.length === 0) {
             clearBackorder();
             return;
         }
 
         try {
-            const estimate = await posBackorderApi.estimate({
-                branchId: currentBranchId,
-                orderId: order.id,
-                lines: Array.from(quantityByVariant, ([productVariantId, quantity]) => ({
-                    productVariantId,
-                    quantity
+            const productEstimate =
+                backorderVariantIdsRef.current.size > 0 && quantityByVariant.size > 0
+                    ? await posBackorderApi.estimate({
+                        branchId: currentBranchId,
+                        orderId: order.id,
+                        lines: Array.from(quantityByVariant, ([productVariantId, quantity]) => ({
+                            productVariantId,
+                            quantity
+                        }))
+                    })
+                    : null;
+            const bundleAvailabilities = await Promise.all(
+                bundleItems.map(async (item) => ({
+                    item,
+                    availability: await posCustomBundleApi.checkAvailability({
+                        branchId: currentBranchId,
+                        lines: (item.components ?? []).map((component) => ({
+                            ingredientId: component.ingredientId,
+                            ingredientName: component.ingredientName,
+                            quantity: toNumber(component.quantity)
+                        }))
+                    })
                 }))
-            });
+            );
+            const waitingBundles = bundleAvailabilities.filter(({ availability }) => !availability.enough);
+            const productBackorder = productEstimate?.backorder === true;
 
-            if (!estimate.backorder) {
+            if (!productBackorder && waitingBundles.length === 0) {
                 clearBackorder();
                 return;
             }
 
-            setBackorderEstimate(estimate);
+            const dates = [
+                productBackorder ? productEstimate?.estimatedAvailableAt : null,
+                ...waitingBundles.map(({ availability }) => availability.estimatedAvailableAt)
+            ].filter((value): value is string => Boolean(value)).sort();
+
+            setBackorderEstimate({
+                backorder: true,
+                estimatedAvailableAt: dates.length > 0 ? dates[dates.length - 1] : null,
+                lines: [
+                    ...(productBackorder && productEstimate ? productEstimate.lines : []),
+                    ...waitingBundles.map(({ item, availability }) => ({
+                        productVariantId: item.productVariantId,
+                        itemName: `${item.variantNameSnapshot ?? "Trà đóng theo yêu cầu"} (nguyên liệu)`,
+                        requestedQuantity: 1,
+                        missingQuantity: availability.lines.reduce(
+                            (total, line) => total + toNumber(line.missingQuantity),
+                            0
+                        ),
+                        scenario: "WAIT_MATERIAL_RECEIPT" as const,
+                        estimatedAvailableAt: availability.estimatedAvailableAt,
+                        depositRecommended: true
+                    }))
+                ]
+            });
         } catch (error) {
             logApiError(error);
+        }
+    }
+
+    async function addCustomBundle(input: {
+        bundleName: string;
+        note: string;
+        lines: Array<{ ingredientId: string; ingredientName: string; quantity: number }>;
+    }) {
+        if (customBundleSubmitting) {
+            return;
+        }
+
+        if (!online) {
+            setCheckoutError("Đóng trà theo yêu cầu cần kết nối mạng để kiểm tra nguyên liệu.");
+            return;
+        }
+
+        setCustomBundleSubmitting(true);
+
+        try {
+            const order = await posCustomBundleApi.addDraftBundleItem({
+                orderId: draftOrder?.id ?? null,
+                branchId: currentBranchId,
+                customerId: selectedCustomerId,
+                bundleName: input.bundleName,
+                note: input.note,
+                lines: input.lines
+            });
+            applyDraftOrder(order);
+            setCustomBundleOpen(false);
+            setCheckoutError("");
+            setCheckoutSuccess("");
+            void refreshBackorderEstimate(order);
+        } catch (error) {
+            logApiError(error);
+            setCheckoutError(
+                `Không thể thêm trà đóng theo yêu cầu: ${getErrorMessage(error)}`
+            );
+        } finally {
+            setCustomBundleSubmitting(false);
         }
     }
 
@@ -1719,15 +1822,6 @@ export function PosSalePage() {
         setSearchQuery("");
     }
 
-    function changeCustomTeaSearchQuery(value: string) {
-        setCustomTeaSearchQuery(value);
-    }
-
-    function closeCustomTeaDialog() {
-        setCustomTeaOpen(false);
-        setCustomTeaSearchQuery("");
-    }
-
     async function updateCartItemQuantity(
         productId: string,
         quantity: number,
@@ -1736,6 +1830,11 @@ export function PosSalePage() {
         const currentItem = cartItemsById[productId];
 
         if (!currentItem) {
+            return false;
+        }
+
+        // Dòng trà đóng theo yêu cầu luôn có số lượng 1; chỉ xoá được, không tăng/giảm.
+        if (currentItem.bundle && quantity > 0) {
             return false;
         }
 
@@ -1879,61 +1978,6 @@ export function PosSalePage() {
         }
     }
 
-    async function addCustomTeaRequest(input: {
-        product: SaleProductPreview;
-        quantity: number;
-        note: string;
-    }) {
-        const variantId = input.product.productVariantId ?? input.product.id;
-
-        if (customTeaSubmitLoading) {
-            return;
-        }
-
-        if (!variantId) {
-            setCheckoutError("Không xác định được mã Mặt hàng.");
-            return;
-        }
-
-        if (
-            input.product.sellableQuantity < input.quantity
-        ) {
-            setCheckoutError("Số lượng yêu cầu vượt số lượng có thể bán.");
-            return;
-        }
-
-        if (!online) {
-            upsertLocalCartItem(input.product, input.quantity, input.note);
-            closeCustomTeaDialog();
-            return;
-        }
-
-        setCustomTeaSubmitLoading(true);
-
-        try {
-            const order = await posOrderApi.addDraftItem({
-                orderId: draftOrder?.id ?? null,
-                customerId: selectedCustomerId,
-                orderType,
-                productVariantId: variantId,
-                inventoryLocationId: input.product.inventoryLocationId,
-                quantity: input.quantity,
-                note: input.note
-            });
-            applyDraftOrder(order);
-            closeCustomTeaDialog();
-            setCheckoutError("");
-            setCheckoutSuccess("");
-        } catch (error) {
-            logApiError(error);
-            setCheckoutError(
-                `Không thể thêm trà theo yêu cầu: ${getErrorMessage(error)}`
-            );
-        } finally {
-            setCustomTeaSubmitLoading(false);
-        }
-    }
-
     function changeSelectedDiscount(discountId: string) {
         setSelectedDiscountId(discountId);
         setBankTransferPayment(null);
@@ -2003,8 +2047,7 @@ export function PosSalePage() {
             setBankTransferPayment(null);
             setBankTransferStatus("WAITING");
             setBankTransferEventMessage("");
-            setCustomTeaOpen(false);
-            setCustomTeaSearchQuery("");
+            setCustomBundleOpen(false);
             patchCurrentDeliveryState(initialDeliveryState);
         } catch (error) {
             logApiError(error);
@@ -2700,7 +2743,7 @@ export function PosSalePage() {
                 onProductNoteChange={(productId, nextNote) => {
                     void changeProductNote(productId, nextNote);
                 }}
-                onCustomTeaOpen={() => setCustomTeaOpen(true)}
+                onCustomBundleOpen={() => setCustomBundleOpen(true)}
                 onInvoiceClose={() => {
                     void closeCurrentInvoice();
                 }}
@@ -2746,18 +2789,14 @@ export function PosSalePage() {
                     setOfflineReceipt(null);
                 }}
             />
-            {customTeaOpen ? (
-                <CustomTeaRequestDialog
-                    open={customTeaOpen}
-                    products={customTeaSearchResults}
-                    searchQuery={customTeaSearchQuery}
-                    searchLoading={customTeaSearchLoading}
-                    searchError={customTeaSearchError}
-                    submitLoading={customTeaSubmitLoading}
-                    onClose={closeCustomTeaDialog}
-                    onSearchChange={changeCustomTeaSearchQuery}
+            {customBundleOpen ? (
+                <CustomBundleDialog
+                    open={customBundleOpen}
+                    branchId={currentBranchId}
+                    submitLoading={customBundleSubmitting}
+                    onClose={() => setCustomBundleOpen(false)}
                     onSubmit={(input) => {
-                        void addCustomTeaRequest(input);
+                        void addCustomBundle(input);
                     }}
                 />
             ) : null}

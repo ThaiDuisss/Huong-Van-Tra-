@@ -9,6 +9,7 @@ public interface InventoryDocumentLineRow {
     String getInventoryItemId();
     String getItemSku();
     String getItemName();
+    String getItemType();
     String getUnitId();
     BigDecimal getOrderedQuantity();
     BigDecimal getReceivedQuantity();
@@ -17,5 +18,10 @@ public interface InventoryDocumentLineRow {
     BigDecimal getAcceptedQuantity();
     BigDecimal getRejectedQuantity();
     String getNote();
+    String getExcessResolution();
+    String getShortageResolution();
+    BigDecimal getReturnedQuantity();
+    BigDecimal getPostedQuantity();
+    String getResolutionNote();
 }
  

@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
 import org.hvtra.iventoryservice.replenishment.dto.CreateShelfReplenishmentRequest;
+import org.hvtra.iventoryservice.replenishment.dto.RejectShelfReplenishmentRequest;
 import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentResponse;
 import org.hvtra.iventoryservice.replenishment.dto.ShelfReplenishmentSummaryResponse;
 import org.hvtra.iventoryservice.replenishment.dto.UpdateShelfReplenishmentRequest;
@@ -75,10 +76,19 @@ public class ShelfReplenishmentController {
         return service.submit(id);
     }
 
-    @UserAction(value = "SHELF_REPLENISHMENT_POST", entityType = "InventoryDocument", entityId = "#id")
-    @PostMapping("/{id}/post")
-    public ShelfReplenishmentResponse post(@PathVariable("id") UUID id) {
-        return service.post(id);
+    /** Duyệt phiếu: trừ kho, cộng kệ theo FEFO. Người duyệt phải khác người tạo. */
+    @UserAction(value = "SHELF_REPLENISHMENT_APPROVE", entityType = "InventoryDocument", entityId = "#id")
+    @PostMapping("/{id}/approve")
+    public ShelfReplenishmentResponse approve(@PathVariable("id") UUID id) {
+        return service.approve(id);
+    }
+
+    @UserAction(value = "SHELF_REPLENISHMENT_REJECT", entityType = "InventoryDocument", entityId = "#id",
+            detail = "#request.reason")
+    @PostMapping("/{id}/reject")
+    public ShelfReplenishmentResponse reject(
+            @PathVariable("id") UUID id, @Valid @RequestBody RejectShelfReplenishmentRequest request) {
+        return service.reject(id, request);
     }
 
     /** Manager duyệt lại phiếu đã được POS xuất kho ngay khi bán. */

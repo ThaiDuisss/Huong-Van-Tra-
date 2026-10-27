@@ -4,6 +4,7 @@ import {
   Clock3,
   FileClock,
   FileText,
+  Leaf,
   PackageSearch,
   ShoppingBag,
   Sparkles,
@@ -59,6 +60,13 @@ export const posNavigationItems: PosNavigationItem[] = [
         label: "Đơn chờ hàng",
         icon: PackageSearch,
         to: routePaths.posBackorders,
+        roles: POS_WORKSPACE_ROLES
+      },
+      {
+        key: "custom-bundles",
+        label: "Bundle chờ giao",
+        icon: Leaf,
+        to: routePaths.posCustomBundles,
         roles: POS_WORKSPACE_ROLES
       },
       {

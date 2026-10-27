@@ -13,6 +13,7 @@ export interface WarehouseBatchResponse {
     quantityBlocked: number;
     availableQuantity: number;
     daysUntilExpiry?: number;
+    itemType?: string;
 }
 
 export const warehouseBatchApi = {

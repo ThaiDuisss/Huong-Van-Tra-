@@ -27,6 +27,7 @@ import { OrderReturnDetailPage } from "../features/order/pages/OrderReturnDetail
 import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
 import { ReturnRefundReportPage } from "../features/order/pages/ReturnRefundReportPage";
 import { BackorderOrdersPage } from "../features/order/pages/BackorderOrdersPage";
+import { CustomBundleHandoverPage } from "../features/order/pages/CustomBundleHandoverPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
@@ -39,38 +40,22 @@ import { CustomerReturnListPage } from "../features/inventory/pages/CustomerRetu
 import { CustomBundleManagementDetailPage } from "../features/inventory/pages/CustomBundleManagementDetailPage";
 import { CustomBundleManagementListPage } from "../features/inventory/pages/CustomBundleManagementListPage";
 import { InventoryLocationPage } from "../features/inventory/pages/InventoryLocationPage";
-import { InventoryManagementPage } from "../features/inventory/pages/InventoryManagementPage";
 import { InventoryTransactionPage } from "../features/inventory/pages/InventoryTransactionPage";
 import { DisposalDetailPage } from "../features/inventory/pages/DisposalDetailPage";
 import { DisposalListPage } from "../features/inventory/pages/DisposalListPage";
-import { QualityBatchDetailPage } from "../features/inventory/pages/QualityBatchDetailPage";
-import { QualityDashboardPage } from "../features/inventory/pages/QualityDashboardPage";
-import { ReorderPolicyPage } from "../features/inventory/pages/ReorderPolicyPage";
-import { PosCustomBundleCreatePage } from "../features/inventory/pages/PosCustomBundleCreatePage";
-import { PosCustomBundleDetailPage } from "../features/inventory/pages/PosCustomBundleDetailPage";
 import { PosCustomerReturnCreatePage } from "../features/inventory/pages/PosCustomerReturnCreatePage";
 import { PosCustomerReturnDetailPage } from "../features/inventory/pages/PosCustomerReturnDetailPage";
-import { StockDocumentDetailPage } from "../features/inventory/pages/StockDocumentDetailPage";
-import { StockDocumentListPage } from "../features/inventory/pages/StockDocumentListPage";
 import { StocktakeCreatePage } from "../features/inventory/pages/StocktakeCreatePage";
 import { StocktakeAdjustmentPage } from "../features/inventory/pages/StocktakeAdjustmentPage";
 import { StocktakeAdjustmentListPage } from "../features/inventory/pages/StocktakeAdjustmentListPage";
 import { StocktakeDetailPage } from "../features/inventory/pages/StocktakeDetailPage";
 import { StocktakeListPage } from "../features/inventory/pages/StocktakeListPage";
 import { StocktakeReconciliationPage } from "../features/inventory/pages/StocktakeReconciliationPage";
-import { StockAlertDetailPage } from "../features/inventory/pages/StockAlertDetailPage";
 import { InventoryValueReportPage } from "../features/inventory/pages/InventoryValueReportPage";
 import { StockCategoryAnalysisPage } from "../features/inventory/pages/StockCategoryAnalysisPage";
 import { InventoryTurnoverReportPage } from "../features/inventory/pages/InventoryTurnoverReportPage";
 import { ProductionWastageReportPage } from "../features/inventory/pages/ProductionWastageReportPage";
 import { DisposalSummaryReportPage } from "../features/inventory/pages/DisposalSummaryReportPage";
-import { StockAlertListPage } from "../features/inventory/pages/StockAlertListPage";
-import { SupplierReturnCreatePage } from "../features/inventory/pages/SupplierReturnCreatePage";
-import { SupplierReturnDetailPage } from "../features/inventory/pages/SupplierReturnDetailPage";
-import { SupplierReturnListPage } from "../features/inventory/pages/SupplierReturnListPage";
-import { TransferCreatePage } from "../features/inventory/pages/TransferCreatePage";
-import { TransferDetailPage } from "../features/inventory/pages/TransferDetailPage";
-import { TransferListPage } from "../features/inventory/pages/TransferListPage";
 import { ShelfReplenishmentListPage } from "../features/inventory/pages/ShelfReplenishmentListPage";
 import { ShelfReplenishmentFormPage } from "../features/inventory/pages/ShelfReplenishmentFormPage";
 import { ShelfReplenishmentDetailPage } from "../features/inventory/pages/ShelfReplenishmentDetailPage";
@@ -175,18 +160,12 @@ export function AppRouter() {
         }
       />
       <Route
-        path={routePaths.posCustomBundleCreate}
+        path={routePaths.posCustomBundles}
         element={
           <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-            <PosCustomBundleCreatePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path={routePaths.posCustomBundleDetail}
-        element={
-          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
-            <PosCustomBundleDetailPage />
+            <PosShell>
+              <CustomBundleHandoverPage />
+            </PosShell>
           </ProtectedRoute>
         }
       />
@@ -318,10 +297,6 @@ export function AppRouter() {
           <Route path="inventory/balances" element={<InventoryBalancePage />} />
           <Route path="inventory/warehouse" element={<WarehouseInventoryPage />} />
           <Route
-            path="inventory/documents"
-            element={<Navigate to={routePaths.inventoryDocuments} replace />}
-          />
-          <Route
             path="inventory/raw-material-receipts"
             element={<Navigate to={routePaths.goodsReceipts} replace />}
           />
@@ -334,10 +309,6 @@ export function AppRouter() {
             element={<Navigate to={routePaths.customBundles} replace />}
           />
           <Route
-            path="inventory/branch-transfers"
-            element={<Navigate to={routePaths.inventoryTransfers} replace />}
-          />
-          <Route
             path="inventory/stock-counts"
             element={<Navigate to={routePaths.inventoryStocktakes} replace />}
           />
@@ -346,22 +317,9 @@ export function AppRouter() {
             element={<Navigate to={routePaths.inventoryCustomerReturnList} replace />}
           />
           <Route
-            path="inventory/supplier-returns"
-            element={<Navigate to={routePaths.inventorySupplierReturnList} replace />}
-          />
-          <Route
-            path="inventory/waste-handling"
-            element={<Navigate to={routePaths.inventoryQuality} replace />}
-          />
-          <Route
-            path="inventory/replenishment-alerts"
-            element={<Navigate to={routePaths.inventoryAlerts} replace />}
-          />
-          <Route
             path="inventory/reports/stock-category-analysis"
             element={<Navigate to={routePaths.stockCategoryAnalysis} replace />}
           />
-          <Route path="inventory/:workspaceId" element={<InventoryManagementPage />} />
         </Route>
         <Route element={<RoleGate roles={CUSTOMER_ROLES} />}>
           <Route path="customers" element={<CustomerListPage />} />
@@ -395,11 +353,7 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to={routePaths.inventoryDocuments} replace />} />
-        <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
-          <Route path="inventory/documents" element={<StockDocumentListPage />} />
-          <Route path="inventory/documents/:documentId" element={<StockDocumentDetailPage />} />
-        </Route>
+        <Route index element={<Navigate to={routePaths.systemDashboard} replace />} />
         <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
           <Route path="inventory/receipts" element={<GoodsReceiptListPage />} />
           <Route path="inventory/receipts/new" element={<GoodsReceiptCreatePage />} />
@@ -434,9 +388,6 @@ export function AppRouter() {
           <Route path="inventory/shelf-replenishments/new" element={<ShelfReplenishmentFormPage />} />
           <Route path="inventory/shelf-replenishments/:slipId" element={<ShelfReplenishmentDetailPage />} />
           <Route path="inventory/shelf-replenishments/:slipId/edit" element={<ShelfReplenishmentFormPage />} />
-          <Route path="inventory/transfers" element={<TransferListPage />} />
-          <Route path="inventory/transfers/new" element={<TransferCreatePage />} />
-          <Route path="inventory/transfers/:transferId" element={<TransferDetailPage />} />
           <Route path="inventory/stocktakes" element={<StocktakeListPage />} />
           <Route path="inventory/stocktakes/new" element={<StocktakeCreatePage />} />
           <Route path="inventory/stocktakes/:stocktakeId" element={<StocktakeDetailPage />} />
@@ -454,19 +405,8 @@ export function AppRouter() {
             path="inventory/customer-returns/:returnId"
             element={<CustomerReturnDetailPage />}
           />
-          <Route path="inventory/supplier-returns" element={<SupplierReturnListPage />} />
-          <Route path="inventory/supplier-returns/new" element={<SupplierReturnCreatePage />} />
-          <Route
-            path="inventory/supplier-returns/:supplierReturnId"
-            element={<SupplierReturnDetailPage />}
-          />
-          <Route path="inventory/quality" element={<QualityDashboardPage />} />
-          <Route path="inventory/quality/batches/:batchId" element={<QualityBatchDetailPage />} />
           <Route path="inventory/disposals" element={<DisposalListPage />} />
           <Route path="inventory/disposals/:disposalId" element={<DisposalDetailPage />} />
-          <Route path="inventory/alerts" element={<StockAlertListPage />} />
-          <Route path="inventory/alerts/:alertId" element={<StockAlertDetailPage />} />
-          <Route path="inventory/reorder-policies" element={<ReorderPolicyPage />} />
           <Route path="inventory/reports/stock-category-analysis" element={<StockCategoryAnalysisPage />} />
           <Route path="inventory/reports/inventory-value" element={<InventoryValueReportPage />} />
           <Route path="inventory/reports/turnover" element={<InventoryTurnoverReportPage />} />

@@ -10,6 +10,7 @@ import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
+import org.hvtra.iventoryservice.domain.entity.document.GoodsReceipt;
 import org.hvtra.iventoryservice.domain.entity.production.ProductionOrder;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
@@ -370,7 +371,7 @@ class AvailabilityEstimateServiceTest {
 
     private InventoryDocumentLine receiptLine(String code, InventoryDocumentStatus status, String ordered,
                                               Instant expectedDate, Instant createdAt) {
-        InventoryDocument document = new InventoryDocument();
+        InventoryDocument document = new GoodsReceipt();
         document.setDocumentCode(code);
         document.setStatus(status);
         document.setExpectedDate(expectedDate);

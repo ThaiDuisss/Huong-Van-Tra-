@@ -34,6 +34,12 @@ public class InternalProductVariantController {
         return service.findRefsByProductIds(productIds);
     }
 
+    /** Order-Service dùng variant này làm dòng bundle khi khách đóng trà theo yêu cầu. */
+    @GetMapping("/custom-bundle")
+    public ProductResponse.VariantResponse findCustomBundleVariant() {
+        return service.findCustomBundleVariant();
+    }
+
     @PostMapping("/batch")
     public List<ProductResponse.VariantResponse> findByIds(@RequestBody List<UUID> ids) {
         return service.findAllByIds(ids);

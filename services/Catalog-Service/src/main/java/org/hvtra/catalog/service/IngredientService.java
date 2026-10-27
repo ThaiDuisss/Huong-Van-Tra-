@@ -1,6 +1,7 @@
 package org.hvtra.catalog.service;
 
 import org.hvtra.catalog.dto.request.IngredientRequest;
+import org.hvtra.catalog.dto.response.IngredientBundleLookupResponse;
 import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
@@ -20,6 +21,8 @@ public interface IngredientService {
     IngredientResponse updateStatus(UUID id, Status status);
     List<IngredientResponse> findByIds(List<UUID> ids);
 
+    /** Nguyên liệu bán lẻ cho POS đóng trà theo yêu cầu (kèm đơn vị, giá bán lẻ). */
+    PageResponse<IngredientBundleLookupResponse> bundleLookup(String search, Pageable pageable);
     PageResponse<LookupResponse> lookup(String search, Status status, List<UUID> ids, Pageable pageable);
     List<UUID> searchIngredientIds(String keyword, String code, String name, UUID unitId);
     void delete(UUID id);

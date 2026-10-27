@@ -6,6 +6,8 @@ import lombok.Setter;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
+import org.hvtra.iventoryservice.domain.enums.ReceiptExcessResolution;
+import org.hvtra.iventoryservice.domain.enums.ReceiptShortageResolution;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -67,6 +69,25 @@ public class InventoryDocumentLine extends BaseEntity {
 
     @Column(name = "note", length = 500)
     private String note;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "excess_resolution", length = 30)
+    private ReceiptExcessResolution excessResolution;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shortage_resolution", length = 30)
+    private ReceiptShortageResolution shortageResolution;
+
+    /** Số đạt QC nhưng không nhập kho mà trả lại nhà cung cấp (phần thừa bị từ chối / từ chối cả dòng). */
+    @Column(name = "returned_quantity", nullable = false, precision = 18, scale = 2)
+    private BigDecimal returnedQuantity = BigDecimal.ZERO;
+
+    /** Số thực ghi sổ nhập kho; null khi phiếu chưa ghi sổ. */
+    @Column(name = "posted_quantity", precision = 18, scale = 2)
+    private BigDecimal postedQuantity;
+
+    @Column(name = "resolution_note", length = 500)
+    private String resolutionNote;
 
     @OneToMany(mappedBy = "documentLine", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<InventoryDocumentBatchAllocation> batchAllocations = new HashSet<>();

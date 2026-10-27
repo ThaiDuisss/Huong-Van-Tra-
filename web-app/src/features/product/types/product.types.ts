@@ -217,6 +217,8 @@ export interface Ingredient {
     unitName?: string | null;
     unitSymbol?: string | null;
     reorderPoint?: number | null;
+    /** Giá bán lẻ cho 1 đơn vị khi khách đóng trà theo yêu cầu; null = không bán lẻ. */
+    retailPricePerUnit?: number | null;
     status: CatalogStatus;
 }
 
@@ -226,5 +228,6 @@ export interface IngredientInput {
     imageUrl?: string | null;
     unitId?: EntityId | null;
     reorderPoint?: number | null;
+    retailPricePerUnit?: number | null;
     status: CatalogStatus;
 }

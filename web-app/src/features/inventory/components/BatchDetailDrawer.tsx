@@ -103,7 +103,11 @@ export function BatchDetailDrawer({
                             {error}
                         </div>
                     )}
-                    <WarehouseBatchTable batches={batches} loading={loading} />
+                    <WarehouseBatchTable
+                        batches={batches}
+                        loading={loading}
+                        showExpiry={batches[0]?.itemType !== "INGREDIENT"}
+                    />
                 </div>
 
                 {/* Summary Footer */}

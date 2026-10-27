@@ -12,10 +12,13 @@ import type {
     GoodsReceiptListQuery,
     GoodsReceiptListResult,
     GoodsReceiptOptions,
+    GoodsReceiptPostInput,
     GoodsReceiptQcInput,
     GoodsReceiptStatus,
     GoodsReceiptSummary,
-    QcResult
+    QcResult,
+    ReceiptExcessResolution,
+    ReceiptShortageResolution
 } from "../types/goods-receipt.types";
 import type { InventoryAuditEvent } from "../types/stock-document.types";
 import type { PageResponse } from "../types/inventory.types";
@@ -26,6 +29,7 @@ interface InventoryDocumentLineBackendResponse {
     inventoryItemId: string;
     itemSku: string;
     itemName: string;
+    itemType?: string;
     unitId: string;
     unitName: string;
     orderedQuantity: number;
@@ -35,6 +39,11 @@ interface InventoryDocumentLineBackendResponse {
     acceptedQuantity: number;
     rejectedQuantity: number;
     note?: string;
+    excessResolution?: ReceiptExcessResolution;
+    shortageResolution?: ReceiptShortageResolution;
+    returnedQuantity?: number;
+    postedQuantity?: number;
+    resolutionNote?: string;
     batchAllocations?: Array<{
         id: string;
         inventoryBatchId: string;
@@ -88,6 +97,10 @@ interface InventoryDocumentBackendResponse {
     totalReceivedQuantity: number;
     totalAcceptedQuantity: number;
     totalRejectedQuantity: number;
+    exceptionApprovedBy?: string;
+    exceptionApprovedByName?: string;
+    exceptionApprovedAt?: string;
+    exceptionApprovalNote?: string;
 }
 
 interface InventoryItemLookupBackendResponse {
@@ -136,9 +149,7 @@ function resolveQcResult(status: GoodsReceiptStatus, totalAccepted: number, tota
 }
 
 function buildDocumentQueryParams(query: GoodsReceiptListQuery): Record<string, string | number | boolean | undefined> {
-    const params: Record<string, string | number | boolean | undefined> = {
-        documentType: "PURCHASE_RECEIPT"
-    };
+    const params: Record<string, string | number | boolean | undefined> = {};
 
     if (query.status && query.status !== "ALL") {
         params.status = query.status;
@@ -245,6 +256,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             id: line.id || `line-${index}`,
             initialDamagedQuantity: 0,
             internalBatchCode: batchAlloc?.batchCode || "",
+            itemType: line.itemType,
             manufacturedAt: batchAlloc?.manufactureDate || "",
             materialId: line.inventoryItemId,
             materialName: resolveMaterialName(line.itemName, line.itemSku, line.inventoryItemId),
@@ -271,7 +283,12 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             storageCondition: "Nơi khô ráo",
             supplierLot: batchAlloc?.supplierLot || "",
             surplusQuantity: line.excessQuantity || 0,
-            unit: line.unitName || "kg"
+            unit: line.unitName || "kg",
+            excessResolution: line.excessResolution,
+            shortageResolution: line.shortageResolution,
+            returnedQuantity: line.returnedQuantity || 0,
+            postedQuantity: line.postedQuantity ?? undefined,
+            resolutionNote: line.resolutionNote
         };
     });
 
@@ -343,6 +360,22 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             type: "QC"
         });
     }
+    if (doc.exceptionApprovedAt) {
+        auditEvents.push({
+            actor: {
+                id: doc.exceptionApprovedBy || "manager",
+                name: doc.exceptionApprovedByName || "Quản lý kho",
+                role: "MANAGER"
+            },
+            happenedAt: doc.exceptionApprovedAt,
+            id: `approve-exception-${doc.id}`,
+            note: doc.exceptionApprovalNote
+                ? `Duyệt ngoại lệ: ${doc.exceptionApprovalNote}`
+                : "Duyệt ngoại lệ (thừa / thiếu / hỏng)",
+            roleSnapshot: "MANAGER",
+            type: "APPROVE"
+        });
+    }
     if (doc.postedAt) {
         auditEvents.push({
             actor: doc.postedBy
@@ -366,7 +399,14 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
         note: doc.note,
         outsidePo: false,
         purchaseOrderCode: doc.referenceId || "",
-        vehiclePlate: ""
+        vehiclePlate: "",
+        referenceType: doc.referenceType,
+        referenceId: doc.referenceId,
+        postedAt: doc.postedAt,
+        postedByName: doc.postedByName,
+        exceptionApprovedByName: doc.exceptionApprovedByName,
+        exceptionApprovedAt: doc.exceptionApprovedAt,
+        exceptionApprovalNote: doc.exceptionApprovalNote
     };
 }
 
@@ -386,9 +426,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
                 rejected: number;
                 cancelled: number;
                 total: number;
-            }>("/inventory/documents/summary-counts", {
-                query: { documentType: "PURCHASE_RECEIPT" }
-            });
+            }>("/inventory/goods-receipts/summary-counts");
             return {
                 approved: Number(res.approved || 0),
                 awaitingCost: 0,
@@ -433,7 +471,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
 
         try {
             const res = await apiClient.get<PageResponse<InventoryDocumentListItemBackendResponse>>(
-                "/inventory/documents",
+                "/inventory/goods-receipts",
                 { query: params }
             );
 
@@ -503,14 +541,14 @@ export const goodsReceiptApi: GoodsReceiptApi = {
     async getGoodsReceipt(receiptId: string): Promise<GoodsReceiptDetail> {
         // Tên nguyên liệu đã có sẵn trong response (itemName/itemSku) — không cần tải trước danh sách NCC/kho/nguyên liệu
         const res = await apiClient.get<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(receiptId)}`
+            `/inventory/goods-receipts/${encodeURIComponent(receiptId)}`
         );
         return mapDocToDetail(res);
     },
 
     async exportGoodsReceipts(query: GoodsReceiptListQuery): Promise<GoodsReceiptExportRow[]> {
         const rows = await apiClient.get<InventoryDocumentExportBackendResponse[]>(
-            "/inventory/documents/export",
+            "/inventory/goods-receipts/export",
             { query: buildDocumentQueryParams(query) }
         );
         return (rows || []).map((row) => ({
@@ -528,7 +566,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
     },
 
     async deleteGoodsReceipt(receiptId: string): Promise<void> {
-        await apiClient.delete<void>(`/inventory/documents/${encodeURIComponent(receiptId)}`);
+        await apiClient.delete<void>(`/inventory/goods-receipts/${encodeURIComponent(receiptId)}`);
     },
 
     async createGoodsReceipt(input: GoodsReceiptCreateInput): Promise<GoodsReceiptDetail> {
@@ -547,13 +585,13 @@ export const goodsReceiptApi: GoodsReceiptApi = {
         };
 
         const doc = await apiClient.post<InventoryDocumentBackendResponse>(
-            "/inventory/documents",
+            "/inventory/goods-receipts",
             payload
         );
 
         if (input.submit) {
             const submitted = await apiClient.post<InventoryDocumentBackendResponse>(
-                `/inventory/documents/${doc.id}/submit`
+                `/inventory/goods-receipts/${doc.id}/submit`
             );
             return mapDocToDetail(submitted);
         }
@@ -577,13 +615,13 @@ export const goodsReceiptApi: GoodsReceiptApi = {
         };
 
         const doc = await apiClient.put<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(receiptId)}`,
+            `/inventory/goods-receipts/${encodeURIComponent(receiptId)}`,
             payload
         );
 
         if (input.submit) {
             const submitted = await apiClient.post<InventoryDocumentBackendResponse>(
-                `/inventory/documents/${doc.id}/submit`
+                `/inventory/goods-receipts/${doc.id}/submit`
             );
             return mapDocToDetail(submitted);
         }
@@ -593,14 +631,14 @@ export const goodsReceiptApi: GoodsReceiptApi = {
 
     async submitGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(input.receiptId)}/submit`
+            `/inventory/goods-receipts/${encodeURIComponent(input.receiptId)}/submit`
         );
         return mapDocToDetail(res);
     },
 
     async approveGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(input.receiptId)}/approve`,
+            `/inventory/goods-receipts/${encodeURIComponent(input.receiptId)}/approve`,
             { approvalNote: input.note }
         );
         return mapDocToDetail(res);
@@ -608,7 +646,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
 
     async rejectGoodsReceipt(input: GoodsReceiptActionInput & { reason: string }): Promise<GoodsReceiptDetail> {
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(input.receiptId)}/reject`,
+            `/inventory/goods-receipts/${encodeURIComponent(input.receiptId)}/reject`,
             { rejectionReason: input.reason }
         );
         return mapDocToDetail(res);
@@ -616,7 +654,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
 
     async startReceivingGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(input.receiptId)}/start-receiving`
+            `/inventory/goods-receipts/${encodeURIComponent(input.receiptId)}/start-receiving`
         );
         return mapDocToDetail(res);
     },
@@ -626,7 +664,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
         items: Array<{ lineId: string; receivedQuantity: number; note?: string }>
     ): Promise<GoodsReceiptDetail> {
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(receiptId)}/receive`,
+            `/inventory/goods-receipts/${encodeURIComponent(receiptId)}/receive`,
             { items }
         );
         return mapDocToDetail(res);
@@ -658,7 +696,7 @@ export const goodsReceiptApi: GoodsReceiptApi = {
         };
 
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(input.receiptId)}/qc`,
+            `/inventory/goods-receipts/${encodeURIComponent(input.receiptId)}/qc`,
             payload
         );
         return mapDocToDetail(res);
@@ -697,22 +735,23 @@ export const goodsReceiptApi: GoodsReceiptApi = {
         };
 
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(receiptId)}/qc`,
+            `/inventory/goods-receipts/${encodeURIComponent(receiptId)}/qc`,
             payload
         );
         return mapDocToDetail(res);
     },
 
-    async postGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
+    async postGoodsReceipt(input: GoodsReceiptPostInput): Promise<GoodsReceiptDetail> {
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(input.receiptId)}/post`
+            `/inventory/goods-receipts/${encodeURIComponent(input.receiptId)}/post`,
+            { approvalNote: input.approvalNote, lines: input.lines }
         );
         return mapDocToDetail(res);
     },
 
     async cancelGoodsReceipt(input: GoodsReceiptActionInput): Promise<GoodsReceiptDetail> {
         const res = await apiClient.post<InventoryDocumentBackendResponse>(
-            `/inventory/documents/${encodeURIComponent(input.receiptId)}/cancel`,
+            `/inventory/goods-receipts/${encodeURIComponent(input.receiptId)}/cancel`,
             undefined,
             { query: { note: input.note } }
         );

@@ -21,6 +21,7 @@ public interface InventoryDocumentLineRepository extends JpaRepository<Inventory
                 BIN_TO_UUID(l.inventory_item_id) AS inventoryItemId,
                 i.reference_code AS itemSku,
                 i.name AS itemName,
+                i.item_type AS itemType,
                 BIN_TO_UUID(l.unit_id) AS unitId,
                 l.ordered_quantity AS orderedQuantity,
                 l.received_quantity AS receivedQuantity,
@@ -28,7 +29,12 @@ public interface InventoryDocumentLineRepository extends JpaRepository<Inventory
                 l.excess_quantity AS excessQuantity,
                 l.accepted_quantity AS acceptedQuantity,
                 l.rejected_quantity AS rejectedQuantity,
-                l.note AS note
+                l.note AS note,
+                l.excess_resolution AS excessResolution,
+                l.shortage_resolution AS shortageResolution,
+                l.returned_quantity AS returnedQuantity,
+                l.posted_quantity AS postedQuantity,
+                l.resolution_note AS resolutionNote
             FROM inventory_document_lines l
             LEFT JOIN inventory_items i ON i.id = l.inventory_item_id
             WHERE l.document_id IN (:documentIds)

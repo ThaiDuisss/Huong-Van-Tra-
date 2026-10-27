@@ -45,6 +45,22 @@ export interface SaleCartItem {
   quantityReserved?: number | null;
   manualDiscount?: SaleManualDiscount | null;
   note?: string;
+  /** Có giá trị khi dòng là trà đóng theo yêu cầu (không đổi số lượng, sửa bằng dialog đóng trà). */
+  bundle?: SaleBundleInfo | null;
+}
+
+export interface SaleBundleComponent {
+  ingredientId: string;
+  ingredientName: string;
+  unit?: string | null;
+  quantity: number;
+  lineTotal: number;
+}
+
+export interface SaleBundleInfo {
+  components: SaleBundleComponent[];
+  packingStatus?: string | null;
+  packingCode?: string | null;
 }
 
 export type SaleOrderType = "QUICK_SALE" | "DELIVERY";

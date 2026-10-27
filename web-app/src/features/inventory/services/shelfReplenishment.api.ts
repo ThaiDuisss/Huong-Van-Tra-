@@ -33,8 +33,15 @@ export const shelfReplenishmentApi = {
     submit(id: string) {
         return apiClient.post<ShelfReplenishment>(`${basePath}/${encodeURIComponent(id)}/submit`);
     },
-    post(id: string) {
-        return apiClient.post<ShelfReplenishment>(`${basePath}/${encodeURIComponent(id)}/post`);
+    /** Duyệt: trừ kho, cộng kệ theo FEFO. Người duyệt phải khác người tạo. */
+    approve(id: string) {
+        return apiClient.post<ShelfReplenishment>(`${basePath}/${encodeURIComponent(id)}/approve`);
+    },
+    reject(id: string, reason: string) {
+        return apiClient.post<ShelfReplenishment, { reason: string }>(
+            `${basePath}/${encodeURIComponent(id)}/reject`,
+            { reason }
+        );
     },
     /** Manager duyệt lại phiếu đã được POS xuất kho ngay khi bán. */
     review(id: string) {

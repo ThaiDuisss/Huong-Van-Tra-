@@ -29,8 +29,12 @@ public record ShelfReplenishmentResponse(
         boolean autoIssued,
         /** Đã xuất hàng nhưng manager chưa duyệt lại. */
         boolean pendingReview,
+        /** Người duyệt phiếu (hoặc manager duyệt lại phiếu POS xuất ngay). */
         UUID reviewedBy,
         Instant reviewedAt,
-        List<ShelfReplenishmentLineResponse> lines
+        List<ShelfReplenishmentLineResponse> lines,
+        UUID rejectedBy,
+        Instant rejectedAt,
+        String rejectionReason
 ) {
 }
