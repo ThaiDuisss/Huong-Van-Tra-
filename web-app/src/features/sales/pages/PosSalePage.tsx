@@ -14,7 +14,6 @@ import {
     type BackorderOffer
 } from "../components/dialogs/BackorderDialog";
 import { CustomBundleDialog } from "../components/dialogs/CustomBundleDialog";
-import { CustomTeaRequestDialog } from "../components/dialogs/CustomTeaRequestDialog";
 import { ReceiptDialog } from "../components/dialogs/ReceiptDialog";
 import {
     ShelfShortageDialog,
@@ -453,7 +452,6 @@ export function PosSalePage() {
     // (giữ lại sau khi mất mạng, reload hay tắt nhầm tab).
     const [persistedSale] = useState(() => loadPersistedSale(saleOwnerId));
     const [searchQuery, setSearchQuery] = useState("");
-    const [customTeaOpen, setCustomTeaOpen] = useState(false);
     const [customBundleOpen, setCustomBundleOpen] = useState(false);
     const [customBundleSubmitting, setCustomBundleSubmitting] = useState(false);
     const [shelfShortage, setShelfShortage] = useState<ShelfShortage | null>(null);
@@ -477,22 +475,14 @@ export function PosSalePage() {
     // Phương án nhân viên đã chọn cho mặt hàng (true = gửi kho ngay, false = lưu nháp), để lần tăng số lượng sau
     // tự cập nhật phiếu đã có thay vì hỏi lại.
     const replenishmentModeRef = useRef<Record<string, boolean>>({});
-    const [customTeaSearchQuery, setCustomTeaSearchQuery] = useState("");
     // Tìm mặt hàng qua TanStack Query: debounce, cache theo từ khoá, giữ kết
     // quả cũ khi mất mạng.
     const productSearch = useProductSearch(searchQuery);
-    const customTeaSearch = useProductSearch(customTeaSearchQuery, customTeaOpen);
     const searchResults = productSearch.products;
     const searchLoading = productSearch.loading;
     const searchError = productSearch.error
         ? getErrorMessage(productSearch.error)
         : "";
-    const customTeaSearchResults = customTeaSearch.products;
-    const customTeaSearchLoading = customTeaSearch.loading;
-    const customTeaSearchError = customTeaSearch.error
-        ? getErrorMessage(customTeaSearch.error)
-        : "";
-    const [customTeaSubmitLoading, setCustomTeaSubmitLoading] = useState(false);
     const [addingProductId, setAddingProductId] = useState<string | null>(
         null
     );
@@ -867,8 +857,6 @@ export function PosSalePage() {
         setBankTransferStatus("WAITING");
         setBankTransferPayment(null);
         setBankTransferEventMessage("");
-        setCustomTeaOpen(false);
-        setCustomTeaSearchQuery("");
         setCustomBundleOpen(false);
         handledBankNotificationIdRef.current = null;
         clearCustomer();
@@ -1834,15 +1822,6 @@ export function PosSalePage() {
         setSearchQuery("");
     }
 
-    function changeCustomTeaSearchQuery(value: string) {
-        setCustomTeaSearchQuery(value);
-    }
-
-    function closeCustomTeaDialog() {
-        setCustomTeaOpen(false);
-        setCustomTeaSearchQuery("");
-    }
-
     async function updateCartItemQuantity(
         productId: string,
         quantity: number,
@@ -1999,61 +1978,6 @@ export function PosSalePage() {
         }
     }
 
-    async function addCustomTeaRequest(input: {
-        product: SaleProductPreview;
-        quantity: number;
-        note: string;
-    }) {
-        const variantId = input.product.productVariantId ?? input.product.id;
-
-        if (customTeaSubmitLoading) {
-            return;
-        }
-
-        if (!variantId) {
-            setCheckoutError("Không xác định được mã Mặt hàng.");
-            return;
-        }
-
-        if (
-            input.product.sellableQuantity < input.quantity
-        ) {
-            setCheckoutError("Số lượng yêu cầu vượt số lượng có thể bán.");
-            return;
-        }
-
-        if (!online) {
-            upsertLocalCartItem(input.product, input.quantity, input.note);
-            closeCustomTeaDialog();
-            return;
-        }
-
-        setCustomTeaSubmitLoading(true);
-
-        try {
-            const order = await posOrderApi.addDraftItem({
-                orderId: draftOrder?.id ?? null,
-                customerId: selectedCustomerId,
-                orderType,
-                productVariantId: variantId,
-                inventoryLocationId: input.product.inventoryLocationId,
-                quantity: input.quantity,
-                note: input.note
-            });
-            applyDraftOrder(order);
-            closeCustomTeaDialog();
-            setCheckoutError("");
-            setCheckoutSuccess("");
-        } catch (error) {
-            logApiError(error);
-            setCheckoutError(
-                `Không thể thêm trà theo yêu cầu: ${getErrorMessage(error)}`
-            );
-        } finally {
-            setCustomTeaSubmitLoading(false);
-        }
-    }
-
     function changeSelectedDiscount(discountId: string) {
         setSelectedDiscountId(discountId);
         setBankTransferPayment(null);
@@ -2123,8 +2047,7 @@ export function PosSalePage() {
             setBankTransferPayment(null);
             setBankTransferStatus("WAITING");
             setBankTransferEventMessage("");
-            setCustomTeaOpen(false);
-            setCustomTeaSearchQuery("");
+            setCustomBundleOpen(false);
             patchCurrentDeliveryState(initialDeliveryState);
         } catch (error) {
             logApiError(error);
@@ -2820,7 +2743,6 @@ export function PosSalePage() {
                 onProductNoteChange={(productId, nextNote) => {
                     void changeProductNote(productId, nextNote);
                 }}
-                onCustomTeaOpen={() => setCustomTeaOpen(true)}
                 onCustomBundleOpen={() => setCustomBundleOpen(true)}
                 onInvoiceClose={() => {
                     void closeCurrentInvoice();
@@ -2867,21 +2789,6 @@ export function PosSalePage() {
                     setOfflineReceipt(null);
                 }}
             />
-            {customTeaOpen ? (
-                <CustomTeaRequestDialog
-                    open={customTeaOpen}
-                    products={customTeaSearchResults}
-                    searchQuery={customTeaSearchQuery}
-                    searchLoading={customTeaSearchLoading}
-                    searchError={customTeaSearchError}
-                    submitLoading={customTeaSubmitLoading}
-                    onClose={closeCustomTeaDialog}
-                    onSearchChange={changeCustomTeaSearchQuery}
-                    onSubmit={(input) => {
-                        void addCustomTeaRequest(input);
-                    }}
-                />
-            ) : null}
             {customBundleOpen ? (
                 <CustomBundleDialog
                     open={customBundleOpen}
