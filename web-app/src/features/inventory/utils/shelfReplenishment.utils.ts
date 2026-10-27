@@ -3,8 +3,9 @@ import type { ShelfReplenishmentStatus } from "../types/shelfReplenishment.types
 
 export const shelfReplenishmentStatusLabel: Record<ShelfReplenishmentStatus, string> = {
     DRAFT: "Nháp",
-    PENDING_APPROVAL: "Chờ kho xử lý",
+    PENDING_APPROVAL: "Chờ duyệt",
     POSTED: "Đã lên kệ",
+    REJECTED: "Bị từ chối",
     CANCELLED: "Đã hủy"
 };
 

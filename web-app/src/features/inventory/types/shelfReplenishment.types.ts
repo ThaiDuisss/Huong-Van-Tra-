@@ -5,6 +5,7 @@ export type ShelfReplenishmentStatus =
     | "DRAFT"
     | "PENDING_APPROVAL"
     | "POSTED"
+    | "REJECTED"
     | "CANCELLED";
 
 export interface ShelfReplenishmentLine {
@@ -44,9 +45,13 @@ export interface ShelfReplenishment {
     autoIssued: boolean;
     /** Đã xuất hàng nhưng manager chưa duyệt lại. */
     pendingReview: boolean;
+    /** Người duyệt phiếu (hoặc manager duyệt lại phiếu POS xuất ngay). */
     reviewedBy: string | null;
     reviewedAt: string | null;
     lines: ShelfReplenishmentLine[];
+    rejectedBy: string | null;
+    rejectedAt: string | null;
+    rejectionReason: string | null;
 }
 
 export interface ShelfReplenishmentSummary {
@@ -54,6 +59,7 @@ export interface ShelfReplenishmentSummary {
     pending: number;
     posted: number;
     cancelled: number;
+    rejected: number;
     /** Đã xuất hàng (POS xuất ngay khi bán) nhưng manager chưa duyệt. */
     pendingReview: number;
 }

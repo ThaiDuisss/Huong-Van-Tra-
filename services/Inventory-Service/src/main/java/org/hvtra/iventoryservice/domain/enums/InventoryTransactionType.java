@@ -9,7 +9,7 @@ public enum InventoryTransactionType {
     TRANSFER,
 
     // Richer inventory movement semantics for V8+.
-    PURCHASE_RECEIPT,
+    GOODS_RECEIPT,
     PRODUCTION_RECEIPT,
     CUSTOMER_RETURN_RECEIPT,
     PRODUCTION_ISSUE,

@@ -1,7 +1,7 @@
 import type { PageResponse } from "./inventory.types";
 
 export type StockDocumentType =
-    | "PURCHASE_RECEIPT"
+    | "GOODS_RECEIPT"
     | "PRODUCTION_RECEIPT"
     | "CUSTOMER_RETURN_RECEIPT"
     | "TRANSFER_RECEIPT"

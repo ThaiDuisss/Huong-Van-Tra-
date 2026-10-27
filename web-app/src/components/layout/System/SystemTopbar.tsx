@@ -36,10 +36,6 @@ const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
         parentTo: "/system/marketing/discount-programs",
         label: "Chi tiết chương trình giảm giá"
     },
-    "/management/inventory/documents/": {
-        parentTo: "/management/inventory/documents",
-        label: "Chi tiết chứng từ kho"
-    },
     "/management/inventory/receipts/new": {
         parentTo: "/management/inventory/receipts",
         label: "Tạo phiếu nhập kho"
@@ -64,14 +60,6 @@ const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
         parentTo: "/management/inventory/custom-bundles",
         label: "Chi tiết đóng trà theo yêu cầu"
     },
-    "/management/inventory/transfers/new": {
-        parentTo: "/management/inventory/transfers",
-        label: "Tạo phiếu chuyển kho"
-    },
-    "/management/inventory/transfers/": {
-        parentTo: "/management/inventory/transfers",
-        label: "Chi tiết chuyển kho"
-    },
     "/management/inventory/stocktakes/new": {
         parentTo: "/management/inventory/stocktakes",
         label: "Tạo kỳ kiểm kê"
@@ -84,25 +72,9 @@ const subRouteLabels: Record<string, { parentTo: string; label: string }> = {
         parentTo: "/management/inventory/customer-returns",
         label: "Chi tiết khách trả hàng"
     },
-    "/management/inventory/supplier-returns/new": {
-        parentTo: "/management/inventory/supplier-returns",
-        label: "Tạo phiếu trả nhà cung cấp"
-    },
-    "/management/inventory/supplier-returns/": {
-        parentTo: "/management/inventory/supplier-returns",
-        label: "Chi tiết trả nhà cung cấp"
-    },
-    "/management/inventory/quality/batches/": {
-        parentTo: "/management/inventory/quality",
-        label: "Chi tiết lô chất lượng"
-    },
     "/management/inventory/disposals/": {
         parentTo: "/management/inventory/disposals",
         label: "Chi tiết hỏng / tiêu hủy"
-    },
-    "/management/inventory/alerts/": {
-        parentTo: "/management/inventory/alerts",
-        label: "Chi tiết cảnh báo tồn kho"
     }
 };
 

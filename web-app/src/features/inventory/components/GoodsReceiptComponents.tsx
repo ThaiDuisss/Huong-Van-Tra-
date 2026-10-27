@@ -14,6 +14,12 @@ import { SearchableDropdown } from "../../manufacturing/components/shared/Search
 import { useLookupDropdown } from "../../manufacturing/components/shared/useLookupDropdown";
 import { supplierApi } from "../../manufacturing/services/supplier.api";
 import { inventoryLocationApi } from "../services/inventoryLocation.api";
+import {
+    EXCESS_RESOLUTION_LABELS,
+    SHORTAGE_RESOLUTION_LABELS,
+    hasLineException
+} from "../utils/goodsReceiptException";
+import { LineExceptionBadges } from "./GoodsReceiptExceptionBadges";
 
 import {
     costStatusLabels,
@@ -484,6 +490,7 @@ export function GoodsReceiptLineTable({
         (page - 1) * pageSize,
         page * pageSize
     );
+    const isPosted = receipt.status === "POSTED";
 
     return (
         <div className="grid gap-3">
@@ -492,20 +499,31 @@ export function GoodsReceiptLineTable({
                     <thead className="bg-[#f4faf5] text-xs font-black text-[#315f3c]">
                         <tr>
                             <TableHead>Tên nguyên liệu</TableHead>
+                            <TableHead>Ngoại lệ</TableHead>
                             <TableHead align="right">Số đặt</TableHead>
                             <TableHead align="right">Số nhận</TableHead>
                             <TableHead align="right">Thiếu</TableHead>
                             <TableHead align="right">Thừa</TableHead>
                             <TableHead align="right">Đạt QC</TableHead>
                             <TableHead align="right">Không đạt</TableHead>
+                            {isPosted ? (
+                                <>
+                                    <TableHead align="right">Nhập kho</TableHead>
+                                    <TableHead align="right">Trả NCC</TableHead>
+                                    <TableHead>Cách xử lý</TableHead>
+                                </>
+                            ) : null}
                             <TableHead>Ngày sản xuất</TableHead>
                             <TableHead>Hạn sử dụng</TableHead>
                         </tr>
                     </thead>
                     <tbody>
                         {pagedLines.map((line) => (
-                            <tr key={line.id}>
+                            <tr key={line.id} className={hasLineException(line) ? "bg-amber-50/40" : undefined}>
                                 <TableCell strong>{line.materialName}</TableCell>
+                                <TableCell>
+                                    <LineExceptionBadges line={line} />
+                                </TableCell>
                                 <TableCell align="right">
                                     {line.orderedQuantity ?? "-"}
                                 </TableCell>
@@ -528,6 +546,19 @@ export function GoodsReceiptLineTable({
                                 <TableCell align="right">
                                     {formatVietnamNumber(line.qc.failedQuantity)}
                                 </TableCell>
+                                {isPosted ? (
+                                    <>
+                                        <TableCell align="right" strong>
+                                            {formatVietnamNumber(line.postedQuantity ?? line.qc.passedQuantity)}
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            {formatVietnamNumber(line.returnedQuantity)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <LineResolutionText line={line} />
+                                        </TableCell>
+                                    </>
+                                ) : null}
                                 <TableCell>
                                     {formatVietnamDateTime(line.manufacturedAt)}
                                 </TableCell>
@@ -553,6 +584,26 @@ export function GoodsReceiptLineTable({
                     totalItemsLabel="Tổng số mặt hàng"
                 />
             ) : null}
+        </div>
+    );
+}
+
+function LineResolutionText({ line }: { line: GoodsReceiptDetail["lines"][number] }) {
+    const parts = [
+        line.excessResolution ? EXCESS_RESOLUTION_LABELS[line.excessResolution] : null,
+        line.shortageResolution ? SHORTAGE_RESOLUTION_LABELS[line.shortageResolution] : null,
+        line.qc.failedQuantity > 0 ? "Hủy hàng không đạt QC" : null
+    ].filter(Boolean);
+
+    if (parts.length === 0) {
+        return <span className="text-[#697684]">-</span>;
+    }
+    return (
+        <div className="grid gap-0.5 text-xs font-semibold text-[#536078]">
+            {parts.map((part) => (
+                <span key={part}>{part}</span>
+            ))}
+            {line.resolutionNote ? <span className="italic text-[#697684]">“{line.resolutionNote}”</span> : null}
         </div>
     );
 }

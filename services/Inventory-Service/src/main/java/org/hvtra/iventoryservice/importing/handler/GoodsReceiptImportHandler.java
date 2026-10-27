@@ -21,9 +21,9 @@ import org.apache.poi.xssf.usermodel.DefaultIndexedColorMap;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.hvtra.iventoryservice.document.dto.request.CreatePurchaseReceiptRequest;
-import org.hvtra.iventoryservice.document.dto.response.InventoryDocumentResponse;
-import org.hvtra.iventoryservice.document.service.InventoryDocumentService;
+import org.hvtra.iventoryservice.goodsreceipt.dto.request.CreateGoodsReceiptRequest;
+import org.hvtra.iventoryservice.goodsreceipt.dto.response.GoodsReceiptResponse;
+import org.hvtra.iventoryservice.goodsreceipt.service.GoodsReceiptService;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
@@ -64,7 +64,7 @@ import java.util.stream.Collectors;
  * có cột Ref tự đặt để liên kết), "Nguyên liệu" (nhiều dòng, có cột "Ref Phiếu nhập" trỏ về Ref ở
  * sheet "Phiếu nhập"), "Nguyên liệu mới" (khai báo nguyên liệu chưa có trong hệ thống) và "Tham chiếu"
  * (tra cứu mã kho/nguyên liệu/nhà cung cấp/đơn vị).
- * Payload khớp 1:1 field của {@link CreatePurchaseReceiptRequest} để commit() có thể convertValue thẳng,
+ * Payload khớp 1:1 field của {@link CreateGoodsReceiptRequest} để commit() có thể convertValue thẳng,
  * không cần lớp remap trung gian — trừ các field tạm {@code newIngredient*} được resolve/xoá đi ngay
  * trong commit() trước khi convertValue.
  */
@@ -76,7 +76,7 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
     private final CatalogClient catalogClient;
     private final InventoryLocationRepository locationRepository;
     private final InventoryItemRepository inventoryItemRepository;
-    private final InventoryDocumentService inventoryDocumentService;
+    private final GoodsReceiptService goodsReceiptService;
     private final Validator validator;
     private final ObjectMapper objectMapper;
 
@@ -84,13 +84,13 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
             CatalogClient catalogClient,
             InventoryLocationRepository locationRepository,
             InventoryItemRepository inventoryItemRepository,
-            InventoryDocumentService inventoryDocumentService,
+            GoodsReceiptService goodsReceiptService,
             Validator validator,
             ObjectMapper objectMapper) {
         this.catalogClient = catalogClient;
         this.locationRepository = locationRepository;
         this.inventoryItemRepository = inventoryItemRepository;
-        this.inventoryDocumentService = inventoryDocumentService;
+        this.goodsReceiptService = goodsReceiptService;
         this.validator = validator;
         this.objectMapper = objectMapper;
     }
@@ -604,11 +604,11 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
     @Override
     public UUID commit(Map<String, Object> payload) {
         resolveNewIngredients(payload);
-        CreatePurchaseReceiptRequest request = toRequest(payload);
-        for (ConstraintViolation<CreatePurchaseReceiptRequest> violation : validator.validate(request)) {
+        CreateGoodsReceiptRequest request = toRequest(payload);
+        for (ConstraintViolation<CreateGoodsReceiptRequest> violation : validator.validate(request)) {
             throw new BadRequestException(violation.getPropertyPath() + ": " + violation.getMessage());
         }
-        InventoryDocumentResponse response = inventoryDocumentService.createPurchaseReceipt(request);
+        GoodsReceiptResponse response = goodsReceiptService.createGoodsReceipt(request);
         return response.id();
     }
 
@@ -664,8 +664,8 @@ public class GoodsReceiptImportHandler implements ImportTypeHandler {
         }
     }
 
-    private CreatePurchaseReceiptRequest toRequest(Map<String, Object> payload) {
-        return objectMapper.convertValue(payload, CreatePurchaseReceiptRequest.class);
+    private CreateGoodsReceiptRequest toRequest(Map<String, Object> payload) {
+        return objectMapper.convertValue(payload, CreateGoodsReceiptRequest.class);
     }
 
     @SuppressWarnings("unchecked")

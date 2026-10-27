@@ -32,9 +32,10 @@ type StatusFilter = "ALL" | "PENDING_REVIEW" | ShelfReplenishmentStatus;
 const statusTabs: Array<{ value: StatusFilter; label: string; count?: keyof ShelfReplenishmentSummary }> = [
     { value: "ALL", label: "Tất cả" },
     { value: "DRAFT", label: "Nháp", count: "draft" },
-    { value: "PENDING_APPROVAL", label: "Chờ kho xử lý", count: "pending" },
+    { value: "PENDING_APPROVAL", label: "Chờ duyệt", count: "pending" },
     { value: "PENDING_REVIEW", label: "Đã xuất · chờ duyệt", count: "pendingReview" },
     { value: "POSTED", label: "Đã lên kệ", count: "posted" },
+    { value: "REJECTED", label: "Bị từ chối", count: "rejected" },
     { value: "CANCELLED", label: "Đã hủy", count: "cancelled" }
 ];
 

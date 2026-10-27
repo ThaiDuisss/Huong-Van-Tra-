@@ -1,5 +1,4 @@
 import { AlertTriangle, Factory, PackageSearch, Scale } from "lucide-react";
-import { Link } from "react-router-dom";
 
 import { routePaths } from "../../../../routes/path";
 import { formatVietnamNumber } from "../../../inventory/utils/inventory-format";
@@ -168,14 +167,6 @@ export function ProductionTab({
           <DashboardGapState message="Chưa có dữ liệu so sánh định mức công thức với thực tế tiêu hao." />
         )}
       </DashboardSection>
-
-      <p className="text-xs font-semibold text-[#697684]">
-        Truy xuất nguồn gốc lô hàng tại màn{" "}
-        <Link className="font-black text-[#159734] hover:underline" to={routePaths.inventoryQuality}>
-          Chất lượng và hạn sử dụng
-        </Link>
-        .
-      </p>
     </div>
   );
 }

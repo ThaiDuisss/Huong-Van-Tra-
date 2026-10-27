@@ -31,7 +31,7 @@ export type InventoryReferenceType =
     | "STOCK_TRANSFER"
     | "STOCK_COUNT"
     | "PURCHASE_ORDER"
-    | "PURCHASE_RECEIPT"
+    | "GOODS_RECEIPT"
     | "PRODUCTION_ORDER"
     | "CUSTOMER_RETURN"
     | "SUPPLIER_RETURN"

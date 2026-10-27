@@ -75,7 +75,7 @@ export interface DashboardTrendPoint {
   source: "REAL" | "ADAPTED" | "MOCK" | "GAP";
 }
 
-/** Phiếu kho đang chờ phê duyệt (từ `/inventory/documents?status=PENDING_APPROVAL`). */
+/** Phiếu nhập kho đang chờ phê duyệt (từ `/inventory/goods-receipts?status=PENDING_APPROVAL`). */
 export interface DashboardPendingDocument {
   id: string;
   code: string;
