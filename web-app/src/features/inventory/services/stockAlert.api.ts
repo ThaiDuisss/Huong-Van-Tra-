@@ -33,9 +33,8 @@ function user(role: AppRole) {
 }
 
 function canSeeLocation(role: AppRole, locationId: string) {
-    if (role === "ADMIN" || role === "ACCOUNTANT" || role === "DIRECTOR") return true;
+    if (role === "SUPER_ADMIN" || role === "MANAGER") return true;
     if (role === "INVENTORY_STAFF") return locationId === "loc-central";
-    if (role === "MANAGER") return locationId === inventoryMasterLocations.branchCauGiay.id;
     return false;
 }
 
@@ -154,10 +153,10 @@ function validatePolicy(input: ReorderPolicyUpdateInput) {
 
 export const stockAlertApi: StockAlertApi = {
     acknowledgeStockAlert(input: StockAlertActionInput) {
-        const alert = findAlert(input.alertId, "ADMIN");
+        const alert = findAlert(input.alertId, "SUPER_ADMIN");
         alert.status = "ACKNOWLEDGED";
         alert.acknowledgedAt = new Date().toISOString();
-        alert.acknowledgedBy = user("ADMIN");
+        alert.acknowledgedBy = user("SUPER_ADMIN");
         return wait(makeAlertDetail(cloneAlert(alert)));
     },
 
@@ -173,7 +172,7 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     createPurchaseRequestFromAlert(input: StockAlertActionInput) {
-        const alert = findAlert(input.alertId, "ADMIN");
+        const alert = findAlert(input.alertId, "SUPER_ADMIN");
         const id = `purchase-draft-${Date.now()}`;
         const code = `PR-DRAFT-${String(purchaseRequestDrafts.length + 1).padStart(3, "0")}`;
         purchaseRequestDrafts.unshift({ alertId: alert.id, code, id, status: "DRAFT" });
@@ -183,7 +182,7 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     createTransferFromAlert(input: StockAlertActionInput) {
-        const alert = findAlert(input.alertId, "ADMIN");
+        const alert = findAlert(input.alertId, "SUPER_ADMIN");
         const id = `transfer-draft-${Date.now()}`;
         const code = `TRF-DRAFT-${String(stockAlerts.filter((item) => item.actionReference?.type === "TRANSFER_REQUEST").length + 1).padStart(3, "0")}`;
         const source = balances.find((item) => item.locationId !== alert.location.id && item.skuId === alert.sku.id && item.balance.available > alert.suggestedQuantity + 20);
@@ -196,7 +195,7 @@ export const stockAlertApi: StockAlertApi = {
 
     dismissStockAlert(input: StockAlertActionInput) {
         if (!input.reason?.trim()) return Promise.reject(new Error("Dismiss bắt buộc nhập lý do."));
-        const alert = findAlert(input.alertId, "ADMIN");
+        const alert = findAlert(input.alertId, "SUPER_ADMIN");
         alert.status = "DISMISSED";
         alert.dismissedAt = new Date().toISOString();
         alert.dismissedReason = input.reason;
@@ -205,7 +204,7 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     getStockAlert(alertId: string, role?: AppRole) {
-        return wait(makeAlertDetail(cloneAlert(findAlert(alertId, role ?? "ADMIN"))));
+        return wait(makeAlertDetail(cloneAlert(findAlert(alertId, role ?? "SUPER_ADMIN"))));
     },
 
     listReorderPolicies(query: ReorderPolicyQuery) {
@@ -247,7 +246,7 @@ export const stockAlertApi: StockAlertApi = {
     },
 
     resolveStockAlert(input: StockAlertActionInput) {
-        const alert = findAlert(input.alertId, "ADMIN");
+        const alert = findAlert(input.alertId, "SUPER_ADMIN");
         if (alert.balance.available <= alert.policy.reorderPoint && !input.adminOverride) {
             return Promise.reject(new Error("Chỉ resolve khi available vượt threshold hoặc ADMIN override."));
         }

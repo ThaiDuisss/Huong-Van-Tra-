@@ -9,12 +9,11 @@ import {
 } from "./inventory-master-data.mock";
 
 const users: Record<AppRole, UserSnapshot> = {
-    ACCOUNTANT: inventoryMasterUsers.accountant,
-    ADMIN: inventoryMasterUsers.admin,
+    SUPER_ADMIN: inventoryMasterUsers.admin,
     MANAGER: inventoryMasterUsers.manager,
-    DIRECTOR: inventoryMasterUsers.director,
     INVENTORY_STAFF: inventoryMasterUsers.warehouse,
-    QC_STAFF: inventoryMasterUsers.qc
+    SALE_STAFF: inventoryMasterUsers.sales,
+    QC: inventoryMasterUsers.qc
 };
 
 export const qualityLocations = [
@@ -35,7 +34,7 @@ export function qualityAudit(type: InventoryAuditEvent["type"], role: AppRole, n
 
 export const qualityBatches: BatchQualityDetail[] = [
     {
-        auditEvents: [qualityAudit("APPROVE", "QC_STAFF", "Batch hết hạn, hệ thống block khỏi available nhưng không xóa tồn vật lý.")],
+        auditEvents: [qualityAudit("APPROVE", "QC", "Batch hết hạn, hệ thống block khỏi available nhưng không xóa tồn vật lý.")],
         availableQuantity: 0,
         batchCode: inventoryMasterBatches.expired.batchCode,
         blockedQuantity: 18,
@@ -51,7 +50,7 @@ export const qualityBatches: BatchQualityDetail[] = [
         onHandQuantity: 18,
         productType: "Nguyên liệu",
         qcResult: "FAILED",
-        qualityEvents: [{ assignee: users.QC_STAFF, batchCode: inventoryMasterBatches.expired.batchCode, batchId: inventoryMasterBatches.expired.id, code: "QCASE-001", evidence: ["expired-label.jpg"], id: "case-1", quantityAffected: 18, reason: "Batch hết hạn", recommendedAction: "DISPOSAL", referenceCode: "EXPIRY-SCAN", severity: "CRITICAL", slaDueAt: "2026-08-03T09:00:00.000Z", sourceType: "EXPIRY_SCAN", status: "OPEN" }],
+        qualityEvents: [{ assignee: users.QC, batchCode: inventoryMasterBatches.expired.batchCode, batchId: inventoryMasterBatches.expired.id, code: "QCASE-001", evidence: ["expired-label.jpg"], id: "case-1", quantityAffected: 18, reason: "Batch hết hạn", recommendedAction: "DISPOSAL", referenceCode: "EXPIRY-SCAN", severity: "CRITICAL", slaDueAt: "2026-08-03T09:00:00.000Z", sourceType: "EXPIRY_SCAN", status: "OPEN" }],
         reason: "Hết hạn",
         receiptCode: inventoryMasterDocuments.goodsReceipt.code,
         receiptId: "receipt-1",
@@ -66,7 +65,7 @@ export const qualityBatches: BatchQualityDetail[] = [
         unitCost: 180000
     },
     {
-        auditEvents: [qualityAudit("SUBMIT", "QC_STAFF", "QC fail, đưa vào quarantine.")],
+        auditEvents: [qualityAudit("SUBMIT", "QC", "QC fail, đưa vào quarantine.")],
         availableQuantity: 0,
         batchCode: inventoryMasterBatches.quarantine.batchCode,
         blockedQuantity: 8,
@@ -128,7 +127,7 @@ export const qualityBatches: BatchQualityDetail[] = [
         unitCost: 210000
     },
     {
-        auditEvents: [qualityAudit("SUBMIT", "QC_STAFF", "Batch gần hết hạn được đưa vào dashboard cảnh báo.")],
+        auditEvents: [qualityAudit("SUBMIT", "QC", "Batch gần hết hạn được đưa vào dashboard cảnh báo.")],
         availableQuantity: 14,
         batchCode: inventoryMasterBatches.nearExpiry.batchCode,
         blockedQuantity: 0,

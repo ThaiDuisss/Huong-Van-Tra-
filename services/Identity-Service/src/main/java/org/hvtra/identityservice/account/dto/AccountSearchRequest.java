@@ -9,7 +9,7 @@ import lombok.Setter;
 public class AccountSearchRequest {
     /** Tìm theo tên đăng nhập, email hoặc họ tên (chứa, không phân biệt hoa thường). */
     private String keyword;
-    /** Một trong các StaffRole, vd. SALE_STAFF. */
+    /** Một trong các Role được gán (Role.assignable()), vd. SALE_STAFF. */
     private String role;
     /** true = đang hoạt động, false = đã khóa, null = tất cả. */
     private Boolean enabled;

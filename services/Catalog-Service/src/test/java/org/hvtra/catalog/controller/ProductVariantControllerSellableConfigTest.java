@@ -55,17 +55,8 @@ class ProductVariantControllerSellableConfigTest {
     }
 
     @Test
-    void updateSellableConfig_allowsKeycloakStyleRoleName() {
-        authenticateWith("ROLE_superadmin");
-
-        controller.updateSellableConfig(variantId, request);
-
-        verify(service).updateSellableConfig(variantId, request);
-    }
-
-    @Test
-    void updateSellableConfig_rejectsAdmin() {
-        authenticateWith("ROLE_ADMIN", "ROLE_BRANCH_MANAGER");
+    void updateSellableConfig_rejectsManager() {
+        authenticateWith("ROLE_MANAGER", "ROLE_INVENTORY_STAFF");
 
         BusinessException exception = assertThrows(
                 BusinessException.class, () -> controller.updateSellableConfig(variantId, request));

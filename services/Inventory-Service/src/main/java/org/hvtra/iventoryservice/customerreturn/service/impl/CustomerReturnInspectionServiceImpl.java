@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.customerreturn.service.impl;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import feign.FeignException;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -343,12 +344,7 @@ public class CustomerReturnInspectionServiceImpl implements CustomerReturnInspec
     }
 
     private void requireQcRole() {
-        Set<String> allowed = Set.of("QC", "QC_STAFF", "MANAGER", "ADMIN", "SUPER_ADMIN",
-                "BRANCH_MANAGER", "INVENTORY_MANAGER");
-        boolean authorized = SecurityUtils.currentRoles().stream()
-                .map(role -> role.trim().toUpperCase(Locale.ROOT).replaceFirst("^ROLE_", ""))
-                .anyMatch(allowed::contains);
-        if (!authorized) {
+        if (!SecurityUtils.hasAnyRole(Role.QC, Role.MANAGER, Role.SUPER_ADMIN)) {
             throw new AccessDeniedException("Customer return disposition requires QC or manager role");
         }
     }

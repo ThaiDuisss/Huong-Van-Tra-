@@ -49,11 +49,9 @@ export const inventoryMasterDocuments = {
 } as const;
 
 export const inventoryMasterUsers: Record<string, UserSnapshot> = {
-    accountant: { id: "user-accountant", name: "Lan Kế toán", role: "ACCOUNTANT" },
-    admin: { id: "user-admin", name: "Admin Hương Vân", role: "ADMIN" },
+    admin: { id: "user-admin", name: "Admin Hương Vân", role: "SUPER_ADMIN" },
     manager: { id: "user-branch-manager", name: "Minh Quản lý Cầu Giấy", role: "MANAGER" },
-    director: { id: "user-director", name: "Hà Giám đốc", role: "DIRECTOR" },
-    qc: { id: "user-qc", name: "Vy QC", role: "QC_STAFF" },
-    sales: { id: "user-sales", name: "An Bán hàng", role: "SALES_STAFF" },
+    qc: { id: "user-qc", name: "Vy QC", role: "QC" },
+    sales: { id: "user-sales", name: "An Bán hàng", role: "SALE_STAFF" },
     warehouse: { id: "user-warehouse", name: "Kho trung tâm Hà Nội", role: "INVENTORY_STAFF" }
 };

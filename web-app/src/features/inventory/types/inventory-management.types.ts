@@ -1,11 +1,8 @@
 import type { EntityId, PageResponse } from "./inventory.types";
+import type { RoleKey } from "../../../auth/roles";
 
-export type InventoryRole =
-    | "MANAGER"
-    | "INVENTORY_STAFF"
-    | "PRODUCTION_STAFF"
-    | "BRANCH_STAFF"
-    | "AUDITOR";
+/** Vai trò người thao tác — dùng role chuẩn của hệ thống. */
+export type InventoryRole = RoleKey;
 
 export type InventoryWorkspaceId =
     | "roles"

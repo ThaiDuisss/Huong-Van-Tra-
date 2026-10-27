@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.disposal.service.impl;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
@@ -196,9 +197,7 @@ public class DisposalRequestServiceImpl implements DisposalRequestService {
     }
 
     private void requireApprovalRole() {
-        if (SecurityUtils.hasRole("ADMIN")
-                || SecurityUtils.hasRole("BRANCH_MANAGER")
-                || SecurityUtils.hasRole("INVENTORY_MANAGER")) {
+        if (SecurityUtils.hasAnyRole(Role.SUPER_ADMIN, Role.MANAGER)) {
             return;
         }
         throw new AccessDeniedException("Disposal approval requires an inventory approval role");

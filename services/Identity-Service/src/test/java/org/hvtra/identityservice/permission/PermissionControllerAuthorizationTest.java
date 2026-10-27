@@ -78,7 +78,7 @@ class PermissionControllerAuthorizationTest {
 
     @Test
     void permissionManagerCanCreatePermission() throws Exception {
-        authenticate("u-admin", Set.of("ADMIN"), Set.of("permission:manage"));
+        authenticate("u-manager", Set.of("MANAGER"), Set.of("permission:manage"));
         when(permissionService.createPermission(any()))
                 .thenReturn(new PermissionResponse("id", "order:x", "X", "", List.of(), false));
 
@@ -89,9 +89,9 @@ class PermissionControllerAuthorizationTest {
     }
 
     @Test
-    void nonAdministratorCannotModifyRolePermissionsEvenWithAdminRoleWhenPermissionsAreRelayed() throws Exception {
-        // Gateway mới đã relay permission (rỗng): role ADMIN không còn là fallback.
-        authenticate("u-admin", Set.of("ADMIN"), Set.of());
+    void nonAdministratorCannotModifyRolePermissionsEvenWithManagerRoleWhenPermissionsAreRelayed() throws Exception {
+        // Gateway mới đã relay permission (rỗng): role không phải là fallback.
+        authenticate("u-manager", Set.of("MANAGER"), Set.of());
 
         mvc.perform(put("/api/identity/roles/SALE_STAFF/permissions").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("permissions", List.of("order:view")))))
@@ -100,20 +100,19 @@ class PermissionControllerAuthorizationTest {
     }
 
     @Test
-    void legacyGatewayWithoutPermissionHeaderStillAcceptsAdminRole() throws Exception {
-        authenticate("u-admin", Set.of("ADMIN"), null);
-        when(permissionService.updateRolePermissions(eq("SALE_STAFF"), eq(List.of("order:view")), any()))
-                .thenReturn(new RolePermissionsResponse("SALE_STAFF", List.of("order:view")));
+    void legacyGatewayWithoutPermissionHeaderOnlyAllowsSuperAdmin() throws Exception {
+        // Không còn role dự phòng (ADMIN đã gộp vào SUPER_ADMIN): thiếu permission thì role thường bị chặn.
+        authenticate("u-manager", Set.of("MANAGER"), null);
 
         mvc.perform(put("/api/identity/roles/SALE_STAFF/permissions").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("permissions", List.of("order:view")))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.permissions[0]").value("order:view"));
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(permissionService);
     }
 
     @Test
     void superAdminAlwaysAllowed() throws Exception {
-        authenticate("u-root", Set.of("superadmin"), Set.of());
+        authenticate("u-root", Set.of("SUPER_ADMIN"), Set.of());
         when(permissionService.listPermissions(null)).thenReturn(List.of());
 
         mvc.perform(get("/api/identity/permissions")).andExpect(status().isOk());
@@ -121,7 +120,7 @@ class PermissionControllerAuthorizationTest {
 
     @Test
     void userRoleUpdateUsesAuthenticatedPrincipalNotRequestBody() throws Exception {
-        authenticate("u-admin", Set.of("ADMIN"), Set.of("user:manage"));
+        authenticate("u-manager", Set.of("MANAGER"), Set.of("user:manage"));
         when(permissionService.updateUserRoles(eq("u-lan"), eq(List.of("MANAGER")), any()))
                 .thenReturn(new org.hvtra.identityservice.permission.dto.PermissionDtos.UserRolesResponse(
                         "u-lan", "lan", "Lan", true, List.of("MANAGER"), List.of()));
@@ -131,7 +130,7 @@ class PermissionControllerAuthorizationTest {
                 .andExpect(status().isOk());
 
         verify(permissionService).updateUserRoles(eq("u-lan"), eq(List.of("MANAGER")),
-                org.mockito.ArgumentMatchers.argThat(caller -> "u-admin".equals(caller.userId())));
+                org.mockito.ArgumentMatchers.argThat(caller -> "u-manager".equals(caller.userId())));
     }
 
     @Test

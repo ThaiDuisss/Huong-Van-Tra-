@@ -52,8 +52,8 @@ export function GoodsReceiptCreatePage() {
     const [editBlocked, setEditBlocked] = useState(false);
     // Keycloak subject của người tạo phiếu (null khi tạo mới / chưa tải xong)
     const [receiptCreatorId, setReceiptCreatorId] = useState<string | null>(null);
-    const { isAdmin, keycloakSubject } = useAuthorization();
-    const editForbidden = receiptCreatorId !== null && !isAdmin() && receiptCreatorId !== keycloakSubject;
+    const { isSuperAdmin, keycloakSubject } = useAuthorization();
+    const editForbidden = receiptCreatorId !== null && !isSuperAdmin() && receiptCreatorId !== keycloakSubject;
     const [options, setOptions] = useState<GoodsReceiptOptions>({
         locations: [],
         materials: [],

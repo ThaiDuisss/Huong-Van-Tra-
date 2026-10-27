@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.replenishment.service;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
@@ -149,7 +150,9 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             if (request.submit() && existing.getStatus() == InventoryDocumentStatus.DRAFT) {
                 existing.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
             }
-            return toResponse(replenishmentRepository.save(existing), true);
+            ShelfReplenishment saved = replenishmentRepository.save(existing);
+            autoApproveIfCreatedByManager(saved);
+            return toResponse(replenishmentRepository.save(saved), true);
         }
 
         InventoryLocation warehouse = resolveWarehouse(request.warehouseId(), request.shelfId(), request.branchId());
@@ -166,7 +169,10 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         document.setReferenceId(blankToNull(request.referenceId()));
         document.setNote(blankToNull(request.note()));
         upsertLines(document, linesByVariant, itemByVariant);
-        return toResponse(replenishmentRepository.save(document), true);
+        // Lưu trước để có id (giao dịch kho tham chiếu id phiếu) và createdBy do auditing gán
+        ShelfReplenishment saved = replenishmentRepository.save(document);
+        autoApproveIfCreatedByManager(saved);
+        return toResponse(replenishmentRepository.save(saved), true);
     }
 
     @Override
@@ -208,7 +214,51 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             throw new BadRequestException("Phiếu nhập kệ chưa có mặt hàng nào");
         }
         document.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
+        autoApproveIfCreatedByManager(document);
         return toResponse(replenishmentRepository.save(document), true);
+    }
+
+    /**
+     * Quản lý / Admin tự tạo và gửi phiếu thì không cần người khác duyệt: chuyển hàng lên kệ ngay. Kho không đủ
+     * hàng thì giữ phiếu ở trạng thái chờ duyệt (không báo lỗi) để bổ sung kho rồi duyệt sau.
+     */
+    private void autoApproveIfCreatedByManager(ShelfReplenishment document) {
+        if (document.getStatus() != InventoryDocumentStatus.PENDING_APPROVAL || !isManagerOrAdmin()) {
+            return;
+        }
+        UUID currentUserId = currentUserId();
+        if (currentUserId == null || !currentUserId.equals(document.getCreatedBy())) {
+            return;
+        }
+        if (!warehouseHasEnough(document)) {
+            return;
+        }
+        issue(document);
+        document.setApprovedBy(currentUserId);
+        document.setApprovedAt(Instant.now());
+    }
+
+    private static boolean isManagerOrAdmin() {
+        return SecurityUtils.hasAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
+    }
+
+    /** Một query gom tồn khả dụng của các mặt hàng trong phiếu tại kho nguồn; issue() vẫn kiểm tra lại khi chuyển. */
+    private boolean warehouseHasEnough(ShelfReplenishment document) {
+        InventoryLocation warehouse = document.getSourceLocation();
+        if (warehouse == null || document.getLines().isEmpty()) {
+            return false;
+        }
+        Map<UUID, BigDecimal> needed = new HashMap<>();
+        for (InventoryDocumentLine line : document.getLines()) {
+            needed.merge(line.getInventoryItem().getId(), line.getOrderedQuantity(), BigDecimal::add);
+        }
+        Map<UUID, BigDecimal> available = new HashMap<>();
+        for (Object[] row : balanceRepository.sumAvailableByItemsAndLocations(
+                List.copyOf(needed.keySet()), List.of(warehouse.getId()))) {
+            available.put((UUID) row[0], (BigDecimal) row[2]);
+        }
+        return needed.entrySet().stream()
+                .allMatch(entry -> available.getOrDefault(entry.getKey(), BigDecimal.ZERO).compareTo(entry.getValue()) >= 0);
     }
 
     /**
@@ -358,7 +408,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         // SC-05 EX-05: người tạo hoặc Admin mới được hủy phiếu chưa duyệt
         UUID currentUserId = currentUserId();
         boolean isCreator = currentUserId != null && currentUserId.equals(document.getCreatedBy());
-        if (!isCreator && !SecurityUtils.isAdmin()) {
+        if (!isCreator && !SecurityUtils.isSuperAdmin()) {
             throw ErrorCode.SHELF_REPLENISHMENT_CANCEL_FORBIDDEN.exception();
         }
         document.setStatus(InventoryDocumentStatus.CANCELLED);

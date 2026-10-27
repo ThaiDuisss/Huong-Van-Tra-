@@ -514,7 +514,7 @@ class CustomerReturnInspectionServiceImplTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"QC", "QC_STAFF", "MANAGER", "BRANCH_MANAGER", "INVENTORY_MANAGER", "ROLE_QC", "qc"})
+    @ValueSource(strings = {"QC", "MANAGER", "SUPER_ADMIN"})
     void postWriteOffDirectlyWithoutApprovalOrBalanceChange(String role) {
         authenticate(role);
         CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
@@ -584,7 +584,7 @@ class CustomerReturnInspectionServiceImplTest {
         verify(disposalRequestRepository).saveAndFlush(legacy);
         verifyNoInteractions(balanceRepository);
 
-        authenticate("ADMIN");
+        authenticate("SUPER_ADMIN");
         when(disposalRequestRepository.findDetailById(legacy.getId())).thenReturn(Optional.of(legacy));
         when(inspectionRepository.findByIdAndIsDeletedFalseForUpdate(inspection.getId()))
                 .thenReturn(Optional.of(inspection));

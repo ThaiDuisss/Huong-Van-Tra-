@@ -20,6 +20,7 @@ import type {
 } from "../types/quality.types";
 import styles from "./CustomerReturnListPage.module.css";
 import { isCustomerReturnDisposal } from "../utils/inventory-labels";
+import { ROLES } from "../../../auth/roles";
 
 const PAGE_SIZE = 10;
 const STATUS_TABS: CustomerReturnStatusTab[] = [
@@ -30,7 +31,7 @@ const STATUS_TABS: CustomerReturnStatusTab[] = [
 
 export function DisposalListPage() {
     const { hasAnyRole } = useAuthorization();
-    const canApprove = hasAnyRole(["ADMIN", "MANAGER"]);
+    const canApprove = hasAnyRole([ROLES.SUPER_ADMIN, ROLES.MANAGER]);
     const [searchTerm, setSearchTerm] = useState("");
     const keyword = useDebouncedValue(searchTerm.trim(), 300);
     const [status, setStatus] = useState<DisposalListQuery["status"]>("ALL");

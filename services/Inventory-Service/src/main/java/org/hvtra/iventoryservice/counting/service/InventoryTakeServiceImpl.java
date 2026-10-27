@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.counting.service;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.counting.dto.request.CreateInventoryTakeRequest;
 import org.hvtra.iventoryservice.counting.dto.request.UpdateInventoryCountsRequest;
@@ -111,7 +112,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse create(CreateInventoryTakeRequest request) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         validateScopeInput(request);
 
         InventoryCount count = new InventoryCount();
@@ -153,7 +154,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse freeze(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         ensureNoOverlappingOpenCount(count);
         count.freeze();
@@ -163,7 +164,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse start(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF);
         InventoryCount count = findCountOrThrow(id);
 
         // Delegate state transition to entity
@@ -219,7 +220,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse updateCounts(UUID id, UpdateInventoryCountsRequest request) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF);
         InventoryCount count = findCountOrThrow(id);
         UUID currentUserId = currentUserId();
         ensureCounterCanUpdate(count, currentUserId, request);
@@ -261,7 +262,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse requestRecount(UUID id, RequestInventoryRecountRequest request) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         if (request.reason() == null || request.reason().isBlank()) {
             throw new BadRequestException("Lý do kiểm kê lại là bắt buộc");
@@ -290,7 +291,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse finish(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF);
         InventoryCount count = findCountOrThrow(id);
         ensureAssignedCounter(count, currentUserId());
         reconcileMovements(count);
@@ -304,7 +305,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse submitApproval(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         reconcileMovements(count);
         count.submitForApproval(requiresApproval(count), currentUserId());
@@ -314,7 +315,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse approve(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         count.approve(currentUserId());
         return mapper.toResponse(countRepository.save(count));
@@ -323,7 +324,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse returnForRecount(UUID id, String reason) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         count.returnForRecount(currentUserId(), reason);
         return mapper.toResponse(countRepository.save(count));
@@ -332,7 +333,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse reopen(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         count.reopenReturnedCount();
         return mapper.toResponse(countRepository.save(count));
@@ -341,7 +342,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse reject(UUID id, String reason) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         count.reject(currentUserId(), reason);
         return mapper.toResponse(countRepository.save(count));
@@ -350,7 +351,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse cancel(UUID id, String reason) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         count.cancel(currentUserId(), reason);
         return mapper.toResponse(countRepository.save(count));
@@ -359,7 +360,7 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
     @Override
     @Transactional
     public InventoryTakeResponse close(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryCount count = findCountOrThrow(id);
         count.close(currentUserId());
         return mapper.toResponse(countRepository.save(count));
@@ -469,10 +470,8 @@ public class InventoryTakeServiceImpl implements InventoryTakeService {
         }
     }
 
-    private void requireAnyRole(String... roles) {
-        for (String role : roles) {
-            if (SecurityUtils.hasRole(role)) return;
-        }
+    private void requireAnyRole(Role... roles) {
+        if (SecurityUtils.hasAnyRole(roles)) return;
         throw new AccessDeniedException("Bạn không có quyền thực hiện thao tác kiểm kê này");
     }
 

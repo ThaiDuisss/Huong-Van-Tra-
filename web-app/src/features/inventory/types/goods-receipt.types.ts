@@ -3,6 +3,7 @@ import type {
     InventoryLocationSummary,
     UserSnapshot
 } from "./stock-document.types";
+import type { RoleKey } from "../../../auth/roles";
 
 export type GoodsReceiptStatus =
     | "DRAFT"
@@ -22,13 +23,8 @@ export type QcResult =
 
 export type CostStatus = "PENDING" | "PROVISIONAL" | "FINAL";
 
-export type GoodsReceiptRole =
-    | "ADMIN"
-    | "INVENTORY_STAFF"
-    | "QC_STAFF"
-    | "ACCOUNTANT"
-    | "MANAGER"
-    | "DIRECTOR";
+/** Vai trò người thao tác — dùng role chuẩn của hệ thống. */
+export type GoodsReceiptRole = RoleKey;
 
 export type GoodsReceiptBatchStatus =
     | "AWAITING_QC"

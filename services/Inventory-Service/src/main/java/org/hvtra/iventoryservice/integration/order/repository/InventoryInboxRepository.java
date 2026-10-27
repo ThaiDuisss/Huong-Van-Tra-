@@ -6,9 +6,11 @@ import org.hvtra.iventoryservice.domain.entity.InventoryInbox;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+@Repository
 public interface InventoryInboxRepository extends BaseInboxRepository<InventoryInbox> {
     Optional<InventoryInbox> findByCommandIdAndConsumerGroup(
             String commandId,
