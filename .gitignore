@@ -64,3 +64,8 @@ CLAUDE.md
 
 ### Local scratch files (reports are stored outside this repository) ###
 /.tmp/
+
+.meeting/
+.external/
+**/logs/
+**/.codegraph

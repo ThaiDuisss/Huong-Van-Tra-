@@ -152,13 +152,21 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     @Override
     @Transactional
     public List<InventoryReservationResponse> confirmOrder(ConfirmInventoryReservationOrderRequest request) {
-        List<InventoryReservation> reservations =
-                reservationRepository.findByOrderIdAndStatus(request.orderId(), ReservationStatus.RESERVED);
+        // Chỉ xác nhận (trừ tồn) thành phẩm đã giữ chỗ. Nguyên liệu giữ để sản xuất bù sau khi bán
+        // (reserveMaterialsForRestock) phải còn RESERVED cho tới khi lệnh sản xuất được duyệt.
+        List<InventoryReservation> reservations = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
+                request.orderId(), ReservationType.PRODUCT_VARIANT, ReservationStatus.RESERVED);
         if (reservations.isEmpty()) {
-            List<InventoryReservation> confirmed =
-                    reservationRepository.findByOrderIdAndStatus(request.orderId(), ReservationStatus.CONFIRMED);
+            List<InventoryReservation> confirmed = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
+                    request.orderId(), ReservationType.PRODUCT_VARIANT, ReservationStatus.CONFIRMED);
             if (!confirmed.isEmpty()) {
                 return confirmed.stream().map(this::toResponse).toList();
+            }
+            List<InventoryReservation> restockMaterials = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
+                    request.orderId(), ReservationType.MATERIAL, ReservationStatus.RESERVED);
+            if (!restockMaterials.isEmpty()) {
+                // Đơn bán tại quầy: thành phẩm đã trừ thẳng qua fulfillSale, không có gì để xác nhận thêm.
+                return List.of();
             }
             throw new BadRequestException("No active reservation found for order " + request.orderId());
         }
@@ -257,13 +265,21 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     @Override
     @Transactional
     public List<InventoryReservationResponse> consumeMaterials(ReleaseInventoryReservationOrderRequest request) {
+        return consumeMaterials(request.orderId(), InventoryTransactionType.SALE_OUT, InventoryReferenceType.ORDER,
+                request.orderId().toString(), "SALE-" + request.orderId());
+    }
+
+    @Override
+    @Transactional
+    public List<InventoryReservationResponse> consumeMaterials(UUID reservationKey, InventoryTransactionType type,
+            InventoryReferenceType referenceType, String referenceId, String transactionCode) {
         List<InventoryReservation> reservations = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
-                request.orderId(),
+                reservationKey,
                 ReservationType.MATERIAL,
                 ReservationStatus.RESERVED);
         if (reservations.isEmpty()) {
             return reservationRepository.findByOrderIdAndReservationTypeAndStatus(
-                            request.orderId(),
+                            reservationKey,
                             ReservationType.MATERIAL,
                             ReservationStatus.CONFIRMED)
                     .stream()
@@ -271,10 +287,10 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                     .toList();
         }
         InventoryTransaction transaction = new InventoryTransaction();
-        transaction.setTransactionCode("SALE-" + request.orderId());
-        transaction.setType(InventoryTransactionType.SALE_OUT);
-        transaction.setReferenceType(InventoryReferenceType.ORDER);
-        transaction.setReferenceId(request.orderId().toString());
+        transaction.setTransactionCode(transactionCode);
+        transaction.setType(type);
+        transaction.setReferenceType(referenceType);
+        transaction.setReferenceId(referenceId);
         InventoryLocation firstLocation = reservations.getFirst().getLocation();
         transaction.setBranchId(firstLocation.getBranchId() == null ? firstLocation.getId() : firstLocation.getBranchId());
         reservations.forEach(reservation -> {

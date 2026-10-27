@@ -13,6 +13,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.client.InventoryClient.CreateInventoryItemRequest;
 import org.hvtra.catalog.dto.request.IngredientRequest;
+import org.hvtra.catalog.dto.response.IngredientBundleLookupResponse;
 import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
@@ -228,6 +229,12 @@ public class IngredientServiceImpl implements IngredientService {
         } catch (Exception e) {
             // Log/gracefully continue
         }
+    }
+
+    @Override
+    public PageResponse<IngredientBundleLookupResponse> bundleLookup(String search, Pageable pageable) {
+        String keyword = search == null || search.isBlank() ? null : search.trim();
+        return PageResponse.from(repository.findBundleLookup(keyword, pageable));
     }
 
     @Override

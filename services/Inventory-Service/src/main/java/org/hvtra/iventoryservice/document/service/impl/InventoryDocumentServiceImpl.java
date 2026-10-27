@@ -148,7 +148,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                             row.getLocationName(),
                             nvl(row.getTotalReceivedQuantity()),
                             row.getReceivedAt(),
-                            parseUuid(row.getCreatedBy())
+                            parseUuid(row.getCreatedBy()),
+                            row.getCreatedAt()
                     );
                 })
                 .toList();
@@ -329,6 +330,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                     parseUuid(line.getInventoryItemId()),
                     line.getItemSku(),
                     itemName,
+                    line.getItemType() != null ? InventoryItemType.valueOf(line.getItemType()) : null,
                     parseUuid(line.getUnitId()),
                     null,
                     ordered,
@@ -739,6 +741,8 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
             line.setRejectedQuantity(rejected);
 
             line.getBatchAllocations().clear();
+            // Nguyên liệu không theo dõi hạn sử dụng: bỏ qua HSD gửi lên khi tạo lô
+            boolean tracksExpiry = line.getInventoryItem().getItemType() != InventoryItemType.INGREDIENT;
             if (qcItem.batches() != null && !qcItem.batches().isEmpty()) {
                 BigDecimal batchTotal = BigDecimal.ZERO;
                 for (var batchInput : qcItem.batches()) {
@@ -758,7 +762,7 @@ public class InventoryDocumentServiceImpl implements InventoryDocumentService {
                                 newBatch.setBatchCode(batchCode);
                                 newBatch.setSupplierBatchCode(batchInput.supplierLot());
                                 newBatch.setManufactureDate(batchInput.manufactureDate());
-                                newBatch.setExpiryDate(batchInput.expiryDate());
+                                newBatch.setExpiryDate(tracksExpiry ? batchInput.expiryDate() : null);
                                 newBatch.setStatus(InventoryBatchStatus.AVAILABLE);
                                 return batchRepository.save(newBatch);
                             });

@@ -1,5 +1,7 @@
 package org.hvtra.iventoryservice.document.dto.response;
 
+import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +12,7 @@ public record InventoryDocumentLineResponse(
         UUID inventoryItemId,
         String itemSku,
         String itemName,
+        InventoryItemType itemType,
         UUID unitId,
         String unitName,
         BigDecimal orderedQuantity,

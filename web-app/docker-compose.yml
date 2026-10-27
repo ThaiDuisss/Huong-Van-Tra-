@@ -1,0 +1,16 @@
+# Chạy riêng web POS. Gateway/Keycloak chạy ở nơi khác thì sửa API_GATEWAY_URL.
+services:
+  pos-web:
+    build:
+      context: .
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_KEYCLOAK_URL: https://auth.hvtra.id.vn
+        VITE_KEYCLOAK_REALM: hvt
+        VITE_KEYCLOAK_CLIENT_ID: hvtra-pos
+    image: hvtra/pos-web:latest
+    environment:
+      API_GATEWAY_URL: http://host.docker.internal:8080
+    ports:
+      - "3000:80"
+    restart: unless-stopped

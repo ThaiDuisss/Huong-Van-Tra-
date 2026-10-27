@@ -15,6 +15,7 @@ import lombok.Setter;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -39,6 +40,10 @@ public class Ingredient extends BaseEntity {
 
     @Column(name = "reorder_point", nullable = false)
     private Integer reorderPoint = 0;
+
+    /** Giá bán lẻ cho 1 đơn vị (vd 1 gram) khi khách tự chọn nguyên liệu đóng bundle. Null = không bán lẻ. */
+    @Column(name = "retail_price_per_unit", precision = 18, scale = 2)
+    private BigDecimal retailPricePerUnit;
 
     /**
      * Ingredient kind. {@code 0} = packaging / non-recipe material (nylon bag, box, label...),

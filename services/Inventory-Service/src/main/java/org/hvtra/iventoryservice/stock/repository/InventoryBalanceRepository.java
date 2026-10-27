@@ -28,11 +28,11 @@ public interface InventoryBalanceRepository
         extends JpaRepository<InventoryBalance, UUID>, JpaSpecificationExecutor<InventoryBalance> {
 
     @Override
-    @EntityGraph(attributePaths = {"inventoryItem", "location"})
+    @EntityGraph(attributePaths = {"inventoryItem", "location", "inventoryBatch"})
     List<InventoryBalance> findAll(Specification<InventoryBalance> spec);
 
     @Override
-    @EntityGraph(attributePaths = {"inventoryItem", "location"})
+    @EntityGraph(attributePaths = {"inventoryItem", "location", "inventoryBatch"})
     Page<InventoryBalance> findAll(Specification<InventoryBalance> spec, Pageable pageable);
 
     @Query("""
@@ -176,6 +176,30 @@ public interface InventoryBalanceRepository
             """)
     List<InventoryBalance> findFefoAvailableForUpdate(
             @Param("inventoryItemId") UUID inventoryItemId,
+            @Param("locationId") UUID locationId,
+            @Param("locationStatus") InventoryStatus locationStatus,
+            @Param("today") LocalDate today);
+
+    /**
+     * Tồn khả dụng của từng mặt hàng tại 1 vị trí, cùng điều kiện với {@link #findFefoAvailableForUpdate}
+     * (batch AVAILABLE, chưa hết hạn) nhưng không khóa: dùng để kiểm tra trước khi giữ chỗ.
+     */
+    @Query("""
+            select b.inventoryItem.id,
+                   coalesce(sum(b.quantityOnHand - b.quantityReserved - b.quantityBlocked), 0)
+            from InventoryBalance b
+            join b.inventoryBatch batch
+            join b.location location
+            where b.inventoryItem.id in :itemIds
+              and location.id = :locationId
+              and location.status = :locationStatus
+              and batch.status = org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus.AVAILABLE
+              and (batch.expiryDate is null or batch.expiryDate >= :today)
+              and (b.quantityOnHand - b.quantityReserved - b.quantityBlocked) > 0
+            group by b.inventoryItem.id
+            """)
+    List<Object[]> sumFefoAvailableByItemsAtLocation(
+            @Param("itemIds") Collection<UUID> itemIds,
             @Param("locationId") UUID locationId,
             @Param("locationStatus") InventoryStatus locationStatus,
             @Param("today") LocalDate today);

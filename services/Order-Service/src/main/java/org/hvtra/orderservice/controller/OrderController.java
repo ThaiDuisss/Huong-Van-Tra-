@@ -79,10 +79,16 @@ public class OrderController {
     private final OrderReturnService orderReturnService;
     private final OrderReturnReportService orderReturnReportService;
 
+    /** Permission (client role Keycloak) cho phép tạo và thanh toán đơn bán tại quầy. */
+    static final String PERMISSION_ORDER_CREATE = "order:create";
+    /** Vai trò được chấp nhận khi gateway cũ chưa relay permission (giữ hành vi trước khi có phân quyền). */
+    private static final String[] LEGACY_POS_ROLES = {"SALE_STAFF", "MANAGER", "ADMIN", "SUPER_ADMIN", "SUPERADMIN"};
+
     @Operation(summary = "checkout hoa don POS da tao draft")
     @UserAction(value = "ORDER_CHECKOUT", entityType = "Order", entityId = "#result.id")
     @PostMapping("/pos/checkout")
     public OrderResponse createOrder(@Valid @RequestBody CreateOrderRequest request) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CREATE, LEGACY_POS_ROLES);
         if (request.getOrderId() == null) {
             throw new InvalidOrderStatusException(
                     "POS checkout phải truyền orderId của hóa đơn nháp"
@@ -95,6 +101,7 @@ public class OrderController {
     @UserAction(value = "ORDER_OFFLINE_CHECKOUT", entityType = "Order", entityId = "#result.id")
     @PostMapping("/pos/offline-checkout")
     public OrderResponse checkoutOfflineOrder(@Valid @RequestBody CreateOrderRequest request) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CREATE, LEGACY_POS_ROLES);
         return posOfflineCheckoutService.checkout(request);
     }
 
@@ -131,6 +138,13 @@ public class OrderController {
         return orderService.cancelDraftOrder(orderId);
     }
 
+    @Operation(summary = "huy phien thanh toan chuyen khoan dang cho, don quay ve nhap de chon lai phuong thuc")
+    @UserAction(value = "ORDER_POS_PAYMENT_CANCEL", entityType = "Order", entityId = "#orderId")
+    @PostMapping("/pos/" + UUID_PATH + "/payment/cancel")
+    public OrderResponse cancelPosPayment(@PathVariable UUID orderId) {
+        return orderService.cancelPosPayment(orderId);
+    }
+
     @Operation(summary = "thanh toan hoa don nhap POS da ton tai")
     @UserAction(value = "ORDER_DRAFT_CHECKOUT", entityType = "Order", entityId = "#orderId")
     @PostMapping("/pos/" + UUID_PATH + "/checkout")
@@ -138,6 +152,7 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Valid @RequestBody CheckoutDraftOrderRequest request
     ) {
+        SecurityUtils.requirePermission(PERMISSION_ORDER_CREATE, LEGACY_POS_ROLES);
         return orderService.checkoutDraftOrder(orderId, request);
     }
 

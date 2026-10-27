@@ -2,6 +2,7 @@ package org.hvtra.orderservice.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
+import org.hvtra.orderservice.dto.response.SalesDashboardResponse;
 import org.hvtra.orderservice.dto.response.TopSalesStaffReportResponse;
 import org.hvtra.orderservice.dto.response.TopSellingProductReportResponse;
 import org.hvtra.orderservice.service.OrderStatisticReportExportService;
@@ -32,6 +33,15 @@ public class OrderStatisticReportController {
 
     private final OrderStatisticReportService orderStatisticReportService;
     private final OrderStatisticReportExportService orderStatisticReportExportService;
+
+    @Operation(summary = "so lieu tong hop cho dashboard ban hang (xu huong theo gio, thanh toan, diem ban, top san pham, top nhan vien)")
+    @GetMapping("/sales-dashboard")
+    public SalesDashboardResponse getSalesDashboard(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return orderStatisticReportService.getSalesDashboard(fromDate, toDate);
+    }
 
     @Operation(summary = "bao cao nhan vien ban hang tot nhat")
     @GetMapping("/top-sales-staff")

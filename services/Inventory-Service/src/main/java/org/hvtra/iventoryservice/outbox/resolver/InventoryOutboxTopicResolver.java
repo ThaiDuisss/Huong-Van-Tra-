@@ -14,6 +14,8 @@ public class InventoryOutboxTopicResolver implements OutboxTopicResolver {
                     "inventory.event.RETURN_INVENTORY_DISPOSITION_PROCESSED";
             case InventoryEventType.RETURN_INVENTORY_DISPOSITION_FAILED ->
                     "inventory.event.RETURN_INVENTORY_DISPOSITION_FAILED";
+            case InventoryEventType.CUSTOM_BUNDLE_PACKED ->
+                    "inventory.event.CUSTOM_BUNDLE_PACKED";
             default -> throw new IllegalArgumentException("Unknown inventory event type: " + eventType);
         };
     }

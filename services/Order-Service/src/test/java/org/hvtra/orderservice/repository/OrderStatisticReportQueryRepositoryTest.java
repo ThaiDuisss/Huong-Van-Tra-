@@ -8,6 +8,7 @@ import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderDiscount;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderItemComponent;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
@@ -43,6 +44,7 @@ class OrderStatisticReportQueryRepositoryTest {
         sessionFactory = new MetadataSources(registry)
                 .addAnnotatedClass(Order.class)
                 .addAnnotatedClass(OrderItem.class)
+                .addAnnotatedClass(OrderItemComponent.class)
                 .addAnnotatedClass(OrderDiscount.class)
                 .addAnnotatedClass(OrderReturn.class)
                 .addAnnotatedClass(OrderReturnItem.class)
@@ -71,7 +73,10 @@ class OrderStatisticReportQueryRepositoryTest {
                             OrderStatisticReportQueryRepository.topSellingProductsJpql(hasFrom, hasTo, true),
                             OrderStatisticReportQueryRepository.topSellingProductsJpql(hasFrom, hasTo, false),
                             OrderStatisticReportQueryRepository.productSalesTotalsJpql(hasFrom, hasTo),
-                            OrderStatisticReportQueryRepository.returnedQuantitiesJpql(hasFrom, hasTo)
+                            OrderStatisticReportQueryRepository.returnedQuantitiesJpql(hasFrom, hasTo),
+                            OrderStatisticReportQueryRepository.paymentBreakdownJpql(hasFrom, hasTo),
+                            OrderStatisticReportQueryRepository.storePerformanceJpql(hasFrom, hasTo),
+                            OrderStatisticReportQueryRepository.orderTimelineJpql(hasFrom, hasTo)
                     )) {
                         assertDoesNotThrow(() -> entityManager.createQuery(jpql), jpql);
                     }

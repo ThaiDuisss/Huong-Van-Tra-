@@ -2,6 +2,7 @@ package org.hvtra.catalog.dto.response;
 
 import org.hvtra.catalog.enums.Status;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public record IngredientResponse(
@@ -14,6 +15,7 @@ public record IngredientResponse(
         String unitSymbol,
         Integer reorderPoint,
         Integer type,
-        Status status
+        Status status,
+        BigDecimal retailPricePerUnit
 ) {
 }

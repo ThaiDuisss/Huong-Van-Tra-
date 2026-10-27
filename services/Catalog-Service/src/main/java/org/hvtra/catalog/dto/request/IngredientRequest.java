@@ -1,10 +1,12 @@
 package org.hvtra.catalog.dto.request;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.hvtra.catalog.enums.Status;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public record IngredientRequest(
@@ -13,6 +15,7 @@ public record IngredientRequest(
         UUID unitId,
         Integer reorderPoint,
         Integer type,
-        @NotNull Status status
+        @NotNull Status status,
+        @DecimalMin(value = "0", inclusive = false) BigDecimal retailPricePerUnit
 ) {
 }

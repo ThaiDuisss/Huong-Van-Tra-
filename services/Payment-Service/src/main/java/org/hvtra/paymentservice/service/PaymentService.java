@@ -1,6 +1,7 @@
 package org.hvtra.paymentservice.service;
 
 import org.hvtra.paymentservice.dto.request.CheckoutRequest;
+import org.hvtra.paymentservice.dto.request.ManualPaymentConfirmRequest;
 import org.hvtra.paymentservice.dto.request.RefundPaymentRequest;
 import org.hvtra.paymentservice.dto.request.RefundSummaryLookupRequest;
 import org.hvtra.paymentservice.dto.response.PaymentCheckoutResponse;
@@ -20,5 +21,14 @@ public interface PaymentService {
     List<PaymentRefundSummaryResponse> lookupRefundSummaries(RefundSummaryLookupRequest request);
 
     OrderPaymentMethodResponse getPaymentByOrderId(UUID orderId);
+
+    /** Thu ngân huỷ phiên chuyển khoản đang chờ tiền: payment và attempt chuyển CANCELLED, không phát event. */
+    OrderPaymentMethodResponse cancelPendingPayment(UUID orderId);
+
+    /** Đối soát tay: giao dịch NEED_REVIEW / chờ / hết hạn được ghi PAID. */
+    OrderPaymentMethodResponse confirmManualPayment(UUID orderId, ManualPaymentConfirmRequest request);
+
+    /** QR quá 15 phút chưa có tiền: payment EXPIRED + event PAYMENT_EXPIRED để Order-Service trả đơn về nháp. */
+    int expireOverduePayments();
 
 }

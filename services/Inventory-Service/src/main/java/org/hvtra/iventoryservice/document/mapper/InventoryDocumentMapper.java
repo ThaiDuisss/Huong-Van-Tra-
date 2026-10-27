@@ -123,6 +123,7 @@ public class InventoryDocumentMapper {
                 line.getInventoryItem() != null ? line.getInventoryItem().getId() : null,
                 refCode,
                 itemName,
+                line.getInventoryItem() != null ? line.getInventoryItem().getItemType() : null,
                 line.getUnitId(),
                 null,
                 line.getOrderedQuantity(),

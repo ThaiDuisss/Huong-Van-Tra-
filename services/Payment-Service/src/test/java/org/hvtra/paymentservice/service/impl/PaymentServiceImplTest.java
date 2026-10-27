@@ -18,6 +18,7 @@ import org.hvtra.paymentservice.repository.PaymentRepository;
 import org.hvtra.paymentservice.repository.PaymentTransactionRepository;
 import org.hvtra.paymentservice.service.SepayQrCodeGenerator;
 import org.junit.jupiter.api.BeforeEach;
+import org.hvtra.paymentservice.outbox.service.PaymentOutboxPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +56,9 @@ class PaymentServiceImplTest {
     @Mock
     private SepayProperties sepayProperties;
 
+    @Mock
+    private PaymentOutboxPublisher paymentOutboxPublisher;
+
     private PaymentServiceImpl service;
     private UUID orderId;
     private UUID returnId;
@@ -65,7 +70,8 @@ class PaymentServiceImplTest {
                 paymentAttemptRepository,
                 paymentTransactionRepository,
                 sepayQrCodeGenerator,
-                sepayProperties
+                sepayProperties,
+                paymentOutboxPublisher
         );
         orderId = UUID.randomUUID();
         returnId = UUID.randomUUID();
@@ -337,6 +343,59 @@ class PaymentServiceImplTest {
         request.setReceivedAmount(receivedAmount == null ? null : new BigDecimal(receivedAmount));
         request.setDepositAmount(depositAmount == null ? null : new BigDecimal(depositAmount));
         return request;
+    }
+
+    @Test
+    void cancelPendingPaymentClosesWaitingBankTransferWithoutEvent() {
+        Payment payment = payment(PaymentMethod.BANK_TRANSFER, PaymentStatus.WAITING_PAYMENT, "200000", "0");
+        when(paymentRepository.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.cancelPendingPayment(orderId);
+
+        assertEquals("CANCELLED", response.getStatus());
+        assertEquals(PaymentStatus.CANCELLED, payment.getStatus());
+        org.junit.jupiter.api.Assertions.assertNotNull(payment.getCancelledAt());
+        verifyNoInteractions(paymentOutboxPublisher);
+    }
+
+    @Test
+    void cancelPendingPaymentRejectsPaidPayment() {
+        Payment payment = payment(PaymentMethod.BANK_TRANSFER, PaymentStatus.PAID, "200000", "200000");
+        when(paymentRepository.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(payment));
+
+        assertThrows(IllegalArgumentException.class, () -> service.cancelPendingPayment(orderId));
+    }
+
+    @Test
+    void confirmManualPaymentMarksNeedReviewPaymentAsPaid() {
+        Payment payment = payment(PaymentMethod.BANK_TRANSFER, PaymentStatus.NEED_REVIEW, "200000", "150000");
+        when(paymentRepository.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.confirmManualPayment(orderId,
+                new org.hvtra.paymentservice.dto.request.ManualPaymentConfirmRequest("PAY-1", "đã nhận đủ"));
+
+        assertEquals("PAID", response.getStatus());
+        assertEquals(0, new BigDecimal("200000").compareTo(payment.getAmountPaid()));
+        org.junit.jupiter.api.Assertions.assertNotNull(payment.getCompletedAt());
+        verifyNoInteractions(paymentOutboxPublisher);
+    }
+
+    @Test
+    void expireOverduePaymentsClosesWaitingBankTransfersAndPublishesExpired() {
+        Payment payment = payment(PaymentMethod.BANK_TRANSFER, PaymentStatus.WAITING_PAYMENT, "200000", "0");
+        when(paymentRepository.findByStatusAndMethodAndExpiresAtBefore(
+                org.mockito.ArgumentMatchers.eq(PaymentStatus.WAITING_PAYMENT),
+                org.mockito.ArgumentMatchers.eq(PaymentMethod.BANK_TRANSFER), any()))
+                .thenReturn(java.util.List.of(payment));
+        when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        int expired = service.expireOverduePayments();
+
+        assertEquals(1, expired);
+        assertEquals(PaymentStatus.EXPIRED, payment.getStatus());
+        verify(paymentOutboxPublisher).publishExpired(payment);
     }
 
     private Payment payment(

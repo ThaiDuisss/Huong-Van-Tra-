@@ -101,7 +101,34 @@ public class OrderStatisticReportQueryRepository {
               and item.productVariantId in :variantIds
               and
             """;
+    static final String PAYMENT_BREAKDOWN_SELECT = """
+            select
+                orders.paymentMethod,
+                count(orders.id),
+                coalesce(sum(orders.finalAmount), 0)
+            from Order orders
+            where
+            """;
+    static final String STORE_PERFORMANCE_SELECT = """
+            select
+                orders.branchId,
+                max(orders.branchNameSnapshot),
+                count(orders.id),
+                coalesce(sum(orders.finalAmount), 0)
+            from Order orders
+            where
+            """;
+    /** Thời điểm bán và tiền từng đơn; gộp theo giờ ở tầng service vì JPQL không có hàm cắt giờ theo múi giờ. */
+    static final String ORDER_TIMELINE_SELECT = """
+            select
+                coalesce(orders.soldAt, orders.createdAt),
+                orders.finalAmount
+            from Order orders
+            where
+            """;
     static final String GROUP_BY_CASHIER = "group by orders.cashierId\n";
+    static final String GROUP_BY_PAYMENT_METHOD = "group by orders.paymentMethod\n";
+    static final String GROUP_BY_BRANCH = "group by orders.branchId\n";
     static final String GROUP_BY_VARIANT = "group by item.productVariantId\n";
     static final String ORDER_BY_QUANTITY =
             "order by sum(item.quantity) desc, sum(item.lineTotal) desc, item.productVariantId asc\n";
@@ -209,6 +236,59 @@ public class OrderStatisticReportQueryRepository {
         return result;
     }
 
+    /** Số đơn và doanh thu theo phương thức thanh toán (key null = đơn chưa ghi phương thức). */
+    public List<PaymentMethodMetrics> findPaymentBreakdown(Instant fromCreatedAt, Instant toCreatedBefore) {
+        Query query = entityManager.createQuery(
+                paymentBreakdownJpql(fromCreatedAt != null, toCreatedBefore != null)
+        );
+        bindPaidOrderFilter(query, fromCreatedAt, toCreatedBefore);
+
+        return rows(query).stream()
+                .map(row -> new PaymentMethodMetrics((String) row[0], toLong(row[1]), toBigDecimal(row[2])))
+                .toList();
+    }
+
+    /** Số đơn và doanh thu theo chi nhánh (key null = đơn không gắn chi nhánh). */
+    public List<BranchSalesMetrics> findStorePerformance(Instant fromCreatedAt, Instant toCreatedBefore) {
+        Query query = entityManager.createQuery(
+                storePerformanceJpql(fromCreatedAt != null, toCreatedBefore != null)
+        );
+        bindPaidOrderFilter(query, fromCreatedAt, toCreatedBefore);
+
+        return rows(query).stream()
+                .map(row -> new BranchSalesMetrics(
+                        (UUID) row[0],
+                        (String) row[1],
+                        toLong(row[2]),
+                        toBigDecimal(row[3])
+                ))
+                .toList();
+    }
+
+    /** Thời điểm bán và tiền của từng đơn đã thanh toán trong kỳ (kỳ bị giới hạn ở tầng service). */
+    public List<OrderTimelineEntry> findPaidOrderTimeline(Instant fromCreatedAt, Instant toCreatedBefore) {
+        Query query = entityManager.createQuery(
+                orderTimelineJpql(fromCreatedAt != null, toCreatedBefore != null)
+        );
+        bindPaidOrderFilter(query, fromCreatedAt, toCreatedBefore);
+
+        return rows(query).stream()
+                .map(row -> new OrderTimelineEntry((Instant) row[0], toBigDecimal(row[1])))
+                .toList();
+    }
+
+    static String paymentBreakdownJpql(boolean hasFrom, boolean hasTo) {
+        return PAYMENT_BREAKDOWN_SELECT + paidOrderFilter(hasFrom, hasTo) + GROUP_BY_PAYMENT_METHOD;
+    }
+
+    static String storePerformanceJpql(boolean hasFrom, boolean hasTo) {
+        return STORE_PERFORMANCE_SELECT + paidOrderFilter(hasFrom, hasTo) + GROUP_BY_BRANCH;
+    }
+
+    static String orderTimelineJpql(boolean hasFrom, boolean hasTo) {
+        return ORDER_TIMELINE_SELECT + paidOrderFilter(hasFrom, hasTo);
+    }
+
     static String staffOrderMetricsJpql(boolean hasFrom, boolean hasTo) {
         return STAFF_ORDER_METRICS_SELECT + paidOrderFilter(hasFrom, hasTo) + GROUP_BY_CASHIER;
     }
@@ -292,5 +372,14 @@ public class OrderStatisticReportQueryRepository {
             BigDecimal revenue,
             long orderCount
     ) {
+    }
+
+    public record PaymentMethodMetrics(String paymentMethod, long orderCount, BigDecimal revenue) {
+    }
+
+    public record BranchSalesMetrics(UUID branchId, String branchName, long orderCount, BigDecimal revenue) {
+    }
+
+    public record OrderTimelineEntry(Instant soldAt, BigDecimal amount) {
     }
 }

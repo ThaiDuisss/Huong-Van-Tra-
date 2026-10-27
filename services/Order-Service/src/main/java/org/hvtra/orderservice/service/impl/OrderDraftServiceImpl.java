@@ -42,6 +42,9 @@ import java.util.UUID;
 @Slf4j
 public class OrderDraftServiceImpl implements OrderDraftService {
 
+    /** Variant hệ thống "Trà đóng theo yêu cầu" bên Catalog (migration V261019100000). */
+    private static final String CUSTOM_BUNDLE_SKU = "CUSTOM-BUNDLE";
+
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
@@ -67,6 +70,9 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         order.setExpiresAt(expiresAt);
 
         var variant = productSnapshotResolver.resolvePosView(request.getProductVariantId());
+        if (CUSTOM_BUNDLE_SKU.equals(variant.sku())) {
+            throw new InvalidOrderStatusException("Trà đóng theo yêu cầu phải thêm bằng chức năng đóng trà");
+        }
         BigDecimal addQuantity = orderValidator.requirePositiveQuantity(request.getQuantity());
         OrderItem item = findDraftItem(
                 order,
@@ -112,6 +118,9 @@ public class OrderDraftServiceImpl implements OrderDraftService {
         Order order = getEditableDraftOrder(orderId);
         OrderItem item = getOrderItem(order, itemId);
         BigDecimal targetQuantity = orderAmountCalculator.defaultZero(request.getQuantity());
+        if (item.isCustomBundle() && targetQuantity.compareTo(BigDecimal.ZERO) > 0) {
+            throw new InvalidOrderStatusException("Mỗi dòng trà đóng theo yêu cầu có số lượng 1; sửa nguyên liệu bằng chức năng đóng trà");
+        }
         order.setExpiresAt(orderDateTimeHelper.nextDraftExpiresAt());
 
         if (targetQuantity.compareTo(BigDecimal.ZERO) <= 0) {

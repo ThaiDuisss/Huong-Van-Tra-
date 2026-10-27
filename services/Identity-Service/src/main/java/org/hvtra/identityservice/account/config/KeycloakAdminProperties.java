@@ -17,17 +17,26 @@ public class KeycloakAdminProperties {
     private final String realm;
     private final String clientId;
     private final String clientSecret;
+    /** Client chứa các client role dùng làm permission (phải trùng với gateway: security.permission-client-id). */
+    private final String permissionClientId;
 
+    public KeycloakAdminProperties(String url, String realm, String clientId, String clientSecret) {
+        this(url, realm, clientId, clientSecret, "hvtra-pos");
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
     public KeycloakAdminProperties(
             @Value("${idp.url:}") String url,
             @Value("${idp.realm:hvt}") String realm,
             @Value("${idp.admin-client-id:}") String clientId,
-            @Value("${idp.admin-client-secret:}") String clientSecret
+            @Value("${idp.admin-client-secret:}") String clientSecret,
+            @Value("${idp.permission-client-id:hvtra-pos}") String permissionClientId
     ) {
         this.url = trimTrailingSlash(url);
         this.realm = realm;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
+        this.permissionClientId = permissionClientId;
     }
 
     public boolean isConfigured() {

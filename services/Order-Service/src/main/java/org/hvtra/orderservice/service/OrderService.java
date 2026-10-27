@@ -29,6 +29,7 @@ public interface OrderService {
     OrderResponse getOrderById(UUID orderId);
     OrderPaymentInfoResponse getPaymentInfo(UUID orderId);
     OrderResponse markOrderPaid(UUID orderId, MarkOrderPaidRequest request);
+    OrderResponse cancelPosPayment(UUID orderId);
     Page<OrderSummaryResponse> getOrders(
             String keyword,
             OrderStatus status,

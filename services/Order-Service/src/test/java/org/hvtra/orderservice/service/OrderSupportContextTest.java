@@ -4,6 +4,7 @@ import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.client.InventoryClient;
 import org.hvtra.orderservice.service.support.OrderBackorderSupport;
+import org.hvtra.orderservice.service.support.OrderCustomBundleSupport;
 import org.hvtra.orderservice.service.impl.OrderBackorderServiceImpl;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderDiscountRepository;
@@ -195,6 +196,11 @@ class OrderSupportContextTest {
         @Bean
         InventoryClient inventoryClient() {
             return mock(InventoryClient.class);
+        }
+
+        @Bean
+        OrderCustomBundleSupport orderCustomBundleSupport() {
+            return mock(OrderCustomBundleSupport.class);
         }
 
         @Bean

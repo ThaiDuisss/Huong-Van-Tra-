@@ -42,6 +42,9 @@ public class KeycloakAdminClient {
     };
     private static final ParameterizedTypeReference<List<KeycloakUser>> USER_LIST = new ParameterizedTypeReference<>() {
     };
+    private static final ParameterizedTypeReference<List<KeycloakClient>> CLIENT_LIST = new ParameterizedTypeReference<>() {
+    };
+    private static final int ROLE_PAGE_SIZE = 200;
     private static final ParameterizedTypeReference<Map<String, Object>> JSON_MAP = new ParameterizedTypeReference<>() {
     };
 
@@ -194,6 +197,158 @@ public class KeycloakAdminClient {
                 .body(roles)
                 .retrieve()
                 .toBodilessEntity());
+    }
+
+    // ===== client role (permission) và composite realm role =====
+
+    /** Tìm client theo clientId (tên), trả về null nếu không có. Dùng để lấy UUID nội bộ của client. */
+    public KeycloakClient findClientByClientId(String clientId) {
+        List<KeycloakClient> clients = execute(token -> restClient.get()
+                .uri(properties.adminUrl("/clients?clientId={clientId}"), properties.getRealm(), clientId)
+                .headers(headers -> headers.setBearerAuth(token))
+                .retrieve()
+                .body(CLIENT_LIST));
+        if (clients == null) {
+            return null;
+        }
+        return clients.stream()
+                .filter(client -> clientId.equals(client.clientId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** Toàn bộ client role của một client (tự phân trang). */
+    public List<KeycloakRole> listClientRoles(String clientUuid) {
+        List<KeycloakRole> result = new ArrayList<>();
+        int first = 0;
+        while (true) {
+            int offset = first;
+            List<KeycloakRole> page = execute(token -> restClient.get()
+                    .uri(properties.adminUrl("/clients/{client}/roles?first={first}&max={max}"),
+                            properties.getRealm(), clientUuid, offset, ROLE_PAGE_SIZE)
+                    .headers(headers -> headers.setBearerAuth(token))
+                    .retrieve()
+                    .body(ROLE_LIST));
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            result.addAll(page);
+            if (page.size() < ROLE_PAGE_SIZE) {
+                break;
+            }
+            first += ROLE_PAGE_SIZE;
+        }
+        return result;
+    }
+
+    /** Client role theo tên; Keycloak trả 404 (KeycloakAdminException status 404) nếu không có. */
+    public KeycloakRole getClientRole(String clientUuid, String roleName) {
+        return execute(token -> restClient.get()
+                .uri(properties.adminUrl("/clients/{client}/roles/{role}"), properties.getRealm(), clientUuid, roleName)
+                .headers(headers -> headers.setBearerAuth(token))
+                .retrieve()
+                .body(KeycloakRole.class));
+    }
+
+    /** Tạo client role; trùng tên thì Keycloak trả 409. */
+    public void createClientRole(String clientUuid, KeycloakRole role) {
+        execute(token -> restClient.post()
+                .uri(properties.adminUrl("/clients/{client}/roles"), properties.getRealm(), clientUuid)
+                .headers(headers -> headers.setBearerAuth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(role)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    public void updateClientRole(String clientUuid, String roleName, KeycloakRole role) {
+        execute(token -> restClient.put()
+                .uri(properties.adminUrl("/clients/{client}/roles/{role}"), properties.getRealm(), clientUuid, roleName)
+                .headers(headers -> headers.setBearerAuth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(role)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    public void deleteClientRole(String clientUuid, String roleName) {
+        execute(token -> restClient.delete()
+                .uri(properties.adminUrl("/clients/{client}/roles/{role}"), properties.getRealm(), clientUuid, roleName)
+                .headers(headers -> headers.setBearerAuth(token))
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    /** User được gán trực tiếp client role này (không tính kế thừa qua composite). */
+    public List<KeycloakUser> listUsersInClientRole(String clientUuid, String roleName) {
+        List<KeycloakUser> result = new ArrayList<>();
+        int first = 0;
+        while (true) {
+            int offset = first;
+            List<KeycloakUser> page = execute(token -> restClient.get()
+                    .uri(properties.adminUrl("/clients/{client}/roles/{role}/users?first={first}&max={max}"),
+                            properties.getRealm(), clientUuid, roleName, offset, ROLE_MEMBER_PAGE_SIZE)
+                    .headers(headers -> headers.setBearerAuth(token))
+                    .retrieve()
+                    .body(USER_LIST));
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            result.addAll(page);
+            if (page.size() < ROLE_MEMBER_PAGE_SIZE) {
+                break;
+            }
+            first += ROLE_MEMBER_PAGE_SIZE;
+        }
+        return result;
+    }
+
+    /** Các client role (của một client) nằm trong composite của realm role. */
+    public List<KeycloakRole> getRealmRoleClientComposites(String realmRoleName, String clientUuid) {
+        List<KeycloakRole> roles = execute(token -> restClient.get()
+                .uri(properties.adminUrl("/roles/{role}/composites/clients/{client}"),
+                        properties.getRealm(), realmRoleName, clientUuid)
+                .headers(headers -> headers.setBearerAuth(token))
+                .retrieve()
+                .body(ROLE_LIST));
+        return roles == null ? List.of() : roles;
+    }
+
+    public void addRealmRoleComposites(String realmRoleName, List<KeycloakRole> roles) {
+        if (roles.isEmpty()) {
+            return;
+        }
+        execute(token -> restClient.post()
+                .uri(properties.adminUrl("/roles/{role}/composites"), properties.getRealm(), realmRoleName)
+                .headers(headers -> headers.setBearerAuth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(roles)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    public void removeRealmRoleComposites(String realmRoleName, List<KeycloakRole> roles) {
+        if (roles.isEmpty()) {
+            return;
+        }
+        execute(token -> restClient.method(HttpMethod.DELETE)
+                .uri(properties.adminUrl("/roles/{role}/composites"), properties.getRealm(), realmRoleName)
+                .headers(headers -> headers.setBearerAuth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(roles)
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    /** Client role hiệu lực của user (gồm kế thừa qua composite realm role) đối với một client. */
+    public List<KeycloakRole> getUserEffectiveClientRoles(String userId, String clientUuid) {
+        List<KeycloakRole> roles = execute(token -> restClient.get()
+                .uri(properties.adminUrl("/users/{id}/role-mappings/clients/{client}/composite"),
+                        properties.getRealm(), userId, clientUuid)
+                .headers(headers -> headers.setBearerAuth(token))
+                .retrieve()
+                .body(ROLE_LIST));
+        return roles == null ? List.of() : roles;
     }
 
     // ===== token + xử lý lỗi =====

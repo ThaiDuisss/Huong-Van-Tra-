@@ -3,17 +3,13 @@ node_modules/
 
 # Build output
 dist/
-build/
-.next/
-out/
-
-# Turborepo
-.turbo/
-
-# Test
 coverage/
 
-# Environment
+# Vite / tooling cache
+.vite-cache/
+*.tsbuildinfo
+
+# Environment (keep .env.example)
 .env
 .env.local
 .env.*.local
@@ -21,14 +17,28 @@ coverage/
 
 # Logs
 *.log
-pnpm-debug.log*
 
-# IDE
+# IDE / OS
 .idea/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
-
-# Operating system
 .DS_Store
 Thumbs.db
+
+# Ảnh tải tạm khi dev
+local-images/
+
+# Turborepo cache
+.turbo/
+
+# Build outputs & cache của Next.js / React / Vite
+.next/
+build/
+.cache/
+
+# Node modules & Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

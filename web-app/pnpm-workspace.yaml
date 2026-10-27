@@ -1,7 +1,3 @@
-packages:
-  - "apps/*"
-  - "package/*"
-  - "packages/*"
-
+# Dự án đơn (không còn monorepo). File này chỉ giữ cấu hình pnpm.
 allowBuilds:
   esbuild: true

@@ -12,5 +12,7 @@ public interface InventoryDocumentListItemRow {
     String getLocationName();
     BigDecimal getTotalReceivedQuantity();
     Instant getReceivedAt();
+
+    Instant getCreatedAt();
     String getCreatedBy();
 }
