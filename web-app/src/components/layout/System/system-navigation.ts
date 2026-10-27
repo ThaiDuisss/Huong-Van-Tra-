@@ -516,6 +516,8 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     label: "Cài đặt",
     icon: Settings,
     roles: SETTINGS_ROLES,
+    // Cùng permission với mục con và route Phân quyền, để nhóm không chặn người được cấp quyền.
+    permissions: ["permission:manage", "role:manage", "user:manage"],
     children: [
       {
         key: "authorization",
@@ -600,27 +602,39 @@ export function isNavigationItemActive(item: SystemNavigationItem, pathname: str
   return item.children?.some((child) => isNavigationItemActive(child, pathname)) ?? false;
 }
 
+function matchesPath(item: SystemNavigationItem, pathname: string) {
+  return Boolean(item.to && (pathname === item.to || pathname.startsWith(`${item.to}/`)));
+}
+
+/**
+ * Chọn mục có đường dẫn khớp dài nhất, để /system/orders/invoices thuộc "Hóa đơn"
+ * chứ không thuộc "Tất cả đơn" (/system/orders) chỉ vì đứng trước trong menu.
+ */
 export function findNavigationTrail(
   items: readonly SystemNavigationItem[],
   pathname: string,
 ): NavigationTrail | undefined {
-  for (const section of items) {
-    if (section.to && (pathname === section.to || pathname.startsWith(`${section.to}/`))) {
-      return { section };
+  let best: NavigationTrail | undefined;
+  let bestLength = -1;
+
+  const consider = (item: SystemNavigationItem, trail: NavigationTrail) => {
+    if (matchesPath(item, pathname) && item.to!.length > bestLength) {
+      best = trail;
+      bestLength = item.to!.length;
     }
+  };
+
+  for (const section of items) {
+    consider(section, { section });
 
     for (const page of section.children ?? []) {
-      if (page.to && (pathname === page.to || pathname.startsWith(`${page.to}/`))) {
-        return { section, page };
-      }
+      consider(page, { section, page });
 
       for (const subPage of page.children ?? []) {
-        if (subPage.to && (pathname === subPage.to || pathname.startsWith(`${subPage.to}/`))) {
-          return { section, page, subPage };
-        }
+        consider(subPage, { section, page, subPage });
       }
     }
   }
 
-  return undefined;
+  return best;
 }
