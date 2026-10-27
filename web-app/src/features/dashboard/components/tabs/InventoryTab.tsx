@@ -722,7 +722,7 @@ export function InventoryTab({
             action={
               <CardAction
                 label="Xem tất cả lô"
-                onClick={() => navigate(routePaths.inventoryQuality)}
+                onClick={() => navigate(routePaths.warehouseInventory)}
               />
             }
           />
@@ -770,7 +770,7 @@ export function InventoryTab({
             <div className="flex justify-center pt-1">
               <button
                 type="button"
-                onClick={() => navigate(routePaths.inventoryQuality)}
+                onClick={() => navigate(routePaths.warehouseInventory)}
                 className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-700 hover:underline cursor-pointer"
               >
                 Xem thêm các lô hàng khác

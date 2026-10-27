@@ -79,7 +79,7 @@ export function buildAlertItems(input: {
       source: "DEMO",
       subject: `${alert.sku.skuCode} · ${alert.location.name}`,
       title: stockAlertTypeLabels[alert.type],
-      to: `/management/inventory/alerts/${alert.id}`,
+      to: routePaths.warehouseInventory,
     });
   });
 
@@ -97,7 +97,7 @@ export function buildAlertItems(input: {
       source: "REAL",
       subject: `${batch.skuCode} · ${batch.location.name} · ${days < 0 ? `hết hạn ${Math.abs(days)} ngày` : `còn ${days} ngày`}`,
       title: `Lô ${batch.batchCode}`,
-      to: `/management/inventory/quality/batches/${batch.id}`,
+      to: routePaths.warehouseInventory,
     });
   });
 
