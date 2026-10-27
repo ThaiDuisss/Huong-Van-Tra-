@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.service.impl;
 
+import org.hvtra.orderservice.service.support.OrderBackorderSupport;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
 import org.hvtra.orderservice.domain.enums.OrderInventoryProcessingStatus;
@@ -55,6 +56,9 @@ class OrderStatusManagementServiceImplTest {
     @Mock
     private InventoryClient inventoryClient;
 
+    @Mock
+    private OrderBackorderSupport orderBackorderSupport;
+
     private OrderStatusManagementServiceImpl service;
 
     @BeforeEach
@@ -64,7 +68,8 @@ class OrderStatusManagementServiceImplTest {
                 orderStatusHistoryWriter,
                 orderResponseAssembler,
                 catalogClient,
-                inventoryClient
+                inventoryClient,
+                orderBackorderSupport
         );
     }
 

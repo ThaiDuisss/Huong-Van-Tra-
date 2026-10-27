@@ -166,7 +166,10 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
             return false;
         }
 
-        OrderStatus newStatus = immediateConsume ? OrderStatus.COMPLETED : OrderStatus.PAYMENT_CONFIRMED;
+        // Trà đóng theo yêu cầu: gửi yêu cầu đóng gói; đơn chỉ hoàn tất khi giao bundle (custom-bundle/handover).
+        orderBackorderSupport.requestBundlePacking(order);
+        boolean bundlePending = orderBackorderSupport.hasBundle(order);
+        OrderStatus newStatus = immediateConsume && !bundlePending ? OrderStatus.COMPLETED : OrderStatus.PAYMENT_CONFIRMED;
         order.setStatus(newStatus);
         Order savedOrder = orderRepository.save(order);
         if (newStatus == OrderStatus.COMPLETED) {
@@ -441,6 +444,9 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
             Map<UUID, BigDecimal> variantQuantities = new LinkedHashMap<>();
             if (order.getItems() != null) {
                 for (var item : order.getItems()) {
+                    if (item.isCustomBundle()) {
+                        continue; // nguyên liệu bundle được giữ/trừ qua yêu cầu đóng gói bên Inventory
+                    }
                     variantQuantities.merge(item.getProductVariantId(), item.getQuantity(), BigDecimal::add);
                 }
             }
@@ -521,6 +527,9 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
             Map<UUID, BigDecimal> variantQuantities = new LinkedHashMap<>();
             if (order.getItems() != null) {
                 for (var item : order.getItems()) {
+                    if (item.isCustomBundle()) {
+                        continue; // nguyên liệu bundle được giữ/trừ qua yêu cầu đóng gói bên Inventory
+                    }
                     variantQuantities.merge(item.getProductVariantId(), item.getQuantity(), BigDecimal::add);
                 }
             }
@@ -629,7 +638,9 @@ public class OrderPaymentEventServiceImpl implements OrderPaymentEventService {
             return true;
         }
         Map<UUID, BigDecimal> quantities = new LinkedHashMap<>();
-        order.getItems().forEach(item -> quantities.merge(item.getProductVariantId(), item.getQuantity(), BigDecimal::add));
+        order.getItems().stream()
+                .filter(item -> !item.isCustomBundle())
+                .forEach(item -> quantities.merge(item.getProductVariantId(), item.getQuantity(), BigDecimal::add));
         quantities.forEach((variantId, quantity) -> catalogClient.restoreSellableQuantity(variantId,
                 new CatalogClient.SellableQuantityAdjustmentRequest(quantity, null, "SALE_COMPENSATION",
                         "SALE_COMPENSATION:" + order.getId() + ":" + order.getInventoryProcessingAttempt())));

@@ -76,7 +76,19 @@ export function CartList({
                     Yêu cầu: {item.note}
                   </small>
                 ) : null}
+                {item.bundle ? (
+                  <small className="mt-1 block text-xs font-semibold text-neutral-500">
+                    {item.bundle.components
+                      .map((component) => `${component.ingredientName} ${component.quantity}${component.unit ?? ""}`)
+                      .join(" · ")}
+                  </small>
+                ) : null}
               </span>
+              {item.bundle ? (
+                <div className={styles.quantityControl}>
+                  <strong>{item.quantity}</strong>
+                </div>
+              ) : (
               <div className={styles.quantityControl}>
                 <button
                   type="button"
@@ -94,6 +106,7 @@ export function CartList({
                   <Plus size={16} aria-hidden="true" />
                 </button>
               </div>
+              )}
               <strong className={styles.price}>
                 {formatCurrency(item.unitPrice)}
                 <small className="mt-1 block text-xs font-semibold text-neutral-500">
@@ -139,6 +152,7 @@ export function CartList({
                 ) : null}
               </div>
               <div className={styles.rowActions}>
+                {item.bundle ? null : (
                 <button
                   type="button"
                   className={styles.iconAction}
@@ -150,6 +164,7 @@ export function CartList({
                 >
                   <MessageSquareText size={18} aria-hidden="true" />
                 </button>
+                )}
                 <button
                   type="button"
                   className={styles.iconAction}

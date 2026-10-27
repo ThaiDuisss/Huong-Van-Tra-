@@ -223,6 +223,9 @@ public class OrderReturnServiceImpl implements OrderReturnService {
 
         for (CreateOrderReturnItemRequest itemRequest : request.getItems()) {
             OrderItem orderItem = orderItems.get(itemRequest.getOrderItemId());
+            if (orderItem != null && orderItem.isCustomBundle()) {
+                throw new InvalidOrderReturnException("Trà đóng theo yêu cầu không áp dụng đổi trả");
+            }
 
             orderReturn.addItem(OrderReturnItem.builder()
                     .orderItem(orderItem)

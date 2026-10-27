@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -94,16 +95,27 @@ public class OrderBackorderServiceImpl implements OrderBackorderService {
     public BackorderAvailabilityResponse checkAvailability(UUID orderId) {
         Order order = getWaitingOrder(orderId);
         InventoryClient.AvailabilityEstimateResponse estimate = orderBackorderSupport.prepare(order);
-        boolean ready = estimate != null && !estimate.backorder();
+        boolean productsReady = estimate != null && !estimate.backorder();
         if (estimate != null && estimate.backorder() && estimate.estimatedAvailableAt() != null
                 && !estimate.estimatedAvailableAt().equals(order.getExpectedAvailableAt())) {
             order.setExpectedAvailableAt(estimate.estimatedAvailableAt());
             orderRepository.save(order);
         }
+        // Trà đóng theo yêu cầu: sẵn sàng khi kho đã đóng gói xong mọi bundle của đơn.
+        boolean bundlesPending = false;
+        if (orderBackorderSupport.hasBundle(order)) {
+            orderBackorderSupport.refreshBundles(order);
+            bundlesPending = orderBackorderSupport.hasUnpackedBundle(order);
+            orderRepository.save(order);
+        }
+        boolean ready = productsReady && !bundlesPending;
+        Instant expectedAt = !bundlesPending
+                ? (ready || estimate == null ? null : estimate.estimatedAvailableAt())
+                : (!productsReady && estimate != null ? estimate.estimatedAvailableAt() : order.getExpectedAvailableAt());
         return new BackorderAvailabilityResponse(
                 order.getId(),
                 ready,
-                ready || estimate == null ? null : estimate.estimatedAvailableAt(),
+                expectedAt,
                 estimate == null || estimate.lines() == null ? List.of() : estimate.lines());
     }
 
@@ -129,6 +141,10 @@ public class OrderBackorderServiceImpl implements OrderBackorderService {
             throw new InvalidPaymentAmountException(
                     "Số tiền khách đưa nhỏ hơn số tiền còn lại phải thu: " + remaining.toPlainString());
         }
+
+        // Trà đóng theo yêu cầu: nguyên liệu đã trừ lúc kho đóng gói, ở đây chỉ cần mọi bundle đã đóng gói xong.
+        orderBackorderSupport.refreshBundles(order);
+        orderBackorderSupport.requireBundlesPacked(order);
 
         InventoryClient.AvailabilityEstimateResponse estimate = orderBackorderSupport.estimate(order);
         if (estimate != null && estimate.backorder()) {

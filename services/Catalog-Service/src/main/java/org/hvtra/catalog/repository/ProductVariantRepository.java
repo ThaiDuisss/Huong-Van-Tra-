@@ -23,6 +23,8 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     boolean existsBySkuAndIdNot(String sku, UUID id);
     List<ProductVariant> findByProductId(UUID productId);
 
+    Optional<ProductVariant> findFirstByCustomBundleTrueAndIsDeletedFalse();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select v from ProductVariant v where v.id = :id and v.isDeleted = false")
     Optional<ProductVariant> findByIdForUpdate(@Param("id") UUID id);
