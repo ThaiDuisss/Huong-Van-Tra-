@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.goodsreceipt.service.impl;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
@@ -595,7 +596,18 @@ public class GoodsReceiptServiceImpl implements GoodsReceiptService {
             throw new BadRequestException("Cannot submit a document with no line items");
         }
 
-        document.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
+        // Quản lý / Admin tự tạo và gửi phiếu thì không cần người khác duyệt: chuyển thẳng sang Đã duyệt
+        UUID currentUserId = getCurrentUserId();
+        boolean createdByManager = currentUserId != null && currentUserId.equals(document.getCreatedBy())
+                && SecurityUtils.hasAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
+        if (createdByManager) {
+            document.setStatus(InventoryDocumentStatus.APPROVED);
+            document.setApprovedBy(currentUserId);
+            document.setApprovedAt(Instant.now());
+            document.setApprovalNote("Tự duyệt: người tạo phiếu là Quản lý / Admin");
+        } else {
+            document.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
+        }
         return toEnrichedResponse(goodsReceiptRepository.save(document));
     }
 
@@ -1043,7 +1055,7 @@ public class GoodsReceiptServiceImpl implements GoodsReceiptService {
 
     // createdBy lưu Keycloak subject của người tạo — trùng với userId trong principal
     private boolean isAdminOrCreator(InventoryDocument document) {
-        if (SecurityUtils.isAdmin()) {
+        if (SecurityUtils.isSuperAdmin()) {
             return true;
         }
         UUID currentUserId = getCurrentUserId();

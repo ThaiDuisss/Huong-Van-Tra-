@@ -18,10 +18,11 @@ import { useStocktakeActionDialog } from "../components/useStocktakeActionDialog
 import { stocktakeApi } from "../services/stocktake.api";
 import type { StocktakeDetail } from "../types/stocktake.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
+import { ROLES } from "../../../auth/roles";
 
 type CountDraft = { quantity: string; reasonCode: string; note: string };
-const operationRoles = ["ADMIN", "MANAGER", "INVENTORY_STAFF", "MANAGER"];
-const approvalRoles = ["ADMIN", "MANAGER", "MANAGER"];
+const operationRoles = [ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF];
+const approvalRoles = [ROLES.SUPER_ADMIN, ROLES.MANAGER];
 
 export function StocktakeDetailPage() {
   const { stocktakeId } = useParams();

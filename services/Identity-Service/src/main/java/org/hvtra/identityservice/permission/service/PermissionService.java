@@ -11,7 +11,7 @@ import org.hvtra.identityservice.account.client.KeycloakClient;
 import org.hvtra.identityservice.account.client.KeycloakRole;
 import org.hvtra.identityservice.account.client.KeycloakUser;
 import org.hvtra.identityservice.account.config.KeycloakAdminProperties;
-import org.hvtra.identityservice.account.model.StaffRole;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.identityservice.permission.dto.PermissionDtos.BootstrapResponse;
 import org.hvtra.identityservice.permission.dto.PermissionDtos.BusinessRoleResponse;
 import org.hvtra.identityservice.permission.dto.PermissionDtos.CreatePermissionRequest;
@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  *
  * <p>Quy tắc an toàn:
  * <ul>
- *   <li>Chỉ các realm role trong {@link StaffRole} được chỉnh composite; SUPER_ADMIN không bao giờ bị chạm.</li>
+ *   <li>Chỉ các realm role trong {@link Role} được chỉnh composite; SUPER_ADMIN không bao giờ bị chạm.</li>
  *   <li>Người gọi không được sửa quyền của vai trò mình đang giữ (trừ SUPER_ADMIN) và không được sửa vai trò
  *       của chính mình: chặn tự nâng quyền.</li>
  *   <li>Không xóa quyền đang nằm trong vai trò hoặc gán trực tiếp cho user.</li>
@@ -57,14 +57,12 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class PermissionService {
 
-    private static final Map<String, String> ROLE_LABELS = Map.of(
-            "ADMIN", "Quản trị viên",
-            "MANAGER", "Quản lý",
-            "INVENTORY_STAFF", "Nhân viên kho",
-            "SALE_STAFF", "Nhân viên bán hàng",
-            "QC", "Kiểm soát chất lượng",
-            "ACCOUNTANT", "Kế toán",
-            "DELIVERY", "Giao hàng"
+    private static final Map<Role, String> ROLE_LABELS = Map.of(
+            Role.SUPER_ADMIN, "Quản trị hệ thống",
+            Role.MANAGER, "Quản lý",
+            Role.INVENTORY_STAFF, "Nhân viên kho",
+            Role.SALE_STAFF, "Nhân viên bán hàng",
+            Role.QC, "Kiểm soát chất lượng"
     );
 
     private final KeycloakAdminClient keycloak;
@@ -153,13 +151,13 @@ public class PermissionService {
             String clientUuid = permissionClientUuid();
             Map<String, KeycloakRole> realmRoles = realmRoleIndex();
             List<BusinessRoleResponse> result = new ArrayList<>();
-            for (StaffRole role : StaffRole.values()) {
+            for (Role role : Role.assignable()) {
                 KeycloakRole realmRole = realmRoles.get(role.name());
                 if (realmRole == null) {
                     continue;
                 }
                 int count = keycloak.getRealmRoleClientComposites(realmRole.name(), clientUuid).size();
-                result.add(new BusinessRoleResponse(role.name(), ROLE_LABELS.getOrDefault(role.name(), role.name()),
+                result.add(new BusinessRoleResponse(role.name(), ROLE_LABELS.getOrDefault(role, role.name()),
                         canEditRole(caller, role), count));
             }
             return result;
@@ -167,7 +165,7 @@ public class PermissionService {
     }
 
     public RolePermissionsResponse getRolePermissions(String rawRole) {
-        StaffRole role = parseBusinessRole(rawRole);
+        Role role = parseBusinessRole(rawRole);
         return withKeycloak(() -> {
             KeycloakRole realmRole = requireRealmRole(role);
             return new RolePermissionsResponse(role.name(),
@@ -181,7 +179,7 @@ public class PermissionService {
      */
     public RolePermissionsResponse updateRolePermissions(String rawRole, List<String> rawPermissions,
                                                          InternalUserPrincipal caller) {
-        StaffRole role = parseBusinessRole(rawRole);
+        Role role = parseBusinessRole(rawRole);
         if (!canEditRole(caller, role)) {
             throw new BusinessException("ROLE_SELF_EDIT",
                     "Bạn không thể thay đổi quyền của vai trò mình đang giữ (" + role.name() + ")",
@@ -238,15 +236,15 @@ public class PermissionService {
         });
     }
 
-    /** Chỉ thêm/gỡ các vai trò trong {@link StaffRole}; role khác (default-roles, CUSTOMER, SUPER_ADMIN) giữ nguyên. */
+    /** Chỉ thêm/gỡ các vai trò trong {@link Role}; role khác (default-roles, CUSTOMER, SUPER_ADMIN) giữ nguyên. */
     public UserRolesResponse updateUserRoles(String userId, List<String> rawRoles, InternalUserPrincipal caller) {
         if (caller != null && userId != null && userId.equals(caller.userId())) {
             throw new BusinessException("USER_SELF_ROLE_CHANGE",
                     "Bạn không thể thay đổi vai trò của chính mình", HttpStatus.FORBIDDEN);
         }
-        Set<StaffRole> desired = EnumSet.noneOf(StaffRole.class);
+        Set<Role> desired = EnumSet.noneOf(Role.class);
         for (String raw : rawRoles) {
-            desired.add(StaffRole.from(raw).orElseThrow(() -> new BusinessException("ROLE_NOT_ALLOWED",
+            desired.add(Role.fromName(raw).filter(Role::isAssignable).orElseThrow(() -> new BusinessException("ROLE_NOT_ALLOWED",
                     "Vai trò không hợp lệ hoặc không được phép gán: " + raw)));
         }
         if (desired.isEmpty()) {
@@ -256,13 +254,13 @@ public class PermissionService {
             KeycloakUser user = keycloak.getUser(userId);
             List<KeycloakRole> currentRealmRoles = keycloak.getUserRealmRoles(userId);
             Set<String> currentNames = canonicalStaffRoles(currentRealmRoles);
-            if (currentRealmRoles.stream().anyMatch(role -> StaffRole.isSuperAdmin(role.name()))) {
+            if (currentRealmRoles.stream().anyMatch(role -> Role.SUPER_ADMIN.matches(role.name()))) {
                 throw new BusinessException("ACCOUNT_PROTECTED",
                         "Không thể thay đổi vai trò của tài khoản SUPER_ADMIN", HttpStatus.FORBIDDEN);
             }
             Map<String, KeycloakRole> index = realmRoleIndex();
             List<KeycloakRole> toAdd = new ArrayList<>();
-            for (StaffRole role : desired) {
+            for (Role role : desired) {
                 if (!currentNames.contains(role.name())) {
                     KeycloakRole realmRole = index.get(role.name());
                     if (realmRole == null) {
@@ -275,8 +273,8 @@ public class PermissionService {
             Set<String> desiredNames = new TreeSet<>();
             desired.forEach(role -> desiredNames.add(role.name()));
             List<KeycloakRole> toRemove = currentRealmRoles.stream()
-                    .filter(role -> StaffRole.from(role.name()).isPresent())
-                    .filter(role -> !desiredNames.contains(StaffRole.canonicalName(role.name())))
+                    .filter(role -> Role.fromName(role.name()).filter(Role::isAssignable).isPresent())
+                    .filter(role -> !desiredNames.contains(Role.canonicalName(role.name())))
                     .map(PermissionService::idAndName)
                     .toList();
             keycloak.addUserRealmRoles(userId, toAdd);
@@ -323,7 +321,7 @@ public class PermissionService {
             }
             Map<String, KeycloakRole> realmRoles = realmRoleIndex();
             List<String> updatedRoles = new ArrayList<>();
-            for (Map.Entry<StaffRole, Set<String>> entry : PermissionCatalog.DEFAULT_ROLE_PERMISSIONS.entrySet()) {
+            for (Map.Entry<Role, Set<String>> entry : PermissionCatalog.DEFAULT_ROLE_PERMISSIONS.entrySet()) {
                 KeycloakRole realmRole = realmRoles.get(entry.getKey().name());
                 if (realmRole == null) {
                     log.warn("Bootstrap skips role {}: realm role missing in Keycloak", entry.getKey());
@@ -348,21 +346,21 @@ public class PermissionService {
 
     // ===== helpers =====
 
-    private boolean canEditRole(InternalUserPrincipal caller, StaffRole role) {
+    private boolean canEditRole(InternalUserPrincipal caller, Role role) {
         if (caller == null || caller.roles() == null) {
             return true;
         }
-        boolean superAdmin = caller.roles().stream().anyMatch(StaffRole::isSuperAdmin);
+        boolean superAdmin = caller.roles().stream().anyMatch(Role.SUPER_ADMIN::matches);
         if (superAdmin) {
             return true;
         }
         return caller.roles().stream()
-                .map(StaffRole::canonicalName)
+                .map(Role::canonicalName)
                 .noneMatch(role.name()::equals);
     }
 
-    private StaffRole parseBusinessRole(String rawRole) {
-        return StaffRole.from(rawRole).orElseThrow(() -> new BusinessException("ROLE_NOT_ALLOWED",
+    private Role parseBusinessRole(String rawRole) {
+        return Role.fromName(rawRole).filter(Role::isAssignable).orElseThrow(() -> new BusinessException("ROLE_NOT_ALLOWED",
                 "Vai trò không hợp lệ hoặc không quản lý được qua API này: " + rawRole));
     }
 
@@ -381,12 +379,12 @@ public class PermissionService {
         return result;
     }
 
-    /** canonical StaffRole name -> realm role thật trên Keycloak (ưu tiên trùng tên, sau đó alias). */
+    /** canonical Role name -> realm role thật trên Keycloak (ưu tiên trùng tên, sau đó alias). */
     private Map<String, KeycloakRole> realmRoleIndex() {
         Map<String, KeycloakRole> index = new LinkedHashMap<>();
         for (KeycloakRole role : keycloak.listRealmRoles()) {
-            String canonical = StaffRole.canonicalName(role.name());
-            if (StaffRole.from(canonical).isEmpty()) {
+            String canonical = Role.canonicalName(role.name());
+            if (Role.fromName(canonical).filter(Role::isAssignable).isEmpty()) {
                 continue;
             }
             KeycloakRole existing = index.get(canonical);
@@ -397,7 +395,7 @@ public class PermissionService {
         return index;
     }
 
-    private KeycloakRole requireRealmRole(StaffRole role) {
+    private KeycloakRole requireRealmRole(Role role) {
         KeycloakRole realmRole = realmRoleIndex().get(role.name());
         if (realmRole == null) {
             throw new BusinessException("ROLE_NOT_FOUND", "Vai trò " + role.name() + " chưa được tạo trong Keycloak");
@@ -408,8 +406,8 @@ public class PermissionService {
     private Set<String> canonicalStaffRoles(Collection<KeycloakRole> realmRoles) {
         Set<String> roles = new TreeSet<>();
         for (KeycloakRole role : realmRoles) {
-            String canonical = StaffRole.canonicalName(role.name());
-            if (StaffRole.from(canonical).isPresent() || StaffRole.SUPER_ADMIN.equals(canonical)) {
+            String canonical = Role.canonicalName(role.name());
+            if (Role.fromName(canonical).isPresent()) {
                 roles.add(canonical);
             }
         }
@@ -462,7 +460,7 @@ public class PermissionService {
         String fullName = ((user.getLastName() == null ? "" : user.getLastName().trim()) + " "
                 + (user.getFirstName() == null ? "" : user.getFirstName().trim())).trim();
         return new UserRolesResponse(user.getId(), user.getUsername(), fullName,
-                !roles.contains(StaffRole.SUPER_ADMIN), List.copyOf(roles), permissions);
+                !roles.contains(Role.SUPER_ADMIN.name()), List.copyOf(roles), permissions);
     }
 
     private static List<String> permissionNames(Collection<KeycloakRole> roles) {

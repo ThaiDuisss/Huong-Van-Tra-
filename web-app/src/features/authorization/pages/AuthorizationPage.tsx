@@ -17,9 +17,10 @@ import { dangerButton, fieldClass, primaryButton, secondaryButton } from "../com
 import { authorizationApi, describeAuthorizationError } from "../services/authorization.api";
 import type { AuthorizationTab, PermissionResponse } from "../types/authorization.types";
 import { canUse, filterPermissions } from "../utils/authorization.utils";
+import { ROLES } from "../../../auth/roles";
 
 const NOTICE_TIMEOUT_MS = 6000;
-const ADMIN_FALLBACK_ROLES = ["ADMIN", "SUPER_ADMIN"];
+const ADMIN_FALLBACK_ROLES = [ROLES.SUPER_ADMIN];
 
 /**
  * Phân quyền: danh mục quyền, quyền theo vai trò, vai trò theo người dùng.
@@ -32,7 +33,7 @@ export function AuthorizationPage() {
   const canManageRoles = canUse(access, ["role:manage"], ADMIN_FALLBACK_ROLES);
   const canManageUsers = canUse(access, ["user:manage"], ADMIN_FALLBACK_ROLES);
   const canViewPermissions = canUse(access, ["permission:manage", "role:manage"], ADMIN_FALLBACK_ROLES);
-  const canBootstrap = auth.hasAnyRole(["ADMIN", "SUPER_ADMIN"]);
+  const canBootstrap = auth.hasAnyRole([ROLES.SUPER_ADMIN]);
 
   const tabs = useMemo(
     () =>

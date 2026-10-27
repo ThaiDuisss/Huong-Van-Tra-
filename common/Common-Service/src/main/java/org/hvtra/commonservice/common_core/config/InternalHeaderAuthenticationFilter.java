@@ -8,6 +8,7 @@ import lombok.AccessLevel;
 import lombok.extern.slf4j.Slf4j;
 import lombok.experimental.FieldDefaults;
 import org.hvtra.commonservice.common_core.domain.constants.HeaderConstants;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -133,9 +134,12 @@ public class InternalHeaderAuthenticationFilter extends OncePerRequestFilter {
                     .filter(permission -> !permission.isBlank())
                     .collect(Collectors.toUnmodifiableSet());
         }
+        // Chuẩn hóa về Role chung (bỏ tiền tố ROLE_, hoa/thường, alias cũ như ADMIN → SUPER_ADMIN);
+        // role không thuộc hệ thống (vd. offline_access) giữ nguyên tên.
         Set<String> roles = Arrays.stream(rolesRaw.split(","))
                 .map(String::trim)
                 .filter(role -> !role.isBlank())
+                .map(role -> Role.fromName(role).map(Role::name).orElse(role))
                 .collect(Collectors.toSet());
 
         List<SimpleGrantedAuthority> authorities = new ArrayList<>(roles.stream()

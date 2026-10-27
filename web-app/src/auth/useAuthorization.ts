@@ -47,11 +47,8 @@ export function useAuthorization() {
             return hasAllRoles(roles, mappedRoles);
         },
 
-        isAccountant: () => hasRole(roles, ROLES.ACCOUNTANT),
-        isAdmin: () => hasRole(roles, ROLES.ADMIN),
+        isSuperAdmin: () => hasRole(roles, ROLES.SUPER_ADMIN),
         isManager: () => hasRole(roles, ROLES.MANAGER),
-        isCustomer: () => hasRole(roles, ROLES.CUSTOMER),
-        isDelivery: () => hasRole(roles, ROLES.DELIVERY),
         isInventoryStaff: () => hasRole(roles, ROLES.INVENTORY_STAFF),
         isSaleStaff: () => hasRole(roles, ROLES.SALE_STAFF),
         isQc: () => hasRole(roles, ROLES.QC)

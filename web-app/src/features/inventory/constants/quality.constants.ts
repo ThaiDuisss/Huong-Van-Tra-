@@ -1,3 +1,4 @@
+import { ROLE_LABELS } from "../../../auth/roles";
 import type {
     DisposalMethod,
     DisposalStatus,
@@ -41,14 +42,8 @@ export const disposalMethodLabels: Record<DisposalMethod, string> = {
     RETURN_TO_VENDOR: "Trả NCC"
 };
 
-export const qualityRoleLabels: Record<string, string> = {
-    ACCOUNTANT: "Kế toán",
-    ADMIN: "Quản trị viên",
-    MANAGER: "Quản lý chi nhánh",
-    DIRECTOR: "Giám đốc",
-    INVENTORY_STAFF: "Nhân viên kho",
-    QC_STAFF: "Nhân viên QC"
-};
+/** Nhãn vai trò dùng chung của hệ thống. */
+export const qualityRoleLabels: Record<string, string> = ROLE_LABELS;
 
 export const qualityTabs: QualityTab[] = [
     "NEAR_EXPIRY",

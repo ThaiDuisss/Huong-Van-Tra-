@@ -2,6 +2,7 @@ import type {
     InventoryLocationSummary,
     UserSnapshot
 } from "./stock-document.types";
+import type { RoleKey } from "../../../auth/roles";
 
 export type StockAlertType =
     | "BELOW_MINIMUM"
@@ -21,7 +22,8 @@ export type StockAlertStatus =
     | "DISMISSED";
 
 export type StockAlertSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-export type StockAlertRole = "INVENTORY_STAFF" | "MANAGER" | "ADMIN" | "ACCOUNTANT" | "DIRECTOR" | "SALES_STAFF";
+/** Vai trò người thao tác — dùng role chuẩn của hệ thống. */
+export type StockAlertRole = RoleKey;
 export type SuggestedActionType = "TRANSFER" | "PURCHASE" | "NONE";
 
 export interface StockSkuSummary {

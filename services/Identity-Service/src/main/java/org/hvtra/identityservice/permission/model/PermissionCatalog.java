@@ -1,6 +1,6 @@
 package org.hvtra.identityservice.permission.model;
 
-import org.hvtra.identityservice.account.model.StaffRole;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,23 +58,18 @@ public final class PermissionCatalog {
             "promotion:manage", "report:view"
     );
 
-    /** Gán mặc định cho từng vai trò; SUPER_ADMIN cố ý không có ở đây (không quản lý qua API). */
-    public static final Map<StaffRole, Set<String>> DEFAULT_ROLE_PERMISSIONS = defaults();
+    /** Gán mặc định cho từng vai trò; SUPER_ADMIN cố ý không có ở đây: luôn toàn quyền, không quản lý qua API. */
+    public static final Map<Role, Set<String>> DEFAULT_ROLE_PERMISSIONS = defaults();
 
-    private static Map<StaffRole, Set<String>> defaults() {
-        Map<StaffRole, Set<String>> map = new LinkedHashMap<>();
-        Set<String> admin = new java.util.LinkedHashSet<>(MANAGER_PERMISSIONS);
-        admin.addAll(Set.of("inventory:receive", "inventory:adjust", USER_MANAGE, ROLE_MANAGE, PERMISSION_MANAGE));
-        map.put(StaffRole.ADMIN, Set.copyOf(admin));
-        map.put(StaffRole.MANAGER, MANAGER_PERMISSIONS);
-        map.put(StaffRole.INVENTORY_STAFF, Set.of(
+    private static Map<Role, Set<String>> defaults() {
+        Map<Role, Set<String>> map = new LinkedHashMap<>();
+        map.put(Role.MANAGER, MANAGER_PERMISSIONS);
+        map.put(Role.INVENTORY_STAFF, Set.of(
                 "inventory:view", "inventory:receive", "inventory:adjust", "inventory:transfer",
                 "product:view", "production:view"));
-        map.put(StaffRole.SALE_STAFF, Set.of(
+        map.put(Role.SALE_STAFF, Set.of(
                 "order:view", ORDER_CREATE, "order:return", "inventory:view", "product:view", "customer:view"));
-        map.put(StaffRole.QC, Set.of("inventory:view", "inventory:adjust", "production:view", "order:return"));
-        map.put(StaffRole.ACCOUNTANT, Set.of("order:view", "order:refund", "inventory:view", "report:view"));
-        map.put(StaffRole.DELIVERY, Set.of("order:view"));
+        map.put(Role.QC, Set.of("inventory:view", "inventory:adjust", "production:view", "order:return"));
         return Map.copyOf(map);
     }
 

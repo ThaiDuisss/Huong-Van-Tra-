@@ -66,7 +66,7 @@ const stockAlertQuery: StockAlertListQuery = {
   hasAction: "ALL",
   locationId: "ALL",
   page: 0,
-  role: "ADMIN",
+  role: "SUPER_ADMIN",
   severity: "ALL",
   size: 20,
   skuOrCategory: "",

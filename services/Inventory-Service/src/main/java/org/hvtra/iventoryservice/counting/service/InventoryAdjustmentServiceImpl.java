@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.counting.service;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.iventoryservice.counting.dto.request.CreateAdjustmentRequest;
 import org.hvtra.iventoryservice.counting.dto.response.AdjustmentResponse;
@@ -102,7 +103,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     @Override
     @Transactional
     public AdjustmentResponse create(CreateAdjustmentRequest request) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF);
         // Loại phiếu (tăng / giảm) phụ thuộc tổng điều chỉnh nên gom dòng trước, tạo phiếu sau
         List<InventoryDocumentLine> lines = new ArrayList<>();
         InventoryReferenceType referenceType;
@@ -203,7 +204,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     @Override
     @Transactional
     public AdjustmentResponse approve(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryAdjustment document = findDocumentOrThrow(id);
 
         // Delegate to entity
@@ -215,7 +216,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     @Override
     @Transactional
     public AdjustmentResponse post(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF);
         InventoryAdjustment document = findDocumentOrThrow(id);
 
         // Delegate validation to entity
@@ -305,7 +306,7 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
     @Override
     @Transactional
     public AdjustmentResponse reject(UUID id) {
-        requireAnyRole("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+        requireAnyRole(Role.SUPER_ADMIN, Role.MANAGER);
         InventoryAdjustment document = findDocumentOrThrow(id);
 
         // Delegate to entity
@@ -348,10 +349,8 @@ public class InventoryAdjustmentServiceImpl implements InventoryAdjustmentServic
         }
     }
 
-    private void requireAnyRole(String... roles) {
-        for (String role : roles) {
-            if (SecurityUtils.hasRole(role)) return;
-        }
+    private void requireAnyRole(Role... roles) {
+        if (SecurityUtils.hasAnyRole(roles)) return;
         throw new AccessDeniedException("Bạn không có quyền thực hiện thao tác điều chỉnh này");
     }
 }

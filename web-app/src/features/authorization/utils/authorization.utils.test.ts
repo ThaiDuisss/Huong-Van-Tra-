@@ -74,13 +74,13 @@ describe("grouping and filtering", () => {
 
 describe("permission-aware actions", () => {
   it("uses permissions when loaded and ignores roles", () => {
-    expect(canUse({ permissions: ["permission:manage"], roles: ["SALE_STAFF"] }, ["permission:manage"], ["ADMIN"])).toBe(true);
-    expect(canUse({ permissions: ["order:view"], roles: ["ADMIN"] }, ["permission:manage"], ["ADMIN"])).toBe(false);
+    expect(canUse({ permissions: ["permission:manage"], roles: ["SALE_STAFF"] }, ["permission:manage"], ["MANAGER"])).toBe(true);
+    expect(canUse({ permissions: ["order:view"], roles: ["MANAGER"] }, ["permission:manage"], ["MANAGER"])).toBe(false);
   });
 
   it("treats an empty permission list as not bootstrapped and falls back to roles", () => {
-    expect(canUse({ permissions: [], roles: ["ADMIN"] }, ["permission:manage"], ["ADMIN"])).toBe(true);
-    expect(canUse({ permissions: [], roles: ["SALE_STAFF"] }, ["permission:manage"], ["ADMIN"])).toBe(false);
+    expect(canUse({ permissions: [], roles: ["MANAGER"] }, ["permission:manage"], ["MANAGER"])).toBe(true);
+    expect(canUse({ permissions: [], roles: ["SALE_STAFF"] }, ["permission:manage"], ["MANAGER"])).toBe(false);
   });
 
   it("always allows SUPER_ADMIN like the backend break-glass rule", () => {
@@ -89,7 +89,7 @@ describe("permission-aware actions", () => {
   });
 
   it("falls back to roles when permissions are unknown", () => {
-    expect(canUse({ permissions: undefined, roles: ["ROLE_ADMIN"] }, ["permission:manage"], ["ADMIN"])).toBe(true);
-    expect(canUse({ permissions: undefined, roles: ["SALE_STAFF"] }, ["permission:manage"], ["ADMIN"])).toBe(false);
+    expect(canUse({ permissions: undefined, roles: ["ROLE_MANAGER"] }, ["permission:manage"], ["MANAGER"])).toBe(true);
+    expect(canUse({ permissions: undefined, roles: ["SALE_STAFF"] }, ["permission:manage"], ["MANAGER"])).toBe(false);
   });
 });

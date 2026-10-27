@@ -1,5 +1,6 @@
 package org.hvtra.commonservice.common_core.utils;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -51,16 +52,20 @@ public final class SecurityUtils {
         return currentUser().correlationId();
     }
 
-    public static boolean hasRole(String role) {
-        String normalizedRole = role.startsWith("ROLE_")
-                ? role
-                : "ROLE_" + role;
-
+    public static boolean hasRole(Role role) {
+        String authorityName = role.authority();
         return authentication().getAuthorities()
                 .stream()
-                .anyMatch(authority ->
-                        authority.getAuthority().equals(normalizedRole)
-                );
+                .anyMatch(authority -> authority.getAuthority().equals(authorityName));
+    }
+
+    public static boolean hasAnyRole(Role... roles) {
+        for (Role role : roles) {
+            if (hasRole(role)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Permission hiệu lực (client role Keycloak, vd. order:create) có trong authorities. */
@@ -78,7 +83,7 @@ public final class SecurityUtils {
      * client role) thì chấp nhận một trong {@code fallbackRoles} để không khóa chức năng đang chạy; khi
      * gateway đã relay (kể cả danh sách rỗng) thì chỉ permission mới được tính.
      */
-    public static void requirePermission(String permission, String... fallbackRoles) {
+    public static void requirePermission(String permission, Role... fallbackRoles) {
         if (hasPermission(permission)) {
             return;
         }
@@ -86,7 +91,7 @@ public final class SecurityUtils {
         boolean permissionsKnown = principal instanceof InternalUserPrincipal internalUser
                 && internalUser.permissionsKnown();
         if (!permissionsKnown && fallbackRoles != null) {
-            for (String role : fallbackRoles) {
+            for (Role role : fallbackRoles) {
                 if (hasRole(role)) {
                     return;
                 }
@@ -95,15 +100,7 @@ public final class SecurityUtils {
         throw new AccessDeniedException("Thiếu quyền " + permission);
     }
 
-    public static boolean isAdmin() {
-        return hasRole("ADMIN");
-    }
-
-    public static boolean isStaff() {
-        return hasRole("STAFF");
-    }
-
-    public static boolean isCustomer() {
-        return hasRole("CUSTOMER");
+    public static boolean isSuperAdmin() {
+        return hasRole(Role.SUPER_ADMIN);
     }
 }

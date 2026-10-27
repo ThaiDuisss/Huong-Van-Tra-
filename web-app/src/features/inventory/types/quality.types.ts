@@ -3,6 +3,7 @@ import type {
     InventoryLocationSummary,
     UserSnapshot
 } from "./stock-document.types";
+import type { RoleKey } from "../../../auth/roles";
 
 export type QualityBatchStatus =
     | "AVAILABLE"
@@ -13,13 +14,8 @@ export type QualityBatchStatus =
     | "BLOCKED"
     | "DISPOSED";
 
-export type QualityRole =
-    | "QC_STAFF"
-    | "INVENTORY_STAFF"
-    | "MANAGER"
-    | "ADMIN"
-    | "DIRECTOR"
-    | "ACCOUNTANT";
+/** Vai trò người thao tác — dùng role chuẩn của hệ thống. */
+export type QualityRole = RoleKey;
 
 export type QualitySourceType =
     | "GOODS_RECEIPT_QC"
