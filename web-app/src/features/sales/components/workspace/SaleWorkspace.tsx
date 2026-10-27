@@ -3,7 +3,7 @@ import { CartNote } from "../cart/CartNote";
 import { OrderTypeSelector } from "../cart/OrderTypeSelector";
 import { ProductSearchBar } from "../product/ProductSearchBar";
 import { formatCurrency } from "../../services/money";
-import { MessageSquarePlus } from "lucide-react";
+import { Leaf } from "lucide-react";
 import type {
     SaleCartItem,
     SaleManualDiscount,
@@ -30,7 +30,7 @@ interface SaleWorkspaceProps {
     onProductRemove(productId: string): void;
     onProductDiscountChange(productId: string, discount: SaleManualDiscount | null): void;
     onProductNoteChange(productId: string, note: string): void;
-    onCustomTeaOpen(): void;
+    onCustomBundleOpen(): void;
     onInvoiceClose(): void;
     onNoteChange(value: string): void;
     onOrderTypeChange(value: SaleOrderType): void;
@@ -53,7 +53,7 @@ export function SaleWorkspace({
     onProductRemove,
     onProductDiscountChange,
     onProductNoteChange,
-    onCustomTeaOpen,
+    onCustomBundleOpen,
     onInvoiceClose,
     onNoteChange,
     onOrderTypeChange
@@ -76,11 +76,11 @@ export function SaleWorkspace({
                 <InvoiceTabs onCloseActive={onInvoiceClose} />
                 <button
                     className={styles.customTeaButton}
-                    onClick={onCustomTeaOpen}
+                    onClick={onCustomBundleOpen}
                     type="button"
                 >
-                    <MessageSquarePlus size={18} aria-hidden="true" />
-                    <span>Trà theo yêu cầu</span>
+                    <Leaf size={18} aria-hidden="true" />
+                    <span>Đóng trà theo yêu cầu</span>
                 </button>
             </div>
 

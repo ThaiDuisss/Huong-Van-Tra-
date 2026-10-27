@@ -375,6 +375,23 @@ public class AvailabilityEstimateService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    /**
+     * Ước tính ngày có đủ một nguyên liệu, dùng chung cho đóng trà theo yêu cầu (tồn tính theo kho giữ chỗ
+     * do nơi gọi truyền vào). Đủ thì trả IN_STOCK, thiếu thì đi qua cùng logic phiếu nhập/lịch sử nhập.
+     */
+    public MaterialEstimate estimateMaterialArrival(UUID ingredientId, String name, BigDecimal required,
+                                                    BigDecimal available, InventoryItem item) {
+        Instant now = clock.instant();
+        BigDecimal missing = required.subtract(available).max(BigDecimal.ZERO);
+        if (missing.signum() <= 0) {
+            return new MaterialEstimate(ingredientId, name, required, available, BigDecimal.ZERO, now, "IN_STOCK", null);
+        }
+        List<InventoryDocumentLine> openLines = item == null
+                ? List.of()
+                : queries.findOpenReceiptLines(List.of(item.getId()), OPEN_RECEIPT_STATUSES);
+        return materialArrival(ingredientId, name, required, available, missing, item, openLines, now);
+    }
+
     /** Nguyên liệu thiếu: ưu tiên phiếu nhập đang về; không đủ thì suy từ lịch sử phiếu nhập. */
     private MaterialEstimate materialArrival(UUID ingredientId, String name, BigDecimal required, BigDecimal available,
                                              BigDecimal missing, InventoryItem item,

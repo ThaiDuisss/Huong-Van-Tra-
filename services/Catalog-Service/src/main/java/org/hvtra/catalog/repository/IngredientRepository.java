@@ -1,5 +1,6 @@
 package org.hvtra.catalog.repository;
 
+import org.hvtra.catalog.dto.response.IngredientBundleLookupResponse;
 import org.hvtra.catalog.entity.Ingredient;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.repository.projection.IdNameView;
@@ -38,6 +39,32 @@ public interface IngredientRepository extends JpaRepository<Ingredient, UUID>, J
     /** Lấy tên theo id cho các giá trị đã chọn sẵn trong dropdown. */
     @Query("SELECT i.id AS id, i.name AS name FROM Ingredient i WHERE i.id IN :ids")
     List<IdNameView> findLookupByIds(@Param("ids") Collection<UUID> ids);
+
+    /** Nguyên liệu bán lẻ cho bundle: ACTIVE, nguyên liệu pha chế (type = 1), có giá bán lẻ. */
+    @Query(value = """
+            SELECT new org.hvtra.catalog.dto.response.IngredientBundleLookupResponse(
+                i.id, i.ingredientCode, i.name, i.imageUrl, u.symbol, i.retailPricePerUnit)
+            FROM Ingredient i
+            LEFT JOIN i.unit u
+            WHERE i.isDeleted = false
+              AND i.status = org.hvtra.catalog.enums.Status.ACTIVE
+              AND i.type = 1
+              AND i.retailPricePerUnit IS NOT NULL
+              AND (:search IS NULL
+                   OR LOWER(i.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(i.ingredientCode) LIKE LOWER(CONCAT('%', :search, '%')))
+            """,
+            countQuery = """
+            SELECT COUNT(i) FROM Ingredient i
+            WHERE i.isDeleted = false
+              AND i.status = org.hvtra.catalog.enums.Status.ACTIVE
+              AND i.type = 1
+              AND i.retailPricePerUnit IS NOT NULL
+              AND (:search IS NULL
+                   OR LOWER(i.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(i.ingredientCode) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<IngredientBundleLookupResponse> findBundleLookup(@Param("search") String search, Pageable pageable);
 
     @Query("SELECT i.id FROM Ingredient i JOIN i.suppliers s WHERE s.id = :supplierId")
     List<UUID> findIdsBySupplierId(@Param("supplierId") UUID supplierId);

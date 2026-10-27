@@ -1,111 +1,44 @@
-import type {
-    InventoryAuditEvent,
-    InventoryLocationSummary,
-    UserSnapshot
-} from "./stock-document.types";
+/** Yêu cầu đóng trà theo yêu cầu bên Inventory (custom_bundle_packings). */
+export type CustomBundlePackingStatus = "WAITING_MATERIAL" | "AWAITING_PACKING" | "PACKED" | "CANCELLED";
 
-export type CustomBundleStatus =
-    | "DRAFT"
-    | "AWAITING_RESERVATION"
-    | "RESERVED"
-    | "RESERVATION_FAILED"
-    | "AWAITING_PAYMENT"
-    | "PAID"
-    | "PACKING"
-    | "PACKED"
-    | "CANCELLED"
-    | "FAILED";
-
-export type BundlePaymentStatus = "PENDING" | "SUCCESS" | "FAILED" | "REFUND_REQUIRED";
-export type BundleReservationStatus = "NONE" | "RESERVED" | "FAILED" | "RELEASED" | "COMMITTED" | "EXPIRED";
-export type CustomBundleRole = "SALES_STAFF" | "MANAGER" | "INVENTORY_STAFF" | "ADMIN" | "ACCOUNTANT" | "QC_STAFF";
-
-export interface BundleIngredientOption {
-    id: string;
-    category: string;
-    skuCode: string;
-    name: string;
-    unit: "g" | "kg" | "túi";
-    branchAvailableQuantity: number;
-    centralAvailableQuantity: number;
-    pricePerGram: number;
-    nearLowStock: boolean;
-    blocked: boolean;
-    expired: boolean;
-    alternativeSkuId?: string;
-}
-
-export interface CustomBundleLine {
+export interface CustomBundlePackingLine {
     id: string;
     ingredientId: string;
-    skuCode: string;
-    ingredientName: string;
-    category: string;
-    unit: "g" | "kg" | "túi";
-    quantity: number;
-    availableQuantity: number;
-    price: number;
-    batchAllocations: CustomBundleBatchAllocation[];
+    ingredientCode?: string | null;
+    ingredientName?: string | null;
+    requiredQuantity: number;
+    picked: boolean;
 }
 
-export interface CustomBundleBatchAllocation {
+export interface CustomBundlePacking {
     id: string;
-    batchCode: string;
-    expiryDate: string;
-    locationName: string;
-    reservedQuantity: number;
-    committedQuantity: number;
+    packingCode: string;
+    orderId: string;
+    orderCode?: string | null;
+    orderItemId: string;
+    bundleName?: string | null;
+    branchId?: string | null;
+    locationId: string;
+    status: CustomBundlePackingStatus;
+    expectedTotalWeight: number;
+    actualTotalWeight?: number | null;
+    packagingType?: string | null;
+    numberOfPackages?: number | null;
+    packingNote?: string | null;
+    expectedAvailableAt?: string | null;
+    reservedAt?: string | null;
+    packedBy?: string | null;
+    packedAt?: string | null;
+    issueTransactionCode?: string | null;
+    cancelledAt?: string | null;
+    cancelReason?: string | null;
+    createdAt?: string | null;
+    /** Rỗng ở danh sách, đầy đủ ở chi tiết. */
+    lines: CustomBundlePackingLine[];
 }
 
-export interface CustomBundleSummary {
-    id: string;
-    code: string;
-    orderCode?: string;
-    customerName: string;
-    branch: InventoryLocationSummary;
-    totalIngredients: number;
-    totalWeight: number;
-    estimatedPrice: number;
-    paymentStatus: BundlePaymentStatus;
-    status: CustomBundleStatus;
-    requestedPickupAt?: string;
-    createdAt: string;
-}
-
-export interface CustomBundleDetail extends CustomBundleSummary {
-    displayName: string;
-    bundleName?: string;
-    packagingType: string;
-    targetWeight: number;
-    usagePurpose: "GIFT" | "PERSONAL";
-    packingNote?: string;
-    lines: CustomBundleLine[];
-    reservationStatus: BundleReservationStatus;
-    reservationExpiresAt?: string;
-    auditEvents: InventoryAuditEvent[];
-    createdBy: UserSnapshot;
-    stockDocumentId?: string;
-    stockDocumentCode?: string;
-    numberOfPackages?: number;
-    actualTotalWeight?: number;
-    refundStatus?: string;
-}
-
-export interface CustomBundleListQuery {
-    page: number;
-    size: number;
-    tab: "AWAITING_PAYMENT" | "PAID" | "PACKING" | "PACKED" | "FAILED";
-    code: string;
-    orderCode: string;
-    locationId: "ALL" | string;
-    status: "ALL" | CustomBundleStatus;
-    pickupFrom: string;
-    pickupTo: string;
-    customerName: string;
-}
-
-export interface CustomBundleListResult {
-    content: CustomBundleSummary[];
+export interface CustomBundlePackingPage {
+    content: CustomBundlePacking[];
     page: number;
     size: number;
     totalElements: number;
@@ -114,51 +47,17 @@ export interface CustomBundleListResult {
     last: boolean;
 }
 
-export interface CustomBundleCreateInput {
-    branchId: string;
-    customerName: string;
-    bundleName?: string;
-    packagingType: string;
-    targetWeight: number;
-    displayName: string;
-    usagePurpose: "GIFT" | "PERSONAL";
-    requestedPickupAt: string;
-    packingNote?: string;
-    lines: Array<{ ingredientId: string; quantity: number; unit: "g" | "kg" | "túi" }>;
+export interface CustomBundlePackingQuery {
+    status?: CustomBundlePackingStatus;
+    search?: string;
+    page: number;
+    size: number;
 }
 
-export interface BundlePackingInput {
-    bundleId: string;
-    operationId: string;
-    packagingType: string;
-    numberOfPackages: number;
-    actualTotalWeight: number;
-    packingNote?: string;
-    lines: Array<{
-        lineId: string;
-        actualPackedQuantity: number;
-        picked: boolean;
-        reason?: string;
-    }>;
+export interface ConfirmCustomBundlePackingInput {
+    pickedLineIds: string[];
+    packagingType?: string;
+    numberOfPackages?: number;
+    actualTotalWeight?: number;
+    note?: string;
 }
-
-export interface CustomBundleOptions {
-    ingredients: BundleIngredientOption[];
-    locations: InventoryLocationSummary[];
-}
-
-export interface CustomBundleApi {
-    createCustomBundle(input: CustomBundleCreateInput): Promise<CustomBundleDetail>;
-    updateCustomBundle(bundleId: string, input: CustomBundleCreateInput): Promise<CustomBundleDetail>;
-    reserveCustomBundle(bundleId: string): Promise<CustomBundleDetail>;
-    releaseCustomBundleReservation(bundleId: string): Promise<CustomBundleDetail>;
-    listCustomBundles(query: CustomBundleListQuery): Promise<CustomBundleListResult>;
-    getCustomBundle(bundleId: string): Promise<CustomBundleDetail>;
-    startCustomBundlePacking(bundleId: string, actorRole?: CustomBundleRole): Promise<CustomBundleDetail>;
-    confirmCustomBundlePacking(input: BundlePackingInput): Promise<CustomBundleDetail>;
-    cancelCustomBundle(bundleId: string, actorRole?: CustomBundleRole): Promise<CustomBundleDetail>;
-    getCustomBundleOptions(): Promise<CustomBundleOptions>;
-    mockPaymentResult(bundleId: string, success: boolean): Promise<CustomBundleDetail>;
-}
-
-export type AppRole = CustomBundleRole;

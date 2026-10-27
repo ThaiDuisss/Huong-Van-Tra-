@@ -40,7 +40,8 @@ public class IngredientMapper {
                 unitSymbol,
                 ingredient.getReorderPoint(),
                 ingredient.getType(),
-                ingredient.getStatus()
+                ingredient.getStatus(),
+                ingredient.getRetailPricePerUnit()
         );
     }
 
@@ -54,5 +55,6 @@ public class IngredientMapper {
             ingredient.setType(request.type());
         }
         ingredient.setStatus(request.status());
+        ingredient.setRetailPricePerUnit(request.retailPricePerUnit());
     }
 }

@@ -1,44 +1,174 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { customBundleStatusLabels, bundlePaymentStatusLabels } from "../constants/custom-bundle.constants";
+import {
+    customBundlePackingStatusLabels,
+    customBundlePackingStatusTones,
+    customBundlePackingTabs
+} from "../constants/custom-bundle.constants";
 import { customBundleApi } from "../services/customBundle.api";
-import type { CustomBundleListQuery, CustomBundleListResult } from "../types/custom-bundle.types";
+import type {
+    CustomBundlePackingPage,
+    CustomBundlePackingQuery,
+    CustomBundlePackingStatus
+} from "../types/custom-bundle.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 
-const tabs: CustomBundleListQuery["tab"][] = ["AWAITING_PAYMENT", "PAID", "PACKING", "PACKED", "FAILED"];
+function getErrorMessage(error: unknown) {
+    return error instanceof Error ? error.message : "Không tải được danh sách đóng gói.";
+}
 
+/** Hàng đợi đóng trà theo yêu cầu của kho: chờ đóng gói, chờ nguyên liệu, đã đóng gói. */
 export function CustomBundleManagementListPage() {
-    const [query, setQuery] = useState<CustomBundleListQuery>({ code: "", customerName: "", locationId: "ALL", orderCode: "", page: 0, pickupFrom: "", pickupTo: "", size: 10, status: "ALL", tab: "AWAITING_PAYMENT" });
-    const [result, setResult] = useState<CustomBundleListResult | null>(null);
+    const [query, setQuery] = useState<CustomBundlePackingQuery & { status: CustomBundlePackingStatus }>({
+        status: "AWAITING_PACKING",
+        search: "",
+        page: 0,
+        size: 20
+    });
+    const [result, setResult] = useState<CustomBundlePackingPage | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
     useEffect(() => {
         let active = true;
-        queueMicrotask(() => {
-            if (!active) return;
+        const timeoutId = window.setTimeout(() => {
             setLoading(true);
-            void customBundleApi.listCustomBundles(query).then((response) => { if (active) setResult(response); }).finally(()=>{ if(active) setLoading(false); });
-        });
-        return () => { active = false; };
+            setError("");
+            customBundleApi
+                .listPackings(query)
+                .then((response) => {
+                    if (active) setResult(response);
+                })
+                .catch((loadError: unknown) => {
+                    if (active) setError(getErrorMessage(loadError));
+                })
+                .finally(() => {
+                    if (active) setLoading(false);
+                });
+        }, 250);
+        return () => {
+            active = false;
+            window.clearTimeout(timeoutId);
+        };
     }, [query]);
 
-    const bundles = result?.content ?? [];
-    return <section className="grid gap-4">
-        <header className="grid gap-1">
-            <p className="text-xs font-black uppercase text-[#159734]">Management / Inventory</p>
-            <h1 className="text-2xl font-black text-[#172317]">Custom Tea Bundle</h1>
-            <p className="text-sm font-semibold text-[#697684]">Packing queue cho bundle Make-to-Order, commit reservation và tạo PXK CUSTOM_BUNDLE_ISSUE.</p>
-        </header>
-        <nav className="flex gap-2 overflow-x-auto">{tabs.map((tab)=><button className={`h-10 shrink-0 rounded-lg px-4 text-sm font-black ${query.tab===tab ? "bg-[#159734] text-white" : "bg-white text-[#536078]"}`} key={tab} onClick={()=>setQuery({...query, tab, page:0})} type="button">{tab}</button>)}</nav>
-        <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card md:grid-cols-4">
-            <input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(e)=>setQuery({...query,code:e.currentTarget.value,page:0})} placeholder="Mã bundle" value={query.code}/>
-            <input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(e)=>setQuery({...query,orderCode:e.currentTarget.value,page:0})} placeholder="Mã order" value={query.orderCode}/>
-            <input className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(e)=>setQuery({...query,customerName:e.currentTarget.value,page:0})} placeholder="Khách hàng" value={query.customerName}/>
-            <select className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold" onChange={(e)=>setQuery({...query,status:e.currentTarget.value as CustomBundleListQuery["status"],page:0})} value={query.status}><option value="ALL">Tất cả trạng thái</option>{Object.entries(customBundleStatusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>
+    const packings = result?.content ?? [];
+    const totalPages = result?.totalPages ?? 1;
+
+    return (
+        <section className="grid gap-4">
+            <header className="grid gap-1">
+                <p className="text-xs font-black uppercase text-[#159734]">Quản lý / Kho</p>
+                <h1 className="text-2xl font-black text-[#172317]">Đóng trà theo yêu cầu</h1>
+                <p className="text-sm font-semibold text-[#697684]">
+                    Bundle khách tự chọn nguyên liệu đã thu tiền. Xác nhận đóng gói để trừ nguyên liệu đã giữ và báo quầy giao hàng.
+                </p>
+            </header>
+
+            <nav className="flex gap-2 overflow-x-auto">
+                {customBundlePackingTabs.map((status) => (
+                    <button
+                        className={`h-10 shrink-0 rounded-lg px-4 text-sm font-black ${
+                            query.status === status ? "bg-[#159734] text-white" : "bg-white text-[#536078]"
+                        }`}
+                        key={status}
+                        onClick={() => setQuery({ ...query, status, page: 0 })}
+                        type="button"
+                    >
+                        {customBundlePackingStatusLabels[status]}
+                    </button>
+                ))}
+            </nav>
+
+            <input
+                className="h-10 max-w-md rounded-lg border border-pos-border bg-white px-3 text-sm font-bold"
+                onChange={(event) => setQuery({ ...query, search: event.currentTarget.value, page: 0 })}
+                placeholder="Tìm mã đóng gói, mã đơn, tên bundle"
+                value={query.search}
+            />
+
+            {error ? <div className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : null}
+            {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}
+            {!loading && !error && packings.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-[#cfdad2] bg-white p-10 text-center text-sm font-bold text-[#697684]">
+                    Không có bundle ở trạng thái này.
+                </div>
+            ) : null}
+
+            {packings.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
+                    <table className="w-full min-w-[900px] text-left text-sm">
+                        <thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]">
+                            <tr>
+                                <th className="px-4 py-3">Mã đóng gói</th>
+                                <th>Mã đơn</th>
+                                <th>Tên bundle</th>
+                                <th>Khối lượng</th>
+                                <th>Trạng thái</th>
+                                <th>Dự kiến đủ nguyên liệu</th>
+                                <th>Tạo lúc</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {packings.map((packing) => (
+                                <tr className="hover:bg-[#f8fbf8]" key={packing.id}>
+                                    <td className="border-t border-[#edf0f4] px-4 py-3 font-black">
+                                        <Link
+                                            className="text-[#159734] hover:underline"
+                                            to={`/management/inventory/custom-bundles/${packing.id}`}
+                                        >
+                                            {packing.packingCode}
+                                        </Link>
+                                    </td>
+                                    <td className="border-t border-[#edf0f4]">{packing.orderCode ?? "-"}</td>
+                                    <td className="border-t border-[#edf0f4]">{packing.bundleName ?? "-"}</td>
+                                    <td className="border-t border-[#edf0f4]">
+                                        {formatVietnamNumber(packing.expectedTotalWeight)}
+                                    </td>
+                                    <td className="border-t border-[#edf0f4]">
+                                        <span
+                                            className={`rounded-full px-2 py-1 text-xs font-black ${customBundlePackingStatusTones[packing.status]}`}
+                                        >
+                                            {customBundlePackingStatusLabels[packing.status]}
+                                        </span>
+                                    </td>
+                                    <td className="border-t border-[#edf0f4]">
+                                        {packing.expectedAvailableAt ? formatVietnamDateTime(packing.expectedAvailableAt) : "-"}
+                                    </td>
+                                    <td className="border-t border-[#edf0f4]">
+                                        {packing.createdAt ? formatVietnamDateTime(packing.createdAt) : "-"}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            ) : null}
+
+            {totalPages > 1 ? (
+                <div className="flex items-center justify-end gap-2 text-sm font-bold">
+                    <button
+                        className="h-9 rounded-lg border border-[#dce5e1] bg-white px-3 disabled:opacity-50"
+                        disabled={query.page === 0}
+                        onClick={() => setQuery({ ...query, page: query.page - 1 })}
+                        type="button"
+                    >
+                        Trước
+                    </button>
+                    <span>
+                        Trang {query.page + 1}/{totalPages}
+                    </span>
+                    <button
+                        className="h-9 rounded-lg border border-[#dce5e1] bg-white px-3 disabled:opacity-50"
+                        disabled={query.page + 1 >= totalPages}
+                        onClick={() => setQuery({ ...query, page: query.page + 1 })}
+                        type="button"
+                    >
+                        Sau
+                    </button>
+                </div>
+            ) : null}
         </section>
-        {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}
-        {!loading && bundles.length === 0 ? <div className="rounded-xl border border-dashed border-[#cfdad2] bg-white p-10 text-center text-sm font-bold text-[#697684]">Không có bundle trong queue.</div> : null}
-        {bundles.length > 0 ? <div className="overflow-x-auto rounded-xl border border-[#e8eef0] bg-white shadow-pos-card"><table className="w-full min-w-[1080px] text-left text-sm"><thead className="bg-[#eaf7ec] text-xs font-black text-[#172317]"><tr><th className="px-4 py-3">Bundle code</th><th>Order code</th><th>Khách hàng</th><th>Chi nhánh</th><th>Tổng nguyên liệu</th><th>Payment</th><th>Packing status</th><th>Pickup time</th><th>Time waiting</th></tr></thead><tbody>{bundles.map((bundle)=><tr className="hover:bg-[#f8fbf8]" key={bundle.id}><td className="border-t border-[#edf0f4] px-4 py-3 font-black"><Link className="text-[#159734] hover:underline" to={`/management/inventory/custom-bundles/${bundle.id}`}>{bundle.code}</Link></td><td className="border-t border-[#edf0f4]">{bundle.orderCode}</td><td className="border-t border-[#edf0f4]">{bundle.customerName}</td><td className="border-t border-[#edf0f4]">{bundle.branch.name}</td><td className="border-t border-[#edf0f4]">{formatVietnamNumber(bundle.totalIngredients)}</td><td className="border-t border-[#edf0f4]">{bundlePaymentStatusLabels[bundle.paymentStatus]}</td><td className="border-t border-[#edf0f4]">{customBundleStatusLabels[bundle.status]}</td><td className="border-t border-[#edf0f4]">{bundle.requestedPickupAt ? formatVietnamDateTime(bundle.requestedPickupAt) : "-"}</td><td className="border-t border-[#edf0f4]">Đang chờ</td></tr>)}</tbody></table></div> : null}
-    </section>;
+    );
 }

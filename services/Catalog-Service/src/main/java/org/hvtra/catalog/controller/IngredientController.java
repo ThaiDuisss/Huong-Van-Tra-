@@ -3,6 +3,7 @@ package org.hvtra.catalog.controller;
 import jakarta.validation.Valid;
 import org.hvtra.catalog.dto.request.IngredientRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
+import org.hvtra.catalog.dto.response.IngredientBundleLookupResponse;
 import org.hvtra.catalog.dto.response.IngredientResponse;
 import org.hvtra.catalog.dto.response.LookupResponse;
 import org.hvtra.catalog.dto.response.PageResponse;
@@ -53,6 +54,14 @@ public class IngredientController {
             @RequestParam(name = "ids", required = false) java.util.List<UUID> ids,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.lookup(search, status, ids, pageable);
+    }
+
+    /** POS đóng trà theo yêu cầu: nguyên liệu đang bán lẻ kèm đơn vị và giá bán lẻ. */
+    @GetMapping("/bundle-lookup")
+    public PageResponse<IngredientBundleLookupResponse> bundleLookup(
+            @RequestParam(name = "search", required = false) String search,
+            @PageableDefault(size = 50, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+        return service.bundleLookup(search, pageable);
     }
 
     @GetMapping("/{id}")

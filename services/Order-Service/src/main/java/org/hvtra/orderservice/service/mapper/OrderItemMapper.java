@@ -2,10 +2,12 @@ package org.hvtra.orderservice.service.mapper;
 
 import org.hvtra.orderservice.client.CatalogClient;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderItemComponent;
 import org.hvtra.orderservice.dto.response.OrderItemResponse;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -110,6 +112,24 @@ public class OrderItemMapper {
                 .lineTotal(item.getLineTotal())
                 .bomVersionId(item.getBomVersionId())
                 .note(item.getNote())
+                .itemType(item.getItemType())
+                .packingStatus(item.getPackingStatus())
+                .packingCode(item.getPackingCode())
+                .components(item.isCustomBundle() && item.getComponents() != null
+                        ? item.getComponents().stream().map(this::toComponentResponse).toList()
+                        : List.of())
+                .build();
+    }
+
+    private OrderItemResponse.Component toComponentResponse(OrderItemComponent component) {
+        return OrderItemResponse.Component.builder()
+                .ingredientId(component.getIngredientId())
+                .ingredientCode(component.getIngredientCodeSnapshot())
+                .ingredientName(component.getIngredientNameSnapshot())
+                .unit(component.getUnitSnapshot())
+                .quantity(component.getQuantity())
+                .unitPrice(component.getUnitPrice())
+                .lineTotal(component.getLineTotal())
                 .build();
     }
 

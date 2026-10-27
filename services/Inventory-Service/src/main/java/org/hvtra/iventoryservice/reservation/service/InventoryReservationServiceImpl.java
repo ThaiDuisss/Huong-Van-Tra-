@@ -265,13 +265,21 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     @Override
     @Transactional
     public List<InventoryReservationResponse> consumeMaterials(ReleaseInventoryReservationOrderRequest request) {
+        return consumeMaterials(request.orderId(), InventoryTransactionType.SALE_OUT, InventoryReferenceType.ORDER,
+                request.orderId().toString(), "SALE-" + request.orderId());
+    }
+
+    @Override
+    @Transactional
+    public List<InventoryReservationResponse> consumeMaterials(UUID reservationKey, InventoryTransactionType type,
+            InventoryReferenceType referenceType, String referenceId, String transactionCode) {
         List<InventoryReservation> reservations = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
-                request.orderId(),
+                reservationKey,
                 ReservationType.MATERIAL,
                 ReservationStatus.RESERVED);
         if (reservations.isEmpty()) {
             return reservationRepository.findByOrderIdAndReservationTypeAndStatus(
-                            request.orderId(),
+                            reservationKey,
                             ReservationType.MATERIAL,
                             ReservationStatus.CONFIRMED)
                     .stream()
@@ -279,10 +287,10 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                     .toList();
         }
         InventoryTransaction transaction = new InventoryTransaction();
-        transaction.setTransactionCode("SALE-" + request.orderId());
-        transaction.setType(InventoryTransactionType.SALE_OUT);
-        transaction.setReferenceType(InventoryReferenceType.ORDER);
-        transaction.setReferenceId(request.orderId().toString());
+        transaction.setTransactionCode(transactionCode);
+        transaction.setType(type);
+        transaction.setReferenceType(referenceType);
+        transaction.setReferenceId(referenceId);
         InventoryLocation firstLocation = reservations.getFirst().getLocation();
         transaction.setBranchId(firstLocation.getBranchId() == null ? firstLocation.getId() : firstLocation.getBranchId());
         reservations.forEach(reservation -> {

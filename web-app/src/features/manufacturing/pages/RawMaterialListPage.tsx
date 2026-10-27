@@ -23,6 +23,14 @@ import type {
 import {
     getString
 } from "../../product/utils/form-values";
+import { formatCurrency } from "../../product/utils/product-formatters";
+
+/** Giá bán lẻ theo đơn vị tính, vd "1.200 ₫ / g"; chưa có giá thì nguyên liệu không bán lẻ trong bundle. */
+function formatRetailPrice(item: Ingredient) {
+    if (item.retailPricePerUnit == null) return "Không bán lẻ";
+    const price = formatCurrency(item.retailPricePerUnit);
+    return item.unitSymbol ? `${price} / ${item.unitSymbol}` : price;
+}
 
 export function RawMaterialListPage() {
     const navigate = useNavigate();
@@ -63,12 +71,14 @@ export function RawMaterialListPage() {
     ) {
         const unitIdVal = getString(values, "unitId");
         const reorderPointVal = getString(values, "reorderPoint");
+        const retailPriceVal = getString(values, "retailPricePerUnit");
         const imageUrl = getString(values, "imageFile") || null;
         const input = {
             name: getString(values, "name"),
             imageUrl: imageUrl,
             unitId: unitIdVal ? unitIdVal : null,
             reorderPoint: reorderPointVal ? Number(reorderPointVal) : 0,
+            retailPricePerUnit: retailPriceVal ? Number(retailPriceVal) : null,
             status: getString(values, "status") as CatalogStatus
         };
 
@@ -169,6 +179,7 @@ export function RawMaterialListPage() {
                     imageFile: item.imageUrl ?? "",
                     unitId: item.unitId ? String(item.unitId) : "",
                     reorderPoint: item.reorderPoint != null ? String(item.reorderPoint) : "0",
+                    retailPricePerUnit: item.retailPricePerUnit != null ? String(item.retailPricePerUnit) : "",
                     status: item.status
                 })}
                 columns={[
@@ -177,6 +188,7 @@ export function RawMaterialListPage() {
                     { key: "name", label: "Tên nguyên liệu" },
                     { key: "unit", label: "Đơn vị tính" },
                     { key: "reorderPoint", label: "Cảnh báo tồn" },
+                    { key: "retailPricePerUnit", label: "Giá bán lẻ" },
                     { key: "status", label: "Trạng thái" }
                 ]}
                 renderCells={(item: Ingredient) => (
@@ -206,6 +218,9 @@ export function RawMaterialListPage() {
                         <TableCell className="font-medium text-gray-600">
                             {item.reorderPoint ?? 0}
                         </TableCell>
+                        <TableCell className="font-medium text-gray-600">
+                            {formatRetailPrice(item)}
+                        </TableCell>
                         <TableCell>
                             <CatalogStatusBadge status={item.status} />
                         </TableCell>
@@ -230,6 +245,7 @@ export function RawMaterialListPage() {
                                 { label: "Tên nguyên liệu", value: item.name },
                                 { label: "Đơn vị tính", value: item.unitName ? `${item.unitName} (${item.unitSymbol || ""})` : "-" },
                                 { label: "Ngưỡng cảnh báo tồn", value: item.reorderPoint ?? 0 },
+                                { label: "Giá bán lẻ", value: formatRetailPrice(item) },
                                 {
                                     label: "Trạng thái",
                                     value: <CatalogStatusBadge status={item.status} />
@@ -269,6 +285,12 @@ export function RawMaterialListPage() {
                         label: "Ngưỡng cảnh báo tồn tối thiểu",
                         type: "number",
                         placeholder: "0"
+                    },
+                    {
+                        name: "retailPricePerUnit",
+                        label: "Giá bán lẻ / đơn vị (đóng trà theo yêu cầu)",
+                        type: "number",
+                        placeholder: "Để trống nếu không bán lẻ"
                     },
                     {
                         name: "status",
