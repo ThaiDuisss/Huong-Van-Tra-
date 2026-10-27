@@ -93,7 +93,7 @@ function originalBusinessPath(document: StockDocumentDetail) {
         return "/management/inventory/supplier-returns";
     }
 
-    if (document.type === "PURCHASE_RECEIPT") {
+    if (document.type === "GOODS_RECEIPT") {
         return "/management/inventory/receipts";
     }
 

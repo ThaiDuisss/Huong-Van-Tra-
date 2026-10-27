@@ -3,18 +3,18 @@ package org.hvtra.iventoryservice.replenishment.service;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
-import org.hvtra.iventoryservice.document.repository.InventoryDocumentRepository;
+import org.hvtra.iventoryservice.replenishment.repository.ShelfReplenishmentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
+import org.hvtra.iventoryservice.domain.entity.document.ShelfReplenishment;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionBatchAllocation;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
-import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryReferenceType;
@@ -59,7 +59,6 @@ import java.util.UUID;
 @Service
 @Transactional(readOnly = true)
 public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService {
-    private static final InventoryDocumentType TYPE = InventoryDocumentType.TRANSFER_RECEIPT;
     private static final String SEQUENCE_KEY = "NKE";
     private static final List<InventoryDocumentStatus> OPEN_STATUSES =
             List.of(InventoryDocumentStatus.DRAFT, InventoryDocumentStatus.PENDING_APPROVAL);
@@ -76,7 +75,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     private static final Set<String> REVIEW_ROLES = Set.of(
             "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_SUPERADMIN", "ROLE_BRANCH_MANAGER", "ROLE_INVENTORY_MANAGER");
 
-    private final InventoryDocumentRepository documentRepository;
+    private final ShelfReplenishmentRepository replenishmentRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryBalanceRepository balanceRepository;
@@ -84,13 +83,13 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     private final BusinessSequenceService sequenceService;
 
     public ShelfReplenishmentServiceImpl(
-            InventoryDocumentRepository documentRepository,
+            ShelfReplenishmentRepository replenishmentRepository,
             InventoryLocationRepository locationRepository,
             InventoryItemRepository itemRepository,
             InventoryBalanceRepository balanceRepository,
             InventoryTransactionRepository transactionRepository,
             BusinessSequenceService sequenceService) {
-        this.documentRepository = documentRepository;
+        this.replenishmentRepository = replenishmentRepository;
         this.locationRepository = locationRepository;
         this.itemRepository = itemRepository;
         this.balanceRepository = balanceRepository;
@@ -101,9 +100,8 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     @Override
     public PageResponse<ShelfReplenishmentResponse> findAll(
             InventoryDocumentStatus status, UUID shelfId, String query, Boolean pendingReview, Pageable pageable) {
-        Specification<InventoryDocument> spec = (root, cq, cb) -> {
+        Specification<ShelfReplenishment> spec = (root, cq, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("documentType"), TYPE));
             predicates.add(cb.isFalse(root.get("isDeleted")));
             if (Boolean.TRUE.equals(pendingReview)) {
                 predicates.add(cb.equal(root.get("status"), InventoryDocumentStatus.POSTED));
@@ -124,18 +122,17 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(documentRepository.findAll(spec, pageable).map(document -> toResponse(document, false)));
+        return PageResponse.from(replenishmentRepository.findAll(spec, pageable).map(document -> toResponse(document, false)));
     }
 
     @Override
     public ShelfReplenishmentSummaryResponse summary() {
         return new ShelfReplenishmentSummaryResponse(
-                documentRepository.countByDocumentTypeAndStatusAndIsDeletedFalse(TYPE, InventoryDocumentStatus.DRAFT),
-                documentRepository.countByDocumentTypeAndStatusAndIsDeletedFalse(TYPE, InventoryDocumentStatus.PENDING_APPROVAL),
-                documentRepository.countByDocumentTypeAndStatusAndIsDeletedFalse(TYPE, InventoryDocumentStatus.POSTED),
-                documentRepository.countByDocumentTypeAndStatusAndIsDeletedFalse(TYPE, InventoryDocumentStatus.CANCELLED),
-                documentRepository.countByDocumentTypeAndStatusAndApprovedAtIsNullAndIsDeletedFalse(
-                        TYPE, InventoryDocumentStatus.POSTED));
+                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.DRAFT),
+                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.PENDING_APPROVAL),
+                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.POSTED),
+                replenishmentRepository.countByStatusAndIsDeletedFalse(InventoryDocumentStatus.CANCELLED),
+                replenishmentRepository.countByStatusAndApprovedAtIsNullAndIsDeletedFalse(InventoryDocumentStatus.POSTED));
     }
 
     @Override
@@ -155,21 +152,20 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         Map<UUID, ShelfReplenishmentLineRequest> linesByVariant = mergeLines(request.lines());
         Map<UUID, InventoryItem> itemByVariant = resolveItems(linesByVariant.keySet());
 
-        InventoryDocument existing = findOpenByReference(request.referenceId());
+        ShelfReplenishment existing = findOpenByReference(request.referenceId());
         if (existing != null) {
             upsertLines(existing, linesByVariant, itemByVariant);
             if (request.submit() && existing.getStatus() == InventoryDocumentStatus.DRAFT) {
                 existing.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
             }
-            return toResponse(documentRepository.save(existing), true);
+            return toResponse(replenishmentRepository.save(existing), true);
         }
 
         InventoryLocation warehouse = resolveWarehouse(request.warehouseId(), request.shelfId(), request.branchId());
         InventoryLocation shelf = resolveShelf(request.shelfId(), warehouse, itemByVariant.values());
 
-        InventoryDocument document = new InventoryDocument();
+        ShelfReplenishment document = new ShelfReplenishment();
         document.setDocumentCode(sequenceService.nextCode(SEQUENCE_KEY, 5));
-        document.setDocumentType(TYPE);
         document.setStatus(request.submit() ? InventoryDocumentStatus.PENDING_APPROVAL : InventoryDocumentStatus.DRAFT);
         document.setBranchId(request.branchId() != null ? request.branchId() : shelf.getBranchId());
         document.setLocationId(shelf.getId());
@@ -179,14 +175,14 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         document.setReferenceId(blankToNull(request.referenceId()));
         document.setNote(blankToNull(request.note()));
         upsertLines(document, linesByVariant, itemByVariant);
-        return toResponse(documentRepository.save(document), true);
+        return toResponse(replenishmentRepository.save(document), true);
     }
 
     @Override
     @Transactional
     public ShelfReplenishmentResponse update(UUID id, UpdateShelfReplenishmentRequest request) {
         requireAnyRole(REQUEST_ROLES);
-        InventoryDocument document = getDocument(id);
+        ShelfReplenishment document = getDocument(id);
         if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
             throw new BadRequestException("Chỉ sửa được phiếu nhập kệ đang ở trạng thái nháp");
         }
@@ -206,16 +202,16 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
 
         // Xóa hết dòng cũ và flush trước khi thêm lại để không đụng unique (document_id, line_no).
         document.getLines().clear();
-        documentRepository.saveAndFlush(document);
+        replenishmentRepository.saveAndFlush(document);
         upsertLines(document, linesByVariant, itemByVariant);
-        return toResponse(documentRepository.save(document), true);
+        return toResponse(replenishmentRepository.save(document), true);
     }
 
     @Override
     @Transactional
     public ShelfReplenishmentResponse submit(UUID id) {
         requireAnyRole(REQUEST_ROLES);
-        InventoryDocument document = getDocument(id);
+        ShelfReplenishment document = getDocument(id);
         if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
             throw new BadRequestException("Chỉ gửi được phiếu nhập kệ đang ở trạng thái nháp");
         }
@@ -223,7 +219,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             throw new BadRequestException("Phiếu nhập kệ chưa có mặt hàng nào");
         }
         document.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
-        return toResponse(documentRepository.save(document), true);
+        return toResponse(replenishmentRepository.save(document), true);
     }
 
     /**
@@ -234,7 +230,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     @Transactional
     public ShelfReplenishmentResponse post(UUID id) {
         requireAnyRole(WAREHOUSE_ROLES);
-        InventoryDocument document = getDocument(id);
+        ShelfReplenishment document = getDocument(id);
         if (document.getStatus() == InventoryDocumentStatus.POSTED) {
             return toResponse(document, true);
         }
@@ -245,14 +241,14 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         // Kho tự xác nhận thì coi như đã được duyệt bởi chính người xác nhận.
         document.setApprovedBy(currentUserId());
         document.setApprovedAt(Instant.now());
-        return toResponse(documentRepository.save(document), true);
+        return toResponse(replenishmentRepository.save(document), true);
     }
 
     @Override
     @Transactional
     public ShelfReplenishmentResponse review(UUID id) {
         requireAnyRole(REVIEW_ROLES);
-        InventoryDocument document = getDocument(id);
+        ShelfReplenishment document = getDocument(id);
         if (document.getStatus() != InventoryDocumentStatus.POSTED) {
             throw new BadRequestException("Chỉ duyệt được phiếu đã xuất hàng lên kệ");
         }
@@ -260,14 +256,14 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             document.setApprovedBy(currentUserId());
             document.setApprovedAt(Instant.now());
         }
-        return toResponse(documentRepository.save(document), true);
+        return toResponse(replenishmentRepository.save(document), true);
     }
 
     @Override
     @Transactional
     public ShelfReplenishmentResponse autoIssueForOrder(UUID orderId, UUID branchId,
             Map<UUID, BigDecimal> shortageByVariantId) {
-        InventoryDocument existing = findOpenByReference(orderId.toString());
+        ShelfReplenishment existing = findOpenByReference(orderId.toString());
         Map<UUID, ShelfReplenishmentLineRequest> lines = new LinkedHashMap<>();
         shortageByVariantId.forEach((variantId, shortage) -> {
             if (shortage != null && shortage.compareTo(BigDecimal.ZERO) > 0) {
@@ -281,19 +277,18 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
                 String current = existing.getNote();
                 existing.setNote((current == null || current.isBlank() ? "" : current + "\n")
                         + "Hủy: kệ đã đủ hàng khi thanh toán đơn");
-                documentRepository.save(existing);
+                replenishmentRepository.save(existing);
             }
             return null;
         }
 
         Map<UUID, InventoryItem> itemByVariant = resolveItems(lines.keySet());
-        InventoryDocument document = existing;
+        ShelfReplenishment document = existing;
         if (document == null) {
             InventoryLocation warehouse = resolveWarehouse(null, null, branchId);
             InventoryLocation shelf = resolveShelf(null, warehouse, itemByVariant.values());
-            document = new InventoryDocument();
+            document = new ShelfReplenishment();
             document.setDocumentCode(sequenceService.nextCode(SEQUENCE_KEY, 5));
-            document.setDocumentType(TYPE);
             document.setBranchId(branchId != null ? branchId : shelf.getBranchId());
             document.setLocationId(shelf.getId());
             document.setSourceLocation(warehouse);
@@ -307,9 +302,9 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         }
         document.setReasonCode(AUTO_ISSUE_REASON);
         upsertLines(document, lines, itemByVariant);
-        document = documentRepository.save(document);
+        document = replenishmentRepository.save(document);
         issue(document);
-        return toResponse(documentRepository.save(document), true);
+        return toResponse(replenishmentRepository.save(document), true);
     }
 
     /** Chuyển hàng của phiếu từ kho lên kệ và đánh dấu POSTED. Việc duyệt (approved*) do nơi gọi quyết định. */
@@ -348,7 +343,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
     @Transactional
     public ShelfReplenishmentResponse cancel(UUID id, String note) {
         requireAnyRole(REQUEST_ROLES);
-        InventoryDocument document = getDocument(id);
+        ShelfReplenishment document = getDocument(id);
         if (document.getStatus() == InventoryDocumentStatus.CANCELLED) {
             return toResponse(document, true);
         }
@@ -360,7 +355,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             String current = document.getNote();
             document.setNote((current == null || current.isBlank() ? "" : current + "\n") + "Hủy: " + note.trim());
         }
-        return toResponse(documentRepository.save(document), true);
+        return toResponse(replenishmentRepository.save(document), true);
     }
 
     // ---------------------------------------------------------------- stock movement
@@ -495,14 +490,13 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         }
     }
 
-    private InventoryDocument findOpenByReference(String referenceId) {
+    private ShelfReplenishment findOpenByReference(String referenceId) {
         String reference = blankToNull(referenceId);
         if (reference == null) {
             return null;
         }
-        return documentRepository
-                .findFirstByDocumentTypeAndReferenceIdAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
-                        TYPE, reference, OPEN_STATUSES)
+        return replenishmentRepository
+                .findFirstByReferenceIdAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(reference, OPEN_STATUSES)
                 .orElse(null);
     }
 
@@ -638,13 +632,9 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
 
     // ---------------------------------------------------------------- helpers
 
-    private InventoryDocument getDocument(UUID id) {
-        InventoryDocument document = documentRepository.findByIdAndIsDeletedFalse(id)
+    private ShelfReplenishment getDocument(UUID id) {
+        return replenishmentRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ShelfReplenishment", id));
-        if (document.getDocumentType() != TYPE) {
-            throw new ResourceNotFoundException("ShelfReplenishment", id);
-        }
-        return document;
     }
 
     private void requireAnyRole(Set<String> allowedRoles) {

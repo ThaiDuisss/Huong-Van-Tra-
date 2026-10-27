@@ -148,7 +148,7 @@ const linkedDocumentTypes: Record<string, StockDocumentType> = {
     [inventoryMasterDocuments.customBundleIssue.id]: "CUSTOM_BUNDLE_ISSUE",
     [inventoryMasterDocuments.customerReturnReceipt.id]: "CUSTOMER_RETURN_RECEIPT",
     [inventoryMasterDocuments.disposalWriteOff.id]: "WRITE_OFF",
-    [inventoryMasterDocuments.goodsReceipt.id]: "PURCHASE_RECEIPT",
+    [inventoryMasterDocuments.goodsReceipt.id]: "GOODS_RECEIPT",
     [inventoryMasterDocuments.productionIssue.id]: "PRODUCTION_ISSUE",
     [inventoryMasterDocuments.productionReceipt.id]: "PRODUCTION_RECEIPT",
     [inventoryMasterDocuments.stocktakeAdjustment.id]: "ADJUSTMENT_OUT",
@@ -171,7 +171,7 @@ function synthesizeLinkedDocument(documentId: string) {
                         documentId.includes("custom-bundle") ? "CUSTOM_BUNDLE_ISSUE" :
                             documentId.includes("customer-return") ? "CUSTOMER_RETURN_RECEIPT" :
                                 documentId.includes("stocktake") ? "ADJUSTMENT_OUT" :
-                                    documentId.includes("receipt") ? "PURCHASE_RECEIPT" : undefined);
+                                    documentId.includes("receipt") ? "GOODS_RECEIPT" : undefined);
     if (!type) return null;
     const base = stockDocumentCache.find((item) => item.type === type) ?? stockDocumentCache[0];
     if (!base) return null;

@@ -612,7 +612,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
             case RETURN_IN -> "RIN";
             case ADJUSTMENT -> "ADJ";
             case TRANSFER -> "TRF";
-            case PURCHASE_RECEIPT -> null;
+            case GOODS_RECEIPT -> null;
             case PRODUCTION_RECEIPT -> null;
             case CUSTOMER_RETURN_RECEIPT -> null;
             case PRODUCTION_ISSUE -> null;

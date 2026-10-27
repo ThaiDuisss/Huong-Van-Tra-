@@ -22,12 +22,12 @@ public class InventorySecurityConfig extends BaseSecurityConfig {
     @Override
     protected void authorizeRequests(
             AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
-        // Duyệt / từ chối phiếu nhập, duyệt ngoại lệ & ghi sổ, hủy phiếu: chỉ ADMIN và MANAGER
+        // Phiếu nhập NCC — duyệt / từ chối, duyệt ngoại lệ & ghi sổ, hủy phiếu: chỉ ADMIN và MANAGER
         auth.requestMatchers(HttpMethod.POST,
-                        "/api/inventory/documents/*/approve",
-                        "/api/inventory/documents/*/reject",
-                        "/api/inventory/documents/*/post",
-                        "/api/inventory/documents/*/cancel")
+                        "/api/inventory/goods-receipts/*/approve",
+                        "/api/inventory/goods-receipts/*/reject",
+                        "/api/inventory/goods-receipts/*/post",
+                        "/api/inventory/goods-receipts/*/cancel")
                 .hasAnyRole(APPROVER_ROLES);
     }
 }

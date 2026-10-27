@@ -117,7 +117,7 @@ function line(
 }
 
 const typeCycle: StockDocumentType[] = [
-    "PURCHASE_RECEIPT",
+    "GOODS_RECEIPT",
     "PRODUCTION_RECEIPT",
     "TRANSFER_RECEIPT",
     "ADJUSTMENT_IN",

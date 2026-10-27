@@ -71,7 +71,7 @@ public interface AvailabilityQueryRepository extends Repository<ProductionOrder,
             join fetch l.document d
             join fetch l.inventoryItem i
             where i.id in :itemIds and d.isDeleted = false
-              and d.documentType = org.hvtra.iventoryservice.domain.enums.InventoryDocumentType.PURCHASE_RECEIPT
+              and d.documentType = org.hvtra.iventoryservice.domain.enums.InventoryDocumentType.GOODS_RECEIPT
               and d.status in :statuses
             """)
     List<InventoryDocumentLine> findOpenReceiptLines(
@@ -82,7 +82,7 @@ public interface AvailabilityQueryRepository extends Repository<ProductionOrder,
     @Query("""
             select d from InventoryDocument d
             where d.isDeleted = false
-              and d.documentType = org.hvtra.iventoryservice.domain.enums.InventoryDocumentType.PURCHASE_RECEIPT
+              and d.documentType = org.hvtra.iventoryservice.domain.enums.InventoryDocumentType.GOODS_RECEIPT
               and d.status = org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus.POSTED
               and d.postedAt is not null
               and exists (select 1 from InventoryDocumentLine l where l.document = d and l.inventoryItem.id = :itemId)

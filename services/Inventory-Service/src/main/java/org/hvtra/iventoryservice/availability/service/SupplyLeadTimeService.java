@@ -59,7 +59,7 @@ public class SupplyLeadTimeService {
     /** Gọi khi một phiếu nhập vừa ghi sổ: tính lại thời gian nhập trung bình của từng nguyên liệu trên phiếu. */
     @Transactional
     public void onReceiptPosted(InventoryDocument document) {
-        if (document.getDocumentType() != InventoryDocumentType.PURCHASE_RECEIPT || document.getLines() == null) {
+        if (document.getDocumentType() != InventoryDocumentType.GOODS_RECEIPT || document.getLines() == null) {
             return;
         }
         try {

@@ -14,7 +14,7 @@ export const stockDocumentTypeLabels: Record<StockDocumentType, string> = {
     CUSTOM_BUNDLE_ISSUE: "Xuất custom bundle",
     PRODUCTION_ISSUE: "Xuất sản xuất",
     PRODUCTION_RECEIPT: "Nhập sản xuất",
-    PURCHASE_RECEIPT: "Nhập mua hàng",
+    GOODS_RECEIPT: "Nhập mua hàng",
     SALE_ISSUE: "Xuất bán hàng",
     SUPPLIER_RETURN: "Trả nhà cung cấp",
     TRANSFER_ISSUE: "Xuất chuyển kho",
@@ -70,7 +70,7 @@ export const stockBatchStatusLabels: Record<StockBatchStatus, string> = {
 };
 
 export const stockDocumentTypeOptions: StockDocumentType[] = [
-    "PURCHASE_RECEIPT",
+    "GOODS_RECEIPT",
     "PRODUCTION_RECEIPT",
     "CUSTOMER_RETURN_RECEIPT",
     "TRANSFER_RECEIPT",
@@ -104,7 +104,7 @@ export const stockDocumentDirectionLabels: Record<
 };
 
 export const inboundStockDocumentTypes: StockDocumentType[] = [
-    "PURCHASE_RECEIPT",
+    "GOODS_RECEIPT",
     "PRODUCTION_RECEIPT",
     "CUSTOMER_RETURN_RECEIPT",
     "TRANSFER_RECEIPT",
