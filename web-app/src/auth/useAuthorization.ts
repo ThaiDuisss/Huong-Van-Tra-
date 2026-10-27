@@ -3,7 +3,17 @@ import { hasAllRoles, hasAnyRole, hasRole, normalizeRole } from "./auth.utils";
 import { ROLES, type Role } from "./roles";
 
 export function useAuthorization() {
-    const { roles: rawRoles = [], authenticated, initialized, user, keycloakSubject } = useAuth();
+    const {
+        roles: rawRoles = [],
+        authenticated,
+        initialized,
+        user,
+        keycloakSubject,
+        permissions,
+        permissionsLoaded,
+        hasPermission: hasPermissionFn,
+        refreshPermissions
+    } = useAuth();
     const roles = rawRoles.map(normalizeRole) as Role[];
 
     return {
@@ -12,6 +22,11 @@ export function useAuthorization() {
         initialized,
         user,
         keycloakSubject,
+        /** undefined = chưa tải được permission (backend cũ): dùng role như trước. */
+        permissions,
+        permissionsLoaded,
+        hasPermission: hasPermissionFn,
+        refreshPermissions,
 
         hasRole: (role: keyof typeof ROLES | Role) => {
             const targetRole = role in ROLES ? ROLES[role as keyof typeof ROLES] : (role as Role);

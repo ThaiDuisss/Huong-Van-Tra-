@@ -34,6 +34,16 @@ public abstract class BaseGlobalExceptionHandler {
                 .build();
         return ResponseEntity.badRequest().body(response);
     }
+    /** Thiếu quyền (SecurityUtils.requirePermission / kiểm tra role): 403, không phải 500. */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+            org.springframework.security.access.AccessDeniedException exception
+    ) {
+        log.warn("Access denied: {}", exception.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse("FORBIDDEN", exception.getMessage(), HttpStatus.FORBIDDEN.value()));
+    }
+
     @ExceptionHandler(BaseException.class)
     public ResponseEntity<ErrorResponse> handleBaseException(
             BaseException exception,

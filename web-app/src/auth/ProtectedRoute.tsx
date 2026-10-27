@@ -3,11 +3,16 @@ import { LogIn, ShieldAlert } from "lucide-react";
 
 import { HvtLogo } from "../components/shared/HvtLogo";
 import { useAuth } from "./auth-context";
-import { getDefaultRouteForRoles, hasAnyRole } from "./role-utils";
+import { getDefaultRouteForRoles, hasAnyRole, ROLES } from "./role-utils";
 
 type ProtectedRouteProps = {
     children: ReactNode;
     roles?: string[];
+    /**
+     * Permission yêu cầu (bất kỳ cái nào). Khi backend đã trả danh sách permission thì permission quyết định;
+     * chưa tải được thì dùng `roles` như trước để không khóa màn hình trên môi trường cũ.
+     */
+    permissions?: string[];
 };
 
 type AuthStatePageProps = {
@@ -69,7 +74,7 @@ function AuthStatePage({
     );
 }
 
-export function ProtectedRoute({ children, roles = [] }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, roles = [], permissions = [] }: ProtectedRouteProps) {
     const auth = useAuth();
 
     if (!auth.initialized) {
@@ -94,10 +99,18 @@ export function ProtectedRoute({ children, roles = [] }: ProtectedRouteProps) {
         );
     }
 
-    if (roles.length > 0) {
+    if (roles.length > 0 || permissions.length > 0) {
+        const superAdmin = hasAnyRole(auth.roles, [ROLES.SUPER_ADMIN]) || auth.hasRealmRole("SUPER_ADMIN");
+        // Danh sách permission rỗng = chưa bootstrap: dùng role như cũ.
+        const permissionDecision =
+            permissions.length > 0 && Array.isArray(auth.permissions) && auth.permissions.length > 0
+                ? permissions.some((permission) => auth.permissions?.includes(permission))
+                : undefined;
         const hasRequiredRole =
-            hasAnyRole(auth.roles, roles) ||
-            roles.some((role) => auth.hasRealmRole(role));
+            superAdmin ||
+            (permissionDecision ??
+                (hasAnyRole(auth.roles, roles) ||
+                    roles.some((role) => auth.hasRealmRole(role))));
 
         if (!hasRequiredRole) {
             return (

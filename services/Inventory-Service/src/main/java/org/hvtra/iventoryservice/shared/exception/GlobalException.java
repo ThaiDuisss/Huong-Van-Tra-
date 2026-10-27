@@ -9,7 +9,6 @@ import org.hvtra.commonservice.common_core.exception.ErrorResponse;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -48,14 +47,6 @@ public class GlobalException extends BaseGlobalExceptionHandler {
         log.warn("Bad request at {}: {}", request.getRequestURI(), exception.getMessage());
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse("BAD_REQUEST", exception.getMessage(), 400));
-    }
-
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAccessDenied(
-            AccessDeniedException exception, HttpServletRequest request) {
-        log.warn("Access denied at {}: {}", request.getRequestURI(), exception.getMessage());
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(new ErrorResponse("FORBIDDEN", exception.getMessage(), 403));
     }
 
     @ExceptionHandler(OutOfStockException.class)

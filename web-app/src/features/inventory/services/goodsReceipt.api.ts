@@ -26,6 +26,7 @@ interface InventoryDocumentLineBackendResponse {
     inventoryItemId: string;
     itemSku: string;
     itemName: string;
+    itemType?: string;
     unitId: string;
     unitName: string;
     orderedQuantity: number;
@@ -245,6 +246,7 @@ function mapDocToDetail(doc: InventoryDocumentBackendResponse): GoodsReceiptDeta
             id: line.id || `line-${index}`,
             initialDamagedQuantity: 0,
             internalBatchCode: batchAlloc?.batchCode || "",
+            itemType: line.itemType,
             manufacturedAt: batchAlloc?.manufactureDate || "",
             materialId: line.inventoryItemId,
             materialName: resolveMaterialName(line.itemName, line.itemSku, line.inventoryItemId),

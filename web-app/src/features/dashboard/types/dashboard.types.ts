@@ -5,7 +5,6 @@ import type {
 } from "../../inventory/types/inventory.types";
 import type { QualityBatchSummary } from "../../inventory/types/quality.types";
 import type { StockAlert } from "../../inventory/types/stock-alert.types";
-import type { StockDocumentSummary } from "../../inventory/types/stock-document.types";
 import type { OrderStatsResponse } from "../../order/types/order.types";
 import type {
   SalesHistoryOrder,
@@ -76,6 +75,16 @@ export interface DashboardTrendPoint {
   source: "REAL" | "ADAPTED" | "MOCK" | "GAP";
 }
 
+/** Phiếu kho đang chờ phê duyệt (từ `/inventory/documents?status=PENDING_APPROVAL`). */
+export interface DashboardPendingDocument {
+  id: string;
+  code: string;
+  typeLabel: string;
+  locationName: string | null;
+  supplierName: string | null;
+  createdAt: string | null;
+}
+
 export interface DashboardSkuPerformance {
   id: string;
   skuCode: string;
@@ -83,7 +92,7 @@ export interface DashboardSkuPerformance {
   category: string;
   quantity: number;
   revenue: number;
-  source: "MOCK" | "GAP";
+  source: "REAL" | "MOCK" | "GAP";
 }
 
 export interface DashboardPaymentBreakdown {
@@ -91,7 +100,7 @@ export interface DashboardPaymentBreakdown {
   label: string;
   transactionCount: number;
   revenue: number;
-  status: "MOCK" | "GAP";
+  status: "REAL" | "MOCK" | "GAP";
 }
 
 export interface DashboardStorePerformance {
@@ -100,7 +109,7 @@ export interface DashboardStorePerformance {
   revenue: number;
   orderCount: number;
   averageOrderValue: number;
-  source: "MOCK" | "GAP";
+  source: "REAL" | "MOCK" | "GAP";
 }
 
 export interface DashboardStaffPerformance {
@@ -109,7 +118,7 @@ export interface DashboardStaffPerformance {
   revenue: number;
   orderCount: number;
   cancelRefundRate: number;
-  source: "MOCK" | "GAP";
+  source: "REAL" | "MOCK" | "GAP";
 }
 
 export interface DashboardProductionWastage {
@@ -126,8 +135,11 @@ export interface DashboardProductionWastage {
   source: DashboardSourceStatus;
 }
 
-/** Dữ liệu demo chỉ tồn tại khi bật mock (dev). Production nhận null → widget hiển thị GAP. */
-export interface DashboardSalesDemo {
+/**
+ * Số liệu phân tích bán hàng từ `/orders/reports/sales-dashboard` (REAL). Khi bật mock dashboard
+ * và API lỗi thì thay bằng dữ liệu MOCK; lỗi mà không có mock → `data: null`, widget hiển thị GAP.
+ */
+export interface DashboardSalesAnalytics {
   revenueTrend: DashboardTrendPoint[];
   orderTrend: DashboardTrendPoint[];
   topSkus: DashboardSkuPerformance[];
@@ -146,7 +158,8 @@ export interface DashboardSalesSnapshot {
   stats: DashboardPart<OrderStatsResponse>;
   /** `/orders/today-sales` trang đầu. */
   recentOrders: DashboardPart<{ items: SalesHistoryOrder[]; total: number }>;
-  demo: DashboardSalesDemo | null;
+  /** `/orders/reports/sales-dashboard` theo khoảng thời gian đã chọn. */
+  analytics: DashboardPart<DashboardSalesAnalytics>;
 }
 
 export interface DashboardInventorySnapshot {
@@ -161,10 +174,12 @@ export interface DashboardInventorySnapshot {
 }
 
 export interface DashboardAlertSnapshot {
-  /** Các service FE hiện có (in-memory mock) — gắn nhãn DEMO. */
+  /** Chỉ có khi bật mock dashboard (service FE in-memory); production `data: null`. */
   stockAlerts: DashboardPart<StockAlert[]>;
+  /** `/inventory/dashboards/expiring-batches` (REAL), mock khi API lỗi và bật mock. */
   expiringBatches: DashboardPart<QualityBatchSummary[]>;
-  pendingDocuments: DashboardPart<StockDocumentSummary[]>;
+  /** Phiếu nhập chờ phê duyệt từ API thật. */
+  pendingDocuments: DashboardPart<DashboardPendingDocument[]>;
   /** Chỉ có khi bật mock dashboard; null = GAP. */
   pendingDeductions: DashboardPendingDeduction[] | null;
   expiringReservations: DashboardExpiringReservation[] | null;

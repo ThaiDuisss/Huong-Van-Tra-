@@ -16,6 +16,7 @@ export const routePaths = {
   systemDashboardAlerts: "/system/dashboard/alerts",
   systemActionLogs: "/system/action-logs",
   systemAccounts: "/system/accounts",
+  systemAuthorization: "/system/authorization",
   systemSellableConfig: "/system/sellable-config",
   management: "/management",
   orders: "/system/orders",

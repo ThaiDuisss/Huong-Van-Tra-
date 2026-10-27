@@ -17,6 +17,12 @@ export type AuthContextValue = {
     shiftName?: string;
     roles?: string[];
     roleLabel?: string;
+    /**
+     * Permission hiệu lực từ `/identity/me/permissions`. `undefined` khi chưa tải được (dùng role như cũ),
+     * mảng (kể cả rỗng) khi backend đã trả lời.
+     */
+    permissions?: string[];
+    permissionsLoaded: boolean;
 
     login: () => void;
     register: () => void;
@@ -24,6 +30,10 @@ export type AuthContextValue = {
 
     hasRealmRole: (role: string) => boolean;
     hasResourceRole: (role: string, resource?: string) => boolean;
+    /** Chỉ để ẩn/hiện thao tác; backend luôn kiểm tra lại. */
+    hasPermission: (permission: string) => boolean;
+    /** Xin token mới từ Keycloak rồi tải lại permission (sau khi đổi vai trò/quyền). */
+    refreshPermissions: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

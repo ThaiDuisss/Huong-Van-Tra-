@@ -3,6 +3,8 @@ package org.hvtra.orderservice.service;
 import org.hvtra.orderservice.dto.response.TopSalesStaffReportResponse;
 import org.hvtra.orderservice.dto.response.TopSellingProductReportResponse;
 
+import org.hvtra.orderservice.dto.response.SalesDashboardResponse;
+
 import java.time.LocalDate;
 
 public interface OrderStatisticReportService {
@@ -23,4 +25,15 @@ public interface OrderStatisticReportService {
             String sortBy,
             Integer limit
     );
+
+    /** Số widget tối đa (top sản phẩm, top nhân viên) trên dashboard. */
+    int DASHBOARD_TOP_LIMIT = 5;
+    /** Dashboard gộp theo giờ nên giới hạn kỳ tối đa 31 ngày để không tải quá nhiều đơn. */
+    int DASHBOARD_MAX_DAYS = 31;
+
+    /**
+     * Số liệu tổng hợp cho dashboard bán hàng. Thiếu {@code toDate} lấy hôm nay, thiếu {@code fromDate}
+     * lấy bằng {@code toDate}.
+     */
+    SalesDashboardResponse getSalesDashboard(LocalDate fromDate, LocalDate toDate);
 }

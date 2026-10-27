@@ -29,8 +29,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 })
 @EnableFeignClients(basePackages = "org.hvtra", defaultConfiguration = FeignConfig.class)
 @Import(SwaggerConfig.class)
-@EntityScan(basePackageClasses = {FileMetadata.class, BusinessSequence.class})
-@EnableJpaRepositories(basePackageClasses = {FileMetadataRepository.class, BusinessSequenceRepository.class})
 public class FileServiceApplication {
 
     public static void main(String[] args) {

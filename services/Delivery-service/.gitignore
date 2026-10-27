@@ -34,3 +34,8 @@ build/
 
 *.env
 delivery.env
+
+# Ignore toàn bộ thư mục logs và các file log
+logs/
+*.log
+*.log.gz

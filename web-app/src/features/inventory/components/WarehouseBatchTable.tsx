@@ -5,9 +5,10 @@ interface WarehouseBatchTableProps {
     batches: WarehouseBatchResponse[];
     loading?: boolean;
     onBatchSelect?: (batch: WarehouseBatchResponse) => void;
+    showExpiry?: boolean;
 }
 
-export function WarehouseBatchTable({ batches, loading, onBatchSelect }: WarehouseBatchTableProps) {
+export function WarehouseBatchTable({ batches, loading, onBatchSelect, showExpiry = true }: WarehouseBatchTableProps) {
     if (loading) {
         return <div className="p-4">Đang tải...</div>;
     }
@@ -50,13 +51,13 @@ export function WarehouseBatchTable({ batches, loading, onBatchSelect }: Warehou
                         <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Mã lô</th>
                         <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Mã lô NCC</th>
                         <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Ngày SX</th>
-                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Hạn sử dụng</th>
-                        <th className="px-4 py-2 text-center text-xs font-bold text-gray-700">Đơn vị</th>
+                        {showExpiry && <th className="px-4 py-2 text-left text-xs font-bold text-gray-700">Hạn sử dụng</th>}
                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-700">SL ban đầu</th>
                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-700">SL còn lại</th>
                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-700">Tồn khả dụng</th>
+                        <th className="px-4 py-2 text-center text-xs font-bold text-gray-700">Đơn vị</th>
                         <th className="px-4 py-2 text-center text-xs font-bold text-gray-700">Trạng thái</th>
-                        <th className="px-4 py-2 text-center text-xs font-bold text-gray-700">Còn lại</th>
+                        {showExpiry && <th className="px-4 py-2 text-center text-xs font-bold text-gray-700">Còn lại</th>}
                     </tr>
                 </thead>
                 <tbody>
@@ -71,12 +72,11 @@ export function WarehouseBatchTable({ batches, loading, onBatchSelect }: Warehou
                             <td className="px-4 py-2 text-sm text-gray-600">
                                 {batch.manufactureDate ? formatVietnamDateTime(batch.manufactureDate) : "-"}
                             </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                                {batch.expiryDate ? formatVietnamDateTime(batch.expiryDate) : "-"}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-center text-gray-700 font-medium">
-                                {batch.unitSymbol}
-                            </td>
+                            {showExpiry && (
+                                <td className="px-4 py-2 text-sm text-gray-600">
+                                    {batch.expiryDate ? formatVietnamDateTime(batch.expiryDate) : "-"}
+                                </td>
+                            )}
                             <td className="px-4 py-2 text-sm text-right text-gray-600">
                                 {(batch.quantityOnHand + batch.quantityReserved + batch.quantityBlocked).toFixed(2)}
                             </td>
@@ -86,8 +86,11 @@ export function WarehouseBatchTable({ batches, loading, onBatchSelect }: Warehou
                             <td className="px-4 py-2 text-sm text-right font-bold text-green-600">
                                 {batch.availableQuantity.toFixed(2)}
                             </td>
+                              <td className="px-4 py-2 text-sm text-center text-gray-700 font-medium">
+                                {batch.unitSymbol}
+                            </td>
                             <td className="px-4 py-2 text-center">{getStatusBadge(batch.status)}</td>
-                            <td className="px-4 py-2 text-center">{getExpiryBadge(batch.daysUntilExpiry)}</td>
+                            {showExpiry && <td className="px-4 py-2 text-center">{getExpiryBadge(batch.daysUntilExpiry)}</td>}
                         </tr>
                     ))}
                 </tbody>

@@ -1,6 +1,5 @@
 import { routePaths } from "../../../routes/path";
 import { stockAlertTypeLabels } from "../../inventory/constants/stock-alert.constants";
-import { stockDocumentTypeLabels } from "../../inventory/constants/stock-document.constants";
 import type { InventoryBalanceViewResponse } from "../../inventory/types/inventory.types";
 import { formatVietnamNumber } from "../../inventory/utils/inventory-format";
 import type {
@@ -95,7 +94,7 @@ export function buildAlertItems(input: {
       kindLabel: dashboardAlertKindLabels.EXPIRY,
       occurredAt: batch.expiryDate,
       severity,
-      source: "DEMO",
+      source: "REAL",
       subject: `${batch.skuCode} · ${batch.location.name} · ${days < 0 ? `hết hạn ${Math.abs(days)} ngày` : `còn ${days} ngày`}`,
       title: `Lô ${batch.batchCode}`,
       to: `/management/inventory/quality/batches/${batch.id}`,
@@ -103,18 +102,20 @@ export function buildAlertItems(input: {
   });
 
   (snapshot.pendingDocuments.data ?? []).forEach((document) => {
-    const ageDays = (now - new Date(document.createdAt).getTime()) / 86400000;
+    const createdAt = document.createdAt ?? new Date(now).toISOString();
+    const ageDays = (now - new Date(createdAt).getTime()) / 86400000;
+    const where = [document.supplierName, document.locationName].filter(Boolean).join(" · ");
 
     items.push({
       id: `document-${document.id}`,
       kind: "PENDING_APPROVAL",
       kindLabel: dashboardAlertKindLabels.PENDING_APPROVAL,
-      occurredAt: document.createdAt,
+      occurredAt: createdAt,
       severity: ageDays > 3 ? "HIGH" : "MEDIUM",
-      source: "DEMO",
-      subject: `${stockDocumentTypeLabels[document.type]} · ${document.createdBy.name}`,
+      source: "REAL",
+      subject: where ? `${document.typeLabel} · ${where}` : document.typeLabel,
       title: document.code,
-      to: `/management/inventory/documents/${document.id}`,
+      to: routePaths.goodsReceiptDetail.replace(":receiptId", document.id),
     });
   });
 
@@ -140,7 +141,7 @@ export function buildAlertItems(input: {
       kindLabel: dashboardAlertKindLabels.RESERVATION,
       occurredAt: reservation.expiresAt,
       severity: hoursLeft <= 6 ? "HIGH" : "MEDIUM",
-      source: "DEMO",
+      source: "REAL",
       subject: `${reservation.skuCode} · ${reservation.reservedFor} · SL ${formatVietnamNumber(reservation.reservedQuantity)}`,
       title: `${reservation.code} sắp hết hạn giữ chỗ`,
     });

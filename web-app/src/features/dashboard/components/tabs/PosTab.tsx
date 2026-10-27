@@ -34,7 +34,7 @@ export function PosTab({
   const loading = isResourceLoading(sales);
   const summary = data?.todaySummary;
   const stats = data?.stats;
-  const demo = data?.demo ?? null;
+  const demo = data?.analytics.data ?? null;
   const rangeLabel = timeRangeLabels[filters.timeRange];
   const total = numeric(stats?.data?.total);
   const returned = numeric(stats?.data?.returnedOrRefunded);

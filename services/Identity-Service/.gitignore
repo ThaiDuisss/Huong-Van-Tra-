@@ -32,3 +32,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Ignore toàn bộ thư mục logs và các file log
+logs/
+*.log
+*.log.gz

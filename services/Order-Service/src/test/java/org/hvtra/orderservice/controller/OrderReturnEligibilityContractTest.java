@@ -4,10 +4,10 @@ import org.hvtra.orderservice.dto.response.OrderReturnEligibilityCheckResponse;
 import org.hvtra.orderservice.dto.response.OrderReturnEligibilityResponse;
 import org.hvtra.orderservice.exception.OrderGlobalExceptionHandler;
 import org.hvtra.orderservice.service.OrderExportService;
+import org.hvtra.orderservice.service.PosOfflineCheckoutService;
 import org.hvtra.orderservice.service.OrderReturnReportService;
 import org.hvtra.orderservice.service.OrderReturnService;
 import org.hvtra.orderservice.service.OrderService;
-import org.hvtra.orderservice.service.PosOfflineCheckoutService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 class OrderReturnEligibilityContractTest {
     @Mock private OrderService orders;
-    @Mock private PosOfflineCheckoutService offlineCheckout;
+    @Mock private PosOfflineCheckoutService posOfflineCheckouts;
     @Mock private OrderExportService exports;
     @Mock private OrderReturnService returns;
     @Mock private OrderReturnReportService reports;
@@ -45,7 +45,7 @@ class OrderReturnEligibilityContractTest {
     void setUp() {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        mvc = MockMvcBuilders.standaloneSetup(new OrderController(orders, offlineCheckout, exports, returns, reports))
+        mvc = MockMvcBuilders.standaloneSetup(new OrderController(orders, posOfflineCheckouts, exports, returns, reports))
                 .setValidator(validator).setControllerAdvice(new OrderGlobalExceptionHandler()).build();
     }
 

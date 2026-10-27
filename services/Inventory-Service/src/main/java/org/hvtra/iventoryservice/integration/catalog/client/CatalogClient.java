@@ -20,9 +20,6 @@ public interface CatalogClient {
     @GetMapping("/api/catalog/categories/{id}")
     CategoryResponse getCategory(@PathVariable("id") UUID id);
 
-    @GetMapping("/api/catalog/units/{id}")
-    UnitResponse getUnit(@PathVariable("id") UUID id);
-
     @PostMapping("/internal/catalog/products/batch")
     List<ProductResponse> getProductsBatch(@RequestBody List<UUID> ids);
 
