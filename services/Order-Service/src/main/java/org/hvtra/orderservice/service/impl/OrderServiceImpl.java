@@ -34,7 +34,6 @@ import org.hvtra.orderservice.dto.response.TodaySalesItemResponse;
 import org.hvtra.orderservice.dto.response.TodaySalesSummaryResponse;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.InvalidPaymentAmountException;
-import org.hvtra.orderservice.exception.OrderAlreadyPaidException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.repository.OrderDiscountRepository;
@@ -906,7 +905,7 @@ public class OrderServiceImpl implements OrderService {
         order.setExpiresAt(nextDraftExpiresAt());
 
         if (targetQuantity.compareTo(BigDecimal.ZERO) <= 0) {
-            return removeDraftItem(orderId, itemId);
+            return removeDraftItem(orderId.toString(), itemId.toString());
         }
 
         var variant = catalogClient.getProductVariantPosView(item.getProductVariantId());
@@ -921,12 +920,15 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse removeDraftItem(UUID orderId, UUID itemId) {
+    public OrderResponse removeDraftItem(String orderId, String itemId) {
+        UUID orderId1 = UUID.fromString(orderId);
+        UUID itemId1 = UUID.fromString(itemId);
+
         if (orderDraftService != null) {
-            return orderDraftService.removeDraftItem(orderId, itemId);
+            return orderDraftService.removeDraftItem(orderId1, itemId1);
         }
-        Order order = getEditableDraftOrder(orderId);
-        OrderItem item = getOrderItem(order, itemId);
+        Order order = getEditableDraftOrder(orderId1);
+        OrderItem item = getOrderItem(order, itemId1);
 
         order.getItems().remove(item);
         order.setExpiresAt(nextDraftExpiresAt());
