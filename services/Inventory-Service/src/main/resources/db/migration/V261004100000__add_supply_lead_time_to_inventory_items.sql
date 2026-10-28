@@ -1,5 +1,5 @@
 -- Thời gian trung bình để có một mặt hàng, lưu sẵn để ước tính ngày có hàng không phải quét lịch sử mỗi lần:
---   thành phẩm  = thời gian sản xuất (tạo lệnh -> duyệt lệnh; COMPLETED/completed_at đã bị bỏ khỏi quy trình)
+--   thành phẩm  = thời gian sản xuất (tạo lệnh -> hoàn tất)
 --   nguyên liệu = thời gian nhập hàng (lập phiếu nhập -> ghi sổ)
 -- Được tính lại khi lệnh sản xuất hoàn tất / phiếu nhập ghi sổ. NULL = chưa có lịch sử.
 ALTER TABLE inventory_items
@@ -8,19 +8,19 @@ ALTER TABLE inventory_items
 
 UPDATE inventory_items
 SET avg_supply_lead_seconds = (
-        SELECT ROUND(AVG(TIMESTAMPDIFF(SECOND, p.created_at, p.approved_at)))
+        SELECT ROUND(AVG(TIMESTAMPDIFF(SECOND, p.created_at, p.completed_at)))
         FROM production_orders p
-        WHERE (p.product_variant_id = inventory_items.id OR p.product_variant_id = inventory_items.reference_id)
-          AND p.status IN ('APPROVED', 'COMPLETED')
+        WHERE p.product_variant_id = inventory_items.reference_id
+          AND p.status = 'COMPLETED'
           AND p.is_deleted = FALSE
-          AND p.approved_at > p.created_at),
+          AND p.completed_at > p.created_at),
     supply_lead_samples = (
         SELECT COUNT(*)
         FROM production_orders p
-        WHERE (p.product_variant_id = inventory_items.id OR p.product_variant_id = inventory_items.reference_id)
-          AND p.status IN ('APPROVED', 'COMPLETED')
+        WHERE p.product_variant_id = inventory_items.reference_id
+          AND p.status = 'COMPLETED'
           AND p.is_deleted = FALSE
-          AND p.approved_at > p.created_at)
+          AND p.completed_at > p.created_at)
 WHERE item_type = 'PRODUCT_VARIANT';
 
 UPDATE inventory_items
