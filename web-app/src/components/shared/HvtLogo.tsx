@@ -1,8 +1,31 @@
 interface HvtLogoProps {
     compact?: boolean;
+    /** Chỉ hiện con dấu tròn (menu thu gọn). */
+    mark?: boolean;
 }
 
-export function HvtLogo({ compact = false }: HvtLogoProps) {
+export function HvtLogo({ compact = false, mark = false }: HvtLogoProps) {
+    if (mark) {
+        return (
+            <svg className="size-11" viewBox="76 3 128 128" role="img" aria-label="Hương Vân Trà">
+                <circle cx="140" cy="67" r="62" fill="#086329" />
+                <circle cx="140" cy="67" r="55" fill="none" stroke="#d8d63d" strokeWidth="4" />
+                <circle cx="140" cy="67" r="43" fill="#f2e83a" />
+                <text
+                    x="140"
+                    y="91"
+                    fill="#086329"
+                    fontFamily="Arial, sans-serif"
+                    fontSize="70"
+                    fontWeight="900"
+                    textAnchor="middle"
+                >
+                    H
+                </text>
+            </svg>
+        );
+    }
+
     return (
         <div
             className={

@@ -1,18 +1,22 @@
 package org.hvtra.iventoryservice.report.service.impl;
 
+import lombok.extern.slf4j.Slf4j;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
 import org.hvtra.iventoryservice.document.repository.InventoryDocumentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
-import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransactionLine;
+import org.hvtra.iventoryservice.domain.entity.production.ProductionOrder;
 import org.hvtra.iventoryservice.domain.enums.InventoryBatchStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentType;
 import org.hvtra.iventoryservice.domain.enums.InventoryTransactionType;
+import org.hvtra.iventoryservice.domain.enums.ProductionOrderStatus;
+import org.hvtra.iventoryservice.integration.catalog.client.CatalogClient;
 import org.hvtra.iventoryservice.movement.repository.InventoryTransactionRepository;
+import org.hvtra.iventoryservice.production.repository.ProductionOrderRepository;
 import org.hvtra.iventoryservice.report.dto.*;
 import org.hvtra.iventoryservice.report.service.InventoryReportService;
 import org.hvtra.iventoryservice.stock.repository.InventoryBalanceRepository;
@@ -22,29 +26,42 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 public class InventoryReportServiceImpl implements InventoryReportService {
+
+    private static final ZoneId STORE_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final List<ProductionOrderStatus> OPEN_PRODUCTION_STATUSES =
+            List.of(ProductionOrderStatus.DRAFT, ProductionOrderStatus.PENDING_APPROVAL);
 
     private final InventoryBalanceRepository balanceRepository;
     private final InventoryBatchRepository batchRepository;
     private final InventoryDocumentRepository documentRepository;
     private final InventoryTransactionRepository transactionRepository;
+    private final ProductionOrderRepository productionOrderRepository;
+    private final CatalogClient catalogClient;
 
     public InventoryReportServiceImpl(
             InventoryBalanceRepository balanceRepository,
             InventoryBatchRepository batchRepository,
             InventoryDocumentRepository documentRepository,
-            InventoryTransactionRepository transactionRepository) {
+            InventoryTransactionRepository transactionRepository,
+            ProductionOrderRepository productionOrderRepository,
+            CatalogClient catalogClient) {
         this.balanceRepository = balanceRepository;
         this.batchRepository = batchRepository;
         this.documentRepository = documentRepository;
         this.transactionRepository = transactionRepository;
+        this.productionOrderRepository = productionOrderRepository;
+        this.catalogClient = catalogClient;
     }
 
     @Override
@@ -209,72 +226,53 @@ public class InventoryReportServiceImpl implements InventoryReportService {
 
     @Override
     public ProductionWastageReportResponse getProductionWastageReport(LocalDate fromDate, LocalDate toDate) {
-        List<InventoryDocument> prodDocs = documentRepository.findAll().stream()
-                .filter(d -> !d.getIsDeleted())
-                .filter(d -> d.getDocumentType() == InventoryDocumentType.PRODUCTION_ISSUE || d.getDocumentType() == InventoryDocumentType.PRODUCTION_RECEIPT)
-                .toList();
+        // Không truyền kỳ thì lấy toàn bộ lịch sử; toDate tính trọn ngày theo giờ cửa hàng.
+        Instant from = fromDate != null ? fromDate.atStartOfDay(STORE_ZONE).toInstant() : Instant.EPOCH;
+        Instant to = toDate != null
+                ? toDate.plusDays(1).atStartOfDay(STORE_ZONE).toInstant()
+                : Instant.now().plus(1, ChronoUnit.DAYS);
 
-        Map<String, ProductionWastageReportResponse.MaterialWastageDetail> materialMap = new LinkedHashMap<>();
+        List<ProductionOrder> approvedOrders = productionOrderRepository.findApprovedWithLinesBetween(from, to);
+        List<ProductionOrder> openOrders = productionOrderRepository.findWithLinesByStatusIn(OPEN_PRODUCTION_STATUSES);
 
-        BigDecimal totalPlanned = BigDecimal.ZERO;
-        BigDecimal totalActual = BigDecimal.ZERO;
-
-        for (InventoryDocument d : prodDocs) {
-            for (InventoryDocumentLine l : d.getLines()) {
-                if (l.getInventoryItem() == null) continue;
-                String code = l.getInventoryItem().getReferenceCode() != null ? l.getInventoryItem().getReferenceCode() : "MAT-" + l.getInventoryItem().getId().toString().substring(0, 6);
-                String name = l.getInventoryItem().getName() != null ? l.getInventoryItem().getName() : "Nguyên liệu";
-
-                BigDecimal planned = l.getOrderedQuantity() != null ? l.getOrderedQuantity() : BigDecimal.ZERO;
-                BigDecimal actual = l.getReceivedQuantity() != null ? l.getReceivedQuantity() : planned;
-
-                totalPlanned = totalPlanned.add(planned);
-                totalActual = totalActual.add(actual);
-
-                ProductionWastageReportResponse.MaterialWastageDetail existing = materialMap.get(code);
-                if (existing == null) {
-                    BigDecimal wastage = actual.subtract(planned).max(BigDecimal.ZERO);
-                    double rate = planned.compareTo(BigDecimal.ZERO) > 0 ? (wastage.doubleValue() / planned.doubleValue()) * 100.0 : 0.0;
-
-                    materialMap.put(code, new ProductionWastageReportResponse.MaterialWastageDetail(
-                            code,
-                            name,
-                            "Cái",
-                            planned,
-                            actual,
-                            wastage,
-                            Math.round(rate * 10.0) / 10.0,
-                            BigDecimal.ZERO
-                    ));
-                } else {
-                    BigDecimal newPlanned = existing.plannedQuantity().add(planned);
-                    BigDecimal newActual = existing.actualQuantity().add(actual);
-                    BigDecimal newWastage = newActual.subtract(newPlanned).max(BigDecimal.ZERO);
-                    double rate = newPlanned.compareTo(BigDecimal.ZERO) > 0 ? (newWastage.doubleValue() / newPlanned.doubleValue()) * 100.0 : 0.0;
-
-                    materialMap.put(code, new ProductionWastageReportResponse.MaterialWastageDetail(
-                            code,
-                            name,
-                            existing.unitSymbol(),
-                            newPlanned,
-                            newActual,
-                            newWastage,
-                            Math.round(rate * 10.0) / 10.0,
-                            BigDecimal.ZERO
-                    ));
-                }
+        Set<UUID> openIngredientIds = openOrders.stream()
+                .flatMap(order -> order.getLines().stream())
+                .filter(line -> line.getIngredient() != null)
+                .map(line -> line.getIngredient().getId())
+                .collect(Collectors.toSet());
+        Map<UUID, BigDecimal> availableByItemId = new HashMap<>();
+        if (!openIngredientIds.isEmpty()) {
+            for (InventoryBalance balance : balanceRepository.findActiveWarehouseBalancesByInventoryItemIds(openIngredientIds)) {
+                availableByItemId.merge(balance.getInventoryItem().getId(), balance.getAvailableQuantity(), BigDecimal::add);
             }
         }
 
-        BigDecimal totalWastage = totalActual.subtract(totalPlanned).max(BigDecimal.ZERO);
+        List<UUID> unitIds = approvedOrders.stream()
+                .flatMap(order -> order.getLines().stream())
+                .filter(line -> line.getIngredient() != null && line.getIngredient().getUnitId() != null)
+                .map(line -> line.getIngredient().getUnitId())
+                .distinct()
+                .toList();
 
-        return ProductionWastageReportResponse.builder()
-                .totalPlannedQuantity(totalPlanned)
-                .totalActualQuantity(totalActual)
-                .totalWastageQuantity(totalWastage)
-                .totalWastageValue(BigDecimal.ZERO)
-                .materials(new ArrayList<>(materialMap.values()))
-                .build();
+        return ProductionReportCalculator.calculate(approvedOrders, openOrders, availableByItemId, fetchUnitSymbols(unitIds));
+    }
+
+    // Ký hiệu ĐVT chỉ để hiển thị — Catalog lỗi thì báo cáo vẫn trả số, chỉ thiếu đơn vị.
+    private Map<UUID, String> fetchUnitSymbols(List<UUID> unitIds) {
+        Map<UUID, String> symbols = new HashMap<>();
+        if (unitIds.isEmpty()) {
+            return symbols;
+        }
+        try {
+            for (CatalogClient.UnitResponse unit : catalogClient.getUnitsBatch(unitIds)) {
+                if (unit != null && unit.id() != null) {
+                    symbols.put(unit.id(), unit.symbol() != null && !unit.symbol().isBlank() ? unit.symbol() : unit.name());
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Không lấy được đơn vị tính từ Catalog-Service: {}", exception.getMessage());
+        }
+        return symbols;
     }
 
     @Override

@@ -200,6 +200,33 @@ class SaleableInventoryTest {
     }
 
     @Test
+    void internalPosAvailabilityIgnoresShelfNotUnderWarehouse() {
+        InventoryLocation detachedShelf = location(InventoryLocationType.SHELF, branchId, null);
+        when(itemRepository.findByReferenceIdInAndItemType(any(), eq(InventoryItemType.PRODUCT_VARIANT)))
+                .thenReturn(List.of(item));
+        when(balanceRepository.findSellableBatchBalancesByInventoryItemIds(
+                eq(List.of(item.getId())),
+                eq(InventoryStatus.ACTIVE),
+                any(),
+                any()))
+                .thenReturn(List.of(
+                        balance(item, detachedShelf, "32.00", "0.00", "0.00"),
+                        balance(item, shelf, "5.00", "0.00", "0.00")));
+
+        InventoryStockServiceImpl service = new InventoryStockServiceImpl(
+                balanceRepository,
+                itemRepository,
+                catalogClient);
+
+        StockVariantBatchResponse response = service.getStocksByVariantIds(
+                new StockVariantBatchRequest(List.of(variantId), null)).getFirst();
+
+        assertThat(response.shelfQuantity()).isEqualByComparingTo("5.00");
+        assertThat(response.availableQuantity()).isEqualByComparingTo("5.00");
+        assertThat(response.shelfLocationId()).isEqualTo(shelf.getId());
+    }
+
+    @Test
     void productAvailabilitySubtractsBlockedQuantity() {
         UUID productId = UUID.randomUUID();
         when(catalogClient.getVariantRefsByProductIds(List.of(productId)))

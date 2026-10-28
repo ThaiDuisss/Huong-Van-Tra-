@@ -168,19 +168,6 @@ public class NotificationEventService {
         }
 
         String recipientUserId = event.getUserId();
-        if (recipientUserId == null || recipientUserId.isBlank()) {
-            log.warn(
-                    "Bỏ qua order notification event thiếu userId. eventId={}, eventType={}, orderId={}, orderCode={}, customerId={}, topic={}, key={}",
-                    eventId,
-                    event.getEventType(),
-                    event.getOrderId(),
-                    event.getOrderCode(),
-                    event.getCustomerId(),
-                    record.topic(),
-                    record.key()
-            );
-            return null;
-        }
 
         Notification notification = new Notification();
         notification.setUserId(recipientUserId);

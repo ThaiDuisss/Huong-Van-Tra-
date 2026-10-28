@@ -28,6 +28,8 @@ import { OrderReturnPage } from "../features/order/pages/OrderReturnPage";
 import { ReturnRefundReportPage } from "../features/order/pages/ReturnRefundReportPage";
 import { BackorderOrdersPage } from "../features/order/pages/BackorderOrdersPage";
 import { CustomBundleHandoverPage } from "../features/order/pages/CustomBundleHandoverPage";
+import { PosCustomBundlePage } from "../features/sales/pages/PosCustomBundlePage";
+import { PosShelfReplenishmentPage } from "../features/sales/pages/PosShelfReplenishmentPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
 import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
@@ -165,6 +167,38 @@ export function AppRouter() {
           <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
             <PosShell>
               <CustomBundleHandoverPage />
+            </PosShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={routePaths.posCustomBundleCreate}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosShell>
+              <PosCustomBundlePage />
+            </PosShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={routePaths.posShelfReplenishments}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosShell>
+              <PosShelfReplenishmentPage />
+            </PosShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={routePaths.posCustomers}
+        element={
+          <ProtectedRoute roles={POS_WORKSPACE_ROLES}>
+            <PosShell>
+              <div className="h-full min-h-0 overflow-hidden p-4">
+                <CustomerListPage variant="pos" />
+              </div>
             </PosShell>
           </ProtectedRoute>
         }

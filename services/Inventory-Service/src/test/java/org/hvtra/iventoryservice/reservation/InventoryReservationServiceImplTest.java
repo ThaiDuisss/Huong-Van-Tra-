@@ -13,6 +13,7 @@ import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
 import org.hvtra.iventoryservice.domain.enums.ReservationStatus;
 import org.hvtra.iventoryservice.item.repository.InventoryItemRepository;
 import org.hvtra.iventoryservice.location.repository.InventoryLocationRepository;
+import org.hvtra.iventoryservice.reservation.dto.request.ConfirmInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReleaseInventoryReservationOrderRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReserveMaterialLineRequest;
 import org.hvtra.iventoryservice.reservation.dto.request.ReserveMaterialOrderRequest;
@@ -231,6 +232,28 @@ class InventoryReservationServiceImplTest {
         verifyNoInteractions(balanceRepository);
         verifyNoInteractions(transactionRepository);
         verify(reservationRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void confirmOrder_isNoOpForFulfilledCounterSaleWithoutReservations() {
+        UUID orderId = UUID.randomUUID();
+        when(reservationRepository.findByOrderIdAndReservationTypeAndStatus(any(), any(), any()))
+                .thenReturn(List.of());
+        when(transactionRepository.existsByTransactionCode("SALE-" + orderId)).thenReturn(true);
+
+        assertEquals(List.of(), service.confirmOrder(new ConfirmInventoryReservationOrderRequest(orderId)));
+        verifyNoInteractions(balanceRepository);
+    }
+
+    @Test
+    void confirmOrder_rejectsOrderWithoutReservationOrSale() {
+        UUID orderId = UUID.randomUUID();
+        when(reservationRepository.findByOrderIdAndReservationTypeAndStatus(any(), any(), any()))
+                .thenReturn(List.of());
+        when(transactionRepository.existsByTransactionCode("SALE-" + orderId)).thenReturn(false);
+
+        assertThrows(BadRequestException.class,
+                () -> service.confirmOrder(new ConfirmInventoryReservationOrderRequest(orderId)));
     }
 
     @Test

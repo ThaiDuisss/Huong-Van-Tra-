@@ -67,3 +67,6 @@ CLAUDE.md
 .external/
 **/logs/
 **/.codegraph
+# Python bytecode
+__pycache__/
+*.py[cod]

@@ -38,8 +38,9 @@ interface Props {
     onPageChange: (page: number) => void;
     onCustomerClick: (customer: CustomerResponse) => void;
     onCustomerEdit: (customer: CustomerResponse) => void;
-    onCustomerDelete: (customer: CustomerResponse) => void;
-    onCustomerStatusChange: (customer: CustomerResponse) => void;
+    /** Bỏ trống để ẩn thao tác (vd. màn POS không cho xoá / khoá khách hàng). */
+    onCustomerDelete?: (customer: CustomerResponse) => void;
+    onCustomerStatusChange?: (customer: CustomerResponse) => void;
 }
 
 export function CustomerTable({
@@ -92,9 +93,9 @@ export function CustomerTable({
                                     rowIndex={index}
                                     key={customer.id}
                                     onClick={() => onCustomerClick(customer)}
-                                    onDelete={() => onCustomerDelete(customer)}
+                                    onDelete={onCustomerDelete && (() => onCustomerDelete(customer))}
                                     onEdit={() => onCustomerEdit(customer)}
-                                    onStatusChange={() => onCustomerStatusChange(customer)}
+                                    onStatusChange={onCustomerStatusChange && (() => onCustomerStatusChange(customer))}
                                 />
                             ))}
                     </tbody>
@@ -110,9 +111,9 @@ export function CustomerTable({
                             customer={customer}
                             key={customer.id}
                             onClick={() => onCustomerClick(customer)}
-                            onDelete={() => onCustomerDelete(customer)}
+                            onDelete={onCustomerDelete && (() => onCustomerDelete(customer))}
                             onEdit={() => onCustomerEdit(customer)}
-                            onStatusChange={() => onCustomerStatusChange(customer)}
+                            onStatusChange={onCustomerStatusChange && (() => onCustomerStatusChange(customer))}
                         />
                     ))}
             </div>
@@ -251,9 +252,9 @@ function CustomerTableRow({
     customer: CustomerResponse;
     rowIndex: number;
     onClick: () => void;
-    onDelete: () => void;
+    onDelete?: () => void;
     onEdit: () => void;
-    onStatusChange: () => void;
+    onStatusChange?: () => void;
 }) {
     return (
         <tr
@@ -300,10 +301,10 @@ function CustomerActionMenu({
     onStatusChange
 }: {
     customer: CustomerResponse;
-    onDelete: () => void;
+    onDelete?: () => void;
     onEdit: () => void;
     onOpen: () => void;
-    onStatusChange: () => void;
+    onStatusChange?: () => void;
 }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
@@ -396,12 +397,16 @@ function CustomerActionMenu({
                     >
                         <ActionItem icon={Eye} label="Xem chi tiết" onClick={() => runAction(onOpen)} />
                         <ActionItem icon={Pencil} label="Sửa thông tin" onClick={() => runAction(onEdit)} />
-                        <ActionItem
-                            icon={customer.status === "ACTIVE" ? ShieldOff : ShieldCheck}
-                            label={customerStatusActionLabel(customer.status)}
-                            onClick={() => runAction(onStatusChange)}
-                        />
-                        <ActionItem danger icon={Trash2} label="Xóa khách hàng" onClick={() => runAction(onDelete)} />
+                        {onStatusChange ? (
+                            <ActionItem
+                                icon={customer.status === "ACTIVE" ? ShieldOff : ShieldCheck}
+                                label={customerStatusActionLabel(customer.status)}
+                                onClick={() => runAction(onStatusChange)}
+                            />
+                        ) : null}
+                        {onDelete ? (
+                            <ActionItem danger icon={Trash2} label="Xóa khách hàng" onClick={() => runAction(onDelete)} />
+                        ) : null}
                     </div>,
                     document.body
                 )}
@@ -418,9 +423,9 @@ function MobileCustomerCard({
 }: {
     customer: CustomerResponse;
     onClick: () => void;
-    onDelete: () => void;
+    onDelete?: () => void;
     onEdit: () => void;
-    onStatusChange: () => void;
+    onStatusChange?: () => void;
 }) {
     return (
         <article className="rounded-lg border border-[#e1e8e5] bg-white p-3">

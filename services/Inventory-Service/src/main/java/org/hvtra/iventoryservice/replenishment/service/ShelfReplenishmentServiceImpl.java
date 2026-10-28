@@ -66,6 +66,8 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             List.of(InventoryDocumentStatus.DRAFT, InventoryDocumentStatus.PENDING_APPROVAL);
     /** reasonCode của phiếu do POS xuất kho ngay khi bán; manager duyệt sau. */
     static final String AUTO_ISSUE_REASON = "POS_AUTO_ISSUE";
+    /** reasonCode của phiếu thu ngân tự nhập số lượng và đưa lên kệ ngay trên POS; manager duyệt sau. */
+    static final String MANUAL_ISSUE_REASON = "POS_MANUAL_ISSUE";
 
     private final ShelfReplenishmentRepository replenishmentRepository;
     private final InventoryLocationRepository locationRepository;
@@ -144,7 +146,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         Map<UUID, ShelfReplenishmentLineRequest> linesByVariant = mergeLines(request.lines());
         Map<UUID, InventoryItem> itemByVariant = resolveItems(linesByVariant.keySet());
 
-        ShelfReplenishment existing = findOpenByReference(request.referenceId());
+        ShelfReplenishment existing = request.issueNow() ? null : findOpenByReference(request.referenceId());
         if (existing != null) {
             upsertLines(existing, linesByVariant, itemByVariant);
             if (request.submit() && existing.getStatus() == InventoryDocumentStatus.DRAFT) {
@@ -169,6 +171,14 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         document.setReferenceId(blankToNull(request.referenceId()));
         document.setNote(blankToNull(request.note()));
         upsertLines(document, linesByVariant, itemByVariant);
+        if (request.issueNow()) {
+            // Thu ngân tự chọn số lượng đưa lên kệ: chuyển hàng ngay (kho thiếu thì báo lỗi), manager duyệt lại sau.
+            document.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
+            document.setReasonCode(MANUAL_ISSUE_REASON);
+            ShelfReplenishment saved = replenishmentRepository.save(document);
+            issue(saved);
+            return toResponse(replenishmentRepository.save(saved), true);
+        }
         // Lưu trước để có id (giao dịch kho tham chiếu id phiếu) và createdBy do auditing gán
         ShelfReplenishment saved = replenishmentRepository.save(document);
         autoApproveIfCreatedByManager(saved);
@@ -684,7 +694,8 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
                 document.getUpdatedAt(),
                 document.getPostedBy(),
                 document.getPostedAt(),
-                AUTO_ISSUE_REASON.equals(document.getReasonCode()),
+                AUTO_ISSUE_REASON.equals(document.getReasonCode())
+                        || MANUAL_ISSUE_REASON.equals(document.getReasonCode()),
                 document.getStatus() == InventoryDocumentStatus.POSTED && document.getApprovedAt() == null,
                 document.getApprovedBy(),
                 document.getApprovedAt(),

@@ -3,6 +3,8 @@ package org.hvtra.catalog.service.impl;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.entity.BusinessSequence;
 import org.hvtra.commonservice.common_core.util.CodeUtils;
@@ -17,6 +19,7 @@ import org.hvtra.catalog.dto.response.ProductVariantProductRefResponse;
 import org.hvtra.catalog.dto.response.SellableQuantityAdjustmentResponse;
 import org.hvtra.catalog.dto.response.VariantCostResponse;
 import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
+import org.hvtra.catalog.entity.Barcode;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Ingredient;
@@ -109,7 +112,21 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             UUID categoryId,
             Status status,
             Pageable pageable) {
-        Specification<ProductVariant> spec = (root, query, cb) -> {
+        Specification<ProductVariant> spec =
+                searchSpecification(keyword, sku, variantName, barcode, productId, categoryId, status);
+        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toVariantSummary));
+    }
+
+    /** Điều kiện tìm biến thể; keyword khớp SKU, tên biến thể, tên sản phẩm hoặc đúng mã vạch. */
+    static Specification<ProductVariant> searchSpecification(
+            String keyword,
+            String sku,
+            String variantName,
+            String barcode,
+            UUID productId,
+            UUID categoryId,
+            Status status) {
+        return (root, query, cb) -> {
             Class<?> resultType = query.getResultType();
             boolean isCountQuery = Long.class.equals(resultType) || long.class.equals(resultType);
             Join<ProductVariant, Product> productJoin;
@@ -127,10 +144,17 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             predicates.add(cb.isFalse(root.get("customBundle")));
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.toLowerCase() + "%";
+                // Mã vạch qua EXISTS để biến thể nhiều mã vạch không bị lặp dòng; máy quét gửi đúng mã nên khớp chính xác.
+                Subquery<Integer> barcodeMatch = query.subquery(Integer.class);
+                Root<Barcode> barcodeRoot = barcodeMatch.from(Barcode.class);
+                barcodeMatch.select(cb.literal(1)).where(
+                        cb.equal(barcodeRoot.get("productVariant"), root),
+                        cb.equal(cb.lower(barcodeRoot.get("barcodeValue")), keyword.trim().toLowerCase()));
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("sku")), pattern),
                         cb.like(cb.lower(root.get("variantName")), pattern),
-                        cb.like(cb.lower(productJoin.get("name")), pattern)
+                        cb.like(cb.lower(productJoin.get("name")), pattern),
+                        cb.exists(barcodeMatch)
                 ));
             }
             if (sku != null && !sku.isBlank()) {
@@ -151,7 +175,6 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return PageResponse.from(repository.findAll(spec, pageable).map(mapper::toVariantSummary));
     }
 
     @Override

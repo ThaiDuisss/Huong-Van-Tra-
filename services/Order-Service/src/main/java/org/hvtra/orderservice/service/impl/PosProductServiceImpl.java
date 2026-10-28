@@ -37,6 +37,7 @@ public class PosProductServiceImpl implements PosProductService {
         String keyword = request != null ? request.keyword() : null;
         String sku = request != null ? request.sku() : null;
         String productName = request != null ? request.productName() : null;
+        UUID productId = request != null ? request.productId() : null;
         int page = request != null ? request.page() : 0;
         int size = (request != null && request.size() > 0) ? request.size() : 20;
 
@@ -50,7 +51,7 @@ public class PosProductServiceImpl implements PosProductService {
                 sku,
                 null,
                 null,
-                null,
+                productId,
                 null,
                 "ACTIVE",
                 page,
