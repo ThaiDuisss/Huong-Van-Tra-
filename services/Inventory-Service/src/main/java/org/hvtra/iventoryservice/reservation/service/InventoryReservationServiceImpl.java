@@ -150,7 +150,9 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     }
 
     @Override
-    @Transactional
+    // Không có reservation thì ném lỗi trước mọi thao tác ghi; không đánh dấu rollback để consumer Kafka
+    // vẫn commit được inbox FAILED thay vì retry vô hạn.
+    @Transactional(noRollbackFor = BadRequestException.class)
     public List<InventoryReservationResponse> confirmOrder(ConfirmInventoryReservationOrderRequest request) {
         // Chỉ xác nhận (trừ tồn) thành phẩm đã giữ chỗ. Nguyên liệu giữ để sản xuất bù sau khi bán
         // (reserveMaterialsForRestock) phải còn RESERVED cho tới khi lệnh sản xuất được duyệt.
@@ -164,8 +166,10 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             }
             List<InventoryReservation> restockMaterials = reservationRepository.findByOrderIdAndReservationTypeAndStatus(
                     request.orderId(), ReservationType.MATERIAL, ReservationStatus.RESERVED);
-            if (!restockMaterials.isEmpty()) {
-                // Đơn bán tại quầy: thành phẩm đã trừ thẳng qua fulfillSale, không có gì để xác nhận thêm.
+            if (!restockMaterials.isEmpty()
+                    || transactionRepository.existsByTransactionCode("SALE-" + request.orderId())) {
+                // Đơn bán tại quầy: thành phẩm đã trừ thẳng qua fulfillSale (có thể không giữ chỗ nguyên liệu nào
+                // khi mặt hàng không có BOM), không có gì để xác nhận thêm.
                 return List.of();
             }
             throw new BadRequestException("No active reservation found for order " + request.orderId());
