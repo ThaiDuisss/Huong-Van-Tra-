@@ -30,7 +30,13 @@ const EMPTY_HEADER_FILTERS: CustomerHeaderFilterState = {
     recentPurchase: "all"
 };
 
-export function CustomerListPage() {
+interface CustomerListPageProps {
+    /** "pos": thu ngân xem / thêm / sửa khách hàng; nhập dữ liệu, khoá và xoá chỉ có ở trang quản lý. */
+    variant?: "management" | "pos";
+}
+
+export function CustomerListPage({ variant = "management" }: CustomerListPageProps) {
+    const manage = variant === "management";
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchDraft, setSearchDraft] = useState(searchParams.get("q") ?? "");
     const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -152,8 +158,9 @@ export function CustomerListPage() {
     return (
         <section className="flex h-full min-h-0 flex-col gap-4 text-[#172317]">
             <CustomerPageHeader
+                title={manage ? undefined : "Khách hàng"}
                 onCreate={() => setShowCreateDialog(true)}
-                onImport={() => setShowImportDialog(true)}
+                onImport={manage ? () => setShowImportDialog(true) : undefined}
             />
 
             <CustomerTierChips
@@ -176,9 +183,9 @@ export function CustomerListPage() {
                 loading={loading}
                 result={result}
                 onCustomerClick={(customer) => void openCustomerDetail(customer)}
-                onCustomerDelete={setDeletingCustomer}
+                onCustomerDelete={manage ? setDeletingCustomer : undefined}
                 onCustomerEdit={setEditingCustomer}
-                onCustomerStatusChange={setStatusCustomer}
+                onCustomerStatusChange={manage ? setStatusCustomer : undefined}
                 onPageChange={changePage}
             />
 
@@ -269,6 +276,7 @@ export function CustomerListPage() {
                 onDelete={setDeletingCustomer}
                 onEdit={setEditingCustomer}
                 onStatusChange={setStatusCustomer}
+                canManage={manage}
                 open={detailOpen}
             />
         </section>

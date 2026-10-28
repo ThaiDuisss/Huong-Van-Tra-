@@ -58,11 +58,14 @@ export type CustomerHeaderFilterState = {
 };
 
 interface HeaderProps {
+    title?: string;
     onCreate: () => void;
-    onImport: () => void;
+    /** Bỏ trống để ẩn nút nhập dữ liệu (màn POS). */
+    onImport?: () => void;
 }
 
 export function CustomerPageHeader({
+    title = "Quản lý khách hàng",
     onCreate,
     onImport
 }: HeaderProps) {
@@ -72,7 +75,7 @@ export function CustomerPageHeader({
         >
             <div className="grid min-w-[240px] gap-1">
                 <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">
-                    Quản lý khách hàng
+                    {title}
                 </h1>
                 <p className="text-sm text-gray-500">
                     Theo dõi thông tin, hạng thành viên và lịch sử mua gần nhất.
@@ -80,24 +83,28 @@ export function CustomerPageHeader({
             </div>
 
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2.5">
-                <button
-                    className={CUSTOMER_SECONDARY_ACTION_CLASS}
-                    onClick={onImport}
-                    title="Nhập danh sách khách hàng từ file Excel"
-                    type="button"
-                >
-                    <FileInput size={17} aria-hidden="true" />
-                    Nhập dữ liệu
-                </button>
-                <button
-                    className={CUSTOMER_SECONDARY_ACTION_CLASS}
-                    disabled
-                    title="Chưa có API xuất dữ liệu"
-                    type="button"
-                >
-                    <FileOutput size={17} aria-hidden="true" />
-                    Xuất dữ liệu
-                </button>
+                {onImport ? (
+                    <>
+                        <button
+                            className={CUSTOMER_SECONDARY_ACTION_CLASS}
+                            onClick={onImport}
+                            title="Nhập danh sách khách hàng từ file Excel"
+                            type="button"
+                        >
+                            <FileInput size={17} aria-hidden="true" />
+                            Nhập dữ liệu
+                        </button>
+                        <button
+                            className={CUSTOMER_SECONDARY_ACTION_CLASS}
+                            disabled
+                            title="Chưa có API xuất dữ liệu"
+                            type="button"
+                        >
+                            <FileOutput size={17} aria-hidden="true" />
+                            Xuất dữ liệu
+                        </button>
+                    </>
+                ) : null}
                 <button
                     className={CUSTOMER_PRIMARY_ACTION_CLASS}
                     onClick={onCreate}
