@@ -79,6 +79,8 @@ export interface ShelfReplenishmentCreateInput {
     note?: string | null;
     /** true: gửi kho xử lý ngay; false: lưu nháp để điền sau. */
     submit: boolean;
+    /** true (POS): chuyển hàng lên kệ ngay trong phiếu riêng, quản lý duyệt lại sau. */
+    issueNow?: boolean;
     lines: ShelfReplenishmentLineInput[];
 }
 

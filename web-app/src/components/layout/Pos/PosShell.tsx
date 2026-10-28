@@ -15,11 +15,11 @@ export function PosShell({
 }: PosShellProps) {
   const checkoutCols =
     checkoutVariant === "delivery"
-      ? "grid-cols-[176px_minmax(500px,1fr)_clamp(620px,46vw,720px)] xl:grid-cols-[184px_minmax(560px,1fr)_680px] 2xl:grid-cols-[192px_minmax(640px,1fr)_720px]"
-      : "grid-cols-[176px_minmax(0,1fr)_clamp(340px,29vw,380px)] xl:grid-cols-[184px_minmax(0,1fr)_380px] 2xl:grid-cols-[192px_minmax(0,1fr)_396px]";
+      ? "grid-cols-[auto_minmax(500px,1fr)_clamp(620px,46vw,720px)] xl:grid-cols-[auto_minmax(560px,1fr)_680px] 2xl:grid-cols-[auto_minmax(640px,1fr)_720px]"
+      : "grid-cols-[auto_minmax(0,1fr)_clamp(340px,29vw,380px)] xl:grid-cols-[auto_minmax(0,1fr)_380px] 2xl:grid-cols-[auto_minmax(0,1fr)_396px]";
   const gridCols = checkout
     ? checkoutCols
-    : "grid-cols-[176px_minmax(0,1fr)] xl:grid-cols-[184px_minmax(0,1fr)] 2xl:grid-cols-[192px_minmax(0,1fr)]";
+    : "grid-cols-[auto_minmax(0,1fr)] xl:grid-cols-[auto_minmax(0,1fr)] 2xl:grid-cols-[auto_minmax(0,1fr)]";
 
   const mainOverflow = checkout ? "overflow-hidden" : "overflow-y-auto";
   const mainSpacing = checkout
@@ -28,6 +28,7 @@ export function PosShell({
 
   return (
     <div className={`grid h-dvh min-h-0 ${gridCols} overflow-hidden bg-[#f7f8fb]`}>
+      {/* Cột menu dùng auto: PosSidebar tự đặt độ rộng (mở rộng / thu gọn chỉ còn icon). */}
       <PosSidebar />
 
       <main className={`min-h-0 min-w-0 ${mainOverflow} ${mainSpacing}`}>

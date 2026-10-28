@@ -150,6 +150,33 @@ class ShelfReplenishmentServiceImplTest {
     }
 
     @Test
+    void create_withIssueNow_movesChosenQuantityToShelfAndLeavesSlipPendingReview() {
+        when(replenishmentRepository.save(any())).thenAnswer(invocation -> {
+            InventoryDocument saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                saved.setId(UUID.randomUUID());
+            }
+            return saved;
+        });
+        InventoryBalance source = balance(warehouse, "60");
+        when(balanceRepository.findFefoAvailableForUpdate(any(), eq(warehouse.getId()), any(), any()))
+                .thenReturn(List.of(source));
+        when(balanceRepository.findForUpdateByBatchId(any(), eq(shelf.getId()))).thenReturn(Optional.empty());
+        authenticateWith("ROLE_POS_STAFF");
+
+        ShelfReplenishmentResponse response = service.create(new CreateShelfReplenishmentRequest(
+                shelf.getId(), null, null, "order-1", null, false, true,
+                List.of(new ShelfReplenishmentLineRequest(variantId, new BigDecimal("24"), null))));
+
+        assertThat(response.status()).isEqualTo(InventoryDocumentStatus.POSTED);
+        assertThat(response.autoIssued()).isTrue();
+        assertThat(response.pendingReview()).isTrue();
+        assertThat(source.getQuantityOnHand()).isEqualByComparingTo("36");
+        verify(replenishmentRepository, never())
+                .findFirstByReferenceIdAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(any(), any());
+    }
+
+    @Test
     void approve_movesStockFefoFromWarehouseToShelfKeepingBatches() {
         ShelfReplenishment document = document(InventoryDocumentStatus.PENDING_APPROVAL, "8");
         when(replenishmentRepository.findByIdAndIsDeletedFalse(document.getId())).thenReturn(Optional.of(document));
@@ -304,7 +331,7 @@ class ShelfReplenishmentServiceImplTest {
 
     private CreateShelfReplenishmentRequest request(boolean submit, String referenceId, String quantity) {
         return new CreateShelfReplenishmentRequest(
-                shelf.getId(), null, null, referenceId, null, submit,
+                shelf.getId(), null, null, referenceId, null, submit, false,
                 List.of(new ShelfReplenishmentLineRequest(variantId, new BigDecimal(quantity), null)));
     }
 

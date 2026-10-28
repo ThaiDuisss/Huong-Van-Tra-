@@ -33,9 +33,10 @@ public class PosProductController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "sku", required = false) String sku,
             @RequestParam(name = "productName", required = false) String productName,
+            @RequestParam(name = "productId", required = false) UUID productId,
             @RequestParam(name = "page", required = false, defaultValue = "0") int page,
             @RequestParam(name = "size", required = false, defaultValue = "20") int size) {
-        PosProductSearchRequest request = new PosProductSearchRequest(keyword, sku, productName, page, size);
+        PosProductSearchRequest request = new PosProductSearchRequest(keyword, sku, productName, productId, page, size);
         return posProductService.searchVariants(request);
     }
 

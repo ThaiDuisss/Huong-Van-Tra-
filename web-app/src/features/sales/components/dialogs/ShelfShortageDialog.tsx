@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { PackagePlus } from "lucide-react";
 
 export interface ShelfShortage {
@@ -18,11 +19,9 @@ interface ShelfShortageDialogProps {
     shortage: ShelfShortage;
     submitting: boolean;
     error: string;
-    /** Tạo phiếu nhập kệ và gửi kho xử lý ngay. */
-    onCreateNow(): void;
-    /** Lưu phiếu nháp để điền / gửi sau. */
-    onSaveDraft(): void;
-    /** Chỉ dùng khi tạo phiếu lỗi, để nhân viên vẫn tiếp tục bán được. */
+    /** Chuyển ngay số lượng đã chọn từ kho lên kệ; quản lý duyệt lại phiếu sau. */
+    onIssue(quantity: number): void;
+    /** Chưa đưa lên kệ: khi thanh toán phần thiếu vẫn được xuất kho tự động. */
     onDismiss(): void;
 }
 
@@ -30,11 +29,17 @@ export function ShelfShortageDialog({
     shortage,
     submitting,
     error,
-    onCreateNow,
-    onSaveDraft,
+    onIssue,
     onDismiss
 }: ShelfShortageDialogProps) {
-    const warehouseShort = shortage.warehouseQuantity < shortage.missingQuantity;
+    const [draft, setDraft] = useState(
+        String(Math.min(shortage.missingQuantity, Math.max(shortage.warehouseQuantity, 0)) || shortage.missingQuantity)
+    );
+    const quantity = Number(draft);
+    const quantityValid = Number.isInteger(quantity) && quantity > 0;
+    const overWarehouse = quantityValid && quantity > shortage.warehouseQuantity;
+    const stillShort = quantityValid && quantity < shortage.missingQuantity;
+    const canIssue = quantityValid && !overWarehouse && !submitting;
 
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4" role="presentation">
@@ -59,7 +64,17 @@ export function ShelfShortageDialog({
                     </div>
                 </header>
 
-                <div className="grid gap-4 px-5 py-4">
+                <form
+                    className="grid gap-4 px-5 py-4"
+                    id="shelf-shortage-form"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+
+                        if (canIssue) {
+                            onIssue(quantity);
+                        }
+                    }}
+                >
                     <dl className="grid grid-cols-3 gap-2 text-center">
                         <div className="rounded-xl border border-[#e8eef0] px-2 py-3">
                             <dt className="text-xs font-bold text-[#697684]">Khách đặt</dt>
@@ -77,7 +92,9 @@ export function ShelfShortageDialog({
                             <dt className="text-xs font-bold text-[#697684]">Trong kho</dt>
                             <dd
                                 className={`text-lg font-black tabular-nums ${
-                                    warehouseShort ? "text-red-700" : "text-[#172317]"
+                                    shortage.warehouseQuantity < shortage.missingQuantity
+                                        ? "text-red-700"
+                                        : "text-[#172317]"
                                 }`}
                             >
                                 {shortage.warehouseQuantity}
@@ -85,16 +102,30 @@ export function ShelfShortageDialog({
                         </div>
                     </dl>
 
-                    <p className="text-sm font-semibold leading-6 text-[#536078]">
-                        Bạn có muốn làm phiếu nhập kho lên kệ {shortage.missingQuantity} sản phẩm ngay không? Nếu
-                        chưa, hệ thống lưu phiếu nháp để điền sau. Khi thanh toán, phần thiếu được xuất từ kho lên
-                        kệ ngay để giao cho khách; quản lý duyệt phiếu sau.
-                    </p>
+                    <label className="grid gap-1.5">
+                        <span className="text-sm font-black text-[#172317]">Số lượng đưa từ kho lên kệ</span>
+                        <input
+                            autoFocus
+                            className="h-11 rounded-lg border border-[#dce5e1] px-3 text-lg font-black tabular-nums outline-none focus:border-[#159734]"
+                            inputMode="numeric"
+                            onChange={(event) => setDraft(event.currentTarget.value.replace(/\D/g, ""))}
+                            onFocus={(event) => event.currentTarget.select()}
+                            value={draft}
+                        />
+                        <span className="text-xs font-semibold text-[#697684]">
+                            Có thể đưa nhiều hơn số thiếu (vd. cả thùng) để không phải làm phiếu lại. Hàng lên kệ
+                            ngay; quản lý duyệt lại phiếu sau.
+                        </span>
+                    </label>
 
-                    {warehouseShort ? (
+                    {overWarehouse ? (
                         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-                            Kho chỉ còn {shortage.warehouseQuantity}, chưa đủ {shortage.missingQuantity}. Đơn sẽ
-                            không trừ được tồn khi thanh toán cho tới khi kho có đủ hàng.
+                            Kho chỉ còn {shortage.warehouseQuantity}, không đưa lên được {quantity}.
+                        </p>
+                    ) : stillShort ? (
+                        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                            Vẫn còn thiếu {shortage.missingQuantity - quantity}; phần này sẽ được xuất kho tự động khi
+                            thanh toán.
                         </p>
                     ) : null}
 
@@ -106,34 +137,24 @@ export function ShelfShortageDialog({
                             {error}
                         </p>
                     ) : null}
-                </div>
+                </form>
 
                 <footer className="flex flex-wrap justify-end gap-3 border-t border-[#e8eef0] px-5 py-4">
-                    {error ? (
-                        <button
-                            className="mr-auto h-10 rounded-lg px-3 text-sm font-black text-[#536078] hover:bg-neutral-50"
-                            disabled={submitting}
-                            onClick={onDismiss}
-                            type="button"
-                        >
-                            Bỏ qua
-                        </button>
-                    ) : null}
                     <button
                         className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078] disabled:opacity-60"
                         disabled={submitting}
-                        onClick={onSaveDraft}
+                        onClick={onDismiss}
                         type="button"
                     >
-                        Để sau (lưu nháp)
+                        Để sau
                     </button>
                     <button
                         className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
-                        disabled={submitting}
-                        onClick={onCreateNow}
-                        type="button"
+                        disabled={!canIssue}
+                        form="shelf-shortage-form"
+                        type="submit"
                     >
-                        {submitting ? "Đang tạo..." : "Tạo phiếu nhập kệ"}
+                        {submitting ? "Đang chuyển..." : "Đưa lên kệ ngay"}
                     </button>
                 </footer>
             </section>

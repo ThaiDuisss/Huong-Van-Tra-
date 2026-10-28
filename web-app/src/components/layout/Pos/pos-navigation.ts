@@ -1,10 +1,9 @@
 import {
   BarChart3,
   BriefcaseBusiness,
-  Clock3,
-  FileClock,
   FileText,
   Leaf,
+  PackageOpen,
   PackageSearch,
   ShoppingBag,
   Sparkles,
@@ -38,57 +37,46 @@ export const posNavigationItems: PosNavigationItem[] = [
     roles: POS_WORKSPACE_ROLES
   },
   {
+    key: "custom-bundle",
+    label: "Đóng trà theo yêu cầu",
+    icon: Leaf,
+    to: routePaths.posCustomBundleCreate,
+    roles: POS_WORKSPACE_ROLES
+  },
+  {
+    key: "shelf-replenishment",
+    label: "Phiếu nhập kệ",
+    icon: PackageOpen,
+    to: routePaths.posShelfReplenishments,
+    roles: POS_WORKSPACE_ROLES
+  },
+  {
     key: "orders",
     label: "Đơn hàng",
     icon: ShoppingBag,
     roles: POS_WORKSPACE_ROLES,
     children: [
       {
-        key: "held-orders",
-        label: "Đơn đang giữ",
-        icon: FileClock,
-        roles: POS_WORKSPACE_ROLES
-      },
-      {
-        key: "shift-orders",
-        label: "Đơn trong ca",
-        icon: FileText,
-        roles: POS_WORKSPACE_ROLES
-      },
-      {
-        key: "backorders",
-        label: "Đơn chờ hàng",
-        icon: PackageSearch,
-        to: routePaths.posBackorders,
-        roles: POS_WORKSPACE_ROLES
-      },
-      {
-        key: "custom-bundles",
-        label: "Bundle chờ giao",
-        icon: Leaf,
-        to: routePaths.posCustomBundles,
-        roles: POS_WORKSPACE_ROLES
-      },
-      {
         key: "sales-history",
         label: "Bán hàng hôm nay",
         icon: BarChart3,
         to: routePaths.salesHistory,
         roles: POS_WORKSPACE_ROLES
+      },
+      {
+        key: "backorders",
+        label: "Đơn đang đợi hàng",
+        icon: PackageSearch,
+        to: routePaths.posBackorders,
+        roles: POS_WORKSPACE_ROLES
       }
     ]
-  },
-  {
-    key: "shift",
-    label: "Ca làm việc",
-    icon: Clock3,
-    roles: POS_WORKSPACE_ROLES
   },
   {
     key: "customers",
     label: "Khách hàng",
     icon: User,
-    to: routePaths.customers,
+    to: routePaths.posCustomers,
     roles: POS_WORKSPACE_ROLES
   },
   {

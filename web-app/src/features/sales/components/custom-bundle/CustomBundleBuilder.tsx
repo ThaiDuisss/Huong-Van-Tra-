@@ -1,4 +1,4 @@
-import { Leaf, Search, Trash2, X } from "lucide-react";
+import { Leaf, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { formatCurrency } from "../../services/money";
@@ -10,16 +10,17 @@ import {
     type BundleIngredientOption
 } from "../../services/posCustomBundle.api";
 
-interface CustomBundleDialogProps {
-    open: boolean;
+export interface CustomBundleInput {
+    bundleName: string;
+    note: string;
+    lines: Array<{ ingredientId: string; ingredientName: string; quantity: number }>;
+}
+
+interface CustomBundleBuilderProps {
     branchId: string | null;
     submitLoading: boolean;
-    onClose(): void;
-    onSubmit(input: {
-        bundleName: string;
-        note: string;
-        lines: Array<{ ingredientId: string; ingredientName: string; quantity: number }>;
-    }): void;
+    onCancel(): void;
+    onSubmit(input: CustomBundleInput): void;
 }
 
 interface DraftLine {
@@ -34,7 +35,7 @@ function getErrorMessage(error: unknown) {
 }
 
 /** Khách tự chọn nguyên liệu và khối lượng; kho đóng gói sau khi thu tiền. */
-export function CustomBundleDialog({ open, branchId, submitLoading, onClose, onSubmit }: CustomBundleDialogProps) {
+export function CustomBundleBuilder({ branchId, submitLoading, onCancel, onSubmit }: CustomBundleBuilderProps) {
     const [search, setSearch] = useState("");
     const [options, setOptions] = useState<BundleIngredientOption[]>([]);
     const [optionsLoading, setOptionsLoading] = useState(false);
@@ -47,7 +48,6 @@ export function CustomBundleDialog({ open, branchId, submitLoading, onClose, onS
     const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
     useEffect(() => {
-        if (!open) return;
         let active = true;
         const timeoutId = window.setTimeout(() => {
             setOptionsLoading(true);
@@ -68,7 +68,7 @@ export function CustomBundleDialog({ open, branchId, submitLoading, onClose, onS
             active = false;
             window.clearTimeout(timeoutId);
         };
-    }, [open, search]);
+    }, [search]);
 
     const parsedLines = useMemo(
         () => lines.map((line) => ({ ...line, amount: Number(line.quantity) })),
@@ -82,10 +82,6 @@ export function CustomBundleDialog({ open, branchId, submitLoading, onClose, onS
         (sum, line) => sum + (Number.isFinite(line.amount) ? line.amount * line.ingredient.retailPricePerUnit : 0),
         0
     );
-
-    if (!open) {
-        return null;
-    }
 
     function addIngredient(ingredient: BundleIngredientOption) {
         setAvailability(null);
@@ -163,190 +159,166 @@ export function CustomBundleDialog({ open, branchId, submitLoading, onClose, onS
     }
 
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/62 px-4" role="presentation">
-            <section
-                aria-modal="true"
-                className="grid max-h-[90vh] w-full max-w-[1040px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-2xl bg-white shadow-pos-panel"
-                role="dialog"
-            >
-                <header className="flex items-start justify-between gap-4 border-b border-[#e8eef0] px-5 py-4">
-                    <div className="grid gap-1">
-                        <h2 className="text-xl font-black text-[#172317]">Đóng trà theo yêu cầu</h2>
-                        <p className="text-sm font-semibold text-[#697684]">
-                            Chọn nguyên liệu và khối lượng. Kho đóng gói sau khi thu tiền.
-                        </p>
+        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[#e8eef0] bg-white shadow-pos-card">
+            <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_380px] gap-4 overflow-hidden p-4">
+                <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+                    <div className="relative">
+                        <Search aria-hidden="true" className="absolute left-3 top-3 text-[#697684]" size={16} />
+                        <input
+                            className="h-11 w-full rounded-lg border border-pos-border pl-9 pr-3 text-sm font-bold outline-none focus:border-[#159734]"
+                            onChange={(event) => setSearch(event.currentTarget.value)}
+                            placeholder="Tìm nguyên liệu theo tên hoặc mã"
+                            value={search}
+                        />
                     </div>
-                    <button
-                        aria-label="Đóng"
-                        className="grid h-9 w-9 place-items-center rounded-lg border border-[#dce5e1] text-[#536078]"
-                        disabled={submitLoading}
-                        onClick={onClose}
-                        type="button"
-                    >
-                        <X size={18} aria-hidden="true" />
-                    </button>
-                </header>
-
-                <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_380px] gap-4 overflow-hidden px-5 py-4">
-                    <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-                        <div className="relative">
-                            <Search aria-hidden="true" className="absolute left-3 top-3 text-[#697684]" size={16} />
-                            <input
-                                className="h-11 w-full rounded-lg border border-pos-border pl-9 pr-3 text-sm font-bold outline-none focus:border-[#159734]"
-                                onChange={(event) => setSearch(event.currentTarget.value)}
-                                placeholder="Tìm nguyên liệu theo tên hoặc mã"
-                                value={search}
-                            />
-                        </div>
-                        <div className="grid min-h-0 auto-rows-min grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-[#e8eef0] bg-[#f8fbf8] p-2">
-                            {optionsLoading ? (
-                                <p className="col-span-2 px-3 py-4 text-sm font-bold text-[#697684]">Đang tải nguyên liệu...</p>
-                            ) : null}
-                            {optionsError ? (
-                                <p className="col-span-2 px-3 py-4 text-sm font-bold text-red-700">{optionsError}</p>
-                            ) : null}
-                            {!optionsLoading && !optionsError && options.length === 0 ? (
-                                <p className="col-span-2 px-3 py-4 text-sm font-bold text-[#697684]">
-                                    Chưa có nguyên liệu bán lẻ. Cần nhập giá bán lẻ ở màn Nguyên liệu.
-                                </p>
-                            ) : null}
-                            {options.map((ingredient) => (
-                                <button
-                                    className="grid gap-1 rounded-lg border border-transparent bg-white px-3 py-2 text-left hover:border-[#159734]"
-                                    key={ingredient.id}
-                                    onClick={() => addIngredient(ingredient)}
-                                    type="button"
-                                >
-                                    <span className="flex items-center gap-2 font-black text-[#172317]">
-                                        <Leaf aria-hidden="true" className="text-[#159734]" size={15} />
-                                        {ingredient.name}
-                                    </span>
-                                    <span className="text-xs font-bold text-[#697684]">
-                                        {ingredient.ingredientCode} · {formatCurrency(ingredient.retailPricePerUnit)} /{" "}
-                                        {ingredient.unitSymbol ?? "đơn vị"}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
+                    <div className="grid min-h-0 auto-rows-min grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-[#e8eef0] bg-[#f8fbf8] p-2">
+                        {optionsLoading ? (
+                            <p className="col-span-2 px-3 py-4 text-sm font-bold text-[#697684]">Đang tải nguyên liệu...</p>
+                        ) : null}
+                        {optionsError ? (
+                            <p className="col-span-2 px-3 py-4 text-sm font-bold text-red-700">{optionsError}</p>
+                        ) : null}
+                        {!optionsLoading && !optionsError && options.length === 0 ? (
+                            <p className="col-span-2 px-3 py-4 text-sm font-bold text-[#697684]">
+                                Chưa có nguyên liệu bán lẻ. Cần nhập giá bán lẻ ở màn Nguyên liệu.
+                            </p>
+                        ) : null}
+                        {options.map((ingredient) => (
+                            <button
+                                className="grid gap-1 rounded-lg border border-transparent bg-white px-3 py-2 text-left hover:border-[#159734]"
+                                key={ingredient.id}
+                                onClick={() => addIngredient(ingredient)}
+                                type="button"
+                            >
+                                <span className="flex items-center gap-2 font-black text-[#172317]">
+                                    <Leaf aria-hidden="true" className="text-[#159734]" size={15} />
+                                    {ingredient.name}
+                                </span>
+                                <span className="text-xs font-bold text-[#697684]">
+                                    {ingredient.ingredientCode} · {formatCurrency(ingredient.retailPricePerUnit)} /{" "}
+                                    {ingredient.unitSymbol ?? "đơn vị"}
+                                </span>
+                            </button>
+                        ))}
                     </div>
-
-                    <aside className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3">
-                        <div className="grid min-h-0 auto-rows-min gap-2 overflow-y-auto">
-                            {parsedLines.length === 0 ? (
-                                <p className="rounded-lg border border-dashed border-[#cfdad2] px-3 py-6 text-center text-sm font-bold text-[#697684]">
-                                    Chọn nguyên liệu ở bên trái.
-                                </p>
-                            ) : null}
-                            {parsedLines.map((line) => {
-                                const material = availability?.lines.find(
-                                    (item) => item.ingredientId === line.ingredient.id
-                                );
-                                return (
-                                    <div className="grid gap-2 rounded-lg border border-[#e8eef0] p-3" key={line.ingredient.id}>
-                                        <div className="flex items-start justify-between gap-2">
-                                            <strong className="text-sm text-[#172317]">{line.ingredient.name}</strong>
-                                            <button
-                                                aria-label={`Bỏ ${line.ingredient.name}`}
-                                                className="text-red-700"
-                                                onClick={() => removeLine(line.ingredient.id)}
-                                                type="button"
-                                            >
-                                                <Trash2 size={16} aria-hidden="true" />
-                                            </button>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                aria-label={`Khối lượng ${line.ingredient.name}`}
-                                                className="h-9 w-28 rounded-lg border border-pos-border px-3 text-sm font-bold"
-                                                min={bundleLimits.minLineQuantity}
-                                                onChange={(event) => changeQuantity(line.ingredient.id, event.currentTarget.value)}
-                                                type="number"
-                                                value={line.quantity}
-                                            />
-                                            <span className="text-sm font-bold text-[#536078]">{line.ingredient.unitSymbol ?? ""}</span>
-                                            <span className="ml-auto text-sm font-black text-[#172317]">
-                                                {formatCurrency(
-                                                    Number.isFinite(line.amount) ? line.amount * line.ingredient.retailPricePerUnit : 0
-                                                )}
-                                            </span>
-                                        </div>
-                                        {material && material.missingQuantity > 0 ? (
-                                            <span className="text-xs font-black text-amber-700">
-                                                Thiếu {material.missingQuantity}
-                                                {line.ingredient.unitSymbol ?? ""} · dự kiến có{" "}
-                                                {formatAvailabilityDate(material.expectedArrivalAt)}
-                                            </span>
-                                        ) : null}
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="grid gap-2">
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
-                                maxLength={255}
-                                onChange={(event) => setBundleName(event.currentTarget.value)}
-                                placeholder="Tên bundle (tuỳ chọn)"
-                                value={bundleName}
-                            />
-                            <input
-                                className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
-                                maxLength={1000}
-                                onChange={(event) => setNote(event.currentTarget.value)}
-                                placeholder="Ghi chú đóng gói (tuỳ chọn)"
-                                value={note}
-                            />
-                            <div className="grid gap-1 rounded-lg bg-[#f7f8fb] p-3 text-sm font-bold text-[#536078]">
-                                <span>Tổng khối lượng: {totalQuantity}</span>
-                                <span>Giá dự kiến: {formatCurrency(estimatedPrice)}</span>
-                                {availability ? (
-                                    availability.enough ? (
-                                        <span className="text-[#159734]">Đủ nguyên liệu, đóng gói ngay sau khi thu tiền.</span>
-                                    ) : (
-                                        <span className="text-amber-700">
-                                            Thiếu nguyên liệu, dự kiến có {formatAvailabilityDate(availability.estimatedAvailableAt)}.
-                                            Khách có thể đặt cọc và nhận sau.
-                                        </span>
-                                    )
-                                ) : null}
-                            </div>
-                            {validationError ? (
-                                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-                                    {validationError}
-                                </p>
-                            ) : null}
-                        </div>
-                    </aside>
                 </div>
 
-                <footer className="flex justify-end gap-3 border-t border-[#e8eef0] px-5 py-4">
-                    <button
-                        className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]"
-                        disabled={submitLoading}
-                        onClick={onClose}
-                        type="button"
-                    >
-                        Hủy
-                    </button>
-                    <button
-                        className="h-10 rounded-lg border border-[#159734] px-4 text-sm font-black text-[#159734] disabled:opacity-60"
-                        disabled={submitLoading || availabilityLoading}
-                        onClick={() => void checkAvailability()}
-                        type="button"
-                    >
-                        {availabilityLoading ? "Đang kiểm tra..." : "Kiểm tra tồn"}
-                    </button>
-                    <button
-                        className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
-                        disabled={submitLoading}
-                        onClick={submit}
-                        type="button"
-                    >
-                        {submitLoading ? "Đang thêm..." : "Thêm vào đơn"}
-                    </button>
-                </footer>
-            </section>
-        </div>
+                <aside className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3">
+                    <div className="grid min-h-0 auto-rows-min gap-2 overflow-y-auto">
+                        {parsedLines.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-[#cfdad2] px-3 py-6 text-center text-sm font-bold text-[#697684]">
+                                Chọn nguyên liệu ở bên trái.
+                            </p>
+                        ) : null}
+                        {parsedLines.map((line) => {
+                            const material = availability?.lines.find(
+                                (item) => item.ingredientId === line.ingredient.id
+                            );
+                            return (
+                                <div className="grid gap-2 rounded-lg border border-[#e8eef0] p-3" key={line.ingredient.id}>
+                                    <div className="flex items-start justify-between gap-2">
+                                        <strong className="text-sm text-[#172317]">{line.ingredient.name}</strong>
+                                        <button
+                                            aria-label={`Bỏ ${line.ingredient.name}`}
+                                            className="text-red-700"
+                                            onClick={() => removeLine(line.ingredient.id)}
+                                            type="button"
+                                        >
+                                            <Trash2 size={16} aria-hidden="true" />
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            aria-label={`Khối lượng ${line.ingredient.name}`}
+                                            className="h-9 w-28 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                                            min={bundleLimits.minLineQuantity}
+                                            onChange={(event) => changeQuantity(line.ingredient.id, event.currentTarget.value)}
+                                            type="number"
+                                            value={line.quantity}
+                                        />
+                                        <span className="text-sm font-bold text-[#536078]">{line.ingredient.unitSymbol ?? ""}</span>
+                                        <span className="ml-auto text-sm font-black text-[#172317]">
+                                            {formatCurrency(
+                                                Number.isFinite(line.amount) ? line.amount * line.ingredient.retailPricePerUnit : 0
+                                            )}
+                                        </span>
+                                    </div>
+                                    {material && material.missingQuantity > 0 ? (
+                                        <span className="text-xs font-black text-amber-700">
+                                            Thiếu {material.missingQuantity}
+                                            {line.ingredient.unitSymbol ?? ""} · dự kiến có{" "}
+                                            {formatAvailabilityDate(material.expectedArrivalAt)}
+                                        </span>
+                                    ) : null}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="grid gap-2">
+                        <input
+                            className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                            maxLength={255}
+                            onChange={(event) => setBundleName(event.currentTarget.value)}
+                            placeholder="Tên bundle (tuỳ chọn)"
+                            value={bundleName}
+                        />
+                        <input
+                            className="h-10 rounded-lg border border-pos-border px-3 text-sm font-bold"
+                            maxLength={1000}
+                            onChange={(event) => setNote(event.currentTarget.value)}
+                            placeholder="Ghi chú đóng gói (tuỳ chọn)"
+                            value={note}
+                        />
+                        <div className="grid gap-1 rounded-lg bg-[#f7f8fb] p-3 text-sm font-bold text-[#536078]">
+                            <span>Tổng khối lượng: {totalQuantity}</span>
+                            <span>Giá dự kiến: {formatCurrency(estimatedPrice)}</span>
+                            {availability ? (
+                                availability.enough ? (
+                                    <span className="text-[#159734]">Đủ nguyên liệu, đóng gói ngay sau khi thu tiền.</span>
+                                ) : (
+                                    <span className="text-amber-700">
+                                        Thiếu nguyên liệu, dự kiến có {formatAvailabilityDate(availability.estimatedAvailableAt)}.
+                                        Khách có thể đặt cọc và nhận sau.
+                                    </span>
+                                )
+                            ) : null}
+                        </div>
+                        {validationError ? (
+                            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                                {validationError}
+                            </p>
+                        ) : null}
+                    </div>
+                </aside>
+            </div>
+
+            <footer className="flex justify-end gap-3 border-t border-[#e8eef0] px-5 py-4">
+                <button
+                    className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-black text-[#536078]"
+                    disabled={submitLoading}
+                    onClick={onCancel}
+                    type="button"
+                >
+                    Hủy
+                </button>
+                <button
+                    className="h-10 rounded-lg border border-[#159734] px-4 text-sm font-black text-[#159734] disabled:opacity-60"
+                    disabled={submitLoading || availabilityLoading}
+                    onClick={() => void checkAvailability()}
+                    type="button"
+                >
+                    {availabilityLoading ? "Đang kiểm tra..." : "Kiểm tra tồn"}
+                </button>
+                <button
+                    className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-black text-white disabled:opacity-60"
+                    disabled={submitLoading}
+                    onClick={submit}
+                    type="button"
+                >
+                    {submitLoading ? "Đang thêm..." : "Thêm vào đơn"}
+                </button>
+            </footer>
+        </section>
     );
 }
