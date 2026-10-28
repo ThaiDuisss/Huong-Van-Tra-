@@ -56,7 +56,7 @@ public interface OrderService {
     OrderResponse cancelOrder(UUID orderId, CancelOrderRequest request);
     OrderResponse addDraftItem(AddDraftOrderItemRequest request);
     OrderResponse updateDraftItemQuantity(UUID orderId, UUID itemId, UpdateDraftOrderItemQuantityRequest request);
-    OrderResponse removeDraftItem(String orderId, String itemId);
+    OrderResponse removeDraftItem(UUID orderId, UUID itemId);
     OrderResponse cancelDraftOrder(UUID orderId);
     OrderResponse checkoutDraftOrder(UUID orderId, CheckoutDraftOrderRequest request);
     void handlePaymentEvent(PaymentOrderEventPayload event);

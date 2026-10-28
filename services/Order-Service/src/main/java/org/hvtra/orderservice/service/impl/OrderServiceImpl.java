@@ -905,7 +905,7 @@ public class OrderServiceImpl implements OrderService {
         order.setExpiresAt(nextDraftExpiresAt());
 
         if (targetQuantity.compareTo(BigDecimal.ZERO) <= 0) {
-            return removeDraftItem(orderId.toString(), itemId.toString());
+            return removeDraftItem(orderId, itemId);
         }
 
         var variant = catalogClient.getProductVariantPosView(item.getProductVariantId());
@@ -920,15 +920,12 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse removeDraftItem(String orderId, String itemId) {
-        UUID orderId1 = UUID.fromString(orderId);
-        UUID itemId1 = UUID.fromString(itemId);
-
+    public OrderResponse removeDraftItem(UUID orderId, UUID itemId) {
         if (orderDraftService != null) {
-            return orderDraftService.removeDraftItem(orderId1, itemId1);
+            return orderDraftService.removeDraftItem(orderId, itemId);
         }
-        Order order = getEditableDraftOrder(orderId1);
-        OrderItem item = getOrderItem(order, itemId1);
+        Order order = getEditableDraftOrder(orderId);
+        OrderItem item = getOrderItem(order, itemId);
 
         order.getItems().remove(item);
         order.setExpiresAt(nextDraftExpiresAt());

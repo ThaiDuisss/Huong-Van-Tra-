@@ -126,7 +126,7 @@ public class OrderController {
     @Operation(summary = "xoa san pham khoi hoa don nhap POS")
     @UserAction(value = "ORDER_DRAFT_ITEM_REMOVE", entityType = "Order", entityId = "#orderId", detail = "#itemId")
     @DeleteMapping("/pos/draft/" + UUID_PATH + "/items/{itemId}")
-    public OrderResponse removeDraftItem(@PathVariable String orderId, @PathVariable String itemId) {
+    public OrderResponse removeDraftItem(@PathVariable UUID orderId, @PathVariable UUID itemId) {
         return orderService.removeDraftItem(orderId, itemId);
     }
 
