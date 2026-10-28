@@ -3,7 +3,9 @@ import { AlertTriangle, Factory, PackageSearch, Scale } from "lucide-react";
 import { routePaths } from "../../../../routes/path";
 import { formatVietnamNumber } from "../../../inventory/utils/inventory-format";
 import type { DashboardDomain } from "../../hooks/useDashboardData";
+import { InventoryEmptyState } from "../../../inventory/components/InventoryManagementComponents";
 import type {
+  DashboardFilters,
   DashboardProductionSnapshot,
   DashboardProductionWastage,
   DashboardResource,
@@ -13,7 +15,7 @@ import { DashboardKpiCard, DashboardKpiGrid, type DashboardKpiCardProps } from "
 import { DashboardSection, DashboardSectionLink } from "../DashboardSection";
 import { DashboardGapState, DashboardListSkeleton } from "../DashboardStates";
 import { DashboardTable } from "../DashboardTable";
-import { isResourceLoading, resourceData } from "./dashboard-tab-shared";
+import { isResourceLoading, resourceData, timeRangeLabels } from "./dashboard-tab-shared";
 
 const wastageStatusMeta: Record<
   DashboardProductionWastage["status"],
@@ -25,25 +27,31 @@ const wastageStatusMeta: Record<
 };
 
 export function ProductionTab({
+  filters,
   production,
   retry,
 }: {
+  filters: DashboardFilters;
   production: DashboardResource<DashboardProductionSnapshot>;
   retry: (domain: DashboardDomain) => void;
 }) {
   const data = resourceData(production);
   const loading = isResourceLoading(production);
   const wastage = data?.wastage ?? null;
+  const summary = data?.summary ?? null;
+  const rangeLabel = timeRangeLabels[filters.timeRange];
   const overThreshold = wastage?.filter((item) => item.status === "OVER_THRESHOLD").length ?? 0;
   const totalWastage = wastage?.reduce((sum, item) => sum + item.wastageQuantity, 0) ?? 0;
-  const source = wastage && wastage.length > 0 ? (wastage[0].source ?? "DEMO") : "GAP";
+  const source = summary ? "REAL" : wastage && wastage.length > 0 ? (wastage[0].source ?? "DEMO") : "GAP";
+  // Đang tải lại (đổi kỳ) vẫn giữ số cũ; chỉ hiện "—" khi chưa từng có dữ liệu.
+  const summarySource = summary ? "REAL" : data ? "GAP" : "REAL";
 
   const kpis: DashboardKpiCardProps[] = [
     {
       icon: <AlertTriangle size={18} />,
       label: "Vượt ngưỡng hao hụt",
       loading,
-      note: wastage ? "So kế hoạch định mức với thực xuất" : "Đang cập nhật số liệu",
+      note: wastage ? "Nguyên liệu xuất quá hao hụt cho phép của BOM" : "Đang cập nhật số liệu",
       noteTone: overThreshold > 0 ? "bad" : "neutral",
       source: data ? source : "REAL",
       value: wastage ? formatVietnamNumber(overThreshold) : undefined,
@@ -52,22 +60,33 @@ export function ProductionTab({
       icon: <Scale size={18} />,
       label: "Tổng hao hụt nguyên liệu",
       loading,
-      note: wastage ? "Theo nguyên liệu đã xuất" : "Đang cập nhật số liệu",
+      note: wastage ? `Thực xuất so với định mức BOM, ${rangeLabel}` : "Đang cập nhật số liệu",
       source: data ? source : "REAL",
       value: wastage ? formatVietnamNumber(totalWastage) : undefined,
     },
     {
       icon: <Factory size={18} />,
       label: "Sản lượng thực tế",
-      note: "Tổng hợp từ lệnh sản xuất hoàn tất",
-      source: "GAP",
+      loading,
+      note: summary
+        ? `${formatVietnamNumber(summary.completedOrderCount)} lệnh đã duyệt, ${rangeLabel}`
+        : "Tổng hợp từ lệnh sản xuất đã duyệt",
+      source: summarySource,
+      value: summary ? formatVietnamNumber(summary.totalOutputQuantity) : undefined,
     },
     {
       icon: <PackageSearch size={18} />,
-      label: "Thiếu nguyên liệu",
-      note: "Xem trong danh sách lệnh sản xuất",
-      source: "GAP",
+      label: "Lệnh thiếu nguyên liệu",
+      loading,
+      note: summary
+        ? summary.shortageMaterialCount > 0
+          ? `${formatVietnamNumber(summary.shortageMaterialCount)} nguyên liệu không đủ cho ${formatVietnamNumber(summary.openOrderCount)} lệnh đang mở`
+          : `Đủ nguyên liệu cho ${formatVietnamNumber(summary.openOrderCount)} lệnh đang mở`
+        : "Lệnh nháp/chờ duyệt so với tồn kho khả dụng",
+      noteTone: summary && summary.shortageMaterialCount > 0 ? "bad" : "neutral",
+      source: summarySource,
       to: routePaths.inventoryProductionOrderList,
+      value: summary ? formatVietnamNumber(summary.shortageOrderCount) : undefined,
     },
   ];
 
@@ -83,8 +102,8 @@ export function ProductionTab({
         action={
           <DashboardSectionLink to={routePaths.inventoryProductionOrderList}>Lệnh sản xuất</DashboardSectionLink>
         }
-        description="So sánh định mức công thức sản xuất với thực tế xuất nguyên liệu"
-        flush={Boolean(wastage)}
+        description={`Định mức BOM so với nguyên liệu thực xuất của lệnh đã duyệt, ${rangeLabel}`}
+        flush={Boolean(wastage && wastage.length > 0)}
         icon={<Factory size={15} />}
         title="Hao hụt sản xuất"
       >
@@ -103,12 +122,14 @@ export function ProductionTab({
             }
             message={production.message}
           />
+        ) : wastage && wastage.length === 0 ? (
+          <InventoryEmptyState message={`Chưa có lệnh sản xuất nào được duyệt ${rangeLabel}.`} />
         ) : wastage ? (
           <div className="px-4 pb-4">
             <DashboardTable
               columns={[
                 {
-                  header: "Lệnh sản xuất",
+                  header: "Số lệnh",
                   key: "order",
                   render: (item) => <span className="font-black text-[#172317]">{item.productionOrderCode}</span>,
                 },
@@ -124,13 +145,13 @@ export function ProductionTab({
                 },
                 {
                   align: "right",
-                  header: "Kế hoạch",
+                  header: "Định mức",
                   key: "planned",
                   render: (item) => formatVietnamNumber(item.plannedQuantity),
                 },
                 {
                   align: "right",
-                  header: "Thực tế",
+                  header: "Thực xuất",
                   key: "actual",
                   render: (item) => formatVietnamNumber(item.actualQuantity),
                 },

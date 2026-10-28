@@ -151,7 +151,7 @@ export function DashboardOverviewPage() {
         locations={data.locations}
         onChange={setFilters}
         showLocation={capabilities.inventory}
-        showTimeRange={capabilities.sales}
+        showTimeRange={capabilities.sales || capabilities.production}
       />
 
       {visibleTabs.length > 1 ? (
@@ -225,7 +225,7 @@ export function DashboardOverviewPage() {
             />
           ) : null}
           {activeTab === "PRODUCTION" ? (
-            <ProductionTab production={data.production} retry={data.retry} />
+            <ProductionTab filters={filters} production={data.production} retry={data.retry} />
           ) : null}
           {activeTab === "ALERTS" ? (
             <AlertsTab alertItems={alertItems} alerts={data.alerts} loading={alertsLoading} retry={data.retry} />

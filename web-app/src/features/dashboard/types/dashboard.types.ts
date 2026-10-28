@@ -185,9 +185,19 @@ export interface DashboardAlertSnapshot {
   expiringReservations: DashboardExpiringReservation[] | null;
 }
 
+/** Tổng hợp lệnh sản xuất trong kỳ từ `/inventory/reports/production-wastage`. */
+export interface DashboardProductionSummary {
+  completedOrderCount: number;
+  totalOutputQuantity: number;
+  openOrderCount: number;
+  shortageOrderCount: number;
+  shortageMaterialCount: number;
+}
+
 export interface DashboardProductionSnapshot {
-  /** null = GAP (chưa có API và mock tắt). */
+  /** null = GAP (API lỗi và mock tắt); mảng rỗng = có API nhưng kỳ này chưa xuất nguyên liệu. */
   wastage: DashboardProductionWastage[] | null;
+  summary: DashboardProductionSummary | null;
 }
 
 export type DashboardAlertSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
