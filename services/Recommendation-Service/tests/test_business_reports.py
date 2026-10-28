@@ -381,7 +381,7 @@ class ExportTests(DbFixture, unittest.TestCase):
         self.app.dependency_overrides[get_db] = lambda: self.db
         self.app.dependency_overrides[get_business_report_service] = lambda: self.service
         auth = patch("app.core.ai_report_auth.get_settings", return_value=SimpleNamespace(internal_header_secret=SECRET))
-        cfg = patch("app.service.business_report_service.get_settings", return_value=settings())
+        cfg = patch("app.service.business_report_service.get_settings", return_value=settings(ai_report_data_source="OPERATIONAL"))
         auth.start(); cfg.start(); self.addCleanup(auth.stop); self.addCleanup(cfg.stop)
         self.client = TestClient(self.app); self.addCleanup(self.client.close)
         self.payload = dict(fromDate="2026-10-11", toDate="2026-10-12", requestId=str(uuid4()))

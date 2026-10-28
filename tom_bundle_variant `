@@ -1,0 +1,24 @@
+[33mcommit 1811459981d1db28381feb7445ffe8508e6c15a1[m[33m ([m[1;31morigin/feature/manage_product[m[33m)[m
+Merge: 04f423c7 c00c83ce
+Author:     annguyen-1707 <gasoqua1707@gmail.com>
+AuthorDate: Wed Oct 21 23:09:18 2026 +0700
+Commit:     annguyen-1707 <gasoqua1707@gmail.com>
+CommitDate: Wed Oct 21 23:09:18 2026 +0700
+
+    Merge branch 'develop' of https://github.com/ThaiDuisss/Huong-Van-Tra- into feature/manage_product
+    # Please enter a commit message to explain why this merge is necessary,
+    # especially if it merges an updated upstream into a topic branch.
+    #
+    # Lines starting with '#' will be ignored, and an empty message aborts
+    # the commit.
+
+M	services/Catalog-Service/src/main/java/org/hvtra/catalog/controller/PriceListController.java
+A	services/Catalog-Service/src/main/java/org/hvtra/catalog/dto/response/PriceChangeHistoryResponse.java
+A	services/Catalog-Service/src/main/java/org/hvtra/catalog/entity/PriceChangeHistory.java
+A	services/Catalog-Service/src/main/java/org/hvtra/catalog/enums/PriceChangeType.java
+A	services/Catalog-Service/src/main/java/org/hvtra/catalog/repository/PriceChangeHistoryRepository.java
+A	services/Catalog-Service/src/main/java/org/hvtra/catalog/service/PriceChangeHistoryService.java
+A	services/Catalog-Service/src/main/java/org/hvtra/catalog/service/impl/PriceChangeHistoryServiceImpl.java
+M	services/Catalog-Service/src/main/java/org/hvtra/catalog/service/impl/PriceListServiceImpl.java
+A	services/Catalog-Service/src/main/resources/db/migration/V261002100000__create_price_change_histories.sql
+A	services/Catalog-Service/src/test/java/org/hvtra/catalog/service/impl/PriceChangeHistoryIntegrationTest.java

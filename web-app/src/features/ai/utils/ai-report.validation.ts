@@ -1,11 +1,24 @@
 import type { AiReportMetadata } from "../types/ai-report.types";
 
 export const AI_REPORT_MAX_FILE_BYTES = 10 * 1024 * 1024;
-// Frontend input limits; confirm these when the business DTO is specified.
+// Match Recommendation AiReportMetadata and File USER_DOCUMENT limits.
 export const AI_REPORT_NAME_MAX_LENGTH = 200;
 export const AI_REPORT_VERSION_MAX_LENGTH = 50;
 
 export const AI_REPORT_PENDING_MESSAGE = "Chức năng quản lý báo cáo đang chờ kết nối backend.";
+
+export const AI_REPORT_CONTENT_TYPES = {
+  PDF: "application/pdf",
+  XLSX: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+} as const;
+
+export function aiReportFileType(file: File): "PDF" | "XLSX" {
+  return /\.pdf$/i.test(file.name) ? "PDF" : "XLSX";
+}
+
+export function aiReportContentType(file: File): string {
+  return AI_REPORT_CONTENT_TYPES[aiReportFileType(file)];
+}
 
 export type AiReportMetadataErrors = Partial<Record<keyof AiReportMetadata, string>>;
 
@@ -24,10 +37,7 @@ export function validateAiReportMetadata(values: AiReportMetadata): AiReportMeta
 
 export function validateAiReportFile(file: File): string | null {
   const extension = file.name.match(/\.(pdf|xlsx)$/i)?.[1].toLowerCase();
-  const contentTypes: Record<string, string> = {
-    pdf: "application/pdf",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  };
+  const contentTypes: Record<string, string> = { pdf: AI_REPORT_CONTENT_TYPES.PDF, xlsx: AI_REPORT_CONTENT_TYPES.XLSX };
   if (!extension || !contentTypes[extension]) return "Chỉ hỗ trợ file PDF hoặc XLSX.";
   if (file.size === 0) return "File đã chọn không có nội dung.";
   if (file.size > AI_REPORT_MAX_FILE_BYTES) return "Dung lượng file không được vượt quá 10 MiB.";

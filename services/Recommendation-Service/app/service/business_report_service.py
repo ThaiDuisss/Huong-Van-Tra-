@@ -13,6 +13,7 @@ from app.models.business_report import BusinessReportExport
 from app.schemas.business_report import BusinessExportResponse
 from app.service.business_report_workbook import build_workbook
 from app.service.recommendation_snapshot_service import utc_now
+from app.service.report_data_source import OPERATIONAL, build_offline, select_source
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ class BusinessReportService:
         if not record:
             record = BusinessReportExport(id=str(uuid4()), created_by=user_id, request_key=str(payload.requestId),
                 from_date=payload.fromDate, to_date=payload.toDate, generated_at=utc_now(), status="PENDING",
+                evidence={"report_source": select_source(cfg)},
                 file_name=f"AI_Report_HuongVanTra_{payload.fromDate:%Y%m%d}_{payload.toDate:%Y%m%d}.xlsx")
             db.add(record)
             try:
@@ -69,8 +71,17 @@ class BusinessReportService:
             # Reset observation cutoff after obtaining the preparation lock.
             record.generated_at = utc_now()
             try:
-                workbook, evidence = build_workbook(db, record.from_date, record.to_date, record.generated_at,
-                                                    cfg.ai_report_max_evidence_rows)
+                # Legacy pending intents predate source selection and belong to OPERATIONAL.
+                pinned = (record.evidence or {}).get("report_source", dict(OPERATIONAL))
+                if pinned["kind"] == "OPERATIONAL":
+                    workbook, evidence = build_workbook(db, record.from_date, record.to_date, record.generated_at,
+                                                        cfg.ai_report_max_evidence_rows)
+                    evidence["report_source"] = pinned
+                elif pinned["kind"] == "OFFLINE_EVALUATION":
+                    workbook, evidence = build_offline(cfg, pinned, record.from_date, record.to_date,
+                                                       record.generated_at, cfg.ai_report_max_evidence_rows)
+                else:
+                    raise HTTPException(409, "Export intent has an unsupported report source")
             except Exception:
                 db.rollback()
                 raise
