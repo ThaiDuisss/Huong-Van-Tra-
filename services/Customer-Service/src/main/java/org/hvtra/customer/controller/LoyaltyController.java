@@ -3,13 +3,15 @@ package org.hvtra.customer.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.customer.constant.ApiParam;
 import org.hvtra.customer.constant.ApiPath;
+import org.hvtra.customer.dto.request.LoyaltyPointRuleRequest;
 import org.hvtra.customer.dto.response.LoyaltyAccountResponse;
+import org.hvtra.customer.dto.response.LoyaltyPointRuleResponse;
 import org.hvtra.customer.dto.response.LoyaltyTransactionResponse;
-import org.hvtra.customer.model.entity.LoyaltyPointRule;
 import org.hvtra.customer.service.LoyaltyAccountService;
 import org.hvtra.customer.service.LoyaltyPointRuleService;
 import org.hvtra.customer.service.LoyaltyTransactionService;
@@ -73,13 +75,13 @@ public class LoyaltyController {
 
     @GetMapping(ApiPath.LOYALTY_POINT_RULES)
     @Operation(summary = "Lấy danh sách quy tắc tích điểm")
-    public List<LoyaltyPointRule> getAllPointRules() {
+    public List<LoyaltyPointRuleResponse> getAllPointRules() {
         return loyaltyPointRuleService.getAll();
     }
 
     @GetMapping(ApiPath.LOYALTY_POINT_RULES + "/{ruleId}")
     @Operation(summary = "Lấy chi tiết quy tắc tích điểm")
-    public LoyaltyPointRule getPointRuleById(
+    public LoyaltyPointRuleResponse getPointRuleById(
             @Parameter(description = "ID quy tắc") @PathVariable("ruleId") UUID id) {
         return loyaltyPointRuleService.getById(id);
     }
@@ -88,17 +90,17 @@ public class LoyaltyController {
     @PostMapping(ApiPath.LOYALTY_POINT_RULES)
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Tạo quy tắc tích điểm")
-    public LoyaltyPointRule createPointRule(@RequestBody LoyaltyPointRule rule) {
-        return loyaltyPointRuleService.create(rule);
+    public LoyaltyPointRuleResponse createPointRule(@Valid @RequestBody LoyaltyPointRuleRequest request) {
+        return loyaltyPointRuleService.create(request);
     }
 
     @UserAction(value = "LOYALTY_POINT_RULE_UPDATE", entityType = "LoyaltyPointRule", entityId = "#id")
     @PutMapping(ApiPath.LOYALTY_POINT_RULES + "/{ruleId}")
     @Operation(summary = "Cập nhật quy tắc tích điểm")
-    public LoyaltyPointRule updatePointRule(
+    public LoyaltyPointRuleResponse updatePointRule(
             @Parameter(description = "ID quy tắc") @PathVariable("ruleId") UUID id,
-            @RequestBody LoyaltyPointRule rule) {
-        return loyaltyPointRuleService.update(id, rule);
+            @Valid @RequestBody LoyaltyPointRuleRequest request) {
+        return loyaltyPointRuleService.update(id, request);
     }
 
     @UserAction(value = "LOYALTY_POINT_RULE_DELETE", entityType = "LoyaltyPointRule", entityId = "#id")

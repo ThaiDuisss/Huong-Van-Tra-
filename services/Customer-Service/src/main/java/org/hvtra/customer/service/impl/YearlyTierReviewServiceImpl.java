@@ -3,8 +3,7 @@ package org.hvtra.customer.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.customer.config.LoyaltyTierProperties;
-import org.hvtra.customer.exception.CustomerNotFoundException;
-import org.hvtra.customer.exception.NoActiveCustomerTierConfiguredException;
+import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.entity.CustomerTierYearlyMetric;
@@ -29,6 +28,9 @@ import java.time.Year;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hvtra.customer.exception.CustomerServiceException.conflict;
+import static org.hvtra.customer.exception.CustomerServiceException.notFound;
 
 @Slf4j
 @Service
@@ -70,11 +72,11 @@ public class YearlyTierReviewServiceImpl implements YearlyTierReviewService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void reviewCustomerTier(UUID customerId, int currentYear, LocalDateTime reviewTime) {
         Customer customer = customerRepository.findByIdForUpdate(customerId)
-                .orElseThrow(() -> new CustomerNotFoundException("Customer not found"));
+                .orElseThrow(() -> notFound(Message.CUSTOMER_NOT_FOUND));
         CustomerTier qualifiedTier = metricRepository.findByCustomerIdAndTierYear(customerId, currentYear)
                 .map(this::resolveMetricTier)
                 .orElseGet(() -> customerTierRepository.findLowestActiveTier()
-                        .orElseThrow(NoActiveCustomerTierConfiguredException::new));
+                        .orElseThrow(() -> conflict(Message.NO_ACTIVE_CUSTOMER_TIER)));
 
         if (customer.getTier() != null && Objects.equals(customer.getTier().getId(), qualifiedTier.getId())) {
             return;

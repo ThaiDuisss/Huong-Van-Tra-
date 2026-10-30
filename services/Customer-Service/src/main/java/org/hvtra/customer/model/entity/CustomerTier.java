@@ -40,4 +40,16 @@ public class CustomerTier extends BaseEntity {
     @ColumnDefault("'#6B7280'")
     @Column(name = "color_code", nullable = false, length = 7)
     private String colorCode;
+
+    // So sánh theo ngưỡng chi tiêu trước, bằng nhau thì so theo số đơn tối thiểu.
+    public boolean isHigherThan(CustomerTier other) {
+        if (other == null) {
+            return true;
+        }
+        int spendingCompare = minSpending.compareTo(other.getMinSpending());
+        if (spendingCompare != 0) {
+            return spendingCompare > 0;
+        }
+        return minOrderCount > other.getMinOrderCount();
+    }
 }

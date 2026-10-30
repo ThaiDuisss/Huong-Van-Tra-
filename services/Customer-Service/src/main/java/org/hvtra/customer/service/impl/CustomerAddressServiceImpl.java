@@ -1,23 +1,22 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.CustomerAddressRequest;
 import org.hvtra.customer.dto.response.CustomerAddressResponse;
-import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.Customer;
 import org.hvtra.customer.model.entity.CustomerAddress;
 import org.hvtra.customer.repository.CustomerAddressRepository;
 import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.service.CustomerAddressService;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+
+import static org.hvtra.customer.exception.CustomerServiceException.notFound;
 
 @Service
 @RequiredArgsConstructor
@@ -86,9 +85,5 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
     private Customer findCustomer(UUID id) {
         return customerRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> notFound(Message.CUSTOMER_NOT_FOUND));
-    }
-
-    private CustomerServiceException notFound(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_NOT_FOUND, message, HttpStatus.NOT_FOUND);
     }
 }

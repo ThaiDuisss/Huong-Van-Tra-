@@ -14,6 +14,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import static org.hvtra.customer.util.AmountUtils.nonNegative;
+import static org.hvtra.customer.util.AmountUtils.zeroIfNull;
+
 @Getter
 @Setter
 @Entity
@@ -59,21 +62,14 @@ public class CustomerTierYearlyMetric extends BaseEntity {
         applyDelta(amount, orderCountDelta);
     }
 
-    public void applyAdjustment(BigDecimal amount, int orderCountDelta) {
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
-            throw new IllegalArgumentException("Adjustment amount must not be zero");
-        }
-        applyDelta(amount, orderCountDelta);
-    }
-
     public void changeQualifiedTier(CustomerTier qualifiedTier) {
         this.qualifiedTier = qualifiedTier;
         this.calculatedAt = LocalDateTime.now();
     }
 
     private void applyDelta(BigDecimal amount, int orderCountDelta) {
-        this.totalSpent = nonNegative(defaultMoney(this.totalSpent).add(amount));
-        this.totalOrderCount = Math.max(defaultCount(this.totalOrderCount) + orderCountDelta, 0);
+        this.totalSpent = nonNegative(zeroIfNull(this.totalSpent).add(amount));
+        this.totalOrderCount = Math.max(zeroIfNull(this.totalOrderCount) + orderCountDelta, 0);
         this.calculatedAt = LocalDateTime.now();
     }
 
@@ -87,17 +83,5 @@ public class CustomerTierYearlyMetric extends BaseEntity {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) >= 0) {
             throw new IllegalArgumentException(message);
         }
-    }
-
-    private BigDecimal defaultMoney(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
-    }
-
-    private int defaultCount(Integer value) {
-        return value == null ? 0 : value;
-    }
-
-    private BigDecimal nonNegative(BigDecimal value) {
-        return value.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : value;
     }
 }

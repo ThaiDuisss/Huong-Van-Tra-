@@ -4,16 +4,12 @@ import org.hvtra.customer.dto.request.CustomerTierRequest;
 import org.hvtra.customer.dto.request.ChangeTierStatusRequest;
 import org.hvtra.customer.dto.response.CustomerTierCountResponse;
 import org.hvtra.customer.dto.response.CustomerTierResponse;
-import org.hvtra.customer.dto.response.PageResponse;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
 
 public interface CustomerTierService {
     List<CustomerTierResponse> getAll();
-
-    PageResponse<CustomerTierResponse> getTiers(Pageable pageable);
 
     List<CustomerTierCountResponse> getCounts();
 
@@ -24,6 +20,4 @@ public interface CustomerTierService {
     CustomerTierResponse update(UUID id, CustomerTierRequest request);
 
     void changeTierStatus(UUID id, ChangeTierStatusRequest request);
-
-    void delete(UUID id);
 }

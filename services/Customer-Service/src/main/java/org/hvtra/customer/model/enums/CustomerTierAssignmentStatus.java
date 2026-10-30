@@ -2,7 +2,5 @@ package org.hvtra.customer.model.enums;
 
 public enum CustomerTierAssignmentStatus {
     ACTIVE,
-    REPLACED,
-    EXPIRED,
-    CANCELLED
+    REPLACED
 }

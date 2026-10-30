@@ -1,12 +1,9 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.dto.request.ManualPurchaseAdjustmentRequest;
+import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.ManualTierAdjustmentRequest;
-import org.hvtra.customer.exception.CustomerNotFoundException;
-import org.hvtra.customer.exception.CustomerTierNotFoundException;
-import org.hvtra.customer.exception.InvalidPurchaseTransactionException;
-import org.hvtra.customer.exception.InvalidTierAdjustmentException;
+import org.hvtra.customer.dto.response.TierProgressResponse;
 import org.hvtra.customer.integration.event.OrderCompletedEvent;
 import org.hvtra.customer.integration.event.OrderFullyRefundedEvent;
 import org.hvtra.customer.integration.event.OrderPartiallyRefundedEvent;
@@ -17,9 +14,13 @@ import org.hvtra.customer.model.entity.CustomerTierAssignment;
 import org.hvtra.customer.model.entity.CustomerTierYearlyMetric;
 import org.hvtra.customer.model.enums.CustomerPurchaseTransactionType;
 import org.hvtra.customer.model.enums.CustomerStatus;
+import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.enums.CustomerTierAssignmentReason;
+import org.hvtra.customer.model.enums.CustomerTierAssignmentStatus;
+import org.hvtra.customer.model.enums.CustomerTierStatus;
 import org.hvtra.customer.repository.CustomerPurchaseTransactionRepository;
 import org.hvtra.customer.repository.CustomerRepository;
+import org.hvtra.customer.repository.CustomerTierAssignmentRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.repository.CustomerTierYearlyMetricRepository;
 import org.hvtra.customer.service.LoyaltyTierService;
@@ -33,7 +34,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+
+import static org.hvtra.customer.exception.CustomerServiceException.invalidRequest;
+import static org.hvtra.customer.exception.CustomerServiceException.notFound;
+import static org.hvtra.customer.util.AmountUtils.nonNegative;
 
 @Service
 @RequiredArgsConstructor
@@ -42,8 +49,10 @@ public class LoyaltyTierServiceImpl implements LoyaltyTierService {
     private final CustomerTierRepository customerTierRepository;
     private final CustomerPurchaseTransactionRepository transactionRepository;
     private final CustomerTierYearlyMetricRepository metricRepository;
+    private final CustomerTierAssignmentRepository assignmentRepository;
     private final TierQualificationService tierQualificationService;
     private final TierAssignmentService tierAssignmentService;
+    private final CustomerMapper mapper;
 
     @Override
     @Transactional
@@ -96,34 +105,13 @@ public class LoyaltyTierServiceImpl implements LoyaltyTierService {
 
     @Override
     @Transactional
-    public void recordManualAdjustment(ManualPurchaseAdjustmentRequest request) {
-        if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) == 0) {
-            throw new InvalidPurchaseTransactionException("Adjustment amount must not be zero");
-        }
-        LocalDateTime occurredAt = request.occurredAt() == null ? LocalDateTime.now() : request.occurredAt();
-        Customer customer = findActiveCustomerForUpdate(request.customerId());
-        CustomerPurchaseTransaction transaction = CustomerPurchaseTransaction.adjustment(customer.getId(), request.amount(), request.orderCountDelta(), occurredAt, request.reason());
-        transactionRepository.save(transaction);
-
-        CustomerTierYearlyMetric metric = findOrCreateMetricForUpdate(customer.getId(), occurredAt.getYear());
-        metric.applyAdjustment(request.amount(), request.orderCountDelta() == null ? 0 : request.orderCountDelta());
-        CustomerTier qualifiedTier = tierQualificationService.resolveQualifiedTier(metric.getTotalSpent(), metric.getTotalOrderCount());
-        metric.changeQualifiedTier(qualifiedTier);
-        customer.applyPurchaseDelta(request.amount(), request.orderCountDelta() == null ? 0 : request.orderCountDelta());
-        maybePromote(customer, qualifiedTier, occurredAt.getYear(), occurredAt);
-        metricRepository.save(metric);
-        customerRepository.save(customer);
-    }
-
-    @Override
-    @Transactional
     public CustomerTierAssignment adjustTier(UUID customerId, ManualTierAdjustmentRequest request) {
         if (request.reason() == null || request.reason().isBlank()) {
-            throw new InvalidTierAdjustmentException("Manual tier adjustment reason is required");
+            throw invalidRequest("Manual tier adjustment reason is required");
         }
         Customer customer = findActiveCustomerForUpdate(customerId);
         CustomerTier tier = customerTierRepository.findByIdAndIsDeletedFalse(request.tierId())
-                .orElseThrow(() -> new CustomerTierNotFoundException("Customer tier not found"));
+                .orElseThrow(() -> notFound(Message.CUSTOMER_TIER_NOT_FOUND));
         LocalDateTime effectiveFrom = request.effectiveFrom() == null ? LocalDateTime.now() : request.effectiveFrom();
         return tierAssignmentService.replaceActiveTier(customer, tier, null, CustomerTierAssignmentReason.MANUAL_ADJUSTMENT, effectiveFrom, null, request.reason());
     }
@@ -137,8 +125,7 @@ public class LoyaltyTierServiceImpl implements LoyaltyTierService {
     @Override
     @Transactional(readOnly = true)
     public CustomerTierYearlyMetric getMetric(UUID customerId, Integer year) {
-        customerRepository.findByIdAndIsDeletedFalse(customerId)
-                .orElseThrow(() -> new CustomerNotFoundException("Customer not found"));
+        findCustomer(customerId);
         return metricRepository.findByCustomerIdAndTierYear(customerId, year)
                 .orElseGet(() -> CustomerTierYearlyMetric.create(customerId, year));
     }
@@ -146,9 +133,41 @@ public class LoyaltyTierServiceImpl implements LoyaltyTierService {
     @Override
     @Transactional(readOnly = true)
     public Page<CustomerPurchaseTransaction> getPurchaseTransactions(UUID customerId, Pageable pageable) {
-        customerRepository.findByIdAndIsDeletedFalse(customerId)
-                .orElseThrow(() -> new CustomerNotFoundException("Customer not found"));
+        findCustomer(customerId);
         return transactionRepository.findByCustomerId(customerId, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CustomerTierAssignment> getTierHistory(UUID customerId) {
+        return assignmentRepository.findByCustomerIdOrderByEffectiveFromDesc(customerId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TierProgressResponse getProgress(UUID customerId) {
+        Customer customer = findCustomer(customerId);
+        CustomerTierYearlyMetric metric = getCurrentYearMetric(customerId);
+        CustomerTier qualifiedTier = metric.getQualifiedTier() == null
+                ? tierQualificationService.resolveQualifiedTier(metric.getTotalSpent(), metric.getTotalOrderCount())
+                : metric.getQualifiedTier();
+        CustomerTier nextTier = customerTierRepository.findByStatusOrderByMinSpendingAscMinOrderCountAsc(CustomerTierStatus.ACTIVE)
+                .stream()
+                .filter(tier -> tier.isHigherThan(qualifiedTier))
+                .min(Comparator.comparing(CustomerTier::getMinSpending).thenComparing(CustomerTier::getMinOrderCount))
+                .orElse(null);
+        CustomerTierAssignment active = assignmentRepository.findByCustomerIdAndStatus(customerId, CustomerTierAssignmentStatus.ACTIVE).orElse(null);
+        return new TierProgressResponse(
+                customer.getTier() == null ? null : mapper.toResponse(customer.getTier()),
+                mapper.toResponse(qualifiedTier),
+                metric.getTierYear(),
+                metric.getTotalSpent(),
+                metric.getTotalOrderCount(),
+                nextTier == null ? null : mapper.toResponse(nextTier),
+                nextTier == null ? null : nonNegative(nextTier.getMinSpending().subtract(metric.getTotalSpent())),
+                nextTier == null ? null : Math.max(nextTier.getMinOrderCount() - metric.getTotalOrderCount(), 0),
+                active == null ? null : active.getEffectiveUntil()
+        );
     }
 
     private void applyRefund(Customer customer, LocalDateTime refundedAt, BigDecimal negativeAmount, int orderCountDelta) {
@@ -162,7 +181,7 @@ public class LoyaltyTierServiceImpl implements LoyaltyTierService {
     }
 
     private void maybePromote(Customer customer, CustomerTier qualifiedTier, int qualificationYear, LocalDateTime effectiveFrom) {
-        if (isHigherTier(qualifiedTier, customer.getTier())) {
+        if (qualifiedTier != null && qualifiedTier.isHigherThan(customer.getTier())) {
             tierAssignmentService.replaceActiveTier(
                     customer,
                     qualifiedTier,
@@ -175,49 +194,40 @@ public class LoyaltyTierServiceImpl implements LoyaltyTierService {
         }
     }
 
-    private boolean isHigherTier(CustomerTier candidate, CustomerTier current) {
-        if (candidate == null) {
-            return false;
-        }
-        if (current == null) {
-            return true;
-        }
-        int spendingCompare = candidate.getMinSpending().compareTo(current.getMinSpending());
-        if (spendingCompare != 0) {
-            return spendingCompare > 0;
-        }
-        return candidate.getMinOrderCount() > current.getMinOrderCount();
-    }
-
     private CustomerTierYearlyMetric findOrCreateMetricForUpdate(UUID customerId, int year) {
         return metricRepository.findByCustomerIdAndTierYearForUpdate(customerId, year)
                 .orElseGet(() -> metricRepository.save(CustomerTierYearlyMetric.create(customerId, year)));
     }
 
+    private Customer findCustomer(UUID customerId) {
+        return customerRepository.findByIdAndIsDeletedFalse(customerId)
+                .orElseThrow(() -> notFound(Message.CUSTOMER_NOT_FOUND));
+    }
+
     private Customer findActiveCustomerForUpdate(UUID customerId) {
         Customer customer = customerRepository.findByIdForUpdate(customerId)
-                .orElseThrow(() -> new CustomerNotFoundException("Customer not found"));
+                .orElseThrow(() -> notFound(Message.CUSTOMER_NOT_FOUND));
         if (customer.getStatus() != CustomerStatus.ACTIVE) {
-            throw new InvalidPurchaseTransactionException("Customer is not active");
+            throw invalidRequest("Customer is not active");
         }
         return customer;
     }
 
     private void validatePurchase(OrderCompletedEvent event) {
         if (event == null || event.orderId() == null || event.customerId() == null || event.occurredAt() == null) {
-            throw new InvalidPurchaseTransactionException("Purchase event is missing required data");
+            throw invalidRequest("Purchase event is missing required data");
         }
         if (event.finalAmount() == null || event.finalAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new InvalidPurchaseTransactionException("Purchase amount must be greater than zero");
+            throw invalidRequest("Purchase amount must be greater than zero");
         }
     }
 
     private void validateRefund(UUID customerId, UUID orderId, UUID refundId, BigDecimal refundAmount, LocalDateTime refundedAt) {
         if (customerId == null || orderId == null || refundId == null || refundedAt == null) {
-            throw new InvalidPurchaseTransactionException("Refund event is missing required data");
+            throw invalidRequest("Refund event is missing required data");
         }
         if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new InvalidPurchaseTransactionException("Refund amount must be greater than zero");
+            throw invalidRequest("Refund amount must be greater than zero");
         }
     }
 }

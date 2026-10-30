@@ -68,16 +68,6 @@ public class CustomerPurchaseTransaction extends BaseEntity {
         return base(customerId, orderId, refundId, CustomerPurchaseTransactionType.FULL_REFUND, refundAmount.negate(), -1, refundedAt, reason);
     }
 
-    public static CustomerPurchaseTransaction adjustment(UUID customerId, BigDecimal amount, Integer orderCountDelta, LocalDateTime occurredAt, String reason) {
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
-            throw new IllegalArgumentException("Adjustment amount must not be zero");
-        }
-        if (reason == null || reason.isBlank()) {
-            throw new IllegalArgumentException("Adjustment reason is required");
-        }
-        return base(customerId, null, null, CustomerPurchaseTransactionType.ADJUSTMENT, amount, orderCountDelta == null ? 0 : orderCountDelta, occurredAt, reason);
-    }
-
     private static CustomerPurchaseTransaction base(UUID customerId, UUID orderId, UUID referenceId, CustomerPurchaseTransactionType type, BigDecimal amount, int orderCountDelta, LocalDateTime occurredAt, String reason) {
         requireNonNull(customerId, "customerId is required");
         requireNonNull(occurredAt, "occurredAt is required");
