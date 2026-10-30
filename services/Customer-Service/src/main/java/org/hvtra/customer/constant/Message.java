@@ -3,6 +3,7 @@ package org.hvtra.customer.constant;
 public final class Message {
     public static final String CUSTOMER_NOT_FOUND = "Không tìm thấy khách hàng";
     public static final String CUSTOMER_TIER_NOT_FOUND = "Không tìm thấy hạng khách hàng";
+    public static final String NO_ACTIVE_CUSTOMER_TIER = "Chưa cấu hình hạng khách hàng nào đang hoạt động";
     public static final String CUSTOMER_ADDRESS_NOT_FOUND = "Không tìm thấy địa chỉ khách hàng";
     public static final String LOYALTY_ACCOUNT_NOT_FOUND = "Không tìm thấy tài khoản tích điểm";
     public static final String LOYALTY_TRANSACTION_NOT_FOUND = "Không tìm thấy giao dịch tích điểm";

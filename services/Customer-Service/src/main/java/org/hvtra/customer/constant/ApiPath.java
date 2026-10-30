@@ -18,7 +18,6 @@ public final class ApiPath {
     public static final String TIER_STATUS = ID + "/status";
     public static final String CUSTOMER_STATUS = ID + "/status";
     public static final String CUSTOMER_IMPORT = "/import";
-    public static final String CUSTOMER_ID = "/customer/{customerId}";
 
     private ApiPath() {
     }

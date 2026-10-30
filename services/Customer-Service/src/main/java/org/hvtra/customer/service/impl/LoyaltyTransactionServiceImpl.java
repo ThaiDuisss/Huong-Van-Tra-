@@ -1,23 +1,23 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.LoyaltyTransactionRequest;
 import org.hvtra.customer.dto.response.LoyaltyTransactionResponse;
-import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.LoyaltyAccount;
 import org.hvtra.customer.model.entity.LoyaltyTransaction;
 import org.hvtra.customer.repository.LoyaltyAccountRepository;
 import org.hvtra.customer.repository.LoyaltyTransactionRepository;
 import org.hvtra.customer.service.LoyaltyTransactionService;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+
+import static org.hvtra.customer.exception.CustomerServiceException.notFound;
+import static org.hvtra.customer.exception.CustomerServiceException.invalidRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -52,31 +52,6 @@ public class LoyaltyTransactionServiceImpl implements LoyaltyTransactionService 
         return customerMapper.toResponse(loyaltyTransactionRepository.save(transaction));
     }
 
-    @Override
-    @Transactional
-    public LoyaltyTransactionResponse update(UUID id, LoyaltyTransactionRequest request) {
-        validatePoints(request.points());
-        LoyaltyTransaction transaction = findTransaction(id);
-        LoyaltyAccount oldAccount = transaction.getLoyaltyAccount();
-        int oldPoints = transaction.getPoints();
-        LoyaltyAccount newAccount = findAccount(request.loyaltyAccountId());
-
-        applyBalanceDelta(oldAccount, -oldPoints);
-        applyBalanceDelta(newAccount, request.points());
-        customerMapper.update(transaction, request, newAccount);
-
-        return customerMapper.toResponse(loyaltyTransactionRepository.save(transaction));
-    }
-
-    @Override
-    @Transactional
-    public void delete(UUID id) {
-        LoyaltyTransaction transaction = findTransaction(id);
-        applyBalanceDelta(transaction.getLoyaltyAccount(), -transaction.getPoints());
-        transaction.setIsDeleted(true);
-        loyaltyTransactionRepository.save(transaction);
-    }
-
     //======================================= Helper classes =======================================
 
     private LoyaltyTransaction findTransaction(UUID id) {
@@ -91,17 +66,12 @@ public class LoyaltyTransactionServiceImpl implements LoyaltyTransactionService 
 
     private void validatePoints(Integer points) {
         if (points == null || points == 0) {
-            throw new CustomerServiceException(ErrorCode.CUSTOMER_INVALID_REQUEST,
-                    Message.LOYALTY_TRANSACTION_POINTS_REQUIRED, HttpStatus.BAD_REQUEST);
+            throw invalidRequest(Message.LOYALTY_TRANSACTION_POINTS_REQUIRED);
         }
     }
 
     private void applyBalanceDelta(LoyaltyAccount account, int delta) {
         account.setPointBalance(account.getPointBalance() + delta);
         loyaltyAccountRepository.save(account);
-    }
-
-    private CustomerServiceException notFound(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_NOT_FOUND, message, HttpStatus.NOT_FOUND);
     }
 }

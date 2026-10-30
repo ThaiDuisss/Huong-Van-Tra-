@@ -1,14 +1,11 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.ChangeTierStatusRequest;
 import org.hvtra.customer.dto.request.CustomerTierRequest;
 import org.hvtra.customer.dto.response.CustomerTierCountResponse;
 import org.hvtra.customer.dto.response.CustomerTierResponse;
-import org.hvtra.customer.dto.response.PageResponse;
-import org.hvtra.customer.exception.CustomerServiceException;
 import org.hvtra.customer.mapper.CustomerMapper;
 import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.enums.CustomerTierStatus;
@@ -16,13 +13,16 @@ import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.repository.CustomerTierAssignmentRepository;
 import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.service.CustomerTierService;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import static org.hvtra.customer.exception.CustomerServiceException.notFound;
+import static org.hvtra.customer.exception.CustomerServiceException.conflict;
+import static org.hvtra.customer.exception.CustomerServiceException.invalidRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -42,12 +42,6 @@ public class CustomerTierServiceImpl implements CustomerTierService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<CustomerTierResponse> getTiers(Pageable pageable) {
-        return PageResponse.from(customerTierRepository.findByIsDeletedFalse(pageable).map(customerMapper::toResponse));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public List<CustomerTierCountResponse> getCounts() {
         List<CustomerTierCountResponse> tierCounts = customerTierRepository
                 .findAllByStatusAndIsDeletedFalseOrderByMinSpendingDesc(CustomerTierStatus.ACTIVE)
@@ -61,7 +55,7 @@ public class CustomerTierServiceImpl implements CustomerTierService {
                 ))
                 .toList();
 
-        List<CustomerTierCountResponse> result = new java.util.ArrayList<>();
+        List<CustomerTierCountResponse> result = new ArrayList<>();
         result.add(new CustomerTierCountResponse(
                 null,
                 "ALL",
@@ -118,14 +112,6 @@ public class CustomerTierServiceImpl implements CustomerTierService {
         customerTierRepository.save(tier);
     }
 
-    @Override
-    @Transactional
-    public void delete(UUID id) {
-        CustomerTier tier = findTier(id);
-        tier.setIsDeleted(true);
-        customerTierRepository.save(tier);
-    }
-
     //======================================= Helper classes =======================================
 
     private CustomerTier findTier(UUID id) {
@@ -140,17 +126,5 @@ public class CustomerTierServiceImpl implements CustomerTierService {
         if (exists) {
             throw conflict(Message.CUSTOMER_TIER_CODE_EXISTS);
         }
-    }
-
-    private CustomerServiceException notFound(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_NOT_FOUND, message, HttpStatus.NOT_FOUND);
-    }
-
-    private CustomerServiceException conflict(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_CONFLICT, message, HttpStatus.CONFLICT);
-    }
-
-    private CustomerServiceException invalidRequest(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_INVALID_REQUEST, message, HttpStatus.BAD_REQUEST);
     }
 }

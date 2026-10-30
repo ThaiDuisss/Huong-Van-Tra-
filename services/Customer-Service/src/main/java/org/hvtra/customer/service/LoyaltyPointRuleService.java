@@ -1,5 +1,7 @@
 package org.hvtra.customer.service;
 
+import org.hvtra.customer.dto.request.LoyaltyPointRuleRequest;
+import org.hvtra.customer.dto.response.LoyaltyPointRuleResponse;
 import org.hvtra.customer.model.entity.LoyaltyPointRule;
 
 import java.math.BigDecimal;
@@ -9,15 +11,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface LoyaltyPointRuleService {
-    List<LoyaltyPointRule> getAll();
+    List<LoyaltyPointRuleResponse> getAll();
 
-    LoyaltyPointRule getById(UUID id);
+    LoyaltyPointRuleResponse getById(UUID id);
 
     Optional<LoyaltyPointRule> findApplicableRule(UUID tierId, BigDecimal orderAmount, Instant effectiveAt);
 
-    LoyaltyPointRule create(LoyaltyPointRule rule);
+    LoyaltyPointRuleResponse create(LoyaltyPointRuleRequest request);
 
-    LoyaltyPointRule update(UUID id, LoyaltyPointRule rule);
+    LoyaltyPointRuleResponse update(UUID id, LoyaltyPointRuleRequest request);
 
     void delete(UUID id);
 }

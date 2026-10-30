@@ -69,14 +69,4 @@ public class CustomerTierAssignment extends BaseEntity {
         this.status = CustomerTierAssignmentStatus.REPLACED;
         this.effectiveUntil = effectiveUntil;
     }
-
-    public void expire(LocalDateTime effectiveUntil) {
-        this.status = CustomerTierAssignmentStatus.EXPIRED;
-        this.effectiveUntil = effectiveUntil;
-    }
-
-    public void cancel(String note) {
-        this.status = CustomerTierAssignmentStatus.CANCELLED;
-        this.note = note;
-    }
 }
