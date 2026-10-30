@@ -1,5 +1,3 @@
-import hashlib
-import json
 import logging
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -11,16 +9,13 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.core.config import get_settings
 from app.models.business_report import RecommendationSnapshot
 from app.schemas.recommendation import RecommendationResponse
+from app.service.evidence_fingerprint import fingerprint
 
 logger = logging.getLogger(__name__)
 
 
 def utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def fingerprint(value):
-    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
 
 class RecommendationSnapshotService:

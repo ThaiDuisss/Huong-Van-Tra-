@@ -8,6 +8,7 @@ import org.hvtra.iventoryservice.stock.dto.response.StockBatchResponse;
 import org.hvtra.iventoryservice.stock.dto.response.StockVariantBatchResponse;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
+import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryItemType;
 import org.hvtra.iventoryservice.domain.enums.InventoryLocationType;
 import org.hvtra.iventoryservice.domain.enums.InventoryStatus;
@@ -215,13 +216,28 @@ public class InventoryStockServiceImpl implements InventoryStockService {
     private Map<UUID, VariantTotals> sumBalancesByItemId(List<InventoryBalance> balances) {
         Map<UUID, VariantTotals> totalsByItemId = new HashMap<>();
         for (InventoryBalance balance : balances) {
-            if (!InventoryLocationSaleability.isSaleable(balance.getLocation())) {
+            if (!InventoryLocationSaleability.isSaleable(balance.getLocation())
+                    || isDetachedShelf(balance.getLocation())) {
                 continue;
             }
             totalsByItemId.computeIfAbsent(balance.getInventoryItem().getId(), ignored -> new VariantTotals())
                     .add(balance);
         }
         return totalsByItemId;
+    }
+
+    /**
+     * Bán tại quầy chỉ trừ trên các kệ nằm trực tiếp dưới một kho đang hoạt động (SaleFulfillmentServiceImpl),
+     * nên kệ không thuộc kho nào không được tính vào số "trên kệ" của POS.
+     */
+    private static boolean isDetachedShelf(InventoryLocation location) {
+        if (location.getType() != InventoryLocationType.SHELF) {
+            return false;
+        }
+        InventoryLocation parent = location.getParentLocation();
+        return parent == null
+                || parent.getType() != InventoryLocationType.WAREHOUSE
+                || parent.getStatus() != InventoryStatus.ACTIVE;
     }
 
     private static class VariantTotals {

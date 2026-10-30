@@ -5,6 +5,7 @@ import org.hvtra.commonservice.common_core.config.InternalHeaderAuthenticationFi
 import org.hvtra.fileservice.exception.AiReportFileExceptionHandler;
 import org.hvtra.fileservice.model.response.AiReportFileResponse;
 import org.hvtra.fileservice.service.AiReportFileAccessService;
+import org.hvtra.fileservice.service.GeneratedReportFileService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import java.util.HexFormat;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -35,23 +37,51 @@ class InternalAiReportFileControllerTest {
     private final UUID file = UUID.randomUUID();
     private final UUID owner = UUID.randomUUID();
     private AiReportFileAccessService service;
+    private GeneratedReportFileService generated;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         service = mock(AiReportFileAccessService.class);
+        generated = mock(GeneratedReportFileService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         Filter principalBridge = (request, response, chain) -> {
             ((MockHttpServletRequest) request).setUserPrincipal(SecurityContextHolder.getContext().getAuthentication());
             chain.doFilter(request, response);
         };
-        mvc = MockMvcBuilders.standaloneSetup(new InternalAiReportFileController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new InternalAiReportFileController(service, generated))
                 .setControllerAdvice(new AiReportFileExceptionHandler()).setValidator(validator)
                 .addFilters(new InternalHeaderAuthenticationFilter(SECRET, "file-service"), principalBridge).build();
     }
 
     @AfterEach void tearDown() { SecurityContextHolder.clearContext(); }
+
+    @Test void generatedUploadRequiresExactInternalCallerAndSystemRole() throws Exception {
+        String path = "/internal/file/ai-reports/" + file + "/generated";
+        for (String identity : new String[]{owner.toString(), "service:other"}) {
+            mvc.perform(signed(put(path).contentType("application/octet-stream").content(new byte[]{1})
+                    .param("ownerId", owner.toString()).param("fileName", "report.xlsx").param("sha256", "0".repeat(64)),
+                    identity, "SYSTEM")).andExpect(status().isForbidden());
+        }
+        mvc.perform(signed(put(path).contentType("application/octet-stream").content(new byte[]{1})
+                .param("ownerId", owner.toString()).param("fileName", "report.xlsx").param("sha256", "0".repeat(64)),
+                CALLER, "SALE_STAFF")).andExpect(status().isForbidden());
+        verifyNoInteractions(generated);
+    }
+
+    @Test void generatedUploadAndDownloadUseSeparateTrustedOperations() throws Exception {
+        mvc.perform(signed(put("/internal/file/ai-reports/" + file + "/generated")
+                .contentType("application/octet-stream").content(new byte[]{1, 2})
+                .param("ownerId", owner.toString()).param("fileName", "report.xlsx").param("sha256", "0".repeat(64)),
+                CALLER, "SYSTEM")).andExpect(status().isOk());
+        verify(generated).store(eq(file), eq(owner), eq("report.xlsx"), eq("0".repeat(64)), aryEq(new byte[]{1, 2}));
+        mvc.perform(signed(post("/internal/file/ai-reports/" + file + "/generated-download-url")
+                .contentType("application/json").content("{\"fileId\":\"" + file + "\"}"), CALLER, "SYSTEM"))
+                .andExpect(status().isOk());
+        verify(service).downloadGenerated(file, file);
+        verify(service, never()).download(any(), any());
+    }
 
     MockHttpServletRequestBuilder signed(MockHttpServletRequestBuilder request, String user, String roles) throws Exception {
         String requestId = UUID.randomUUID().toString();

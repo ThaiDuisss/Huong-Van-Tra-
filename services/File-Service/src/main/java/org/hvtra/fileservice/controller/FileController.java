@@ -11,6 +11,8 @@ import org.hvtra.fileservice.model.request.InitUploadRequest;
 import org.hvtra.fileservice.model.response.DownloadUrlResponse;
 import org.hvtra.fileservice.model.response.InitUploadResponse;
 import org.hvtra.fileservice.service.FileService;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -140,10 +142,12 @@ public class FileController {
         String userIdStr = userHeader != null ? userHeader.getUserId() : null;
 
         if (userIdStr == null || userIdStr.isBlank()) {
-            return UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-            //            throw new IllegalArgumentException("Missing user id in headers");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated human user required");
         }
-
-        return UUID.fromString(userIdStr);
+        try {
+            return UUID.fromString(userIdStr);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated human user required");
+        }
     }
 }

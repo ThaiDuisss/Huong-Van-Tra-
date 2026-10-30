@@ -16,6 +16,7 @@ spring:
     locations: classpath:migration
     baseline-on-migrate: true
     clean-disabled: true
+    out-of-order: false
 
 #clients:
 #  inventory:
@@ -70,7 +71,7 @@ file:
 
 security:
   internal:
-      header-secret: ${INTERNAL_HEADER_SECRET:dev-internal-header-secret}
+      header-secret: ${INTERNAL_HEADER_SECRET}
 
 # Action log gửi thẳng lên Kafka topic action.log (Identity-Service lưu DB),
 # độc lập với kafka-config.enabled của service.

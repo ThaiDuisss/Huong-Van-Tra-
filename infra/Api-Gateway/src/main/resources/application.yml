@@ -68,6 +68,14 @@ spring:
             predicates:
               - Path=/api/recommendation/ai-reports,/api/recommendation/ai-reports/**
 
+          - id: recommendation-serving
+            uri: ${RECOMMENDATION_SERVICE_URL:http://localhost:8090}
+            predicates:
+              - Path=/api/recommendation/recommendations/*
+              - Method=GET
+            filters:
+              - StripPrefix=2
+
           - id: employee-service
             uri: lb://employee-service
             predicates:
@@ -164,6 +172,8 @@ springdoc:
     path: /swagger-ui.html
 
 security:
+  recommendation:
+    customer-id-claim: ${RECOMMENDATION_CUSTOMER_ID_CLAIM:}
   internal:
       header-secret: ${INTERNAL_HEADER_SECRET:kEV4x5IAXOxEnoEqPptGSYqS6Ujqly27dBhfjYp2pNc=}
   # Client Keycloak chứa client role dùng làm permission (xem services/Identity-Service/PERMISSIONS.md).

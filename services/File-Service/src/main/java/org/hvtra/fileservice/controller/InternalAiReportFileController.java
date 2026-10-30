@@ -8,6 +8,7 @@ import org.hvtra.fileservice.model.request.AiReportFileRequest;
 import org.hvtra.fileservice.model.response.AiReportDownloadResponse;
 import org.hvtra.fileservice.model.response.AiReportFileResponse;
 import org.hvtra.fileservice.service.AiReportFileAccessService;
+import org.hvtra.fileservice.service.GeneratedReportFileService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -28,6 +30,22 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class InternalAiReportFileController {
     private final AiReportFileAccessService service;
+    private final GeneratedReportFileService generated;
+
+    @PutMapping(value = "/{reportId}/generated", consumes = "application/octet-stream")
+    public AiReportFileResponse storeGenerated(@PathVariable("reportId") UUID reportId,
+            @RequestParam("ownerId") UUID ownerId, @RequestParam("fileName") String filename,
+            @RequestParam("sha256") String checksum, @RequestBody byte[] bytes, Authentication authentication) {
+        requireCaller(authentication);
+        return generated.store(reportId, ownerId, filename, checksum, bytes);
+    }
+
+    @PostMapping("/{reportId}/generated-download-url")
+    public AiReportDownloadResponse downloadGenerated(@PathVariable("reportId") UUID reportId,
+            @Valid @RequestBody AiReportDownloadRequest request, Authentication authentication) {
+        requireCaller(authentication);
+        return service.downloadGenerated(reportId, request.fileId());
+    }
 
     @PostMapping("/metadata")
     public AiReportFileResponse metadata(@Valid @RequestBody AiReportFileRequest request, Authentication authentication) {

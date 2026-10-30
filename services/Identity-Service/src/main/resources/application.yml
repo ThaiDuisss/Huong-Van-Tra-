@@ -44,17 +44,17 @@ eureka:
     fetch-registry: true
 
 idp:
-  url: ${KEYCLOAK_URL:}
+  url: ${KEYCLOAK_URL:https://auth.hvtra.id.vn}
   client-id: ${KEYCLOAK_CLIENT_ID}
   clientSecret: ${KEYCLOAK_CLIENT_SECRET}
   realm: hvt
   # Service account (client-credentials) dùng để gọi Keycloak Admin REST API cho màn quản lý tài khoản.
   # Client này cần bật "Service accounts roles" và được gán realm-management: manage-users, view-users, view-realm.
-  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:}
+  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:hvtra-identity-admin}
   # Client chứa client role dùng làm permission (order:create, ...). Phải trùng security.permission-client-id của gateway.
   # Service account cần thêm realm-management: view-clients, manage-clients, view-realm, manage-realm.
   permission-client-id: ${KEYCLOAK_PERMISSION_CLIENT_ID:hvtra-pos}
-  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:Xb86IbJRQ5L6rf9x3DMHSPE98KoEGq3S}
 
 
 # ===== Action log (nhận từ Kafka topic action.log, lưu bảng action_log) =====

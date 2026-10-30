@@ -2,10 +2,6 @@ package org.hvtra.fileservice;
 
 import org.hvtra.commonservice.common_core.config.FeignConfig;
 import org.hvtra.commonservice.common_core.config.SwaggerConfig;
-import org.hvtra.commonservice.common_core.entity.BusinessSequence;
-import org.hvtra.commonservice.common_core.repository.BusinessSequenceRepository;
-import org.hvtra.fileservice.model.entity.FileMetadata;
-import org.hvtra.fileservice.repository.FileMetadataRepository;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;

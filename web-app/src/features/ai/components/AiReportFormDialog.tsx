@@ -15,6 +15,7 @@ import {
   type AiReportMetadataErrors,
 } from "../utils/ai-report.validation";
 import { AiReportMetadataFields } from "./AiReportMetadataFields";
+import { aiReportErrorMessage } from "../utils/ai-report.errors";
 
 export function AiReportFormDialog({
   title,
@@ -25,6 +26,9 @@ export function AiReportFormDialog({
   onClose,
   onSubmit,
   validateExtra,
+  open = true,
+  locked = false,
+  submitDisabled = false,
 }: {
   title: string;
   description: string;
@@ -34,6 +38,9 @@ export function AiReportFormDialog({
   onClose(): void;
   onSubmit?: (values: AiReportMetadata) => Promise<void>;
   validateExtra?: () => boolean;
+  open?: boolean;
+  locked?: boolean;
+  submitDisabled?: boolean;
 }) {
   const [values, setValues] = useState(initialValues);
   const [errors, setErrors] = useState<AiReportMetadataErrors>({});
@@ -42,7 +49,7 @@ export function AiReportFormDialog({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || submitDisabled) return;
     const nextErrors = validateAiReportMetadata(values);
     setErrors(nextErrors);
     const extraValid = validateExtra?.() ?? true;
@@ -51,8 +58,8 @@ export function AiReportFormDialog({
     setSubmitError(null);
     try {
       await onSubmit({ name: values.name.trim(), version: values.version.trim() });
-    } catch {
-      setSubmitError("Không thể lưu báo cáo. Vui lòng thử lại.");
+    } catch (error) {
+      setSubmitError(aiReportErrorMessage(error, "Không thể lưu báo cáo. Vui lòng thử lại."));
     } finally {
       setBusy(false);
     }
@@ -60,7 +67,7 @@ export function AiReportFormDialog({
 
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open && !busy) onClose();
       }}
@@ -81,7 +88,7 @@ export function AiReportFormDialog({
               </p>
             ) : null}
             <AiReportMetadataFields
-              disabled={busy}
+              disabled={busy || locked}
               errors={errors}
               onBlur={(field) =>
                 setErrors((current) => ({
@@ -95,7 +102,7 @@ export function AiReportFormDialog({
               }}
               values={values}
             />
-            {children}
+            <fieldset className="min-w-0" disabled={busy}>{children}</fieldset>
             {submitError ? (
               <p className="text-sm font-semibold text-red-700" role="alert">
                 {submitError}
@@ -114,7 +121,7 @@ export function AiReportFormDialog({
             <span title={!onSubmit ? AI_REPORT_PENDING_MESSAGE : undefined}>
               <button
                 className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-bold text-white hover:bg-[#12862d] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={busy || !onSubmit}
+                disabled={busy || !onSubmit || submitDisabled}
                 type="submit"
               >
                 {busy ? "Đang lưu..." : submitLabel}
