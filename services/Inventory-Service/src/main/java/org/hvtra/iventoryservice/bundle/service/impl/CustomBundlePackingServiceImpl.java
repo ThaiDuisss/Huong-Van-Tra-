@@ -1,5 +1,6 @@
 package org.hvtra.iventoryservice.bundle.service.impl;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.persistence.criteria.Predicate;
 import org.hvtra.commonservice.common_core.service.BusinessSequenceService;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
@@ -46,8 +47,7 @@ public class CustomBundlePackingServiceImpl implements CustomBundlePackingServic
 
     private static final String PACKING_SEQUENCE_KEY = "DGB";
     private static final String ISSUE_SEQUENCE_KEY = "PXB";
-    private static final String[] WAREHOUSE_ROLES = {
-            "ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER", "WAREHOUSE_STAFF", "INVENTORY_STAFF"};
+    private static final Role[] WAREHOUSE_ROLES = {Role.SUPER_ADMIN, Role.MANAGER, Role.INVENTORY_STAFF};
 
     private final CustomBundlePackingRepository repository;
     private final CustomBundleAvailabilityService availabilityService;
@@ -271,10 +271,8 @@ public class CustomBundlePackingServiceImpl implements CustomBundlePackingServic
                 .orElseThrow(() -> new ResourceNotFoundException("Custom bundle packing", id));
     }
 
-    private void requireAnyRole(String... roles) {
-        for (String role : roles) {
-            if (SecurityUtils.hasRole(role)) return;
-        }
+    private void requireAnyRole(Role... roles) {
+        if (SecurityUtils.hasAnyRole(roles)) return;
         throw new AccessDeniedException("Bạn không có quyền thao tác yêu cầu đóng trà theo yêu cầu");
     }
 

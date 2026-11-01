@@ -53,7 +53,7 @@ export const referenceTypeLabels: Record<
     STOCK_TRANSFER: "Chuyển tồn kho",
     STOCK_COUNT: "Kiểm kê tồn kho",
     PURCHASE_ORDER: "Đơn mua hàng",
-    PURCHASE_RECEIPT: "Phiếu nhập mua",
+    GOODS_RECEIPT: "Phiếu nhập mua",
     PRODUCTION_ORDER: "Lệnh sản xuất",
     CUSTOMER_RETURN: "Khách trả hàng",
     SUPPLIER_RETURN: "Trả nhà cung cấp",

@@ -3,6 +3,7 @@ import type {
     InventoryLocationSummary,
     UserSnapshot
 } from "./stock-document.types";
+import type { RoleKey } from "../../../auth/roles";
 
 export type CustomerReturnStatus =
     | "DRAFT"
@@ -17,13 +18,8 @@ export type CustomerReturnStatus =
     | "REJECTED"
     | "CANCELLED";
 
-export type CustomerReturnRole =
-    | "SALES_STAFF"
-    | "MANAGER"
-    | "QC_STAFF"
-    | "ADMIN"
-    | "ACCOUNTANT"
-    | "INVENTORY_STAFF";
+/** Vai trò người thao tác — dùng role chuẩn của hệ thống. */
+export type CustomerReturnRole = RoleKey;
 
 export type CustomerReturnReason =
     | "CHANGE_MIND"

@@ -1,20 +1,12 @@
-import { ROLES, type Role } from "./roles";
+import { ROLE_ALIASES, ROLES, type Role } from "./roles";
 
 export function normalizeRole(role: string): Role {
-    const raw = role.trim().toUpperCase();
+    const raw = role.trim().toUpperCase().replace(/-/g, "_");
     const withoutPrefix = raw.replace(/^ROLE_/i, "");
 
-    if (withoutPrefix === "WAREHOUSE_STAFF" || withoutPrefix === "WAREHOUSE") {
-        return ROLES.INVENTORY_STAFF;
-    }
-    if (withoutPrefix === "QC_STAFF") {
-        return ROLES.QC;
-    }
-    if (withoutPrefix === "SHIPPER") {
-        return ROLES.DELIVERY;
-    }
-    if (withoutPrefix === "SUPERADMIN") {
-        return ROLES.SUPER_ADMIN;
+    const alias = ROLE_ALIASES[withoutPrefix];
+    if (alias) {
+        return ROLES[alias];
     }
 
     const key = withoutPrefix as keyof typeof ROLES;

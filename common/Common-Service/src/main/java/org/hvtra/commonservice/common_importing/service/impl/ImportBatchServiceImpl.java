@@ -24,6 +24,7 @@ import org.hvtra.commonservice.common_core.repository.BusinessSequenceRepository
 import org.hvtra.commonservice.common_importing.service.ImportBatchService;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.commonservice.common_core.client.FileClient;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -39,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -53,7 +53,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
     private static final TypeReference<List<ValidationErrorResponse>> ERRORS_TYPE = new TypeReference<>() {};
     private static final TypeReference<Map<String, Object>> PAYLOAD_TYPE = new TypeReference<>() {};
     /** Các role được xem toàn bộ phiếu import; role khác chỉ được xem phiếu do chính mình tạo. */
-    private static final Set<String> ELEVATED_ROLES = Set.of("ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER");
+    private static final Role[] ELEVATED_ROLES = {Role.SUPER_ADMIN, Role.MANAGER};
 
     private final ImportBatchRepository repository;
     private final BusinessSequenceRepository sequenceRepository;
@@ -420,7 +420,7 @@ public class ImportBatchServiceImpl implements ImportBatchService {
     /** ADMIN/BRANCH_MANAGER/INVENTORY_MANAGER xem toàn bộ; role khác chỉ xem phiếu do chính mình tạo. */
     private boolean canViewAllBatches() {
         try {
-            return SecurityUtils.currentRoles().stream().anyMatch(ELEVATED_ROLES::contains);
+            return SecurityUtils.hasAnyRole(ELEVATED_ROLES);
         } catch (AccessDeniedException ignored) {
             return false;
         }

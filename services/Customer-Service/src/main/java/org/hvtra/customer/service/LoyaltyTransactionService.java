@@ -12,8 +12,4 @@ public interface LoyaltyTransactionService {
     LoyaltyTransactionResponse getById(UUID id);
 
     LoyaltyTransactionResponse create(LoyaltyTransactionRequest request);
-
-    LoyaltyTransactionResponse update(UUID id, LoyaltyTransactionRequest request);
-
-    void delete(UUID id);
 }

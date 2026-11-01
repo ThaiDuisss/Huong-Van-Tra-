@@ -1,3 +1,5 @@
+import { normalizeRole } from "../../../auth/auth.utils";
+import { ROLES } from "../../../auth/roles";
 import type { PermissionResponse } from "../types/authorization.types";
 
 /** Cùng quy tắc với backend (`PermissionName`): module:action, chữ thường, số, gạch ngang, tối đa 64 ký tự. */
@@ -86,15 +88,12 @@ export function groupPermissionsByModule(permissions: readonly PermissionRespons
  * Quyết định hiển thị một thao tác: đã có danh sách permission thì permission quyết định;
  * chưa có (backend cũ) thì dùng vai trò như trước.
  */
-const SUPER_ADMIN_ROLES = ["SUPER_ADMIN", "SUPERADMIN"];
-
 function normalizeRoles(roles: readonly string[] | undefined) {
-  return (roles ?? []).map((role) => role.replace(/^ROLE_/i, "").toUpperCase());
+  return (roles ?? []).map(normalizeRole);
 }
 
 export function isSuperAdmin(roles: readonly string[] | undefined) {
-  const normalized = normalizeRoles(roles);
-  return SUPER_ADMIN_ROLES.some((role) => normalized.includes(role));
+  return normalizeRoles(roles).includes(ROLES.SUPER_ADMIN);
 }
 
 /**
@@ -116,7 +115,7 @@ export function canUse(
     return required.some((permission) => input.permissions?.includes(permission));
   }
   const roles = normalizeRoles(input.roles);
-  return fallbackRoles.some((role) => roles.includes(role.toUpperCase()));
+  return fallbackRoles.some((role) => roles.includes(normalizeRole(role)));
 }
 
 export function filterPermissions(permissions: readonly PermissionResponse[], keyword: string) {

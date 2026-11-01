@@ -13,6 +13,7 @@ import {
 import { routePaths } from "../../../routes/path";
 import { productionOrderApi } from "../services/production-order.api";
 import type { ProductionOrder, ProductionOrderApiStatus } from "../types/production-order.types";
+import { ROLES } from "../../../auth/roles";
 
 const STATUS_LABEL: Record<ProductionOrderApiStatus, { label: string; className: string }> = {
     DRAFT: { label: "Mới tạo", className: "bg-neutral-100 text-neutral-700" },
@@ -43,7 +44,7 @@ export function ProductionOrderDetailPage() {
     const [cancelReason, setCancelReason] = useState("");
 
     const { hasAnyRole } = useAuthorization();
-    const canApprove = hasAnyRole(["ADMIN", "MANAGER", "MANAGER"]);
+    const canApprove = hasAnyRole([ROLES.SUPER_ADMIN, ROLES.MANAGER]);
 
     const loadOrder = useCallback(() => {
         if (!id) return;

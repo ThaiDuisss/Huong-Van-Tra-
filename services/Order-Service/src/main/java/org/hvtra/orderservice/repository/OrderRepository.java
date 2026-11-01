@@ -9,11 +9,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.stereotype.Repository;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+@Repository
 public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecificationExecutor<Order> {
     Optional<Order> findByIdAndIsDeletedFalse(UUID id);
     Optional<Order> findByClientOrderIdAndIsDeletedFalse(UUID clientOrderId);

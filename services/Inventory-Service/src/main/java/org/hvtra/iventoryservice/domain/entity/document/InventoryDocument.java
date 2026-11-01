@@ -1,8 +1,13 @@
 package org.hvtra.iventoryservice.domain.entity.document;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.DiscriminatorFormula;
+import org.hibernate.annotations.DiscriminatorOptions;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.enums.InventoryDocumentStatus;
@@ -15,6 +20,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Chứng từ kho dùng chung một bảng; mỗi loại là một lớp con (single-table inheritance) phân biệt theo
+ * {@code document_type}: {@link GoodsReceipt}, {@link ShelfReplenishment}, {@link InventoryAdjustment}.
+ * Phiếu điều chỉnh lưu 2 giá trị ADJUSTMENT_IN / ADJUSTMENT_OUT nhưng chung một lớp, nên phân biệt bằng
+ * công thức thay vì cột thô. Loại phiếu được chốt khi khởi tạo, không đổi sau đó.
+ */
 @Entity
 @Table(
         name = "inventory_documents",
@@ -31,16 +42,28 @@ import java.util.UUID;
                 @Index(name = "idx_documents_posted_at", columnList = "posted_at")
         }
 )
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorFormula(
+        value = "CASE WHEN document_type IN ('ADJUSTMENT_IN', 'ADJUSTMENT_OUT') THEN 'ADJUSTMENT' ELSE document_type END",
+        discriminatorType = DiscriminatorType.STRING)
+// Giá trị phân biệt chỉ dùng khi đọc; cột document_type được ghi từ trường documentType
+@DiscriminatorOptions(insert = false)
 @Getter
 @Setter
-public class InventoryDocument extends BaseEntity {
+public abstract class InventoryDocument extends BaseEntity {
 
     @Column(name = "document_code", nullable = false, length = 100)
     private String documentCode;
 
+    /**
+     * Gán qua constructor của lớp con; không có setter để loại phiếu không bị đổi sau khi tạo.
+     * Khai báo VARCHAR (khớp cột thật) để công thức phân biệt so sánh chuỗi được trên mọi DB.
+     */
+    @Setter(AccessLevel.NONE)
     @Enumerated(EnumType.STRING)
-    @Column(name = "document_type", nullable = false, length = 50)
-    private InventoryDocumentType documentType = InventoryDocumentType.PURCHASE_RECEIPT;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "document_type", nullable = false, length = 50, updatable = false)
+    private InventoryDocumentType documentType;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
@@ -119,8 +142,27 @@ public class InventoryDocument extends BaseEntity {
     @Column(name = "posted_at")
     private Instant postedAt;
 
+    /** Người duyệt ngoại lệ (thừa / thiếu / hỏng) trước khi ghi sổ. */
+    @Column(name = "exception_approved_by", columnDefinition = "BINARY(16)")
+    private UUID exceptionApprovedBy;
+
+    @Column(name = "exception_approved_at")
+    private Instant exceptionApprovedAt;
+
+    @Column(name = "exception_approval_note", columnDefinition = "TEXT")
+    private String exceptionApprovalNote;
+
     @OneToMany(mappedBy = "document", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InventoryDocumentLine> lines = new ArrayList<>();
+
+    /** Cho Hibernate khi nạp từ DB; documentType được đọc từ cột. */
+    protected InventoryDocument() {
+    }
+
+    /** Lớp con truyền đúng loại của mình; giá trị này được ghi xuống cột document_type khi lưu. */
+    protected InventoryDocument(InventoryDocumentType documentType) {
+        this.documentType = documentType;
+    }
 
     public void addLine(InventoryDocumentLine line) {
         lines.add(line);

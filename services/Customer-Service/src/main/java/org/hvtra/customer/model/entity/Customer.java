@@ -18,6 +18,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import static org.hvtra.customer.util.AmountUtils.nonNegative;
+import static org.hvtra.customer.util.AmountUtils.zeroIfNull;
+
 @Getter
 @Setter
 @Entity
@@ -65,25 +68,13 @@ public class Customer extends BaseEntity {
     }
 
     public void addPurchase(BigDecimal amount, LocalDateTime occurredAt) {
-        this.totalSpent = nonNegative(defaultMoney(this.totalSpent).add(defaultMoney(amount)));
-        this.totalOrderCount = Math.max(defaultCount(this.totalOrderCount) + 1, 0);
+        this.totalSpent = nonNegative(zeroIfNull(this.totalSpent).add(zeroIfNull(amount)));
+        this.totalOrderCount = Math.max(zeroIfNull(this.totalOrderCount) + 1, 0);
         this.lastPurchaseDate = occurredAt;
     }
 
     public void applyPurchaseDelta(BigDecimal amount, int orderCountDelta) {
-        this.totalSpent = nonNegative(defaultMoney(this.totalSpent).add(defaultMoney(amount)));
-        this.totalOrderCount = Math.max(defaultCount(this.totalOrderCount) + orderCountDelta, 0);
-    }
-
-    private BigDecimal defaultMoney(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
-    }
-
-    private int defaultCount(Integer value) {
-        return value == null ? 0 : value;
-    }
-
-    private BigDecimal nonNegative(BigDecimal value) {
-        return value.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : value;
+        this.totalSpent = nonNegative(zeroIfNull(this.totalSpent).add(zeroIfNull(amount)));
+        this.totalOrderCount = Math.max(zeroIfNull(this.totalOrderCount) + orderCountDelta, 0);
     }
 }

@@ -6,6 +6,7 @@ public record ShelfReplenishmentSummaryResponse(
         long pending,
         long posted,
         long cancelled,
+        long rejected,
         /** Đã xuất hàng (POS xuất ngay khi bán) nhưng manager chưa duyệt. */
         long pendingReview
 ) {

@@ -58,6 +58,7 @@ function mapPosVariantToSaleProduct(
 
     return {
         id: String(variant.variantId),
+        productId: variant.productId ? String(variant.productId) : undefined,
         productVariantId: String(variant.variantId),
         name: variant.productName,
         sku: variant.sku,
@@ -153,6 +154,22 @@ export const posProductApi = {
             ...response,
             content: uniqueProducts((response.content ?? []).map(mapPosVariantToSaleProduct))
         };
+    },
+
+    /** Các biến thể đang bán của cùng một sản phẩm (đơn vị đóng gói khác nhau), kèm tồn trên kệ / trong kho. */
+    async listProductVariants(productId: string): Promise<SaleProductPreview[]> {
+        const response = await apiClient.get<PageResponse<PosVariantResponse>>(
+            "/pos/products",
+            {
+                query: {
+                    productId,
+                    page: 0,
+                    size: 50
+                }
+            }
+        );
+
+        return uniqueProducts((response?.content ?? []).map(mapPosVariantToSaleProduct));
     },
 
     async getPosView(variantId: string) {

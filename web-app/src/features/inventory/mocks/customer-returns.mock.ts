@@ -6,11 +6,10 @@ import type {
 } from "../types/customer-return.types";
 
 const users: Record<AppRole, UserSnapshot> = {
-    ACCOUNTANT: { id: "cr-accountant", name: "Lan Kế toán", role: "ACCOUNTANT" },
-    ADMIN: { id: "cr-admin", name: "Admin Hương Vân", role: "ADMIN" },
+    SUPER_ADMIN: { id: "cr-admin", name: "Admin Hương Vân", role: "SUPER_ADMIN" },
     MANAGER: { id: "cr-branch", name: "Minh Quản lý CN", role: "MANAGER" },
-    QC_STAFF: { id: "cr-qc", name: "Vy QC", role: "QC_STAFF" },
-    SALES_STAFF: { id: "cr-sales", name: "An Thu ngân", role: "SALES_STAFF" },
+    QC: { id: "cr-qc", name: "Vy QC", role: "QC" },
+    SALE_STAFF: { id: "cr-sales", name: "An Thu ngân", role: "SALE_STAFF" },
     INVENTORY_STAFF: { id: "cr-warehouse", name: "Kho Trung tâm", role: "INVENTORY_STAFF" }
 };
 
@@ -72,7 +71,7 @@ export function customerReturnAudit(
 
 export const customerReturnMockData: CustomerReturnDetail[] = [
     {
-        auditEvents: [customerReturnAudit("SUBMIT", "SALES_STAFF", "Cashier tiếp nhận yêu cầu trả hàng.")],
+        auditEvents: [customerReturnAudit("SUBMIT", "SALE_STAFF", "Cashier tiếp nhận yêu cầu trả hàng.")],
         branch: customerReturnBranches[0],
         code: "CRT-20260802-001",
         customerName: "Nguyễn Thu Hà",
@@ -112,13 +111,13 @@ export const customerReturnMockData: CustomerReturnDetail[] = [
         reason: "PACKAGING_DEFECT",
         refundStatus: "REQUESTED",
         requestedAt: "2026-08-02T09:30:00.000Z",
-        requestedBy: users.SALES_STAFF,
+        requestedBy: users.SALE_STAFF,
         status: "PENDING_MANAGER_REVIEW",
         totalQuantity: 1,
         totalValue: 128000
     },
     {
-        auditEvents: [customerReturnAudit("APPROVE", "QC_STAFF", "QC không đạt, yêu cầu tiêu hủy.")],
+        auditEvents: [customerReturnAudit("APPROVE", "QC", "QC không đạt, yêu cầu tiêu hủy.")],
         branch: customerReturnBranches[1],
         code: "CRT-20260801-002",
         customerName: "Trần Quốc Bảo",
@@ -155,13 +154,13 @@ export const customerReturnMockData: CustomerReturnDetail[] = [
         managerReview: { accepted: true, reviewedAt: "2026-08-01T13:10:00.000Z", reviewedBy: users.MANAGER },
         order: returnableOrders[1],
         orderCode: "ORD-20260801-041",
-        qc: { evidence: "qc-hop-uot.jpg", inspectedAt: "2026-08-01T15:00:00.000Z", inspectedBy: users.QC_STAFF, note: "Không đủ điều kiện nhập lại.", remainingShelfLifeDays: 0, sealStatus: "BROKEN" },
+        qc: { evidence: "qc-hop-uot.jpg", inspectedAt: "2026-08-01T15:00:00.000Z", inspectedBy: users.QC, note: "Không đủ điều kiện nhập lại.", remainingShelfLifeDays: 0, sealStatus: "BROKEN" },
         reason: "DAMAGED",
         receiving: { receivedAt: "2026-08-01T14:00:00.000Z", receivedBy: users.MANAGER, note: "Đưa vào CUSTOMER_RETURN_QUARANTINE." },
         refundStatus: "EXCHANGE_ORDER_CREATED",
         exchangeOrderCode: "ORD-EX-20260801-002",
         requestedAt: "2026-08-01T12:40:00.000Z",
-        requestedBy: users.SALES_STAFF,
+        requestedBy: users.SALE_STAFF,
         status: "DISPOSAL_REQUIRED",
         totalQuantity: 1,
         totalValue: 145000

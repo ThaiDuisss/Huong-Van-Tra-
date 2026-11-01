@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 class PermissionServiceTest {
 
     private static final String CLIENT_UUID = "client-uuid";
-    private static final KeycloakRole ADMIN = new KeycloakRole("r-admin", "ADMIN");
+    private static final KeycloakRole QC = new KeycloakRole("r-qc", "QC");
     private static final KeycloakRole MANAGER = new KeycloakRole("r-manager", "manager");
     private static final KeycloakRole SALE_STAFF = new KeycloakRole("r-sale", "SALE_STAFF");
     private static final KeycloakRole SUPER_ADMIN = new KeycloakRole("r-super", "superadmin");
@@ -62,12 +62,12 @@ class PermissionServiceTest {
         service = new PermissionService(keycloak,
                 new KeycloakAdminProperties("http://kc", "hvt", "identity-admin", "secret", "hvtra-pos"));
         when(keycloak.findClientByClientId("hvtra-pos")).thenReturn(new KeycloakClient(CLIENT_UUID, "hvtra-pos"));
-        when(keycloak.listRealmRoles()).thenReturn(List.of(ADMIN, MANAGER, SALE_STAFF, SUPER_ADMIN,
+        when(keycloak.listRealmRoles()).thenReturn(List.of(QC, MANAGER, SALE_STAFF, SUPER_ADMIN,
                 new KeycloakRole("r-default", "default-roles-hvt")));
         when(keycloak.listClientRoles(CLIENT_UUID)).thenReturn(List.of(ORDER_VIEW, ORDER_CREATE, PERMISSION_MANAGE));
         when(keycloak.getRealmRoleClientComposites(any(), eq(CLIENT_UUID))).thenReturn(List.of());
         when(keycloak.getRealmRoleClientComposites("SALE_STAFF", CLIENT_UUID)).thenReturn(List.of(ORDER_VIEW, ORDER_CREATE));
-        when(keycloak.getRealmRoleClientComposites("ADMIN", CLIENT_UUID)).thenReturn(List.of(PERMISSION_MANAGE));
+        when(keycloak.getRealmRoleClientComposites("QC", CLIENT_UUID)).thenReturn(List.of(PERMISSION_MANAGE));
     }
 
     @Test
@@ -139,7 +139,7 @@ class PermissionServiceTest {
 
     @Test
     void updateRolePermissionsAddsAndRemovesOnlyTheDifference() {
-        InternalUserPrincipal admin = principal("u-admin", Set.of("ADMIN"));
+        InternalUserPrincipal admin = principal("u-admin", Set.of("QC"));
 
         RolePermissionsResponse response = service.updateRolePermissions(
                 "sale_staff", List.of("order:view", "permission:manage"), admin);
@@ -152,7 +152,7 @@ class PermissionServiceTest {
     @Test
     void updateRolePermissionsRejectsUnknownPermissionBeforeTouchingKeycloak() {
         assertThatThrownBy(() -> service.updateRolePermissions("SALE_STAFF", List.of("order:ghost"),
-                principal("u-admin", Set.of("ADMIN"))))
+                principal("u-admin", Set.of("QC"))))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("PERMISSION_NOT_FOUND");
         verify(keycloak, never()).addRealmRoleComposites(any(), anyList());
@@ -160,14 +160,14 @@ class PermissionServiceTest {
 
     @Test
     void callerCannotChangePermissionsOfTheirOwnRoleUnlessSuperAdmin() {
-        assertThatThrownBy(() -> service.updateRolePermissions("ADMIN", List.of("permission:manage"),
-                principal("u-admin", Set.of("ADMIN"))))
+        assertThatThrownBy(() -> service.updateRolePermissions("QC", List.of("permission:manage"),
+                principal("u-admin", Set.of("QC"))))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("ROLE_SELF_EDIT");
 
-        service.updateRolePermissions("ADMIN", List.of("permission:manage", "order:view"),
+        service.updateRolePermissions("QC", List.of("permission:manage", "order:view"),
                 principal("u-root", Set.of("superadmin")));
-        verify(keycloak).addRealmRoleComposites("ADMIN", List.of(new KeycloakRole("p-view", "order:view")));
+        verify(keycloak).addRealmRoleComposites("QC", List.of(new KeycloakRole("p-view", "order:view")));
     }
 
     @Test
@@ -185,7 +185,7 @@ class PermissionServiceTest {
         when(keycloak.getUserEffectiveClientRoles("u-lan", CLIENT_UUID)).thenReturn(List.of(ORDER_VIEW));
 
         UserRolesResponse response = service.updateUserRoles("u-lan", List.of("MANAGER"),
-                principal("u-admin", Set.of("ADMIN")));
+                principal("u-admin", Set.of("QC")));
 
         verify(keycloak).addUserRealmRoles("u-lan", List.of(new KeycloakRole("r-manager", "manager")));
         verify(keycloak).removeUserRealmRoles("u-lan", List.of(new KeycloakRole("r-sale", "SALE_STAFF")));
@@ -195,10 +195,10 @@ class PermissionServiceTest {
 
     @Test
     void userCannotChangeTheirOwnRolesAndCannotAssignSuperAdmin() {
-        assertThatThrownBy(() -> service.updateUserRoles("u-admin", List.of("ADMIN"), principal("u-admin", Set.of("ADMIN"))))
+        assertThatThrownBy(() -> service.updateUserRoles("u-admin", List.of("QC"), principal("u-admin", Set.of("QC"))))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("USER_SELF_ROLE_CHANGE");
-        assertThatThrownBy(() -> service.updateUserRoles("u-lan", List.of("SUPER_ADMIN"), principal("u-admin", Set.of("ADMIN"))))
+        assertThatThrownBy(() -> service.updateUserRoles("u-lan", List.of("SUPER_ADMIN"), principal("u-admin", Set.of("QC"))))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("ROLE_NOT_ALLOWED");
         verify(keycloak, never()).addUserRealmRoles(any(), anyList());
@@ -207,9 +207,9 @@ class PermissionServiceTest {
     @Test
     void cannotChangeRolesOfSuperAdminAccount() {
         when(keycloak.getUser("u-root")).thenReturn(user("u-root", "root"));
-        when(keycloak.getUserRealmRoles("u-root")).thenReturn(List.of(SUPER_ADMIN, ADMIN));
+        when(keycloak.getUserRealmRoles("u-root")).thenReturn(List.of(SUPER_ADMIN, QC));
 
-        assertThatThrownBy(() -> service.updateUserRoles("u-root", List.of("MANAGER"), principal("u-admin", Set.of("ADMIN"))))
+        assertThatThrownBy(() -> service.updateUserRoles("u-root", List.of("MANAGER"), principal("u-admin", Set.of("QC"))))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("ACCOUNT_PROTECTED");
     }
@@ -264,7 +264,7 @@ class PermissionServiceTest {
         assertThat(captor.getValue()).extracting(KeycloakRole::name)
                 .containsExactly("customer:view", "inventory:view", "order:return", "product:view");
         verify(keycloak, never()).removeRealmRoleComposites(any(), anyList());
-        assertThat(response.updatedRoles()).contains("ADMIN", "SALE_STAFF", "MANAGER");
+        assertThat(response.updatedRoles()).contains("QC", "SALE_STAFF", "MANAGER");
     }
 
     private static KeycloakRole permission(String id, String name, String displayName, String description) {

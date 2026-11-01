@@ -7,7 +7,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
 import org.hvtra.customer.dto.request.CustomerImportRequest;
 import org.hvtra.customer.dto.request.CustomerImportRowRequest;
@@ -21,7 +20,6 @@ import org.hvtra.customer.model.enums.CustomerType;
 import org.hvtra.customer.repository.CustomerRepository;
 import org.hvtra.customer.service.CustomerImportService;
 import org.hvtra.customer.service.CustomerService;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.lang.annotation.Annotation;
@@ -38,6 +36,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static org.hvtra.customer.exception.CustomerServiceException.invalidRequest;
 
 /**
  * Nhập khách hàng hàng loạt từ dữ liệu đã được client đọc ra từ file Excel.
@@ -313,10 +313,6 @@ public class CustomerImportServiceImpl implements CustomerImportService {
         if (value != null) {
             target.add(value);
         }
-    }
-
-    private CustomerServiceException invalidRequest(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_INVALID_REQUEST, message, HttpStatus.BAD_REQUEST);
     }
 
     private static final class Candidate {

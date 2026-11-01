@@ -1,5 +1,6 @@
 package org.hvtra.catalog.controller;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
@@ -25,7 +26,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Set;
 import java.util.UUID;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -40,9 +40,6 @@ import org.springframework.http.ResponseEntity;
 @RestController
 @RequestMapping("/api/catalog/product-variants")
 public class ProductVariantController {
-    /** So khớp không phân biệt hoa/thường vì gateway giữ nguyên tên role của Keycloak (vd. "superadmin"). */
-    private static final Set<String> SUPER_ADMIN_ROLES = Set.of("ROLE_SUPER_ADMIN", "ROLE_SUPERADMIN");
-
     private final ProductVariantService service;
     private final BarcodeService barcodeService;
 
@@ -169,7 +166,7 @@ public class ProductVariantController {
         if (authentication != null && authentication.isAuthenticated()) {
             boolean allowed = authentication.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
-                    .anyMatch(authority -> SUPER_ADMIN_ROLES.contains(authority.toUpperCase()));
+                    .anyMatch(Role.SUPER_ADMIN.authority()::equals);
             if (allowed) {
                 return;
             }

@@ -3,7 +3,6 @@ import { CartNote } from "../cart/CartNote";
 import { OrderTypeSelector } from "../cart/OrderTypeSelector";
 import { ProductSearchBar } from "../product/ProductSearchBar";
 import { formatCurrency } from "../../services/money";
-import { Leaf } from "lucide-react";
 import type {
     SaleCartItem,
     SaleManualDiscount,
@@ -11,7 +10,7 @@ import type {
     SaleProductPreview
 } from "../../types/sale.types";
 import styles from "../../pages/PosSalePage.module.css";
-import { InvoiceTabs } from "./InvoiceTabs";
+import { InvoiceTabs, type InvoiceTabView } from "./InvoiceTabs";
 
 interface SaleWorkspaceProps {
     searchQuery: string;
@@ -27,11 +26,17 @@ interface SaleWorkspaceProps {
     onProductAdd(product: SaleProductPreview): void;
     onProductIncrement(productId: string): void;
     onProductDecrement(productId: string): void;
+    onProductQuantityChange(productId: string, quantity: number): void;
+    onProductUnitChange(productId: string): void;
     onProductRemove(productId: string): void;
     onProductDiscountChange(productId: string, discount: SaleManualDiscount | null): void;
     onProductNoteChange(productId: string, note: string): void;
-    onCustomBundleOpen(): void;
-    onInvoiceClose(): void;
+    invoiceTabs: InvoiceTabView[];
+    activeInvoiceId: string;
+    canAddInvoice: boolean;
+    onInvoiceSelect(id: string): void;
+    onInvoiceNew(): void;
+    onInvoiceClose(id: string): void;
     onNoteChange(value: string): void;
     onOrderTypeChange(value: SaleOrderType): void;
 }
@@ -50,10 +55,16 @@ export function SaleWorkspace({
     onProductAdd,
     onProductIncrement,
     onProductDecrement,
+    onProductQuantityChange,
+    onProductUnitChange,
     onProductRemove,
     onProductDiscountChange,
     onProductNoteChange,
-    onCustomBundleOpen,
+    invoiceTabs,
+    activeInvoiceId,
+    canAddInvoice,
+    onInvoiceSelect,
+    onInvoiceNew,
     onInvoiceClose,
     onNoteChange,
     onOrderTypeChange
@@ -73,15 +84,14 @@ export function SaleWorkspace({
                     onAdd={onProductAdd}
                 />
 
-                <InvoiceTabs onCloseActive={onInvoiceClose} />
-                <button
-                    className={styles.customTeaButton}
-                    onClick={onCustomBundleOpen}
-                    type="button"
-                >
-                    <Leaf size={18} aria-hidden="true" />
-                    <span>Đóng trà theo yêu cầu</span>
-                </button>
+                <InvoiceTabs
+                    tabs={invoiceTabs}
+                    activeId={activeInvoiceId}
+                    canAdd={canAddInvoice}
+                    onSelect={onInvoiceSelect}
+                    onNew={onInvoiceNew}
+                    onClose={onInvoiceClose}
+                />
             </div>
 
             <CartList
@@ -89,6 +99,8 @@ export function SaleWorkspace({
                 formatCurrency={formatCurrency}
                 onIncrement={onProductIncrement}
                 onDecrement={onProductDecrement}
+                onQuantityChange={onProductQuantityChange}
+                onUnitChange={onProductUnitChange}
                 onRemove={onProductRemove}
                 onDiscountChange={onProductDiscountChange}
                 onNoteChange={onProductNoteChange}

@@ -1,7 +1,16 @@
-import { ArrowLeft, CheckCircle2, Pencil, Send, XCircle } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, Pencil, Send, XCircle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { useAuthorization } from "../../../auth/role-utils";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle
+} from "../../../components/ui/dialog";
 import { routePaths } from "../../../routes/path";
 import { DashboardListSkeleton } from "../../dashboard/components/DashboardStates";
 import { InventoryErrorState, InventoryPageHeader } from "../components/InventoryManagementComponents";
@@ -17,7 +26,7 @@ import {
 const headClass = "whitespace-nowrap border-b border-[#dce8df] px-4 py-2.5";
 const cellClass = "border-b border-[#edf0f4] px-4 py-2.5 align-middle";
 
-type SlipAction = "submit" | "post" | "cancel" | "review";
+type SlipAction = "submit" | "approve" | "reject" | "cancel" | "review";
 
 function errorMessage(error: unknown, fallback: string) {
     return error instanceof Error && error.message ? error.message : fallback;
@@ -32,6 +41,9 @@ export function ShelfReplenishmentDetailPage() {
     const [notice, setNotice] = useState("");
     const [pendingAction, setPendingAction] = useState<SlipAction | null>(null);
     const [reloadKey, setReloadKey] = useState(0);
+    const [rejectOpen, setRejectOpen] = useState(false);
+    const [rejectReason, setRejectReason] = useState("");
+    const { isSuperAdmin, isManager, keycloakSubject } = useAuthorization();
 
     const reload = useCallback(() => setReloadKey((current) => current + 1), []);
 
@@ -53,46 +65,75 @@ export function ShelfReplenishmentDetailPage() {
         };
     }, [reloadKey, slipId]);
 
-    async function runAction(action: SlipAction) {
+    // SC-05: Quản lý / Admin duyệt hoặc từ chối nhưng không phải người tạo; người tạo hoặc Admin được hủy.
+    const isCreator = Boolean(slip?.createdBy && keycloakSubject && slip.createdBy === keycloakSubject);
+    const isApproverRole = isManager() || isSuperAdmin();
+    const canDecide = isApproverRole && !isCreator;
+    const canCancel = isCreator || isSuperAdmin();
+
+    const successText: Record<SlipAction, string> = {
+        submit: "Đã gửi phiếu chờ duyệt.",
+        approve: "Đã duyệt phiếu, hàng đã chuyển từ kho lên kệ.",
+        reject: "Đã từ chối phiếu.",
+        cancel: "Đã hủy phiếu.",
+        review: "Đã duyệt phiếu."
+    };
+
+    async function execute(action: SlipAction, call: () => Promise<ShelfReplenishment>) {
+        setPendingAction(action);
+        setActionError("");
+        setNotice("");
+        try {
+            const updated = await call();
+            setSlip(updated);
+            // Quản lý / Admin tự gửi phiếu thì backend duyệt luôn nếu kho đủ hàng
+            setNotice(
+                action === "submit" && updated.status === "POSTED"
+                    ? "Phiếu đã được duyệt tự động, hàng đã chuyển từ kho lên kệ."
+                    : successText[action]
+            );
+            return true;
+        } catch (error) {
+            setActionError(errorMessage(error, "Không thực hiện được thao tác."));
+            // Tồn kho có thể đã đổi, tải lại để số "còn trong kho" đúng.
+            reload();
+            return false;
+        } finally {
+            setPendingAction(null);
+        }
+    }
+
+    async function submitReject() {
+        if (!slip || pendingAction) return;
+        const reason = rejectReason.trim();
+        if (!reason) {
+            setActionError("Vui lòng nhập lý do từ chối.");
+            return;
+        }
+        if (await execute("reject", () => shelfReplenishmentApi.reject(slip.id, reason))) {
+            setRejectOpen(false);
+            setRejectReason("");
+        }
+    }
+
+    async function runAction(action: Exclude<SlipAction, "reject">) {
         if (!slip || pendingAction) return;
 
-        const confirmText: Record<SlipAction, string> = {
-            submit: "Gửi phiếu này cho kho xử lý?",
-            post: "Xác nhận đã đưa đủ hàng lên kệ? Hệ thống sẽ trừ tồn kho và cộng tồn kệ.",
+        const confirmText: Record<Exclude<SlipAction, "reject">, string> = {
+            submit: "Gửi phiếu này chờ Quản lý duyệt?",
+            approve: "Duyệt phiếu? Hệ thống sẽ trừ tồn kho và cộng tồn kệ theo FEFO.",
             cancel: "Hủy phiếu nhập kệ này?",
             review: "Duyệt phiếu đã xuất kho lên kệ này?"
         };
         if (!window.confirm(confirmText[action])) return;
 
-        setPendingAction(action);
-        setActionError("");
-        setNotice("");
-        try {
-            const updated =
-                action === "submit"
-                    ? await shelfReplenishmentApi.submit(slip.id)
-                    : action === "post"
-                      ? await shelfReplenishmentApi.post(slip.id)
-                      : action === "review"
-                        ? await shelfReplenishmentApi.review(slip.id)
-                        : await shelfReplenishmentApi.cancel(slip.id);
-            setSlip(updated);
-            setNotice(
-                action === "submit"
-                    ? "Đã gửi phiếu cho kho."
-                    : action === "post"
-                      ? "Đã chuyển hàng lên kệ."
-                      : action === "review"
-                        ? "Đã duyệt phiếu."
-                        : "Đã hủy phiếu."
-            );
-        } catch (error) {
-            setActionError(errorMessage(error, "Không thực hiện được thao tác."));
-            // Tồn kho có thể đã đổi, tải lại để số "còn trong kho" đúng.
-            reload();
-        } finally {
-            setPendingAction(null);
-        }
+        const calls: Record<Exclude<SlipAction, "reject">, () => Promise<ShelfReplenishment>> = {
+            approve: () => shelfReplenishmentApi.approve(slip.id),
+            cancel: () => shelfReplenishmentApi.cancel(slip.id),
+            review: () => shelfReplenishmentApi.review(slip.id),
+            submit: () => shelfReplenishmentApi.submit(slip.id)
+        };
+        await execute(action, calls[action]);
     }
 
     const busy = pendingAction !== null;
@@ -130,22 +171,33 @@ export function ShelfReplenishmentDetailPage() {
                                     type="button"
                                 >
                                     <Send aria-hidden="true" size={16} />
-                                    Gửi kho
+                                    Gửi duyệt
                                 </button>
                             </>
                         ) : null}
-                        {slip?.status === "PENDING_APPROVAL" ? (
-                            <button
-                                className={`${actionButton} bg-[#07883a] text-white hover:opacity-90`}
-                                disabled={busy}
-                                onClick={() => void runAction("post")}
-                                type="button"
-                            >
-                                <CheckCircle2 aria-hidden="true" size={16} />
-                                {pendingAction === "post" ? "Đang xác nhận..." : "Xác nhận đã lên kệ"}
-                            </button>
+                        {slip?.status === "PENDING_APPROVAL" && canDecide ? (
+                            <>
+                                <button
+                                    className={`${actionButton} border border-orange-200 bg-white text-orange-700 hover:bg-orange-50`}
+                                    disabled={busy}
+                                    onClick={() => setRejectOpen(true)}
+                                    type="button"
+                                >
+                                    <Ban aria-hidden="true" size={16} />
+                                    Từ chối
+                                </button>
+                                <button
+                                    className={`${actionButton} bg-[#07883a] text-white hover:opacity-90`}
+                                    disabled={busy}
+                                    onClick={() => void runAction("approve")}
+                                    type="button"
+                                >
+                                    <CheckCircle2 aria-hidden="true" size={16} />
+                                    {pendingAction === "approve" ? "Đang duyệt..." : "Duyệt & chuyển lên kệ"}
+                                </button>
+                            </>
                         ) : null}
-                        {slip?.status === "POSTED" && slip.pendingReview ? (
+                        {slip?.status === "POSTED" && slip.pendingReview && isApproverRole ? (
                             <button
                                 className={`${actionButton} bg-[#07883a] text-white hover:opacity-90`}
                                 disabled={busy}
@@ -156,7 +208,7 @@ export function ShelfReplenishmentDetailPage() {
                                 {pendingAction === "review" ? "Đang duyệt..." : "Duyệt phiếu"}
                             </button>
                         ) : null}
-                        {slip && (slip.status === "DRAFT" || slip.status === "PENDING_APPROVAL") ? (
+                        {slip && (slip.status === "DRAFT" || slip.status === "PENDING_APPROVAL") && canCancel ? (
                             <button
                                 className={`${actionButton} border border-red-200 bg-white text-red-700 hover:bg-red-50`}
                                 disabled={busy}
@@ -169,7 +221,7 @@ export function ShelfReplenishmentDetailPage() {
                         ) : null}
                     </>
                 }
-                description="Hàng được lấy từ kho theo FEFO (lô hết hạn sớm nhất trước) và cộng vào kệ khi kho xác nhận."
+                description="Quản lý duyệt phiếu thì hàng được lấy từ kho theo FEFO (lô hết hạn sớm nhất trước) và cộng vào kệ."
                 eyebrow="Kho / Phiếu nhập kệ"
                 title={slip ? `Phiếu ${slip.documentCode}` : "Phiếu nhập kệ"}
             />
@@ -189,6 +241,23 @@ export function ShelfReplenishmentDetailPage() {
                 >
                     {actionError}
                 </p>
+            ) : null}
+
+            {slip?.status === "PENDING_APPROVAL" && !canDecide ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                    "Phiếu đang chờ Quản lý duyệt "
+                </p>
+            ) : null}
+
+            {slip?.status === "REJECTED" ? (
+                <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800" role="status">
+                    <p className="font-black">
+                        Phiếu bị từ chối lúc {formatReplenishmentDateTime(slip.rejectedAt)}. Tồn kho và tồn kệ không thay đổi.
+                    </p>
+                    {slip.rejectionReason ? (
+                        <p className="mt-1 whitespace-pre-line font-semibold">Lý do: {slip.rejectionReason}</p>
+                    ) : null}
+                </div>
             ) : null}
 
             {slip?.autoIssued ? (
@@ -228,6 +297,14 @@ export function ShelfReplenishmentDetailPage() {
                                 {formatReplenishmentDateTime(slip.createdAt)}
                             </dd>
                         </div>
+                        {slip.reviewedAt && !slip.autoIssued ? (
+                            <div className="grid gap-1">
+                                <dt className="text-xs font-black text-[#697684]">Duyệt lúc</dt>
+                                <dd className="text-sm font-bold tabular-nums text-[#172317]">
+                                    {formatReplenishmentDateTime(slip.reviewedAt)}
+                                </dd>
+                            </div>
+                        ) : null}
                         {slip.postedAt ? (
                             <div className="grid gap-1">
                                 <dt className="text-xs font-black text-[#697684]">Lên kệ lúc</dt>
@@ -320,6 +397,50 @@ export function ShelfReplenishmentDetailPage() {
                     </div>
                 </>
             )}
+
+            <Dialog
+                open={rejectOpen}
+                onOpenChange={(open) => {
+                    if (!busy) setRejectOpen(open);
+                }}
+            >
+                <DialogContent className="max-w-[480px]">
+                    <DialogHeader>
+                        <DialogTitle>Từ chối phiếu nhập kệ</DialogTitle>
+                        <DialogDescription>
+                            Nhập lý do để người tạo phiếu biết cần điều chỉnh gì. Tồn kho và tồn kệ không thay đổi.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="px-6 py-4">
+                        <textarea
+                            className="w-full rounded-lg border border-[#dce5e1] p-3 text-sm outline-none focus:border-orange-500"
+                            maxLength={1000}
+                            placeholder="Ví dụ: Kệ còn đủ hàng, số lượng yêu cầu quá nhiều..."
+                            rows={3}
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <button
+                            className="h-10 rounded-lg border border-[#dce5e1] px-4 text-sm font-bold text-[#536078]"
+                            disabled={busy}
+                            onClick={() => setRejectOpen(false)}
+                            type="button"
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            className="h-10 rounded-lg bg-orange-600 px-5 text-sm font-black text-white hover:bg-orange-700 disabled:opacity-60"
+                            disabled={busy || !rejectReason.trim()}
+                            onClick={() => void submitReject()}
+                            type="button"
+                        >
+                            {pendingAction === "reject" ? "Đang từ chối..." : "Xác nhận từ chối"}
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </section>
     );
 }

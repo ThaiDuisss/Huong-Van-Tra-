@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BadgePercent, MessageSquareText, Plus, Minus, ShoppingBag, Trash2, X } from "lucide-react";
+import { BadgePercent, ChevronDown, MessageSquareText, Plus, Minus, ShoppingBag, Trash2, X } from "lucide-react";
 
 import type { SaleCartItem, SaleManualDiscount } from "../../types/sale.types";
 import {
@@ -8,11 +8,31 @@ import {
 } from "../../services/totals";
 import styles from "../../pages/PosSalePage.module.css";
 
+/** Quy cách đóng gói của biến thể: tên biến thể bỏ phần tên sản phẩm phía trước (vd. "1 Hộp", "Thùng 24 Hộp"). */
+function unitLabel(item: SaleCartItem) {
+  const variant = item.variant?.trim() ?? "";
+
+  if (!variant) {
+    return "Mặc định";
+  }
+
+  const name = item.name.trim();
+  const rest = variant.toLowerCase().startsWith(name.toLowerCase())
+    ? variant.slice(name.length).trim()
+    : variant;
+
+  return rest || variant;
+}
+
 interface CartListProps {
   items: SaleCartItem[];
   formatCurrency(value: number): string;
   onIncrement(productId: string): void;
   onDecrement(productId: string): void;
+  /** Nhập thẳng số lượng (vd. 100) thay vì bấm +/- nhiều lần. */
+  onQuantityChange(productId: string, quantity: number): void;
+  /** Đổi sang biến thể đóng gói khác của cùng sản phẩm (hộp ↔ thùng). */
+  onUnitChange(productId: string): void;
   onRemove(productId: string): void;
   onDiscountChange(productId: string, discount: SaleManualDiscount | null): void;
   onNoteChange(productId: string, note: string): void;
@@ -23,6 +43,8 @@ export function CartList({
   formatCurrency,
   onIncrement,
   onDecrement,
+  onQuantityChange,
+  onUnitChange,
   onRemove,
   onDiscountChange,
   onNoteChange
@@ -47,6 +69,7 @@ export function CartList({
         <span>#</span>
         <span>Mã / SKU</span>
         <span>Tên sản phẩm</span>
+        <span>Đơn vị</span>
         <span>SL</span>
         <span>Đơn giá / Tổng</span>
         <span>Giảm giá</span>
@@ -66,11 +89,6 @@ export function CartList({
               <span className={styles.sku}>{item.sku}</span>
               <span className={styles.productName}>
                 {item.name}
-                {item.variant ? (
-                  <small className="mt-1 block font-medium text-neutral-500">
-                    {item.variant}
-                  </small>
-                ) : null}
                 {item.note ? (
                   <small className={styles.itemNote}>
                     Yêu cầu: {item.note}
@@ -85,6 +103,20 @@ export function CartList({
                 ) : null}
               </span>
               {item.bundle ? (
+                <span className={styles.unitStatic}>Bundle</span>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.unitSelect}
+                  onClick={() => onUnitChange(item.productId)}
+                  aria-label={`Đổi đơn vị ${item.name}, đang là ${unitLabel(item)}`}
+                  title={item.variant || undefined}
+                >
+                  <span>{unitLabel(item)}</span>
+                  <ChevronDown size={14} aria-hidden="true" />
+                </button>
+              )}
+              {item.bundle ? (
                 <div className={styles.quantityControl}>
                   <strong>{item.quantity}</strong>
                 </div>
@@ -97,7 +129,12 @@ export function CartList({
                 >
                   <Minus size={16} aria-hidden="true" />
                 </button>
-                <strong>{item.quantity}</strong>
+                <QuantityInput
+                  key={item.quantity}
+                  label={`Số lượng ${item.name}`}
+                  quantity={item.quantity}
+                  onCommit={(quantity) => onQuantityChange(item.productId, quantity)}
+                />
                 <button
                   type="button"
                   onClick={() => onIncrement(item.productId)}
@@ -235,6 +272,52 @@ export function CartList({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Ô số lượng gõ tay: chỉ gửi khi rời ô hoặc Enter; Esc hoặc số không hợp lệ thì trả về số cũ. */
+function QuantityInput({
+  label,
+  quantity,
+  onCommit
+}: {
+  label: string;
+  quantity: number;
+  onCommit(quantity: number): void;
+}) {
+  const [draft, setDraft] = useState(String(quantity));
+
+  function commit() {
+    const next = Number(draft);
+
+    if (!Number.isInteger(next) || next <= 0) {
+      setDraft(String(quantity));
+      return;
+    }
+
+    if (next !== quantity) {
+      onCommit(next);
+    }
+  }
+
+  return (
+    <input
+      aria-label={label}
+      className={styles.quantityInput}
+      inputMode="numeric"
+      onBlur={commit}
+      onChange={(event) => setDraft(event.currentTarget.value.replace(/\D/g, ""))}
+      onFocus={(event) => event.currentTarget.select()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        } else if (event.key === "Escape") {
+          setDraft(String(quantity));
+          event.currentTarget.blur();
+        }
+      }}
+      value={draft}
+    />
   );
 }
 

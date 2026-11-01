@@ -59,7 +59,7 @@ interface BackendDisposalPage {
 
 function mapBackendDisposal(request: BackendDisposalRequest): DisposalRequest {
     const systemActor = { id: "system", name: "Hệ thống", role: "INVENTORY_STAFF" as const };
-    const approvedActor = { id: "approver", name: "Người phê duyệt", role: "ADMIN" as const };
+    const approvedActor = { id: "approver", name: "Người phê duyệt", role: "SUPER_ADMIN" as const };
     return {
         auditEvents: request.status === "APPROVED" && request.approvedAt
             ? [{ actor: approvedActor, happenedAt: request.approvedAt, id: `approve-${request.id}`, note: "Đã duyệt và ghi nhận WRITE_OFF.", roleSnapshot: approvedActor.role, type: "APPROVE" }]
@@ -140,7 +140,7 @@ export const qualityApi: QualityApi = {
         batch.status = "BLOCKED";
         batch.blockedQuantity = batch.onHandQuantity;
         batch.availableQuantity = 0;
-        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", input.note ?? "Block batch khỏi available."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "SUPER_ADMIN", input.note ?? "Block batch khỏi available."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
@@ -161,13 +161,13 @@ export const qualityApi: QualityApi = {
         });
         disposal.status = "COMPLETED";
         disposal.completedAt = input.completedAt;
-        disposal.completedBy = qualityActor("ADMIN");
+        disposal.completedBy = qualityActor("SUPER_ADMIN");
         disposal.certificate = input.certificate;
         disposal.evidenceAfterDisposal = input.evidenceAfterDisposal;
         disposal.witnesses = input.witnesses;
         disposal.stockDocumentId = `doc-writeoff-${disposal.id}`;
         disposal.stockDocumentCode = `PXK-WRITEOFF-${disposal.code}`;
-        disposal.auditEvents = [qualityAudit("POST", "ADMIN", "Complete disposal, tạo PXK WRITE_OFF và giảm tồn vật lý."), ...disposal.auditEvents];
+        disposal.auditEvents = [qualityAudit("POST", "SUPER_ADMIN", "Complete disposal, tạo PXK WRITE_OFF và giảm tồn vật lý."), ...disposal.auditEvents];
         return wait(cloneDisposal(disposal.id));
     },
 
@@ -180,7 +180,7 @@ export const qualityApi: QualityApi = {
             if (lineInput.quantity <= 0 || lineInput.quantity > disposable) throw new Error(`${batch.batchCode}: quantity không được vượt blocked/damaged.`);
             return { actualDisposedQuantity: 0, batchCode: batch.batchCode, batchId: batch.id, estimatedValue: lineInput.quantity * batch.unitCost, evidence: lineInput.evidence, id: `dsp-line-${Date.now()}-${index}`, quantity: lineInput.quantity, reason: lineInput.reason, reservedQuantity: batch.reservedQuantity, skuCode: batch.skuCode, skuName: batch.skuName, unit: batch.unit, unitCost: batch.unitCost };
         });
-        const disposal = { auditEvents: [qualityAudit("SUBMIT", "ADMIN", "Tạo yêu cầu tiêu hủy.")], code: `DSP-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${String(disposalRequests.length + 1).padStart(3, "0")}`, id: `disposal-${Date.now()}`, lines, location, method: input.method, note: input.note, reason: input.reason, requestedAt: new Date().toISOString(), requestedBy: qualityActor("ADMIN"), scheduledAt: input.scheduledAt, status: "SUBMITTED" as const, witnesses: input.witnesses };
+        const disposal = { auditEvents: [qualityAudit("SUBMIT", "SUPER_ADMIN", "Tạo yêu cầu tiêu hủy.")], code: `DSP-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${String(disposalRequests.length + 1).padStart(3, "0")}`, id: `disposal-${Date.now()}`, lines, location, method: input.method, note: input.note, reason: input.reason, requestedAt: new Date().toISOString(), requestedBy: qualityActor("SUPER_ADMIN"), scheduledAt: input.scheduledAt, status: "SUBMITTED" as const, witnesses: input.witnesses };
         disposalRequests.unshift(disposal);
         return wait(cloneDisposal(disposal.id));
     },
@@ -188,7 +188,7 @@ export const qualityApi: QualityApi = {
     createQualityCase(input: Omit<QualityCase, "id" | "code" | "status">) {
         const batch = findBatch(input.batchId);
         batch.qualityEvents.unshift({ ...input, code: `QCASE-${batch.qualityEvents.length + 1}`, id: `qcase-${Date.now()}`, status: "OPEN" });
-        batch.auditEvents = [qualityAudit("SUBMIT", "ADMIN", "Tạo quality case."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("SUBMIT", "SUPER_ADMIN", "Tạo quality case."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
@@ -270,7 +270,7 @@ export const qualityApi: QualityApi = {
         batch.damagedQuantity = batch.onHandQuantity;
         batch.blockedQuantity = batch.onHandQuantity;
         batch.availableQuantity = 0;
-        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", input.note ?? "Mark damaged."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "SUPER_ADMIN", input.note ?? "Mark damaged."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
@@ -280,7 +280,7 @@ export const qualityApi: QualityApi = {
         batch.quarantineSince = new Date().toISOString();
         batch.blockedQuantity = batch.onHandQuantity;
         batch.availableQuantity = 0;
-        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", "Move to quarantine."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "SUPER_ADMIN", "Move to quarantine."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
@@ -290,7 +290,7 @@ export const qualityApi: QualityApi = {
         if (!disposal) return Promise.reject(new Error("Không tìm thấy yêu cầu tiêu hủy."));
         disposal.status = "REJECTED";
         disposal.rejectedReason = input.reason;
-        disposal.auditEvents = [qualityAudit("REJECT", "ADMIN", input.reason), ...disposal.auditEvents];
+        disposal.auditEvents = [qualityAudit("REJECT", "SUPER_ADMIN", input.reason), ...disposal.auditEvents];
         return wait(cloneDisposal(disposal.id));
     },
 
@@ -301,7 +301,7 @@ export const qualityApi: QualityApi = {
         batch.status = "AVAILABLE";
         batch.availableQuantity = batch.onHandQuantity - batch.reservedQuantity;
         batch.blockedQuantity = 0;
-        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", "Release from quarantine."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "SUPER_ADMIN", "Release from quarantine."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 
@@ -311,7 +311,7 @@ export const qualityApi: QualityApi = {
         batch.status = "AVAILABLE";
         batch.blockedQuantity = 0;
         batch.availableQuantity = batch.onHandQuantity - batch.reservedQuantity;
-        batch.auditEvents = [qualityAudit("APPROVE", "ADMIN", "Unblock batch."), ...batch.auditEvents];
+        batch.auditEvents = [qualityAudit("APPROVE", "SUPER_ADMIN", "Unblock batch."), ...batch.auditEvents];
         return wait(cloneBatch(batch));
     },
 

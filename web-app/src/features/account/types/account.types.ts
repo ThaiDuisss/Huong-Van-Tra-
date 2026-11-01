@@ -1,15 +1,10 @@
-/** Vai trò nhân viên có thể gán qua màn quản lý tài khoản (không có tiền tố ROLE_). */
-export type StaffRole =
-  | "ADMIN"
-  | "MANAGER"
-  | "INVENTORY_STAFF"
-  | "SALE_STAFF"
-  | "QC"
-  | "ACCOUNTANT"
-  | "DELIVERY";
+import type { RoleKey } from "../../../auth/roles";
+
+/** Vai trò nhân viên có thể gán qua màn quản lý tài khoản (không có tiền tố ROLE_); SUPER_ADMIN chỉ gán trên Keycloak. */
+export type StaffRole = Exclude<RoleKey, "SUPER_ADMIN">;
 
 /** Vai trò backend có thể trả về: thêm SUPER_ADMIN (chỉ để hiển thị, không gán/sửa được). */
-export type AccountRole = StaffRole | "SUPER_ADMIN";
+export type AccountRole = RoleKey;
 
 /** Khớp `AccountResponse` của Identity-Service. */
 export interface AccountResponse {

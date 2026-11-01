@@ -34,7 +34,7 @@ interface Props {
     customer?: CustomerResponse;
     tiers: CustomerTierResponse[];
     onCancel: () => void;
-    onSaved: () => void | Promise<void>;
+    onSaved: (customer: CustomerResponse) => void | Promise<void>;
 }
 
 interface CustomerFormDraft {
@@ -105,12 +105,10 @@ export function CustomerCreateDialog({
         };
 
         try {
-            if (customer) {
-                await customerApi.update(customer.id, input);
-            } else {
-                await customerApi.create(input);
-            }
-            await onSaved();
+            const saved = customer
+                ? await customerApi.update(customer.id, input)
+                : await customerApi.create(input);
+            await onSaved(saved);
         } catch (submitError) {
             setError(customerErrorMessage(submitError));
         } finally {

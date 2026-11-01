@@ -23,7 +23,6 @@ import {
   SlidersHorizontal,
   Sparkles,
   Trash2,
-  Truck,
   Upload,
   User,
   UserCog,
@@ -110,14 +109,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Hoàn hàng",
         to: routePaths.returns,
         icon: History,
-        roles: ["ADMIN", "MANAGER"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
       {
         key: "orders-refunds",
         label: "Hoàn tiền",
         to: routePaths.refunds,
         icon: WalletCards,
-        roles: ["ADMIN", "MANAGER", "ACCOUNTANT"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
     ],
   },
@@ -146,14 +145,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Danh mục sản phẩm",
         to: routePaths.categories,
         icon: FolderTree,
-        roles: ["ADMIN", "MANAGER"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
       {
         key: "catalog-units",
         label: "Đơn vị tính",
         to: routePaths.units,
         icon: Ruler,
-        roles: ["ADMIN", "MANAGER"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
       {
         key: "catalog-price-lists",
@@ -239,21 +238,14 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             label: "Tồn kho kho tổng",
             icon: Package,
             to: routePaths.warehouseInventory,
-            roles: ["ADMIN", "MANAGER"],
-          },
-          {
-            key: "inventory-reorder-policies",
-            label: "Chính sách bổ sung",
-            icon: Boxes,
-            to: routePaths.inventoryReorderPolicies,
-            roles: ["ADMIN", "MANAGER"],
+            roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
           },
           {
             key: "inventory-transactions",
             label: "Lịch sử biến động",
             icon: History,
             to: routePaths.inventoryTransactions,
-            roles: ["ADMIN", "MANAGER", "ACCOUNTANT"],
+            roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
           },
         ],
       },
@@ -277,21 +269,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             to: routePaths.shelfReplenishments,
             roles: INVENTORY_OPERATION_ROLES,
           },
-          {
-            key: "inventory-documents",
-            label: "Chứng từ kho",
-            icon: FileText,
-            to: routePaths.inventoryDocuments,
-            roles: INVENTORY_ROLES,
-          },
         ],
-      },
-      {
-        key: "inventory-transfers",
-        label: "Chuyển kho",
-        icon: Truck,
-        to: routePaths.inventoryTransfers,
-        roles: INVENTORY_OPERATION_ROLES,
       },
       {
         key: "inventory-counting",
@@ -311,7 +289,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             label: "Phiếu cập nhật tồn kho",
             icon: ClipboardList,
             to: routePaths.inventoryStocktakeAdjustments,
-            roles: ["ADMIN", "MANAGER"],
+            roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
           },
         ],
       },
@@ -326,14 +304,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             label: "Khách trả hàng",
             icon: RefreshCw,
             to: routePaths.inventoryCustomerReturnList,
-            roles: ["ADMIN", "MANAGER", "INVENTORY_STAFF"],
-          },
-          {
-            key: "inventory-supplier-returns",
-            label: "Trả nhà cung cấp",
-            icon: RefreshCw,
-            to: routePaths.inventorySupplierReturnList,
-            roles: ["ADMIN", "MANAGER", "INVENTORY_STAFF"],
+            roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
           },
           {
             key: "inventory-disposals",
@@ -342,20 +313,6 @@ export const systemNavigationItems: SystemNavigationItem[] = [
             to: routePaths.inventoryDisposals,
             roles: INVENTORY_OPERATION_ROLES,
           },
-          {
-            key: "inventory-quality",
-            label: "Chất lượng hàng hóa",
-            icon: ClipboardCheck,
-            to: routePaths.inventoryQuality,
-            roles: INVENTORY_OPERATION_ROLES,
-          },
-          {
-            key: "inventory-alerts",
-            label: "Cảnh báo tồn kho",
-            icon: ClipboardList,
-            to: routePaths.inventoryAlerts,
-            roles: ["ADMIN", "MANAGER"],
-          },
         ],
       },
       {
@@ -363,7 +320,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Quản lý kệ",
         icon: MapPinned,
         to: routePaths.inventoryShelves,
-        roles: ["ADMIN", "MANAGER"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
     ],
   },
@@ -385,7 +342,7 @@ export const systemNavigationItems: SystemNavigationItem[] = [
         label: "Hạng khách hàng",
         to: routePaths.customerTiers,
         icon: BadgePercent,
-        roles: ["ADMIN", "MANAGER"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.MANAGER],
       },
     ],
   },
@@ -523,6 +480,8 @@ export const systemNavigationItems: SystemNavigationItem[] = [
     label: "Cài đặt",
     icon: Settings,
     roles: SETTINGS_ROLES,
+    // Cùng permission với mục con và route Phân quyền, để nhóm không chặn người được cấp quyền.
+    permissions: ["permission:manage", "role:manage", "user:manage"],
     children: [
       {
         key: "authorization",
@@ -607,27 +566,39 @@ export function isNavigationItemActive(item: SystemNavigationItem, pathname: str
   return item.children?.some((child) => isNavigationItemActive(child, pathname)) ?? false;
 }
 
+function matchesPath(item: SystemNavigationItem, pathname: string) {
+  return Boolean(item.to && (pathname === item.to || pathname.startsWith(`${item.to}/`)));
+}
+
+/**
+ * Chọn mục có đường dẫn khớp dài nhất, để /system/orders/invoices thuộc "Hóa đơn"
+ * chứ không thuộc "Tất cả đơn" (/system/orders) chỉ vì đứng trước trong menu.
+ */
 export function findNavigationTrail(
   items: readonly SystemNavigationItem[],
   pathname: string,
 ): NavigationTrail | undefined {
-  for (const section of items) {
-    if (section.to && (pathname === section.to || pathname.startsWith(`${section.to}/`))) {
-      return { section };
+  let best: NavigationTrail | undefined;
+  let bestLength = -1;
+
+  const consider = (item: SystemNavigationItem, trail: NavigationTrail) => {
+    if (matchesPath(item, pathname) && item.to!.length > bestLength) {
+      best = trail;
+      bestLength = item.to!.length;
     }
+  };
+
+  for (const section of items) {
+    consider(section, { section });
 
     for (const page of section.children ?? []) {
-      if (page.to && (pathname === page.to || pathname.startsWith(`${page.to}/`))) {
-        return { section, page };
-      }
+      consider(page, { section, page });
 
       for (const subPage of page.children ?? []) {
-        if (subPage.to && (pathname === subPage.to || pathname.startsWith(`${subPage.to}/`))) {
-          return { section, page, subPage };
-        }
+        consider(subPage, { section, page, subPage });
       }
     }
   }
 
-  return undefined;
+  return best;
 }

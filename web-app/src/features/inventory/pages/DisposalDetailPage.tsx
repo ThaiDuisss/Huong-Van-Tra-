@@ -9,11 +9,12 @@ import { qualityApi } from "../services/quality.api";
 import type { DisposalRequest } from "../types/quality.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 import { isCustomerReturnDisposal } from "../utils/inventory-labels";
+import { ROLES } from "../../../auth/roles";
 
 export function DisposalDetailPage() {
     const { disposalId } = useParams();
     const { hasAnyRole } = useAuthorization();
-    const canApprove = hasAnyRole(["ADMIN", "MANAGER", "MANAGER"]);
+    const canApprove = hasAnyRole([ROLES.SUPER_ADMIN, ROLES.MANAGER]);
     const [disposal, setDisposal] = useState<DisposalRequest | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);

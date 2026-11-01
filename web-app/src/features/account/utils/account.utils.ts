@@ -1,24 +1,18 @@
+import { ROLE_LABELS, type RoleKey } from "../../../auth/roles";
 import type { AccountFilters, AccountQuery, AccountResponse, StaffRole } from "../types/account.types";
 
+/** Vai trò gán được qua màn quản lý tài khoản; SUPER_ADMIN chỉ gán trên Keycloak. */
 export const STAFF_ROLE_OPTIONS: Array<{ value: StaffRole; label: string; description: string }> = [
-  { value: "ADMIN", label: "Quản trị viên", description: "Quản trị vận hành, cấu hình hệ thống" },
-  { value: "MANAGER", label: "Quản lý", description: "Quản lý cửa hàng, đơn hàng, khuyến mãi" },
-  { value: "INVENTORY_STAFF", label: "Nhân viên kho", description: "Nhập, xuất, kiểm kê tồn kho" },
-  { value: "SALE_STAFF", label: "Nhân viên bán hàng", description: "Bán hàng tại quầy POS" },
-  { value: "QC", label: "Kiểm soát chất lượng", description: "Kiểm tra chất lượng hàng hóa" },
-  { value: "ACCOUNTANT", label: "Kế toán", description: "Hóa đơn, đối soát, báo cáo" },
-  { value: "DELIVERY", label: "Giao hàng", description: "Giao nhận đơn hàng" },
+  { value: "MANAGER", label: ROLE_LABELS.MANAGER, description: "Quản lý cửa hàng, đơn hàng, khuyến mãi, duyệt phiếu kho" },
+  { value: "INVENTORY_STAFF", label: ROLE_LABELS.INVENTORY_STAFF, description: "Nhập, xuất, kiểm kê tồn kho" },
+  { value: "SALE_STAFF", label: ROLE_LABELS.SALE_STAFF, description: "Bán hàng tại quầy POS" },
+  { value: "QC", label: ROLE_LABELS.QC, description: "Kiểm tra chất lượng hàng hóa" },
 ];
-
-const ROLE_LABELS: Record<string, string> = {
-  SUPER_ADMIN: "Quản trị cấp cao",
-  ...Object.fromEntries(STAFF_ROLE_OPTIONS.map((option) => [option.value, option.label])),
-};
 
 const STAFF_ROLE_VALUES = new Set<string>(STAFF_ROLE_OPTIONS.map((option) => option.value));
 
 export function getRoleLabel(role: string) {
-  return ROLE_LABELS[role] ?? role;
+  return ROLE_LABELS[role as RoleKey] ?? role;
 }
 
 export function isStaffRole(role: string): role is StaffRole {

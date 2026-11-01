@@ -63,6 +63,7 @@ public class OrderDraftServiceImpl implements OrderDraftService {
     @Override
     @Transactional
     public OrderResponse addDraftItem(AddDraftOrderItemRequest request) {
+        log.info("oke");
         Instant expiresAt = orderDateTimeHelper.nextDraftExpiresAt();
         Order order = request.getOrderId() == null
                 ? createDraftOrder(request, expiresAt)

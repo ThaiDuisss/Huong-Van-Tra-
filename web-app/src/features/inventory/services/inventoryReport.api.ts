@@ -57,14 +57,25 @@ export interface ProductionWastageReportResponse {
   totalActualQuantity: number;
   totalWastageQuantity: number;
   totalWastageValue: number;
+  /** Lệnh sản xuất đã duyệt trong kỳ và tổng thành phẩm nhập kho từ chúng. */
+  completedOrderCount: number;
+  totalOutputQuantity: number;
+  /** Lệnh đang mở (nháp/chờ duyệt) và số lệnh/nguyên liệu không đủ tồn khả dụng. */
+  openOrderCount: number;
+  shortageOrderCount: number;
+  shortageMaterialCount: number;
   materials: Array<{
-    materialCode: string;
+    materialCode: string | null;
     materialName: string;
-    unitSymbol: string;
+    unitSymbol: string | null;
     plannedQuantity: number;
     actualQuantity: number;
     wastageQuantity: number;
     wastageRate: number;
+    /** Tỷ lệ hao hụt cho phép theo BOM. */
+    thresholdRate: number;
+    productionOrderCount: number;
+    overThreshold: boolean;
     estimatedLossValue: number;
   }>;
 }

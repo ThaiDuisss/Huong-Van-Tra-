@@ -7,12 +7,13 @@ import {
   type AppRole,
 } from "../../../auth/role-utils";
 import type { DashboardTab } from "../types/dashboard.types";
+import { ROLES } from "../../../auth/roles";
 
 /**
  * Số liệu tài chính (doanh thu, AOV, tiền chờ thu, giá trị tồn) — giao của
  * ORDER_ROLES và REPORT_ROLES hiện có. Không tạo role mới.
  */
-export const DASHBOARD_FINANCE_ROLES: AppRole[] = ["ADMIN", "MANAGER", "ACCOUNTANT"];
+export const DASHBOARD_FINANCE_ROLES: AppRole[] = [ROLES.SUPER_ADMIN, ROLES.MANAGER];
 
 export interface DashboardCapabilities {
   sales: boolean;

@@ -120,7 +120,7 @@ export function useDashboardData({ activeTab, capabilities, filters }: UseDashbo
     [locationId],
   );
   const loadAlerts = useCallback(() => dashboardApi.getAlertSnapshot(), []);
-  const loadProduction = useCallback(() => dashboardApi.getProductionSnapshot(), []);
+  const loadProduction = useCallback(() => dashboardApi.getProductionSnapshot(timeRange), [timeRange]);
 
   const sales = useDomainResource<DashboardSalesSnapshot>({
     enabled: capabilities.sales && wants("sales"),
@@ -142,7 +142,7 @@ export function useDashboardData({ activeTab, capabilities, filters }: UseDashbo
   });
   const production = useDomainResource<DashboardProductionSnapshot>({
     enabled: capabilities.production && wants("production"),
-    key: "production",
+    key: timeRange,
     loader: loadProduction,
     refreshToken: refreshToken + retryTokens.production,
   });

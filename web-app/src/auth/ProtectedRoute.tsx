@@ -100,7 +100,7 @@ export function ProtectedRoute({ children, roles = [], permissions = [] }: Prote
     }
 
     if (roles.length > 0 || permissions.length > 0) {
-        const superAdmin = hasAnyRole(auth.roles, [ROLES.SUPER_ADMIN]) || auth.hasRealmRole("SUPER_ADMIN");
+        const superAdmin = hasAnyRole(auth.roles, [ROLES.SUPER_ADMIN]);
         // Danh sách permission rỗng = chưa bootstrap: dùng role như cũ.
         const permissionDecision =
             permissions.length > 0 && Array.isArray(auth.permissions) && auth.permissions.length > 0

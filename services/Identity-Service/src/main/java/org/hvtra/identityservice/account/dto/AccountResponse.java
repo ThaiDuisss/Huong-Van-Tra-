@@ -7,7 +7,7 @@ import java.util.List;
  * Tài khoản nhân viên (dữ liệu lấy trực tiếp từ Keycloak).
  *
  * @param id       Keycloak user id (JWT sub)
- * @param roles    vai trò đã chuẩn hóa, không có tiền tố ROLE_ (vd. ADMIN, SALE_STAFF, SUPER_ADMIN)
+ * @param roles    vai trò đã chuẩn hóa, không có tiền tố ROLE_ (vd. MANAGER, SALE_STAFF, SUPER_ADMIN)
  * @param editable false với tài khoản SUPER_ADMIN: không được sửa/khóa qua API này
  */
 public record AccountResponse(

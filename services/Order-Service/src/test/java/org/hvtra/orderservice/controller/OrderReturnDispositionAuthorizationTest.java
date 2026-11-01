@@ -77,7 +77,7 @@ class OrderReturnDispositionAuthorizationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"QC", "QC_STAFF", "MANAGER", "BRANCH_MANAGER", "INVENTORY_MANAGER", "ROLE_QC", "qc"})
+    @ValueSource(strings = {"QC", "MANAGER", "SUPER_ADMIN"})
     void qcAndManagersCanSubmitWriteOff(String role) throws Exception {
         authenticate(role);
         when(orderReturnService.submitInventoryDisposition(eq(returnId), any()))

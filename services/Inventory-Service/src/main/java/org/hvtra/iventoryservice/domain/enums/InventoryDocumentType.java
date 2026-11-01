@@ -1,7 +1,7 @@
 package org.hvtra.iventoryservice.domain.enums;
 
 public enum InventoryDocumentType {
-    PURCHASE_RECEIPT,
+    GOODS_RECEIPT,
     PRODUCTION_RECEIPT,
     CUSTOMER_RETURN_RECEIPT,
 

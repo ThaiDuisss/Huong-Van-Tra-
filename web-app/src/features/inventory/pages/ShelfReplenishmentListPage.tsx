@@ -13,36 +13,25 @@ import {
 import { ShelfReplenishmentStatusBadge } from "../components/ShelfReplenishmentStatusBadge";
 import { useInventoryPage } from "../hooks/useInventoryResource";
 import { shelfReplenishmentApi } from "../services/shelfReplenishment.api";
-import type {
-    ShelfReplenishmentStatus,
-    ShelfReplenishmentSummary
-} from "../types/shelfReplenishment.types";
+import type { ShelfReplenishmentSummary } from "../types/shelfReplenishment.types";
 import {
     formatReplenishmentDateTime,
     formatReplenishmentQuantity,
-    shelfReplenishmentDetailPath
+    shelfReplenishmentDetailPath,
+    shelfReplenishmentStatusTabs,
+    statusFilterToQuery,
+    type ShelfReplenishmentStatusFilter
 } from "../utils/shelfReplenishment.utils";
 
 const SEARCH_DEBOUNCE_MS = 350;
 const headClass = "whitespace-nowrap border-b border-[#dce8df] px-4 py-2.5";
 const cellClass = "border-b border-[#edf0f4] px-4 py-2.5 align-middle";
 
-type StatusFilter = "ALL" | "PENDING_REVIEW" | ShelfReplenishmentStatus;
-
-const statusTabs: Array<{ value: StatusFilter; label: string; count?: keyof ShelfReplenishmentSummary }> = [
-    { value: "ALL", label: "Tất cả" },
-    { value: "DRAFT", label: "Nháp", count: "draft" },
-    { value: "PENDING_APPROVAL", label: "Chờ kho xử lý", count: "pending" },
-    { value: "PENDING_REVIEW", label: "Đã xuất · chờ duyệt", count: "pendingReview" },
-    { value: "POSTED", label: "Đã lên kệ", count: "posted" },
-    { value: "CANCELLED", label: "Đã hủy", count: "cancelled" }
-];
-
 export function ShelfReplenishmentListPage() {
     const navigate = useNavigate();
     const [keywordInput, setKeywordInput] = useState("");
     const [keyword, setKeyword] = useState("");
-    const [status, setStatus] = useState<StatusFilter>("ALL");
+    const [status, setStatus] = useState<ShelfReplenishmentStatusFilter>("ALL");
     const [page, setPage] = useState(0);
     const [pageSize, setPageSize] = useState(20);
     const [summary, setSummary] = useState<ShelfReplenishmentSummary | null>(null);
@@ -61,8 +50,7 @@ export function ShelfReplenishmentListPage() {
                 page,
                 size: pageSize,
                 query: keyword || undefined,
-                status: status === "ALL" || status === "PENDING_REVIEW" ? undefined : status,
-                pendingReview: status === "PENDING_REVIEW" ? true : undefined
+                ...statusFilterToQuery(status)
             }),
         [keyword, page, pageSize, status]
     );
@@ -120,7 +108,7 @@ export function ShelfReplenishmentListPage() {
 
             <div className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white px-4 py-3 shadow-pos-card">
                 <div className="flex flex-wrap items-center gap-2">
-                    {statusTabs.map((tab) => {
+                    {shelfReplenishmentStatusTabs.map((tab) => {
                         const active = status === tab.value;
                         const count = tab.count && summary ? summary[tab.count] : null;
                         return (

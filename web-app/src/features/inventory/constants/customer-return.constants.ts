@@ -1,3 +1,4 @@
+import { ROLE_LABELS } from "../../../auth/roles";
 import type {
     CustomerReturnCondition,
     CustomerReturnReason,
@@ -53,14 +54,8 @@ export const customerReturnRefundStatusLabels: Record<CustomerReturnRefundStatus
     REQUESTED: "Đã gửi yêu cầu"
 };
 
-export const customerReturnRoleLabels: Record<string, string> = {
-    ACCOUNTANT: "Kế toán",
-    ADMIN: "Quản trị viên",
-    MANAGER: "Quản lý chi nhánh",
-    INVENTORY_STAFF: "Nhân viên kho",
-    QC_STAFF: "Nhân viên QC",
-    SALES_STAFF: "Nhân viên bán hàng"
-};
+/** Nhãn vai trò dùng chung của hệ thống. */
+export const customerReturnRoleLabels: Record<string, string> = ROLE_LABELS;
 
 export const customerReturnReasons = Object.keys(customerReturnReasonLabels) as CustomerReturnReason[];
 export const customerReturnConditions = Object.keys(customerReturnConditionLabels) as CustomerReturnCondition[];

@@ -8,6 +8,8 @@ export type SalePaymentMethod =
 
 export interface SaleProductPreview {
   id: string;
+  /** Sản phẩm gốc trong Catalog; các biến thể cùng productId là các đơn vị đóng gói (hộp, thùng...). */
+  productId?: string;
   productVariantId?: string;
   inventoryLocationId?: string | null;
   name: string;

@@ -1,5 +1,6 @@
 package org.hvtra.orderservice.controller;
 
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.*;
@@ -60,8 +61,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
-import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -82,7 +81,7 @@ public class OrderController {
     /** Permission (client role Keycloak) cho phép tạo và thanh toán đơn bán tại quầy. */
     static final String PERMISSION_ORDER_CREATE = "order:create";
     /** Vai trò được chấp nhận khi gateway cũ chưa relay permission (giữ hành vi trước khi có phân quyền). */
-    private static final String[] LEGACY_POS_ROLES = {"SALE_STAFF", "MANAGER", "ADMIN", "SUPER_ADMIN", "SUPERADMIN"};
+    private static final Role[] LEGACY_POS_ROLES = {Role.SALE_STAFF, Role.MANAGER, Role.SUPER_ADMIN};
 
     @Operation(summary = "checkout hoa don POS da tao draft")
     @UserAction(value = "ORDER_CHECKOUT", entityType = "Order", entityId = "#result.id")
@@ -422,11 +421,7 @@ public class OrderController {
             @PathVariable UUID returnId,
             @Valid @RequestBody SubmitReturnInventoryDispositionRequest request
     ) {
-        Set<String> allowed = Set.of("QC", "QC_STAFF", "MANAGER", "ADMIN", "SUPER_ADMIN",
-                "BRANCH_MANAGER", "INVENTORY_MANAGER");
-        if (SecurityUtils.currentRoles().stream()
-                .map(role -> role.trim().toUpperCase(Locale.ROOT).replaceFirst("^ROLE_", ""))
-                .noneMatch(allowed::contains)) {
+        if (!SecurityUtils.hasAnyRole(Role.QC, Role.MANAGER, Role.SUPER_ADMIN)) {
             throw new AccessDeniedException("Customer return disposition requires QC or manager role");
         }
         return orderReturnService.submitInventoryDisposition(returnId, request);

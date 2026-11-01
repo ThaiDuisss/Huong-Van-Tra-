@@ -186,7 +186,7 @@ export function ShelfReplenishmentFormPage() {
                         Danh sách phiếu
                     </button>
                 }
-                description="Chọn kệ cần bổ sung và các mặt hàng lấy từ kho. Lưu nháp để điền sau, hoặc gửi kho xử lý ngay."
+                description="Chọn kệ cần bổ sung và các mặt hàng lấy từ kho. Lưu nháp để điền sau, hoặc gửi ngay để Quản lý duyệt."
                 eyebrow="Kho / Phiếu nhập kệ"
                 title={isEdit ? "Sửa phiếu nhập kệ" : "Tạo phiếu nhập kệ"}
             />
@@ -331,7 +331,7 @@ export function ShelfReplenishmentFormPage() {
                         disabled={disabled}
                         type="submit"
                     >
-                        {submitting ? "Đang lưu..." : "Lưu và gửi kho"}
+                        {submitting ? "Đang lưu..." : "Lưu và gửi duyệt"}
                     </button>
                 </footer>
             </form>

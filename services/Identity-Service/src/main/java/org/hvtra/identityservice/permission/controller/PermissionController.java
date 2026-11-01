@@ -6,7 +6,7 @@ import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.commonservice.common_core.domain.response.ApiResponse;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.hvtra.commonservice.common_core.utils.SecurityUtils;
-import org.hvtra.identityservice.account.model.StaffRole;
+import org.hvtra.commonservice.common_core.domain.constants.Role;
 import org.hvtra.identityservice.permission.dto.PermissionDtos.BootstrapResponse;
 import org.hvtra.identityservice.permission.dto.PermissionDtos.BusinessRoleResponse;
 import org.hvtra.identityservice.permission.dto.PermissionDtos.CreatePermissionRequest;
@@ -82,7 +82,7 @@ public class PermissionController {
         return ApiResponse.deleted("Đã xóa quyền");
     }
 
-    /** Tạo danh mục quyền mặc định và gán mặc định cho vai trò (chỉ thêm, không gỡ). Dành cho ADMIN/SUPER_ADMIN. */
+    /** Tạo danh mục quyền mặc định và gán mặc định cho vai trò (chỉ thêm, không gỡ). Dành cho SUPER_ADMIN. */
     @PostMapping("/permissions/bootstrap")
     @UserAction(value = "PERMISSION_BOOTSTRAP", entityType = "Permission", entityId = "'catalog'")
     public ApiResponse<BootstrapResponse> bootstrap() {
@@ -148,13 +148,11 @@ public class PermissionController {
 
     // ===== authorization helpers =====
 
-    private static final String[] LEGACY_ADMIN_FALLBACK = {"ADMIN"};
-
     private void require(String permission) {
         if (isSuperAdmin()) {
             return;
         }
-        SecurityUtils.requirePermission(permission, LEGACY_ADMIN_FALLBACK);
+        SecurityUtils.requirePermission(permission);
     }
 
     private void requireAny(String... permissions) {
@@ -167,18 +165,18 @@ public class PermissionController {
             }
         }
         // Không có permission nào: dùng quy tắc fallback của permission đầu tiên (chỉ hiệu lực với gateway cũ).
-        SecurityUtils.requirePermission(permissions[0], LEGACY_ADMIN_FALLBACK);
+        SecurityUtils.requirePermission(permissions[0]);
     }
 
     /** Bootstrap dựa trên realm role vì lúc này chưa có permission nào tồn tại. */
     private void requireAdminRole() {
-        if (isSuperAdmin() || SecurityUtils.hasRole("ADMIN")) {
+        if (isSuperAdmin()) {
             return;
         }
-        throw new AccessDeniedException("Chỉ ADMIN hoặc SUPER_ADMIN được khởi tạo danh mục quyền");
+        throw new AccessDeniedException("Chỉ SUPER_ADMIN được khởi tạo danh mục quyền");
     }
 
     private boolean isSuperAdmin() {
-        return SecurityUtils.currentRoles().stream().anyMatch(StaffRole::isSuperAdmin);
+        return SecurityUtils.isSuperAdmin();
     }
 }

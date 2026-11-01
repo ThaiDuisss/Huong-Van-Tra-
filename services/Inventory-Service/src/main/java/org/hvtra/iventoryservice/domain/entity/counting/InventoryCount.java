@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hvtra.commonservice.common_core.domain.entity.BaseEntity;
-import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
+import org.hvtra.iventoryservice.domain.entity.document.InventoryAdjustment;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountScopeType;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountAssignmentStatus;
 import org.hvtra.iventoryservice.domain.enums.InventoryCountStatus;
@@ -121,7 +121,7 @@ public class InventoryCount extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "adjustment_document_id")
-    private InventoryDocument adjustmentDocument;
+    private InventoryAdjustment adjustmentDocument;
 
     @Column(name = "note", columnDefinition = "TEXT")
     private String note;
@@ -357,7 +357,7 @@ public class InventoryCount extends BaseEntity {
     /**
      * Gắn phiếu điều chỉnh vào phiên kiểm kê.
      */
-    public void linkAdjustmentDocument(InventoryDocument document) {
+    public void linkAdjustmentDocument(InventoryAdjustment document) {
         this.adjustmentDocument = document;
     }
 }

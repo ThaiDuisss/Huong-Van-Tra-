@@ -6,7 +6,10 @@ import { formatLocalDate } from "../../../components/shared/TimeHierarchyFilter.
 import { inventoryBalanceApi } from "../../inventory/services/inventoryBalance.api";
 import { inventoryDashboardApi } from "../../inventory/services/inventoryDashboard.api";
 import { inventoryLocationApi } from "../../inventory/services/inventoryLocation.api";
-import { inventoryReportApi } from "../../inventory/services/inventoryReport.api";
+import {
+  inventoryReportApi,
+  type ProductionWastageReportResponse,
+} from "../../inventory/services/inventoryReport.api";
 import { inventoryTransactionApi } from "../../inventory/services/inventoryTransaction.api";
 import { qualityApi } from "../../inventory/services/quality.api";
 import { stockAlertApi } from "../../inventory/services/stockAlert.api";
@@ -66,7 +69,7 @@ const stockAlertQuery: StockAlertListQuery = {
   hasAction: "ALL",
   locationId: "ALL",
   page: 0,
-  role: "ADMIN",
+  role: "SUPER_ADMIN",
   severity: "ALL",
   size: 20,
   skuOrCategory: "",
@@ -207,7 +210,7 @@ const mockSalesAnalytics: DashboardSalesAnalytics = {
 
 const pendingDocumentTypeLabel = "Phiếu nhập kho";
 
-/** Các trường dùng từ `GET /inventory/documents` (InventoryDocumentListItemResponse). */
+/** Các trường dùng từ `GET /inventory/goods-receipts` (GoodsReceiptListItemResponse). */
 interface PendingDocumentBackendRow {
   id: string;
   documentCode: string;
@@ -380,7 +383,7 @@ export const dashboardApi = {
         }
       }),
       part(async (): Promise<DashboardPendingDocument[]> => {
-        const page = await apiClient.get<PageResponse<PendingDocumentBackendRow>>("/inventory/documents", {
+        const page = await apiClient.get<PageResponse<PendingDocumentBackendRow>>("/inventory/goods-receipts", {
           query: { page: 0, size: DASHBOARD_LIST_SIZE * 2, status: "PENDING_APPROVAL" },
         });
 
@@ -405,43 +408,44 @@ export const dashboardApi = {
     };
   },
 
-  async getProductionSnapshot(): Promise<DashboardProductionSnapshot> {
-    const reportRes = await part(() => inventoryReportApi.getProductionWastage());
+  async getProductionSnapshot(timeRange: DashboardTimeRange): Promise<DashboardProductionSnapshot> {
+    let report: ProductionWastageReportResponse;
 
-    if (reportRes.data?.materials && reportRes.data.materials.length > 0) {
-      const wastage: DashboardProductionWastage[] = reportRes.data.materials.map((m, index) => {
-        const plannedQuantity = m.plannedQuantity ?? 0;
-        const actualQuantity = m.actualQuantity ?? 0;
-        const wastageQuantity = m.wastageQuantity ?? (actualQuantity > plannedQuantity ? actualQuantity - plannedQuantity : 0);
-        const wastageRate = m.wastageRate ?? (plannedQuantity > 0 ? (wastageQuantity / plannedQuantity) * 100 : 0);
-        const thresholdRate = 5.0;
+    try {
+      report = await withTimeout(() => inventoryReportApi.getProductionWastage(toDateRange(timeRange)));
+    } catch (error) {
+      if (isDashboardMockEnabled) {
+        return { summary: null, wastage: productionWastage };
+      }
 
-        let status: "NORMAL" | "WATCH" | "OVER_THRESHOLD" = "NORMAL";
-        if (wastageRate > thresholdRate) {
-          status = "OVER_THRESHOLD";
-        } else if (wastageRate >= 3.0) {
-          status = "WATCH";
-        }
-
-        return {
-          actualQuantity,
-          id: `wastage-mat-${index}-${m.materialCode}`,
-          materialCode: m.materialCode,
-          materialName: m.materialName,
-          plannedQuantity,
-          productionOrderCode: "Báo cáo tổng hợp",
-          source: "ADAPTED",
-          status,
-          thresholdRate,
-          wastageQuantity,
-          wastageRate: Math.round(wastageRate * 10) / 10,
-        };
-      });
-
-      return { wastage };
+      // Lỗi đẩy lên useDomainResource để tab hiện thông báo theo loại lỗi và nút thử lại.
+      throw error;
     }
 
-    return { wastage: isDashboardMockEnabled ? productionWastage : null };
+    const wastage: DashboardProductionWastage[] = report.materials.map((m, index) => ({
+      actualQuantity: toNumber(m.actualQuantity),
+      id: `wastage-mat-${index}-${m.materialCode ?? m.materialName}`,
+      materialCode: m.materialCode ?? "",
+      materialName: m.materialName,
+      plannedQuantity: toNumber(m.plannedQuantity),
+      productionOrderCode: `${m.productionOrderCount} lệnh`,
+      source: "REAL",
+      status: m.overThreshold ? "OVER_THRESHOLD" : "NORMAL",
+      thresholdRate: toNumber(m.thresholdRate),
+      wastageQuantity: toNumber(m.wastageQuantity),
+      wastageRate: toNumber(m.wastageRate),
+    }));
+
+    return {
+      summary: {
+        completedOrderCount: toNumber(report.completedOrderCount),
+        openOrderCount: toNumber(report.openOrderCount),
+        shortageMaterialCount: toNumber(report.shortageMaterialCount),
+        shortageOrderCount: toNumber(report.shortageOrderCount),
+        totalOutputQuantity: toNumber(report.totalOutputQuantity),
+      },
+      wastage,
+    };
   },
 
   async getLocationOptions() {

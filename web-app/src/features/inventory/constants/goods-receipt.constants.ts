@@ -1,3 +1,4 @@
+import { ROLE_LABELS } from "../../../auth/roles";
 import type {
     CostStatus,
     GoodsReceiptQcReasonCode,
@@ -29,14 +30,8 @@ export const costStatusLabels: Record<CostStatus, string> = {
     PROVISIONAL: "Giá tạm tính"
 };
 
-export const goodsReceiptRoleLabels: Record<string, string> = {
-    ACCOUNTANT: "Kế toán",
-    ADMIN: "Quản trị viên",
-    MANAGER: "Quản lý chi nhánh",
-    DIRECTOR: "Giám đốc",
-    INVENTORY_STAFF: "Nhân viên kho",
-    QC_STAFF: "Nhân viên QC"
-};
+/** Nhãn vai trò dùng chung của hệ thống. */
+export const goodsReceiptRoleLabels: Record<string, string> = ROLE_LABELS;
 
 export const qcReasonLabels: Record<GoodsReceiptQcReasonCode, string> = {
     "QLT-01": "Sai quy cách",

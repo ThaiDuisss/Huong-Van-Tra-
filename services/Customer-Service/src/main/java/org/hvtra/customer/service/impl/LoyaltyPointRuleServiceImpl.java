@@ -1,15 +1,17 @@
 package org.hvtra.customer.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.hvtra.customer.constant.ErrorCode;
 import org.hvtra.customer.constant.Message;
-import org.hvtra.customer.exception.CustomerServiceException;
+import org.hvtra.customer.dto.request.LoyaltyPointRuleRequest;
+import org.hvtra.customer.dto.response.LoyaltyPointRuleResponse;
+import org.hvtra.customer.mapper.CustomerMapper;
+import org.hvtra.customer.model.entity.CustomerTier;
 import org.hvtra.customer.model.entity.LoyaltyPointRule;
 import org.hvtra.customer.model.enums.LoyaltyPointRuleStatus;
+import org.hvtra.customer.repository.CustomerTierRepository;
 import org.hvtra.customer.repository.LoyaltyPointRuleRepository;
 import org.hvtra.customer.service.LoyaltyPointRuleService;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,23 +21,30 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.hvtra.customer.exception.CustomerServiceException.conflict;
+import static org.hvtra.customer.exception.CustomerServiceException.notFound;
+
 @Service
 @RequiredArgsConstructor
 public class LoyaltyPointRuleServiceImpl implements LoyaltyPointRuleService {
     private static final PageRequest FIRST_RESULT = PageRequest.of(0, 1);
 
     private final LoyaltyPointRuleRepository loyaltyPointRuleRepository;
+    private final CustomerTierRepository customerTierRepository;
+    private final CustomerMapper customerMapper;
 
     @Override
     @Transactional(readOnly = true)
-    public List<LoyaltyPointRule> getAll() {
-        return loyaltyPointRuleRepository.findAllByIsDeletedFalse();
+    public List<LoyaltyPointRuleResponse> getAll() {
+        return loyaltyPointRuleRepository.findAllByIsDeletedFalse().stream()
+                .map(customerMapper::toResponse)
+                .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public LoyaltyPointRule getById(UUID id) {
-        return findRule(id);
+    public LoyaltyPointRuleResponse getById(UUID id) {
+        return customerMapper.toResponse(findRule(id));
     }
 
     @Override
@@ -55,18 +64,20 @@ public class LoyaltyPointRuleServiceImpl implements LoyaltyPointRuleService {
 
     @Override
     @Transactional
-    public LoyaltyPointRule create(LoyaltyPointRule rule) {
-        ensureCodeAvailable(rule.getCode(), null);
-        return loyaltyPointRuleRepository.save(rule);
+    public LoyaltyPointRuleResponse create(LoyaltyPointRuleRequest request) {
+        ensureCodeAvailable(request.code(), null);
+        LoyaltyPointRule rule = new LoyaltyPointRule();
+        customerMapper.update(rule, request, findTier(request.tierId()));
+        return customerMapper.toResponse(loyaltyPointRuleRepository.save(rule));
     }
 
     @Override
     @Transactional
-    public LoyaltyPointRule update(UUID id, LoyaltyPointRule rule) {
-        LoyaltyPointRule existingRule = findRule(id);
-        ensureCodeAvailable(rule.getCode(), id);
-        updateFields(existingRule, rule);
-        return loyaltyPointRuleRepository.save(existingRule);
+    public LoyaltyPointRuleResponse update(UUID id, LoyaltyPointRuleRequest request) {
+        LoyaltyPointRule rule = findRule(id);
+        ensureCodeAvailable(request.code(), id);
+        customerMapper.update(rule, request, findTier(request.tierId()));
+        return customerMapper.toResponse(loyaltyPointRuleRepository.save(rule));
     }
 
     @Override
@@ -84,21 +95,13 @@ public class LoyaltyPointRuleServiceImpl implements LoyaltyPointRuleService {
                 .orElseThrow(() -> notFound(Message.LOYALTY_POINT_RULE_NOT_FOUND));
     }
 
-    private void updateFields(LoyaltyPointRule target, LoyaltyPointRule source) {
-        target.setCode(source.getCode());
-        target.setName(source.getName());
-        target.setDescription(source.getDescription());
-        target.setTier(source.getTier());
-        target.setSpendAmountPerBlock(source.getSpendAmountPerBlock());
-        target.setPointsPerBlock(source.getPointsPerBlock());
-        target.setMinOrderAmount(source.getMinOrderAmount());
-        target.setEarnAfterDiscount(source.getEarnAfterDiscount());
-        target.setAllowCouponUsage(source.getAllowCouponUsage());
-        target.setPointMultiplier(source.getPointMultiplier());
-        target.setPriority(source.getPriority());
-        target.setEffectiveFrom(source.getEffectiveFrom());
-        target.setEffectiveTo(source.getEffectiveTo());
-        target.setStatus(source.getStatus());
+    // Quy tắc không gắn hạng thì áp dụng chung cho mọi hạng.
+    private CustomerTier findTier(UUID tierId) {
+        if (tierId == null) {
+            return null;
+        }
+        return customerTierRepository.findByIdAndIsDeletedFalse(tierId)
+                .orElseThrow(() -> notFound(Message.CUSTOMER_TIER_NOT_FOUND));
     }
 
     private void ensureCodeAvailable(String code, UUID currentId) {
@@ -108,13 +111,5 @@ public class LoyaltyPointRuleServiceImpl implements LoyaltyPointRuleService {
         if (exists) {
             throw conflict(Message.LOYALTY_POINT_RULE_CODE_EXISTS);
         }
-    }
-
-    private CustomerServiceException notFound(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_NOT_FOUND, message, HttpStatus.NOT_FOUND);
-    }
-
-    private CustomerServiceException conflict(String message) {
-        return new CustomerServiceException(ErrorCode.CUSTOMER_CONFLICT, message, HttpStatus.CONFLICT);
     }
 }
