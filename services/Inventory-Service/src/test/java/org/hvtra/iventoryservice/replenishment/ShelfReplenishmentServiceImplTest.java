@@ -1,5 +1,7 @@
 package org.hvtra.iventoryservice.replenishment;
 
+import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentBatchAllocation;
+import org.hvtra.iventoryservice.replenishment.dto.RejectShelfReplenishmentRequest;
 import org.hvtra.iventoryservice.replenishment.repository.ShelfReplenishmentRepository;
 import org.hvtra.iventoryservice.domain.entity.InventoryBalance;
 import org.hvtra.iventoryservice.domain.entity.InventoryItem;
@@ -76,6 +78,7 @@ class ShelfReplenishmentServiceImplTest {
     private InventoryItem item;
     private InventoryLocation warehouse;
     private InventoryLocation shelf;
+    private InventoryBalance defaultWarehouseBalance;
 
     @BeforeEach
     void setUp() {
@@ -90,6 +93,7 @@ class ShelfReplenishmentServiceImplTest {
 
         warehouse = location(InventoryLocationType.WAREHOUSE, null);
         shelf = location(InventoryLocationType.SHELF, warehouse);
+        defaultWarehouseBalance = balance(warehouse, "100");
 
         when(itemRepository.findByReferenceIdInAndItemType(any(), eq(InventoryItemType.PRODUCT_VARIANT)))
                 .thenReturn(List.of(item));
@@ -98,6 +102,10 @@ class ShelfReplenishmentServiceImplTest {
         when(sequenceService.nextCode(any(), anyInt())).thenReturn("NKE-00001");
         when(replenishmentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(balanceRepository.sumAvailableByItemsAndLocations(any(), any())).thenReturn(List.of());
+        when(balanceRepository.findFefoAvailableForUpdate(any(), eq(warehouse.getId()), any(), any()))
+                .thenAnswer(inv -> List.of(defaultWarehouseBalance));
+        when(balanceRepository.findForUpdateByBatchId(any(), eq(warehouse.getId())))
+                .thenAnswer(inv -> Optional.of(defaultWarehouseBalance));
         authenticateWith("ROLE_INVENTORY_STAFF");
     }
 
@@ -327,6 +335,98 @@ class ShelfReplenishmentServiceImplTest {
         assertThat(response.pendingReview()).isFalse();
         assertThat(response.reviewedAt()).isNotNull();
         assertThat(response.autoIssued()).isTrue();
+    }
+
+    @Test
+    void create_reservesQuantityOnSourceWarehouseBalance() {
+        InventoryBalance source = balance(warehouse, "50");
+        when(balanceRepository.findFefoAvailableForUpdate(eq(item.getId()), eq(warehouse.getId()), any(), any()))
+                .thenReturn(List.of(source));
+
+        ShelfReplenishmentResponse response = service.create(request(false, null, "15"));
+
+        assertThat(response.status()).isEqualTo(InventoryDocumentStatus.DRAFT);
+        assertThat(source.getQuantityReserved()).isEqualByComparingTo("15");
+        assertThat(source.getAvailableQuantity()).isEqualByComparingTo("35");
+        verify(balanceRepository).save(source);
+    }
+
+    @Test
+    void create_failsWhenWarehouseHasInsufficientStock() {
+        InventoryBalance source = balance(warehouse, "5");
+        when(balanceRepository.findFefoAvailableForUpdate(eq(item.getId()), eq(warehouse.getId()), any(), any()))
+                .thenReturn(List.of(source));
+
+        assertThatThrownBy(() -> service.create(request(false, null, "10")))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("không đủ hàng");
+        assertThat(source.getQuantityReserved()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void approve_withPreReservedAllocations_decreasesReservedAndOnHand() {
+        ShelfReplenishment document = document(InventoryDocumentStatus.PENDING_APPROVAL, "10");
+        InventoryBalance source = balance(warehouse, "50");
+        source.setQuantityReserved(new BigDecimal("10"));
+        InventoryDocumentBatchAllocation alloc = new InventoryDocumentBatchAllocation();
+        alloc.setInventoryBatch(source.getInventoryBatch());
+        alloc.setQuantity(new BigDecimal("10"));
+        document.getLines().getFirst().addBatchAllocation(alloc);
+
+        when(replenishmentRepository.findByIdAndIsDeletedFalse(document.getId())).thenReturn(Optional.of(document));
+        when(balanceRepository.findForUpdateByBatchId(source.getInventoryBatch().getId(), warehouse.getId()))
+                .thenReturn(Optional.of(source));
+        when(balanceRepository.findForUpdateByBatchId(source.getInventoryBatch().getId(), shelf.getId()))
+                .thenReturn(Optional.empty());
+
+        ShelfReplenishmentResponse response = service.approve(document.getId());
+
+        assertThat(response.status()).isEqualTo(InventoryDocumentStatus.POSTED);
+        assertThat(source.getQuantityOnHand()).isEqualByComparingTo("40");
+        assertThat(source.getQuantityReserved()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void cancel_releasesReservedQuantityOnWarehouse() {
+        authenticateWith("ROLE_SUPER_ADMIN");
+        ShelfReplenishment document = document(InventoryDocumentStatus.PENDING_APPROVAL, "12");
+        InventoryBalance source = balance(warehouse, "50");
+        source.setQuantityReserved(new BigDecimal("12"));
+        InventoryDocumentBatchAllocation alloc = new InventoryDocumentBatchAllocation();
+        alloc.setInventoryBatch(source.getInventoryBatch());
+        alloc.setQuantity(new BigDecimal("12"));
+        document.getLines().getFirst().addBatchAllocation(alloc);
+
+        when(replenishmentRepository.findByIdAndIsDeletedFalse(document.getId())).thenReturn(Optional.of(document));
+        when(balanceRepository.findForUpdateByBatchId(source.getInventoryBatch().getId(), warehouse.getId()))
+                .thenReturn(Optional.of(source));
+
+        ShelfReplenishmentResponse response = service.cancel(document.getId(), "Hủy yêu cầu");
+
+        assertThat(response.status()).isEqualTo(InventoryDocumentStatus.CANCELLED);
+        assertThat(source.getQuantityReserved()).isEqualByComparingTo("0");
+        assertThat(document.getLines().getFirst().getBatchAllocations()).isEmpty();
+    }
+
+    @Test
+    void reject_releasesReservedQuantityOnWarehouse() {
+        ShelfReplenishment document = document(InventoryDocumentStatus.PENDING_APPROVAL, "8");
+        InventoryBalance source = balance(warehouse, "30");
+        source.setQuantityReserved(new BigDecimal("8"));
+        InventoryDocumentBatchAllocation alloc = new InventoryDocumentBatchAllocation();
+        alloc.setInventoryBatch(source.getInventoryBatch());
+        alloc.setQuantity(new BigDecimal("8"));
+        document.getLines().getFirst().addBatchAllocation(alloc);
+
+        when(replenishmentRepository.findByIdAndIsDeletedFalse(document.getId())).thenReturn(Optional.of(document));
+        when(balanceRepository.findForUpdateByBatchId(source.getInventoryBatch().getId(), warehouse.getId()))
+                .thenReturn(Optional.of(source));
+
+        ShelfReplenishmentResponse response = service.reject(document.getId(), new RejectShelfReplenishmentRequest("Không cần"));
+
+        assertThat(response.status()).isEqualTo(InventoryDocumentStatus.REJECTED);
+        assertThat(source.getQuantityReserved()).isEqualByComparingTo("0");
+        assertThat(document.getLines().getFirst().getBatchAllocations()).isEmpty();
     }
 
     private CreateShelfReplenishmentRequest request(boolean submit, String referenceId, String quantity) {

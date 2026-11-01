@@ -1,7 +1,6 @@
 package org.hvtra.catalog.controller;
 
 import org.hvtra.catalog.dto.request.SellableConfigRequest;
-import org.hvtra.catalog.service.BarcodeService;
 import org.hvtra.catalog.service.ProductVariantService;
 import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.junit.jupiter.api.AfterEach;
@@ -29,9 +28,6 @@ import static org.mockito.Mockito.verify;
 class ProductVariantControllerSellableConfigTest {
     @Mock
     private ProductVariantService service;
-
-    @Mock
-    private BarcodeService barcodeService;
 
     @InjectMocks
     private ProductVariantController controller;

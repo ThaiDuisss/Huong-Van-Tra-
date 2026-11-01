@@ -1,5 +1,5 @@
-import { Download, Upload, Plus, Trash2, X } from "lucide-react";
-import { useCallback, useState, useEffect } from "react";
+import { Download, Upload, Plus, Trash2, X, Printer } from "lucide-react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -31,6 +31,7 @@ import type {
     ProductVariantInput
 } from "../types/product.types";
 import { formatCurrency } from "../utils/product-formatters";
+import { BulkBarcodePrintModal } from "../components/BulkBarcodePrintModal";
 
 interface ProductVariantFormWrapperProps {
     editingItem: ProductVariant | null;
@@ -62,6 +63,7 @@ function ProductVariantFormWrapper({
     const [formSellingPrice, setFormSellingPrice] = useState(editingItem?.sellingPrice ?? 0);
     const [formCostPrice, setFormCostPrice] = useState(editingItem?.costPrice ?? 0);
     const [formUnitId, setFormUnitId] = useState(editingItem?.unitId ? String(editingItem.unitId) : "");
+    const [formBarcode, setFormBarcode] = useState(editingItem?.barcode || "");
     const [formInventoryPolicy, setFormInventoryPolicy] = useState<InventoryPolicy>(
         editingItem?.inventoryPolicy || "TRACK_STOCK"
     );
@@ -194,7 +196,8 @@ function ProductVariantFormWrapper({
                 costPrice: Number(formCostPrice),
                 unitId: formUnitId,
                 inventoryPolicy: formInventoryPolicy,
-                status: formStatus
+                status: formStatus,
+                barcode: formBarcode.trim() ? formBarcode.trim() : null
             };
             const items = formItems.map((item) => ({
                 ...item,
@@ -300,6 +303,17 @@ function ProductVariantFormWrapper({
                                 value={formUnitId}
                             />
                         </div>
+
+                        <label className="grid gap-1.5 text-sm font-bold text-gray-500">
+                            Mã vạch (Barcode)
+                            <input
+                                type="text"
+                                placeholder="Nhập mã vạch hoặc để trống"
+                                className="h-10 w-full rounded-xl border border-pos-border bg-white px-3 font-mono font-medium text-gray-700 focus:outline-none"
+                                value={formBarcode}
+                                onChange={(e) => setFormBarcode(e.target.value)}
+                            />
+                        </label>
 
                         <label className="grid gap-1.5 text-sm font-bold text-gray-500">
                             Chính sách tồn kho *
@@ -597,6 +611,43 @@ export function ProductVariantListPage() {
     const resource = usePagedApiResource(loadVariants);
     const variants = resource.data?.content ?? [];
 
+    const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string | number>>(new Set());
+    const [showBulkPrintModal, setShowBulkPrintModal] = useState(false);
+
+    const handleToggleSelect = (id: string | number) => {
+        setSelectedVariantIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const isAllSelected = variants.length > 0 && variants.every((v) => selectedVariantIds.has(v.id));
+
+    const handleToggleSelectAll = () => {
+        if (isAllSelected) {
+            setSelectedVariantIds((prev) => {
+                const next = new Set(prev);
+                variants.forEach((v) => next.delete(v.id));
+                return next;
+            });
+        } else {
+            setSelectedVariantIds((prev) => {
+                const next = new Set(prev);
+                variants.forEach((v) => next.add(v.id));
+                return next;
+            });
+        }
+    };
+
+    const selectedVariants = useMemo(() => {
+        return variants.filter((v) => selectedVariantIds.has(v.id));
+    }, [variants, selectedVariantIds]);
+
     async function handleSave(input: ProductVariantInput, items: BomItemInput[]) {
         const variant = editingVariant
             ? await productVariantApi.update(String(editingVariant.id), input)
@@ -645,6 +696,19 @@ export function ProductVariantListPage() {
                 totalItemsLabel="Tổng số Mặt hàng"
                 extraHeaderActions={
                     <>
+                        <ActionButton
+                            variant={selectedVariantIds.size > 0 ? "primary" : "secondary"}
+                            onClick={() => {
+                                if (selectedVariantIds.size === 0) {
+                                    alert("Vui lòng tích chọn ít nhất một mặt hàng để in mã vạch hàng loạt.");
+                                    return;
+                                }
+                                setShowBulkPrintModal(true);
+                            }}
+                        >
+                            <Printer size={17} aria-hidden="true" />
+                            In mã vạch hàng loạt {selectedVariantIds.size > 0 ? `(${selectedVariantIds.size})` : ""}
+                        </ActionButton>
                         <ActionButton variant="secondary" onClick={() => navigate(routePaths.productVariantImport)}>
                             <Upload size={17} aria-hidden="true" />
                             Nhập Excel
@@ -728,13 +792,30 @@ export function ProductVariantListPage() {
                 secondaryFilter={undefined}
                 columns={[
                     { key: "variant", label: "Tên Mặt hàng" },
+                    { key: "sku", label: "SKU / Mã vạch" },
                     { key: "quantity", label: "Định lượng" },
                     { key: "selling", label: "Giá bán" },
                     { key: "status", label: "Trạng thái" }
                 ]}
+                selectable={true}
+                selectedIds={selectedVariantIds}
+                onToggleSelect={handleToggleSelect}
+                onToggleSelectAll={handleToggleSelectAll}
+                isAllSelected={isAllSelected}
                 renderCells={(item) => (
                     <>
-                        <TableCell>{item.variantName}</TableCell>
+                        <TableCell>
+                            <div className="font-bold text-gray-900">{item.variantName}</div>
+                            <div className="text-xs text-gray-500">{item.productName}</div>
+                        </TableCell>
+                        <TableCell>
+                            <div className="font-mono text-xs font-semibold text-gray-700">{item.sku}</div>
+                            {item.barcode ? (
+                                <div className="font-mono text-xs text-emerald-700 font-medium">{item.barcode}</div>
+                            ) : (
+                                <span className="text-[11px] text-gray-400 italic">Chưa có mã vạch</span>
+                            )}
+                        </TableCell>
                         <TableCell>{item.quantity}</TableCell>
                         <TableCell>{formatCurrency(item.sellingPrice)}</TableCell>
                         <TableCell>
@@ -753,6 +834,7 @@ export function ProductVariantListPage() {
                                 items={[
                                     { label: "Sản phẩm", value: item.productName },
                                     { label: "SKU", value: item.sku },
+                                    { label: "Mã vạch (Barcode)", value: item.barcode || "Chưa có mã vạch" },
                                     { label: "Tên Mặt hàng", value: item.variantName },
                                     { label: "Định lượng", value: String(item.quantity) },
                                     {
@@ -805,6 +887,12 @@ export function ProductVariantListPage() {
                         onSave={handleSave}
                     />
                 )}
+            />
+
+            <BulkBarcodePrintModal
+                isOpen={showBulkPrintModal}
+                onClose={() => setShowBulkPrintModal(false)}
+                variants={selectedVariants}
             />
         </>
     );

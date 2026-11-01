@@ -11,6 +11,7 @@ import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocument;
+import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentBatchAllocation;
 import org.hvtra.iventoryservice.domain.entity.document.InventoryDocumentLine;
 import org.hvtra.iventoryservice.domain.entity.document.ShelfReplenishment;
 import org.hvtra.iventoryservice.domain.entity.movement.InventoryTransaction;
@@ -148,7 +149,9 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
 
         ShelfReplenishment existing = request.issueNow() ? null : findOpenByReference(request.referenceId());
         if (existing != null) {
+            releaseAllocations(existing);
             upsertLines(existing, linesByVariant, itemByVariant);
+            reserveLines(existing);
             if (request.submit() && existing.getStatus() == InventoryDocumentStatus.DRAFT) {
                 existing.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
             }
@@ -179,6 +182,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             issue(saved);
             return toResponse(replenishmentRepository.save(saved), true);
         }
+        reserveLines(document);
         // Lưu trước để có id (giao dịch kho tham chiếu id phiếu) và createdBy do auditing gán
         ShelfReplenishment saved = replenishmentRepository.save(document);
         autoApproveIfCreatedByManager(saved);
@@ -192,6 +196,8 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         if (document.getStatus() != InventoryDocumentStatus.DRAFT) {
             throw new BadRequestException("Chỉ sửa được phiếu nhập kệ đang ở trạng thái nháp");
         }
+        releaseAllocations(document);
+
         Map<UUID, ShelfReplenishmentLineRequest> linesByVariant = mergeLines(request.lines());
         Map<UUID, InventoryItem> itemByVariant = resolveItems(linesByVariant.keySet());
 
@@ -210,6 +216,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         document.getLines().clear();
         replenishmentRepository.saveAndFlush(document);
         upsertLines(document, linesByVariant, itemByVariant);
+        reserveLines(document);
         return toResponse(replenishmentRepository.save(document), true);
     }
 
@@ -222,6 +229,11 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         }
         if (document.getLines().isEmpty()) {
             throw new BadRequestException("Phiếu nhập kệ chưa có mặt hàng nào");
+        }
+        boolean hasAllocations = document.getLines().stream()
+                .anyMatch(line -> line.getBatchAllocations() != null && !line.getBatchAllocations().isEmpty());
+        if (!hasAllocations) {
+            reserveLines(document);
         }
         document.setStatus(InventoryDocumentStatus.PENDING_APPROVAL);
         autoApproveIfCreatedByManager(document);
@@ -240,7 +252,9 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         if (currentUserId == null || !currentUserId.equals(document.getCreatedBy())) {
             return;
         }
-        if (!warehouseHasEnough(document)) {
+        boolean allReserved = !document.getLines().isEmpty() && document.getLines().stream()
+                .allMatch(line -> line.getBatchAllocations() != null && !line.getBatchAllocations().isEmpty());
+        if (!allReserved && !warehouseHasEnough(document)) {
             return;
         }
         issue(document);
@@ -286,11 +300,11 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         return toResponse(replenishmentRepository.save(document), true);
     }
 
-    /** Từ chối phiếu (SC-05 EX-04): lưu lý do, tồn kho không đổi. */
     @Override
     @Transactional
     public ShelfReplenishmentResponse reject(UUID id, RejectShelfReplenishmentRequest request) {
         ShelfReplenishment document = getPendingForDecision(id);
+        releaseAllocations(document);
         document.setStatus(InventoryDocumentStatus.REJECTED);
         document.setRejectedBy(currentUserId());
         document.setRejectedAt(Instant.now());
@@ -339,6 +353,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
 
         if (lines.isEmpty()) {
             if (existing != null) {
+                releaseAllocations(existing);
                 existing.setStatus(InventoryDocumentStatus.CANCELLED);
                 String current = existing.getNote();
                 existing.setNote((current == null || current.isBlank() ? "" : current + "\n")
@@ -363,6 +378,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             document.setReferenceId(orderId.toString());
             document.setNote("POS: xuất kho lên kệ để bán ngay cho đơn " + orderId);
         } else {
+            releaseAllocations(document);
             // Chỉ giữ các mặt hàng thực sự thiếu lúc thanh toán; số lượng lấy theo phần thiếu thực tế.
             document.getLines().removeIf(line -> !lines.containsKey(line.getInventoryItem().getReferenceId()));
         }
@@ -421,6 +437,7 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
         if (!isCreator && !SecurityUtils.isSuperAdmin()) {
             throw ErrorCode.SHELF_REPLENISHMENT_CANCEL_FORBIDDEN.exception();
         }
+        releaseAllocations(document);
         document.setStatus(InventoryDocumentStatus.CANCELLED);
         if (note != null && !note.isBlank()) {
             String current = document.getNote();
@@ -435,56 +452,179 @@ public class ShelfReplenishmentServiceImpl implements ShelfReplenishmentService 
             InventoryTransaction transaction) {
         InventoryItem item = line.getInventoryItem();
         BigDecimal remaining = line.getOrderedQuantity();
-        List<InventoryBalance> sources = balanceRepository.findFefoAvailableForUpdate(
-                item.getId(), warehouse.getId(), InventoryStatus.ACTIVE, LocalDate.now());
 
-        BigDecimal available = sources.stream()
-                .map(InventoryBalance::getAvailableQuantity)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (available.compareTo(remaining) < 0) {
-            throw new BadRequestException("Kho " + warehouse.getName() + " không đủ hàng cho " + item.getName()
-                    + ": cần " + remaining.stripTrailingZeros().toPlainString()
-                    + ", còn " + available.stripTrailingZeros().toPlainString());
-        }
+        if (line.getBatchAllocations() != null && !line.getBatchAllocations().isEmpty()) {
+            for (InventoryDocumentBatchAllocation allocation : line.getBatchAllocations()) {
+                BigDecimal take = allocation.getQuantity();
+                if (take == null || take.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                InventoryBatch batch = allocation.getInventoryBatch();
 
-        for (InventoryBalance source : sources) {
-            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-                break;
+                InventoryBalance source = balanceRepository.findForUpdateByBatchId(batch.getId(), warehouse.getId())
+                        .orElseThrow(() -> new BadRequestException("Không tìm thấy tồn kho cho lô " + batch.getBatchCode()));
+
+                BigDecimal sourceBefore = source.getQuantityOnHand();
+                BigDecimal sourceAfter = sourceBefore.subtract(take);
+                source.setQuantityOnHand(sourceAfter);
+                BigDecimal newReserved = source.getQuantityReserved().subtract(take);
+                source.setQuantityReserved(newReserved.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : newReserved);
+                balanceRepository.save(source);
+                transaction.addLine(transactionLine(item, warehouse, batch, take.negate(), sourceBefore, sourceAfter));
+
+                InventoryBalance target = balanceRepository.findForUpdateByBatchId(batch.getId(), shelf.getId())
+                        .orElseGet(() -> {
+                            InventoryBalance balance = new InventoryBalance();
+                            balance.setInventoryItem(item);
+                            balance.setInventoryBatch(batch);
+                            balance.setLocation(shelf);
+                            balance.setQuantityOnHand(BigDecimal.ZERO);
+                            balance.setQuantityReserved(BigDecimal.ZERO);
+                            balance.setQuantityBlocked(BigDecimal.ZERO);
+                            return balance;
+                        });
+                BigDecimal targetBefore = target.getQuantityOnHand();
+                BigDecimal targetAfter = targetBefore.add(take);
+                target.setQuantityOnHand(targetAfter);
+                balanceRepository.save(target);
+                transaction.addLine(transactionLine(item, shelf, batch, take, targetBefore, targetAfter));
             }
-            BigDecimal take = source.getAvailableQuantity().min(remaining);
-            if (take.compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
+        } else {
+            List<InventoryBalance> sources = balanceRepository.findFefoAvailableForUpdate(
+                    item.getId(), warehouse.getId(), InventoryStatus.ACTIVE, LocalDate.now());
+
+            BigDecimal available = sources.stream()
+                    .map(InventoryBalance::getAvailableQuantity)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (available.compareTo(remaining) < 0) {
+                throw new BadRequestException("Kho " + warehouse.getName() + " không đủ hàng cho " + item.getName()
+                        + ": cần " + remaining.stripTrailingZeros().toPlainString()
+                        + ", còn " + available.stripTrailingZeros().toPlainString());
             }
-            InventoryBatch batch = source.getInventoryBatch();
 
-            BigDecimal sourceBefore = source.getQuantityOnHand();
-            BigDecimal sourceAfter = sourceBefore.subtract(take);
-            source.setQuantityOnHand(sourceAfter);
-            balanceRepository.save(source);
-            transaction.addLine(transactionLine(item, warehouse, batch, take.negate(), sourceBefore, sourceAfter));
+            for (InventoryBalance source : sources) {
+                if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                    break;
+                }
+                BigDecimal take = source.getAvailableQuantity().min(remaining);
+                if (take.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                InventoryBatch batch = source.getInventoryBatch();
 
-            InventoryBalance target = balanceRepository.findForUpdateByBatchId(batch.getId(), shelf.getId())
-                    .orElseGet(() -> {
-                        InventoryBalance balance = new InventoryBalance();
-                        balance.setInventoryItem(item);
-                        balance.setInventoryBatch(batch);
-                        balance.setLocation(shelf);
-                        balance.setQuantityOnHand(BigDecimal.ZERO);
-                        balance.setQuantityReserved(BigDecimal.ZERO);
-                        balance.setQuantityBlocked(BigDecimal.ZERO);
-                        return balance;
-                    });
-            BigDecimal targetBefore = target.getQuantityOnHand();
-            BigDecimal targetAfter = targetBefore.add(take);
-            target.setQuantityOnHand(targetAfter);
-            balanceRepository.save(target);
-            transaction.addLine(transactionLine(item, shelf, batch, take, targetBefore, targetAfter));
+                BigDecimal sourceBefore = source.getQuantityOnHand();
+                BigDecimal sourceAfter = sourceBefore.subtract(take);
+                source.setQuantityOnHand(sourceAfter);
+                balanceRepository.save(source);
+                transaction.addLine(transactionLine(item, warehouse, batch, take.negate(), sourceBefore, sourceAfter));
 
-            remaining = remaining.subtract(take);
+                InventoryBalance target = balanceRepository.findForUpdateByBatchId(batch.getId(), shelf.getId())
+                        .orElseGet(() -> {
+                            InventoryBalance balance = new InventoryBalance();
+                            balance.setInventoryItem(item);
+                            balance.setInventoryBatch(batch);
+                            balance.setLocation(shelf);
+                            balance.setQuantityOnHand(BigDecimal.ZERO);
+                            balance.setQuantityReserved(BigDecimal.ZERO);
+                            balance.setQuantityBlocked(BigDecimal.ZERO);
+                            return balance;
+                        });
+                BigDecimal targetBefore = target.getQuantityOnHand();
+                BigDecimal targetAfter = targetBefore.add(take);
+                target.setQuantityOnHand(targetAfter);
+                balanceRepository.save(target);
+                transaction.addLine(transactionLine(item, shelf, batch, take, targetBefore, targetAfter));
+
+                remaining = remaining.subtract(take);
+            }
         }
 
         line.setReceivedQuantity(line.getOrderedQuantity());
         line.setAcceptedQuantity(line.getOrderedQuantity());
+    }
+
+    // ---------------------------------------------------------------- reservations
+
+    private void reserveLines(ShelfReplenishment document) {
+        InventoryLocation warehouse = document.getSourceLocation();
+        if (warehouse == null) {
+            throw new BadRequestException("Phiếu nhập kệ thiếu kho nguồn");
+        }
+        for (InventoryDocumentLine line : document.getLines()) {
+            if (line.getBatchAllocations() != null && !line.getBatchAllocations().isEmpty()) {
+                releaseAllocationsForLine(line, warehouse);
+            }
+            InventoryItem item = line.getInventoryItem();
+            BigDecimal remaining = line.getOrderedQuantity();
+            if (remaining == null || remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            List<InventoryBalance> sources = balanceRepository.findFefoAvailableForUpdate(
+                    item.getId(), warehouse.getId(), InventoryStatus.ACTIVE, LocalDate.now());
+
+            BigDecimal available = sources.stream()
+                    .map(InventoryBalance::getAvailableQuantity)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (available.compareTo(remaining) < 0) {
+                throw new BadRequestException("Kho " + warehouse.getName() + " không đủ hàng cho " + item.getName()
+                        + ": cần " + remaining.stripTrailingZeros().toPlainString()
+                        + ", còn " + available.stripTrailingZeros().toPlainString());
+            }
+
+            for (InventoryBalance source : sources) {
+                if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                    break;
+                }
+                BigDecimal take = source.getAvailableQuantity().min(remaining);
+                if (take.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                InventoryBatch batch = source.getInventoryBatch();
+
+                InventoryDocumentBatchAllocation allocation = new InventoryDocumentBatchAllocation();
+                allocation.setInventoryBatch(batch);
+                allocation.setQuantity(take);
+                line.addBatchAllocation(allocation);
+
+                source.setQuantityReserved(source.getQuantityReserved().add(take));
+                balanceRepository.save(source);
+
+                remaining = remaining.subtract(take);
+            }
+        }
+    }
+
+    private void releaseAllocations(ShelfReplenishment document) {
+        InventoryLocation warehouse = document.getSourceLocation();
+        if (warehouse == null) {
+            return;
+        }
+        for (InventoryDocumentLine line : document.getLines()) {
+            releaseAllocationsForLine(line, warehouse);
+        }
+    }
+
+    private void releaseAllocationsForLine(InventoryDocumentLine line, InventoryLocation warehouse) {
+        if (line.getBatchAllocations() == null || line.getBatchAllocations().isEmpty()) {
+            return;
+        }
+        for (InventoryDocumentBatchAllocation allocation : line.getBatchAllocations()) {
+            BigDecimal qty = allocation.getQuantity();
+            if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            balanceRepository.findForUpdateByBatchId(allocation.getInventoryBatch().getId(), warehouse.getId())
+                    .ifPresent(source -> {
+                        BigDecimal newReserved = source.getQuantityReserved().subtract(qty);
+                        if (newReserved.compareTo(BigDecimal.ZERO) < 0) {
+                            newReserved = BigDecimal.ZERO;
+                        }
+                        source.setQuantityReserved(newReserved);
+                        balanceRepository.save(source);
+                    });
+        }
+        line.getBatchAllocations().clear();
     }
 
     private InventoryTransactionLine transactionLine(InventoryItem item, InventoryLocation location,

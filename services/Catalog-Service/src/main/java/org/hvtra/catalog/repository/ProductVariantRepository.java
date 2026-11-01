@@ -50,6 +50,10 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             """)
     int restoreSellable(@Param("id") UUID id, @Param("quantity") BigDecimal quantity);
 
+    boolean existsByBarcode(String barcode);
+    boolean existsByBarcodeAndIdNot(String barcode, UUID id);
+    Optional<ProductVariant> findByBarcodeAndIsDeletedFalse(String barcode);
+
     @Query("""
             select v from ProductVariant v
             join fetch v.product p
@@ -62,7 +66,6 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             join fetch v.product p
             left join fetch p.category
             left join fetch v.unit
-            left join fetch v.barcodes
             where p.id in :productIds
             order by v.sku
             """)
@@ -77,13 +80,12 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
             """)
     List<ProductVariant> findAllForExport(@Param("productId") UUID productId);
 
-    /** Batch theo id cho service khác (Feign) — fetch sẵn product/category/unit/barcodes để tránh N+1 khi map. */
+    /** Batch theo id cho service khác (Feign) — fetch sẵn product/category/unit để tránh N+1 khi map. */
     @Query("""
             select distinct v from ProductVariant v
             join fetch v.product p
             left join fetch p.category
             left join fetch v.unit
-            left join fetch v.barcodes
             where v.id in :ids
             """)
     List<ProductVariant> findAllByIdWithDetails(@Param("ids") Collection<UUID> ids);

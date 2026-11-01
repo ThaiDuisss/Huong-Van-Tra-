@@ -21,6 +21,8 @@ public interface ProductVariantService {
             String keyword, String sku, String variantName, String barcode, UUID productId, UUID categoryId, Status status, Pageable pageable);
     PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     ProductResponse.VariantResponse findById(UUID id);
+    ProductResponse.VariantResponse findByBarcode(String barcode);
+    String generateBarcode();
     /** Variant hệ thống "Trà đóng theo yêu cầu" dùng làm dòng bundle trong đơn bán. */
     ProductResponse.VariantResponse findCustomBundleVariant();
     ProductResponse.VariantResponse create(UUID productId, ProductVariantRequest request);
