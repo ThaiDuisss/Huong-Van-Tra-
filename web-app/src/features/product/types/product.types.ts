@@ -122,6 +122,7 @@ export interface ProductVariant {
     status: CatalogStatus;
     productStatus: CatalogStatus;
     sellable: boolean;
+    barcode?: string | null;
 }
 
 export interface ProductVariantInput {
@@ -134,6 +135,7 @@ export interface ProductVariantInput {
     unitId: EntityId;
     inventoryPolicy: InventoryPolicy;
     status: CatalogStatus;
+    barcode?: string | null;
 }
 
 /** Cấu hình bán hàng của Mặt hàng — chỉ SUPER_ADMIN được thay đổi, tách khỏi biểu mẫu sửa Mặt hàng. */

@@ -102,6 +102,11 @@ export interface CatalogResourceManagementProps<T extends RowBase, S extends str
     controlledShowForm?: boolean;
     onControlledShowFormChange?(show: boolean): void;
     onControlledEditingItemChange?(item: T | null): void;
+    selectable?: boolean;
+    selectedIds?: Set<string | number>;
+    onToggleSelect?: (id: string | number) => void;
+    onToggleSelectAll?: () => void;
+    isAllSelected?: boolean;
 }
 
 export function CatalogResourceManagement<T extends RowBase, S extends string = string>({
@@ -128,6 +133,11 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
     onPageChange,
     onPageSizeChange,
     onRefresh,
+    selectable = false,
+    selectedIds,
+    onToggleSelect,
+    onToggleSelectAll,
+    isAllSelected = false,
     onSubmit,
     onChangeStatus,
     detailPath,
@@ -401,10 +411,21 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                 <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
                                     <thead className="bg-[#eaf7ec] text-[13px] font-[950] text-gray-900">
                                         <tr>
+                                            {selectable && (
+                                                <th className="h-[52px] align-middle px-3 py-0 border-b border-[#edf0f4] w-11 text-center pl-[18px]">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isAllSelected}
+                                                        onChange={onToggleSelectAll}
+                                                        className="w-4 h-4 rounded text-pos-primary border-gray-300 focus:ring-pos-primary cursor-pointer align-middle"
+                                                        title="Chọn tất cả"
+                                                    />
+                                                </th>
+                                            )}
                                             {columns.map((column) => (
                                                 <th
                                                     key={column.key}
-                                                    className="h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] first:pl-[18px]"
+                                                    className={`h-[52px] align-middle px-4 py-0 border-b border-[#edf0f4] ${!selectable ? "first:pl-[18px]" : ""}`}
                                                 >
                                                     {column.label}
                                                 </th>
@@ -436,6 +457,19 @@ export function CatalogResourceManagement<T extends RowBase, S extends string = 
                                                     }}
                                                     className={`cursor-pointer hover:bg-neutral-50 transition-all ${rowBgClass}`}
                                                 >
+                                                    {selectable && (
+                                                        <td
+                                                            className="border-b border-[#edf0f4] h-[52px] align-middle px-3 py-0 w-11 text-center pl-[18px]"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedIds?.has(item.id) ?? false}
+                                                                onChange={() => onToggleSelect?.(item.id)}
+                                                                className="w-4 h-4 rounded text-pos-primary border-gray-300 focus:ring-pos-primary cursor-pointer align-middle"
+                                                            />
+                                                        </td>
+                                                    )}
                                                     {renderCells(item)}
                                                     <td className={`border-b border-[#edf0f4] h-[52px] align-middle px-4 py-0 pr-[18px] relative ${activeActionMenuId === String(item.id) ? "z-30" : "z-20"}`} onClick={(e) => e.stopPropagation()}>
                                                         <div className="flex justify-end relative">

@@ -325,6 +325,10 @@ export function AppRouter() {
         </Route>
 
         <Route element={<RoleGate roles={INVENTORY_ROLES} />}>
+          <Route
+            path="inventory"
+            element={<Navigate to={routePaths.systemDashboardOverview} replace />}
+          />
           <Route path="inventory/locations" element={<InventoryLocationPage />} />
           <Route path="inventory/transactions" element={<InventoryTransactionPage />} />
           <Route path="inventory/shelves" element={<ShelfManagementPage />} />
@@ -387,7 +391,11 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to={routePaths.systemDashboard} replace />} />
+        <Route index element={<Navigate to={routePaths.systemDashboardOverview} replace />} />
+        <Route
+          path="inventory"
+          element={<Navigate to={routePaths.systemDashboardOverview} replace />}
+        />
         <Route element={<RoleGate roles={INVENTORY_OPERATION_ROLES} />}>
           <Route path="inventory/receipts" element={<GoodsReceiptListPage />} />
           <Route path="inventory/receipts/new" element={<GoodsReceiptCreatePage />} />
