@@ -5,6 +5,14 @@ from app.models.interaction_event import InteractionEvent
 
 
 class InteractionEventRepository:
+    def find_purchase_line(self, db: Session, order_item_id: str) -> list[InteractionEvent]:
+        # Whole-order evidence provides the consumer batch's durable PK fence.
+        # A duplicate retry starts a new transaction/snapshot after full rollback.
+        return list(db.scalars(select(InteractionEvent).where(
+            InteractionEvent.order_item_id == order_item_id,
+            InteractionEvent.event_type == "PURCHASE",
+        )).all())
+
     def save(
         self,
         db: Session,

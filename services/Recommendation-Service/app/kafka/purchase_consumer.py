@@ -97,6 +97,9 @@ class PurchaseKafkaConsumer:
             raw_value = msg
 
         payload = decode_kafka_payload(raw_value)
+        headers = msg.headers() if callable(getattr(msg, "headers", None)) else None
+        if isinstance(headers, (list, tuple)):
+            PurchaseEventAdapter.validate_headers(payload, headers)
 
         # 3. Normalize into CanonicalInteractions
         interactions = self.adapter.to_canonical_interactions(payload)

@@ -21,14 +21,14 @@ def get_business_report_service():
     return BusinessReportService()
 
 
-@router.post("/exports", response_model=BusinessExportResponse)
+@router.post("/exports", response_model=BusinessExportResponse, response_model_exclude_none=True)
 def export_business_report(payload: BusinessExportRequest,
     user: ReportUser = Depends(require_report_user), db: Session = Depends(get_db),
     service: BusinessReportService = Depends(get_business_report_service)):
     return service.export(db, payload, user.id)
 
 
-@router.get("/exports/{export_id}", response_model=BusinessExportResponse)
+@router.get("/exports/{export_id}", response_model=BusinessExportResponse, response_model_exclude_none=True)
 def get_generated_report(export_id: UUID, user: ReportUser = Depends(require_report_user),
     db: Session = Depends(get_db), service: BusinessReportService = Depends(get_business_report_service)):
     return service.response(service.require(db, str(export_id)))
