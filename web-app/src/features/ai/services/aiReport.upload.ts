@@ -1,4 +1,4 @@
-import { ApiError } from "@hvt/api-client";
+import { ApiError } from "@/lib/api-client";
 
 /** Private capability PUT: no JWT/internal headers; cross-origin credentials disabled. */
 export function putAiReportOriginal(url: string, file: File, contentType: string,

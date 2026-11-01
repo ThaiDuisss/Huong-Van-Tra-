@@ -1,4 +1,4 @@
-import { ApiError, type ApiClient } from "@hvt/api-client";
+import { ApiError, type ApiClient } from "@/lib/api-client";
 import { apiClient } from "../../../api/api-client";
 import type { InitUploadResponse } from "../../../api/file.api";
 import type { AiReport, AiReportCreate, AiReportImportInput, AiReportImportOperation,
@@ -8,7 +8,7 @@ import { AI_REPORT_CONTENT_TYPES, AI_REPORT_MAX_FILE_BYTES, aiReportContentType,
   aiReportFileType, validateAiReportFile, validateAiReportMetadata } from "../utils/ai-report.validation";
 import { putAiReportOriginal } from "./aiReport.upload";
 import type { AiBusinessExport, AiBusinessExportInput } from "../types/ai-report.types";
-import { validateBusinessPeriod, verifyBusinessDownload } from "../utils/ai-report.export";
+import { BOM_REPORT_FROM, BOM_REPORT_TO, validateBusinessPeriod, verifyBusinessDownload } from "../utils/ai-report.export";
 
 const BASE = "/recommendation/ai-reports"; // Existing apiClient base URL already includes /api.
 
@@ -24,8 +24,8 @@ function confirmedReport(value: AiReport): AiReport {
 }
 
 export interface AiReportApi {
-  exportBusinessReport(input: AiBusinessExportInput): Promise<AiBusinessExport>;
-  downloadBusinessReport(report: AiBusinessExport): Promise<Blob>;
+  exportBusinessReport(input: AiBusinessExportInput, signal?: AbortSignal): Promise<AiBusinessExport>;
+  downloadBusinessReport(report: AiBusinessExport, signal?: AbortSignal): Promise<Blob>;
   listAiReports(page: number, size: number, signal?: AbortSignal): Promise<AiReportPage>;
   getAiReport(id: string): Promise<AiReport>;
   createAiReport(input: AiReportCreate): Promise<AiReport>;
@@ -38,19 +38,35 @@ export interface AiReportApi {
 
 export function createAiReportApi(client: ApiClient = apiClient, putOriginal = putAiReportOriginal): AiReportApi {
   const api: AiReportApi = {
-    async exportBusinessReport(input) {
-      const invalid = validateBusinessPeriod(input.fromDate, input.toDate);
+    async exportBusinessReport(input, signal) {
+      const bom = input.reportType === "CUSTOM_BOM";
+      if (input.reportType !== undefined && !["PRODUCT", "CUSTOM_BOM"].includes(input.reportType)) throw new Error("Unsupported report type");
+      const invalid = bom ? (input.fromDate !== BOM_REPORT_FROM || input.toDate !== BOM_REPORT_TO ? "BOM requires fixed TEST period" : null)
+        : validateBusinessPeriod(input.fromDate, input.toDate);
       if (invalid) throw new Error(invalid);
-      const report = await client.post<AiBusinessExport>(`${BASE}/exports`, input);
+      const report = signal ? await client.post<AiBusinessExport>(`${BASE}/exports`, input, {signal})
+        : await client.post<AiBusinessExport>(`${BASE}/exports`, input);
       const expectedName = `AI_Report_HuongVanTra_${input.fromDate.replaceAll("-", "")}_${input.toDate.replaceAll("-", "")}.xlsx`;
       if (!report || typeof report.id !== "string" || !report.id || report.fileId !== report.id
         || report.fromDate !== input.fromDate || report.toDate !== input.toDate
         || report.fileName !== expectedName || !/^[0-9a-f]{64}$/.test(report.sha256)
         || Number.isNaN(Date.parse(report.generatedAt))) throw new Error("Generated export was not confirmed");
+      if (bom) {
+        const source = report.provenance, protocol = source?.protocol;
+        if (report.reportType !== "CUSTOM_BOM" || report.sourceKind !== "SYNTHETIC" || report.researchOnly !== true
+          || report.productionApproved !== false || report.status !== "COMPLETE" || !report.createdBy
+          || source?.kind !== "SYNTHETIC_BOM_RESEARCH" || source.source_kind !== "SYNTHETIC" || source.research_only !== true
+          || source.production_approved !== false || !source.dataset_id || source.model_version !== "ingredient-research-v1"
+          || ![source.dataset_sha256, source.model_sha256, source.model_fingerprint].every(v => typeof v === "string" && /^[0-9a-f]{64}$/.test(v))
+          || protocol?.name !== "BOM_TEST_TOP5_REPEAT_V1" || protocol.mode !== "CUSTOM_BOM" || protocol.policy !== "REPEAT"
+          || protocol.top_k !== 5 || protocol.as_of !== "2026-04-01T00:00:00+00:00"
+          || protocol.label_end_exclusive !== "2026-05-01T00:00:00+00:00") throw new Error("BOM provenance was not confirmed");
+      } else if (report.reportType !== undefined && report.reportType !== "PRODUCT") throw new Error("Product receipt type mismatch");
       return report;
     },
-    async downloadBusinessReport(report) {
-      const blob = await client.download(`${BASE}/exports/${encodeURIComponent(report.id)}/download`);
+    async downloadBusinessReport(report, signal) {
+      const path = `${BASE}/exports/${encodeURIComponent(report.id)}/download`;
+      const blob = signal ? await client.download(path, {signal}) : await client.download(path);
       if (!(blob instanceof Blob) || !blob.size || blob.size > AI_REPORT_MAX_FILE_BYTES
         || blob.type !== AI_REPORT_CONTENT_TYPES.XLSX) throw new Error("Invalid generated workbook response");
       await verifyBusinessDownload(blob, report);

@@ -10,6 +10,8 @@ import org.hvtra.orderservice.domain.entity.OrderReturnItem;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommand;
 import org.hvtra.orderservice.domain.entity.OrderReturnInventoryCommandLine;
 import org.hvtra.orderservice.domain.enums.OrderStatus;
+import org.hvtra.orderservice.domain.enums.PaymentStatus;
+import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.domain.enums.ReturnStatus;
 import org.hvtra.orderservice.client.PaymentClient;
 import org.hvtra.orderservice.dto.event.PaymentOrderEventPayload;
@@ -19,6 +21,7 @@ import org.hvtra.orderservice.outbox.resolver.OrderOutboxTopicResolver;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,6 +40,7 @@ public class OrderOutboxPublisher {
 
     private final OutboxEventService<OrderOutboxEvent> orderOutboxEventService;
     private final OrderOutboxTopicResolver orderOutboxTopicResolver;
+    private final OrderStatusHistoryRepository orderStatusHistoryRepository;
 
     public void publishPaymentCompletedOrchestration(Order order, String paymentEventId) {
         publishPaymentCompletedOrchestration(order, paymentEventId, null);
@@ -60,6 +64,16 @@ public class OrderOutboxPublisher {
     }
 
     public void publishOrderCompleted(Order order, String causationId, String sagaId) {
+        // Payment confirmation must never reserve the completion business key.
+        if (order.getStatus() != OrderStatus.COMPLETED || order.getPaymentStatus() != PaymentStatus.PAID) {
+            return;
+        }
+        List<Map<String, Object>> items = orderItems(order);
+        if (items.isEmpty() || items.stream().anyMatch(item -> item.get("orderItemId") == null
+                || item.get("productVariantId") == null || item.get("quantity") == null
+                || ((BigDecimal) item.get("quantity")).signum() <= 0)) {
+            throw new IllegalStateException("Completion requires persisted line identities and positive quantities");
+        }
         publish(order, OrderEventType.ORDER_COMPLETED, causationId, "order-completed", sagaId);
     }
 
@@ -493,6 +507,19 @@ public class OrderOutboxPublisher {
         payload.put("occurredAt", Instant.now());
 
         if (OrderEventType.ORDER_COMPLETED.equals(eventType)) {
+            Instant completedAt = order.isOfflineSale() && order.getSoldAt() != null
+                    ? order.getSoldAt()
+                    : orderStatusHistoryRepository
+                            .findFirstByOrderIdAndToStatusAndIsDeletedFalseOrderByChangedAtDesc(
+                                    order.getId(), OrderStatus.COMPLETED)
+                            .orElseThrow(() -> new IllegalStateException("Missing authoritative completion history"))
+                            .getChangedAt();
+            if (completedAt == null) {
+                throw new IllegalStateException("Missing authoritative completion timestamp");
+            }
+            payload.put("eventVersion", 1);
+            payload.put("sourceService", SOURCE);
+            payload.put("completedAt", completedAt);
             payload.put("items", orderItems(order));
             // Thông tin hiển thị trên hóa đơn gửi email cho khách (Notification-Service).
             payload.put("originalAmount", order.getOriginalAmount());
@@ -742,6 +769,7 @@ public class OrderOutboxPublisher {
     private Map<String, Object> orderItem(OrderItem item) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("orderItemId", item.getId() == null ? null : item.getId().toString());
+        map.put("purchaseType", item.getItemType() == null ? null : item.getItemType().name());
         map.put("productVariantId", item.getProductVariantId() == null ? null : item.getProductVariantId().toString());
         map.put("sku", item.getSkuSnapshot());
         map.put("productName", item.getProductNameSnapshot());

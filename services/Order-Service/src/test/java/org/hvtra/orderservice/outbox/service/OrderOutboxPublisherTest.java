@@ -4,6 +4,8 @@ import org.hvtra.commonservice.common_core.kafka.outbox.dto.OutboxSaveCommand;
 import org.hvtra.commonservice.common_core.kafka.outbox.service.OutboxEventService;
 import org.hvtra.orderservice.domain.entity.Order;
 import org.hvtra.orderservice.domain.entity.OrderItem;
+import org.hvtra.orderservice.domain.entity.OrderStatusHistory;
+import org.hvtra.orderservice.repository.OrderStatusHistoryRepository;
 import org.hvtra.orderservice.domain.entity.OrderOutboxEvent;
 import org.hvtra.orderservice.domain.entity.OrderReturn;
 import org.hvtra.orderservice.domain.entity.OrderReturnItem;
@@ -28,6 +30,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -37,6 +40,8 @@ class OrderOutboxPublisherTest {
 
     @Mock
     private OutboxEventService<OrderOutboxEvent> orderOutboxEventService;
+    @Mock
+    private OrderStatusHistoryRepository historyRepository;
 
     private OrderOutboxTopicResolver orderOutboxTopicResolver;
 
@@ -48,7 +53,10 @@ class OrderOutboxPublisherTest {
     @BeforeEach
     void setUp() {
         orderOutboxTopicResolver = new OrderOutboxTopicResolver();
-        publisher = new OrderOutboxPublisher(orderOutboxEventService, orderOutboxTopicResolver);
+        publisher = new OrderOutboxPublisher(orderOutboxEventService, orderOutboxTopicResolver, historyRepository);
+        lenient().when(historyRepository.findFirstByOrderIdAndToStatusAndIsDeletedFalseOrderByChangedAtDesc(
+                any(), eq(OrderStatus.COMPLETED))).thenReturn(Optional.of(OrderStatusHistory.builder()
+                .changedAt(Instant.parse("2026-10-01T08:00:00Z")).build()));
     }
 
     @Test
@@ -126,6 +134,9 @@ class OrderOutboxPublisherTest {
         assertEquals("COMPLETED", payload.get("orderStatus"));
         assertEquals("PAID", payload.get("paymentStatus"));
         assertNotNull(payload.get("occurredAt"));
+        assertEquals(1, payload.get("eventVersion"));
+        assertEquals("order-service", payload.get("sourceService"));
+        assertEquals(Instant.parse("2026-10-01T08:00:00Z"), payload.get("completedAt"));
         // Thông tin dùng cho hóa đơn gửi email
         assertEquals("Nguyễn Văn A", payload.get("customerName"));
         assertEquals("khach@example.com", payload.get("customerEmail"));
@@ -140,6 +151,7 @@ class OrderOutboxPublisherTest {
 
         Map<String, Object> firstItem = items.get(0);
         assertEquals(variantId1.toString(), firstItem.get("productVariantId"));
+        assertEquals("PRODUCT", firstItem.get("purchaseType"));
         assertEquals("SKU-TRA-OLONG-100G", firstItem.get("sku"));
         assertEquals("Trà Ô Long Thuần", firstItem.get("productName"));
         assertEquals(new BigDecimal("2.000"), firstItem.get("quantity"));
@@ -184,6 +196,7 @@ class OrderOutboxPublisherTest {
                 .discountAmount(BigDecimal.ZERO)
                 .lineTotal(new BigDecimal("50000.00"))
                 .build();
+        item.setId(UUID.randomUUID());
         order.setItems(List.of(item));
 
         publisher.publishPaymentCompletedOrchestration(order, "PAY-EVENT-02");

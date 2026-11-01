@@ -12,6 +12,7 @@ import org.hvtra.orderservice.dto.request.UpdateOrderStatusRequest;
 import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.repository.OrderRepository;
+import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
 import org.hvtra.orderservice.service.support.OrderStatusHistoryWriter;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +59,8 @@ class OrderStatusManagementServiceImplTest {
 
     @Mock
     private OrderBackorderSupport orderBackorderSupport;
+    @Mock
+    private OrderOutboxPublisher orderOutboxPublisher;
 
     private OrderStatusManagementServiceImpl service;
 
@@ -69,7 +72,8 @@ class OrderStatusManagementServiceImplTest {
                 orderResponseAssembler,
                 catalogClient,
                 inventoryClient,
-                orderBackorderSupport
+                orderBackorderSupport,
+                orderOutboxPublisher
         );
     }
 
@@ -112,6 +116,7 @@ class OrderStatusManagementServiceImplTest {
         service.updateOrderStatus(orderId, request);
 
         verify(inventoryClient).consumeMaterials(new InventoryClient.ReleaseInventoryReservationOrderRequest(orderId));
+        verify(orderOutboxPublisher).publishOrderCompleted(order, null, null);
         assertEquals(OrderInventoryProcessingStatus.CONSUMED, order.getInventoryProcessingStatus());
         assertEquals(OrderStatus.COMPLETED, order.getStatus());
     }
