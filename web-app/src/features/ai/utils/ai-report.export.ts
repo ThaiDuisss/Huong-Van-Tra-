@@ -1,6 +1,8 @@
 import type { AiBusinessExport, AiBusinessExportInput } from "../types/ai-report.types";
 
 export type BusinessExportRecovery = AiBusinessExportInput & {report?: AiBusinessExport};
+export const BOM_REPORT_FROM = "2026-04-01";
+export const BOM_REPORT_TO = "2026-04-30";
 const recoveryKey = (actor: string) => `hvt:ai-business-export:${actor}`;
 
 export function readBusinessExportRecovery(actor?: string): BusinessExportRecovery | null {
@@ -19,6 +21,26 @@ export function saveBusinessExportRecovery(actor: string | undefined, record: Bu
     if (record) sessionStorage.setItem(recoveryKey(actor), JSON.stringify({requestId: record.requestId, fromDate: record.fromDate, toDate: record.toDate}));
     else sessionStorage.removeItem(recoveryKey(actor));
   } catch { /* In-memory retry is still available while this dialog is mounted. */ }
+}
+
+// Separate typed recovery identity; legacy Product storage/payload remains unchanged.
+export function readBomExportRecovery(actor?: string): BusinessExportRecovery | null {
+  if (!actor) return null;
+  try {
+    const r = JSON.parse(sessionStorage.getItem(`hvt:ai-bom-export:${actor}`) || "null") as BusinessExportRecovery | null;
+    if (!r || r.reportType !== "CUSTOM_BOM" || !/^[0-9a-f-]{36}$/i.test(r.requestId)
+        || r.fromDate !== BOM_REPORT_FROM || r.toDate !== BOM_REPORT_TO) return null;
+    return {requestId: r.requestId, fromDate: BOM_REPORT_FROM, toDate: BOM_REPORT_TO, reportType: "CUSTOM_BOM"};
+  } catch {return null;}
+}
+
+export function saveBomExportRecovery(actor: string | undefined, record: BusinessExportRecovery | null): void {
+  if (!actor) return;
+  try {
+    if (record) sessionStorage.setItem(`hvt:ai-bom-export:${actor}`, JSON.stringify({requestId: record.requestId,
+      fromDate: BOM_REPORT_FROM, toDate: BOM_REPORT_TO, reportType: "CUSTOM_BOM"}));
+    else sessionStorage.removeItem(`hvt:ai-bom-export:${actor}`);
+  } catch { /* Same-intent retry remains available in memory. */ }
 }
 
 export function vietnamToday(now = new Date()): string {

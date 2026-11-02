@@ -1,14 +1,23 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import { ApiError } from "@/lib/api-client";
 import type { AiReportApi } from "../services/aiReport.api";
 import { aiReportErrorMessage } from "../utils/ai-report.errors";
-import { readBusinessExportRecovery, saveBusinessExportRecovery, saveBusinessDownload, validateBusinessPeriod, vietnamToday,
+import { BOM_REPORT_FROM, BOM_REPORT_TO, readBomExportRecovery, saveBomExportRecovery,
+  readBusinessExportRecovery, saveBusinessExportRecovery, saveBusinessDownload, validateBusinessPeriod, vietnamToday,
   type BusinessExportRecovery } from "../utils/ai-report.export";
 
+type ReportKind = "PRODUCT" | "CUSTOM_BOM";
+
 export function AiReportExportDialog({api, actor, onClose, onExported}: {
-  api: AiReportApi; actor?: string; onClose(): void; onExported(): void;
+  api: AiReportApi; actor?: string;
+  onClose(): void; onExported(kind: ReportKind): void;
 }) {
   const today = vietnamToday();
+  const [kind, setKind] = useState<ReportKind>("PRODUCT");
+  const [bomRecovery] = useState(() => readBomExportRecovery(actor));
+  const [bomRetrying, setBomRetrying] = useState(Boolean(bomRecovery));
+  const bomAttempt = useRef<BusinessExportRecovery | null>(bomRecovery);
   const [recovery] = useState(() => readBusinessExportRecovery(actor));
   const [fromDate, setFromDate] = useState(recovery?.fromDate || today.slice(0, 8) + "01");
   const [toDate, setToDate] = useState(recovery?.toDate || today);
@@ -18,9 +27,43 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
   const [retrying, setRetrying] = useState(Boolean(recovery));
   const attempt = useRef<BusinessExportRecovery | null>(recovery);
   const running = useRef(false);
+  const bomController = useRef<AbortController | null>(null);
+  useEffect(() => () => bomController.current?.abort(), []);
+
+  async function submitBom() {
+    if (!bomAttempt.current) bomAttempt.current = {requestId: crypto.randomUUID(), reportType: "CUSTOM_BOM",
+      fromDate: BOM_REPORT_FROM, toDate: BOM_REPORT_TO};
+    saveBomExportRecovery(actor, bomAttempt.current);
+    const controller = new AbortController();
+    bomController.current = controller;
+    running.current = true; setBusy(true); setError(null); setStage("Đang tạo báo cáo BOM...");
+    try {
+      const intent = bomAttempt.current;
+      if (!intent.report) intent.report = await api.exportBusinessReport({requestId: intent.requestId,
+        fromDate: intent.fromDate, toDate: intent.toDate, reportType: "CUSTOM_BOM"}, controller.signal);
+      if (controller.signal.aborted) return;
+      setStage("Đang tải Excel BOM...");
+      const blob = await api.downloadBusinessReport(intent.report, controller.signal);
+      if (controller.signal.aborted) return;
+      saveBusinessDownload(blob, intent.report.fileName);
+      saveBomExportRecovery(actor, null);
+      onExported("CUSTOM_BOM");
+    } catch (failure) {
+      if (controller.signal.aborted) return;
+      setBomRetrying(true);
+      setError(failure instanceof ApiError && failure.status === 503
+        ? "Nguồn model/dataset BOM chưa được cấu hình hoặc không khả dụng. Vui lòng liên hệ quản trị."
+        : aiReportErrorMessage(failure, "Không thể xuất báo cáo BOM. Vui lòng thử lại cùng lượt xuất."));
+    } finally {
+      running.current = false;
+      if (!controller.signal.aborted) {setBusy(false); setStage("");}
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (running.current) return;
+    if (kind === "CUSTOM_BOM") {await submitBom(); return;}
     const invalid = validateBusinessPeriod(fromDate, toDate);
     if (invalid) {setError(invalid); return;}
     if (!attempt.current) attempt.current = {requestId: crypto.randomUUID(), fromDate, toDate};
@@ -36,7 +79,7 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
       const blob = await api.downloadBusinessReport(intent.report);
       saveBusinessDownload(blob, intent.report.fileName);
       saveBusinessExportRecovery(actor, null);
-      onExported();
+      onExported("PRODUCT");
     } catch (failure) {
       setRetrying(true);
       setError(aiReportErrorMessage(failure, "Không thể xuất báo cáo AI. Vui lòng thử lại."));
@@ -45,30 +88,48 @@ export function AiReportExportDialog({api, actor, onClose, onExported}: {
     }
   }
   return <Dialog open onOpenChange={(open) => {if (!open && !busy) onClose();}}>
-    <DialogContent className="w-[min(640px,calc(100vw-32px))]!">
+    <DialogContent className="w-[min(640px,calc(100vw-32px))]! overflow-y-auto!">
       <form noValidate aria-busy={busy} onSubmit={(event) => void submit(event)}>
         <DialogHeader><DialogTitle>Xuất báo cáo AI</DialogTitle>
-          <DialogDescription>Xuất Excel bốn trang từ gợi ý đã ghi nhận và đơn mua thực tế.</DialogDescription></DialogHeader>
+          <DialogDescription>Chọn loại báo cáo cần xuất.</DialogDescription>
+        </DialogHeader>
         <div className="grid gap-4 px-6 py-5">
-          <div className="grid grid-cols-2 gap-4">
+          <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
+            <legend className="mb-2 text-sm font-semibold">Loại báo cáo</legend>
+            {([["PRODUCT", "Theo sản phẩm"], ["CUSTOM_BOM", "Theo BOM"]] as const).map(([value, label]) =>
+              <label key={value} className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm font-semibold ${kind === value ? "border-[#159734] bg-[#edf8ef]" : "border-pos-border"}`}>
+                <input type="radio" name="ai-report-kind" value={value} checked={kind === value} onChange={() => {
+                  setKind(value); setError(null);
+                }} />{label}
+              </label>)}
+          </fieldset>
+          {kind === "PRODUCT" ? <div className="grid grid-cols-2 gap-4">
             <label className="grid gap-2 text-sm font-semibold">Từ ngày
               <input aria-label="Từ ngày" type="date" value={fromDate} max={today} disabled={busy || retrying}
                 className="h-10 rounded-lg border border-pos-border px-3" onChange={(event) => setFromDate(event.target.value)} /></label>
             <label className="grid gap-2 text-sm font-semibold">Đến ngày
               <input aria-label="Đến ngày" type="date" value={toDate} min={fromDate} max={today} disabled={busy || retrying}
                 className="h-10 rounded-lg border border-pos-border px-3" onChange={(event) => setToDate(event.target.value)} /></label>
-          </div>
-          <p className="text-sm leading-6 text-[#536078]">Ngày tính theo giờ Việt Nam. Gợi ý chưa đủ thời gian đánh giá được ghi riêng; báo cáo không xác nhận khách đã xem gợi ý.</p>
+          </div> : <div className="grid gap-3">
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
+              DỮ LIỆU MÔ PHỎNG (SYNTHETIC) — KHÔNG PHẢI BÁO CÁO KINH DOANH THỰC TẾ.
+            </p>
+            <p className="text-sm text-[#536078]">BOM 4 sheet · CUSTOM_BOM/REPEAT · Top-5 tại 01/04/2026 UTC, đối chiếu TEST đến trước 01/05/2026 UTC. Kỳ BOM cố định, không dùng kỳ sản phẩm.</p>
+            <p className="text-xs leading-5 text-[#536078]">Dùng quyền đăng nhập hiện tại. Bản xuất được lưu theo mã xuất của hệ thống; danh sách báo cáo gốc không tự thêm bản xuất này.</p>
+            {bomRetrying ? <p className="text-sm text-[#536078]">Thử lại giữ nguyên mã lượt xuất và tải file đã tạo nếu đã có receipt.</p> : null}
+          </div>}
           {busy ? <p role="status" className="text-sm font-semibold">{stage}</p> : null}
           {error ? <p role="alert" className="text-sm font-semibold text-red-700">{error}</p> : null}
-          {retrying ? <p className="text-sm text-[#536078]">Thử lại sẽ dùng cùng lượt xuất để tránh tạo file trùng.</p> : null}
+          {kind === "PRODUCT" && retrying ? <p className="text-sm text-[#536078]">Thử lại sẽ dùng cùng lượt xuất để tránh tạo file trùng.</p> : null}
         </div>
         <DialogFooter>
           <button type="button" disabled={busy} onClick={onClose} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold disabled:opacity-50">Đóng</button>
-          {retrying ? <button type="button" disabled={busy} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold"
+          {kind === "PRODUCT" && retrying ? <button type="button" disabled={busy} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold"
             onClick={() => {attempt.current = null; saveBusinessExportRecovery(actor, null); setRetrying(false); setError(null);}}>Chọn kỳ khác</button> : null}
+          {kind === "CUSTOM_BOM" && bomRetrying ? <button type="button" disabled={busy} className="h-10 rounded-lg border border-pos-border px-4 text-sm font-bold"
+            onClick={() => {bomAttempt.current = null; saveBomExportRecovery(actor, null); setBomRetrying(false); setError(null);}}>Tạo lượt xuất BOM mới</button> : null}
           <button type="submit" disabled={busy} className="h-10 rounded-lg bg-[#159734] px-4 text-sm font-bold text-white disabled:opacity-50">
-            {busy ? stage : retrying ? "Thử lại xuất báo cáo" : "Xuất báo cáo AI"}</button>
+            {busy ? stage : "Xuất báo cáo"}</button>
         </DialogFooter>
       </form>
     </DialogContent>

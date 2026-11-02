@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     ai_report_evaluation_days: int = Field(default=7, ge=1, le=90)
     ai_report_max_period_days: int = Field(default=366, ge=1, le=366)
     ai_report_max_evidence_rows: int = Field(default=20000, ge=1, le=100000)
+    # Official authenticated BOM reports: explicit trusted server configuration only.
+    # Independent of standalone demo mode/token and never loaded at app startup.
+    ai_report_bom_enabled: bool = False
+    ai_report_bom_dataset_path: str | None = None
+    ai_report_bom_dataset_sha256: str | None = None
+    ai_report_bom_dataset_id: str | None = None
+    ai_report_bom_model_path: str | None = None
+    ai_report_bom_model_sha256: str | None = None
 
     model_artifact_path: str = "artifacts/lightfm_model.pkl"  # Legacy research training only.
     v1_artifact_path: str = "artifacts/v1_hybrid_model.npz"

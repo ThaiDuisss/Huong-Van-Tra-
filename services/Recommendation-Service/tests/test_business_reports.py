@@ -252,6 +252,47 @@ class PurchaseIngestionTests(DbFixture, unittest.TestCase):
     def test_same_order_new_transport_event_does_not_duplicate_report_sales(self):
         self.consume(); self.consume(dict(self.payload, eventId=str(uuid4())))
         self.assertEqual(len(self.db.scalars(select(CompletedPurchaseOrder)).all()), 1)
+        self.assertEqual(len(self.db.scalars(select(InteractionEvent)).all()), 2)
+        self.assertEqual(self.interactions.customer_interaction_repository.apply_interaction.call_count, 2)
+
+    def test_business_completion_time_survives_transport_retry(self):
+        self.payload["completedAt"] = "2026-10-12T08:00:00Z"
+        first = self.consume()
+        self.consume(dict(self.payload, eventId=str(uuid4()), occurredAt="2026-10-12T10:00:00Z"))
+        self.assertEqual(first[0].event_time.hour, 8)
+        self.assertEqual(len(self.db.scalars(select(InteractionEvent)).all()), 2)
+
+    def test_conflicting_customer_order_price_variant_or_time_rejects_atomically(self):
+        self.consume()
+        for change in (dict(customerId="other"), dict(orderId=str(uuid4())),
+                       dict(occurredAt="2026-10-12T09:00:01Z"),
+                       dict(items=[dict(self.payload["items"][0], unitPrice=99), self.payload["items"][1]]),
+                       dict(items=[dict(self.payload["items"][0], productVariantId="v-b"), self.payload["items"][1]])):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                self.consume(dict(self.payload, eventId=str(uuid4()), **change))
+            self.assertEqual(len(self.db.scalars(select(InteractionEvent)).all()), 2)
+
+    def test_unknown_variant_or_contradicting_product_never_writes(self):
+        from app.service.product_resolver import ProductResolutionError
+        invalid = dict(self.payload, items=[dict(self.payload["items"][0], productId="wrong")])
+        with self.assertRaises(ProductResolutionError): self.consume(invalid)
+        self.interactions.product_resolver.resolve_variant.side_effect = None
+        self.interactions.product_resolver.resolve_variant.return_value = None
+        with self.assertRaises(ProductResolutionError): self.consume()
+        self.assertEqual(self.db.scalars(select(InteractionEvent)).all(), [])
+
+    def test_invalid_legacy_or_custom_payload_never_commits_offset(self):
+        import json
+        for change in (dict(items=[]), dict(orderStatus="PAYMENT_CONFIRMED"),
+                       dict(items=[dict(self.payload["items"][0], purchaseType="CUSTOM_BOM")])):
+            msg = MagicMock(); msg.error.return_value = None
+            msg.value.return_value = json.dumps(dict(self.payload, **change)).encode()
+            consumer = PurchaseKafkaConsumer(consumer=MagicMock(), interaction_service=self.interactions,
+                session_factory=lambda: Session(self.engine, expire_on_commit=False), settings=settings())
+            with patch("app.kafka.purchase_consumer.commit_message_offset") as committed:
+                with self.assertRaises(PurchaseEventValidationError): consumer.consume_message(msg)
+                committed.assert_not_called()
+        self.assertEqual(self.db.scalars(select(InteractionEvent)).all(), [])
 
     def test_conflicting_duplicate_order_rolls_back_whole_batch(self):
         self.consume()

@@ -139,8 +139,8 @@ export function AiReportsPage({ api = getAiReportApi() }: { api?: AiReportApi | 
             </span>
           </>
         }
-        description="Quản lý báo cáo gốc và xuất báo cáo gợi ý, mua trà theo kỳ."
         title="Báo cáo AI"
+        description=""
       />
       {feedback ? (
         <p
@@ -208,7 +208,12 @@ export function AiReportsPage({ api = getAiReportApi() }: { api?: AiReportApi | 
         />
       ) : null}
       {api && exportOpen ? <AiReportExportDialog key={`export:${keycloakSubject ?? "anonymous"}`} api={api} actor={keycloakSubject}
-        onClose={() => setExportOpen(false)} onExported={() => {setExportOpen(false); setFeedback("Đã xuất và tải báo cáo AI.");}} /> : null}
+        onClose={() => setExportOpen(false)} onExported={(kind) => {
+          setExportOpen(false);
+          setFeedback(kind === "CUSTOM_BOM"
+            ? "Đã xuất và tải báo cáo BOM (SYNTHETIC). Bản xuất được lưu theo receipt, chưa tự thêm vào danh sách báo cáo gốc."
+            : "Đã xuất và tải báo cáo AI.");
+        }} /> : null}
     </section>
   );
 }

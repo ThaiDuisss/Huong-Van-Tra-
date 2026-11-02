@@ -11,6 +11,7 @@ export const routePaths = {
   salesHistory: "/sales-history",
   system: "/system",
   aiReports: "/system/ai/reports",
+  ingredientDemo: "/system/ai/ingredient-demo",
   systemDashboard: "/system/dashboard",
   systemDashboardOverview: "/system/dashboard/overview",
   systemDashboardPos: "/system/dashboard/pos",

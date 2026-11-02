@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, createApiClient } from "@hvt/api-client";
+import { ApiError, createApiClient } from "@/lib/api-client";
 vi.mock("../../../api/api-client", () => ({apiClient: {}}));
 import { createAiReportApi } from "./aiReport.api";
 import { putAiReportOriginal } from "./aiReport.upload";

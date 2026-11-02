@@ -12,6 +12,7 @@ import org.hvtra.orderservice.dto.response.OrderResponse;
 import org.hvtra.orderservice.exception.InvalidOrderStatusException;
 import org.hvtra.orderservice.exception.OrderNotFoundException;
 import org.hvtra.orderservice.repository.OrderRepository;
+import org.hvtra.orderservice.outbox.service.OrderOutboxPublisher;
 import org.hvtra.orderservice.service.OrderStatusManagementService;
 import org.hvtra.orderservice.service.support.OrderBackorderSupport;
 import org.hvtra.orderservice.service.support.OrderResponseAssembler;
@@ -35,6 +36,7 @@ public class OrderStatusManagementServiceImpl implements OrderStatusManagementSe
     private final CatalogClient catalogClient;
     private final InventoryClient inventoryClient;
     private final OrderBackorderSupport orderBackorderSupport;
+    private final OrderOutboxPublisher orderOutboxPublisher;
 
     @Override
     @Transactional
@@ -99,6 +101,9 @@ public class OrderStatusManagementServiceImpl implements OrderStatusManagementSe
         order.setStatus(request.getStatus());
         Order savedOrder = orderRepository.save(order);
         orderStatusHistoryWriter.write(savedOrder, oldStatus, request.getStatus(), request.getNote(), null);
+        if (request.getStatus() == OrderStatus.COMPLETED && savedOrder.getPaymentStatus() == PaymentStatus.PAID) {
+            orderOutboxPublisher.publishOrderCompleted(savedOrder, null, null);
+        }
 
         return orderResponseAssembler.toResponse(savedOrder);
     }

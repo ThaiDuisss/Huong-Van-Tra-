@@ -1,4 +1,4 @@
-import { ApiError } from "@hvt/api-client";
+import { ApiError } from "@/lib/api-client";
 import type { AiReportImportProgress } from "../types/ai-report.types";
 
 export class AiReportImportError extends Error {
