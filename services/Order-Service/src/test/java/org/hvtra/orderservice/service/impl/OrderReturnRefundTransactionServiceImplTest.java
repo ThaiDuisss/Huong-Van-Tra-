@@ -36,6 +36,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -184,5 +186,41 @@ class OrderReturnRefundTransactionServiceImplTest {
                 InvalidOrderReturnException.class,
                 () -> service.applyRefundSuccess(returnId, invalidRefund, null)
         );
+    }
+
+    @Test
+    void serializedRepeatedSuccessPublishesCompletionOnlyOnce() {
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(orderReturn));
+        PaymentClient.PaymentRefundResponse paymentRefund = new PaymentClient.PaymentRefundResponse(
+                paymentId, orderId, transactionId, returnId, new BigDecimal("300000"),
+                new BigDecimal("300000"), "REFUNDED", "CASH", null);
+        var first = service.applyRefundSuccess(returnId, paymentRefund, null);
+        var second = service.applyRefundSuccess(returnId, paymentRefund, null);
+        assertEquals(first.getRefundTransactionId(), second.getRefundTransactionId());
+        assertEquals(first.getTotalAmountRefunded(), second.getTotalAmountRefunded());
+        verify(orderReturnRepository, times(1)).save(orderReturn);
+        verify(orderOutboxPublisher, times(1)).publishReturnRefundCompletedNotification(
+                eq(orderReturn), eq(ReturnStatus.COMPLETED), isNull(), eq(paymentRefund));
+        verify(orderOutboxPublisher, times(1)).publishReturnCompletedNotification(
+                eq(orderReturn), eq(ReturnStatus.RECEIVED), isNull());
+        verify(orderOutboxPublisher, never()).publishReturnCompletedNotification(
+                eq(orderReturn), eq(ReturnStatus.COMPLETED), isNull());
+    }
+
+    @Test
+    void latePartialResponseCannotDowngradeAlreadyFullyRefundedOrder() {
+        order.setPaymentStatus(PaymentStatus.REFUNDED);
+        when(orderReturnRepository.findByIdAndIsDeletedFalseForUpdate(returnId)).thenReturn(Optional.of(orderReturn));
+        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(orderReturn));
+        var response = service.applyRefundSuccess(returnId, new PaymentClient.PaymentRefundResponse(
+                paymentId, orderId, transactionId, returnId, new BigDecimal("100000"),
+                new BigDecimal("100000"), "PARTIALLY_REFUNDED", "CASH", null), null);
+        assertEquals(PaymentStatus.REFUNDED, order.getPaymentStatus());
+        assertEquals(PaymentStatus.REFUNDED, response.getOrderPaymentStatus());
     }
 }

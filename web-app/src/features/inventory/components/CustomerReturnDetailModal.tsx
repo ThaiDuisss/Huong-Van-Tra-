@@ -1,5 +1,5 @@
 import { ExternalLink, PackageCheck, Plus, RefreshCw, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CUSTOMER_RETURN_QC_ROLES, useAuthorization } from "../../../auth/role-utils";
 
@@ -57,6 +57,7 @@ export function CustomerReturnDetailModal({
     const [receiveMessage, setReceiveMessage] = useState("");
     const [showReceiveConfirm, setShowReceiveConfirm] = useState(false);
     const [receiveConfirmError, setReceiveConfirmError] = useState("");
+    const dialogRef = useRef<HTMLElement>(null);
 
     const [reloadKey, setReloadKey] = useState(0);
 
@@ -83,7 +84,7 @@ export function CustomerReturnDetailModal({
                 .then(([returnDetail, inspectionRes, qcRes]) => {
                     if (!active) return;
                     setDetail(returnDetail);
-                    setInspections(inspectionRes?.content ?? []);
+                    setInspections((inspectionRes?.content ?? []).filter((inspection) => inspection.returnId === returnItem.id));
                     setQcSummary(qcRes);
                 })
                 .catch((loadError: unknown) => {
@@ -98,6 +99,15 @@ export function CustomerReturnDetailModal({
             active = false;
         };
     }, [isOpen, returnItem.id, returnItem.returnCode, reloadKey]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const previous = document.activeElement;
+        dialogRef.current?.focus({ preventScroll: true });
+        return () => {
+            if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+        };
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -167,7 +177,9 @@ export function CustomerReturnDetailModal({
                 aria-modal="true"
                 className={styles.modalCard}
                 onClick={(e) => e.stopPropagation()}
+                ref={dialogRef}
                 role="dialog"
+                tabIndex={-1}
             >
                 <div className={styles.modalHeader}>
                     <div className={styles.headerTitleGroup}>
@@ -307,7 +319,7 @@ export function CustomerReturnDetailModal({
                                     type="button"
                                 >
                                     <Plus aria-hidden="true" size={16} />
-                                    {qcProgressStatus.status === "PARTIAL" ? "Tiếp tục kiểm định" : "Kiểm định hàng"}
+                                    {qcProgressStatus.status === "PROCESSING" ? "Tiếp tục kiểm định" : "Bắt đầu kiểm định"}
                                 </button>
                             ) : null}
                         </div>
@@ -394,22 +406,11 @@ export function CustomerReturnDetailModal({
                                     {isCreated
                                         ? "Phiếu hoàn đang chờ nhận hàng tại cửa hàng. Sau khi nhận hàng, nhân viên có thể tiến hành kiểm định chất lượng."
                                         : isReceived
-                                            ? "Phiếu hoàn chưa có phiếu kiểm định nào được ghi nhận. Bạn có thể bấm 'Kiểm định hàng' để bắt đầu."
+                                            ? "Phiếu hoàn chưa có phiếu kiểm định nào được ghi nhận. Bạn có thể bấm 'Bắt đầu kiểm định' ở đầu phần này."
                                             : isCompleted
                                                 ? "Phiếu hoàn đã hoàn tất quy trình."
                                                 : "Phiếu hoàn không phát sinh kiểm định."}
                                 </p>
-                                {canInspect ? (
-                                    <button
-                                        className={styles.primaryButton}
-                                        onClick={handleStartInspection}
-                                        style={{ marginTop: "6px" }}
-                                        type="button"
-                                    >
-                                        <Plus aria-hidden="true" size={16} />
-                                        Bắt đầu kiểm định
-                                    </button>
-                                ) : null}
                             </div>
                         )}
                     </section>

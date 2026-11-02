@@ -1,0 +1,68 @@
+.triggerWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trigger {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #536078;
+}
+
+.trigger:hover {
+  border-color: #dfe6ee;
+  background: #f8faf9;
+  color: #172317;
+}
+
+.trigger:focus-visible,
+.menu button:focus-visible {
+  outline: 2px solid #07883a;
+  outline-offset: 2px;
+}
+
+.menu {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  width: 210px;
+  max-width: calc(100vw - 16px);
+  overflow-y: auto;
+  gap: 2px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 6px;
+  box-shadow: 0 16px 34px rgb(31 53 43 / 0.14);
+  font-family: var(--font-sans);
+}
+
+.menu button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #172317;
+  padding: 6px 10px;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.menu button:hover:not(:disabled),
+.menu button:focus-visible {
+  background: #f4f7f5;
+}
+
+.menu button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

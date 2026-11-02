@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { TimeSidebar } from "@/components/shared/TimeSidebar";
+import { useTimeFilter } from "@/components/shared/useTimeFilter";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
 import { ConfirmDialog } from "../../product/components/ConfirmDialog";
@@ -19,6 +21,7 @@ import type {
     DisposalStatusCounts
 } from "../types/quality.types";
 import styles from "./CustomerReturnListPage.module.css";
+import disposalStyles from "./DisposalListPage.module.css";
 import { isCustomerReturnDisposal } from "../utils/inventory-labels";
 import { ROLES } from "../../../auth/roles";
 
@@ -36,6 +39,7 @@ export function DisposalListPage() {
     const keyword = useDebouncedValue(searchTerm.trim(), 300);
     const [status, setStatus] = useState<DisposalListQuery["status"]>("ALL");
     const [page, setPage] = useState(0);
+    const [isTimeCollapsed, setIsTimeCollapsed] = useState(true);
     const [reloadKey, setReloadKey] = useState(0);
     const [result, setResult] = useState<DisposalListResult | null>(null);
     const [statusCounts, setStatusCounts] = useState<DisposalStatusCounts | null>(null);
@@ -46,16 +50,27 @@ export function DisposalListPage() {
     const [confirmRequest, setConfirmRequest] = useState<DisposalRequest | null>(null);
     const [approvalError, setApprovalError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [openActionId, setOpenActionId] = useState<string | null>(null);
+    const { selectedTimeNode, selectTimeNode, timeRange, timeZone } = useTimeFilter(() => {
+        setOpenActionId(null);
+        setPage(0);
+    });
 
     useEffect(() => {
+        if (searchTerm.trim() !== keyword) return;
         let active = true;
         queueMicrotask(() => {
             if (!active) return;
             setLoading(true);
             setError("");
-            void qualityApi.listDisposalRequests({ keyword, page, size: PAGE_SIZE, status })
+            void qualityApi.listDisposalRequests({
+                fromDate: timeRange?.fromDate,
+                toDate: timeRange?.toDate,
+                keyword, page, size: PAGE_SIZE, status
+            })
                 .then((response) => {
                     if (!active) return;
+                    setOpenActionId(null);
                     setResult(response);
                     if (page > 0 && page >= response.totalPages) {
                         setPage(Math.max(0, response.totalPages - 1));
@@ -73,7 +88,7 @@ export function DisposalListPage() {
                 });
         });
         return () => { active = false; };
-    }, [keyword, page, reloadKey, status]);
+    }, [keyword, page, reloadKey, searchTerm, status, timeRange?.fromDate, timeRange?.toDate]);
 
     useEffect(() => {
         let active = true;
@@ -81,7 +96,7 @@ export function DisposalListPage() {
             if (!active) return;
             setStatusCounts(null);
             setCountsError("");
-            void qualityApi.getDisposalStatusCounts(keyword || undefined)
+            void qualityApi.getDisposalStatusCounts(keyword || undefined, timeRange?.fromDate, timeRange?.toDate)
                 .then((counts) => {
                     if (active) setStatusCounts(counts);
                 })
@@ -90,7 +105,7 @@ export function DisposalListPage() {
                 });
         });
         return () => { active = false; };
-    }, [keyword, reloadKey]);
+    }, [keyword, reloadKey, timeRange?.fromDate, timeRange?.toDate]);
 
     async function approveRequest() {
         if (!confirmRequest || isCustomerReturnDisposal(confirmRequest) || submitting || !canApprove) return;
@@ -110,10 +125,20 @@ export function DisposalListPage() {
         }
     }
 
-    const hasFilter = Boolean(searchTerm.trim()) || status !== "ALL";
+    const hasFilter = Boolean(searchTerm.trim()) || status !== "ALL" || timeRange !== null;
 
     return (
-        <section className={styles.page}>
+        <section className={`${orderStyles.page} ${isTimeCollapsed ? orderStyles.pageTimeCollapsed : ""}`}>
+            <TimeSidebar
+                activeDate={timeRange?.selectedDate ?? undefined}
+                collapsed={isTimeCollapsed}
+                enableCalendar
+                onClear={() => selectTimeNode(null)}
+                onSelect={selectTimeNode}
+                onToggleCollapse={() => setIsTimeCollapsed((collapsed) => !collapsed)}
+                selectedNode={selectedTimeNode}
+                timeZone={timeZone}
+            />
             <div className={styles.content}>
                 <header className={orderStyles.header}>
                     <div className={orderStyles.title}>
@@ -126,10 +151,12 @@ export function DisposalListPage() {
                     <ListFilterBar
                         activeStatus={status}
                         onSearchChange={(value) => {
+                            setOpenActionId(null);
                             setSearchTerm(value);
                             setPage(0);
                         }}
                         onStatusChange={(value) => {
+                            setOpenActionId(null);
                             setStatus(value as DisposalListQuery["status"]);
                             setPage(0);
                         }}
@@ -146,10 +173,11 @@ export function DisposalListPage() {
                     <div className={orderStyles.tableCard}>
                         <div className={orderStyles.tableWrap}>
                             {loading || error || !result?.content.length ? (
-                                <table className={orderStyles.orderTable}>
+                                <table className={`${orderStyles.orderTable} ${styles.dataTable} ${disposalStyles.table}`}>
                                     <thead>
                                         <tr>
                                             <th>Mã yêu cầu</th>
+                                            <th>Thời gian</th>
                                             <th>Trạng thái</th>
                                             <th>Phiếu trả</th>
                                             <th>Phiếu kiểm định</th>
@@ -157,11 +185,11 @@ export function DisposalListPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {loading ? <ListMessage colSpan={5} message="Đang tải danh sách yêu cầu tiêu hủy..." /> : null}
-                                        {!loading && error ? <ListMessage colSpan={5} message="Không thể hiển thị yêu cầu tiêu hủy." /> : null}
+                                        {loading ? <ListMessage colSpan={6} message="Đang tải danh sách yêu cầu tiêu hủy..." /> : null}
+                                        {!loading && error ? <ListMessage colSpan={6} message="Không thể hiển thị yêu cầu tiêu hủy." /> : null}
                                         {!loading && !error && !result?.content.length ? (
                                             <ListMessage
-                                                colSpan={5}
+                                                colSpan={6}
                                                 message={hasFilter
                                                     ? "Chưa có yêu cầu tiêu hủy phù hợp bộ lọc."
                                                     : "Chưa có yêu cầu tiêu hủy phù hợp."}
@@ -173,6 +201,11 @@ export function DisposalListPage() {
                                 <DisposalTable
                                     canApprove={canApprove}
                                     disposals={result.content}
+                                    openActionId={openActionId}
+                                    onOpenActionChange={(requestId, open) => setOpenActionId((current) => {
+                                        if (open) return requestId;
+                                        return current === requestId ? null : current;
+                                    })}
                                     onApprove={(request) => {
                                         if (isCustomerReturnDisposal(request)) return;
                                         setApprovalError("");
@@ -184,7 +217,10 @@ export function DisposalListPage() {
                         {!loading && !error ? (
                             <ListPagination
                                 itemLabel="yêu cầu"
-                                onPageChange={setPage}
+                                onPageChange={(nextPage) => {
+                                    setOpenActionId(null);
+                                    setPage(nextPage);
+                                }}
                                 page={page}
                                 pageSize={PAGE_SIZE}
                                 totalItems={result?.totalElements ?? 0}
