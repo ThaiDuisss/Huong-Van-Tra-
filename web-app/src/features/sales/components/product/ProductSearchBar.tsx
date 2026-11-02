@@ -1,5 +1,7 @@
-import { Plus, ScanLine, Search, X } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Plus, ScanLine, Search } from "lucide-react";
 
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import type { SaleProductPreview } from "../../types/sale.types";
 
 interface ProductSearchBarProps {
@@ -25,7 +27,30 @@ export function ProductSearchBar({
   onClear,
   onAdd
 }: ProductSearchBarProps) {
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const visibleResults = results.slice(0, 5);
+
+  // Lắng nghe máy quét mã vạch toàn cục (Global Keydown Listener)
+  useBarcodeScanner({
+    onScan: (barcode) => {
+      onChange(barcode);
+    },
+    targetInputRef: searchInputRef
+  });
+
+  // Hỗ trợ phím tắt F3 để đưa con trỏ vào ô tìm kiếm
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F3") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const stockChipClass = (quantity: number) =>
     `rounded-md px-2 py-1 text-xs font-semibold ${
       quantity <= 0
@@ -42,28 +67,37 @@ export function ProductSearchBar({
           strokeWidth={1.9}
         />
         <input
+          ref={searchInputRef}
           className="h-[58px] min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-[#8b95b1]"
           aria-label="Tìm sản phẩm"
-          placeholder="Tìm hàng hóa (F3)"
+          placeholder="Tìm hàng hóa (F3) hoặc quét mã vạch"
           type="search"
           value={value}
           onChange={(event) => onChange(event.currentTarget.value)}
+          onInput={(event) => {
+            if (event.currentTarget.value === "") {
+              onClear();
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              onClear();
+            } else if (event.key === "Enter" && visibleResults.length > 0) {
+              event.preventDefault();
+              onAdd(visibleResults[0]);
+            }
+          }}
         />
-        {value ? (
-          <button
-            type="button"
-            onClick={onClear}
-            className="grid size-9 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-gray-500"
-            aria-label="Xóa từ khóa tìm kiếm"
-          >
-            <X size={22} aria-hidden="true" />
-          </button>
-        ) : null}
         <div className="h-8 w-px bg-pos-border" />
         <button
           type="button"
-          className="grid size-10 place-items-center rounded-lg text-hvt-green-700 hover:bg-hvt-green-50"
+          onClick={() => {
+            searchInputRef.current?.focus();
+            searchInputRef.current?.select();
+          }}
+          className="grid size-10 place-items-center rounded-lg text-hvt-green-700 hover:bg-hvt-green-50 cursor-pointer"
           aria-label="Quét mã vạch"
+          title="Sẵn sàng quét mã vạch (hoặc bấm F3)"
         >
           <ScanLine size={28} aria-hidden="true" />
         </button>

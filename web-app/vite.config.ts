@@ -6,6 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 import { createCatalogRuntimeCaching } from "./src/app/pwa/runtime-caching";
+import * as path from "node:path";
 
 export default defineConfig(({ mode }) => {
   const target = loadEnv(mode, process.cwd(), "VITE_INGREDIENT_DEMO_API_URL").VITE_INGREDIENT_DEMO_API_URL || "http://127.0.0.1:8096";
@@ -26,8 +27,9 @@ export default defineConfig(({ mode }) => {
   },
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url))
-    }
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@hvt/api-client": path.resolve(__dirname, "./src/lib/api-client/api-error.ts"),
+    },
   },
   plugins: [
     react(),
@@ -60,10 +62,10 @@ export default defineConfig(({ mode }) => {
             src: "pwa-512.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "maskable"
+            purpose: "maskable",
           },
-          { src: "pwa-icon.svg", sizes: "any", type: "image/svg+xml" }
-        ]
+          { src: "pwa-icon.svg", sizes: "any", type: "image/svg+xml" },
+        ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2}"],
@@ -74,12 +76,12 @@ export default defineConfig(({ mode }) => {
         skipWaiting: true,
         // Trang Keycloak dùng để check SSO phải đi thẳng, không rơi vào index.html.
         navigateFallbackDenylist: [/^\/silent-check-sso\.html/],
-        runtimeCaching: createCatalogRuntimeCaching()
+        runtimeCaching: createCatalogRuntimeCaching(),
       },
       devOptions: {
-        enabled: false
-      }
-    })
+        enabled: false,
+      },
+    }),
   ],
   };
 });

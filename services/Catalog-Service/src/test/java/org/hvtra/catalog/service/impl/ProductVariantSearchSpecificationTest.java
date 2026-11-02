@@ -1,12 +1,10 @@
 package org.hvtra.catalog.service.impl;
 
 import jakarta.persistence.EntityManager;
-import org.hvtra.catalog.entity.Barcode;
 import org.hvtra.catalog.entity.Category;
 import org.hvtra.catalog.entity.Product;
 import org.hvtra.catalog.entity.ProductVariant;
 import org.hvtra.catalog.entity.Unit;
-import org.hvtra.catalog.enums.BarcodeType;
 import org.hvtra.catalog.enums.InventoryPolicy;
 import org.hvtra.catalog.repository.ProductVariantRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,24 +45,31 @@ class ProductVariantSearchSpecificationTest {
         unit.setSymbol("hop");
         unit.setPrecisionScale(0);
         entityManager.persist(unit);
-        ProductVariant variant = new ProductVariant();
-        variant.setProduct(product);
-        variant.setSku("TS-100G");
-        variant.setVariantName("Trà sen hộp 100g");
-        variant.setQuantity(BigDecimal.ONE);
-        variant.setSellingPrice(BigDecimal.ONE);
-        variant.setCostPrice(BigDecimal.ONE);
-        variant.setUnit(unit);
-        variant.setInventoryPolicy(InventoryPolicy.TRACK_STOCK);
-        entityManager.persist(variant);
-        // Hai mã vạch cho cùng biến thể: tìm theo mã không được trả trùng dòng.
-        for (String value : new String[] {"8930000000017", "8930000000024"}) {
-            Barcode barcode = new Barcode();
-            barcode.setProductVariant(variant);
-            barcode.setBarcodeValue(value);
-            barcode.setBarcodeType(BarcodeType.EAN13);
-            entityManager.persist(barcode);
-        }
+
+        ProductVariant variant1 = new ProductVariant();
+        variant1.setProduct(product);
+        variant1.setSku("TS-100G");
+        variant1.setVariantName("Trà sen hộp 100g");
+        variant1.setBarcode("8930000000017");
+        variant1.setQuantity(BigDecimal.ONE);
+        variant1.setSellingPrice(BigDecimal.ONE);
+        variant1.setCostPrice(BigDecimal.ONE);
+        variant1.setUnit(unit);
+        variant1.setInventoryPolicy(InventoryPolicy.TRACK_STOCK);
+        entityManager.persist(variant1);
+
+        ProductVariant variant2 = new ProductVariant();
+        variant2.setProduct(product);
+        variant2.setSku("TS-200G");
+        variant2.setVariantName("Trà sen hộp 200g");
+        variant2.setBarcode("8930000000024");
+        variant2.setQuantity(BigDecimal.valueOf(2));
+        variant2.setSellingPrice(BigDecimal.valueOf(2));
+        variant2.setCostPrice(BigDecimal.valueOf(2));
+        variant2.setUnit(unit);
+        variant2.setInventoryPolicy(InventoryPolicy.TRACK_STOCK);
+        entityManager.persist(variant2);
+
         entityManager.flush();
         entityManager.clear();
     }
@@ -76,17 +81,18 @@ class ProductVariantSearchSpecificationTest {
     }
 
     @Test
-    void keywordMatchesExactBarcodeWithoutDuplicates() {
+    void keywordMatchesBarcode() {
         Page<ProductVariant> result = search("8930000000024");
 
-        assertThat(result.getContent()).extracting(ProductVariant::getSku).containsExactly("TS-100G");
+        assertThat(result.getContent()).extracting(ProductVariant::getSku).containsExactly("TS-200G");
         assertThat(result.getTotalElements()).isEqualTo(1);
     }
 
     @Test
-    void keywordStillMatchesNameAndSkuButNotPartialBarcode() {
-        assertThat(search("trà sen").getContent()).hasSize(1);
+    void keywordMatchesNameAndSku() {
+        assertThat(search("trà sen").getContent()).hasSize(2);
         assertThat(search("ts-100").getContent()).hasSize(1);
-        assertThat(search("89300000").getContent()).isEmpty();
+        assertThat(search("ts-200").getContent()).hasSize(1);
     }
 }
+

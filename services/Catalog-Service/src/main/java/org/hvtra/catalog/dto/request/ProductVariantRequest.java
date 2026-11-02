@@ -17,6 +17,7 @@ public record ProductVariantRequest(
         @NotNull UUID unitId,
         Integer reorderPoint,
         @NotNull InventoryPolicy inventoryPolicy,
-        @NotNull Status status
+        @NotNull Status status,
+        String barcode
 ) {
 }

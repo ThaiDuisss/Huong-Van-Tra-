@@ -3,7 +3,6 @@ package org.hvtra.catalog.controller;
 import org.hvtra.commonservice.common_core.domain.constants.Role;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.hvtra.catalog.dto.request.BarcodeCreateRequest;
 import org.hvtra.catalog.dto.request.ProductVariantRequest;
 import org.hvtra.catalog.dto.request.SellableConfigRequest;
 import org.hvtra.catalog.dto.request.StatusRequest;
@@ -12,7 +11,6 @@ import org.hvtra.catalog.dto.response.PageResponse;
 import org.hvtra.catalog.dto.response.ProductResponse;
 import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.service.ProductVariantService;
-import org.hvtra.catalog.service.BarcodeService;
 import org.hvtra.commonservice.common_core.exception.BusinessException;
 import org.hvtra.commonservice.common_core.logging.action.UserAction;
 import org.springframework.core.io.ByteArrayResource;
@@ -41,11 +39,9 @@ import org.springframework.http.ResponseEntity;
 @RequestMapping("/api/catalog/product-variants")
 public class ProductVariantController {
     private final ProductVariantService service;
-    private final BarcodeService barcodeService;
 
-    public ProductVariantController(ProductVariantService service, BarcodeService barcodeService) {
+    public ProductVariantController(ProductVariantService service) {
         this.service = service;
-        this.barcodeService = barcodeService;
     }
 
     @GetMapping
@@ -64,6 +60,11 @@ public class ProductVariantController {
     @GetMapping("/{id}")
     public ProductResponse.VariantResponse findById(@PathVariable("id") UUID id) {
         return service.findById(id);
+    }
+
+    @GetMapping("/by-barcode/{barcode}")
+    public ProductResponse.VariantResponse findByBarcode(@PathVariable("barcode") String barcode) {
+        return service.findByBarcode(barcode);
     }
 
     @PostMapping("/batch")
@@ -106,14 +107,6 @@ public class ProductVariantController {
         return service.updateSellableConfig(id, request);
     }
 
-    @UserAction(value = "BARCODE_CREATE", entityType = "Barcode", entityId = "#result.id", detail = "#variantId")
-    @PostMapping("/{variantId}/barcodes")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ProductResponse.BarcodeResponse createBarcode(
-            @PathVariable("variantId") UUID variantId,
-            @Valid @RequestBody BarcodeCreateRequest request) {
-        return barcodeService.create(variantId, request);
-    }
 
     @GetMapping("/export")
     public ResponseEntity<Resource> exportVariants(

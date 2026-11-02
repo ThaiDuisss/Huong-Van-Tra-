@@ -7,7 +7,9 @@ import type { ProductVariant, Unit } from "../types/product.types";
 import type { BomItemResponse } from "../../manufacturing/types/bom.types";
 import { formatCurrency } from "../utils/product-formatters";
 import { CatalogStatusBadge } from "../components/CatalogStatusBadge";
-import { ArrowLeft, Pencil, AlertCircle } from "lucide-react";
+import { ArrowLeft, Pencil, AlertCircle, Printer } from "lucide-react";
+import { BarcodeSvg } from "../components/BarcodeSvg";
+import { BulkBarcodePrintModal } from "../components/BulkBarcodePrintModal";
 
 export function ProductVariantDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -19,6 +21,7 @@ export function ProductVariantDetailPage() {
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [showPrintModal, setShowPrintModal] = useState(false);
 
     const loadData = async () => {
         if (!id) return;
@@ -114,6 +117,19 @@ export function ProductVariantDetailPage() {
                 </div>
                 <div className="flex items-center gap-3">
                     <button
+                        onClick={() => setShowPrintModal(true)}
+                        disabled={!variant.barcode}
+                        className={`flex items-center gap-1.5 rounded-xl border border-pos-border bg-white px-4 py-2.5 text-sm font-bold shadow-xs transition-all cursor-pointer ${
+                            variant.barcode
+                                ? "text-gray-700 hover:bg-neutral-50 active:scale-95"
+                                : "text-gray-400 opacity-60 cursor-not-allowed"
+                        }`}
+                        title={variant.barcode ? "In mã vạch" : "Mặt hàng này chưa có mã vạch"}
+                    >
+                        <Printer size={16} className={variant.barcode ? "text-pos-primary" : "text-gray-400"} />
+                        In mã vạch
+                    </button>
+                    <button
                         onClick={() => navigate("/system/product-variants", { state: { editVariantId: variant.id } })}
                         className="flex items-center gap-1.5 rounded-xl bg-[#07883a] px-4.5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-hvt-green-700 active:scale-95 transition-all cursor-pointer"
                     >
@@ -143,6 +159,12 @@ export function ProductVariantDetailPage() {
                             <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
                                 <span className="text-sm font-medium text-gray-500">Mã SKU</span>
                                 <span className="text-sm font-bold text-gray-800 text-right font-mono">{variant.sku}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
+                                <span className="text-sm font-medium text-gray-500">Mã vạch (Barcode)</span>
+                                <span className="text-sm font-bold text-emerald-800 text-right font-mono">
+                                    {variant.barcode || <span className="text-gray-400 font-normal italic">Chưa có mã vạch</span>}
+                                </span>
                             </div>
                             <div className="grid grid-cols-2 gap-2 border-b border-neutral-50 pb-3">
                                 <span className="text-sm font-medium text-gray-500">Định lượng</span>
@@ -180,6 +202,34 @@ export function ProductVariantDetailPage() {
                                     {variant.inventoryPolicy === "TRACK_STOCK" ? "Theo dõi tồn kho" : "Không theo dõi"}
                                 </span>
                             </div>
+                        </div>
+
+                        {/* Barcode Visual Card */}
+                        <div className="mt-2 p-4 rounded-xl border border-neutral-200 bg-neutral-50/70 flex flex-col items-center justify-center">
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hình ảnh mã vạch</span>
+                            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-2xs flex items-center justify-center min-w-[200px]">
+                                <BarcodeSvg
+                                    value={variant.barcode}
+                                    width={1.6}
+                                    height={44}
+                                    displayValue={true}
+                                    fontSize={12}
+                                />
+                            </div>
+                            {variant.barcode ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPrintModal(true)}
+                                    className="mt-3 flex items-center gap-1.5 text-xs font-bold text-pos-primary hover:text-hvt-green-700 cursor-pointer active:scale-95 transition-all"
+                                >
+                                    <Printer size={14} />
+                                    In mã vạch này
+                                </button>
+                            ) : (
+                                <span className="mt-3 text-xs text-amber-600 font-medium">
+                                    Chưa có mã vạch để in
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -238,6 +288,12 @@ export function ProductVariantDetailPage() {
                     </div>
                 </div>
             </div>
+
+            <BulkBarcodePrintModal
+                isOpen={showPrintModal}
+                onClose={() => setShowPrintModal(false)}
+                variants={variant ? [variant] : []}
+            />
         </div>
     );
 }

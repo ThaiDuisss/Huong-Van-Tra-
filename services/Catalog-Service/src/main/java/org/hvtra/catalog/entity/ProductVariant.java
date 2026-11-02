@@ -8,8 +8,6 @@ import org.hvtra.catalog.enums.InventoryPolicy;
 import org.hvtra.catalog.enums.Status;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "product_variants", uniqueConstraints = @UniqueConstraint(columnNames = "sku"))
@@ -72,11 +70,6 @@ public class ProductVariant extends BaseEntity {
     @Column(name = "custom_bundle", nullable = false)
     private boolean customBundle = false;
 
-    @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Barcode> barcodes = new ArrayList<>();
-
-    public void addBarcode(Barcode barcode) {
-        barcodes.add(barcode);
-        barcode.setProductVariant(this);
-    }
+    @Column(name = "barcode", unique = true, length = 100)
+    private String barcode;
 }
