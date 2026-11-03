@@ -305,6 +305,7 @@ public class InventoryTransactionServiceImpl implements InventoryTransactionServ
                 });
 
         InventoryBalance balance = new InventoryBalance();
+        balance.setInventoryItem(item);
         balance.setInventoryBatch(batch);
         balance.setLocation(location);
         balance.setQuantityOnHand(BigDecimal.ZERO);

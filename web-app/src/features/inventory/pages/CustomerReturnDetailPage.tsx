@@ -132,8 +132,6 @@ export function CustomerReturnDetailPage() {
                     </tr>)}</tbody>
                 </table>
             </section>}
-            {detail.status === "POSTED" ? <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">Phiếu đã được hạch toán. Kết quả kiểm định được giữ nguyên. Dòng lịch sử chưa có tình trạng thực tế được hiển thị là chưa ghi nhận.</div> : null}
-            {detail.status === "PROCESSING" ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">QC có thể xác nhận các dòng chưa xử lý. Kết quả trên các dòng đã xử lý được giữ nguyên.</div> : null}
         </> : null}
     </section>;
 }

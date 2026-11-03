@@ -1,5 +1,5 @@
 import { CheckCircle2, ShieldAlert } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
 import { useAuthorization } from "../../../auth/useAuthorization";
@@ -10,6 +10,8 @@ import type { DisposalRequest } from "../types/quality.types";
 import { formatVietnamDateTime, formatVietnamNumber } from "../utils/inventory-format";
 import { isCustomerReturnDisposal } from "../utils/inventory-labels";
 import { ROLES } from "../../../auth/roles";
+import listStyles from "./CustomerReturnListPage.module.css";
+import styles from "./DisposalDetailPage.module.css";
 
 export function DisposalDetailPage() {
     const { disposalId } = useParams();
@@ -21,6 +23,11 @@ export function DisposalDetailPage() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const titleRef = useRef<HTMLHeadingElement>(null);
+
+    useEffect(() => {
+        titleRef.current?.focus({ preventScroll: true });
+    }, [disposalId]);
 
     const load = useCallback(() => {
         if (!disposalId) return;
@@ -82,22 +89,25 @@ export function DisposalDetailPage() {
     }
 
     return (
-        <section className="grid gap-4">
-            <header>
-                <Link className="text-sm font-black text-[#159734]" to="/management/inventory/disposals">
+        <section className={styles.page}>
+            <header className={styles.header}>
+                <Link className={styles.backLink} to="/management/inventory/disposals">
                     Quay lại danh sách
                 </Link>
-                <h1 className="text-2xl font-black text-[#172317]">{disposal?.code ?? "Chi tiết tiêu hủy"}</h1>
+                <div className={styles.heading}>
+                    <h1 ref={titleRef} tabIndex={-1}>{disposal?.code ?? "Chi tiết tiêu hủy"}</h1>
+                    {disposal ? <DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /> : null}
+                </div>
             </header>
 
-            {loading ? <div className="rounded-xl bg-white p-6 text-sm font-bold">Đang tải...</div> : null}
+            {loading ? <div className={listStyles.notice} role="status">Đang tải yêu cầu tiêu hủy...</div> : null}
             {error && !confirmOpen ? (
-                <div className="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">
+                <div className={`${listStyles.error} flex items-center gap-2`} role="alert">
                     <ShieldAlert size={16} />{error}
                 </div>
             ) : null}
             {success ? (
-                <div className="flex items-center gap-2 rounded-xl bg-green-50 p-4 text-sm font-bold text-green-800">
+                <div className={`${listStyles.notice} flex items-center gap-2`} role="status">
                     <CheckCircle2 size={16} />{success}
                 </div>
             ) : null}
@@ -171,7 +181,7 @@ export function DisposalDetailPage() {
                     <section className="grid gap-3 rounded-xl border border-[#e8eef0] bg-white p-4 shadow-pos-card">
                         <h2 className="text-sm font-black uppercase text-[#315f3c]">{isCustomerReturn ? "Xử lý hàng trả" : "Phê duyệt"}</h2>
                         <div><DisposalStatusBadge customerReturn={isCustomerReturn} status={disposal.status} /></div>
-                        {isCustomerReturn && disposal.status === "PENDING_APPROVAL" ? (
+                        {isCustomerReturn && disposal.status === "PENDING_APPROVAL" && disposal.sourceInspectionId ? (
                             <Link
                                 className="text-sm font-black text-[#159734] hover:underline"
                                 to={`/management/inventory/customer-returns/${disposal.sourceInspectionId}`}
@@ -205,6 +215,12 @@ export function DisposalDetailPage() {
                     </section>
                 </>
             ) : null}
+
+            <footer className={styles.footer}>
+                <Link className={styles.closeLink} to="/management/inventory/disposals">
+                    Đóng chi tiết
+                </Link>
+            </footer>
 
             {confirmOpen && disposal && !isCustomerReturn ? (
                 <ConfirmDialog

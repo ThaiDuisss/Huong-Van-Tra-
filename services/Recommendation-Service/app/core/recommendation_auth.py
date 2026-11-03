@@ -153,6 +153,17 @@ def verify_context(request):
     return identity, roles, extension[2], settings
 
 
+def authorize_pos_actor(request: Request) -> str:
+    """Reuse the explicit staff grant, restricted to existing POS realm roles."""
+    identity, roles, _, settings = verify_context(request)
+    pos_roles = {"SUPER_ADMIN", "MANAGER", "SALE_STAFF"}
+    if identity.startswith("service:") or not (
+        roles & role_set(settings.recommendation_staff_roles) & pos_roles
+    ):
+        raise HTTPException(403, "POS recommendation access denied")
+    return identity
+
+
 def authorize_customer(customer_id: str, request: Request) -> str:
     identity, roles, mapped, settings = verify_context(request)
     try:

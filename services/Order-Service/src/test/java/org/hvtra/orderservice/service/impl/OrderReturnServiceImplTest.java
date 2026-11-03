@@ -933,9 +933,11 @@ class OrderReturnServiceImplTest {
                         null
                 )
         ));
-        when(orderRepository.findByIdAndIsDeletedFalseWithItemsForUpdate(orderId)).thenReturn(Optional.of(order));
-        when(orderReturnRepository.findByOrderIdAndIsDeletedFalseOrderByCreatedAtDesc(orderId))
-                .thenReturn(List.of(orderReturn));
+        when(orderReturnRefundTransactionService.applyRefundSuccess(eq(returnId), any(), any()))
+                .thenReturn(OrderReturnRefundResponse.builder()
+                        .returnId(returnId).refundTransactionId(transactionId).returnStatus(ReturnStatus.COMPLETED)
+                        .orderPaymentStatus(PaymentStatus.PARTIALLY_REFUNDED)
+                        .orderReturnStatus(OrderReturnStatus.PARTIALLY_RETURNED).build());
 
         var response = service.refundReturn(returnId);
 
@@ -944,6 +946,8 @@ class OrderReturnServiceImplTest {
         assertEquals(ReturnStatus.COMPLETED, response.getReturnStatus());
         assertEquals(PaymentStatus.PARTIALLY_REFUNDED, response.getOrderPaymentStatus());
         assertEquals(OrderReturnStatus.PARTIALLY_RETURNED, response.getOrderReturnStatus());
+        verify(orderReturnRefundTransactionService).applyRefundSuccess(eq(returnId), any(), any());
+        verify(orderRepository, never()).findByIdAndIsDeletedFalseWithItemsForUpdate(any());
         verify(paymentClient, never()).refundOrderReturn(any(), any());
     }
 

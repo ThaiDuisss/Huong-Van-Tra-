@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -65,9 +66,11 @@ public class DisposalRequestServiceImpl implements DisposalRequestService {
             String requestCode,
             String returnCode,
             DisposalRequestStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
             Pageable pageable
     ) {
-        Specification<DisposalRequest> specification = matchingRequests(keyword, requestCode, returnCode, status);
+        Specification<DisposalRequest> specification = matchingRequests(keyword, requestCode, returnCode, status, fromDate, toDate);
         Specification<DisposalRequest> priorityOrder = (root, query, builder) -> {
             if (query != null && !Long.class.equals(query.getResultType())) {
                 var priority = builder.<Integer>selectCase()
@@ -90,13 +93,14 @@ public class DisposalRequestServiceImpl implements DisposalRequestService {
     }
 
     @Override
-    public Map<String, Long> getStatusCounts(String keyword, String requestCode, String returnCode) {
+    public Map<String, Long> getStatusCounts(
+            String keyword, String requestCode, String returnCode, LocalDate fromDate, LocalDate toDate) {
         Map<String, Long> counts = new LinkedHashMap<>();
-        counts.put("ALL", requestRepository.count(matchingRequests(keyword, requestCode, returnCode, null)));
+        counts.put("ALL", requestRepository.count(matchingRequests(keyword, requestCode, returnCode, null, fromDate, toDate)));
         counts.put("PENDING_APPROVAL", requestRepository.count(matchingRequests(
-                keyword, requestCode, returnCode, DisposalRequestStatus.PENDING_APPROVAL)));
+                keyword, requestCode, returnCode, DisposalRequestStatus.PENDING_APPROVAL, fromDate, toDate)));
         counts.put("APPROVED", requestRepository.count(matchingRequests(
-                keyword, requestCode, returnCode, DisposalRequestStatus.APPROVED)));
+                keyword, requestCode, returnCode, DisposalRequestStatus.APPROVED, fromDate, toDate)));
         return counts;
     }
 
@@ -104,8 +108,15 @@ public class DisposalRequestServiceImpl implements DisposalRequestService {
             String keyword,
             String requestCode,
             String returnCode,
-            DisposalRequestStatus status
+            DisposalRequestStatus status,
+            LocalDate fromDate,
+            LocalDate toDate
     ) {
+        // Match the Order/Return API convention: inclusive dates in the JVM's local zone,
+        // converted to an exclusive upper Instant boundary for the database query.
+        ZoneId zone = ZoneId.systemDefault();
+        Instant fromCreatedAt = fromDate == null ? null : fromDate.atStartOfDay(zone).toInstant();
+        Instant toCreatedBefore = toDate == null ? null : toDate.plusDays(1).atStartOfDay(zone).toInstant();
         return (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.isFalse(root.get("isDeleted")));
@@ -128,6 +139,12 @@ public class DisposalRequestServiceImpl implements DisposalRequestService {
             }
             if (status != null) {
                 predicates.add(builder.equal(root.get("status"), status));
+            }
+            if (fromCreatedAt != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("createdAt"), fromCreatedAt));
+            }
+            if (toCreatedBefore != null) {
+                predicates.add(builder.lessThan(root.get("createdAt"), toCreatedBefore));
             }
             return builder.and(predicates.toArray(Predicate[]::new));
         };
