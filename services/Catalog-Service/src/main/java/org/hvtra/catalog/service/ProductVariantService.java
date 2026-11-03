@@ -17,7 +17,7 @@ import org.hvtra.catalog.dto.response.VariantCostResponse;
 import org.hvtra.catalog.dto.response.VariantInventorySummaryResponse;
 
 public interface ProductVariantService {
-    PageResponse<ProductResponse.VariantSummaryResponse> findAll(
+    PageResponse<ProductResponse.VariantSummaryResponse>findAll(
             String keyword, String sku, String variantName, String barcode, UUID productId, UUID categoryId, Status status, Pageable pageable);
     PageResponse<LookupResponse> lookup(String search, Pageable pageable);
     ProductResponse.VariantResponse findById(UUID id);
