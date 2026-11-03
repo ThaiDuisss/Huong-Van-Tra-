@@ -41,3 +41,13 @@ class RecommendationResponse(BaseModel):
     mode: RecommendationMode | None = None
     recommendation_event_id: str | None = Field(default=None, serialization_alias="recommendationEventId")
     generated_at: datetime | None = Field(default=None, serialization_alias="generatedAt")
+
+
+class GuestRecommendationResponse(BaseModel):
+    """Anonymous customer ranking, authenticated POS actor; no member snapshot."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    customer_id: None = Field(default=None, serialization_alias="customerId")
+    source: Literal["POPULARITY"] = "POPULARITY"
+    model_type: Literal["popularity"] = Field(default="popularity", serialization_alias="modelType")
+    items: list[RecommendationItem]
