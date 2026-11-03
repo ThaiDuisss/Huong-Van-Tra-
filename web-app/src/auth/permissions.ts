@@ -15,7 +15,6 @@ export const PERMISSIONS = {
     INVENTORY_RECEIVE: "inventory:receive",
     INVENTORY_APPROVE: "inventory:approve",
     INVENTORY_ADJUST: "inventory:adjust",
-    INVENTORY_TRANSFER: "inventory:transfer",
     PRODUCT_VIEW: "product:view",
     PRODUCT_MANAGE: "product:manage",
     PRODUCTION_VIEW: "production:view",
