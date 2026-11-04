@@ -13,4 +13,6 @@ public interface ImportBatchRepository
 
     @Query("SELECT DISTINCT b FROM ImportBatch b LEFT JOIN FETCH b.items WHERE b.id = :id")
     Optional<ImportBatch> findByIdWithItems(UUID id);
+
+    boolean existsByBatchCode(String batchCode);
 }

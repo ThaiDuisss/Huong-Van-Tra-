@@ -108,7 +108,7 @@ export const IMPORT_MANAGEMENT_ROLES: AppRole[] = [
 const DEFAULT_ROUTE_BY_ROLE: Record<string, string> = {
     [ROLES.SUPER_ADMIN]: "/system/dashboard",
     [ROLES.MANAGER]: "/system/orders",
-    [ROLES.INVENTORY_STAFF]: "/system/inventory/balances",
+    [ROLES.INVENTORY_STAFF]: "/system/inventory/warehouse",
     [ROLES.QC]: "/management/inventory/disposals",
     [ROLES.SALE_STAFF]: "/pos/sales"
 };

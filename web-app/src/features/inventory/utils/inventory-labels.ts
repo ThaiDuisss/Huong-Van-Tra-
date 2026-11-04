@@ -13,12 +13,16 @@ export function isCustomerReturnDisposal(request: DisposalRequest | null | undef
 }
 
 export const locationTypeLabels: Record<InventoryLocationType, string> = {
-    WAREHOUSE: "Cửa hàng",
-    STORAGE: "Kho chứa",
-    DAMAGED: "Khu hàng lỗi",
+    WAREHOUSE: "Kho tổng",
     SHELF: "Kệ hàng",
+    DAMAGED: "Khu hàng lỗi",
     QUARANTINE: "Khu cách ly"
 };
+
+export function getLocationTypeLabel(type?: string | null): string {
+    if (!type) return "Chưa xác định";
+    return locationTypeLabels[type as InventoryLocationType] ?? type;
+}
 
 export const inventoryStatusLabels: Record<InventoryStatus, string> = {
     ACTIVE: "Đang hoạt động",

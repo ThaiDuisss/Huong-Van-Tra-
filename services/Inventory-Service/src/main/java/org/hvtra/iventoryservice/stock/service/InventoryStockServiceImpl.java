@@ -243,7 +243,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
     private static class VariantTotals {
         private BigDecimal available = ZERO;
         private BigDecimal reserved = ZERO;
-        // Tách riêng số trên kệ (SHELF) và số trong kho (WAREHOUSE / STORAGE) để POS hiển thị hai con số.
+        // Tách riêng số trên kệ (SHELF) và số trong kho (WAREHOUSE) để POS hiển thị hai con số.
         private BigDecimal shelf = ZERO;
         private BigDecimal warehouse = ZERO;
         private final Map<UUID, BigDecimal> availableByLocationId = new LinkedHashMap<>();
