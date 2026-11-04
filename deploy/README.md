@@ -74,6 +74,40 @@ Chưa có DNS cho web POS thì kiểm tra qua loopback:
 ssh -L 3000:127.0.0.1:3000 <box1>   # rồi mở http://localhost:3000
 ```
 
+## DNS bằng DuckDNS
+
+Box 1 dùng **IP tự cấp**, không phải Elastic IP (`Elastic IP addresses: –` trong console),
+nên IP đổi sau mỗi lần stop/start. DuckDNS cập nhật bản ghi A theo IP hiện tại.
+
+Lưu ý về chi phí: từ 02/2024 AWS tính tiền **mọi** IPv4 public đang dùng, kể cả IP tự cấp,
+khoảng $0.005/giờ ≈ $3.6/tháng. Elastic IP **cùng giá**, nên DuckDNS không tiết kiệm tiền —
+nó chỉ tránh phải đổi DNS thủ công. Đánh đổi: sau mỗi lần stop/start có một khoảng
+(tối đa ~6 phút: timer 5 phút + TTL 60s của DuckDNS) mà tên miền còn trỏ IP cũ. Rơi đúng
+lúc Let's Encrypt gia hạn thì cert hỏng.
+
+Chuẩn bị: vào duckdns.org (dùng luôn tài khoản đang có `hvtra-infra`), thêm subdomain thứ
+hai, ví dụ `hvtra-pos`. **Token dùng chung cho cả tài khoản**, không phải tạo mới.
+
+```bash
+sudo install -m 755 ~/HVTra/deploy/duckdns/duckdns-update.sh /usr/local/bin/
+sudo install -m 644 ~/HVTra/deploy/duckdns/duckdns.service /etc/systemd/system/
+sudo install -m 644 ~/HVTra/deploy/duckdns/duckdns.timer   /etc/systemd/system/
+
+sudo tee /etc/duckdns.env >/dev/null <<'ENV'
+DUCKDNS_DOMAIN=hvtra-pos
+DUCKDNS_TOKEN=<token cua ban>
+ENV
+sudo chmod 600 /etc/duckdns.env
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now duckdns.timer
+sudo systemctl start duckdns.service && systemctl status duckdns.service --no-pager
+```
+
+Rồi ở Mắt Bão tạo `CNAME`: `pos` → `hvtra-pos.duckdns.org.`
+
+Kiểm: `dig +short pos.hvtra.id.vn` phải ra IP public hiện tại của box 1.
+
 ## Bật TLS bằng nginx
 
 TLS do **nginx ở host** lo, giống box 2 (đang chạy nginx/1.28.3 Ubuntu cho `auth` và
