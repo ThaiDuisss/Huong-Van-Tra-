@@ -1,0 +1,75 @@
+# ===== Profile prod — AWS box 1 "app" =====
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:8}
+      minimum-idle: 2
+      connection-timeout: 10000
+      max-lifetime: 900000
+  jpa:
+    show-sql: false
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            file-service:
+              - host: file-service
+                port: 8101
+                secure: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+idp:
+  # Gọi Keycloak Admin REST API theo đường nội bộ (box 2). Keycloak phải bật
+  # KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true để backchannel dùng URL nội bộ mà token
+  # vẫn phát issuer công khai https://auth.hvtra.id.vn/realms/hvt.
+  url: ${KEYCLOAK_URL}
+  client-id: ${KEYCLOAK_CLIENT_ID}
+  clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID}
+  # application.yml có sẵn một secret thật làm default -> prod bắt buộc truyền env,
+  # thiếu thì cho service chết lúc khởi động. Secret đó phải được rotate.
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+  permission-client-id: ${KEYCLOAK_PERMISSION_CLIENT_ID:hvtra-pos}
+
+kafka-config:
+  enabled: ${KAFKA_ENABLED:true}
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+  replication-factor: 1
+
+hvtra:
+  action-log:
+    # Consumer group của ActionLogConsumer. Phải khác dev, nếu không hai bên chia nhau
+    # message của topic action.log và bản ghi audit bị thiếu ở prod.
+    group-id: ${KAFKA_GROUP_PREFIX:prod-}identity-service-action-log
+
+security:
+  internal:
+    header-secret: ${INTERNAL_HEADER_SECRET}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
+    org.hvtra: INFO
+    org.hibernate.SQL: WARN

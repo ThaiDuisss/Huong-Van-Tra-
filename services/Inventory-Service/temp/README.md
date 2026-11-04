@@ -47,12 +47,12 @@ Do `Inventory-Service` tham chiếu UUID của các `product_variants` và `ingr
 
 ### Bước 1: Nạp dữ liệu vào `catalog_db`
 ```bash
-mysql -h 100.93.252.63 -P 3306 -u <catalog_user> -p catalog_db < services/Inventory-Service/temp/01_catalog_sample_data.sql
+mysql -h 100.99.2.30 -P 3306 -u <catalog_user> -p catalog_db < services/Inventory-Service/temp/01_catalog_sample_data.sql
 ```
 
 ### Bước 2: Nạp dữ liệu vào `inventory_db`
 ```bash
-mysql -h 100.93.252.63 -P 3306 -u inventory_app -p'Hvt@2006' inventory_db < services/Inventory-Service/temp/02_inventory_sample_data.sql
+mysql -h 100.99.2.30 -P 3306 -u inventory_app -p inventory_db < services/Inventory-Service/temp/02_inventory_sample_data.sql
 ```
 
 ---

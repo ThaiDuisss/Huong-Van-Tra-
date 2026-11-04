@@ -12,8 +12,10 @@ import java.util.*;
  *   java -cp ... SafeCleanupRunner --execute
  */
 public class SafeCleanupRunner {
-    private static final String HOST = "100.93.252.63:3306";
-    private static final String DB_PASS = "Hvt@2006";
+    // Host va password lay tu bien moi truong; default host la box 2 qua tailnet.
+    // Khong hardcode password trong source.
+    private static final String HOST = System.getenv().getOrDefault("DB_HOST", "100.99.2.30:3306");
+    private static final String DB_PASS = System.getenv("DB_PASS");
 
     // Expected exact record counts
     public static final int EXPECTED_RETURNS = 23;

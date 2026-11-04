@@ -1,0 +1,11 @@
+# ===== Profile test (Discovery-Service) =====
+# Service này không có DB/Kafka/MinIO nên context vốn đã sạch. Vẫn khai báo profile
+# test cho thống nhất, để scripts/ci/check_test_isolation.py không phải có ngoại lệ.
+#
+# Discovery-Service không nằm trong deploy prod (box 1 chạy không cần Eureka),
+# nhưng vẫn giữ trong repo để chạy local.
+
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
