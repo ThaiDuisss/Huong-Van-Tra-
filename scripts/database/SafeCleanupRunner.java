@@ -12,7 +12,7 @@ import java.util.*;
  *   java -cp ... SafeCleanupRunner --execute
  */
 public class SafeCleanupRunner {
-    private static final String HOST = "100.93.252.63:3306";
+    private static final String HOST = "100.99.2.30:3306";
     private static final String DB_PASS = "Hvt@2006";
 
     // Expected exact record counts

@@ -2,7 +2,7 @@ spring:
   application:
     name: catalog-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.93.252.63:3306/catalog_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.99.2.30:3306/catalog_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
@@ -57,4 +57,4 @@ security:
 hvtra:
   logging:
     action-log:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.93.252.63:19092}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}

@@ -2,7 +2,7 @@ spring:
   application:
     name: Inventory-Service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.93.252.63:3306/inventory_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://100.99.2.30:3306/inventory_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME:inventory_app}
     password: ${SPRING_DATASOURCE_PASSWORD:Hvt@2006}
   jpa:
@@ -47,7 +47,7 @@ eureka:
 
 kafka-config:
   enabled: true
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.93.252.63:19092}
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:100.99.2.30:19092}
   num-of-partitions: 3
   replication-factor: 1
 
@@ -69,6 +69,12 @@ kafka-consumer-config:
   poll-timeout-ms: 150
 
 inventory:
+  catalog:
+    events:
+      item-sync:
+        group-id: inventory-catalog-item-sync
+        topics:
+          item-sync: catalog.event.ITEM_SYNC
   order:
     events:
       return-disposition:

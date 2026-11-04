@@ -1,6 +1,6 @@
 # Script to register/update all Debezium Outbox Connectors to Kafka Connect
 param(
-    [string]$ConnectUrl = "http://100.93.252.63:8083"
+    [string]$ConnectUrl = "http://100.99.2.30:8083"
 )
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path

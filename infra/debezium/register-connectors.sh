@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-CONNECT_URL="${CONNECT_URL:-http://100.93.252.63:8083}"
+CONNECT_URL="${CONNECT_URL:-http://100.99.2.30:8083}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 for file in "$SCRIPT_DIR"/*-connector.json; do
