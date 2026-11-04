@@ -241,7 +241,11 @@ async function loadEnrichment(branchId?: string, includeBalances = true): Promis
   const [locationsPage, balances] = await Promise.all([
     inventoryLocationApi.list({ branchId, page: 0, size: 500 }),
     includeBalances
-      ? inventoryBalanceApi.view({ branchId, page: 0, size: 500 }).then((page) => page.content)
+      ? inventoryBalanceApi
+          .view({ branchId, page: 0, size: 500 })
+          .then((page) => page.content)
+          // Chỉ dùng để lấy tên / mã mặt hàng; lỗi ở đây không được chặn màn kiểm kê
+          .catch(() => [] as InventoryBalanceViewResponse[])
       : Promise.resolve([]),
   ]);
   return {
