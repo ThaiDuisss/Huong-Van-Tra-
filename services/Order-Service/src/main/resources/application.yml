@@ -196,4 +196,4 @@ order:
 
 security:
   internal:
-      header-secret: ${INTERNAL_HEADER_SECRET:kEV4x5IAXOxEnoEqPptGSYqS6Ujqly27dBhfjYp2pNc=}
+      header-secret: ${INTERNAL_HEADER_SECRET}
