@@ -43,7 +43,7 @@ build/
 
 ### Logs ###
 *.log
-
+.codex
 ### Mac OS ###
 .DS_Store
 

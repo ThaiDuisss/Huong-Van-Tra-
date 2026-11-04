@@ -642,6 +642,33 @@ class OrderReturnReadModelTest {
         verify(payments, never()).refundOrderReturn(any(), any());
     }
 
+    @Test
+    void getReturnByIdMapsPendingAndFailedDispositionFlagsCorrectly() {
+        Fixture f = fixture(ReturnStatus.RECEIVED);
+        OrderReturn record = f.records().getFirst();
+        when(returns.findByIdAndIsDeletedFalse(record.getId())).thenReturn(Optional.of(record));
+
+        // Case 1: Pending command in flight
+        when(progress.resolve(record)).thenReturn(physical(false, "PROCESSING", true, false));
+        var res1 = service.getReturnById(record.getId());
+        assertTrue(res1.getIsPendingDisposition());
+        assertFalse(res1.getHasFailedDisposition());
+        assertEquals("PROCESSING", res1.getDisplayStatus());
+
+        // Case 2: Failed command (e.g. orphan recovery exhausted)
+        when(progress.resolve(record)).thenReturn(physical(false, "FAILED", false, true));
+        var res2 = service.getReturnById(record.getId());
+        assertFalse(res2.getIsPendingDisposition());
+        assertTrue(res2.getHasFailedDisposition());
+        assertEquals("PROCESSING_FAILED", res2.getDisplayStatus());
+
+        // Case 3: Completed physical disposition
+        when(progress.resolve(record)).thenReturn(physical(true, "COMPLETED", false, false));
+        var res3 = service.getReturnById(record.getId());
+        assertFalse(res3.getIsPendingDisposition());
+        assertFalse(res3.getHasFailedDisposition());
+    }
+
     private void stubBatchProgress(Fixture fixture) {
         when(returns.findByIdInAndIsDeletedFalseWithItems(anyList())).thenAnswer(call -> {
             List<UUID> ids = call.getArgument(0);

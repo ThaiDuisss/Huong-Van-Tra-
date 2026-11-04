@@ -1,5 +1,8 @@
 package org.hvtra.iventoryservice.customerreturn;
 
+import jakarta.persistence.EntityManager;
+import org.hvtra.iventoryservice.integration.order.dto.OrderReturnInventoryCommandResponse;
+
 import org.hvtra.commonservice.common_core.kafka.inbox.InboxStatus;
 import org.hvtra.commonservice.common_core.domain.entity.InternalUserPrincipal;
 import org.hvtra.iventoryservice.batch.repository.InventoryBatchRepository;
@@ -74,6 +77,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -109,6 +113,7 @@ class CustomerReturnInspectionServiceImplTest {
     private InventoryInboxRepository inboxRepository;
     @Mock
     private InventoryOutboxPublisher inventoryOutboxPublisher;
+    @Mock private EntityManager entityManager;
 
     private CustomerReturnInspectionServiceImpl service;
     private UUID returnId;
@@ -137,7 +142,8 @@ class CustomerReturnInspectionServiceImplTest {
                 transactionRepository,
                 disposalRequestRepository,
                 inboxRepository,
-                inventoryOutboxPublisher);
+                inventoryOutboxPublisher,
+                entityManager);
         returnId = UUID.randomUUID();
         returnItemId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();
@@ -148,6 +154,8 @@ class CustomerReturnInspectionServiceImplTest {
         shelf = location(InventoryLocationType.SHELF, branchId);
         quarantine = location(InventoryLocationType.QUARANTINE, branchId);
         damaged = location(InventoryLocationType.DAMAGED, branchId);
+        lenient().when(itemRepository.findByReferenceIdAndItemTypeForUpdate(
+                any(), eq(InventoryItemType.PRODUCT_VARIANT))).thenReturn(Optional.of(item));
 
         lenient().when(inspectionRepository.existsByInspectionCode(anyString())).thenReturn(false);
         lenient().when(inspectionRepository.saveAndFlush(any(CustomerReturnInspection.class)))
@@ -359,7 +367,7 @@ class CustomerReturnInspectionServiceImplTest {
     @Test
     void createInspectionRejectsQuantityOverRemainingAfterPostedQc() {
         stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
-        when(inspectionRepository.findQcProgressByReturnId(returnId))
+        when(inspectionRepository.findByReturnIdForUpdate(returnId))
                 .thenReturn(List.of(postedInspection("2.00")));
 
         assertThatThrownBy(() -> service.createInspection(returnId, request(
@@ -773,6 +781,12 @@ class CustomerReturnInspectionServiceImplTest {
     private InventoryInbox attachInbox(CustomerReturnInspection inspection) {
         InventoryInbox inbox = new InventoryInbox();
         inspection.setCommandId(UUID.randomUUID());
+        when(orderReturnClient.getInventoryDisposition(returnId, inspection.getCommandId())).thenReturn(
+                new OrderReturnInventoryCommandResponse(inspection.getCommandId(), returnId, "PENDING", true,
+                        inspection.getLines().stream().map(line -> new OrderReturnInventoryCommandResponse.Line(
+                                line.getReturnItemId(), line.getOrderItemId(), line.getProductVariantId(),
+                                line.getQuantity(), line.getResult().name(),
+                                line.getDestinationLocation() == null ? null : line.getDestinationLocation().getId())).toList()));
         inbox.setCommandId(inspection.getCommandId().toString());
         inbox.setStatus(InboxStatus.RECEIVED);
         inbox.setSagaId(UUID.randomUUID().toString());
@@ -929,7 +943,9 @@ class CustomerReturnInspectionServiceImplTest {
     void orderCommandCanOpenDraftWithoutActualConditionButCannotPostIt() {
         stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
         stubActiveItem();
-        CustomerReturnInspectionResponse response = service.createInspection(returnId, UUID.randomUUID(),
+        UUID commandId = UUID.randomUUID();
+        authorize(commandId, CustomerReturnQcResult.WRITE_OFF, BigDecimal.ONE, null);
+        CustomerReturnInspectionResponse response = service.createInspection(returnId, commandId,
                 actualRequest(null, CustomerReturnQcResult.WRITE_OFF, null));
         ArgumentCaptor<CustomerReturnInspection> saved = ArgumentCaptor.forClass(CustomerReturnInspection.class);
         verify(inspectionRepository).saveAndFlush(saved.capture());
@@ -1057,6 +1073,74 @@ class CustomerReturnInspectionServiceImplTest {
                 OrderReturnStatus.RECEIVED,
                 condition,
                 quantity));
+    }
+
+    private void authorize(UUID commandId, CustomerReturnQcResult result, BigDecimal quantity, InventoryLocation location) {
+        when(orderReturnClient.getInventoryDisposition(returnId, commandId)).thenReturn(
+                new OrderReturnInventoryCommandResponse(commandId, returnId, "PENDING", true, List.of(
+                        new OrderReturnInventoryCommandResponse.Line(returnItemId, orderItemId, productVariantId,
+                                quantity, result.name(), location == null ? null : location.getId()))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"FAILED", "PROCESSED", "PENDING"})
+    void delayedCommandWithoutExecutionAuthorizationCannotCreateInspection(String status) {
+        stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
+        UUID commandId = UUID.randomUUID();
+        when(orderReturnClient.getInventoryDisposition(returnId, commandId)).thenReturn(
+                new OrderReturnInventoryCommandResponse(commandId, returnId, status, false, List.of()));
+        assertThatThrownBy(() -> service.createInspection(returnId, commandId,
+                actualRequest(null, CustomerReturnQcResult.WRITE_OFF, null)))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("not executable");
+        verifyNoInteractions(transactionRepository, balanceRepository, inventoryOutboxPublisher);
+        verify(inspectionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void unverifiedOrderContractCannotCreateInspectionOrFailureAcknowledgement() {
+        stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
+        assertThatThrownBy(() -> service.createInspection(returnId, UUID.randomUUID(),
+                actualRequest(null, CustomerReturnQcResult.WRITE_OFF, null)))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("authorization is unavailable");
+        verifyNoInteractions(transactionRepository, balanceRepository, inventoryOutboxPublisher);
+        verify(inspectionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void authorizedCommandCannotChangeItsReservedQuantity() {
+        stubReceivedReturn(OrderReturnCondition.SEALED, "3.00");
+        UUID commandId = UUID.randomUUID();
+        authorize(commandId, CustomerReturnQcResult.WRITE_OFF, new BigDecimal("2"), null);
+        assertThatThrownBy(() -> service.createInspection(returnId, commandId,
+                actualRequest(null, CustomerReturnQcResult.WRITE_OFF, null)))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("does not match");
+        verify(inspectionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void commandThatFailedAfterInspectionCreationCannotMoveStock() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
+        UUID commandId = UUID.randomUUID();
+        inspection.setCommandId(commandId);
+        stubWriteOffPost(inspection);
+        when(orderReturnClient.getInventoryDisposition(returnId, commandId)).thenReturn(
+                new OrderReturnInventoryCommandResponse(commandId, returnId, "FAILED", false, List.of()));
+        assertThatThrownBy(() -> service.postInspection(inspection.getId()))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("not executable");
+        verifyNoInteractions(transactionRepository, balanceRepository, inventoryOutboxPublisher);
+    }
+
+    @Test
+    void refreshedPostedInspectionCannotBePostedTwiceAfterWaitingForLock() {
+        CustomerReturnInspection inspection = inspection(CustomerReturnQcResult.WRITE_OFF, null, "1.00");
+        stubWriteOffPost(inspection);
+        doAnswer(call -> {
+            inspection.setStatus(CustomerReturnInspectionStatus.POSTED);
+            inspection.getLines().getFirst().setPosted(true);
+            return null;
+        }).when(entityManager).refresh(inspection);
+        assertThat(service.postInspection(inspection.getId()).status()).isEqualTo(CustomerReturnInspectionStatus.POSTED);
+        verifyNoInteractions(transactionRepository, balanceRepository);
     }
 
     private void stubActiveItem() {

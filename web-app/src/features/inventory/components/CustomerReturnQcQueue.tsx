@@ -17,6 +17,7 @@ import type {
     OrderReturnListRow
 } from "../../order/types/order-return.types";
 import {
+    canInspectCustomerReturn,
     getCustomerReturnUiStatus,
     getReturnErrorMessage,
     toReturnNumber
@@ -32,6 +33,7 @@ import {
 } from "./CustomerReturnListUi";
 import { CustomerReturnDetailModal } from "./CustomerReturnDetailModal";
 import { CustomerReturnActionMenu } from "./CustomerReturnActionMenu";
+import { CustomerReturnWarehouseInspectionModal } from "./CustomerReturnWarehouseInspectionModal";
 
 const PAGE_SIZE = 10;
 const CUSTOMER_RETURN_STATUS_TABS: CustomerReturnStatusTab[] = [
@@ -85,6 +87,7 @@ export function CustomerReturnQcQueue({
 
     // Detail modal state
     const [detailModalItem, setDetailModalItem] = useState<OrderReturnListRow | null>(null);
+    const [warehouseInspectionItem, setWarehouseInspectionItem] = useState<OrderReturnListRow | null>(null);
     const [openActionId, setOpenActionId] = useState<string | null>(null);
     const [receivingId, setReceivingId] = useState<string | null>(null);
     const [confirmReceiveRow, setConfirmReceiveRow] = useState<OrderReturnListRow | null>(null);
@@ -176,6 +179,16 @@ export function CustomerReturnQcQueue({
                     if (!active) return;
                     if (detail.status !== "RECEIVED" || summary.returnStatus !== "RECEIVED") {
                         setSelectionError("Phiếu hoàn không còn ở trạng thái đã nhận hàng. Vui lòng tải lại danh sách.");
+                        return;
+                    }
+                    if (!canInspectCustomerReturn({ ...detail, qcStatus: summary.qcStatus })) {
+                        setSelectionError(detail.hasFailedDisposition || detail.inventoryProcessingStatus === "FAILED"
+                            ? "Yêu cầu xử lý kho có lỗi và cần đối soát trước khi kiểm định lại. Vui lòng liên hệ quản lý."
+                            : "Phiếu chưa sẵn sàng cho yêu cầu kiểm định mới. Vui lòng làm mới để xem tiến độ tại kho.");
+                        return;
+                    }
+                    if (detail.remainingQuantity != null && toReturnNumber(detail.remainingQuantity) <= 0) {
+                        setSelectionError("Phiếu hoàn không còn số lượng khả dụng để xử lý kho. Vui lòng tải lại danh sách.");
                         return;
                     }
                     if (!(summary.lines ?? []).some((line) => toReturnNumber(line.remainingQcQuantity) > 0)) {
@@ -303,6 +316,10 @@ export function CustomerReturnQcQueue({
                                                     setConfirmReceiveRow(row);
                                                 }}
                                                 onViewDetail={() => setDetailModalItem(row)}
+                                                onViewInspection={() => {
+                                                    setOpenActionId(null);
+                                                    setWarehouseInspectionItem(row);
+                                                }}
                                                 row={row}
                                             />
                                         </td>
@@ -362,6 +379,21 @@ export function CustomerReturnQcQueue({
                     onRefreshList={reload}
                     key={detailModalItem.id}
                     returnItem={detailModalItem}
+                />
+            ) : null}
+
+            {warehouseInspectionItem ? (
+                <CustomerReturnWarehouseInspectionModal
+                    isOpen
+                    onClose={() => setWarehouseInspectionItem(null)}
+                    returnCode={warehouseInspectionItem.returnCode}
+                    returnId={warehouseInspectionItem.id}
+                    returnItem={warehouseInspectionItem}
+                    key={warehouseInspectionItem.id}
+                    onSuccess={() => {
+                        setReloadKey((k) => k + 1);
+                        onInspectionCreated?.();
+                    }}
                 />
             ) : null}
 

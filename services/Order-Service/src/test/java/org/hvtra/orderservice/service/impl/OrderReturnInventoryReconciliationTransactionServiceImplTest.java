@@ -127,16 +127,25 @@ class OrderReturnInventoryReconciliationTransactionServiceImplTest {
     }
 
     @Test
-    void exhaustedRecoveryMarksFailedWithoutSendingAnotherCommand() {
+    void exhaustedRecoveryRetainsPendingReservationWithoutSendingAnotherCommand() {
         OrderReturnInventoryCommand command = command();
         command.setRecoveryAttemptCount(5);
         when(commands.findByCommandIdForUpdate(command.getCommandId())).thenReturn(Optional.of(command));
         atFixedTime(() -> service.handleNotFound(command.getCommandId()));
-        assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
+        assertEquals(OrderReturnInventoryCommandStatus.PENDING, command.getStatus());
         assertEquals("ORPHAN_RECOVERY_EXHAUSTED", command.getFailureCode());
-        assertEquals(NOW, command.getFailedAt());
+        assertNull(command.getFailedAt());
+        assertEquals(NOW, command.getLastNotFoundAt());
         verify(commands).saveAndFlush(command);
         verifyNoInteractions(outbox);
+    }
+
+    @Test
+    void reconciliationCannotApplyEvidenceForAnotherCommand() {
+        service.applyReconciledStatus(UUID.randomUUID(), new ReturnDispositionStatusResponse(
+                UUID.randomUUID(), ReturnDispositionReconciliationStatus.PROCESSED,
+                UUID.randomUUID(), UUID.randomUUID(), null, null, NOW));
+        verifyNoInteractions(commands, outbox, writer);
     }
 
     @Test

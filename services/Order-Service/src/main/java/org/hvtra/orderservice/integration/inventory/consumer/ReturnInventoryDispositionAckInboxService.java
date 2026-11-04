@@ -118,7 +118,7 @@ public class ReturnInventoryDispositionAckInboxService {
         if (command.getStatus() != OrderReturnInventoryCommandStatus.PENDING) {
             log.warn("Cannot process ack: command not in PENDING status (current: {}). commandId={}, eventId={}",
                     command.getStatus(), command.getCommandId(), eventId);
-            markProcessed(inbox);
+            markFailed(inbox, "PROCESSED acknowledgement conflicts with terminal command; reconciliation required");
             return;
         }
 

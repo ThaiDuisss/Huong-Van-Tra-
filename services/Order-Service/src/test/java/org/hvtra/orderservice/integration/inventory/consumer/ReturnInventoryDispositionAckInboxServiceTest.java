@@ -419,6 +419,10 @@ class ReturnInventoryDispositionAckInboxServiceTest {
         ackInboxService.handle(record);
 
         assertEquals(OrderReturnInventoryCommandStatus.FAILED, command.getStatus());
+        ArgumentCaptor<OrderInbox> quarantined = ArgumentCaptor.forClass(OrderInbox.class);
+        verify(orderInboxRepository, times(2)).saveAndFlush(quarantined.capture());
+        assertEquals(InboxStatus.FAILED, quarantined.getValue().getStatus());
+        assertTrue(quarantined.getValue().getLastError().contains("reconciliation required"));
         assertNull(command.getInspectionId());
         verify(orderReturnInventoryCommandRepository, never()).saveAndFlush(command);
         verify(orderReturnService, never()).recordPhysicalCompletion(any(), any(), any());

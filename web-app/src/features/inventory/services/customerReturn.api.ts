@@ -6,6 +6,7 @@ import type {
     CustomerReturnInspectionListResult
 } from "../types/customer-return-inspection.types";
 import type { CustomerReturnActualCondition, CustomerReturnQcResult, CustomerReturnQcLocation } from "../types/customer-return-inspection.types";
+import type { CustomerReturnQcSummaryResponse } from "../../order/types/order-return.types";
 import type { InventoryLocationType } from "../types/inventory.types";
 import { inventoryLocationApi } from "./inventoryLocation.api";
 
@@ -41,6 +42,12 @@ export const customerReturnApi = {
                     toDate: query.toDate
                 }
             }
+        );
+    },
+
+    getQcSummary(returnId: string) {
+        return apiClient.get<CustomerReturnQcSummaryResponse>(
+            `/inventory/customer-returns/${encodeURIComponent(returnId)}/qc-summary`
         );
     },
 

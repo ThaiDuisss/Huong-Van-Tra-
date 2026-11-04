@@ -1497,7 +1497,6 @@ class OrderReturnServiceImplTest {
                     .thenAnswer(call -> List.copyOf(commands.values()));
             lenient().when(orderReturnInventoryCommandRepository.sumCommandedQuantityByReturnItemId(any()))
                     .thenAnswer(call -> commands.values().stream()
-                            .filter(command -> command.getStatus() != OrderReturnInventoryCommandStatus.FAILED)
                             .flatMap(command -> command.getLines().stream())
                             .map(line -> line.getQuantity()).reduce(BigDecimal.ZERO, BigDecimal::add));
             lenient().when(orderReturnInventoryCommandRepository.saveAndFlush(any()))
@@ -1612,6 +1611,24 @@ class OrderReturnServiceImplTest {
             commands.get(original.getCommandId()).setStatus(OrderReturnInventoryCommandStatus.PROCESSED);
             assertThrows(InvalidOrderReturnException.class, () -> service.submitInventoryDisposition(returned.getId(), next));
             verify(orderReturnInventoryCommandRepository, times(1)).saveAndFlush(any());
+            verify(orderOutboxPublisher, times(1)).publishReturnInventoryDispositionRequested(any(), any());
+        }
+
+        @Test
+        void failedCommandKeepsQuantityReservedAndBlocksANewIdentity() {
+            initialize("3");
+            var original = action(UUID.randomUUID(), ReturnInventoryDispositionResult.WRITE_OFF, null);
+            service.submitInventoryDisposition(returned.getId(), original);
+            commands.get(original.getCommandId()).setStatus(OrderReturnInventoryCommandStatus.FAILED);
+            when(orderReturnInventoryCommandRepository.existsByOrderReturnIdAndStatusAndIsDeletedFalse(
+                    returned.getId(), OrderReturnInventoryCommandStatus.FAILED)).thenReturn(true);
+            assertEquals(OrderReturnInventoryCommandStatus.FAILED,
+                    service.submitInventoryDisposition(returned.getId(), original).getStatus());
+            var retry = action(UUID.randomUUID(), ReturnInventoryDispositionResult.WRITE_OFF, null);
+            assertEquals("Failed inventory disposition requires reconciliation before a new command",
+                    assertThrows(InvalidOrderReturnException.class,
+                            () -> service.submitInventoryDisposition(returned.getId(), retry)).getMessage());
+            assertFalse(service.getInventoryDisposition(returned.getId(), original.getCommandId()).isExecutionAllowed());
             verify(orderOutboxPublisher, times(1)).publishReturnInventoryDispositionRequested(any(), any());
         }
     }
