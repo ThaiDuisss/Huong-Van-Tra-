@@ -1,10 +1,7 @@
 package org.hvtra.catalog.client;
 
-import lombok.Builder;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.math.BigDecimal;
@@ -13,35 +10,12 @@ import java.util.UUID;
 
 @FeignClient(name = "inventory-service", url = "${clients.inventory.url:}")
 public interface InventoryClient {
-    @PostMapping("/internal/inventory/inventory-items")
-    void createProductVariantItem(
-            @RequestBody CreateInventoryItemRequest request
-    );
-
-    @PutMapping("/internal/inventory/inventory-items/by-reference/{itemType}/{referenceId}")
-    void updateInventoryItemByReference(
-            @PathVariable("itemType") String itemType,
-            @PathVariable("referenceId") UUID referenceId,
-            @RequestBody CreateInventoryItemRequest request
-    );
 
     @PostMapping("/internal/inventory/stocks/batch")
     List<StockBatchResponse> getStocksByProductIds(@RequestBody StockBatchRequest request);
 
     @PostMapping("/internal/inventory/stocks/variants/batch")
     List<StockVariantBatchResponse> getStocksByVariantIds(@RequestBody StockVariantBatchRequest request);
-
-    @Builder
-    record CreateInventoryItemRequest(
-            UUID referenceId,
-            String referenceCode,
-            String name,
-            String itemType,
-            UUID unitId,
-            String status,
-            Integer reorderPoint
-    ) {
-    }
 
     record StockBatchRequest(
             List<UUID> productIds,

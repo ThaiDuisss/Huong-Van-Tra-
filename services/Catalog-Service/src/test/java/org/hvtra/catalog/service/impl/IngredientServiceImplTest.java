@@ -1,6 +1,5 @@
 package org.hvtra.catalog.service.impl;
 
-import org.hvtra.catalog.client.InventoryClient;
 import org.hvtra.catalog.dto.request.IngredientRequest;
 import org.hvtra.catalog.dto.response.IngredientBundleLookupResponse;
 import org.hvtra.catalog.dto.response.IngredientResponse;
@@ -12,6 +11,7 @@ import org.hvtra.catalog.enums.Status;
 import org.hvtra.catalog.exception.BadRequestException;
 import org.hvtra.catalog.exception.ResourceNotFoundException;
 import org.hvtra.catalog.mapper.IngredientMapper;
+import org.hvtra.catalog.outbox.publisher.CatalogOutboxPublisher;
 import org.hvtra.catalog.repository.IngredientRepository;
 import org.hvtra.catalog.repository.UnitRepository;
 import org.hvtra.commonservice.common_core.entity.BusinessSequence;
@@ -59,7 +59,7 @@ class IngredientServiceImplTest {
     private UnitRepository unitRepository;
 
     @Mock
-    private InventoryClient inventoryClient;
+    private CatalogOutboxPublisher catalogOutboxPublisher;
 
     @InjectMocks
     private IngredientServiceImpl ingredientService;
@@ -147,7 +147,7 @@ class IngredientServiceImplTest {
         assertEquals("NL-01", result.ingredientCode());
         assertEquals("Búp Trà Tươi Tân Cương", result.name());
         verify(repository).saveAndFlush(any(Ingredient.class));
-        verify(inventoryClient).createProductVariantItem(any());
+        verify(catalogOutboxPublisher).publishIngredientCreated(any());
     }
 
     @Test

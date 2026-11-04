@@ -22,10 +22,13 @@ spring:
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
   mail:
-    host: ${MAIL_HOST}
+    # Co default: day la tinh nang tuy chon (notification.invoice-email.enabled mac dinh
+    # false), khong phai endpoint ha tang. Bat buoc co SMTP moi boot duoc la sai -
+    # service se chet luc khoi dong du khong ai bat gui hoa don.
+    host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
   cloud:
     discovery:
       client:

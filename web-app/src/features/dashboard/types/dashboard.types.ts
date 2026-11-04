@@ -250,7 +250,7 @@ export interface DashboardCountAuditSummary {
   countCode: string;
   title: string;
   warehouseName: string;
-  status: "DRAFT" | "FROZEN" | "COUNTING" | "RECONCILING" | "PENDING_APPROVAL" | "APPROVED" | "POSTED" | "COMPLETED";
+  status: "DRAFT" | "COUNTING" | "PENDING_APPROVAL" | "COMPLETED" | "CANCELLED";
   countType: string;
   varianceItemsCount: number;
   totalVarianceValue: number;

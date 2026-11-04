@@ -9,3 +9,8 @@
   - Khi cần dữ liệu danh mục để phục vụ dropdown/select từ service khác: Phải tìm xem service đó có endpoint `lookup` (chỉ trả về `id`, `name`, `code`) hay chưa.
   - Nếu chưa có: Tạo mới API lookup tinh gọn ở backend service tương ứng, không gọi API `findAll` cồng kềnh đầy đủ quan hệ để lấy dropdown.
 
+# Service Code Graph & Architecture Rules
+- Trước khi thực hiện tác vụ trên bất kỳ service nào (`Catalog-Service`, `Inventory-Service`, `Order-Service`,...):
+  - Agent **bắt buộc phải đọc Code Graph** của service tại `.local/codegraph/<service-name>.md` hoặc tự động quét controllers, service interfaces, entities, external clients để nắm trọn vẹn quan hệ kiến trúc, không được phỏng đoán.
+
+

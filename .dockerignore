@@ -1,0 +1,39 @@
+# Context build cua cac service Java la goc repo, nen phai loai bo nhung thu khong
+# can: khong co file nay thi context gan 600MB (node_modules 301MB, docs 204MB, .git 64MB).
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+.agents
+thai_agents
+.superpowers
+.external
+.pnpm-store
+.github
+
+# Build output - builder stage tu build lai tu source
+**/target
+web-app/node_modules
+web-app/dist
+web-app/.turbo
+
+# Tai lieu va anh, khong lien quan den build
+docs
+Diagram
+image
+logs
+**/*.docx
+**/*.xlsx
+**/*.pptx
+**/*.pdf
+
+# Secret: khong duoc di vao image
+**/*.env
+deploy/.env
+
+# Rac
+**/__pycache__
+**/.DS_Store
+tats = @{}
+tring(7)

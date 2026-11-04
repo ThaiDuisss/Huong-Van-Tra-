@@ -91,13 +91,78 @@ export function InventoryTransactionPage() {
             columns={columns}
             filters={[
                 {
+                    label: "Loại tham chiếu",
+                    isTop: true,
+                    value: referenceType,
+                    options: [
+                        { label: "Tất cả loại tham chiếu", value: "ALL" },
+                        ...Object.entries(referenceTypeLabels).map(([val, label]) => ({
+                            label,
+                            value: val
+                        }))
+                    ],
+                    onChange: () => {},
+                    render: (
+                        <select
+                            value={referenceType}
+                            onChange={(e) => {
+                                setReferenceType(e.target.value as any);
+                                setPage(1);
+                            }}
+                            className="h-10 rounded-xl border border-pos-border px-3 text-sm outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer min-w-[170px]"
+                        >
+                            <option value="ALL">Tất cả loại tham chiếu</option>
+                            {Object.entries(referenceTypeLabels).map(([val, label]) => (
+                                <option key={val} value={val}>
+                                    {label}
+                                </option>
+                            ))}
+                        </select>
+                    )
+                },
+                {
+                    label: "Khoảng thời gian",
+                    isTop: true,
+                    value: "ALL",
+                    options: [],
+                    onChange: () => {},
+                    render: (
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 min-w-[140px]">
+                                <span className="text-xs font-bold text-[#536078] shrink-0">Từ:</span>
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={(e) => {
+                                        setFromDate(e.target.value);
+                                        setPage(1);
+                                    }}
+                                    className="h-10 w-full rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                                />
+                            </div>
+                            <div className="flex items-center gap-1.5 min-w-[140px]">
+                                <span className="text-xs font-bold text-[#536078] shrink-0">Đến:</span>
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={(e) => {
+                                        setToDate(e.target.value);
+                                        setPage(1);
+                                    }}
+                                    className="h-10 w-full rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
+                                />
+                            </div>
+                        </div>
+                    )
+                },
+                {
                     label: "Loại giao dịch",
                     value: type,
                     options: [],
                     onChange: () => {},
                     render: (
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0">
                                 Loại giao dịch:
                             </span>
                             <div className="flex flex-wrap gap-2 items-center">
@@ -115,14 +180,14 @@ export function InventoryTransactionPage() {
                                 >
                                     Tất cả
                                 </button>
-                                {Object.entries(transactionTypeLabels).map(([value, label]) => {
-                                    const isActive = type === value;
+                                {Object.entries(transactionTypeLabels).map(([val, label]) => {
+                                    const isActive = type === val;
                                     return (
                                         <button
-                                            key={value}
+                                            key={val}
                                             type="button"
                                             onClick={() => {
-                                                setType(value as any);
+                                                setType(val as any);
                                                 setPage(1);
                                             }}
                                             className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
@@ -135,92 +200,6 @@ export function InventoryTransactionPage() {
                                         </button>
                                     );
                                 })}
-                            </div>
-                        </div>
-                    )
-                },
-                {
-                    label: "Loại tham chiếu",
-                    value: referenceType,
-                    options: [],
-                    onChange: () => {},
-                    render: (
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[13px] font-[900] text-[#536078] mr-2 shrink-0 w-28">
-                                Loại tham chiếu:
-                            </span>
-                            <div className="flex flex-wrap gap-2 items-center">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setReferenceType("ALL");
-                                        setPage(1);
-                                    }}
-                                    className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                        referenceType === "ALL"
-                                            ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                            : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                    }`}
-                                >
-                                    Tất cả
-                                </button>
-                                {Object.entries(referenceTypeLabels).map(([value, label]) => {
-                                    const isActive = referenceType === value;
-                                    return (
-                                        <button
-                                            key={value}
-                                            type="button"
-                                            onClick={() => {
-                                                setReferenceType(value as any);
-                                                setPage(1);
-                                            }}
-                                            className={`h-[30px] px-3 rounded-full text-[13px] font-[850] border transition-all cursor-pointer ${
-                                                isActive
-                                                    ? "bg-[#07883a] border-[#07883a] text-white shadow-sm"
-                                                    : "bg-white border-[#dfe6ee] text-[#536078] hover:bg-neutral-50"
-                                            }`}
-                                        >
-                                            {label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )
-                },
-                {
-                    label: "Kho hàng", // matches top row display pattern in component
-                    value: "ALL",
-                    options: [],
-                    onChange: () => {},
-                    render: (
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="shrink-0 w-28" />
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-1.5 min-w-[150px]">
-                                    <span className="text-xs font-bold text-[#536078] shrink-0">Từ:</span>
-                                    <input
-                                        type="date"
-                                        value={fromDate}
-                                        onChange={(e) => {
-                                            setFromDate(e.target.value);
-                                            setPage(1);
-                                        }}
-                                        className="h-10 w-full rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1.5 min-w-[150px]">
-                                    <span className="text-xs font-bold text-[#536078] shrink-0">Đến:</span>
-                                    <input
-                                        type="date"
-                                        value={toDate}
-                                        onChange={(e) => {
-                                            setToDate(e.target.value);
-                                            setPage(1);
-                                        }}
-                                        className="h-10 w-full rounded-xl border border-pos-border px-2 text-xs outline-none focus:border-hvt-green-700 bg-white text-[#172317] cursor-pointer"
-                                    />
-                                </div>
                             </div>
                         </div>
                     )

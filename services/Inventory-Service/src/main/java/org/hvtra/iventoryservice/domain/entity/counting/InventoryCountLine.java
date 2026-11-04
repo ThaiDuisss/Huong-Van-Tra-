@@ -8,7 +8,6 @@ import org.hvtra.iventoryservice.domain.entity.InventoryItem;
 import org.hvtra.iventoryservice.domain.entity.InventoryLocation;
 import org.hvtra.iventoryservice.domain.entity.batch.InventoryBatch;
 import org.hvtra.iventoryservice.shared.exception.BadRequestException;
-import org.hvtra.iventoryservice.domain.enums.InventoryCountAttemptStatus;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -189,10 +188,10 @@ public class InventoryCountLine extends BaseEntity {
         attempt.setCountLine(this);
     }
 
-    public void requestRecount() {
-        if (!attempts.isEmpty()) {
-            attempts.get(attempts.size() - 1).setStatus(InventoryCountAttemptStatus.RECOUNT_REQUIRED);
-        }
+    /**
+     * Đưa dòng về chưa đếm. Các lượt đếm cũ vẫn giữ trong attempts làm lịch sử.
+     */
+    public void resetForRecount() {
         this.countedQuantity = null;
         this.varianceQuantity = null;
         this.varianceValue = BigDecimal.ZERO;

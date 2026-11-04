@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { NotificationProvider } from "../features/notification/context/NotificationContext";
+import { ToastContainer } from "../components/ui/Toast";
 import { queryClient } from "./query-client";
 
 interface AppProvidersProps {
@@ -13,7 +14,10 @@ export function AppProviders({
 }: AppProvidersProps) {
     return (
         <QueryClientProvider client={queryClient}>
-            <NotificationProvider>{children}</NotificationProvider>
+            <NotificationProvider>
+                {children}
+                <ToastContainer />
+            </NotificationProvider>
         </QueryClientProvider>
     );
 }

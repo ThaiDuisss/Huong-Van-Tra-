@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { WarehouseInventorySummary, LocationInventoryDetail } from "../services/warehouseInventory.api";
 import { warehouseInventoryApi } from "../services/warehouseInventory.api";
+import { getLocationTypeLabel } from "../utils/inventory-labels";
 
 interface ProductInventorySummaryTableProps {
     products: WarehouseInventorySummary[];
@@ -47,17 +48,6 @@ export function ProductInventorySummaryTable({
     if (!products.length) {
         return <div className="p-4 text-center text-gray-500">Không có mặt hàng</div>;
     }
-
-    const getLocationTypeLabel = (type: string): string => {
-        switch (type) {
-            case "SHELF":
-                return "Kệ POS";
-            case "WAREHOUSE":
-                return "Kho tổng";
-            default:
-                return type;
-        }
-    };
 
     return (
         <div className="overflow-x-auto min-h-[280px]">

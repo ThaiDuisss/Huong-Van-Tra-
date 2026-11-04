@@ -176,16 +176,25 @@ export function StocktakeAdjustmentListPage() {
                 const branch = options?.branches.find(
                   (candidate) => candidate.id === item.branchId,
                 );
-                const target = `/management/inventory/stocktake-adjustments/${item.id}`;
+                // Phiếu từ kiểm kê được xem ngay trong màn chi tiết kỳ kiểm kê
+                const target =
+                  item.referenceType === "STOCK_COUNT" && item.referenceId
+                    ? `/management/inventory/stocktakes/${item.referenceId}`
+                    : null;
+                const countCode = item.note?.match(/CT-[\w-]+/)?.[0];
                 return (
                   <tr key={item.id}>
                     <td className="border-b border-[#edf2ef] px-4 py-3 font-black text-[#159734]">
                       {item.documentCode}
                     </td>
                     <td className="border-b border-[#edf2ef] px-4">
-                      {item.referenceType === "STOCK_COUNT"
-                        ? (item.referenceId?.slice(0, 8) ?? "-")
-                        : "Điều chỉnh thủ công"}
+                      {target ? (
+                        <Link className="font-bold text-[#159734] hover:underline" to={target}>
+                          {countCode ?? "Xem kỳ kiểm kê"}
+                        </Link>
+                      ) : (
+                        "Điều chỉnh thủ công"
+                      )}
                     </td>
                     <td className="border-b border-[#edf2ef] px-4">
                       {branch?.name ?? item.branchId.slice(0, 8)}
@@ -207,9 +216,11 @@ export function StocktakeAdjustmentListPage() {
                       {item.postedAt ? formatVietnamDateTime(item.postedAt) : "Chưa cập nhật"}
                     </td>
                     <td className="border-b border-[#edf2ef] px-4">
-                      <Link className="font-bold text-[#159734] hover:underline" to={target}>
-                        Xem phiếu
-                      </Link>
+                      {target ? (
+                        <Link className="font-bold text-[#159734] hover:underline" to={target}>
+                          Xem phiếu
+                        </Link>
+                      ) : null}
                     </td>
                   </tr>
                 );

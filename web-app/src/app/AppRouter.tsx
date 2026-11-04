@@ -32,7 +32,6 @@ import { CustomBundleHandoverPage } from "../features/order/pages/CustomBundleHa
 import { PosCustomBundlePage } from "../features/sales/pages/PosCustomBundlePage";
 import { PosShelfReplenishmentPage } from "../features/sales/pages/PosShelfReplenishmentPage";
 import { SalesHistoryPage } from "../features/order/pages/SalesHistoryPage";
-import { InventoryBalancePage } from "../features/inventory/pages/InventoryBalancePage";
 import { GoodsReceiptCreatePage } from "../features/inventory/pages/GoodsReceiptCreatePage";
 import { GoodsReceiptDetailPage } from "../features/inventory/pages/GoodsReceiptDetailPage";
 import { GoodsReceiptListPage } from "../features/inventory/pages/GoodsReceiptListPage";
@@ -49,11 +48,9 @@ import { DisposalListPage } from "../features/inventory/pages/DisposalListPage";
 import { PosCustomerReturnCreatePage } from "../features/inventory/pages/PosCustomerReturnCreatePage";
 import { PosCustomerReturnDetailPage } from "../features/inventory/pages/PosCustomerReturnDetailPage";
 import { StocktakeCreatePage } from "../features/inventory/pages/StocktakeCreatePage";
-import { StocktakeAdjustmentPage } from "../features/inventory/pages/StocktakeAdjustmentPage";
 import { StocktakeAdjustmentListPage } from "../features/inventory/pages/StocktakeAdjustmentListPage";
 import { StocktakeDetailPage } from "../features/inventory/pages/StocktakeDetailPage";
 import { StocktakeListPage } from "../features/inventory/pages/StocktakeListPage";
-import { StocktakeReconciliationPage } from "../features/inventory/pages/StocktakeReconciliationPage";
 import { InventoryValueReportPage } from "../features/inventory/pages/InventoryValueReportPage";
 import { StockCategoryAnalysisPage } from "../features/inventory/pages/StockCategoryAnalysisPage";
 import { InventoryTurnoverReportPage } from "../features/inventory/pages/InventoryTurnoverReportPage";
@@ -335,7 +332,7 @@ export function AppRouter() {
           <Route path="inventory/locations" element={<InventoryLocationPage />} />
           <Route path="inventory/transactions" element={<InventoryTransactionPage />} />
           <Route path="inventory/shelves" element={<ShelfManagementPage />} />
-          <Route path="inventory/balances" element={<InventoryBalancePage />} />
+          <Route path="inventory/balances" element={<Navigate to={routePaths.warehouseInventory} replace />} />
           <Route path="inventory/warehouse" element={<WarehouseInventoryPage />} />
           <Route
             path="inventory/raw-material-receipts"
@@ -436,14 +433,6 @@ export function AppRouter() {
           <Route path="inventory/stocktakes" element={<StocktakeListPage />} />
           <Route path="inventory/stocktakes/new" element={<StocktakeCreatePage />} />
           <Route path="inventory/stocktakes/:stocktakeId" element={<StocktakeDetailPage />} />
-          <Route
-            path="inventory/stocktakes/:stocktakeId/reconciliation"
-            element={<StocktakeReconciliationPage />}
-          />
-          <Route
-            path="inventory/stocktakes/:stocktakeId/adjustment"
-            element={<StocktakeAdjustmentPage />}
-          />
           <Route path="inventory/stocktake-adjustments" element={<StocktakeAdjustmentListPage />} />
           <Route path="inventory/customer-returns" element={<CustomerReturnListPage />} />
           <Route

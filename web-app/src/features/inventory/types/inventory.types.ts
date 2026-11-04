@@ -8,12 +8,14 @@ export type InventoryItemType =
     | "PACKAGING"
     | "COMBO";
 
-export type InventoryLocationType =
-    | "WAREHOUSE"
-    | "STORAGE"
-    | "DAMAGED"
-    | "SHELF"
-    | "QUARANTINE";
+export const INVENTORY_LOCATION_TYPES = [
+    "WAREHOUSE",
+    "SHELF",
+    "DAMAGED",
+    "QUARANTINE"
+] as const;
+
+export type InventoryLocationType = (typeof INVENTORY_LOCATION_TYPES)[number];
 
 export type InventoryStatus = "ACTIVE" | "INACTIVE";
 
